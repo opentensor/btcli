@@ -48,11 +48,11 @@ class NotSubtensor:
 
 class Wallet:
     def __init__(
-            self,
-                 name: Optional[str] = None,
-            hotkey: Optional[str] = None,
-            path: Optional[str] = None,
-            config: Optional["Config"] = None
+        self,
+        name: Optional[str] = None,
+        hotkey: Optional[str] = None,
+        path: Optional[str] = None,
+        config: Optional["Config"] = None,
     ):
         pass
 

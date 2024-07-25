@@ -100,7 +100,9 @@ class RegenHotkeyCommand:
 
 class NewHotkeyCommand:
     @staticmethod
-    async def run(wallet: "Wallet", n_words: int, use_password: bool, overwrite_hotkey: bool):
+    async def run(
+        wallet: "Wallet", n_words: int, use_password: bool, overwrite_hotkey: bool
+    ):
         wallet.create_new_hotkey(
             n_words=n_words,
             use_password=use_password,
@@ -110,7 +112,9 @@ class NewHotkeyCommand:
 
 class NewColdkeyCommand:
     @staticmethod
-    async def run(wallet: "Wallet", n_words: int, use_password: bool, overwrite_coldkey: bool):
+    async def run(
+        wallet: "Wallet", n_words: int, use_password: bool, overwrite_coldkey: bool
+    ):
         wallet.create_new_coldkey(
             n_words=n_words,
             use_password=use_password,
@@ -137,4 +141,3 @@ class WalletCreateCommand:
             use_password=False,
             overwrite=overwrite_hotkey,
         )
-
