@@ -42,8 +42,6 @@ class RegenColdkeyCommand:
         use_password: Optional[bool] = True,
         overwrite_coldkey: Optional[bool] = False,
     ):
-        wallet = btwallet(wallet)
-
         json_str: Optional[str] = None
         if json_path:
             if not os.path.exists(json_path) or not os.path.isfile(json_path):
@@ -65,7 +63,6 @@ class RegenColdkeypubCommand:
         wallet, ss58_address: str, public_key_hex: str, overwrite_coldkeypub: bool
     ):
         r"""Creates a new coldkeypub under this wallet."""
-        wallet = btwallet(wallet)
         wallet.regenerate_coldkeypub(
             ss58_address=ss58_address,
             public_key=public_key_hex,
@@ -140,3 +137,4 @@ class WalletCreateCommand:
             use_password=False,
             overwrite=overwrite_hotkey,
         )
+
