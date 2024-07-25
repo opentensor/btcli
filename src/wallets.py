@@ -17,7 +17,7 @@
 
 # import argparse
 
-# import btwallet
+# form btwallet import Wallet
 import os
 
 import typer
@@ -73,7 +73,7 @@ class RegenColdkeypubCommand:
 class RegenHotkeyCommand:
     @staticmethod
     async def run(
-        wallet: "btwallet",
+        wallet: "Wallet",
         mnemonic: Optional[str],
         seed: Optional[str],
         json_path: Optional[str],
@@ -100,7 +100,7 @@ class RegenHotkeyCommand:
 
 class NewHotkeyCommand:
     @staticmethod
-    async def run(wallet, n_words: int, use_password: bool, overwrite_hotkey: bool):
+    async def run(wallet: "Wallet", n_words: int, use_password: bool, overwrite_hotkey: bool):
         wallet.create_new_hotkey(
             n_words=n_words,
             use_password=use_password,
@@ -110,7 +110,7 @@ class NewHotkeyCommand:
 
 class NewColdkeyCommand:
     @staticmethod
-    async def run(wallet, n_words: int, use_password: bool, overwrite_coldkey: bool):
+    async def run(wallet: "Wallet", n_words: int, use_password: bool, overwrite_coldkey: bool):
         wallet.create_new_coldkey(
             n_words=n_words,
             use_password=use_password,
@@ -121,7 +121,7 @@ class NewColdkeyCommand:
 class WalletCreateCommand:
     @staticmethod
     def run(
-        wallet,
+        wallet: "Wallet",
         n_words: int = 12,
         use_password: bool = True,
         overwrite_coldkey: bool = False,

@@ -46,8 +46,15 @@ class NotSubtensor:
         return f"NotSubtensor(network={self.network}, chain={self.chain})"
 
 
-def btwallet(wallet_name: str, wallet_path: str, wallet_hotkey: Optional[str] = None):
-    return "Wallet"
+class Wallet:
+    def __init__(
+            self,
+                 name: Optional[str] = None,
+            hotkey: Optional[str] = None,
+            path: Optional[str] = None,
+            config: Optional["Config"] = None
+    ):
+        pass
 
 
 def get_n_words(n_words: Optional[int]) -> int:
@@ -93,13 +100,14 @@ class CLIManager:
     def wallet_ask(wallet_name: str, wallet_path: str, wallet_hotkey: str):
         if not any([wallet_name, wallet_path, wallet_hotkey]):
             wallet_name = typer.prompt("Enter wallet name:")
-            wallet = btwallet(wallet_name=wallet_name)
+            wallet = Wallet(name=wallet_name)
         elif wallet_name:
-            wallet = btwallet(wallet_name=wallet_name)
+            wallet = Wallet(name=wallet_name)
         elif wallet_path:
-            wallet = btwallet(wallet_path=wallet_path)
+            wallet = Wallet(path=wallet_path)
         elif wallet_hotkey:
-            wallet = btwallet(wallet_hotkey=wallet_hotkey)
+            wallet = Wallet(hotkey=wallet_hotkey)
+        # TODO Wallet(config)
         else:
             raise typer.BadParameter("Could not create wallet")
         return wallet
