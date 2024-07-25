@@ -1,5 +1,6 @@
+#!/usr/bin/env python3
 import asyncio
-
+from bittensor_wallet import Wallet
 import rich
 import typer
 from typing import Optional
@@ -44,17 +45,6 @@ class NotSubtensor:
 
     def __str__(self):
         return f"NotSubtensor(network={self.network}, chain={self.chain})"
-
-
-class Wallet:
-    def __init__(
-        self,
-        name: Optional[str] = None,
-        hotkey: Optional[str] = None,
-        path: Optional[str] = None,
-        config: Optional["Config"] = None,
-    ):
-        pass
 
 
 def get_n_words(n_words: Optional[int]) -> int:
