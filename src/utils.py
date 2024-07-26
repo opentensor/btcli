@@ -1,11 +1,33 @@
+import os
 from typing import Union
 
+from bittensor_wallet import Wallet
 from bittensor_wallet.keyfile import Keypair
 from bittensor_wallet.utils import SS58_FORMAT, ss58
 from rich.console import Console
 
 console = Console()
 err_console = Console(stderr=True)
+
+
+RAO_PER_TAO = 1e9
+U16_MAX = 65535
+U64_MAX = 18446744073709551615
+
+
+def is_valid_wallet(wallet: Wallet) -> bool:
+    """
+    Verifies that the wallet with specified parameters.
+    :param wallet: a Wallet instance
+    :return: bool, whether the wallet appears valid
+    """
+    return all(
+        [
+            wp := os.path.exists(os.path.expanduser(wallet.path)),
+            os.path.exists(os.path.join(wp, wallet.name)),
+            os.path.isfile(os.path.join(wp, wallet.name, "hotkeys", wallet.hotkey)),
+        ]
+    )
 
 
 def is_valid_ss58_address(address: str) -> bool:
