@@ -7,6 +7,7 @@ import rich
 import typer
 
 from src import wallets, defaults, utils
+from src.subtensor_interface import SubtensorInterface
 
 
 # re-usable args
@@ -69,15 +70,6 @@ class Options:
     )
 
 
-class NotSubtensor:
-    def __init__(self, network: str, chain: str):
-        self.network = network
-        self.chain = chain
-
-    def __str__(self):
-        return f"NotSubtensor(network={self.network}, chain={self.chain})"
-
-
 def get_n_words(n_words: Optional[int]) -> int:
     while n_words not in [12, 15, 18, 21, 24]:
         n_words = typer.prompt(
@@ -136,7 +128,7 @@ class CLIManager:
         chain: str = typer.Option("default_chain", help="Chain name"),
     ):
         if not self.not_subtensor:
-            self.not_subtensor = NotSubtensor(network, chain)
+            self.not_subtensor = SubtensorInterface(network, chain)
             typer.echo(f"Initialized with {self.not_subtensor}")
 
     @staticmethod
@@ -152,7 +144,7 @@ class CLIManager:
             wallet_name = typer.prompt("Enter wallet name:")
             wallet = Wallet(name=wallet_name)
         else:
-            wallet = Wallet(wallet_name, wallet_path, wallet_hotkey)
+            wallet = Wallet(name=wallet_name, hotkey=wallet_hotkey, path=wallet_path)
         if validate:
             if not utils.is_valid_wallet(wallet):
                 utils.err_console.print(
@@ -438,34 +430,34 @@ class CLIManager:
         chain: Optional[str] = Options.chain,
     ):
         """
+        # wallet balance
         Executes the `balance` command to check the balance of the wallet on the Bittensor network.
-
         This command provides a detailed view of the wallet's coldkey balances, including free and staked balances.
 
-        Usage:
-            The command lists the balances of all wallets in the user's configuration directory, showing the
-            wallet name, coldkey address, and the respective free and staked balances.
+        ## Usage:
+        The command lists the balances of all wallets in the user's configuration directory, showing the
+        wallet name, coldkey address, and the respective free and staked balances.
 
-        Example usages:
+        ### Example usages:
 
-            - To display the balance of a single wallet, use the command with the `--wallet.name` argument to specify
-            the wallet name:
+        - To display the balance of a single wallet, use the command with the `--wallet.name` argument to specify
+        the wallet name:
 
-            ```
-            btcli w balance --wallet.name WALLET
-            ```
+        ```
+        btcli w balance --wallet.name WALLET
+        ```
 
-            ```
-            btcli w balance
-            ```
+        ```
+        btcli w balance
+        ```
 
-            - To display the balances of all wallets, use the `--all` argument:
+        - To display the balances of all wallets, use the `--all` argument:
 
-            ```
-            btcli w balance --all
-            ```
+        ```
+        btcli w balance --all
+        ```
         """
-        subtensor = NotSubtensor(network, chain)
+        subtensor = SubtensorInterface(network, chain)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         asyncio.run(wallets.wallet_balance(wallet, subtensor, all_balances))
 

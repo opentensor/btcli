@@ -2,6 +2,18 @@ from dataclasses import dataclass
 from typing import Optional
 
 
+class Constants:
+    networks = ["local", "finney", "test", "archive"]
+    finney_entrypoint = "wss://entrypoint-finney.opentensor.ai:443"
+    finney_test_entrypoint = "wss://test.finney.opentensor.ai:443/"
+    archive_entrypoint = "wss://archive.chain.opentensor.ai:443/"
+    network_map = {
+        "finney": finney_entrypoint,
+        "test": finney_test_entrypoint,
+        "archive": archive_entrypoint,
+    }
+
+
 @dataclass
 class CUDA:
     dev_id: list[int]

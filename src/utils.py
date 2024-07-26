@@ -23,9 +23,9 @@ def is_valid_wallet(wallet: Wallet) -> bool:
     """
     return all(
         [
-            wp := os.path.exists(os.path.expanduser(wallet.path)),
+            os.path.exists(wp := os.path.expanduser(wallet.path)),
             os.path.exists(os.path.join(wp, wallet.name)),
-            os.path.isfile(os.path.join(wp, wallet.name, "hotkeys", wallet.hotkey)),
+            os.path.isfile(os.path.join(wp, wallet.name, "hotkeys", wallet.hotkey_str)),
         ]
     )
 

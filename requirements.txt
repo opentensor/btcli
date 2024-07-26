@@ -1,3 +1,6 @@
+scalecodec==1.2.11
+substrate-interface~=1.7.9
 typer~=0.12
 rich~=13.7
 git+https://github.com/opentensor/btwallet  # bittensor_wallet
+websockets>=12.0

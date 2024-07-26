@@ -26,6 +26,7 @@ import typer
 
 from .utils import console, err_console, RAO_PER_TAO
 from . import defaults
+from src.subtensor_interface import SubtensorInterface
 
 
 async def regen_coldkey(
@@ -160,8 +161,7 @@ def _get_coldkey_ss58_addresses_for_path(path: str) -> tuple[list[str], list[str
     ]
 
 
-async def wallet_balance(wallet, subtensor, all_balances):
-    # TODO make use of new NotSubtensor
+async def wallet_balance(wallet: Wallet, subtensor: SubtensorInterface, all_balances: bool):
     if not wallet.coldkeypub_file.exists_on_device():
         err_console.print("[bold red]No wallets found.[/bold red]")
         return
@@ -172,11 +172,10 @@ async def wallet_balance(wallet, subtensor, all_balances):
         coldkeys = [wallet.coldkeypub.ss58_address]
         wallet_names = [wallet.name]
 
-    free_balances = [subtensor.get_balance(coldkeys[i]) for i in range(len(coldkeys))]
-
-    staked_balances = [
-        subtensor.get_total_stake_for_coldkey(coldkeys[i]) for i in range(len(coldkeys))
-    ]
+    async with subtensor:
+        # look into gathering
+        free_balances = await subtensor.get_balance(*coldkeys)
+        staked_balances = await subtensor.get_total_stake_for_coldkey(*coldkeys)
 
     total_free_balance = sum(free_balances)
     total_staked_balance = sum(staked_balances)
