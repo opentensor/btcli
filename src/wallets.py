@@ -31,113 +31,101 @@ from .utils import err_console
 # from ..utils import RAOPERTAO
 
 
-class RegenColdkeyCommand:
-    @staticmethod
-    async def run(
-        wallet,
-        mnemonic: Optional[str],
-        seed: Optional[str] = None,
-        json_path: Optional[str] = None,
-        json_password: Optional[str] = "",
-        use_password: Optional[bool] = True,
-        overwrite_coldkey: Optional[bool] = False,
-    ):
-        json_str: Optional[str] = None
-        if json_path:
-            if not os.path.exists(json_path) or not os.path.isfile(json_path):
-                raise ValueError("File {} does not exist".format(json_path))
-            with open(json_path, "r") as f:
-                json_str = f.read()
-        wallet.regenerate_coldkey(
-            mnemonic=mnemonic,
-            seed=seed,
-            json=(json_str, json_password),
-            use_password=use_password,
-            overwrite=overwrite_coldkey,
-        )
+async def regen_coldkey(
+    wallet,
+    mnemonic: Optional[str],
+    seed: Optional[str] = None,
+    json_path: Optional[str] = None,
+    json_password: Optional[str] = "",
+    use_password: Optional[bool] = True,
+    overwrite_coldkey: Optional[bool] = False,
+):
+    json_str: Optional[str] = None
+    if json_path:
+        if not os.path.exists(json_path) or not os.path.isfile(json_path):
+            raise ValueError("File {} does not exist".format(json_path))
+        with open(json_path, "r") as f:
+            json_str = f.read()
+    wallet.regenerate_coldkey(
+        mnemonic=mnemonic,
+        seed=seed,
+        json=(json_str, json_password),
+        use_password=use_password,
+        overwrite=overwrite_coldkey,
+    )
 
 
-class RegenColdkeypubCommand:
-    @staticmethod
-    async def run(
-        wallet, ss58_address: str, public_key_hex: str, overwrite_coldkeypub: bool
-    ):
-        r"""Creates a new coldkeypub under this wallet."""
-        wallet.regenerate_coldkeypub(
-            ss58_address=ss58_address,
-            public_key=public_key_hex,
-            overwrite=overwrite_coldkeypub,
-        )
+async def regen_coldkey_pub(
+    wallet, ss58_address: str, public_key_hex: str, overwrite_coldkeypub: bool
+):
+    r"""Creates a new coldkeypub under this wallet."""
+    wallet.regenerate_coldkeypub(
+        ss58_address=ss58_address,
+        public_key=public_key_hex,
+        overwrite=overwrite_coldkeypub,
+    )
 
 
-class RegenHotkeyCommand:
-    @staticmethod
-    async def run(
-        wallet: Wallet,
-        mnemonic: Optional[str],
-        seed: Optional[str],
-        json_path: Optional[str],
-        json_password: Optional[str] = "",
-        use_password: Optional[bool] = True,
-        overwrite_hotkey: Optional[bool] = False,
-    ):
-        json_str: Optional[str] = None
-        if json_path:
-            if not os.path.exists(json_path) or not os.path.isfile(json_path):
-                err_console.print(f"File {json_path} does not exist")
-                raise typer.Exit()
-            with open(json_path, "r") as f:
-                json_str = f.read()
+async def regen_hotkey(
+    wallet: Wallet,
+    mnemonic: Optional[str],
+    seed: Optional[str],
+    json_path: Optional[str],
+    json_password: Optional[str] = "",
+    use_password: Optional[bool] = True,
+    overwrite_hotkey: Optional[bool] = False,
+):
+    json_str: Optional[str] = None
+    if json_path:
+        if not os.path.exists(json_path) or not os.path.isfile(json_path):
+            err_console.print(f"File {json_path} does not exist")
+            raise typer.Exit()
+        with open(json_path, "r") as f:
+            json_str = f.read()
 
-        wallet.regenerate_hotkey(
-            mnemonic=mnemonic,
-            seed=seed,
-            json=(json_str, json_password),
-            use_password=use_password,
-            overwrite=overwrite_hotkey,
-        )
+    wallet.regenerate_hotkey(
+        mnemonic=mnemonic,
+        seed=seed,
+        json=(json_str, json_password),
+        use_password=use_password,
+        overwrite=overwrite_hotkey,
+    )
 
 
-class NewHotkeyCommand:
-    @staticmethod
-    async def run(
-        wallet: Wallet, n_words: int, use_password: bool, overwrite_hotkey: bool
-    ):
-        wallet.create_new_hotkey(
-            n_words=n_words,
-            use_password=use_password,
-            overwrite=overwrite_hotkey,
-        )
+async def new_hotkey(
+    wallet: Wallet, n_words: int, use_password: bool, overwrite_hotkey: bool
+):
+    wallet.create_new_hotkey(
+        n_words=n_words,
+        use_password=use_password,
+        overwrite=overwrite_hotkey,
+    )
 
 
-class NewColdkeyCommand:
-    @staticmethod
-    async def run(
-        wallet: Wallet, n_words: int, use_password: bool, overwrite_coldkey: bool
-    ):
-        wallet.create_new_coldkey(
-            n_words=n_words,
-            use_password=use_password,
-            overwrite=overwrite_coldkey,
-        )
+async def new_coldkey(
+    wallet: Wallet, n_words: int, use_password: bool, overwrite_coldkey: bool
+):
+    wallet.create_new_coldkey(
+        n_words=n_words,
+        use_password=use_password,
+        overwrite=overwrite_coldkey,
+    )
 
 
-class WalletCreateCommand:
-    @staticmethod
-    def run(
-        wallet: Wallet,
-        n_words: int = 12,
-        use_password: bool = True,
-        overwrite_coldkey: bool = False,
-        overwrite_hotkey: bool = False,
-    ):
-        wallet.create_new_coldkey(
-            n_words=n_words,
-            use_password=use_password,
-            overwrite=overwrite_coldkey,
-        )
-        wallet.create_new_hotkey(
-            n_words=n_words,
-            use_password=False,
-            overwrite=overwrite_hotkey,
-        )
+def wallet_create(
+    wallet: Wallet,
+    n_words: int = 12,
+    use_password: bool = True,
+    overwrite_coldkey: bool = False,
+    overwrite_hotkey: bool = False,
+):
+    wallet.create_new_coldkey(
+        n_words=n_words,
+        use_password=use_password,
+        overwrite=overwrite_coldkey,
+    )
+    wallet.create_new_hotkey(
+        n_words=n_words,
+        use_password=False,
+        overwrite=overwrite_hotkey,
+    )

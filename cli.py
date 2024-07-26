@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 import asyncio
+from typing import Optional
+
 from bittensor_wallet import Wallet
 import rich
 import typer
-from typing import Optional
 
-from src import wallets
+from src import wallets, defaults, utils
 
 
 # re-usable args
@@ -13,6 +14,7 @@ class Options:
     wallet_name = typer.Option(None, help="Name of wallet")
     wallet_path = typer.Option(None, help="Filepath of wallet")
     wallet_hotkey = typer.Option(None, help="Hotkey of wallet")
+    wallet_hk_req = typer.Option(defaults.wallet.hotkey, help="Hotkey name of wallet", prompt=True)
     mnemonic = typer.Option(
         None, help="Mnemonic used to regen your key i.e. horse cart dog ..."
     )
@@ -31,10 +33,12 @@ class Options:
     public_hex_key = typer.Option(None, help="The public key in hex format.")
     ss58_address = typer.Option(None, help="The SS58 address of the coldkey")
     overwrite_coldkey = typer.Option(
-        False, help="Overwrite the old coldkey with the newly generated coldkey"
+        False, help="Overwrite the old coldkey with the newly generated coldkey",
+        prompt=True,
     )
     overwrite_hotkey = typer.Option(
-        False, help="Overwrite the old hotkey with the newly generated hotkey"
+        False, help="Overwrite the old hotkey with the newly generated hotkey",
+        prompt=True
     )
 
 
@@ -55,6 +59,20 @@ def get_n_words(n_words: Optional[int]) -> int:
     return n_words
 
 
+def get_creation_data(mnemonic, seed, json, json_password):
+    if not mnemonic and not seed and not json:
+        prompt_answer = typer.prompt("Enter mnemonic, seed, or json file location")
+        if prompt_answer.startswith("0x"):
+            seed = prompt_answer
+        elif len(prompt_answer.split(" ")) > 1:
+            mnemonic = prompt_answer
+        else:
+            json = prompt_answer
+    if json and not json_password:
+        json_password = typer.prompt("Enter json backup password", hide_input=True)
+    return mnemonic, seed, json, json_password
+
+
 class CLIManager:
     def __init__(self):
         self.app = typer.Typer()
@@ -70,7 +88,6 @@ class CLIManager:
         self.app.add_typer(self.delegates_app, name="delegates")
         self.app.add_typer(self.delegates_app, name="d", hidden=True)
 
-        self.wallet_app.command("")(self.wallet_ask)
         self.wallet_app.command("list")(self.wallet_list)
         self.wallet_app.command("regen-coldkey")(self.wallet_regen_coldkey)
         self.delegates_app.command("list")(self.delegates_list)
@@ -91,15 +108,9 @@ class CLIManager:
         if not any([wallet_name, wallet_path, wallet_hotkey]):
             wallet_name = typer.prompt("Enter wallet name:")
             wallet = Wallet(name=wallet_name)
-        elif wallet_name:
-            wallet = Wallet(name=wallet_name)
-        elif wallet_path:
-            wallet = Wallet(path=wallet_path)
-        elif wallet_hotkey:
-            wallet = Wallet(hotkey=wallet_hotkey)
-        # TODO Wallet(config)
         else:
-            raise typer.BadParameter("Could not create wallet")
+            wallet = Wallet(wallet_name, wallet_path, wallet_hotkey)
+        # TODO Wallet(config)
         return wallet
 
     def wallet_list(self, network: str = typer.Option("local", help="Network name")):
@@ -132,18 +143,9 @@ class CLIManager:
         """
 
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        if not mnemonic and not seed and not json:
-            prompt_answer = typer.prompt("Enter mnemonic, seed, or json file location")
-            if prompt_answer.startswith("0x"):
-                seed = prompt_answer
-            elif len(prompt_answer.split(" ")) > 1:
-                mnemonic = prompt_answer
-            else:
-                json = prompt_answer
-        if json and not json_password:
-            json_password = typer.prompt("Enter json backup password", hide_input=True)
+        mnemonic, seed, json, json_password = get_creation_data(mnemonic, seed, json, json_password)
         asyncio.run(
-            wallets.RegenColdkeyCommand.run(
+            wallets.regen_coldkey(
                 wallet,
                 mnemonic,
                 seed,
@@ -162,7 +164,8 @@ class CLIManager:
         public_key_hex: Optional[str] = Options.public_hex_key,
         ss58_address: Optional[str] = Options.ss58_address,
         overwrite_coldkeypub: Optional[bool] = typer.Option(
-            False, help="Overwrites the existing coldkeypub file with the new one."
+            False, help="Overwrites the existing coldkeypub file with the new one.",
+            prompt=True
         ),
     ):
         """
@@ -190,13 +193,13 @@ class CLIManager:
                 public_key_hex = prompt_answer
             else:
                 ss58_address = prompt_answer
-        if not bittensor.utils.is_valid_bittensor_address_or_public_key(
+        if not utils.is_valid_bittensor_address_or_public_key(
             address=ss58_address if ss58_address else public_key_hex
         ):
             rich.print("[red]Error: Invalid SS58 address or public key![/red]")
             raise typer.Exit()
         asyncio.run(
-            wallets.RegenColdkeypubCommand.run(
+            wallets.regen_coldkey_pub(
                 wallet, public_key_hex, ss58_address, overwrite_coldkeypub
             )
         )
@@ -205,7 +208,7 @@ class CLIManager:
         self,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         mnemonic: Optional[str] = Options.mnemonic,
         seed: Optional[str] = Options.seed,
         json: Optional[str] = Options.json,
@@ -232,23 +235,9 @@ class CLIManager:
             It should be used cautiously to avoid accidental overwrites of existing keys.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        if not wallet_hotkey:  # TODO no prompt
-            # TODO add to wallet object
-            wallet_hotkey = typer.prompt(
-                "Enter hotkey name", default=defaults.wallet.hotkey
-            )
-        if not mnemonic and not seed and not json:
-            prompt_answer = typer.prompt("Enter mnemonic, seed, or json file location")
-            if prompt_answer.startswith("0x"):
-                seed = prompt_answer
-            elif len(prompt_answer.split(" ")) > 1:
-                mnemonic = prompt_answer
-            else:
-                json = prompt_answer
-        if json and not json_password:
-            json_password = typer.prompt("Enter json backup password", hide_input=True)
+        mnemonic, seed, json, json_password = get_creation_data(mnemonic, seed, json, json_password)
         asyncio.run(
-            wallets.RegenHotkeyCommand.run(
+            wallets.regen_hotkey(
                 wallet,
                 mnemonic,
                 seed,
@@ -263,7 +252,7 @@ class CLIManager:
         self,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         n_words: Optional[int] = None,
         use_password: Optional[bool] = Options.use_password,
         overwrite_hotkey: Optional[bool] = Options.overwrite_hotkey,
@@ -286,14 +275,9 @@ class CLIManager:
             such as running multiple miners or separating operational roles within the network.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        if not wallet_hotkey:  # TODO no prompt
-            # TODO add to wallet object
-            wallet_hotkey = typer.prompt(
-                "Enter hotkey name", default=defaults.wallet.hotkey
-            )
         n_words = get_n_words(n_words)
         asyncio.run(
-            wallets.NewHotkeyCommand.run(wallet, use_password, overwrite_hotkey)
+            wallets.new_hotkey(wallet, n_words, use_password, overwrite_hotkey)
         )
 
     def wallet_new_coldkey(
@@ -325,7 +309,7 @@ class CLIManager:
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         n_words = get_n_words(n_words)
         asyncio.run(
-            wallets.NewColdkeyCommand.run(
+            wallets.new_coldkey(
                 wallet, n_words, use_password, overwrite_coldkey
             )
         )
@@ -334,7 +318,7 @@ class CLIManager:
         self,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         n_words: Optional[int] = None,
         use_password: Optional[bool] = Options.use_password,
         overwrite_hotkey: Optional[bool] = Options.overwrite_hotkey,
@@ -357,12 +341,9 @@ class CLIManager:
             This command is ideal for new users setting up their wallet for the first time or for those who wish to completely renew their wallet keys.
             It ensures a fresh start with new keys for secure and effective participation in the network.
         """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         n_words = get_n_words(n_words)
-        if not wallet_hotkey:  # TODO no prompt
-            # TODO add to wallet object
-            wallet_hotkey = typer.prompt(
-                "Enter hotkey name", default=defaults.wallet.hotkey
-            )
+        asyncio.run(wallets.wallet_create(wallet, n_words, use_password, overwrite_coldkey, overwrite_hotkey))
 
     def delegates_list(
         self,
