@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import asyncio
 from typing import Optional
-from typing_extensions import Annotated
 
 from bittensor_wallet import Wallet
 import rich
@@ -12,11 +11,15 @@ from src import wallets, defaults, utils
 
 # re-usable args
 class Options:
-    wallet_name = typer.Option(None, "--wallet-name", "-w", help="Name of wallet")
-    wallet_path = typer.Option(
-        None, "--wallet-path", "-p", help="Filepath of root of wallets"
+    wallet_name = typer.Option(
+        defaults.wallet.name, "--wallet-name", "-w", help="Name of wallet"
     )
-    wallet_hotkey = typer.Option(None, "--hotkey", "-H", help="Hotkey of wallet")
+    wallet_path = typer.Option(
+        defaults.wallet.path, "--wallet-path", "-p", help="Filepath of root of wallets"
+    )
+    wallet_hotkey = typer.Option(
+        defaults.wallet.hotkey, "--hotkey", "-H", help="Hotkey of wallet"
+    )
     wallet_hk_req = typer.Option(
         defaults.wallet.hotkey,
         "--hotkey",
@@ -40,23 +43,20 @@ class Options:
         None, "--json-password", help="Password to decrypt the json file."
     )
     use_password = typer.Option(
-        False,
-        "--use-password",
+        None,
         help="Set true to protect the generated bittensor key with a password.",
+        is_flag=True,
+        flag_value=False,
     )
-    public_hex_key = typer.Option(
-        None, "--public-hex-key", help="The public key in hex format."
-    )
-    ss58_address = typer.Option(None, "--ss58", help="The SS58 address of the coldkey")
+    public_hex_key = typer.Option(None, help="The public key in hex format.")
+    ss58_address = typer.Option(None, help="The SS58 address of the coldkey")
     overwrite_coldkey = typer.Option(
         False,
-        "--overwrite-coldkey",
         help="Overwrite the old coldkey with the newly generated coldkey",
         prompt=True,
     )
     overwrite_hotkey = typer.Option(
         False,
-        "--overwrite-hotkey",
         help="Overwrite the old hotkey with the newly generated hotkey",
         prompt=True,
     )
@@ -216,7 +216,6 @@ class CLIManager:
         ss58_address: Optional[str] = Options.ss58_address,
         overwrite_coldkeypub: Optional[bool] = typer.Option(
             False,
-            "--overwrite-coldkeypub",
             help="Overwrites the existing coldkeypub file with the new one.",
             prompt=True,
         ),
