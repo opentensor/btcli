@@ -22,6 +22,7 @@ from typing import Optional
 from bittensor_wallet import Wallet
 from bittensor_wallet.keyfile import Keyfile
 from rich.table import Table
+
 import typer
 
 from .utils import console, err_console, RAO_PER_TAO
@@ -166,18 +167,18 @@ async def wallet_balance(wallet: Wallet, subtensor: SubtensorInterface, all_bala
         err_console.print("[bold red]No wallets found.[/bold red]")
         return
 
-    if all_balances:
-        coldkeys, wallet_names = _get_coldkey_ss58_addresses_for_path(wallet.path)
-    else:
-        coldkeys = [wallet.coldkeypub.ss58_address]
-        wallet_names = [wallet.name]
+    with console.status("Retrieving balances", spinner="aesthetic"):
+        if all_balances:
+            coldkeys, wallet_names = _get_coldkey_ss58_addresses_for_path(wallet.path)
+        else:
+            coldkeys = [wallet.coldkeypub.ss58_address]
+            wallet_names = [wallet.name]
 
-    async with subtensor:
-        # look into gathering
-        free_balances, staked_balances = await asyncio.gather(
-            subtensor.get_balance(*coldkeys, reuse_block=True),
-            subtensor.get_total_stake_for_coldkey(*coldkeys, reuse_block=True)
-        )
+        async with subtensor:
+            free_balances, staked_balances = await asyncio.gather(
+                subtensor.get_balance(*coldkeys, reuse_block=True),
+                subtensor.get_total_stake_for_coldkey(*coldkeys, reuse_block=True)
+            )
 
     total_free_balance = sum(free_balances.values())
     total_staked_balance = sum(staked_balances.values())
