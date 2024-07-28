@@ -21,7 +21,7 @@ from typing import Optional
 
 from bittensor_wallet import Wallet
 from bittensor_wallet.keyfile import Keyfile
-from rich.table import Table
+from rich.table import Table, Column
 
 import typer
 
@@ -162,7 +162,9 @@ def _get_coldkey_ss58_addresses_for_path(path: str) -> tuple[list[str], list[str
     ]
 
 
-async def wallet_balance(wallet: Wallet, subtensor: SubtensorInterface, all_balances: bool):
+async def wallet_balance(
+    wallet: Wallet, subtensor: SubtensorInterface, all_balances: bool
+):
     if not wallet.coldkeypub_file.exists_on_device():
         err_console.print("[bold red]No wallets found.[/bold red]")
         return
@@ -177,7 +179,7 @@ async def wallet_balance(wallet: Wallet, subtensor: SubtensorInterface, all_bala
         async with subtensor:
             free_balances, staked_balances = await asyncio.gather(
                 subtensor.get_balance(*coldkeys, reuse_block=True),
-                subtensor.get_total_stake_for_coldkey(*coldkeys, reuse_block=True)
+                subtensor.get_total_stake_for_coldkey(*coldkeys, reuse_block=True),
             )
 
     total_free_balance = sum(free_balances.values())
@@ -188,33 +190,51 @@ async def wallet_balance(wallet: Wallet, subtensor: SubtensorInterface, all_bala
         for (name, coldkey) in zip(wallet_names, coldkeys)
     }
 
-    table = Table(show_footer=False)
-    table.title = "[white]Wallet Coldkey Balances"
-    table.add_column(
-        "[white]Wallet Name",
-        header_style="overline white",
-        footer_style="overline white",
-        style="rgb(50,163,219)",
-        no_wrap=True,
-    )
-
-    table.add_column(
-        "[white]Coldkey Address",
-        header_style="overline white",
-        footer_style="overline white",
-        style="rgb(50,163,219)",
-        no_wrap=True,
-    )
-
-    for type_str in ["Free", "Staked", "Total"]:
-        table.add_column(
-            f"[white]{type_str} Balance",
+    table = Table(
+        Column(
+            "[white]Wallet Name",
+            header_style="overline white",
+            footer_style="overline white",
+            style="rgb(50,163,219)",
+            no_wrap=True,
+        ),
+        Column(
+            "[white]Coldkey Address",
+            header_style="overline white",
+            footer_style="overline white",
+            style="rgb(50,163,219)",
+            no_wrap=True,
+        ),
+        Column(
+            "[white]Free Balance",
             header_style="overline white",
             footer_style="overline white",
             justify="right",
             style="green",
             no_wrap=True,
-        )
+        ),
+        Column(
+            "[white]Staked Balance",
+            header_style="overline white",
+            footer_style="overline white",
+            justify="right",
+            style="green",
+            no_wrap=True,
+        ),
+        Column(
+            "[white]Total Balance",
+            header_style="overline white",
+            footer_style="overline white",
+            justify="right",
+            style="green",
+            no_wrap=True,
+        ),
+        show_footer=True,
+        title="[white]Wallet Coldkey Balances",
+        box=None,
+        pad_edge=False,
+        width=None,
+    )
 
     for name, (coldkey, free, staked) in balances.items():
         table.add_row(
@@ -232,9 +252,4 @@ async def wallet_balance(wallet: Wallet, subtensor: SubtensorInterface, all_bala
         str(total_staked_balance),
         str(total_free_balance + total_staked_balance),
     )
-    table.show_footer = True
-
-    table.box = None
-    table.pad_edge = False
-    table.width = None
     console.print(table)
