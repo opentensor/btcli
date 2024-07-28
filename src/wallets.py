@@ -15,7 +15,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-
+import asyncio
 import os
 from typing import Optional
 
@@ -174,17 +174,17 @@ async def wallet_balance(wallet: Wallet, subtensor: SubtensorInterface, all_bala
 
     async with subtensor:
         # look into gathering
-        free_balances = await subtensor.get_balance(*coldkeys)
-        staked_balances = await subtensor.get_total_stake_for_coldkey(*coldkeys)
+        free_balances, staked_balances = await asyncio.gather(
+            subtensor.get_balance(*coldkeys, reuse_block=True),
+            subtensor.get_total_stake_for_coldkey(*coldkeys, reuse_block=True)
+        )
 
-    total_free_balance = sum(free_balances)
-    total_staked_balance = sum(staked_balances)
+    total_free_balance = sum(free_balances.values())
+    total_staked_balance = sum(staked_balances.values())
 
     balances = {
-        name: (coldkey, free, staked)
-        for name, coldkey, free, staked in sorted(
-            zip(wallet_names, coldkeys, free_balances, staked_balances)
-        )
+        name: (coldkey, free_balances[coldkey], staked_balances[coldkey])
+        for (name, coldkey) in zip(wallet_names, coldkeys)
     }
 
     table = Table(show_footer=False)

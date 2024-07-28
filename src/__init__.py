@@ -77,3 +77,89 @@ defaults = Defaults(
         debug=False, trace=False, record_log=False, logging_dir="~/.bittensor/miners"
     ),
 )
+
+
+TYPE_REGISTRY = {
+    "types": {
+        "Balance": "u64",  # Need to override default u128
+    },
+    "runtime_api": {
+        "NeuronInfoRuntimeApi": {
+            "methods": {
+                "get_neuron_lite": {
+                    "params": [
+                        {
+                            "name": "netuid",
+                            "type": "u16",
+                        },
+                        {
+                            "name": "uid",
+                            "type": "u16",
+                        },
+                    ],
+                    "type": "Vec<u8>",
+                },
+                "get_neurons_lite": {
+                    "params": [
+                        {
+                            "name": "netuid",
+                            "type": "u16",
+                        },
+                    ],
+                    "type": "Vec<u8>",
+                },
+            }
+        },
+        "StakeInfoRuntimeApi": {
+            "methods": {
+                "get_stake_info_for_coldkey": {
+                    "params": [
+                        {
+                            "name": "coldkey_account_vec",
+                            "type": "Vec<u8>",
+                        },
+                    ],
+                    "type": "Vec<u8>",
+                },
+                "get_stake_info_for_coldkeys": {
+                    "params": [
+                        {
+                            "name": "coldkey_account_vecs",
+                            "type": "Vec<Vec<u8>>",
+                        },
+                    ],
+                    "type": "Vec<u8>",
+                },
+            },
+        },
+        "ValidatorIPRuntimeApi": {
+            "methods": {
+                "get_associated_validator_ip_info_for_subnet": {
+                    "params": [
+                        {
+                            "name": "netuid",
+                            "type": "u16",
+                        },
+                    ],
+                    "type": "Vec<u8>",
+                },
+            },
+        },
+        "SubnetInfoRuntimeApi": {
+            "methods": {
+                "get_subnet_hyperparams": {
+                    "params": [
+                        {
+                            "name": "netuid",
+                            "type": "u16",
+                        },
+                    ],
+                    "type": "Vec<u8>",
+                }
+            }
+        },
+        "SubnetRegistrationRuntimeApi": {
+            "methods": {"get_network_registration_cost": {"params": [], "type": "u64"}}
+        },
+    },
+}

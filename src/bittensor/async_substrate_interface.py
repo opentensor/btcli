@@ -760,7 +760,7 @@ class AsyncSubstrateInterface:
         responses = await self._make_rpc_request(
             all_info, value_scale_type, storage_item, runtime
         )
-        return responses
+        return {param: responses[p.queryable][0] for (param, p) in zip(params, preprocessed)}
 
     async def create_scale_object(
             self,

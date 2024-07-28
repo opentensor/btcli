@@ -4,7 +4,7 @@ from bittensor_wallet.utils import SS58_FORMAT
 
 from src.bittensor.async_substrate_interface import AsyncSubstrateInterface
 from src.bittensor.balances import Balance
-from src import Constants, defaults
+from src import Constants, defaults, TYPE_REGISTRY
 
 
 class SubtensorInterface:
@@ -21,7 +21,8 @@ class SubtensorInterface:
 
         self.substrate = AsyncSubstrateInterface(
             chain_endpoint=self.chain_endpoint,
-            ss58_format=SS58_FORMAT
+            ss58_format=SS58_FORMAT,
+            type_registry=TYPE_REGISTRY
         )
 
     async def __aenter__(self):
@@ -31,7 +32,7 @@ class SubtensorInterface:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         pass
 
-    async def get_balance(self, *addresses, block: Optional[int] = None) -> list[Balance]:
+    async def get_balance(self, *addresses, block: Optional[int] = None, reuse_block: bool = False) -> dict[str, Balance]:
         """
         Retrieves the balance for given coldkey(s)
         :param addresses: coldkey addresses(s)
@@ -42,13 +43,14 @@ class SubtensorInterface:
             params=[a for a in addresses],
             storage_function="Account",
             module="System",
+            reuse_block_hash=reuse_block
         )
-        print([res for res in results])
-        return [Balance(result.value["data"]["free"]) for result in results]
+        return {k: Balance(v.value["data"]["free"]) for (k, v) in results.items()}
 
     async def get_total_stake_for_coldkey(
-        self, *ss58_addresses, block: Optional[int] = None
-    ) -> Optional["Balance"]:
+        self, *ss58_addresses, block: Optional[int] = None,
+            reuse_block: bool = False
+    ) -> dict[str, Balance]:
         """
         Returns the total stake held on a coldkey.
 
@@ -60,5 +62,6 @@ class SubtensorInterface:
             params=[s for s in ss58_addresses],
             module="SubtensorModule",
             storage_function="TotalColdkeyStake",
+            reuse_block_hash=reuse_block
         )
-        return [Balance.from_rao(r.value) if getattr(r, "value", None) else Balance(0) for r in results]
+        return {k: Balance.from_rao(r.value) if getattr(r, "value", None) else Balance(0) for (k, r) in results.items()}
