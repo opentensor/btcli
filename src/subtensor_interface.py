@@ -269,7 +269,10 @@ class SubtensorInterface:
         }
 
     async def get_netuids_for_hotkey(
-        self, hotkey_ss58: str, block_hash: Optional[str] = None, reuse_block: bool = False
+        self,
+        hotkey_ss58: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
     ) -> list[int]:
         """
         Retrieves a list of subnet UIDs (netuids) for which a given hotkey is a member. This function
@@ -288,7 +291,7 @@ class SubtensorInterface:
             storage_function="IsNetworkMember",
             params=[hotkey_ss58],
             block_hash=block_hash,
-            reuse_block_hash=reuse_block
+            reuse_block_hash=reuse_block,
         )
         return (
             [record[0].value for record in result.records if record[1]]
@@ -349,12 +352,18 @@ class SubtensorInterface:
     async def filter_netuids_by_registered_hotkeys(
         self, all_netuids, filter_for_netuids, all_hotkeys, reuse_block: bool = False
     ) -> list[int]:
-        netuids_with_registered_hotkeys = [item for sublist in await asyncio.gather(
-            *[
-                self.get_netuids_for_hotkey(wallet.hotkey.ss58_address, reuse_block=reuse_block)
-                for wallet in all_hotkeys
-            ]
-        ) for item in sublist]
+        netuids_with_registered_hotkeys = [
+            item
+            for sublist in await asyncio.gather(
+                *[
+                    self.get_netuids_for_hotkey(
+                        wallet.hotkey.ss58_address, reuse_block=reuse_block
+                    )
+                    for wallet in all_hotkeys
+                ]
+            )
+            for item in sublist
+        ]
 
         if not filter_for_netuids:
             all_netuids = netuids_with_registered_hotkeys

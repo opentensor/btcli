@@ -283,7 +283,9 @@ class CLIManager:
         # if all-wallets is entered, ask for path
         if all_wallets:
             if not wallet_path:
-                wallet_path = Prompt.ask("Enter the path of the wallets", default=defaults.wallet.path)
+                wallet_path = Prompt.ask(
+                    "Enter the path of the wallets", default=defaults.wallet.path
+                )
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         self.initialize_chain(network, chain)
         asyncio.run(

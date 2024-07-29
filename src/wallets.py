@@ -442,10 +442,14 @@ async def _get_total_balance(
             coldkey_wallet.coldkeypub_file.exists_on_device()
             and not coldkey_wallet.coldkeypub_file.is_encrypted()
         ):
-            total_balance = sum((await subtensor.get_balance(
-                coldkey_wallet.coldkeypub.ss58_address,
-                # reuse_block=True  # This breaks it idk why
-            )).values())
+            total_balance = sum(
+                (
+                    await subtensor.get_balance(
+                        coldkey_wallet.coldkeypub.ss58_address,
+                        # reuse_block=True  # This breaks it idk why
+                    )
+                ).values()
+            )
         if not coldkey_wallet.coldkeypub_file.exists_on_device():
             console.print("[bold red]No wallets found.")
             return [], None
@@ -467,132 +471,136 @@ async def overview(
     """Prints an overview for the wallet's coldkey."""
 
     total_balance = Balance(0)
-    async with subtensor:
-        # We are printing for every coldkey.
-        all_hotkeys, total_balance = await _get_total_balance(
-            total_balance, subtensor, wallet, all_wallets
-        )
+    with console.status(
+        f":satellite: Synchronizing with chain [white]{subtensor.network}[/white]",
+        spinner="aesthetic",
+    ):
+        async with subtensor:
+            # We are printing for every coldkey.
+            all_hotkeys, total_balance = await _get_total_balance(
+                total_balance, subtensor, wallet, all_wallets
+            )
 
-        # We are printing for a select number of hotkeys from all_hotkeys.
-        if include_hotkeys:
-            all_hotkeys = _get_hotkeys(include_hotkeys, exclude_hotkeys, all_hotkeys)
+            # We are printing for a select number of hotkeys from all_hotkeys.
+            if include_hotkeys:
+                all_hotkeys = _get_hotkeys(
+                    include_hotkeys, exclude_hotkeys, all_hotkeys
+                )
 
-        # Check we have keys to display.
-        if not all_hotkeys:
-            err_console.print("[red]No wallets found.[/red]")
-            return
+            # Check we have keys to display.
+            if not all_hotkeys:
+                err_console.print("[red]No wallets found.[/red]")
+                return
 
-        # Pull neuron info for all keys.
-        neurons: dict[str, list[NeuronInfoLite]] = {}
-        block, all_netuids, block_hash = await asyncio.gather(
-            subtensor.substrate.get_block_number(None),
-            subtensor.get_all_subnet_netuids(),
-            subtensor.get_chain_head(),
-        )
+            # Pull neuron info for all keys.
+            neurons: dict[str, list[NeuronInfoLite]] = {}
+            block, all_netuids, block_hash = await asyncio.gather(
+                subtensor.substrate.get_block_number(None),
+                subtensor.get_all_subnet_netuids(),
+                subtensor.get_chain_head(),
+            )
 
-        netuids = await subtensor.filter_netuids_by_registered_hotkeys(
-            all_netuids, netuids_filter, all_hotkeys, reuse_block=True
-        )
-        # bittensor.logging.debug(f"Netuids to check: {netuids}")
+            netuids = await subtensor.filter_netuids_by_registered_hotkeys(
+                all_netuids, netuids_filter, all_hotkeys, reuse_block=True
+            )
+            # bittensor.logging.debug(f"Netuids to check: {netuids}")
 
         for netuid in netuids:
             neurons[str(netuid)] = []
 
         all_wallet_names = {wallet.name for wallet in all_hotkeys}
-        all_coldkey_wallets = [Wallet(name=wallet_name) for wallet_name in all_wallet_names]
+        all_coldkey_wallets = [
+            Wallet(name=wallet_name) for wallet_name in all_wallet_names
+        ]
 
         all_hotkey_addresses, hotkey_coldkey_to_hotkey_wallet = _get_key_address(
             all_hotkeys
         )
 
-        with console.status(
-            f":satellite: Syncing with chain: [white]{subtensor.network}[/white] ..."
-        ):
-            # Pull neuron info for all keys.:
+        # Pull neuron info for all keys.:
 
-            results = await _get_neurons_for_netuids(
-                subtensor, netuids, all_hotkey_addresses
+        results = await _get_neurons_for_netuids(
+            subtensor, netuids, all_hotkey_addresses
+        )
+        neurons = await _process_neuron_results(results, neurons, netuids)
+        total_coldkey_stake_from_metagraph = await _calculate_total_coldkey_stake(
+            neurons
+        )
+
+        alerts_table = Table(show_header=True, header_style="bold magenta")
+        alerts_table.add_column("🥩 alert!")
+
+        coldkeys_to_check = []
+        for coldkey_wallet in all_coldkey_wallets:
+            # Check if we have any stake with hotkeys that are not registered.
+            total_coldkey_stake_from_chain = (
+                # TODO gathering here may make sense or may not
+                await subtensor.get_total_stake_for_coldkey(
+                    coldkey_wallet.coldkeypub.ss58_address, reuse_block=True
+                )
             )
-            neurons = await _process_neuron_results(results, neurons, netuids)
-            total_coldkey_stake_from_metagraph = await _calculate_total_coldkey_stake(
-                neurons
-            )
-
-            alerts_table = Table(show_header=True, header_style="bold magenta")
-            alerts_table.add_column("🥩 alert!")
-
-            coldkeys_to_check = []
-            for coldkey_wallet in all_coldkey_wallets:
-                # Check if we have any stake with hotkeys that are not registered.
-                total_coldkey_stake_from_chain = (
-                    # TODO gathering here may make sense or may not
-                    await subtensor.get_total_stake_for_coldkey(
-                        coldkey_wallet.coldkeypub.ss58_address,
-                        reuse_block=True
-                    )
-                )
-                difference = (
-                    total_coldkey_stake_from_chain[coldkey_wallet.coldkeypub.ss58_address]
-                    - total_coldkey_stake_from_metagraph[
-                        coldkey_wallet.coldkeypub.ss58_address
-                    ]
-                )
-                if difference == 0:
-                    continue  # We have all our stake registered.
-
-                coldkeys_to_check.append(coldkey_wallet)
-                alerts_table.add_row(
-                    "Found {} stake with coldkey {} that is not registered.".format(
-                        difference, coldkey_wallet.coldkeypub.ss58_address
-                    )
-                )
-
-            if coldkeys_to_check:
-                # We have some stake that is not with a registered hotkey.
-                if "-1" not in neurons:
-                    neurons["-1"] = []
-
-            # Check each coldkey wallet for de-registered stake.
-
-            results = await asyncio.gather(
-                *[
-                    _get_de_registered_stake_for_coldkey_wallet(
-                        subtensor, all_hotkey_addresses, coldkey_wallet
-                    )
-                    for coldkey_wallet in coldkeys_to_check
+            difference = (
+                total_coldkey_stake_from_chain[coldkey_wallet.coldkeypub.ss58_address]
+                - total_coldkey_stake_from_metagraph[
+                    coldkey_wallet.coldkeypub.ss58_address
                 ]
             )
+            if difference == 0:
+                continue  # We have all our stake registered.
 
-            for result in results:
-                coldkey_wallet, de_registered_stake, err_msg = result
-                if err_msg is not None:
-                    err_console.print(err_msg)
+            coldkeys_to_check.append(coldkey_wallet)
+            alerts_table.add_row(
+                "Found {} stake with coldkey {} that is not registered.".format(
+                    difference, coldkey_wallet.coldkeypub.ss58_address
+                )
+            )
 
-                if len(de_registered_stake) == 0:
-                    continue  # We have no de-registered stake with this coldkey.
+        if coldkeys_to_check:
+            # We have some stake that is not with a registered hotkey.
+            if "-1" not in neurons:
+                neurons["-1"] = []
 
-                de_registered_neurons = []
-                for hotkey_addr, our_stake in de_registered_stake:
-                    # Make a neuron info lite for this hotkey and coldkey.
-                    de_registered_neuron = NeuronInfoLite.get_null_neuron()
-                    de_registered_neuron.hotkey = hotkey_addr
-                    de_registered_neuron.coldkey = coldkey_wallet.coldkeypub.ss58_address
-                    de_registered_neuron.total_stake = Balance(our_stake)
-                    de_registered_neurons.append(de_registered_neuron)
+        # Check each coldkey wallet for de-registered stake.
 
-                    # Add this hotkey to the wallets dict
-                    wallet_ = Wallet(name=wallet)
-                    wallet_.hotkey_ss58 = hotkey_addr
-                    wallet.hotkey_str = hotkey_addr[:5]  # Max length of 5 characters
-                    # Indicates a hotkey not on local machine but exists in stake_info obj on-chain
-                    if hotkey_coldkey_to_hotkey_wallet.get(hotkey_addr) is None:
-                        hotkey_coldkey_to_hotkey_wallet[hotkey_addr] = {}
-                    hotkey_coldkey_to_hotkey_wallet[hotkey_addr][
-                        coldkey_wallet.coldkeypub.ss58_address
-                    ] = wallet_
+        results = await asyncio.gather(
+            *[
+                _get_de_registered_stake_for_coldkey_wallet(
+                    subtensor, all_hotkey_addresses, coldkey_wallet
+                )
+                for coldkey_wallet in coldkeys_to_check
+            ]
+        )
 
-                # Add neurons to overview.
-                neurons["-1"].extend(de_registered_neurons)
+        for result in results:
+            coldkey_wallet, de_registered_stake, err_msg = result
+            if err_msg is not None:
+                err_console.print(err_msg)
+
+            if len(de_registered_stake) == 0:
+                continue  # We have no de-registered stake with this coldkey.
+
+            de_registered_neurons = []
+            for hotkey_addr, our_stake in de_registered_stake:
+                # Make a neuron info lite for this hotkey and coldkey.
+                de_registered_neuron = NeuronInfoLite.get_null_neuron()
+                de_registered_neuron.hotkey = hotkey_addr
+                de_registered_neuron.coldkey = coldkey_wallet.coldkeypub.ss58_address
+                de_registered_neuron.total_stake = Balance(our_stake)
+                de_registered_neurons.append(de_registered_neuron)
+
+                # Add this hotkey to the wallets dict
+                wallet_ = Wallet(name=wallet)
+                wallet_.hotkey_ss58 = hotkey_addr
+                wallet.hotkey_str = hotkey_addr[:5]  # Max length of 5 characters
+                # Indicates a hotkey not on local machine but exists in stake_info obj on-chain
+                if hotkey_coldkey_to_hotkey_wallet.get(hotkey_addr) is None:
+                    hotkey_coldkey_to_hotkey_wallet[hotkey_addr] = {}
+                hotkey_coldkey_to_hotkey_wallet[hotkey_addr][
+                    coldkey_wallet.coldkeypub.ss58_address
+                ] = wallet_
+
+            # Add neurons to overview.
+            neurons["-1"].extend(de_registered_neurons)
 
         # Setup outer table.
         grid = Table.grid(pad_edge=False)
@@ -833,8 +841,8 @@ async def overview(
                 # Sort descending if the sort_order matches desc, descending, or reverse
                 sort_descending = True
 
-            def overview_sort_function(row):
-                data = row[column_to_sort_by]
+            def overview_sort_function(row_):
+                data = row_[column_to_sort_by]
                 # Try to convert to number if possible
                 try:
                     data = float(data)
@@ -961,7 +969,7 @@ async def _fetch_neuron_for_netuid(
             hex_bytes_result = await subtensor.substrate.rpc_request(
                 method="state_call",
                 params=["NeuronInfoRuntimeApi_get_neurons_lite", data, block_hash],
-                reuse_block_hash=True
+                reuse_block_hash=True,
             )
 
         return hex_bytes_result
@@ -999,10 +1007,7 @@ def _process_neurons_for_netuids(netuids_with_all_neurons_hex_bytes):
     all_results = []
     preprocessed = [make_map(r) for r in netuids_with_all_neurons_hex_bytes]
     with ProcessPoolExecutor() as executor:
-        results = executor.map(
-            _partial_decode,
-            preprocessed
-        )
+        results = executor.map(_partial_decode, preprocessed)
         for netuid, result in results:
             all_results.append(
                 (
@@ -1031,8 +1036,7 @@ async def _get_de_registered_stake_for_coldkey_wallet(
 ) -> tuple[Wallet, list[tuple[str, Balance]], Optional[str]]:
     # Pull all stake for our coldkey
     all_stake_info_for_coldkey = await subtensor.get_stake_info_for_coldkey(
-        coldkey_ss58=coldkey_wallet.coldkeypub.ss58_address,
-        reuse_block=True
+        coldkey_ss58=coldkey_wallet.coldkeypub.ss58_address, reuse_block=True
     )
 
     # Filter out hotkeys that are in our wallets
@@ -1043,8 +1047,7 @@ async def _get_de_registered_stake_for_coldkey_wallet(
         if stake_info.hotkey_ss58 in all_hotkey_addresses:
             return False  # Skip hotkeys that are in our wallets.
         return not await subtensor.is_hotkey_delegate(
-            hotkey_ss58=stake_info.hotkey_ss58,
-            reuse_block=True
+            hotkey_ss58=stake_info.hotkey_ss58, reuse_block=True
         )
 
     all_staked_hotkeys = filter(_filter_stake_info, all_stake_info_for_coldkey)
