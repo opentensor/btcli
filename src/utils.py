@@ -15,18 +15,20 @@ U16_MAX = 65535
 U64_MAX = 18446744073709551615
 
 
-def is_valid_wallet(wallet: Wallet) -> bool:
+def is_valid_wallet(wallet: Wallet) -> tuple[bool, bool]:
     """
     Verifies that the wallet with specified parameters.
     :param wallet: a Wallet instance
-    :return: bool, whether the wallet appears valid
+    :return: tuple[bool], whether wallet appears valid, whether valid hotkey in wallet
     """
-    return all(
-        [
-            os.path.exists(wp := os.path.expanduser(wallet.path)),
-            os.path.exists(os.path.join(wp, wallet.name)),
-            os.path.isfile(os.path.join(wp, wallet.name, "hotkeys", wallet.hotkey_str)),
-        ]
+    return (
+        all(
+            [
+                os.path.exists(wp := os.path.expanduser(wallet.path)),
+                os.path.exists(os.path.join(wp, wallet.name)),
+            ]
+        ),
+        os.path.isfile(os.path.join(wp, wallet.name, "hotkeys", wallet.hotkey_str)),
     )
 
 

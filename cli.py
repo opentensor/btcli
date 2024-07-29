@@ -4,6 +4,7 @@ from typing import Optional
 
 from bittensor_wallet import Wallet
 import rich
+from rich.prompt import Confirm, Prompt
 import typer
 
 from src import wallets, defaults, utils
@@ -12,17 +13,13 @@ from src.subtensor_interface import SubtensorInterface
 
 # re-usable args
 class Options:
-    wallet_name = typer.Option(
-        defaults.wallet.name, "--wallet-name", "-w", help="Name of wallet"
-    )
+    wallet_name = typer.Option(None, "--wallet-name", "-w", help="Name of wallet")
     wallet_path = typer.Option(
-        defaults.wallet.path, "--wallet-path", "-p", help="Filepath of root of wallets"
+        None, "--wallet-path", "-p", help="Filepath of root of wallets"
     )
-    wallet_hotkey = typer.Option(
-        defaults.wallet.hotkey, "--hotkey", "-H", help="Hotkey of wallet"
-    )
+    wallet_hotkey = typer.Option(None, "--hotkey", "-H", help="Hotkey of wallet")
     wallet_hk_req = typer.Option(
-        defaults.wallet.hotkey,
+        None,
         "--hotkey",
         "-H",
         help="Hotkey name of wallet",
@@ -72,15 +69,17 @@ class Options:
 
 def get_n_words(n_words: Optional[int]) -> int:
     while n_words not in [12, 15, 18, 21, 24]:
-        n_words = typer.prompt(
-            "Choose number of words: 12, 15, 18, 21, 24", type=int, default=12
+        n_words: int = Prompt.ask(
+            "Choose number of words: 12, 15, 18, 21, 24",
+            choices=[12, 15, 18, 21, 24],
+            default=12,
         )
     return n_words
 
 
 def get_creation_data(mnemonic, seed, json, json_password):
     if not mnemonic and not seed and not json:
-        prompt_answer = typer.prompt("Enter mnemonic, seed, or json file location")
+        prompt_answer = Prompt.ask("Enter mnemonic, seed, or json file location")
         if prompt_answer.startswith("0x"):
             seed = prompt_answer
         elif len(prompt_answer.split(" ")) > 1:
@@ -88,7 +87,7 @@ def get_creation_data(mnemonic, seed, json, json_password):
         else:
             json = prompt_answer
     if json and not json_password:
-        json_password = typer.prompt("Enter json backup password", hide_input=True)
+        json_password = Prompt.ask("Enter json backup password", password=True)
     return mnemonic, seed, json, json_password
 
 
@@ -116,6 +115,7 @@ class CLIManager:
         self.wallet_app.command("new-coldkey")(self.wallet_new_coldkey)
         self.wallet_app.command("create")(self.wallet_create_wallet)
         self.wallet_app.command("balance")(self.wallet_balance)
+        self.wallet_app.command("history")(self.wallet_history)
 
         # delegates commands
         self.delegates_app.command("list")(self.delegates_list)
@@ -141,20 +141,58 @@ class CLIManager:
     ):
         # TODO Wallet(config)
         if not any([wallet_name, wallet_path, wallet_hotkey]):
-            wallet_name = typer.prompt("Enter wallet name:")
+            wallet_name = typer.prompt("Enter wallet name")
             wallet = Wallet(name=wallet_name)
         else:
             wallet = Wallet(name=wallet_name, hotkey=wallet_hotkey, path=wallet_path)
         if validate:
-            if not utils.is_valid_wallet(wallet):
+            valid = utils.is_valid_wallet(wallet)
+            print("valid", valid)
+            if not valid[0]:
                 utils.err_console.print(
                     f"[red]Error: Wallet does not appear valid. Please verify your wallet information: {wallet}[/red]"
                 )
                 raise typer.Exit()
+            elif not valid[1]:
+                if not Confirm.ask(
+                    f"[yellow]Warning: Wallet appears valid, but hotkey '{wallet.hotkey_str}' does not. Proceed?"
+                ):
+                    raise typer.Exit()
         return wallet
 
-    def wallet_list(self, network: str = typer.Option("local", help="Network name")):
-        asyncio.run(wallets.WalletListCommand.run(self.not_subtensor, network))
+    @staticmethod
+    def wallet_list(
+        wallet_path: str = typer.Option(
+            defaults.wallet.path,
+            "--wallet-path",
+            "-p",
+            help="Filepath of root of wallets",
+            prompt=True
+        ),
+    ):
+        """
+        # wallet list
+        Executes the `list` command which enumerates all wallets and their respective hotkeys present in the user's
+        Bittensor configuration directory. The command organizes the information in a tree structure, displaying each
+        wallet along with the `ss58` addresses for the coldkey public key and any hotkeys associated with it.
+        The output is presented in a hierarchical tree format, with each wallet as a root node,
+        and any associated hotkeys as child nodes. The ``ss58`` address is displayed for each
+        coldkey and hotkey that is not encrypted and exists on the device.
+
+        ## Usage:
+        Upon invocation, the command scans the wallet directory and prints a list of all wallets, indicating whether the
+        public keys are available (`?` denotes unavailable or encrypted keys).
+
+        ### Example usage:
+        ```
+        btcli wallet list --path ~/.bittensor
+        ```
+
+        #### Note:
+        This command is read-only and does not modify the filesystem or the network state. It is intended for use within
+         the Bittensor CLI to provide a quick overview of the user's wallets.
+        """
+        asyncio.run(wallets.wallet_list(wallet_path))
 
     def wallet_regen_coldkey(
         self,
@@ -460,6 +498,33 @@ class CLIManager:
         subtensor = SubtensorInterface(network, chain)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         asyncio.run(wallets.wallet_balance(wallet, subtensor, all_balances))
+
+    def wallet_history(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+    ):
+        """
+        # wallet history
+        Executes the `history` command to fetch the latest transfers of the provided wallet on the Bittensor network.
+        This command provides a detailed view of the transfers carried out on the wallet.
+
+        ## Usage:
+        The command lists the latest transfers of the provided wallet, showing the From, To, Amount, Extrinsic Id and
+        Block Number.
+
+        ### Example usage:
+        ```
+        btcli wallet history
+        ```
+
+        #### Note:
+        This command is essential for users to monitor their financial status on the Bittensor network.
+        It helps in fetching info on all the transfers so that user can easily tally and cross check the transactions.
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        asyncio.run(wallets.wallet_history(wallet))
 
     def delegates_list(
         self,

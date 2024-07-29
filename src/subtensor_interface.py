@@ -32,6 +32,9 @@ class SubtensorInterface:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         pass
 
+    async def get_chain_head(self):
+        return await self.substrate.get_chain_head()
+
     async def get_balance(
         self, *addresses, block: Optional[int] = None, reuse_block: bool = False
     ) -> dict[str, Balance]:

@@ -17,11 +17,14 @@
 
 import asyncio
 import os
+from pathlib import Path
 from typing import Optional
 
+import aiohttp
 from bittensor_wallet import Wallet
 from bittensor_wallet.keyfile import Keyfile
 from rich.table import Table, Column
+from rich.tree import Tree
 
 import typer
 
@@ -177,6 +180,7 @@ async def wallet_balance(
             wallet_names = [wallet.name]
 
         async with subtensor:
+            await subtensor.get_chain_head()
             free_balances, staked_balances = await asyncio.gather(
                 subtensor.get_balance(*coldkeys, reuse_block=True),
                 subtensor.get_total_stake_for_coldkey(*coldkeys, reuse_block=True),
@@ -253,3 +257,165 @@ async def wallet_balance(
         str(total_free_balance + total_staked_balance),
     )
     console.print(table)
+
+
+async def get_wallet_transfers(wallet_address: str) -> list[dict]:
+    """Get all transfers associated with the provided wallet address."""
+
+    api_url = "https://api.subquery.network/sq/TaoStats/bittensor-indexer"
+    max_txn = 1000
+    graphql_query = """
+    query ($first: Int!, $after: Cursor, $filter: TransferFilter, $order: [TransfersOrderBy!]!) {
+        transfers(first: $first, after: $after, filter: $filter, orderBy: $order) {
+            nodes {
+                id
+                from
+                to
+                amount
+                extrinsicId
+                blockNumber
+            }
+            pageInfo {
+                endCursor
+                hasNextPage
+                hasPreviousPage
+            }
+            totalCount
+        }
+    }
+    """
+    variables = {
+        "first": max_txn,
+        "filter": {
+            "or": [
+                {"from": {"equalTo": wallet_address}},
+                {"to": {"equalTo": wallet_address}},
+            ]
+        },
+        "order": "BLOCK_NUMBER_DESC",
+    }
+    async with aiohttp.ClientSession() as session:
+        response = await session.post(
+            api_url, json={"query": graphql_query, "variables": variables}
+        )
+        data = await response.json()
+
+    # Extract nodes and pageInfo from the response
+    transfer_data = data.get("data", {}).get("transfers", {})
+    transfers = transfer_data.get("nodes", [])
+
+    return transfers
+
+
+def create_transfer_history_table(transfers: list[dict]) -> Table:
+    """Get output transfer table"""
+
+    # Define the column names
+    column_names = [
+        "Id",
+        "From",
+        "To",
+        "Amount (Tao)",
+        "Extrinsic Id",
+        "Block Number",
+        "URL (taostats)",
+    ]
+    taostats_url_base = "https://x.taostats.io/extrinsic"
+
+    # Create a table
+    table = Table(
+        show_footer=True,
+        box=None,
+        pad_edge=False,
+        width=None,
+        title="[white]Wallet Transfers",
+        header_style="overline white",
+        footer_style="overline white",
+    )
+
+    column_style = "rgb(50,163,219)"
+    no_wrap = True
+
+    for column_name in column_names:
+        table.add_column(
+            f"[white]{column_name}",
+            style=column_style,
+            no_wrap=no_wrap,
+            justify="left" if column_name == "Id" else "right",
+        )
+
+    for item in transfers:
+        try:
+            tao_amount = int(item["amount"]) / RAO_PER_TAO
+        except ValueError:
+            tao_amount = item["amount"]
+        table.add_row(
+            item["id"],
+            item["from"],
+            item["to"],
+            f"{tao_amount:.3f}",
+            str(item["extrinsicId"]),
+            item["blockNumber"],
+            f"{taostats_url_base}/{item['blockNumber']}-{item['extrinsicId']}",
+        )
+    table.add_row()
+    return table
+
+
+async def wallet_history(wallet: Wallet):
+    """Check the transfer history of the provided wallet."""
+    wallet_address = wallet.get_coldkeypub().ss58_address
+    transfers = await get_wallet_transfers(wallet_address)
+    table = create_transfer_history_table(transfers)
+    console.print(table)
+
+
+async def wallet_list(wallet_path: str):
+    r"""Lists wallets."""
+    wallet_path = Path(wallet_path).expanduser()
+    wallets = [
+        directory.name for directory in wallet_path.iterdir() if directory.is_dir()
+    ]
+    if not wallets:
+        err_console.print(f"[red]No wallets found in dir: {wallet_path}[/red]")
+
+    root = Tree("Wallets")
+    for w_name in wallets:
+        wallet_for_name = Wallet(path=str(wallet_path), name=w_name)
+        if (
+            wallet_for_name.coldkeypub_file.exists_on_device()
+            and not wallet_for_name.coldkeypub_file.is_encrypted()
+        ):
+            coldkeypub_str = wallet_for_name.coldkeypub.ss58_address
+        else:
+            coldkeypub_str = "?"
+
+        wallet_tree = root.add("\n[bold white]{} ({})".format(w_name, coldkeypub_str))
+        hotkeys_path = wallet_path / w_name / "hotkeys"
+        try:
+            hotkeys = [entry.name for entry in hotkeys_path.iterdir()]
+            if len(hotkeys) > 1:
+                for h_name in hotkeys:
+                    hotkey_for_name = Wallet(
+                        path=str(wallet_path), name=w_name, hotkey=h_name
+                    )
+                    try:
+                        if (
+                            hotkey_for_name.hotkey_file.exists_on_device()
+                            and not hotkey_for_name.hotkey_file.is_encrypted()
+                        ):
+                            hotkey_str = hotkey_for_name.hotkey.ss58_address
+                        else:
+                            hotkey_str = "?"
+                        wallet_tree.add(f"[bold grey]{h_name} ({hotkey_str})")
+                    except UnicodeDecodeError:  # usually an unrelated file like .DS_Store
+                        continue
+
+        except FileNotFoundError:
+            # no hotkeys found
+            continue
+
+    if not wallets:
+        root.add("[bold red]No wallets found.")
+
+    console.print(root)

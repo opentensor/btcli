@@ -695,7 +695,8 @@ class AsyncSubstrateInterface:
         return (await self.rpc_request("chain_getBlockHash", [block_id]))["result"]
 
     async def get_chain_head(self) -> str:
-        return (await self.rpc_request("chain_getHead", []))["result"]
+        self.last_block_hash = (await self.rpc_request("chain_getHead", []))["result"]
+        return self.last_block_hash
 
     async def compose_call(
         self,
@@ -731,7 +732,7 @@ class AsyncSubstrateInterface:
         module: str,
         block_hash: Optional[str] = None,
         reuse_block_hash: bool = False,
-    ) -> RequestManager.RequestResults:
+    ) -> dict[str, ScaleType]:
         """
         Queries the subtensor. Only use this when making multiple queries, else use ``self.query``
         """
