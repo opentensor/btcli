@@ -116,6 +116,7 @@ class CLIManager:
         self.wallet_app.command("create")(self.wallet_create_wallet)
         self.wallet_app.command("balance")(self.wallet_balance)
         self.wallet_app.command("history")(self.wallet_history)
+        self.wallet_app.command("overview")(self.wallet_overview)
 
         # delegates commands
         self.delegates_app.command("list")(self.delegates_list)
@@ -129,7 +130,7 @@ class CLIManager:
     ):
         if not self.not_subtensor:
             self.not_subtensor = SubtensorInterface(network, chain)
-            typer.echo(f"Initialized with {self.not_subtensor}")
+            # typer.echo(f"Initialized with {self.not_subtensor}")
 
     @staticmethod
     def wallet_ask(
@@ -147,7 +148,6 @@ class CLIManager:
             wallet = Wallet(name=wallet_name, hotkey=wallet_hotkey, path=wallet_path)
         if validate:
             valid = utils.is_valid_wallet(wallet)
-            print("valid", valid)
             if not valid[0]:
                 utils.err_console.print(
                     f"[red]Error: Wallet does not appear valid. Please verify your wallet information: {wallet}[/red]"
@@ -167,13 +167,15 @@ class CLIManager:
             "--wallet-path",
             "-p",
             help="Filepath of root of wallets",
-            prompt=True
+            prompt=True,
         ),
     ):
         """
         # wallet list
         Executes the `list` command which enumerates all wallets and their respective hotkeys present in the user's
-        Bittensor configuration directory. The command organizes the information in a tree structure, displaying each
+        Bittensor configuration directory.
+
+        The command organizes the information in a tree structure, displaying each
         wallet along with the `ss58` addresses for the coldkey public key and any hotkeys associated with it.
         The output is presented in a hierarchical tree format, with each wallet as a root node,
         and any associated hotkeys as child nodes. The ``ss58`` address is displayed for each
@@ -194,6 +196,110 @@ class CLIManager:
         """
         asyncio.run(wallets.wallet_list(wallet_path))
 
+    def wallet_overview(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        all_wallets: Optional[bool] = typer.Option(
+            False, "--all", "-a", help="View overview for all wallets"
+        ),
+        sort_by: Optional[str] = typer.Option(
+            None,
+            help="Sort the hotkeys by the specified column title (e.g. name, uid, axon).",
+        ),
+        sort_order: Optional[str] = typer.Option(
+            None,
+            help="Sort the hotkeys in the specified ordering. (ascending/asc or descending/desc/reverse)",
+        ),
+        include_hotkeys: Optional[list[str]] = typer.Option(
+            [],
+            help="Specify the hotkeys to include by name or ss58 address. (e.g. `hk1 hk2 hk3`). "
+            "If left empty, all hotkeys not excluded will be included.",
+        ),
+        exclude_hotkeys: Optional[list[str]] = typer.Option(
+            [],
+            help="Specify the hotkeys to exclude by name or ss58 address. (e.g. `hk1 hk2 hk3`). "
+            "If left empty, and no hotkeys included in --include-hotkeys, all hotkeys will be included.",
+        ),
+        netuids: Optional[list[str]] = typer.Option(
+            [], help="Set the netuid(s) to filter by."
+        ),
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+    ):
+        """
+        # wallet overview
+        Executes the `overview` command to present a detailed overview of the user's registered accounts on the
+        Bittensor network.
+
+        This command compiles and displays comprehensive information about each neuron associated with the user's
+        wallets, including both hotkeys and coldkeys. It is especially useful for users managing multiple accounts or
+        seeking a summary of their network activities and stake distributions.
+
+        ## Usage:
+        The command offers various options to customize the output. Users can filter the displayed data by specific
+        netuids, sort by different criteria, and choose to include all wallets in the user's configuration directory.
+        The output is presented in a tabular format with the following columns:
+
+        - COLDKEY: The SS58 address of the coldkey.
+        - HOTKEY: The SS58 address of the hotkey.
+        - UID: Unique identifier of the neuron.
+        - ACTIVE: Indicates if the neuron is active.
+        - STAKE(τ): Amount of stake in the neuron, in Tao.
+        - RANK: The rank of the neuron within the network.
+        - TRUST: Trust score of the neuron.
+        - CONSENSUS: Consensus score of the neuron.
+        - INCENTIVE: Incentive score of the neuron.
+        - DIVIDENDS: Dividends earned by the neuron.
+        - EMISSION(p): Emission received by the neuron, in Rho.
+        - VTRUST: Validator trust score of the neuron.
+        - VPERMIT: Indicates if the neuron has a validator permit.
+        - UPDATED: Time since last update.
+        - AXON: IP address and port of the neuron.
+        - HOTKEY_SS58: Human-readable representation of the hotkey.
+
+        ### Example usage:
+        ```
+        btcli wallet overview
+        ```
+        ```
+        btcli wallet overview --all --sort-by stake --sort-order descending
+        ```
+        ```
+        btcli wallet overview --include-hotkeys hk1 hk2 --sort-by stake
+        ```
+
+        #### Note:
+        This command is read-only and does not modify the network state or account configurations. It provides a quick and
+        comprehensive view of the user's network presence, making it ideal for monitoring account status, stake distribution,
+        and overall contribution to the Bittensor network.
+        """
+        # TODO does not yet work with encrypted keys
+        if include_hotkeys and exclude_hotkeys:
+            utils.err_console.print(
+                "[red]You have specified hotkeys for inclusion and exclusion. Pick only one or neither."
+            )
+            raise typer.Exit()
+        # if all-wallets is entered, ask for path
+        if all_wallets:
+            if not wallet_path:
+                wallet_path = Prompt.ask("Enter the path of the wallets", default=defaults.wallet.path)
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        self.initialize_chain(network, chain)
+        asyncio.run(
+            wallets.overview(
+                wallet,
+                self.not_subtensor,
+                all_wallets,
+                sort_by,
+                sort_order,
+                include_hotkeys,
+                exclude_hotkeys,
+                netuids_filter=netuids,
+            )
+        )
+
     def wallet_regen_coldkey(
         self,
         wallet_name: Optional[str] = Options.wallet_name,
@@ -209,6 +315,7 @@ class CLIManager:
         """
         # wallet regen-coldkey
         Executes the `regen-coldkey` command to regenerate a coldkey for a wallet on the Bittensor network.
+
         This command is used to create a new coldkey from an existing mnemonic, seed, or JSON file.
 
         ## Usage:
@@ -257,6 +364,7 @@ class CLIManager:
         # wallet regen-coldkeypub
         Executes the `regen-coldkeypub` command to regenerate the public part of a coldkey (coldkeypub) for a wallet
         on the Bittensor network.
+
         This command is used when a user needs to recreate their coldkeypub from an existing public key or SS58 address.
 
         ## Usage:
@@ -308,6 +416,7 @@ class CLIManager:
         """
         # wallet regen-hotkey
         Executes the `regen-hotkey` command to regenerate a hotkey for a wallet on the Bittensor network.
+
         Similar to regenerating a coldkey, this command creates a new hotkey from a mnemonic, seed, or JSON file.
 
         ## Usage:
@@ -421,7 +530,9 @@ class CLIManager:
         """
         # wallet create
         Executes the `create` command to generate both a new coldkey and hotkey under a specified wallet on the
-        Bittensor network. This command is a comprehensive utility for creating a complete wallet setup with both cold
+        Bittensor network.
+
+        This command is a comprehensive utility for creating a complete wallet setup with both cold
         and hotkeys.
 
 
