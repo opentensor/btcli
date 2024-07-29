@@ -275,7 +275,6 @@ class CLIManager:
         comprehensive view of the user's network presence, making it ideal for monitoring account status, stake distribution,
         and overall contribution to the Bittensor network.
         """
-        # TODO does not yet work with encrypted keys
         if include_hotkeys and exclude_hotkeys:
             utils.err_console.print(
                 "[red]You have specified hotkeys for inclusion and exclusion. Pick only one or neither."

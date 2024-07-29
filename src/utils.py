@@ -59,11 +59,14 @@ def get_all_wallets_for_path(path: str) -> list[Wallet]:
     all_wallets = []
     cold_wallets = get_coldkey_wallets_for_path(path)
     for cold_wallet in cold_wallets:
-        if (
-            cold_wallet.coldkeypub_file.exists_on_device()
-            and not cold_wallet.coldkeypub_file.is_encrypted()
-        ):
-            all_wallets.extend(get_hotkey_wallets_for_wallet(cold_wallet))
+        try:
+            if (
+                cold_wallet.coldkeypub_file.exists_on_device()
+                and not cold_wallet.coldkeypub_file.is_encrypted()
+            ):
+                all_wallets.extend(get_hotkey_wallets_for_wallet(cold_wallet))
+        except UnicodeDecodeError:  # usually an incorrect file like .DS_Store
+            continue
     return all_wallets
 
 

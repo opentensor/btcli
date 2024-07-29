@@ -434,7 +434,7 @@ async def _get_total_balance(
                 )
             ).values()
         )
-        all_hotkeys = utils.get_all_wallets_for_path(wallet.path)
+        all_hotkeys = utils.get_hotkey_wallets_for_wallet(wallet)
     else:
         # We are only printing keys for a single coldkey
         coldkey_wallet = wallet
