@@ -35,11 +35,13 @@ def get_hotkey_wallets_for_wallet(
             if (
                 hotkey_for_name.hotkey_file.exists_on_device()
                 and not hotkey_for_name.hotkey_file.is_encrypted()
+                # and hotkey_for_name.coldkeypub.ss58_address
+                and hotkey_for_name.hotkey.ss58_address
             ):
                 hotkey_wallets.append(hotkey_for_name)
             elif show_nulls:
                 hotkey_wallets.append(None)
-        except UnicodeDecodeError:  # usually an unrelated file like .DS_Store
+        except (UnicodeDecodeError, AttributeError):  # usually an unrelated file like .DS_Store
             continue
 
     return hotkey_wallets

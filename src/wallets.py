@@ -434,7 +434,7 @@ async def _get_total_balance(
                 )
             ).values()
         )
-        all_hotkeys = utils.get_hotkey_wallets_for_wallet(wallet)
+        all_hotkeys = [hk for w in cold_wallets for hk in utils.get_hotkey_wallets_for_wallet(w)]
     else:
         # We are only printing keys for a single coldkey
         coldkey_wallet = wallet
@@ -532,28 +532,29 @@ async def overview(
 
         coldkeys_to_check = []
         for coldkey_wallet in all_coldkey_wallets:
-            # Check if we have any stake with hotkeys that are not registered.
-            total_coldkey_stake_from_chain = (
-                # TODO gathering here may make sense or may not
-                await subtensor.get_total_stake_for_coldkey(
-                    coldkey_wallet.coldkeypub.ss58_address, reuse_block=True
+            if coldkey_wallet.coldkeypub:
+                # Check if we have any stake with hotkeys that are not registered.
+                total_coldkey_stake_from_chain = (
+                    # TODO gathering here may make sense or may not
+                    await subtensor.get_total_stake_for_coldkey(
+                        coldkey_wallet.coldkeypub.ss58_address, reuse_block=True
+                    )
                 )
-            )
-            difference = (
-                total_coldkey_stake_from_chain[coldkey_wallet.coldkeypub.ss58_address]
-                - total_coldkey_stake_from_metagraph[
-                    coldkey_wallet.coldkeypub.ss58_address
-                ]
-            )
-            if difference == 0:
-                continue  # We have all our stake registered.
+                difference = (
+                    total_coldkey_stake_from_chain[coldkey_wallet.coldkeypub.ss58_address]
+                    - total_coldkey_stake_from_metagraph[
+                        coldkey_wallet.coldkeypub.ss58_address
+                    ]
+                )
+                if difference == 0:
+                    continue  # We have all our stake registered.
 
-            coldkeys_to_check.append(coldkey_wallet)
-            alerts_table.add_row(
-                "Found {} stake with coldkey {} that is not registered.".format(
-                    difference, coldkey_wallet.coldkeypub.ss58_address
+                coldkeys_to_check.append(coldkey_wallet)
+                alerts_table.add_row(
+                    "Found {} stake with coldkey {} that is not registered.".format(
+                        difference, coldkey_wallet.coldkeypub.ss58_address
+                    )
                 )
-            )
 
         if coldkeys_to_check:
             # We have some stake that is not with a registered hotkey.
@@ -887,12 +888,16 @@ def _get_hotkeys(
 def _get_key_address(all_hotkeys: list[Wallet]):
     hotkey_coldkey_to_hotkey_wallet = {}
     for hotkey_wallet in all_hotkeys:
-        if hotkey_wallet.hotkey.ss58_address not in hotkey_coldkey_to_hotkey_wallet:
-            hotkey_coldkey_to_hotkey_wallet[hotkey_wallet.hotkey.ss58_address] = {}
-
-        hotkey_coldkey_to_hotkey_wallet[hotkey_wallet.hotkey.ss58_address][
-            hotkey_wallet.coldkeypub.ss58_address
-        ] = hotkey_wallet
+        if hotkey_wallet.coldkeypub:
+            if hotkey_wallet.hotkey.ss58_address not in hotkey_coldkey_to_hotkey_wallet:
+                hotkey_coldkey_to_hotkey_wallet[hotkey_wallet.hotkey.ss58_address] = {}
+            hotkey_coldkey_to_hotkey_wallet[hotkey_wallet.hotkey.ss58_address][
+                hotkey_wallet.coldkeypub.ss58_address
+            ] = hotkey_wallet
+        else:
+            # occurs when there is a hotkey without an associated coldkeypub
+            # TODO log this, maybe display
+            pass
 
     all_hotkey_addresses = list(hotkey_coldkey_to_hotkey_wallet.keys())
 

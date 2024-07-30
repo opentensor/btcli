@@ -222,8 +222,8 @@ class CLIManager:
             help="Specify the hotkeys to exclude by name or ss58 address. (e.g. `hk1 hk2 hk3`). "
             "If left empty, and no hotkeys included in --include-hotkeys, all hotkeys will be included.",
         ),
-        netuids: Optional[list[str]] = typer.Option(
-            [], help="Set the netuid(s) to filter by."
+        netuids: Optional[list[int]] = typer.Option(
+            [], help="Set the netuid(s) to filter by (e.g. `0 1 2`)"
         ),
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
@@ -243,30 +243,49 @@ class CLIManager:
         The output is presented in a tabular format with the following columns:
 
         - COLDKEY: The SS58 address of the coldkey.
+
         - HOTKEY: The SS58 address of the hotkey.
+
         - UID: Unique identifier of the neuron.
+
         - ACTIVE: Indicates if the neuron is active.
+
         - STAKE(τ): Amount of stake in the neuron, in Tao.
+
         - RANK: The rank of the neuron within the network.
+
         - TRUST: Trust score of the neuron.
+
         - CONSENSUS: Consensus score of the neuron.
+
         - INCENTIVE: Incentive score of the neuron.
+
         - DIVIDENDS: Dividends earned by the neuron.
+
         - EMISSION(p): Emission received by the neuron, in Rho.
+
         - VTRUST: Validator trust score of the neuron.
+
         - VPERMIT: Indicates if the neuron has a validator permit.
+
         - UPDATED: Time since last update.
+
         - AXON: IP address and port of the neuron.
+
         - HOTKEY_SS58: Human-readable representation of the hotkey.
 
+
         ### Example usage:
-        ```
+
+        - ```
         btcli wallet overview
         ```
-        ```
+
+        - ```
         btcli wallet overview --all --sort-by stake --sort-order descending
         ```
-        ```
+
+        - ```
         btcli wallet overview --include-hotkeys hk1 hk2 --sort-by stake
         ```
 
