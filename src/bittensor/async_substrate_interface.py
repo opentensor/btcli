@@ -233,7 +233,7 @@ class Websocket:
 
     async def _connect(self):
         self.ws = await asyncio.wait_for(
-            websockets.connect(self.ws_url, **self._options), timeout=None
+            websockets.connect(self.ws_url, **self._options), timeout=10
         )
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -276,12 +276,12 @@ class Websocket:
             response = json.loads(await self.ws.recv())
             async with self._lock:
                 self._open_subscriptions -= 1
-                if "id" in response:
-                    self._received[response["id"]] = response
-                elif "params" in response:
-                    self._received[response["params"]["subscription"]] = response
-                else:
-                    raise KeyError(response)
+            if "id" in response:
+                self._received[response["id"]] = response
+            elif "params" in response:
+                self._received[response["params"]["subscription"]] = response
+            else:
+                raise KeyError(response)
         except websockets.ConnectionClosed:
             raise
         except KeyError as e:
@@ -306,13 +306,13 @@ class Websocket:
         """
         async with self._lock:
             original_id = self.id
-            try:
-                await self.ws.send(json.dumps({**payload, **{"id": original_id}}))
-                self.id += 1
-                self._open_subscriptions += 1
-                return original_id
-            except websockets.ConnectionClosed:
-                raise
+            self.id += 1
+            self._open_subscriptions += 1
+        try:
+            await self.ws.send(json.dumps({**payload, **{"id": original_id}}))
+            return original_id
+        except websockets.ConnectionClosed:
+            raise
 
     async def retrieve(self, item_id: int) -> Optional[dict]:
         """
@@ -351,8 +351,8 @@ class AsyncSubstrateInterface:
             chain_endpoint,
             options={
                 "max_size": 2**32,
-                "read_limit": 2**32,
-                "write_limit": 2**32,
+                "read_limit": 2**16,
+                "write_limit": 2**16,
             },
         )
         self._lock = asyncio.Lock()
