@@ -36,6 +36,9 @@ class SubtensorInterface:
             type_registry=TYPE_REGISTRY,
         )
 
+    def __str__(self):
+        return f"Network: {self.network}, Chain: {self.chain_endpoint}"
+
     async def __aenter__(self):
         async with self.substrate:
             return

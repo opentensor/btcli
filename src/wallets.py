@@ -430,7 +430,7 @@ async def _get_total_balance(
             (
                 await subtensor.get_balance(
                     *(x.coldkeypub.ss58_address for x in _balance_cold_wallets),
-                    # reuse_block=True  # this breaks it idk why
+                    reuse_block=True
                 )
             ).values()
         )
@@ -446,7 +446,7 @@ async def _get_total_balance(
                 (
                     await subtensor.get_balance(
                         coldkey_wallet.coldkeypub.ss58_address,
-                        # reuse_block=True  # This breaks it idk why
+                        reuse_block=True
                     )
                 ).values()
             )
@@ -477,6 +477,7 @@ async def overview(
     ):
         async with subtensor:
             # We are printing for every coldkey.
+            block_hash = await subtensor.get_chain_head()
             all_hotkeys, total_balance = await _get_total_balance(
                 total_balance, subtensor, wallet, all_wallets
             )
@@ -494,10 +495,9 @@ async def overview(
 
             # Pull neuron info for all keys.
             neurons: dict[str, list[NeuronInfoLite]] = {}
-            block, all_netuids, block_hash = await asyncio.gather(
+            block, all_netuids = await asyncio.gather(
                 subtensor.substrate.get_block_number(None),
-                subtensor.get_all_subnet_netuids(),
-                subtensor.get_chain_head(),
+                subtensor.get_all_subnet_netuids()
             )
 
             netuids = await subtensor.filter_netuids_by_registered_hotkeys(
@@ -623,12 +623,14 @@ async def overview(
         hotkeys_seen = set()
         total_neurons = 0
         total_stake = 0.0
+        print("netuids", netuids)
         tempos = await asyncio.gather(
             *[
                 subtensor.get_hyperparameter("Tempo", netuid, block_hash)
                 for netuid in netuids
             ]
         )
+        print(tempos)
     for netuid, subnet_tempo in zip(netuids, tempos):
         last_subnet = netuid == netuids[-1]
         table_data = []

@@ -406,8 +406,14 @@ class AsyncSubstrateInterface:
         storage_item = metadata_pallet.get_storage_function(storage_function)
         return storage_item
 
-    def _get_current_block_hash(self, block_hash: Optional[str], reuse: bool):
-        return block_hash if block_hash else (self.last_block_hash if reuse else None)
+    async def _get_current_block_hash(self, block_hash: Optional[str], reuse: bool):
+        if block_hash:
+            self.last_block_hash = block_hash
+            return block_hash
+        elif reuse:
+            if self.last_block_hash:
+                return self.last_block_hash
+        return await self.get_chain_head()  # also sets the last_block_hash to chain_head
 
     async def init_runtime(
         self, block_hash: Optional[str] = None, block_id: Optional[int] = None
@@ -667,7 +673,7 @@ class AsyncSubstrateInterface:
 
         :return: the response from the RPC request
         """
-        block_hash = self._get_current_block_hash(block_hash, reuse_block_hash)
+        block_hash = await self._get_current_block_hash(block_hash, reuse_block_hash)
         payloads = [
             self.make_payload(
                 "rpc_request",
@@ -695,7 +701,21 @@ class AsyncSubstrateInterface:
         return (await self.rpc_request("chain_getBlockHash", [block_id]))["result"]
 
     async def get_chain_head(self) -> str:
-        self.last_block_hash = (await self.rpc_request("chain_getHead", []))["result"]
+        result = (await self._make_rpc_request(
+            [
+                self.make_payload(
+                    "rpc_request",
+                    "chain_getHead",
+                    [],
+                )
+            ],
+            runtime=Runtime(
+                self.chain,
+                self.substrate.runtime_config,
+                self.substrate.metadata,
+                self.type_registry)
+        ))
+        self.last_block_hash = result["rpc_request"][0]["result"]
         return self.last_block_hash
 
     async def compose_call(
@@ -739,15 +759,7 @@ class AsyncSubstrateInterface:
         # By allowing for specifying the block hash, users, if they have multiple query types they want
         # to do, can simply query the block hash first, and then pass multiple query_subtensor calls
         # into an asyncio.gather, with the specified block hash
-        block_hash = (
-            block_hash
-            if block_hash
-            else (
-                self.last_block_hash
-                if reuse_block_hash
-                else await self.get_chain_head()
-            )
-        )
+        block_hash = await self._get_current_block_hash(block_hash, reuse_block_hash)
         self.last_block_hash = block_hash
         runtime = await self.init_runtime(block_hash=block_hash)
         preprocessed: tuple[Preprocessed] = await asyncio.gather(
@@ -1007,15 +1019,7 @@ class AsyncSubstrateInterface:
         Queries subtensor. This should only be used when making a single request. For multiple requests,
         you should use ``self.query_multiple``
         """
-        block_hash = (
-            block_hash
-            if block_hash
-            else (
-                self.last_block_hash
-                if reuse_block_hash
-                else await self.get_chain_head()
-            )
-        )
+        block_hash = await self._get_current_block_hash(block_hash, reuse_block_hash)
         self.last_block_hash = block_hash
         runtime = await self.init_runtime(block_hash=block_hash)
         preprocessed: Preprocessed = await self._preprocess(
@@ -1079,15 +1083,7 @@ class AsyncSubstrateInterface:
         :return: QueryMapResult object
         """
         params = params or []
-        block_hash = (
-            block_hash
-            if block_hash
-            else (
-                self.last_block_hash
-                if reuse_block_hash
-                else await self.get_chain_head()
-            )
-        )
+        block_hash = await self._get_current_block_hash(block_hash, reuse_block_hash)
         self.last_block_hash = block_hash
         runtime = await self.init_runtime(block_hash=block_hash)
 

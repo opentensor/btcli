@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import asyncio
-from typing import Optional
+from typing import Optional, Coroutine
 
 from bittensor_wallet import Wallet
 import rich
@@ -132,6 +132,12 @@ class CLIManager:
             self.not_subtensor = SubtensorInterface(network, chain)
             # typer.echo(f"Initialized with {self.not_subtensor}")
 
+    def _run_command(self, cmd: Coroutine):
+        try:
+            asyncio.run(cmd)
+        except ConnectionRefusedError:
+            typer.echo(f"Connection refused when connecting to chain: {self.not_subtensor}")
+
     @staticmethod
     def wallet_ask(
         wallet_name: str,
@@ -160,8 +166,8 @@ class CLIManager:
                     raise typer.Exit()
         return wallet
 
-    @staticmethod
     def wallet_list(
+            self,
         wallet_path: str = typer.Option(
             defaults.wallet.path,
             "--wallet-path",
@@ -194,7 +200,7 @@ class CLIManager:
         This command is read-only and does not modify the filesystem or the network state. It is intended for use within
          the Bittensor CLI to provide a quick overview of the user's wallets.
         """
-        asyncio.run(wallets.wallet_list(wallet_path))
+        return self._run_command(wallets.wallet_list(wallet_path))
 
     def wallet_overview(
         self,
@@ -308,7 +314,7 @@ class CLIManager:
                 )
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         self.initialize_chain(network, chain)
-        asyncio.run(
+        return self._run_command(
             wallets.overview(
                 wallet,
                 self.not_subtensor,
@@ -356,7 +362,7 @@ class CLIManager:
         mnemonic, seed, json, json_password = get_creation_data(
             mnemonic, seed, json, json_password
         )
-        asyncio.run(
+        return self._run_command(
             wallets.regen_coldkey(
                 wallet,
                 mnemonic,
@@ -416,7 +422,7 @@ class CLIManager:
         ):
             rich.print("[red]Error: Invalid SS58 address or public key![/red]")
             raise typer.Exit()
-        asyncio.run(
+        return self._run_command(
             wallets.regen_coldkey_pub(
                 wallet, public_key_hex, ss58_address, overwrite_coldkeypub
             )
@@ -458,7 +464,7 @@ class CLIManager:
         mnemonic, seed, json, json_password = get_creation_data(
             mnemonic, seed, json, json_password
         )
-        asyncio.run(
+        return self._run_command(
             wallets.regen_hotkey(
                 wallet,
                 mnemonic,
@@ -502,7 +508,7 @@ class CLIManager:
             wallet_name, wallet_path, wallet_hotkey, validate=False
         )
         n_words = get_n_words(n_words)
-        asyncio.run(wallets.new_hotkey(wallet, n_words, use_password, overwrite_hotkey))
+        return self._run_command(wallets.new_hotkey(wallet, n_words, use_password, overwrite_hotkey))
 
     def wallet_new_coldkey(
         self,
@@ -534,7 +540,7 @@ class CLIManager:
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         n_words = get_n_words(n_words)
-        asyncio.run(
+        return self._run_command(
             wallets.new_coldkey(wallet, n_words, use_password, overwrite_coldkey)
         )
 
@@ -575,7 +581,7 @@ class CLIManager:
             wallet_name, wallet_path, wallet_hotkey, validate=False
         )
         n_words = get_n_words(n_words)
-        asyncio.run(
+        return self._run_command(
             wallets.wallet_create(
                 wallet, n_words, use_password, overwrite_coldkey, overwrite_hotkey
             )
@@ -629,7 +635,7 @@ class CLIManager:
         """
         subtensor = SubtensorInterface(network, chain)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        asyncio.run(wallets.wallet_balance(wallet, subtensor, all_balances))
+        return self._run_command(wallets.wallet_balance(wallet, subtensor, all_balances))
 
     def wallet_history(
         self,
@@ -656,7 +662,7 @@ class CLIManager:
         It helps in fetching info on all the transfers so that user can easily tally and cross check the transactions.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        asyncio.run(wallets.wallet_history(wallet))
+        return self._run_command(wallets.wallet_history(wallet))
 
     def delegates_list(
         self,
@@ -665,7 +671,7 @@ class CLIManager:
     ):
         if not wallet_name:
             wallet_name = typer.prompt("Please enter the wallet name")
-        asyncio.run(delegates.ListDelegatesCommand.run(wallet_name, network))
+        return self._run_command(delegates.ListDelegatesCommand.run(wallet_name, network))
 
     def run(self):
         self.app()
