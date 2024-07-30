@@ -136,7 +136,9 @@ class CLIManager:
         try:
             asyncio.run(cmd)
         except ConnectionRefusedError:
-            typer.echo(f"Connection refused when connecting to chain: {self.not_subtensor}")
+            typer.echo(
+                f"Connection refused when connecting to chain: {self.not_subtensor}"
+            )
 
     @staticmethod
     def wallet_ask(
@@ -167,7 +169,7 @@ class CLIManager:
         return wallet
 
     def wallet_list(
-            self,
+        self,
         wallet_path: str = typer.Option(
             defaults.wallet.path,
             "--wallet-path",
@@ -325,6 +327,55 @@ class CLIManager:
                 exclude_hotkeys,
                 netuids_filter=netuids,
             )
+        )
+
+    def wallet_transfer(
+        self,
+        destination: str = typer.Option(
+            None,
+            "--destination",
+            "--dest",
+            "-d",
+            prompt=True,
+            help="Destination address of the wallet.",
+        ),
+        amount: float = typer.Option(
+            None,
+            "--amount",
+            "-a",
+            prompt=True,
+            help="Amount (in TAO) to transfer.",
+        ),
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+    ):
+        """
+        # wallet transfer
+        Executes the ``transfer`` command to transfer TAO tokens from one account to another on the Bittensor network.
+
+        This command is used for transactions between different accounts, enabling users to send tokens to other
+        participants on the network. The command displays the user's current balance before prompting for the amount
+        to transfer, ensuring transparency and accuracy in the transaction.
+
+        ## Usage:
+        The command requires specifying the destination address (public key) and the amount of TAO to be transferred.
+        It checks for sufficient balance and prompts for confirmation before proceeding with the transaction.
+
+        ### Example usage:
+        ```
+        btcli wallet transfer --dest 5Dp8... --amount 100
+        ```
+
+        #### Note:
+        This command is crucial for executing token transfers within the Bittensor network. Users should verify the destination address and amount before confirming the transaction to avoid errors or loss of funds.
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        self.initialize_chain(network, chain)
+        return self._run_command(
+            wallets.transfer(wallet, self.not_subtensor, destination, amount)
         )
 
     def wallet_regen_coldkey(
@@ -508,7 +559,9 @@ class CLIManager:
             wallet_name, wallet_path, wallet_hotkey, validate=False
         )
         n_words = get_n_words(n_words)
-        return self._run_command(wallets.new_hotkey(wallet, n_words, use_password, overwrite_hotkey))
+        return self._run_command(
+            wallets.new_hotkey(wallet, n_words, use_password, overwrite_hotkey)
+        )
 
     def wallet_new_coldkey(
         self,
@@ -635,7 +688,9 @@ class CLIManager:
         """
         subtensor = SubtensorInterface(network, chain)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        return self._run_command(wallets.wallet_balance(wallet, subtensor, all_balances))
+        return self._run_command(
+            wallets.wallet_balance(wallet, subtensor, all_balances)
+        )
 
     def wallet_history(
         self,
@@ -671,7 +726,9 @@ class CLIManager:
     ):
         if not wallet_name:
             wallet_name = typer.prompt("Please enter the wallet name")
-        return self._run_command(delegates.ListDelegatesCommand.run(wallet_name, network))
+        return self._run_command(
+            delegates.ListDelegatesCommand.run(wallet_name, network)
+        )
 
     def run(self):
         self.app()

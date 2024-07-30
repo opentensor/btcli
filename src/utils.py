@@ -41,7 +41,10 @@ def get_hotkey_wallets_for_wallet(
                 hotkey_wallets.append(hotkey_for_name)
             elif show_nulls:
                 hotkey_wallets.append(None)
-        except (UnicodeDecodeError, AttributeError):  # usually an unrelated file like .DS_Store
+        except (
+            UnicodeDecodeError,
+            AttributeError,
+        ):  # usually an unrelated file like .DS_Store
             continue
 
     return hotkey_wallets

@@ -413,7 +413,9 @@ class AsyncSubstrateInterface:
         elif reuse:
             if self.last_block_hash:
                 return self.last_block_hash
-        return await self.get_chain_head()  # also sets the last_block_hash to chain_head
+        return (
+            await self.get_chain_head()
+        )  # also sets the last_block_hash to chain_head
 
     async def init_runtime(
         self, block_hash: Optional[str] = None, block_id: Optional[int] = None
@@ -701,7 +703,7 @@ class AsyncSubstrateInterface:
         return (await self.rpc_request("chain_getBlockHash", [block_id]))["result"]
 
     async def get_chain_head(self) -> str:
-        result = (await self._make_rpc_request(
+        result = await self._make_rpc_request(
             [
                 self.make_payload(
                     "rpc_request",
@@ -713,8 +715,9 @@ class AsyncSubstrateInterface:
                 self.chain,
                 self.substrate.runtime_config,
                 self.substrate.metadata,
-                self.type_registry)
-        ))
+                self.type_registry,
+            ),
+        )
         self.last_block_hash = result["rpc_request"][0]["result"]
         return self.last_block_hash
 

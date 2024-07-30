@@ -38,6 +38,7 @@ from src.utils import console, err_console, RAO_PER_TAO, decode_scale_bytes
 from . import defaults
 from src.subtensor_interface import SubtensorInterface
 from src.bittensor.balances import Balance
+from src.bittensor.extrinsics.transfer import transfer_extrinsic
 
 
 async def regen_coldkey(
@@ -430,11 +431,13 @@ async def _get_total_balance(
             (
                 await subtensor.get_balance(
                     *(x.coldkeypub.ss58_address for x in _balance_cold_wallets),
-                    reuse_block=True
+                    reuse_block=True,
                 )
             ).values()
         )
-        all_hotkeys = [hk for w in cold_wallets for hk in utils.get_hotkey_wallets_for_wallet(w)]
+        all_hotkeys = [
+            hk for w in cold_wallets for hk in utils.get_hotkey_wallets_for_wallet(w)
+        ]
     else:
         # We are only printing keys for a single coldkey
         coldkey_wallet = wallet
@@ -445,8 +448,7 @@ async def _get_total_balance(
             total_balance = sum(
                 (
                     await subtensor.get_balance(
-                        coldkey_wallet.coldkeypub.ss58_address,
-                        reuse_block=True
+                        coldkey_wallet.coldkeypub.ss58_address, reuse_block=True
                     )
                 ).values()
             )
@@ -497,7 +499,7 @@ async def overview(
             neurons: dict[str, list[NeuronInfoLite]] = {}
             block, all_netuids = await asyncio.gather(
                 subtensor.substrate.get_block_number(None),
-                subtensor.get_all_subnet_netuids()
+                subtensor.get_all_subnet_netuids(),
             )
 
             netuids = await subtensor.filter_netuids_by_registered_hotkeys(
@@ -541,7 +543,9 @@ async def overview(
                     )
                 )
                 difference = (
-                    total_coldkey_stake_from_chain[coldkey_wallet.coldkeypub.ss58_address]
+                    total_coldkey_stake_from_chain[
+                        coldkey_wallet.coldkeypub.ss58_address
+                    ]
                     - total_coldkey_stake_from_metagraph[
                         coldkey_wallet.coldkeypub.ss58_address
                     ]
@@ -1069,3 +1073,12 @@ async def _get_de_registered_stake_for_coldkey_wallet(
     ]
 
     return coldkey_wallet, result, None
+
+
+async def transfer(
+    wallet: Wallet, subtensor: SubtensorInterface, destination: str, amount: float
+):
+    """Transfer token of amount to destination."""
+    await transfer_extrinsic(
+        subtensor, wallet, destination, Balance.from_tao(amount), prompt=True
+    )
