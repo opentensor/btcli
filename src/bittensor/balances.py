@@ -249,11 +249,9 @@ class Balance:
     def from_float(amount: float):
         """
         Given tao (float), return Balance object with rao(int) and tao(float), where rao = int(tao*pow(10,9))
-        Args:
-            amount: The amount in tao.
+        :param amount: The amount in tao.
 
-        Returns:
-            A Balance object representing the given amount.
+        :return: A Balance object representing the given amount.
         """
         rao = int(amount * pow(10, 9))
         return Balance(rao)
@@ -263,11 +261,9 @@ class Balance:
         """
         Given tao (float), return Balance object with rao(int) and tao(float), where rao = int(tao*pow(10,9))
 
-        Args:
-            amount: The amount in tao.
+        :param amount: The amount in tao.
 
-        Returns:
-            A Balance object representing the given amount.
+        :return: A Balance object representing the given amount.
         """
         rao = int(amount * pow(10, 9))
         return Balance(rao)
@@ -277,10 +273,8 @@ class Balance:
         """
         Given rao (int), return Balance object with rao(int) and tao(float), where rao = int(tao*pow(10,9))
 
-        Args:
-            amount: The amount in rao.
+        :param amount: The amount in rao.
 
-        Returns:
-            A Balance object representing the given amount.
+        :return: A Balance object representing the given amount.
         """
         return Balance(amount)

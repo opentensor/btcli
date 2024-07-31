@@ -8,7 +8,7 @@ from scalecodec.type_registry import load_type_registry_preset
 from scalecodec.utils.ss58 import ss58_encode
 
 from src.bittensor.balances import Balance
-from src.utils import RAO_PER_TAO, SS58_FORMAT, u16_normalized_float
+from src.utils import SS58_FORMAT, u16_normalized_float
 
 
 class ChainDataType(Enum):
@@ -31,14 +31,12 @@ def from_scale_encoding(
     """
     Decodes input_ data from SCALE encoding based on the specified type name and modifiers.
 
-    Args:
-        input_ (Union[list[int], bytes, ScaleBytes]): The input_ data to decode.
-        type_name (ChainDataType): The type of data being decoded.
-        is_vec (bool, optional): Whether the data is a vector of the specified type. Default is ``False``.
-        is_option (bool, optional): Whether the data is an optional value of the specified type. Default is ``False``.
+    :param input_: The input data to decode.
+    :param type_name:The type of data being decoded.
+    :param is_vec:: Whether the data is a vector of the specified type.
+    :param is_option: Whether the data is an optional value of the specified type.
 
-    Returns:
-        Optional[Dict]: The decoded data as a dictionary, or ``None`` if the decoding fails.
+    :return: The decoded data as a dictionary, or `None` if the decoding fails.
     """
     type_string = type_name.name
     if type_name == ChainDataType.DelegatedInfo:
