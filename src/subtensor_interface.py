@@ -7,7 +7,12 @@ from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
 
 from src.bittensor.async_substrate_interface import AsyncSubstrateInterface
-from src.bittensor.chain_data import DelegateInfo, custom_rpc_type_registry, StakeInfo, NeuronInfoLite
+from src.bittensor.chain_data import (
+    DelegateInfo,
+    custom_rpc_type_registry,
+    StakeInfo,
+    NeuronInfoLite,
+)
 from src.bittensor.balances import Balance
 from src import Constants, defaults, TYPE_REGISTRY
 from src.utils import ss58_to_vec_u8
@@ -407,7 +412,7 @@ class SubtensorInterface:
 
         return Balance.from_rao(result.value)
 
-    async     def neurons_lite(
+    async def neurons_lite(
         self, netuid: int, block_hash: Optional[str] = None, reuse_block: bool = False
     ) -> list[NeuronInfoLite]:
         """
@@ -429,7 +434,7 @@ class SubtensorInterface:
             method="get_neurons_lite",
             params=[netuid],
             block_hash=block_hash,
-            reuse_block=reuse_block
+            reuse_block=reuse_block,
         )
 
         if hex_bytes_result is None:

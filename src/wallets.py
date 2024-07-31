@@ -32,7 +32,12 @@ import scalecodec
 import typer
 
 from src import utils, TYPE_REGISTRY, DelegatesDetails, Constants
-from src.bittensor.chain_data import NeuronInfoLite, custom_rpc_type_registry, StakeInfo, DelegateInfo
+from src.bittensor.chain_data import (
+    NeuronInfoLite,
+    custom_rpc_type_registry,
+    StakeInfo,
+    DelegateInfo,
+)
 from src.bittensor.networking import int_to_ip
 from src.utils import (
     console,
