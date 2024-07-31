@@ -432,7 +432,9 @@ class AsyncSubstrateInterface:
         storage_item = metadata_pallet.get_storage_function(storage_function)
         return storage_item
 
-    async def _get_current_block_hash(self, block_hash: Optional[str], reuse: bool) -> Optional[str]:
+    async def _get_current_block_hash(
+        self, block_hash: Optional[str], reuse: bool
+    ) -> Optional[str]:
         if block_hash:
             self.last_block_hash = block_hash
             return block_hash

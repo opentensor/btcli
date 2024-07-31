@@ -1192,10 +1192,13 @@ async def inspect(
         balances, all_neurons, all_delegates = await asyncio.gather(
             subtensor.get_balance(
                 *[w.coldkeypub.ss58_address for w in wallets_with_ckp_file],
-                block_hash=block_hash
+                block_hash=block_hash,
             ),
             asyncio.gather(
-                *[subtensor.neurons_lite(netuid=netuid, block_hash=block_hash) for netuid in all_netuids]
+                *[
+                    subtensor.neurons_lite(netuid=netuid, block_hash=block_hash)
+                    for netuid in all_netuids
+                ]
             ),
             asyncio.gather(
                 *[

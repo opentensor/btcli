@@ -360,14 +360,21 @@ class SubtensorInterface:
         return result.value
 
     async def filter_netuids_by_registered_hotkeys(
-        self, all_netuids, filter_for_netuids, all_hotkeys, block_hash: str, reuse_block: bool = False
+        self,
+        all_netuids,
+        filter_for_netuids,
+        all_hotkeys,
+        block_hash: str,
+        reuse_block: bool = False,
     ) -> list[int]:
         netuids_with_registered_hotkeys = [
             item
             for sublist in await asyncio.gather(
                 *[
                     self.get_netuids_for_hotkey(
-                        wallet.hotkey.ss58_address, reuse_block=reuse_block, block_hash=block_hash
+                        wallet.hotkey.ss58_address,
+                        reuse_block=reuse_block,
+                        block_hash=block_hash,
                     )
                     for wallet in all_hotkeys
                 ]

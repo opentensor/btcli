@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import asyncio
+import os.path
 from typing import Optional, Coroutine
 
 from bittensor_wallet import Wallet
@@ -7,6 +8,7 @@ import rich
 from rich.prompt import Confirm, Prompt
 import typer
 from websockets import ConnectionClosed
+from yaml import safe_load
 
 from src import wallets, defaults, utils
 from src.subtensor_interface import SubtensorInterface
@@ -95,7 +97,16 @@ def get_creation_data(mnemonic, seed, json, json_password):
 
 class CLIManager:
     def __init__(self):
-        self.app = typer.Typer(rich_markup_mode="markdown")
+        self.config = {
+            "wallet_name": None,
+            "wallet_path": None,
+            "wallet_hotkey": None,
+            "network": None,
+            "chain": None,
+        }
+        self.not_subtensor = None
+
+        self.app = typer.Typer(rich_markup_mode="markdown", callback=self.check_config)
         self.wallet_app = typer.Typer()
         self.delegates_app = typer.Typer()
 
@@ -125,16 +136,19 @@ class CLIManager:
         # delegates commands
         self.delegates_app.command("list")(self.delegates_list)
 
-        self.not_subtensor = None
-
     def initialize_chain(
         self,
         network: str = typer.Option("default_network", help="Network name"),
         chain: str = typer.Option("default_chain", help="Chain name"),
     ):
         if not self.not_subtensor:
-            self.not_subtensor = SubtensorInterface(network, chain)
-            # typer.echo(f"Initialized with {self.not_subtensor}")
+            if self.config["chain"] or self.config["chain"]:
+                self.not_subtensor = SubtensorInterface(
+                    self.config["network"], self.config["chain"]
+                )
+            else:
+                self.not_subtensor = SubtensorInterface(network, chain)
+                # typer.echo(f"Initialized with {self.not_subtensor}")
 
     def _run_command(self, cmd: Coroutine):
         try:
@@ -145,6 +159,13 @@ class CLIManager:
             )
         except ConnectionClosed:
             pass
+
+    def check_config(self):
+        with open(os.path.expanduser("~/.bittensor/config.yml"), "r") as f:
+            config = safe_load(f)
+        for k, v in config.items():
+            if k in self.config.keys():
+                self.config[k] = v
 
     @staticmethod
     def wallet_ask(
