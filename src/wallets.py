@@ -31,11 +31,18 @@ from rich.tree import Tree
 import scalecodec
 import typer
 
-from src import utils, TYPE_REGISTRY
-from src.bittensor.chain_data import NeuronInfoLite, custom_rpc_type_registry, StakeInfo
+from src import utils, TYPE_REGISTRY, DelegatesDetails, Constants
+from src.bittensor.chain_data import NeuronInfoLite, custom_rpc_type_registry, StakeInfo, DelegateInfo
 from src.bittensor.networking import int_to_ip
-from src.utils import console, err_console, RAO_PER_TAO, decode_scale_bytes
-from . import defaults
+from src.utils import (
+    console,
+    err_console,
+    RAO_PER_TAO,
+    decode_scale_bytes,
+    get_all_wallets_for_path,
+    get_hotkey_wallets_for_wallet,
+    get_delegates_details_from_github,
+)
 from src.subtensor_interface import SubtensorInterface
 from src.bittensor.balances import Balance
 from src.bittensor.extrinsics.transfer import transfer_extrinsic
@@ -1082,3 +1089,123 @@ async def transfer(
     await transfer_extrinsic(
         subtensor, wallet, destination, Balance.from_tao(amount), prompt=True
     )
+
+
+async def inspect(
+    wallet: Wallet,
+    subtensor: SubtensorInterface,
+    netuids_filter: Optional[list[int]] = None,
+    all_wallets: bool = False,
+):
+    def delegate_row_maker(delegates_: list[tuple[DelegateInfo, Balance]]) -> list[str]:
+        for delegate_, staked in delegates_:
+            if delegate_.hotkey_ss58 in registered_delegate_info:
+                delegate_name = registered_delegate_info[delegate_.hotkey_ss58].name
+            else:
+                delegate_name = delegate_.hotkey_ss58
+            yield [
+                "",
+                "",
+                str(delegate_name),
+                str(staked),
+                str(
+                    delegate_.total_daily_return.tao
+                    * (staked.tao / delegate_.total_stake.tao)
+                ),
+                "",
+                "",
+                "",
+                "",
+            ]
+
+    if all_wallets:
+        wallets = _get_coldkey_wallets_for_path(wallet.path)
+        all_hotkeys = get_all_wallets_for_path(
+            wallet.path
+        )  # TODO verify this is correct
+    else:
+        wallets = [wallet]
+        all_hotkeys = get_hotkey_wallets_for_wallet(wallet)
+
+    all_netuids = subtensor.get_all_subnet_netuids()
+    async with subtensor:
+        block, all_netuids = await subtensor.filter_netuids_by_registered_hotkeys(
+            all_netuids, netuids_filter, all_hotkeys, reuse_block=False
+        )
+    # bittensor.logging.debug(f"Netuids to check: {all_netuids}")
+
+    registered_delegate_info: Optional[
+        dict[str, DelegatesDetails]
+    ] = await get_delegates_details_from_github(url=Constants.delegates_details_url)
+    if not registered_delegate_info:
+        console.print(
+            ":warning:[yellow]Could not get delegate info from chain.[/yellow]"
+        )
+
+    neuron_state_dict = {}
+    for netuid in tqdm(all_netuids):
+        neurons = subtensor.neurons_lite(netuid)
+        neuron_state_dict[netuid] = neurons if neurons else []
+
+    table = Table(
+        Column("[overline white]Coldkey", style="bold white"),
+        Column("[overline white]Balance", style="green"),
+        Column("[overline white]Delegate", style="blue"),
+        Column("[overline white]Stake", style="green"),
+        Column("[overline white]Emission", style="green"),
+        Column("[overline white]Netuid", style="bold white"),
+        Column("[overline white]Hotkey", style="yellow"),
+        Column("[overline white]Stake", style="green"),
+        Column("[overline white]Emission", style="green"),
+        show_footer=True,
+        pad_edge=False,
+        box=None,
+        expand=True,
+        footer_style="overline white",
+    )
+    rows = []
+    for wallet in wallets:
+        delegates: list[tuple[DelegateInfo, Balance]] = subtensor.get_delegated(
+            coldkey_ss58=wallet.coldkeypub.ss58_address
+        )
+        if not wallet.coldkeypub_file.exists_on_device():
+            continue
+        cold_balance = subtensor.get_balance(wallet.coldkeypub.ss58_address)
+        rows.append([wallet.name, str(cold_balance), "", "", "", "", "", "", ""])
+        for row in delegate_row_maker(delegates):
+            rows.append(row)
+
+        hotkeys = get_hotkey_wallets_for_wallet(wallet)
+        for netuid in all_netuids:
+            for neuron in neuron_state_dict[netuid]:
+                if neuron.coldkey == wallet.coldkeypub.ss58_address:
+                    hotkey_name: str = ""
+
+                    hotkey_names: list[str] = [
+                        wallet.hotkey_str
+                        for wallet in filter(
+                            lambda hotkey: hotkey.hotkey.ss58_address == neuron.hotkey,
+                            hotkeys,
+                        )
+                    ]
+                    if hotkey_names:
+                        hotkey_name = f"{hotkey_names[0]}-"
+
+                    rows.append(
+                        [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            str(netuid),
+                            f"{hotkey_name}{neuron.hotkey}",
+                            str(neuron.stake),
+                            str(Balance.from_tao(neuron.emission)),
+                        ]
+                    )
+
+    for row in rows:
+        table.add_row(*row)
+
+    console.print(table)

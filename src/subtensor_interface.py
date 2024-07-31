@@ -7,7 +7,7 @@ from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
 
 from src.bittensor.async_substrate_interface import AsyncSubstrateInterface
-from src.bittensor.chain_data import DelegateInfo, custom_rpc_type_registry, StakeInfo
+from src.bittensor.chain_data import DelegateInfo, custom_rpc_type_registry, StakeInfo, NeuronInfoLite
 from src.bittensor.balances import Balance
 from src import Constants, defaults, TYPE_REGISTRY
 from src.utils import ss58_to_vec_u8
@@ -59,7 +59,7 @@ class SubtensorInterface:
 
         for i, param in enumerate(call_definition["params"]):  # type: ignore
             scale_obj = await self.substrate.create_scale_object(param["type"])
-            if type(params) is list:
+            if isinstance(params, list):
                 param_data += scale_obj.encode(params[i])
             else:
                 if param["name"] not in params:
@@ -104,11 +104,11 @@ class SubtensorInterface:
         checks if the neuron associated with the hotkey is part of the network's delegation system.
 
         Args:
-            hotkey_ss58 (str): The SS58 address of the neuron's hotkey.
-            block_hash (Optional[int], optional): The blockchain block number for the query.
+        :param hotkey_ss58: The SS58 address of the neuron's hotkey.
+        :param block_hash: The hash of the blockchain block number for the query.
+        :param reuse_block: Whether to reuse the last-used block hash.
 
-        Returns:
-            bool: ``True`` if the hotkey is a delegate, ``False`` otherwise.
+        :return: `True` if the hotkey is a delegate, `False` otherwise.
 
         Being a delegate is a significant status within the Bittensor network, indicating a neuron's
         involvement in consensus and governance processes.
@@ -145,11 +145,11 @@ class SubtensorInterface:
         about the stakes held by an account, including the staked amounts and associated delegates.
 
         Args:
-            coldkey_ss58 (str): The ``SS58`` address of the account's coldkey.
-            block (Optional[int], optional): The blockchain block number for the query.
+        :param coldkey_ss58: The ``SS58`` address of the account's coldkey.
+        :param block_hash: The hash of the blockchain block number for the query.
+        :param reuse_block: Whether to reuse the last-used block hash.
 
-        Returns:
-            List[StakeInfo]: A list of StakeInfo objects detailing the stake allocations for the account.
+        :return: A list of StakeInfo objects detailing the stake allocations for the account.
 
         Stake information is vital for account holders to assess their investment and participation
         in the network's delegation and consensus processes.
@@ -187,14 +187,13 @@ class SubtensorInterface:
         runtime and retrieve data encoded in Scale Bytes format. This function is essential for advanced users
         who need to interact with specific runtime methods and decode complex data types.
 
-        Args:
-            runtime_api (str): The name of the runtime API to query.
-            method (str): The specific method within the runtime API to call.
-            params (Optional[List[ParamWithTypes]], optional): The parameters to pass to the method call.
-            block (Optional[int]): The blockchain block number at which to perform the query.
+        :param runtime_api: The name of the runtime API to query.
+        :param method: The specific method within the runtime API to call.
+        :param params: The parameters to pass to the method call.
+        :param block_hash: The hash of the blockchain block number at which to perform the query.
+        :param reuse_block: Whether to reuse the last-used block hash.
 
-        Returns:
-            Optional[bytes]: The Scale Bytes encoded result from the runtime API call, or ``None`` if the call fails.
+        :return: The Scale Bytes encoded result from the runtime API call, or ``None`` if the call fails.
 
         This function enables access to the deeper layers of the Bittensor blockchain, allowing for detailed
         and specific interactions with the network's runtime environment.
@@ -259,7 +258,8 @@ class SubtensorInterface:
         :param ss58_addresses: The SS58 address(es) of the coldkey(s)
         :param block: The block number to retrieve the stake from. Currently unused.
         :param reuse_block: Whether to reuse the last-used block hash when retrieving info.
-        :return:
+
+        :return: {address: Balance objects}
         """
         results = await self.substrate.query_multiple(
             params=[s for s in ss58_addresses],
@@ -283,11 +283,11 @@ class SubtensorInterface:
         the hotkey is active.
 
         Args:
-            hotkey_ss58 (str): The ``SS58`` address of the neuron's hotkey.
-            block (Optional[int]): The blockchain block number at which to perform the query.
+        :param hotkey_ss58: The ``SS58`` address of the neuron's hotkey.
+        :param block_hash: The hash of the blockchain block number at which to perform the query.
+        :param reuse_block: Whether to reuse the last-used block hash when retrieving info.
 
-        Returns:
-            List[int]: A list of netuids where the neuron is a member.
+        :return: A list of netuids where the neuron is a member.
         """
         result = await self.substrate.query_map(
             module="SubtensorModule",
@@ -406,3 +406,38 @@ class SubtensorInterface:
             raise Exception("Unable to retrieve existential deposit amount.")
 
         return Balance.from_rao(result.value)
+
+    async     def neurons_lite(
+        self, netuid: int, block_hash: Optional[str] = None, reuse_block: bool = False
+    ) -> list[NeuronInfoLite]:
+        """
+        Retrieves a list of neurons in a 'lite' format from a specific subnet of the Bittensor network.
+        This function provides a streamlined view of the neurons, focusing on key attributes such as stake
+        and network participation.
+
+        :param netuid: The unique identifier of the subnet.
+        :param block_hash: The hash of the blockchain block number for the query.
+        :param reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        :return: A list of simplified neuron information for the subnet.
+
+        This function offers a quick overview of the neuron population within a subnet, facilitating
+        efficient analysis of the network's decentralized structure and neuron dynamics.
+        """
+        hex_bytes_result = await self.query_runtime_api(
+            runtime_api="NeuronInfoRuntimeApi",
+            method="get_neurons_lite",
+            params=[netuid],
+            block_hash=block_hash,
+            reuse_block=reuse_block
+        )
+
+        if hex_bytes_result is None:
+            return []
+
+        if hex_bytes_result.startswith("0x"):
+            bytes_result = bytes.fromhex(hex_bytes_result[2:])
+        else:
+            bytes_result = bytes.fromhex(hex_bytes_result)
+
+        return NeuronInfoLite.list_from_vec_u8(bytes_result)  # type: ignore

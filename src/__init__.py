@@ -12,6 +12,27 @@ class Constants:
         "test": finney_test_entrypoint,
         "archive": archive_entrypoint,
     }
+    delegates_details_url = (
+        "https://raw.githubusercontent.com/opentensor/"
+        "bittensor-delegates/main/public/delegates.json"
+    )
+
+
+@dataclass
+class DelegatesDetails:
+    name: str
+    url: str
+    description: str
+    signature: str
+
+    @classmethod
+    def from_json(cls, json: dict[str, any]) -> "DelegatesDetails":
+        return cls(
+            name=json["name"],
+            url=json["url"],
+            description=json["description"],
+            signature=json["signature"],
+        )
 
 
 @dataclass

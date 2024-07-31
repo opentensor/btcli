@@ -65,6 +65,7 @@ class Options:
         defaults.subtensor.chain_endpoint,
         help="The subtensor chain endpoint to connect to.",
     )
+    netuids = typer.Option([], help="Set the netuid(s) to filter by (e.g. `0 1 2`)")
 
 
 def get_n_words(n_words: Optional[int]) -> int:
@@ -230,9 +231,7 @@ class CLIManager:
             help="Specify the hotkeys to exclude by name or ss58 address. (e.g. `hk1 hk2 hk3`). "
             "If left empty, and no hotkeys included in --include-hotkeys, all hotkeys will be included.",
         ),
-        netuids: Optional[list[int]] = typer.Option(
-            [], help="Set the netuid(s) to filter by (e.g. `0 1 2`)"
-        ),
+        netuids: Optional[list[int]] = Options.netuids,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
     ):
@@ -298,11 +297,10 @@ class CLIManager:
         ```
 
         #### Note:
-        This command is read-only and does not modify the network state or account configurations. It provides a quick and
-        comprehensive view of the user's network presence, making it ideal for monitoring account status, stake distribution,
-        and overall contribution to the Bittensor network.
+        This command is read-only and does not modify the network state or account configurations. It provides a quick
+        and comprehensive view of the user's network presence, making it ideal for monitoring account status, stake
+        distribution, and overall contribution to the Bittensor network.
         """
-        # TODO verify this is actually doing all wallets
         if include_hotkeys and exclude_hotkeys:
             utils.err_console.print(
                 "[red]You have specified hotkeys for inclusion and exclusion. Pick only one or neither."
@@ -370,12 +368,94 @@ class CLIManager:
         ```
 
         #### Note:
-        This command is crucial for executing token transfers within the Bittensor network. Users should verify the destination address and amount before confirming the transaction to avoid errors or loss of funds.
+        This command is crucial for executing token transfers within the Bittensor network. Users should verify the
+        destination address and amount before confirming the transaction to avoid errors or loss of funds.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         self.initialize_chain(network, chain)
         return self._run_command(
             wallets.transfer(wallet, self.not_subtensor, destination, amount)
+        )
+
+    def wallet_inspect(
+        self,
+        all_wallets: bool = typer.Option(
+            False,
+            "--all",
+            "--all-wallets",
+            "-a",
+            help="Inspect all wallets within specified path.",
+        ),
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        netuids: Optional[list[int]] = Options.netuids,
+    ):
+        """
+        # wallet inspect
+        Executes the ``inspect`` command, which compiles and displays a detailed report of a user's wallet pairs
+        (coldkey, hotkey) on the Bittensor network.
+
+        This report includes balance and staking information for both the coldkey and hotkey associated with the wallet.
+
+        The command gathers data on:
+
+        - Coldkey balance and delegated stakes.
+        - Hotkey stake and emissions per neuron on the network.
+        - Delegate names and details fetched from the network.
+
+        The resulting table includes columns for:
+
+        - **Coldkey**: The coldkey associated with the user's wallet.
+
+        - **Balance**: The balance of the coldkey.
+
+        - **Delegate**: The name of the delegate to which the coldkey has staked funds.
+
+        - **Stake**: The amount of stake held by both the coldkey and hotkey.
+
+        - **Emission**: The emission or rewards earned from staking.
+
+        - **Netuid**: The network unique identifier of the subnet where the hotkey is active.
+
+        - **Hotkey**: The hotkey associated with the neuron on the network.
+
+        ## Usage:
+        This command can be used to inspect a single wallet or all wallets located within a
+        specified path. It is useful for a comprehensive overview of a user's participation
+        and performance in the Bittensor network.
+
+        #### Example usage::
+        ```
+        btcli wallet inspect
+        ```
+
+        ```
+        btcli wallet inspect --all
+        ```
+
+        #### Note:
+        The ``inspect`` command is for displaying information only and does not perform any
+        transactions or state changes on the Bittensor network. It is intended to be used as
+        part of the Bittensor CLI and not as a standalone function within user code.
+        """
+        # if all-wallets is entered, ask for path
+        if all_wallets:
+            if not wallet_path:
+                wallet_path = Prompt.ask(
+                    "Enter the path of the wallets", default=defaults.wallet.path
+                )
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        self.initialize_chain(network, chain)
+        self._run_command(
+            wallets.inspect(
+                wallet,
+                self.not_subtensor,
+                netuids_filter=netuids,
+                all_wallets=all_wallets,
+            )
         )
 
     def wallet_regen_coldkey(
@@ -405,8 +485,8 @@ class CLIManager:
         btcli wallet regen_coldkey --mnemonic "word1 word2 ... word12"
         ```
 
-        ### Note: This command is critical for users who need to regenerate their coldkey, possibly for recovery or security
-        reasons. It should be used with caution to avoid overwriting existing keys unintentionally.
+        ### Note: This command is critical for users who need to regenerate their coldkey, possibly for recovery or
+        security reasons. It should be used with caution to avoid overwriting existing keys unintentionally.
         """
 
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
@@ -704,8 +784,8 @@ class CLIManager:
         This command provides a detailed view of the transfers carried out on the wallet.
 
         ## Usage:
-        The command lists the latest transfers of the provided wallet, showing the From, To, Amount, Extrinsic Id and
-        Block Number.
+        The command lists the latest transfers of the provided wallet, showing the 'From', 'To', 'Amount',
+        'Extrinsic ID' and 'Block Number'.
 
         ### Example usage:
         ```
@@ -714,7 +794,7 @@ class CLIManager:
 
         #### Note:
         This command is essential for users to monitor their financial status on the Bittensor network.
-        It helps in fetching info on all the transfers so that user can easily tally and cross check the transactions.
+        It helps in fetching info on all the transfers so that user can easily tally and cross-check the transactions.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(wallets.wallet_history(wallet))

@@ -1,7 +1,8 @@
 import os
 from pathlib import Path
-from typing import Union
+from typing import Union, Optional, Any
 
+import aiohttp
 import scalecodec
 from bittensor_wallet import Wallet
 from bittensor_wallet.keyfile import Keypair
@@ -9,6 +10,8 @@ from bittensor_wallet.utils import SS58_FORMAT, ss58
 from rich.console import Console
 from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
+
+from src import DelegatesDetails
 
 console = Console()
 err_console = Console(stderr=True)
@@ -266,3 +269,18 @@ def format_error_message(error_message: dict) -> str:
         err_docs = error_message.get("docs", [])
         err_description = err_docs[0] if len(err_docs) > 0 else err_description
     return f"Subtensor returned `{err_name} ({err_type})` error. This means: `{err_description}`"
+
+
+async def get_delegates_details_from_github(url: str) -> dict[str, DelegatesDetails]:
+    async with aiohttp.ClientSession() as session:
+        response = await session.get(url)
+
+    all_delegates_details = {}
+    if response.ok:
+        all_delegates: dict[str, Any] = await response.json()
+        for delegate_hotkey, delegates_details in all_delegates.items():
+            all_delegates_details[delegate_hotkey] = DelegatesDetails.from_json(
+                delegates_details
+            )
+
+    return all_delegates_details
