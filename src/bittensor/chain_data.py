@@ -195,16 +195,15 @@ class DelegateInfo:
     """
     Dataclass for delegate information. For a lighter version of this class, see :func:`DelegateInfoLite`.
 
-    Args:
-        hotkey_ss58 (str): Hotkey of the delegate for which the information is being fetched.
-        total_stake (int): Total stake of the delegate.
-        nominators (list[Tuple[str, int]]): list of nominators of the delegate and their stake.
-        take (float): Take of the delegate as a percentage.
-        owner_ss58 (str): Coldkey of the owner.
-        registrations (list[int]): list of subnets that the delegate is registered on.
-        validator_permits (list[int]): list of subnets that the delegate is allowed to validate on.
-        return_per_1000 (int): Return per 1000 TAO, for the delegate over a day.
-        total_daily_return (int): Total daily return of the delegate.
+    :param hotkey_ss58: Hotkey of the delegate for which the information is being fetched.
+    :param total_stake: Total stake of the delegate.
+    :param nominators: list of nominators of the delegate and their stake.
+    :param take: Take of the delegate as a percentage.
+    :param owner_ss58: Coldkey of the owner.
+    :param registrations: list of subnets that the delegate is registered on.
+    :param validator_permits: list of subnets that the delegate is allowed to validate on.
+    :param return_per_1000: Return per 1000 TAO, for the delegate over a day.
+    :param total_daily_return: Total daily return of the delegate.
 
     """
 

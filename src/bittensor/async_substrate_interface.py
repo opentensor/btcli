@@ -413,9 +413,7 @@ class AsyncSubstrateInterface:
         elif reuse:
             if self.last_block_hash:
                 return self.last_block_hash
-        return (
-            await self.get_chain_head()
-        )  # also sets the last_block_hash to chain_head
+        return block_hash
 
     async def init_runtime(
         self, block_hash: Optional[str] = None, block_id: Optional[int] = None

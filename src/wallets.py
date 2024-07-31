@@ -16,9 +16,10 @@
 # DEALINGS IN THE SOFTWARE.
 
 import asyncio
-import os
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
+import itertools
+import os
 from typing import Optional, Any
 
 import aiohttp
@@ -1099,29 +1100,43 @@ async def transfer(
 async def inspect(
     wallet: Wallet,
     subtensor: SubtensorInterface,
-    netuids_filter: Optional[list[int]] = None,
+    netuids_filter: list[int],
     all_wallets: bool = False,
 ):
     def delegate_row_maker(delegates_: list[tuple[DelegateInfo, Balance]]) -> list[str]:
-        for delegate_, staked in delegates_:
-            if delegate_.hotkey_ss58 in registered_delegate_info:
-                delegate_name = registered_delegate_info[delegate_.hotkey_ss58].name
+        for d_, staked in delegates_:
+            if d_.hotkey_ss58 in registered_delegate_info:
+                delegate_name = registered_delegate_info[d_.hotkey_ss58].name
             else:
-                delegate_name = delegate_.hotkey_ss58
-            yield [
-                "",
-                "",
-                str(delegate_name),
-                str(staked),
-                str(
-                    delegate_.total_daily_return.tao
-                    * (staked.tao / delegate_.total_stake.tao)
-                ),
-                "",
-                "",
-                "",
-                "",
-            ]
+                delegate_name = d_.hotkey_ss58
+            yield (
+                [""] * 2
+                + [
+                    str(delegate_name),
+                    str(staked),
+                    str(d_.total_daily_return.tao * (staked.tao / d_.total_stake.tao)),
+                ]
+                + [""] * 4
+            )
+
+    def neuron_row_maker(wallet_, all_netuids_, nsd) -> list[str]:
+        hotkeys = get_hotkey_wallets_for_wallet(wallet_)
+        for netuid in all_netuids_:
+            for n in nsd[netuid]:
+                if n.coldkey == wallet_.coldkeypub.ss58_address:
+                    hotkey_name: str = ""
+                    if hotkey_names := [
+                        w.hotkey_str
+                        for w in hotkeys
+                        if w.hotkey.ss58_address == n.hotkey
+                    ]:
+                        hotkey_name = f"{hotkey_names[0]}-"
+                    yield [""] * 5 + [
+                        str(netuid),
+                        f"{hotkey_name}{n.hotkey}",
+                        str(n.stake),
+                        str(Balance.from_tao(n.emission)),
+                    ]
 
     if all_wallets:
         wallets = _get_coldkey_wallets_for_path(wallet.path)
@@ -1132,10 +1147,13 @@ async def inspect(
         wallets = [wallet]
         all_hotkeys = get_hotkey_wallets_for_wallet(wallet)
 
-    all_netuids = subtensor.get_all_subnet_netuids()
     async with subtensor:
-        block, all_netuids = await subtensor.filter_netuids_by_registered_hotkeys(
-            all_netuids, netuids_filter, all_hotkeys, reuse_block=False
+        block_hash = await subtensor.substrate.get_chain_head()
+        all_netuids = await subtensor.filter_netuids_by_registered_hotkeys(
+            (await subtensor.get_all_subnet_netuids(block_hash)),
+            netuids_filter,
+            all_hotkeys,
+            reuse_block=False
         )
     # bittensor.logging.debug(f"Netuids to check: {all_netuids}")
 
@@ -1146,11 +1164,6 @@ async def inspect(
         console.print(
             ":warning:[yellow]Could not get delegate info from chain.[/yellow]"
         )
-
-    neuron_state_dict = {}
-    for netuid in tqdm(all_netuids):
-        neurons = subtensor.neurons_lite(netuid)
-        neuron_state_dict[netuid] = neurons if neurons else []
 
     table = Table(
         Column("[overline white]Coldkey", style="bold white"),
@@ -1169,46 +1182,38 @@ async def inspect(
         footer_style="overline white",
     )
     rows = []
-    for wallet in wallets:
-        delegates: list[tuple[DelegateInfo, Balance]] = subtensor.get_delegated(
-            coldkey_ss58=wallet.coldkeypub.ss58_address
+    wallets_with_ckp_file = [
+        wallet for wallet in wallets if wallet.coldkeypub_file.exists_on_device()
+    ]
+    all_delegates: list[list[tuple[DelegateInfo, Balance]]]
+    async with subtensor:
+        balances, all_neurons, all_delegates = await asyncio.gather(
+            subtensor.get_balance(
+                *[w.coldkeypub.ss58_address for w in wallets_with_ckp_file]
+            ),
+            asyncio.gather(
+                *[subtensor.neurons_lite(netuid=netuid) for netuid in all_netuids]
+            ),
+            asyncio.gather(
+            *[
+                subtensor.get_delegated(w.coldkeypub.ss58_address)
+                for w in wallets_with_ckp_file
+            ]),
         )
-        if not wallet.coldkeypub_file.exists_on_device():
-            continue
-        cold_balance = subtensor.get_balance(wallet.coldkeypub.ss58_address)
-        rows.append([wallet.name, str(cold_balance), "", "", "", "", "", "", ""])
-        for row in delegate_row_maker(delegates):
+
+    neuron_state_dict = {}
+    for netuid, neuron in zip(all_netuids, all_neurons):
+        neuron_state_dict[netuid] = neuron if neuron else []
+
+    for wall, d in zip(wallets_with_ckp_file, all_delegates):
+        rows.append(
+            [wall.name, str(balances[wall.coldkeypub.ss58_address])] + [""] * 7
+        )
+        for row in itertools.chain(
+            delegate_row_maker(d),
+            neuron_row_maker(wall, all_netuids, neuron_state_dict),
+        ):
             rows.append(row)
-
-        hotkeys = get_hotkey_wallets_for_wallet(wallet)
-        for netuid in all_netuids:
-            for neuron in neuron_state_dict[netuid]:
-                if neuron.coldkey == wallet.coldkeypub.ss58_address:
-                    hotkey_name: str = ""
-
-                    hotkey_names: list[str] = [
-                        wallet.hotkey_str
-                        for wallet in filter(
-                            lambda hotkey: hotkey.hotkey.ss58_address == neuron.hotkey,
-                            hotkeys,
-                        )
-                    ]
-                    if hotkey_names:
-                        hotkey_name = f"{hotkey_names[0]}-"
-
-                    rows.append(
-                        [
-                            "",
-                            "",
-                            "",
-                            "",
-                            "",
-                            str(netuid),
-                            f"{hotkey_name}{neuron.hotkey}",
-                            str(neuron.stake),
-                            str(Balance.from_tao(neuron.emission)),
-                        ]
-                    )
 
     for row in rows:
         table.add_row(*row)

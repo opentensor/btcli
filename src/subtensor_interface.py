@@ -432,7 +432,9 @@ class SubtensorInterface:
         hex_bytes_result = await self.query_runtime_api(
             runtime_api="NeuronInfoRuntimeApi",
             method="get_neurons_lite",
-            params=[netuid],
+            params=[
+                netuid
+            ],  # TODO check to see if this can accept more than one at a time
             block_hash=block_hash,
             reuse_block=reuse_block,
         )
@@ -446,3 +448,39 @@ class SubtensorInterface:
             bytes_result = bytes.fromhex(hex_bytes_result)
 
         return NeuronInfoLite.list_from_vec_u8(bytes_result)  # type: ignore
+
+    async def get_delegated(
+        self,
+        coldkey_ss58: str,
+        block_hash: Optional[int] = None,
+        reuse_block: bool = False,
+    ) -> list[tuple[DelegateInfo, Balance]]:
+        """
+        Retrieves a list of delegates and their associated stakes for a given coldkey. This function
+        identifies the delegates that a specific account has staked tokens on.
+
+        :param coldkey_ss58: The `SS58` address of the account's coldkey.
+        :param block_hash: The blockchain block number for the query.
+        :param reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        :return: A list of tuples, each containing a delegate's information and staked amount.
+
+        This function is important for account holders to understand their stake allocations and their
+        involvement in the network's delegation and consensus mechanisms.
+        """
+
+        block_hash = (
+            block_hash
+            if block_hash
+            else (self.substrate.last_block_hash if reuse_block else None)
+        )
+        encoded_coldkey = ss58_to_vec_u8(coldkey_ss58)
+        json_body = await self.substrate.rpc_request(
+            method="delegateInfo_getDelegated",
+            params=([block_hash, encoded_coldkey] if block_hash else [encoded_coldkey]),
+        )
+
+        if not (result := json_body.get("result")):
+            return []
+
+        return DelegateInfo.delegated_list_from_vec_u8(result)

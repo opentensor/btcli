@@ -118,6 +118,8 @@ class CLIManager:
         self.wallet_app.command("balance")(self.wallet_balance)
         self.wallet_app.command("history")(self.wallet_history)
         self.wallet_app.command("overview")(self.wallet_overview)
+        self.wallet_app.command("transfer")(self.wallet_transfer)
+        self.wallet_app.command("inspect")(self.wallet_inspect)
 
         # delegates commands
         self.delegates_app.command("list")(self.delegates_list)

@@ -277,7 +277,7 @@ async def get_delegates_details_from_github(url: str) -> dict[str, DelegatesDeta
 
     all_delegates_details = {}
     if response.ok:
-        all_delegates: dict[str, Any] = await response.json()
+        all_delegates: dict[str, Any] = await response.json(content_type=None)
         for delegate_hotkey, delegates_details in all_delegates.items():
             all_delegates_details[delegate_hotkey] = DelegatesDetails.from_json(
                 delegates_details

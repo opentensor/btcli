@@ -26,11 +26,10 @@ class Balance:
     This class provides a way to interact with balances in two different units: rao and tao.
     It provides methods to convert between these units, as well as to perform arithmetic and comparison operations.
 
-    Attributes:
-        unit: A string representing the symbol for the tao unit.
-        rao_unit: A string representing the symbol for the rao unit.
-        rao: An integer that stores the balance in rao units.
-        tao: A float property that gives the balance in tao units.
+    :var unit: A string representing the symbol for the tao unit.
+    :var rao_unit: A string representing the symbol for the rao unit.
+    :var rao: An integer that stores the balance in rao units.
+    :var tao: A float property that gives the balance in tao units.
     """
 
     unit: str = chr(0x03C4)  # This is the tao unit
