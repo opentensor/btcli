@@ -1153,7 +1153,7 @@ async def inspect(
             (await subtensor.get_all_subnet_netuids(block_hash)),
             netuids_filter,
             all_hotkeys,
-            reuse_block=False
+            reuse_block=False,
         )
     # bittensor.logging.debug(f"Netuids to check: {all_netuids}")
 
@@ -1195,10 +1195,11 @@ async def inspect(
                 *[subtensor.neurons_lite(netuid=netuid) for netuid in all_netuids]
             ),
             asyncio.gather(
-            *[
-                subtensor.get_delegated(w.coldkeypub.ss58_address)
-                for w in wallets_with_ckp_file
-            ]),
+                *[
+                    subtensor.get_delegated(w.coldkeypub.ss58_address)
+                    for w in wallets_with_ckp_file
+                ]
+            ),
         )
 
     neuron_state_dict = {}
@@ -1206,9 +1207,7 @@ async def inspect(
         neuron_state_dict[netuid] = neuron if neuron else []
 
     for wall, d in zip(wallets_with_ckp_file, all_delegates):
-        rows.append(
-            [wall.name, str(balances[wall.coldkeypub.ss58_address])] + [""] * 7
-        )
+        rows.append([wall.name, str(balances[wall.coldkeypub.ss58_address])] + [""] * 7)
         for row in itertools.chain(
             delegate_row_maker(d),
             neuron_row_maker(wall, all_netuids, neuron_state_dict),
