@@ -163,3 +163,16 @@ TYPE_REGISTRY = {
         },
     },
 }
+
+NETWORK_EXPLORER_MAP = {
+    "opentensor": {
+        "local": "https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fentrypoint-finney.opentensor.ai%3A443#/explorer",
+        "endpoint": "https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fentrypoint-finney.opentensor.ai%3A443#/explorer",
+        "finney": "https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fentrypoint-finney.opentensor.ai%3A443#/explorer",
+    },
+    "taostats": {
+        "local": "https://x.taostats.io",
+        "endpoint": "https://x.taostats.io",
+        "finney": "https://x.taostats.io",
+    },
+}

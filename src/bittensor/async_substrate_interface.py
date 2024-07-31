@@ -943,7 +943,11 @@ class AsyncSubstrateInterface:
         return nonce_obj.value
 
     async def get_constant(
-        self, module_name: str, constant_name: str, block_hash: Optional[str] = None
+        self,
+        module_name: str,
+        constant_name: str,
+        block_hash: Optional[str] = None,
+        reuse_block_hash: bool = False,
     ) -> Optional["ScaleType"]:
         """
         Returns the decoded `ScaleType` object of the constant for given module name, call function name and block_hash
@@ -954,9 +958,11 @@ class AsyncSubstrateInterface:
         :param module_name: Name of the module to query
         :param constant_name: Name of the constant to query
         :param block_hash: Hash of the block at which to make the runtime API call
+        :param reuse_block_hash: Reuse last-used block hash if set to true
 
         :return: ScaleType from the runtime call
         """
+        block_hash = await self._get_current_block_hash(block_hash, reuse_block_hash)
         async with self._lock:
             return await asyncio.get_event_loop().run_in_executor(
                 None,

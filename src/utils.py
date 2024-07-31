@@ -78,7 +78,9 @@ def get_all_wallets_for_path(path: str) -> list[Wallet]:
 def is_valid_wallet(wallet: Wallet) -> tuple[bool, bool]:
     """
     Verifies that the wallet with specified parameters.
+
     :param wallet: a Wallet instance
+
     :return: tuple[bool], whether wallet appears valid, whether valid hotkey in wallet
     """
     return (
@@ -96,11 +98,9 @@ def is_valid_ss58_address(address: str) -> bool:
     """
     Checks if the given address is a valid ss58 address.
 
-    Args:
-        address(str): The address to check.
+    :param address: The address to check.
 
-    Returns:
-        True if the address is a valid ss58 address for Bittensor, False otherwise.
+    :return: `True` if the address is a valid ss58 address for Bittensor, `False` otherwise.
     """
     try:
         return ss58.is_valid_ss58_address(
@@ -116,11 +116,9 @@ def is_valid_ed25519_pubkey(public_key: Union[str, bytes]) -> bool:
     """
     Checks if the given public_key is a valid ed25519 key.
 
-    Args:
-        public_key(Union[str, bytes]): The public_key to check.
+    :param public_key: The public_key to check.
 
-    Returns:
-        True if the public_key is a valid ed25519 key, False otherwise.
+    :return: True if the public_key is a valid ed25519 key, False otherwise.
 
     """
     try:
@@ -146,11 +144,9 @@ def is_valid_bittensor_address_or_public_key(address: Union[str, bytes]) -> bool
     """
     Checks if the given address is a valid destination address.
 
-    Args:
-        address(Union[str, bytes]): The address to check.
+    :param address: The address to check.
 
-    Returns:
-        True if the address is a valid destination address, False otherwise.
+    :return: True if the address is a valid destination address, False otherwise.
     """
     if isinstance(address, str):
         # Check if ed25519
@@ -191,12 +187,82 @@ def ss58_to_vec_u8(ss58_address: str) -> list[int]:
     """
     Converts an SS58 address to a list of integers (vector of u8).
 
-    Args:
-        ss58_address (str): The SS58 address to be converted.
+    :param ss58_address: The SS58 address to be converted.
 
-    Returns:
-        List[int]: A list of integers representing the byte values of the SS58 address.
+    :return: A list of integers representing the byte values of the SS58 address.
     """
     ss58_bytes: bytes = ss58_address_to_bytes(ss58_address)
     encoded_address: list[int] = [int(byte) for byte in ss58_bytes]
     return encoded_address
+
+
+def get_explorer_root_url_by_network_from_map(
+    network: str, network_map: dict[str, dict[str, str]]
+) -> dict[str, str]:
+    r"""
+    Returns the explorer root url for the given network name from the given network map.
+
+    :param network: The network to get the explorer url for.
+    :param network_map: The network map to get the explorer url from.
+
+    :return: The explorer url for the given network.
+    """
+    explorer_urls: dict[str, str] = {}
+    for entity_nm, entity_network_map in network_map.items():
+        if network in entity_network_map:
+            explorer_urls[entity_nm] = entity_network_map[network]
+
+    return explorer_urls
+
+
+def get_explorer_url_for_network(
+    network: str, block_hash: str, network_map: dict[str, str]
+) -> dict[str, str]:
+    r"""
+    Returns the explorer url for the given block hash and network.
+
+    :param network: The network to get the explorer url for.
+    :param block_hash: The block hash to get the explorer url for.
+    :param network_map: The network maps to get the explorer urls from.
+
+    :return: The explorer url for the given block hash and network
+    """
+
+    explorer_urls: dict[str, str] = {}
+    # Will be None if the network is not known. i.e. not in network_map
+    explorer_root_urls: dict[str, str] = get_explorer_root_url_by_network_from_map(
+        network, network_map
+    )
+
+    if explorer_root_urls != {}:
+        # We are on a known network.
+        explorer_opentensor_url = "{root_url}/query/{block_hash}".format(
+            root_url=explorer_root_urls.get("opentensor"), block_hash=block_hash
+        )
+        explorer_taostats_url = "{root_url}/extrinsic/{block_hash}".format(
+            root_url=explorer_root_urls.get("taostats"), block_hash=block_hash
+        )
+        explorer_urls["opentensor"] = explorer_opentensor_url
+        explorer_urls["taostats"] = explorer_taostats_url
+
+    return explorer_urls
+
+
+def format_error_message(error_message: dict) -> str:
+    """
+    Formats an error message from the Subtensor error information to using in extrinsics.
+
+    :param error_message: A dictionary containing the error information from Subtensor.
+
+    :return: A formatted error message string.
+    """
+    err_type = "UnknownType"
+    err_name = "UnknownError"
+    err_description = "Unknown Description"
+
+    if isinstance(error_message, dict):
+        err_type = error_message.get("type", err_type)
+        err_name = error_message.get("name", err_name)
+        err_docs = error_message.get("docs", [])
+        err_description = err_docs[0] if len(err_docs) > 0 else err_description
+    return f"Subtensor returned `{err_name} ({err_type})` error. This means: `{err_description}`"

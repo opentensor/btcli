@@ -378,3 +378,31 @@ class SubtensorInterface:
             all_netuids.extend(netuids_with_registered_hotkeys)
 
         return list(set(all_netuids))
+
+    async def get_existential_deposit(
+        self, block_hash: Optional[str] = None, reuse_block: bool = False
+    ) -> Optional[Balance]:
+        """
+        Retrieves the existential deposit amount for the Bittensor blockchain. The existential deposit
+        is the minimum amount of TAO required for an account to exist on the blockchain. Accounts with
+        balances below this threshold can be reaped to conserve network resources.
+
+        :param block_hash: Block hash at which to query the deposit amount. If `None`, the current block is used.
+        :param reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        :return: The existential deposit amount
+
+        The existential deposit is a fundamental economic parameter in the Bittensor network, ensuring
+        efficient use of storage and preventing the proliferation of dust accounts.
+        """
+        result = await self.substrate.get_constant(
+            module_name="Balances",
+            constant_name="ExistentialDeposit",
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        if result is None or not hasattr(result, "value"):
+            raise Exception("Unable to retrieve existential deposit amount.")
+
+        return Balance.from_rao(result.value)
