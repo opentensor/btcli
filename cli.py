@@ -6,6 +6,7 @@ from bittensor_wallet import Wallet
 import rich
 from rich.prompt import Confirm, Prompt
 import typer
+from websockets import ConnectionClosed
 
 from src import wallets, defaults, utils
 from src.subtensor_interface import SubtensorInterface
@@ -142,6 +143,8 @@ class CLIManager:
             typer.echo(
                 f"Connection refused when connecting to chain: {self.not_subtensor}"
             )
+        except ConnectionClosed:
+            pass
 
     @staticmethod
     def wallet_ask(

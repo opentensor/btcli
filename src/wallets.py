@@ -1149,11 +1149,13 @@ async def inspect(
 
     async with subtensor:
         block_hash = await subtensor.substrate.get_chain_head()
+        print("BLOCK HASH:", block_hash)
+        await subtensor.substrate.init_runtime(block_hash=block_hash)
         all_netuids = await subtensor.filter_netuids_by_registered_hotkeys(
             (await subtensor.get_all_subnet_netuids(block_hash)),
             netuids_filter,
             all_hotkeys,
-            reuse_block=False,
+            block_hash=block_hash,
         )
     # bittensor.logging.debug(f"Netuids to check: {all_netuids}")
 
@@ -1189,10 +1191,11 @@ async def inspect(
     async with subtensor:
         balances, all_neurons, all_delegates = await asyncio.gather(
             subtensor.get_balance(
-                *[w.coldkeypub.ss58_address for w in wallets_with_ckp_file]
+                *[w.coldkeypub.ss58_address for w in wallets_with_ckp_file],
+                block_hash=block_hash
             ),
             asyncio.gather(
-                *[subtensor.neurons_lite(netuid=netuid) for netuid in all_netuids]
+                *[subtensor.neurons_lite(netuid=netuid, block_hash=block_hash) for netuid in all_netuids]
             ),
             asyncio.gather(
                 *[
@@ -1201,6 +1204,7 @@ async def inspect(
                 ]
             ),
         )
+    await subtensor.substrate.close()
 
     neuron_state_dict = {}
     for netuid, neuron in zip(all_netuids, all_neurons):
@@ -1217,4 +1221,4 @@ async def inspect(
     for row in rows:
         table.add_row(*row)
 
-    console.print(table)
+    return console.print(table)

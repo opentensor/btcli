@@ -237,12 +237,12 @@ class SubtensorInterface:
         return obj.decode()
 
     async def get_balance(
-        self, *addresses, block: Optional[int] = None, reuse_block: bool = False
+        self, *addresses, block_hash: Optional[int] = None, reuse_block: bool = False
     ) -> dict[str, Balance]:
         """
         Retrieves the balance for given coldkey(s)
         :param addresses: coldkey addresses(s)
-        :param block: the block number, optional, currently unused
+        :param block_hash: the block hash, optional
         :param reuse_block: Whether to reuse the last-used block hash when retrieving info.
         :return: dict of {address: Balance objects}
         """
@@ -250,6 +250,7 @@ class SubtensorInterface:
             params=[a for a in addresses],
             storage_function="Account",
             module="System",
+            block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
         return {k: Balance(v.value["data"]["free"]) for (k, v) in results.items()}
@@ -294,6 +295,7 @@ class SubtensorInterface:
 
         :return: A list of netuids where the neuron is a member.
         """
+
         result = await self.substrate.query_map(
             module="SubtensorModule",
             storage_function="IsNetworkMember",
@@ -358,14 +360,14 @@ class SubtensorInterface:
         return result.value
 
     async def filter_netuids_by_registered_hotkeys(
-        self, all_netuids, filter_for_netuids, all_hotkeys, reuse_block: bool = False
+        self, all_netuids, filter_for_netuids, all_hotkeys, block_hash: str, reuse_block: bool = False
     ) -> list[int]:
         netuids_with_registered_hotkeys = [
             item
             for sublist in await asyncio.gather(
                 *[
                     self.get_netuids_for_hotkey(
-                        wallet.hotkey.ss58_address, reuse_block=reuse_block
+                        wallet.hotkey.ss58_address, reuse_block=reuse_block, block_hash=block_hash
                     )
                     for wallet in all_hotkeys
                 ]
@@ -452,7 +454,7 @@ class SubtensorInterface:
     async def get_delegated(
         self,
         coldkey_ss58: str,
-        block_hash: Optional[int] = None,
+        block_hash: Optional[str] = None,
         reuse_block: bool = False,
     ) -> list[tuple[DelegateInfo, Balance]]:
         """
@@ -460,7 +462,7 @@ class SubtensorInterface:
         identifies the delegates that a specific account has staked tokens on.
 
         :param coldkey_ss58: The `SS58` address of the account's coldkey.
-        :param block_hash: The blockchain block number for the query.
+        :param block_hash: The hash of the blockchain block number for the query.
         :param reuse_block: Whether to reuse the last-used blockchain block hash.
 
         :return: A list of tuples, each containing a delegate's information and staked amount.

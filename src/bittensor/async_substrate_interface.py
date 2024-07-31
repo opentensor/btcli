@@ -27,6 +27,29 @@ class Preprocessed:
     storage_item: ScaleType
 
 
+class RuntimeCache:
+    blocks: dict[int, "Runtime"]
+    block_hashes: dict[str, "Runtime"]
+
+    def __init__(self):
+        self.blocks = {}
+        self.block_hashes = {}
+
+    def add_item(self, block: int, block_hash: str, runtime: "Runtime"):
+        if block:
+            self.blocks[block] = runtime
+        if block_hash:
+            self.block_hashes[block] = runtime
+
+    def retrieve(self, block: int, block_hash: str):
+        if block:
+            return self.blocks.get(block)
+        elif block_hash:
+            return self.block_hashes.get(block_hash)
+        else:
+            return None
+
+
 class Runtime:
     block_hash: str
     block_id: int
@@ -257,19 +280,22 @@ class Websocket:
         """
         try:
             await asyncio.sleep(self.shutdown_timer)
-            async with self._lock:
-                self._receiving_task.cancel()
-                try:
-                    await self._receiving_task
-                except asyncio.CancelledError:
-                    pass
-                await self.ws.close()
-                self.ws = None
-                self._initialized = False
-                self._receiving_task = None
-                self.id = 0
+            await self.shutdown()
         except asyncio.CancelledError:
             pass
+
+    async def shutdown(self):
+        async with self._lock:
+            self._receiving_task.cancel()
+            try:
+                await self._receiving_task
+            except asyncio.CancelledError:
+                pass
+            await self.ws.close()
+            self.ws = None
+            self._initialized = False
+            self._receiving_task = None
+            self.id = 0
 
     async def _recv(self) -> None:
         try:
@@ -285,7 +311,6 @@ class Websocket:
         except websockets.ConnectionClosed:
             raise
         except KeyError as e:
-            print(f"Unhandled websocket response: {e}")
             raise e
 
     async def _start_receiving(self):
@@ -368,6 +393,7 @@ class AsyncSubstrateInterface:
         self._forgettable_task = None
         self.ss58_format = ss58_format
         self.type_registry = type_registry
+        self.runtime_cache = RuntimeCache()
 
     async def __aenter__(self):
         await self.initialize()
@@ -401,12 +427,12 @@ class AsyncSubstrateInterface:
 
     async def get_storage_item(self, module: str, storage_function: str):
         if not self.substrate.metadata:
-            self.substrate.init_runtime()
+            await self.init_runtime()
         metadata_pallet = self.substrate.metadata.get_metadata_pallet(module)
         storage_item = metadata_pallet.get_storage_function(storage_function)
         return storage_item
 
-    async def _get_current_block_hash(self, block_hash: Optional[str], reuse: bool):
+    async def _get_current_block_hash(self, block_hash: Optional[str], reuse: bool) -> Optional[str]:
         if block_hash:
             self.last_block_hash = block_hash
             return block_hash
@@ -432,15 +458,18 @@ class AsyncSubstrateInterface:
         :returns: Runtime object
         """
         async with self._lock:
-            await asyncio.get_event_loop().run_in_executor(
-                None, self.substrate.init_runtime, block_hash, block_id
-            )
-            return Runtime(
-                self.chain,
-                self.substrate.runtime_config,
-                self.substrate.metadata,
-                self.type_registry,
-            )
+            if not (runtime := self.runtime_cache.retrieve(block_id, block_hash)):
+                await asyncio.get_event_loop().run_in_executor(
+                    None, self.substrate.init_runtime, block_hash, block_id
+                )
+                runtime = Runtime(
+                    self.chain,
+                    self.substrate.runtime_config,
+                    self.substrate.metadata,
+                    self.type_registry,
+                )
+                self.runtime_cache.add_item(block_id, block_hash, runtime)
+        return runtime
 
     async def get_block_runtime_version(self, block_hash: str) -> dict:
         """
@@ -761,7 +790,8 @@ class AsyncSubstrateInterface:
         # to do, can simply query the block hash first, and then pass multiple query_subtensor calls
         # into an asyncio.gather, with the specified block hash
         block_hash = await self._get_current_block_hash(block_hash, reuse_block_hash)
-        self.last_block_hash = block_hash
+        if block_hash:
+            self.last_block_hash = block_hash
         runtime = await self.init_runtime(block_hash=block_hash)
         preprocessed: tuple[Preprocessed] = await asyncio.gather(
             *[
@@ -1027,7 +1057,8 @@ class AsyncSubstrateInterface:
         you should use ``self.query_multiple``
         """
         block_hash = await self._get_current_block_hash(block_hash, reuse_block_hash)
-        self.last_block_hash = block_hash
+        if block_hash:
+            self.last_block_hash = block_hash
         runtime = await self.init_runtime(block_hash=block_hash)
         preprocessed: Preprocessed = await self._preprocess(
             params, block_hash, storage_function, module
@@ -1091,13 +1122,13 @@ class AsyncSubstrateInterface:
         """
         params = params or []
         block_hash = await self._get_current_block_hash(block_hash, reuse_block_hash)
-        self.last_block_hash = block_hash
+        if block_hash:
+            self.last_block_hash = block_hash
         runtime = await self.init_runtime(block_hash=block_hash)
 
         metadata_pallet = runtime.metadata.get_metadata_pallet(module)
         if not metadata_pallet:
             raise ValueError(f'Pallet "{module}" not found')
-
         storage_item = metadata_pallet.get_storage_function(storage_function)
 
         if not metadata_pallet or not storage_item:
@@ -1387,6 +1418,6 @@ class AsyncSubstrateInterface:
         """
         self.substrate.close()
         try:
-            await self.ws.ws.close()
+            await self.ws.shutdown()
         except AttributeError:
             pass
