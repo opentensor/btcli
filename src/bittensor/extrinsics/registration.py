@@ -448,7 +448,8 @@ async def run_faucet_extrinsic(
     """
     if prompt:
         if not Confirm.ask(
-            "Run Faucet ?\n"
+            "Run Faucet?\n"
+            f" wallet name: [bold white]{wallet.name}[/bold white]\n"
             f" coldkey:    [bold white]{wallet.coldkeypub.ss58_address}[/bold white]\n"
             f" network:    [bold white]{subtensor}[/bold white]"
         ):

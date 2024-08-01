@@ -1256,3 +1256,5 @@ async def faucet(
     )
     if not success:
         err_console.print("Faucet run failed.")
+
+    await subtensor.substrate.close()

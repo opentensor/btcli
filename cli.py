@@ -240,15 +240,17 @@ class CLIManager:
             table.add_row(*[k, v])
         console.print(table)
 
-    @staticmethod
     def wallet_ask(
+        self,
         wallet_name: str,
         wallet_path: str,
         wallet_hotkey: str,
-        config=None,
         validate=True,
     ):
-        # TODO Wallet(config)
+        wallet_name = wallet_name or self.config.get("wallet_name")
+        wallet_path = wallet_path or self.config.get("wallet_path")
+        wallet_hotkey = wallet_hotkey or self.config.get("wallet_hotkey")
+
         if not any([wallet_name, wallet_path, wallet_hotkey]):
             wallet_name = typer.prompt("Enter wallet name")
             wallet = Wallet(name=wallet_name)
