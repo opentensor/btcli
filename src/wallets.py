@@ -52,6 +52,7 @@ from src.utils import (
 from src.subtensor_interface import SubtensorInterface
 from src.bittensor.balances import Balance
 from src.bittensor.extrinsics.transfer import transfer_extrinsic
+from src.bittensor.extrinsics.registration import run_faucet_extrinsic
 
 
 async def regen_coldkey(
@@ -278,6 +279,7 @@ async def wallet_balance(
         str(total_free_balance + total_staked_balance),
     )
     console.print(table)
+    await subtensor.substrate.close()
 
 
 async def get_wallet_transfers(wallet_address: str) -> list[dict]:
@@ -1237,17 +1239,17 @@ async def faucet(
     dev_id: int,
     output_in_place: bool,
     log_verbose: bool,
+    max_successes: int = 3
 ):
-    success = await subtensor.run_faucet(
-        wallet=wallet,
-        prompt=True,
-        tpb=threads_per_block,
+    success = await run_faucet_extrinsic(
+        subtensor, wallet, tpb=threads_per_block, prompt=True,
         update_interval=update_interval,
         num_processes=processes,
         cuda=use_cuda,
         dev_id=dev_id,
         output_in_place=output_in_place,
         log_verbose=log_verbose,
+        max_successes=max_successes
     )
     if not success:
         err_console.print("Faucet run failed.")

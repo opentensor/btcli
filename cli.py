@@ -112,26 +112,27 @@ class CLIManager:
         self.not_subtensor = None
 
         self.app = typer.Typer(rich_markup_mode="markdown", callback=self.check_config)
-        self.default_app = typer.Typer()
+        self.config_app = typer.Typer()
         self.wallet_app = typer.Typer()
         self.delegates_app = typer.Typer()
 
-        # default alias
-        self.app.add_typer(self.default_app, name="default")
-        self.app.add_typer(self.default_app, name="def", hidden=True)
+        # config alias
+        self.app.add_typer(self.config_app, name="config", short_help="Config commands, aliases: `c`, `conf`")
+        self.app.add_typer(self.config_app, name="conf", hidden=True)
+        self.app.add_typer(self.config_app, name="c", hidden=True)
 
         # wallet aliases
-        self.app.add_typer(self.wallet_app, name="wallet")
+        self.app.add_typer(self.wallet_app, name="wallet", short_help="Wallet commands, aliases: `wallets`, `w`")
         self.app.add_typer(self.wallet_app, name="w", hidden=True)
         self.app.add_typer(self.wallet_app, name="wallets", hidden=True)
 
         # delegates aliases
-        self.app.add_typer(self.delegates_app, name="delegates")
+        self.app.add_typer(self.delegates_app, name="delegates", short_help="Delegate commands, alias: `d`")
         self.app.add_typer(self.delegates_app, name="d", hidden=True)
 
-        # defaults commands
-        self.default_app.command("set")(self.set_config)
-        self.default_app.command("get")(self.get_config)
+        # config commands
+        self.config_app.command("set")(self.set_config)
+        self.config_app.command("get")(self.get_config)
 
         # wallet commands
         self.wallet_app.command("list")(self.wallet_list)
@@ -146,6 +147,7 @@ class CLIManager:
         self.wallet_app.command("overview")(self.wallet_overview)
         self.wallet_app.command("transfer")(self.wallet_transfer)
         self.wallet_app.command("inspect")(self.wallet_inspect)
+        self.wallet_app.command("faucet")(self.wallet_faucet)
 
         # delegates commands
         self.delegates_app.command("list")(self.delegates_list)
@@ -620,6 +622,10 @@ class CLIManager:
         real TAO tokens. It's important for users to have the necessary hardware setup, especially when opting for
         CUDA-based GPU calculations. It is currently disabled on testnet and finney. You must use this on a local chain.
         """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        self.initialize_chain(network, chain)
+        self._run_command(wallets.faucet(wallet, self.not_subtensor, threads_per_block, update_interval, processors,
+                                         use_cuda, dev_id, output_in_place, verbose, max_successes))
 
     def wallet_regen_coldkey(
         self,

@@ -49,7 +49,7 @@ class Defaults:
         verbose = False
 
         class cuda:
-            dev_id = [0]
+            dev_id = 0
             use_cuda = False
             tpb = 256
 

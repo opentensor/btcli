@@ -1403,7 +1403,7 @@ class AsyncSubstrateInterface:
                     if call.name == call_function_name:
                         return call
 
-    async def get_block_number(self, block_hash: str) -> int:
+    async def get_block_number(self, block_hash: Optional[str]) -> int:
         """Async version of `substrateinterface.base.get_block_number` method."""
         response = await self.rpc_request("chain_getHeader", [block_hash])
 
