@@ -1,6 +1,7 @@
 import os
+import math
 from pathlib import Path
-from typing import Union, Optional, Any
+from typing import Union, Any
 
 import aiohttp
 import scalecodec
@@ -289,3 +290,25 @@ async def get_delegates_details_from_github(url: str) -> dict[str, DelegatesDeta
             )
 
     return all_delegates_details
+
+
+def get_human_readable(num, suffix="H"):
+    for unit in ["", "K", "M", "G", "T", "P", "E", "Z"]:
+        if abs(num) < 1000.0:
+            return f"{num:3.1f}{unit}{suffix}"
+        num /= 1000.0
+    return f"{num:.1f}Y{suffix}"
+
+
+def millify(n: int):
+    mill_names = ["", " K", " M", " B", " T"]
+    n = float(n)
+    mill_idx = max(
+        0,
+        min(
+            len(mill_names) - 1,
+            int(math.floor(0 if n == 0 else math.log10(abs(n)) / 3)),
+        ),
+    )
+
+    return "{:.2f}{}".format(n / 10 ** (3 * mill_idx), mill_names[mill_idx])
