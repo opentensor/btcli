@@ -1225,3 +1225,29 @@ async def inspect(
         table.add_row(*row)
 
     return console.print(table)
+
+
+async def faucet(
+    wallet: Wallet,
+    subtensor: SubtensorInterface,
+    threads_per_block: int,
+    update_interval: int,
+    processes: int,
+    use_cuda: bool,
+    dev_id: int,
+    output_in_place: bool,
+    log_verbose: bool,
+):
+    success = await subtensor.run_faucet(
+        wallet=wallet,
+        prompt=True,
+        tpb=threads_per_block,
+        update_interval=update_interval,
+        num_processes=processes,
+        cuda=use_cuda,
+        dev_id=dev_id,
+        output_in_place=output_in_place,
+        log_verbose=log_verbose,
+    )
+    if not success:
+        err_console.print("Faucet run failed.")

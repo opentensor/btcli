@@ -6,9 +6,10 @@ from typing import Optional, Coroutine
 from bittensor_wallet import Wallet
 import rich
 from rich.prompt import Confirm, Prompt
+from rich.table import Table, Column
 import typer
 from websockets import ConnectionClosed
-from yaml import safe_load
+from yaml import safe_load, safe_dump
 
 from src import wallets, defaults, utils
 from src.subtensor_interface import SubtensorInterface
@@ -108,8 +109,13 @@ class CLIManager:
         self.not_subtensor = None
 
         self.app = typer.Typer(rich_markup_mode="markdown", callback=self.check_config)
+        self.default_app = typer.Typer()
         self.wallet_app = typer.Typer()
         self.delegates_app = typer.Typer()
+
+        # default alias
+        self.app.add_typer(self.default_app, name="default")
+        self.app.add_typer(self.default_app, name="def", hidden=True)
 
         # wallet aliases
         self.app.add_typer(self.wallet_app, name="wallet")
@@ -119,6 +125,10 @@ class CLIManager:
         # delegates aliases
         self.app.add_typer(self.delegates_app, name="delegates")
         self.app.add_typer(self.delegates_app, name="d", hidden=True)
+
+        # defaults commands
+        self.default_app.command("set")(self.set_config)
+        self.default_app.command("get")(self.get_config)
 
         # wallet commands
         self.wallet_app.command("list")(self.wallet_list)
@@ -168,6 +178,50 @@ class CLIManager:
         for k, v in config.items():
             if k in self.config.keys():
                 self.config[k] = v
+
+    def set_config(
+        self,
+        wallet_name: Optional[str] = typer.Option(
+            None,
+            "--wallet-name",
+            "--name",
+            help="Wallet name",
+        ),
+        wallet_path: Optional[str] = typer.Option(
+            None,
+            "--wallet-path",
+            "--path",
+            "-p",
+            help="Path to root of wallets",
+        ),
+        wallet_hotkey: Optional[str] = typer.Option(
+            None, "--wallet-hotkey", "--hotkey", "-k", help="Path to root of wallets"
+        ),
+        network: Optional[str] = typer.Option(
+            None,
+            "--network",
+            "-n",
+            help="Network name: [finney, test, local]",
+        ),
+        chain: Optional[str] = typer.Option(
+            None,
+            "--chain",
+            "-c",
+            help="Chain name",
+        ),
+    ):
+        args = locals()
+        for arg in ["wallet_name", "wallet_path", "wallet_hotkey", "network", "chain"]:
+            if val := args.get(arg):
+                self.config[arg] = val
+        with open(os.path.expanduser("~/.bittensor/config.yml"), "w") as f:
+            safe_dump(self.config, f)
+
+    def get_config(self):
+        table = Table(Column("Name"), Column("Value"))
+        for k, v in self.config.items():
+            table.add_row(*[k, v])
+        console.print(table)
 
     @staticmethod
     def wallet_ask(
@@ -485,6 +539,84 @@ class CLIManager:
                 all_wallets=all_wallets,
             )
         )
+
+    def wallet_faucet(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        # TODO add the following to config
+        processors: Optional[int] = typer.Option(
+            defaults.pow_register.num_processes,
+            "-processors",
+            "-p",
+            help="Number of processors to use for POW registration.",
+        ),
+        update_interval: Optional[int] = typer.Option(
+            defaults.pow_register.update_interval,
+            "-update-interval",
+            "-u",
+            help="The number of nonces to process before checking for next block during registration",
+        ),
+        output_in_place: Optional[bool] = typer.Option(
+            defaults.pow_register.output_in_place,
+            help="Whether to output the registration statistics in-place.",
+        ),
+        verbose: Optional[bool] = typer.Option(
+            defaults.pow_register.verbose,
+            "--verbose",
+            "-v",
+            help="Whether to output the registration statistics verbosely.",
+        ),
+        use_cuda: Optional[bool] = typer.Option(
+            defaults.pow_register.cuda.use_cuda,
+            "--use-cuda/--no-use-cuda",
+            "--cuda/--no-cuda",
+            help="Set flag to use CUDA to pow_register.",
+        ),
+        dev_id: Optional[int] = typer.Option(
+            defaults.pow_register.cuda.dev_id,
+            "--dev-id",
+            "-d",
+            help="Set the CUDA device id(s). Goes by the order of speed. (i.e. 0 is the fastest).",
+        ),
+        threads_per_block: Optional[int] = typer.Option(
+            defaults.pow_register.cuda.tpb,
+            "--threads-per-block",
+            "-tbp",
+            help="Set the number of Threads Per Block for CUDA.",
+        ),
+        max_successes: Optional[int] = typer.Option(
+            3,
+            "--max-successes",
+            help="Set the maximum number of times to successfully run the faucet for this command.",
+        ),
+    ):
+        """
+        # wallet faucet
+        Executes the `faucet` command to obtain test TAO tokens by performing Proof of Work (PoW).
+
+        This command is particularly useful for users who need test tokens for operations on a local chain.
+
+        ## IMPORTANT:
+            **THIS COMMAND IS DISABLED ON FINNEY AND TESTNET.**
+
+        ## Usage:
+        The command uses the PoW mechanism to validate the user's effort and rewards them with test TAO tokens. It is
+        typically used in local chain environments where real value transactions are not necessary.
+
+        ### Example usage:
+        ```
+        btcli wallet faucet --faucet.num_processes 4 --faucet.cuda.use_cuda
+        ```
+
+        #### Note:
+        This command is meant for use in local environments where users can experiment with the network without using
+        real TAO tokens. It's important for users to have the necessary hardware setup, especially when opting for
+        CUDA-based GPU calculations. It is currently disabled on testnet and finney. You must use this on a local chain.
+        """
 
     def wallet_regen_coldkey(
         self,
