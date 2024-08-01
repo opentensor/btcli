@@ -1239,17 +1239,20 @@ async def faucet(
     dev_id: int,
     output_in_place: bool,
     log_verbose: bool,
-    max_successes: int = 3
+    max_successes: int = 3,
 ):
     success = await run_faucet_extrinsic(
-        subtensor, wallet, tpb=threads_per_block, prompt=True,
+        subtensor,
+        wallet,
+        tpb=threads_per_block,
+        prompt=True,
         update_interval=update_interval,
         num_processes=processes,
         cuda=use_cuda,
         dev_id=dev_id,
         output_in_place=output_in_place,
         log_verbose=log_verbose,
-        max_successes=max_successes
+        max_successes=max_successes,
     )
     if not success:
         err_console.print("Faucet run failed.")

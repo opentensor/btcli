@@ -145,22 +145,22 @@ class RegistrationStatisticsLogger:
 
     @classmethod
     def get_status_message(
-            cls, stats: RegistrationStatistics, verbose: bool = False
+        cls, stats: RegistrationStatistics, verbose: bool = False
     ) -> str:
         message = (
-                "Solving\n"
-                + f"Time Spent (total): [bold white]{timedelta(seconds=stats.time_spent_total)}[/bold white]\n"
-                + (
-                    f"Time Spent This Round: {timedelta(seconds=stats.time_spent)}\n"
-                    + f"Time Spent Average: {timedelta(seconds=stats.time_average)}\n"
-                    if verbose
-                    else ""
-                )
-                + f"Registration Difficulty: [bold white]{millify(stats.difficulty)}[/bold white]\n"
-                + f"Iters (Inst/Perp): [bold white]{get_human_readable(stats.hash_rate, 'H')}/s / "
-                + f"{get_human_readable(stats.hash_rate_perpetual, 'H')}/s[/bold white]\n"
-                + f"Block Number: [bold white]{stats.block_number}[/bold white]\n"
-                + f"Block Hash: [bold white]{stats.block_hash.encode('utf-8')}[/bold white]\n"
+            "Solving\n"
+            + f"Time Spent (total): [bold white]{timedelta(seconds=stats.time_spent_total)}[/bold white]\n"
+            + (
+                f"Time Spent This Round: {timedelta(seconds=stats.time_spent)}\n"
+                + f"Time Spent Average: {timedelta(seconds=stats.time_average)}\n"
+                if verbose
+                else ""
+            )
+            + f"Registration Difficulty: [bold white]{millify(stats.difficulty)}[/bold white]\n"
+            + f"Iters (Inst/Perp): [bold white]{get_human_readable(stats.hash_rate, 'H')}/s / "
+            + f"{get_human_readable(stats.hash_rate_perpetual, 'H')}/s[/bold white]\n"
+            + f"Block Number: [bold white]{stats.block_number}[/bold white]\n"
+            + f"Block Hash: [bold white]{stats.block_hash.encode('utf-8')}[/bold white]\n"
         )
         return message
 
@@ -179,28 +179,30 @@ class _SolverBase(Process):
     :param num_proc: The total number of processes running.
     :param update_interval: The number of nonces to try to solve before checking for a new block.
     :param finished_queue: The queue to put the process number when a process finishes each update_interval.
-            Used for calculating the average time per update_interval across all processes.
+                           Used for calculating the average time per update_interval across all processes.
     :param solution_queue: The queue to put the solution the process has found during the pow solve.
     :param stop_event: The event to set by the main process when all the solver processes should stop.
-            The solver process will check for the event after each update_interval.
-            The solver process will stop when the event is set.
-            Used to stop the solver processes when a solution is found.
+                       The solver process will check for the event after each update_interval.
+                       The solver process will stop when the event is set.
+                       Used to stop the solver processes when a solution is found.
     :param curr_block: The array containing this process's current block hash.
-            The main process will set the array to the new block hash when a new block is finalized in the network.
-            The solver process will get the new block hash from this array when newBlockEvent is set.
+                       The main process will set the array to the new block hash when a new block is finalized in the
+                       network. The solver process will get the new block hash from this array when newBlockEvent is set
     :param curr_block_num: The value containing this process's current block number.
-            The main process will set the value to the new block number when a new block is finalized in the network.
-            The solver process will get the new block number from this value when newBlockEvent is set.
-    :param curr_diff: The array containing this process's current difficulty.
-            The main process will set the array to the new difficulty when a new block is finalized in the network.
-            The solver process will get the new difficulty from this array when newBlockEvent is set.
+                           The main process will set the value to the new block number when a new block is finalized in
+                           the network. The solver process will get the new block number from this value when
+                           new_block_event is set.
+    :param curr_diff: The array containing this process's current difficulty. The main process will set the array to
+                      the new difficulty when a new block is finalized in the network. The solver process will get the
+                      new difficulty from this array when newBlockEvent is set.
     :param check_block: The lock to prevent this process from getting the new block data while the main process is
                         updating the data.
     :param limit: The limit of the pow solve for a valid solution.
 
     :var new_block_event: The event to set by the main process when a new block is finalized in the network.
-            The solver process will check for the event after each update_interval.
-            The solver process will get the new block hash and difficulty and start solving for a new nonce.
+                          The solver process will check for the event after each update_interval.
+                          The solver process will get the new block hash and difficulty and start solving for a new
+                          nonce.
     """
 
     proc_num: int
@@ -218,18 +220,18 @@ class _SolverBase(Process):
     limit: int
 
     def __init__(
-            self,
-            proc_num,
-            num_proc,
-            update_interval,
-            finished_queue,
-            solution_queue,
-            stop_event,
-            curr_block,
-            curr_block_num,
-            curr_diff,
-            check_block,
-            limit,
+        self,
+        proc_num,
+        num_proc,
+        update_interval,
+        finished_queue,
+        solution_queue,
+        stop_event,
+        curr_block,
+        curr_block_num,
+        curr_diff,
+        check_block,
+        limit,
     ):
         Process.__init__(self, daemon=True)
         self.proc_num = proc_num
@@ -306,20 +308,20 @@ class _CUDASolver(_SolverBase):
     tpb: int
 
     def __init__(
-            self,
-            proc_num,
-            num_proc,
-            update_interval,
-            finished_queue,
-            solution_queue,
-            stop_event,
-            curr_block,
-            curr_block_num,
-            curr_diff,
-            check_block,
-            limit,
-            dev_id: int,
-            tpb: int,
+        self,
+        proc_num,
+        num_proc,
+        update_interval,
+        finished_queue,
+        solution_queue,
+        stop_event,
+        curr_block,
+        curr_block_num,
+        curr_diff,
+        check_block,
+        limit,
+        dev_id: int,
+        tpb: int,
     ):
         super().__init__(
             proc_num,
@@ -407,20 +409,20 @@ class MaxAttemptsException(Exception):
 
 
 async def run_faucet_extrinsic(
-        subtensor: SubtensorInterface,
-        wallet: Wallet,
-        wait_for_inclusion: bool = False,
-        wait_for_finalization: bool = True,
-        prompt: bool = False,
-        max_allowed_attempts: int = 3,
-        output_in_place: bool = True,
-        cuda: bool = False,
-        dev_id: int = 0,
-        tpb: int = 256,
-        num_processes: Optional[int] = None,
-        update_interval: Optional[int] = None,
-        log_verbose: bool = False,
-        max_successes: int = 3,
+    subtensor: SubtensorInterface,
+    wallet: Wallet,
+    wait_for_inclusion: bool = False,
+    wait_for_finalization: bool = True,
+    prompt: bool = False,
+    max_allowed_attempts: int = 3,
+    output_in_place: bool = True,
+    cuda: bool = False,
+    dev_id: int = 0,
+    tpb: int = 256,
+    num_processes: Optional[int] = None,
+    update_interval: Optional[int] = None,
+    log_verbose: bool = False,
+    max_successes: int = 3,
 ) -> tuple[bool, str]:
     r"""Runs a continual POW to get a faucet of TAO on the test net.
 
@@ -446,9 +448,9 @@ async def run_faucet_extrinsic(
     """
     if prompt:
         if not Confirm.ask(
-                "Run Faucet ?\n"
-                f" coldkey:    [bold white]{wallet.coldkeypub.ss58_address}[/bold white]\n"
-                f" network:    [bold white]{subtensor}[/bold white]"
+            "Run Faucet ?\n"
+            f" coldkey:    [bold white]{wallet.coldkeypub.ss58_address}[/bold white]\n"
+            f" network:    [bold white]{subtensor}[/bold white]"
         ):
             return False, ""
 
@@ -470,7 +472,9 @@ async def run_faucet_extrinsic(
         async with subtensor:
             try:
                 pow_result = None
-                while pow_result is None or await pow_result.is_stale(subtensor=subtensor):
+                while pow_result is None or await pow_result.is_stale(
+                    subtensor=subtensor
+                ):
                     # Solve latest POW.
                     if cuda:
                         if not torch.cuda.is_available():
@@ -532,7 +536,9 @@ async def run_faucet_extrinsic(
 
                 # Successful registration
                 else:
-                    new_balance = await subtensor.get_balance(wallet.coldkeypub.ss58_address)
+                    new_balance = await subtensor.get_balance(
+                        wallet.coldkeypub.ss58_address
+                    )
                     console.print(
                         f"Balance: [blue]{old_balance[wallet.coldkeypub.ss58_address]}[/blue] :arrow_right:"
                         f" [green]{new_balance[wallet.coldkeypub.ss58_address]}[/green]"
@@ -556,17 +562,17 @@ async def run_faucet_extrinsic(
 
 
 async def _check_for_newest_block_and_update(
-        subtensor: SubtensorInterface,
-        netuid: int,
-        old_block_number: int,
-        hotkey_bytes: bytes,
-        curr_diff: Array,
-        curr_block: Array,
-        curr_block_num: Value,
-        update_curr_block: typing.Callable,
-        check_block: Lock,
-        solvers: list[_Solver],
-        curr_stats: RegistrationStatistics,
+    subtensor: SubtensorInterface,
+    netuid: int,
+    old_block_number: int,
+    hotkey_bytes: bytes,
+    curr_diff: Array,
+    curr_block: Array,
+    curr_block_num: Value,
+    update_curr_block: typing.Callable,
+    check_block: Lock,
+    solvers: list[_Solver],
+    curr_stats: RegistrationStatistics,
 ) -> int:
     """
     Checks for a new block and updates the current block information if a new block is found.
@@ -619,21 +625,21 @@ async def _check_for_newest_block_and_update(
 
 
 async def _block_solver(
-        subtensor: SubtensorInterface,
-        wallet: Wallet,
-        num_processes: int,
-        netuid: int,
-        dev_id: list[int],
-        tpb: int,
-        update_interval: int,
-        curr_block,
-        curr_block_num,
-        curr_diff,
-        n_samples,
-        alpha_,
-        output_in_place,
-        log_verbose,
-        cuda: bool,
+    subtensor: SubtensorInterface,
+    wallet: Wallet,
+    num_processes: int,
+    netuid: int,
+    dev_id: list[int],
+    tpb: int,
+    update_interval: int,
+    curr_block,
+    curr_block_num,
+    curr_diff,
+    n_samples,
+    alpha_,
+    output_in_place,
+    log_verbose,
+    cuda: bool,
 ):
     limit = int(math.pow(2, 256)) - 1
 
@@ -739,15 +745,14 @@ async def _block_solver(
     solution = None
 
     hash_rates = [0] * n_samples  # The last n true hash_rates
-    weights = [alpha_ ** i for i in range(n_samples)]  # weights decay by alpha
+    weights = [alpha_**i for i in range(n_samples)]  # weights decay by alpha
 
     timeout = 0.15 if cuda else 0.15
     async with subtensor:
-
         while netuid == -1 or not await subtensor.substrate.query(
-                module="SubtensorModule",
-                storage_function="Uids",
-                params=[netuid, wallet.hotkey.ss58_address],
+            module="SubtensorModule",
+            storage_function="Uids",
+            params=[netuid, wallet.hotkey.ss58_address],
         ):
             # Wait until a solver finds a solution
             try:
@@ -801,9 +806,9 @@ async def _block_solver(
                 time_last = time_now
 
                 curr_stats.time_average = (
-                                                  curr_stats.time_average * curr_stats.rounds_total
-                                                  + curr_stats.time_spent
-                                          ) / (curr_stats.rounds_total + num_time)
+                    curr_stats.time_average * curr_stats.rounds_total
+                    + curr_stats.time_spent
+                ) / (curr_stats.rounds_total + num_time)
                 curr_stats.rounds_total += num_time
 
             # Update stats
@@ -811,12 +816,12 @@ async def _block_solver(
             new_time_spent_total = time_now - start_time_perpetual
             if cuda:
                 curr_stats.hash_rate_perpetual = (
-                                                         curr_stats.rounds_total * (tpb * update_interval)
-                                                 ) / new_time_spent_total
+                    curr_stats.rounds_total * (tpb * update_interval)
+                ) / new_time_spent_total
             else:
                 curr_stats.hash_rate_perpetual = (
-                                                         curr_stats.rounds_total * update_interval
-                                                 ) / new_time_spent_total
+                    curr_stats.rounds_total * update_interval
+                ) / new_time_spent_total
             curr_stats.time_spent_total = new_time_spent_total
 
             # Update the logger
@@ -833,16 +838,16 @@ async def _block_solver(
 
 
 async def _solve_for_difficulty_fast_cuda(
-        subtensor: SubtensorInterface,
-        wallet: Wallet,
-        netuid: int,
-        output_in_place: bool = True,
-        update_interval: int = 50_000,
-        tpb: int = 512,
-        dev_id: typing.Union[list[int], int] = 0,
-        n_samples: int = 10,
-        alpha_: float = 0.80,
-        log_verbose: bool = False,
+    subtensor: SubtensorInterface,
+    wallet: Wallet,
+    netuid: int,
+    output_in_place: bool = True,
+    update_interval: int = 50_000,
+    tpb: int = 512,
+    dev_id: typing.Union[list[int], int] = 0,
+    n_samples: int = 10,
+    alpha_: float = 0.80,
+    log_verbose: bool = False,
 ) -> Optional[POWSolution]:
     """
     Solves the registration fast using CUDA
@@ -898,15 +903,15 @@ async def _solve_for_difficulty_fast_cuda(
 
 
 async def _solve_for_difficulty_fast(
-        subtensor,
-        wallet: Wallet,
-        netuid: int,
-        output_in_place: bool = True,
-        num_processes: Optional[int] = None,
-        update_interval: Optional[int] = None,
-        n_samples: int = 10,
-        alpha_: float = 0.80,
-        log_verbose: bool = False,
+    subtensor,
+    wallet: Wallet,
+    netuid: int,
+    output_in_place: bool = True,
+    num_processes: Optional[int] = None,
+    update_interval: Optional[int] = None,
+    n_samples: int = 10,
+    alpha_: float = 0.80,
+    log_verbose: bool = False,
 ) -> Optional[POWSolution]:
     """
     Solves the POW for registration using multiprocessing.
@@ -958,7 +963,7 @@ async def _solve_for_difficulty_fast(
 
 
 def _terminate_workers_and_wait_for_exit(
-        workers: list[typing.Union[Process, Queue_Type]],
+    workers: list[typing.Union[Process, Queue_Type]],
 ) -> None:
     for worker in workers:
         if isinstance(worker, Queue_Type):
@@ -971,7 +976,7 @@ def _terminate_workers_and_wait_for_exit(
 # TODO verify this works with async
 @backoff.on_exception(backoff.constant, Exception, interval=1, max_tries=3)
 async def _get_block_with_retry(
-        subtensor: SubtensorInterface, netuid: int
+    subtensor: SubtensorInterface, netuid: int
 ) -> tuple[int, int, bytes]:
     """
     Gets the current block number, difficulty, and block hash from the substrate node.
@@ -986,11 +991,19 @@ async def _get_block_with_retry(
     """
     async with subtensor:
         block_number = await subtensor.substrate.get_block_number(None)
-        block_hash = await subtensor.substrate.get_block_hash(block_number)  # TODO check if I need to do all this
+        block_hash = await subtensor.substrate.get_block_hash(
+            block_number
+        )  # TODO check if I need to do all this
         try:
-            difficulty = 1_000_000 if netuid == -1 else int(await subtensor.get_hyperparameter(
-                param_name="Difficulty", netuid=netuid, block_hash=block_hash
-            ))
+            difficulty = (
+                1_000_000
+                if netuid == -1
+                else int(
+                    await subtensor.get_hyperparameter(
+                        param_name="Difficulty", netuid=netuid, block_hash=block_hash
+                    )
+                )
+            )
         except TypeError:
             raise ValueError("Chain error. Difficulty is None")
         except SubstrateRequestException:
@@ -1029,16 +1042,16 @@ class _UsingSpawnStartMethod:
 
 
 async def create_pow(
-        subtensor,
-        wallet,
-        netuid: int,
-        output_in_place: bool = True,
-        cuda: bool = False,
-        dev_id: typing.Union[list[int], int] = 0,
-        tpb: int = 256,
-        num_processes: int = None,
-        update_interval: int = None,
-        log_verbose: bool = False,
+    subtensor,
+    wallet,
+    netuid: int,
+    output_in_place: bool = True,
+    cuda: bool = False,
+    dev_id: typing.Union[list[int], int] = 0,
+    tpb: int = 256,
+    num_processes: int = None,
+    update_interval: int = None,
+    log_verbose: bool = False,
 ) -> Optional[dict[str, typing.Any]]:
     """
     Creates a proof of work for the given subtensor and wallet.
@@ -1092,14 +1105,14 @@ async def create_pow(
 
 
 def _solve_for_nonce_block_cuda(
-        nonce_start: int,
-        update_interval: int,
-        block_and_hotkey_hash_bytes: bytes,
-        difficulty: int,
-        limit: int,
-        block_number: int,
-        dev_id: int,
-        tpb: int,
+    nonce_start: int,
+    update_interval: int,
+    block_and_hotkey_hash_bytes: bytes,
+    difficulty: int,
+    limit: int,
+    block_number: int,
+    dev_id: int,
+    tpb: int,
 ) -> Optional[POWSolution]:
     """
     Tries to solve the POW on a CUDA device for a block of nonces (nonce_start, nonce_start + update_interval * tpb
@@ -1122,12 +1135,12 @@ def _solve_for_nonce_block_cuda(
 
 
 def _solve_for_nonce_block(
-        nonce_start: int,
-        nonce_end: int,
-        block_and_hotkey_hash_bytes: bytes,
-        difficulty: int,
-        limit: int,
-        block_number: int,
+    nonce_start: int,
+    nonce_end: int,
+    block_and_hotkey_hash_bytes: bytes,
+    difficulty: int,
+    limit: int,
+    block_number: int,
 ) -> Optional[POWSolution]:
     """
     Tries to solve the POW for a block of nonces (nonce_start, nonce_end)
@@ -1149,7 +1162,7 @@ class CUDAException(Exception):
 
 
 def _hex_bytes_to_u8_list(hex_bytes: bytes):
-    hex_chunks = [int(hex_bytes[i: i + 2], 16) for i in range(0, len(hex_bytes), 2)]
+    hex_chunks = [int(hex_bytes[i : i + 2], 16) for i in range(0, len(hex_bytes), 2)]
     return hex_chunks
 
 
@@ -1177,14 +1190,14 @@ def _hash_block_with_hotkey(block_bytes: bytes, hotkey_bytes: bytes) -> bytes:
 
 
 def _update_curr_block(
-        curr_diff: Array,
-        curr_block: Array,
-        curr_block_num: Value,
-        block_number: int,
-        block_bytes: bytes,
-        diff: int,
-        hotkey_bytes: bytes,
-        lock: Lock,
+    curr_diff: Array,
+    curr_block: Array,
+    curr_block_num: Value,
+    block_number: int,
+    block_bytes: bytes,
+    diff: int,
+    hotkey_bytes: bytes,
+    lock: Lock,
 ):
     with lock:
         curr_block_num.value = block_number
@@ -1219,13 +1232,13 @@ class RegistrationStatistics:
 
 
 def solve_cuda(
-        nonce_start: np.int64,
-        update_interval: np.int64,
-        tpb: int,
-        block_and_hotkey_hash_bytes: bytes,
-        difficulty: int,
-        limit: int,
-        dev_id: int = 0,
+    nonce_start: np.int64,
+    update_interval: np.int64,
+    tpb: int,
+    block_and_hotkey_hash_bytes: bytes,
+    difficulty: int,
+    limit: int,
+    dev_id: int = 0,
 ) -> tuple[np.int64, bytes]:
     """
     Solves the PoW problem using CUDA.

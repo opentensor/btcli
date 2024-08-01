@@ -117,17 +117,29 @@ class CLIManager:
         self.delegates_app = typer.Typer()
 
         # config alias
-        self.app.add_typer(self.config_app, name="config", short_help="Config commands, aliases: `c`, `conf`")
+        self.app.add_typer(
+            self.config_app,
+            name="config",
+            short_help="Config commands, aliases: `c`, `conf`",
+        )
         self.app.add_typer(self.config_app, name="conf", hidden=True)
         self.app.add_typer(self.config_app, name="c", hidden=True)
 
         # wallet aliases
-        self.app.add_typer(self.wallet_app, name="wallet", short_help="Wallet commands, aliases: `wallets`, `w`")
+        self.app.add_typer(
+            self.wallet_app,
+            name="wallet",
+            short_help="Wallet commands, aliases: `wallets`, `w`",
+        )
         self.app.add_typer(self.wallet_app, name="w", hidden=True)
         self.app.add_typer(self.wallet_app, name="wallets", hidden=True)
 
         # delegates aliases
-        self.app.add_typer(self.delegates_app, name="delegates", short_help="Delegate commands, alias: `d`")
+        self.app.add_typer(
+            self.delegates_app,
+            name="delegates",
+            short_help="Delegate commands, alias: `d`",
+        )
         self.app.add_typer(self.delegates_app, name="d", hidden=True)
 
         # config commands
@@ -624,8 +636,20 @@ class CLIManager:
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         self.initialize_chain(network, chain)
-        self._run_command(wallets.faucet(wallet, self.not_subtensor, threads_per_block, update_interval, processors,
-                                         use_cuda, dev_id, output_in_place, verbose, max_successes))
+        self._run_command(
+            wallets.faucet(
+                wallet,
+                self.not_subtensor,
+                threads_per_block,
+                update_interval,
+                processors,
+                use_cuda,
+                dev_id,
+                output_in_place,
+                verbose,
+                max_successes,
+            )
+        )
 
     def wallet_regen_coldkey(
         self,
