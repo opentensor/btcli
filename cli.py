@@ -16,8 +16,10 @@ from src.subtensor_interface import SubtensorInterface
 from src.utils import console
 
 
-# re-usable args
 class Options:
+    """
+    Re-usable typer args
+    """
     wallet_name = typer.Option(None, "--wallet-name", "-w", help="Name of wallet")
     wallet_path = typer.Option(
         None, "--wallet-path", "-p", help="Filepath of root of wallets"
