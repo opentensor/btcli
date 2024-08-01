@@ -12,6 +12,7 @@ from yaml import safe_load
 
 from src import wallets, defaults, utils
 from src.subtensor_interface import SubtensorInterface
+from src.utils import console
 
 
 # re-usable args
@@ -149,6 +150,7 @@ class CLIManager:
             else:
                 self.not_subtensor = SubtensorInterface(network, chain)
                 # typer.echo(f"Initialized with {self.not_subtensor}")
+        console.print(f"[yellow] Connected to [/yellow][white]{self.not_subtensor}")
 
     def _run_command(self, cmd: Coroutine):
         try:

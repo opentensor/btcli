@@ -1146,26 +1146,25 @@ async def inspect(
     else:
         wallets = [wallet]
         all_hotkeys = get_hotkey_wallets_for_wallet(wallet)
-
-    async with subtensor:
-        block_hash = await subtensor.substrate.get_chain_head()
-        print("BLOCK HASH:", block_hash)
-        await subtensor.substrate.init_runtime(block_hash=block_hash)
-        all_netuids = await subtensor.filter_netuids_by_registered_hotkeys(
-            (await subtensor.get_all_subnet_netuids(block_hash)),
-            netuids_filter,
-            all_hotkeys,
-            block_hash=block_hash,
-        )
+    with console.status("synchronising with chain"):
+        async with subtensor:
+            block_hash = await subtensor.substrate.get_chain_head()
+            await subtensor.substrate.init_runtime(block_hash=block_hash)
+            all_netuids = await subtensor.filter_netuids_by_registered_hotkeys(
+                (await subtensor.get_all_subnet_netuids(block_hash)),
+                netuids_filter,
+                all_hotkeys,
+                block_hash=block_hash,
+            )
     # bittensor.logging.debug(f"Netuids to check: {all_netuids}")
-
-    registered_delegate_info: Optional[
-        dict[str, DelegatesDetails]
-    ] = await get_delegates_details_from_github(url=Constants.delegates_details_url)
-    if not registered_delegate_info:
-        console.print(
-            ":warning:[yellow]Could not get delegate info from chain.[/yellow]"
-        )
+    with console.status("Pulling delegates info"):
+        registered_delegate_info: Optional[
+            dict[str, DelegatesDetails]
+        ] = await get_delegates_details_from_github(url=Constants.delegates_details_url)
+        if not registered_delegate_info:
+            console.print(
+                ":warning:[yellow]Could not get delegate info from chain.[/yellow]"
+            )
 
     table = Table(
         Column("[overline white]Coldkey", style="bold white"),
@@ -1188,25 +1187,26 @@ async def inspect(
         wallet for wallet in wallets if wallet.coldkeypub_file.exists_on_device()
     ]
     all_delegates: list[list[tuple[DelegateInfo, Balance]]]
-    async with subtensor:
-        balances, all_neurons, all_delegates = await asyncio.gather(
-            subtensor.get_balance(
-                *[w.coldkeypub.ss58_address for w in wallets_with_ckp_file],
-                block_hash=block_hash,
-            ),
-            asyncio.gather(
-                *[
-                    subtensor.neurons_lite(netuid=netuid, block_hash=block_hash)
-                    for netuid in all_netuids
-                ]
-            ),
-            asyncio.gather(
-                *[
-                    subtensor.get_delegated(w.coldkeypub.ss58_address)
-                    for w in wallets_with_ckp_file
-                ]
-            ),
-        )
+    with console.status("Pulling balance data"):
+        async with subtensor:
+            balances, all_neurons, all_delegates = await asyncio.gather(
+                subtensor.get_balance(
+                    *[w.coldkeypub.ss58_address for w in wallets_with_ckp_file],
+                    block_hash=block_hash,
+                ),
+                asyncio.gather(
+                    *[
+                        subtensor.neurons_lite(netuid=netuid, block_hash=block_hash)
+                        for netuid in all_netuids
+                    ]
+                ),
+                asyncio.gather(
+                    *[
+                        subtensor.get_delegated(w.coldkeypub.ss58_address)
+                        for w in wallets_with_ckp_file
+                    ]
+                ),
+            )
     await subtensor.substrate.close()
 
     neuron_state_dict = {}
