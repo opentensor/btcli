@@ -478,6 +478,36 @@ class CLIManager:
             wallets.transfer(wallet, self.not_subtensor, destination, amount)
         )
 
+    def wallet_swap_hotkey(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        destination_hotkey_name: Optional[str] = typer.Argument(
+            help="Destination hotkey name."
+        ),
+    ):
+        """
+        # wallet swap-hotkey
+        Executes the `swap_hotkey` command to swap the hotkeys for a neuron on the network.
+
+        ## Usage:
+        The command is used to swap the hotkey of a wallet for another hotkey on that same wallet.
+
+        ### Example usage:
+        ```
+        btcli wallet swap_hotkey new_hotkey --wallet-name your_wallet_name --wallet-hotkey original_hotkey
+        ```
+        """
+        original_wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        new_wallet = self.wallet_ask(wallet_name, wallet_path, destination_hotkey_name)
+        self.initialize_chain(network, chain)
+        return self._run_command(
+            wallets.swap_hotkey(original_wallet, new_wallet, self.not_subtensor)
+        )
+
     def wallet_inspect(
         self,
         all_wallets: bool = typer.Option(
@@ -550,7 +580,7 @@ class CLIManager:
                 )
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         self.initialize_chain(network, chain)
-        self._run_command(
+        return self._run_command(
             wallets.inspect(
                 wallet,
                 self.not_subtensor,
@@ -638,7 +668,7 @@ class CLIManager:
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         self.initialize_chain(network, chain)
-        self._run_command(
+        return self._run_command(
             wallets.faucet(
                 wallet,
                 self.not_subtensor,

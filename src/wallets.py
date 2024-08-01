@@ -52,7 +52,10 @@ from src.utils import (
 from src.subtensor_interface import SubtensorInterface
 from src.bittensor.balances import Balance
 from src.bittensor.extrinsics.transfer import transfer_extrinsic
-from src.bittensor.extrinsics.registration import run_faucet_extrinsic
+from src.bittensor.extrinsics.registration import (
+    run_faucet_extrinsic,
+    swap_hotkey_extrinsic,
+)
 
 
 async def regen_coldkey(
@@ -1258,3 +1261,18 @@ async def faucet(
         err_console.print("Faucet run failed.")
 
     await subtensor.substrate.close()
+
+
+async def swap_hotkey(
+    original_wallet: Wallet, new_wallet: Wallet, subtensor: SubtensorInterface
+):
+    """Swap your hotkey for all registered axons on the network."""
+
+    return await swap_hotkey_extrinsic(
+        subtensor,
+        original_wallet,
+        new_wallet,
+        wait_for_finalization=False,
+        wait_for_inclusion=True,
+        prompt=True,
+    )
