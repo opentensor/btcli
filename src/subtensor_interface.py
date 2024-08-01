@@ -108,7 +108,6 @@ class SubtensorInterface:
         Determines whether a given hotkey (public key) is a delegate on the Bittensor network. This function
         checks if the neuron associated with the hotkey is part of the network's delegation system.
 
-        Args:
         :param hotkey_ss58: The SS58 address of the neuron's hotkey.
         :param block_hash: The hash of the blockchain block number for the query.
         :param reuse_block: Whether to reuse the last-used block hash.
@@ -149,7 +148,6 @@ class SubtensorInterface:
         Retrieves stake information associated with a specific coldkey. This function provides details
         about the stakes held by an account, including the staked amounts and associated delegates.
 
-        Args:
         :param coldkey_ss58: The ``SS58`` address of the account's coldkey.
         :param block_hash: The hash of the blockchain block number for the query.
         :param reuse_block: Whether to reuse the last-used block hash.
@@ -288,7 +286,6 @@ class SubtensorInterface:
         identifies the specific subnets within the Bittensor network where the neuron associated with
         the hotkey is active.
 
-        Args:
         :param hotkey_ss58: The ``SS58`` address of the neuron's hotkey.
         :param block_hash: The hash of the blockchain block number at which to perform the query.
         :param reuse_block: Whether to reuse the last-used block hash when retrieving info.

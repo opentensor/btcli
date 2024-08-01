@@ -42,8 +42,7 @@ class Balance:
         Initialize a Balance object. If balance is an int, it's assumed to be in rao.
         If balance is a float, it's assumed to be in tao.
 
-        Args:
-            balance: The initial balance, in either rao (if an int) or tao (if a float).
+        :param balance: The initial balance, in either rao (if an int) or tao (if a float).
         """
         if isinstance(balance, int):
             self.rao = balance
