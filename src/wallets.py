@@ -1166,7 +1166,7 @@ async def inspect(
     with console.status("Pulling delegates info"):
         registered_delegate_info: Optional[
             dict[str, DelegatesDetails]
-        ] = await get_delegates_details_from_github(url=Constants.delegates_details_url)
+        ] = await get_delegates_details_from_github(url=Constants.delegates_detail_url)
         if not registered_delegate_info:
             console.print(
                 ":warning:[yellow]Could not get delegate info from chain.[/yellow]"
