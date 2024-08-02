@@ -361,7 +361,7 @@ class SubtensorInterface:
         all_netuids,
         filter_for_netuids,
         all_hotkeys,
-        block_hash: str,
+        block_hash: Optional[str] = None,
         reuse_block: bool = False,
     ) -> list[int]:
         netuids_with_registered_hotkeys = [
@@ -490,3 +490,50 @@ class SubtensorInterface:
             return []
 
         return DelegateInfo.delegated_list_from_vec_u8(result)
+
+    async def query_identity(
+        self,
+        key: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> dict:
+        """
+        Queries the identity of a neuron on the Bittensor blockchain using the given key. This function retrieves
+        detailed identity information about a specific neuron, which is a crucial aspect of the network's decentralized
+        identity and governance system.
+
+        Note:
+        See the `Bittensor CLI documentation <https://docs.bittensor.com/reference/btcli>`_ for supported identity
+        parameters.
+
+        :param key: The key used to query the neuron's identity, typically the neuron's SS58 address.
+        :param block_hash: The hash of the blockchain block number at which to perform the query.
+        :param reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        :return: An object containing the identity information of the neuron if found, ``None`` otherwise.
+
+        The identity information can include various attributes such as the neuron's stake, rank, and other
+        network-specific details, providing insights into the neuron's role and status within the Bittensor network.
+        """
+
+        def decode_hex_identity_dict(info_dictionary):
+            for k, v in info_dictionary.items():
+                if isinstance(v, dict):
+                    item = list(v.values())[0]
+                    if isinstance(item, str) and item.startswith("0x"):
+                        try:
+                            info_dictionary[k] = bytes.fromhex(item[2:]).decode()
+                        except UnicodeDecodeError:
+                            print(f"Could not decode: {k}: {item}")
+                    else:
+                        info_dictionary[k] = item
+            return info_dictionary
+
+        identity_info = await self.substrate.query(
+            module="Registry",
+            storage_function="IdentityOf",
+            params=[key],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+        return decode_hex_identity_dict(identity_info.value["info"])

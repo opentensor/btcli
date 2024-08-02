@@ -20,6 +20,7 @@ from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
 import itertools
 import os
+from sys import getsizeof
 from typing import Optional, Any
 
 import aiohttp
@@ -27,6 +28,7 @@ from bittensor_wallet import Wallet
 from bittensor_wallet.keyfile import Keyfile
 from fuzzywuzzy import fuzz
 from rich.align import Align
+from rich.prompt import Confirm
 from rich.table import Table, Column
 from rich.tree import Tree
 import scalecodec
@@ -632,7 +634,6 @@ async def overview(
         if len(alerts_table.rows) > 0:
             grid.add_row(alerts_table)
 
-        title: str = ""
         if not all_wallets:
             title = f"[bold white italic]Wallet - {wallet.name}:{wallet.coldkeypub.ss58_address}"
         else:
@@ -1023,11 +1024,11 @@ def _partial_decode(args):
 
 
 def _process_neurons_for_netuids(netuids_with_all_neurons_hex_bytes):
-    def make_map(result):
-        netuid, json_result = result
+    def make_map(res_):
+        netuid_, json_result = res_
         hex_bytes_result = json_result["result"]
         as_scale_bytes = scalecodec.ScaleBytes(hex_bytes_result)
-        return [return_type, as_scale_bytes, custom_rpc_type_registry, netuid]
+        return [return_type, as_scale_bytes, custom_rpc_type_registry, netuid_]
 
     return_type = TYPE_REGISTRY["runtime_api"]["NeuronInfoRuntimeApi"]["methods"][
         "get_neurons_lite"
@@ -1276,3 +1277,108 @@ async def swap_hotkey(
         wait_for_inclusion=True,
         prompt=True,
     )
+
+
+async def set_id(
+    wallet: Wallet,
+    subtensor: SubtensorInterface,
+    display_name: str,
+    legal_name: str,
+    web_url: str,
+    pgp_fingerprint: str,
+    riot_handle: str,
+    email: str,
+    image: str,
+    twitter: str,
+    info_: str,
+    validator_id,
+):
+    """Create a new or update existing identity on-chain."""
+
+    identified = wallet.hotkey.ss58_address if validator_id else None
+    id_dict = {
+        "display": display_name,
+        "legal": legal_name,
+        "web": web_url,
+        "pgp_fingerprint": pgp_fingerprint,
+        "riot": riot_handle,
+        "email": email,
+        "image": image,
+        "twitter": twitter,
+        "info": info_,
+        "identified": identified,
+    }
+
+    for field, string in id_dict.items():
+        if getsizeof(string) > 113:  # 64 + 49 overhead bytes for string
+            raise ValueError(f"Identity value `{field}` must be <= 64 raw bytes")
+
+    if not Confirm(
+        "Cost to register an Identity is [bold white italic]0.1 Tao[/bold white italic],"
+        " are you sure you wish to continue?"
+    ):
+        console.print(":cross_mark: Aborted!")
+        raise typer.Exit()
+
+    wallet.unlock_coldkey()
+
+    with console.status(":satellite: [bold green]Updating identity on-chain..."):
+        async with subtensor:
+            try:
+                call = await subtensor.substrate.compose_call(
+                    call_module="Registry",
+                    call_function="set_identity",
+                    call_params=id_dict,
+                )
+                extrinsic = await subtensor.substrate.create_signed_extrinsic(
+                    call=call, keypair=wallet.coldkey
+                )
+                response = await subtensor.substrate.submit_extrinsic(
+                    extrinsic,
+                    wait_for_inclusion=True,
+                    wait_for_finalization=False,
+                )
+                response.process_events()
+                if not response.is_success:
+                    raise Exception(response.error_message)
+
+            except Exception as e:
+                console.print(f"[red]:cross_mark: Failed![/red] {e}")
+                typer.Exit(1)
+
+            console.print(":white_heavy_check_mark: Success!")
+            identity = await subtensor.query_identity(
+                identified or wallet.coldkey.ss58_address
+            )
+    await subtensor.substrate.close()
+
+    table = Table(
+        Column("Key", justify="right", style="cyan", no_wrap=True),
+        Column("Value", style="magenta"),
+        title="[bold white italic]Updated On-Chain Identity",
+    )
+
+    table.add_row("Address", identified or wallet.coldkey.ss58_address)
+    for key, value in identity.items():
+        table.add_row(key, str(value) if value is not None else "~")
+
+    return console.print(table)
+
+
+async def get_id(subtensor: SubtensorInterface, ss58_address: str):
+    with console.status(":satellite: [bold green]Querying chain identity..."):
+        async with subtensor:
+            identity = await subtensor.query_identity(ss58_address)
+    await subtensor.substrate.close()
+
+    table = Table(
+        Column("Item", justify="right", style="cyan", no_wrap=True),
+        Column("Value", style="magenta"),
+        title="[bold white italic]On-Chain Identity",
+    )
+
+    table.add_row("Address", ss58_address)
+    for key, value in identity.items():
+        table.add_row(key, str(value) if value is not None else "~")
+
+    return console.print(table)

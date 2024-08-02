@@ -160,6 +160,8 @@ class CLIManager:
         self.wallet_app.command("transfer")(self.wallet_transfer)
         self.wallet_app.command("inspect")(self.wallet_inspect)
         self.wallet_app.command("faucet")(self.wallet_faucet)
+        self.wallet_app.command("set-identity")(self.wallet_set_id)
+        self.wallet_app.command("get-identity")(self.wallet_get_id)
 
         # delegates commands
         self.delegates_app.command("list")(self.delegates_list)
@@ -1023,6 +1025,176 @@ class CLIManager:
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(wallets.wallet_history(wallet))
+
+    def wallet_set_id(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        display_name: Optional[str] = typer.Option(
+            "",
+            "--display-name",
+            "--display",
+            help="The display name for the identity.",
+            prompt=True,
+        ),
+        legal_name: Optional[str] = typer.Option(
+            "",
+            "--legal-name",
+            "--legal",
+            help="The legal name for the identity.",
+            prompt=True,
+        ),
+        web_url: Optional[str] = typer.Option(
+            "", "--web-url", "--web", help="The web url for the identity.", prompt=True
+        ),
+        riot_handle: Optional[str] = typer.Option(
+            "",
+            "--riot-handle",
+            "--riot",
+            help="The riot handle for the identity.",
+            prompt=True,
+        ),
+        email: Optional[str] = typer.Option(
+            "", help="The email address for the identity.", prompt=True
+        ),
+        pgp_fingerprint: Optional[str] = typer.Option(
+            "",
+            "--pgp-fingerprint",
+            "--pgp",
+            help="The pgp fingerprint for the identity.",
+            prompt=True,
+        ),
+        image_url: Optional[str] = typer.Option(
+            "",
+            "--image-url",
+            "--image",
+            help="The image url for the identity.",
+            prompt=True,
+        ),
+        info_: Optional[str] = typer.Option(
+            "", "--info", "-i", help="The info for the identity.", prompt=True
+        ),
+        twitter_url: Optional[str] = typer.Option(
+            "",
+            "-x",
+            "-𝕏",
+            "--twitter-url",
+            "--twitter",
+            help="The 𝕏 (Twitter) url for the identity.",
+            prompt=True,
+        ),
+        validator_id: Optional[bool] = typer.Option(
+            "--validator/--not-validator",
+            help="Are you updating a validator hotkey identity?",
+            prompt=True,
+        ),
+    ):
+        """
+        # wallet set-identity
+        Executes the `set-identity` command within the Bittensor network, which allows for the creation or update of a
+        delegate's on-chain identity.
+
+        This identity includes various attributes such as display name, legal name, web URL, PGP fingerprint, and
+        contact information, among others.
+
+        The command prompts the user for the different identity attributes and validates the
+        input size for each attribute. It provides an option to update an existing validator
+        hotkey identity. If the user consents to the transaction cost, the identity is updated
+        on the blockchain.
+
+        Each field has a maximum size of 64 bytes. The PGP fingerprint field is an exception
+        and has a maximum size of 20 bytes. The user is prompted to enter the PGP fingerprint
+        as a hex string, which is then converted to bytes. The user is also prompted to enter
+        the coldkey or hotkey ``ss58`` address for the identity to be updated. If the user does
+        not have a hotkey, the coldkey address is used by default.
+
+        If setting a validator identity, the hotkey will be used by default. If the user is
+        setting an identity for a subnet, the coldkey will be used by default.
+
+        ## Usage:
+        The user should call this command from the command line and follow the interactive
+        prompts to enter or update the identity information. The command will display the
+        updated identity details in a table format upon successful execution.
+
+        ### Example usage:
+        ```
+        btcli wallet set_identity
+        ```
+
+        #### Note:
+        This command should only be used if the user is willing to incur the 1 TAO transaction
+        fee associated with setting an identity on the blockchain. It is a high-level command
+        that makes changes to the blockchain state and should not be used programmatically as
+        part of other scripts or applications.
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        self.initialize_chain(network, chain)
+        return self._run_command(
+            wallets.set_id(
+                wallet,
+                self.not_subtensor,
+                display_name,
+                legal_name,
+                web_url,
+                pgp_fingerprint,
+                riot_handle,
+                email,
+                image_url,
+                twitter_url,
+                info_,
+                validator_id,
+            )
+        )
+
+    def wallet_get_id(
+        self,
+        key: str = typer.Option(
+            None,
+            "--key",
+            "-k",
+            "--ss58",
+            help="The coldkey or hotkey ss58 address to query.",
+            prompt=True,
+        ),
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+    ):
+        """
+        # wallet get-id
+        Executes the `get-identity` command, which retrieves and displays the identity details of a user's coldkey or
+        hotkey associated with the Bittensor network. This function queries the subtensor chain for information such as
+        the stake, rank, and trust associated with the provided key.
+
+        The command performs the following actions:
+
+        - Connects to the subtensor network and retrieves the identity information.
+
+        - Displays the information in a structured table format.
+
+        The displayed table includes:
+
+        - **Address**: The ``ss58`` address of the queried key.
+
+        - **Item**: Various attributes of the identity such as stake, rank, and trust.
+
+        - **Value**: The corresponding values of the attributes.
+
+        ## Usage:
+        The user must provide an ss58 address as input to the command. If the address is not
+        provided in the configuration, the user is prompted to enter one.
+
+        ### Example usage:
+        ```
+        btcli wallet get_identity --key <s58_address>
+        ```
+
+        #### Note:
+        This function is designed for CLI use and should be executed in a terminal. It is
+        primarily used for informational purposes and has no side effects on the network state.
+        """
 
     def delegates_list(
         self,
