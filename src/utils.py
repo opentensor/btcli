@@ -23,6 +23,10 @@ U16_MAX = 65535
 U64_MAX = 18446744073709551615
 
 
+def u16_normalized_float(x: int) -> float:
+    return float(x) / float(U16_MAX)
+
+
 def get_hotkey_wallets_for_wallet(
     wallet: Wallet, show_nulls: bool = False
 ) -> list[Wallet]:

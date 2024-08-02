@@ -13,7 +13,8 @@ from typing_extensions import Annotated
 from websockets import ConnectionClosed
 from yaml import safe_load, safe_dump
 
-from src import wallets, defaults, utils
+from src import defaults, utils
+from src.commands import wallets, root
 from src.subtensor_interface import SubtensorInterface
 from src.utils import console
 
@@ -127,7 +128,7 @@ class CLIManager:
         self.app = typer.Typer(rich_markup_mode="markdown", callback=self.main_callback)
         self.config_app = typer.Typer()
         self.wallet_app = typer.Typer()
-        self.delegates_app = typer.Typer()
+        self.root_app = typer.Typer()
 
         # config alias
         self.app.add_typer(
@@ -147,13 +148,13 @@ class CLIManager:
         self.app.add_typer(self.wallet_app, name="w", hidden=True)
         self.app.add_typer(self.wallet_app, name="wallets", hidden=True)
 
-        # delegates aliases
+        # root aliases
         self.app.add_typer(
-            self.delegates_app,
-            name="delegates",
-            short_help="Delegate commands, alias: `d`",
+            self.root_app,
+            name="root",
+            short_help="Root commands, alias: `r`",
         )
-        self.app.add_typer(self.delegates_app, name="d", hidden=True)
+        self.app.add_typer(self.root_app, name="d", hidden=True)
 
         # config commands
         self.config_app.command("set")(self.set_config)
@@ -178,7 +179,7 @@ class CLIManager:
         self.wallet_app.command("check-swap")(self.wallet_check_ck_swap)
 
         # delegates commands
-        self.delegates_app.command("list")(self.delegates_list)
+        self.root_app.command("list-delegates")(self.root_list)
 
     def initialize_chain(
         self,
@@ -1243,15 +1244,43 @@ class CLIManager:
         primarily used for informational purposes and has no side effects on the network state.
         """
 
-    def delegates_list(
+    def root_list(
         self,
-        wallet_name: Optional[str] = typer.Option(None, help="Wallet name"),
-        network: str = typer.Option("test", help="Network name"),
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
     ):
-        if not wallet_name:
-            wallet_name = typer.prompt("Please enter the wallet name")
+        """
+        # root list
+        Executes the `list` command to display the members of the root network on the Bittensor network.
+
+        This command provides an overview of the neurons that constitute the network's foundational layer.
+
+        ## Usage:
+        Upon execution, the command fetches and lists the neurons in the root network, showing their unique identifiers
+        (UIDs), names, addresses, stakes, and whether they are part of the senate (network governance body).
+
+        ### Example usage:
+        ```
+        $ btcli root list
+
+        UID  NAME                             ADDRESS                                                STAKE(τ)  SENATOR
+        0                                     5CaCUPsSSdKWcMJbmdmJdnWVa15fJQuz5HsSGgVdZffpHAUa    27086.37070  Yes
+        1    RaoK9                            5GmaAk7frPXnAxjbQvXcoEzMGZfkrDee76eGmKoB3wxUburE      520.24199  No
+        2    Openτensor Foundaτion            5F4tQyWrhfGVcNhoqeiNsR6KjD4wMZ2kfhLj4oHYuyHbZAc3  1275437.45895  Yes
+        3    RoundTable21                     5FFApaS75bv5pJHfAp2FVLBj9ZaXuFDjEypsaBNc1wCfe52v    84718.42095  Yes
+        4                                     5HK5tp6t2S59DywmHRWPBVJeJ86T61KjurYqeooqj8sREpeN   168897.40859  Yes
+        5    Rizzo                            5CXRfP2ekFhe62r7q3vppRajJmGhTi7vwvb2yr79jveZ282w    53383.34400  No
+        6    τaosτaτs and BitAPAI             5Hddm3iBFD2GLT5ik7LZnT3XJUnRnN8PoeCFgGQgawUVKNm8   646944.73569  Yes
+        ...
+
+        #### Note:
+        This command is useful for users interested in understanding the composition and governance structure of the
+        Bittensor network's root layer. It provides insights into which neurons hold significant influence and
+        responsibility within the network.
+        """
+        self.initialize_chain(network, chain)
         return self._run_command(
-            delegates.ListDelegatesCommand.run(wallet_name, network)
+            root.root_list(subtensor=self.not_subtensor)
         )
 
     def run(self):

@@ -8,7 +8,8 @@ from scalecodec.type_registry import load_type_registry_preset
 from scalecodec.utils.ss58 import ss58_encode
 
 from src.bittensor.balances import Balance
-from src.utils import SS58_FORMAT, u16_normalized_float
+from src.bittensor.networking import int_to_ip
+from src.utils import SS58_FORMAT, u16_normalized_float, RAO_PER_TAO
 
 
 class ChainDataType(Enum):
@@ -73,6 +74,39 @@ def from_scale_encoding_using_type_string(
     obj = rpc_runtime_config.create_scale_object(type_string, data=as_scale_bytes)
 
     return obj.decode()
+
+
+@dataclass
+class AxonInfo:
+    version: int
+    ip: str
+    port: int
+    ip_type: int
+    hotkey: str
+    coldkey: str
+    protocol: int = 4
+    placeholder1: int = 0
+    placeholder2: int = 0
+
+    @classmethod
+    def from_neuron_info(cls, neuron_info: dict) -> "AxonInfo":
+        """
+        Converts a dictionary to an AxonInfo object.
+
+        Args:
+            neuron_info (dict): A dictionary containing the neuron information.
+
+        Returns:
+            instance (AxonInfo): An instance of AxonInfo created from the dictionary.
+        """
+        return cls(
+            version=neuron_info["axon_info"]["version"],
+            ip=int_to_ip(int(neuron_info["axon_info"]["ip"])),
+            port=neuron_info["axon_info"]["port"],
+            ip_type=neuron_info["axon_info"]["ip_type"],
+            hotkey=neuron_info["hotkey"],
+            coldkey=neuron_info["coldkey"],
+        )
 
 
 @dataclass
@@ -158,7 +192,7 @@ class NeuronInfoLite:
     last_update: int
     validator_permit: bool
     prometheus_info: Optional["PrometheusInfo"]
-    axon_info: "axon_info"
+    axon_info: AxonInfo
     pruning_score: int
     is_null: bool = False
 
@@ -188,6 +222,84 @@ class NeuronInfoLite:
             pruning_score=0,
         )
         return neuron
+
+    @classmethod
+    def fix_decoded_values(cls, neuron_info_decoded: Any) -> "NeuronInfoLite":
+        """Fixes the values of the NeuronInfoLite object."""
+        neuron_info_decoded["hotkey"] = ss58_encode(
+            neuron_info_decoded["hotkey"], SS58_FORMAT
+        )
+        neuron_info_decoded["coldkey"] = ss58_encode(
+            neuron_info_decoded["coldkey"], SS58_FORMAT
+        )
+        stake_dict = {
+            ss58_encode(coldkey, SS58_FORMAT): Balance.from_rao(
+                int(stake)
+            )
+            for coldkey, stake in neuron_info_decoded["stake"]
+        }
+        neuron_info_decoded["stake_dict"] = stake_dict
+        neuron_info_decoded["stake"] = sum(stake_dict.values())
+        neuron_info_decoded["total_stake"] = neuron_info_decoded["stake"]
+        neuron_info_decoded["rank"] = u16_normalized_float(neuron_info_decoded["rank"])
+        neuron_info_decoded["emission"] = neuron_info_decoded["emission"] / RAO_PER_TAO
+        neuron_info_decoded["incentive"] = u16_normalized_float(
+            neuron_info_decoded["incentive"]
+        )
+        neuron_info_decoded["consensus"] = u16_normalized_float(
+            neuron_info_decoded["consensus"]
+        )
+        neuron_info_decoded["trust"] = u16_normalized_float(
+            neuron_info_decoded["trust"]
+        )
+        neuron_info_decoded["validator_trust"] = u16_normalized_float(
+            neuron_info_decoded["validator_trust"]
+        )
+        neuron_info_decoded["dividends"] = u16_normalized_float(
+            neuron_info_decoded["dividends"]
+        )
+        neuron_info_decoded["prometheus_info"] = PrometheusInfo.fix_decoded_values(
+            neuron_info_decoded["prometheus_info"]
+        )
+        neuron_info_decoded["axon_info"] = AxonInfo.from_neuron_info(
+            neuron_info_decoded
+        )
+        return cls(**neuron_info_decoded)
+
+    @classmethod
+    def list_from_vec_u8(cls, vec_u8: list[int]) -> list["NeuronInfoLite"]:
+        """Returns a list of NeuronInfoLite objects from a ``vec_u8``."""
+
+        decoded_list = from_scale_encoding(
+            vec_u8, ChainDataType.NeuronInfoLite, is_vec=True
+        )
+        if decoded_list is None:
+            return []
+
+        decoded_list = [
+            NeuronInfoLite.fix_decoded_values(decoded) for decoded in decoded_list
+        ]
+        return decoded_list
+
+
+@dataclass
+class PrometheusInfo:
+    """Dataclass for prometheus info."""
+
+    block: int
+    version: int
+    ip: str
+    port: int
+    ip_type: int
+
+    @classmethod
+    def fix_decoded_values(cls, prometheus_info_decoded: dict) -> "PrometheusInfo":
+        """Returns a PrometheusInfo object from a prometheus_info_decoded dictionary."""
+        prometheus_info_decoded["ip"] = int_to_ip(
+            int(prometheus_info_decoded["ip"])
+        )
+
+        return cls(**prometheus_info_decoded)
 
 
 @dataclass
