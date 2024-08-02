@@ -162,6 +162,7 @@ class CLIManager:
         self.wallet_app.command("faucet")(self.wallet_faucet)
         self.wallet_app.command("set-identity")(self.wallet_set_id)
         self.wallet_app.command("get-identity")(self.wallet_get_id)
+        self.wallet_app.command("check-swap")(self.wallet_check_ck_swap)
 
         # delegates commands
         self.delegates_app.command("list")(self.delegates_list)
@@ -903,6 +904,33 @@ class CLIManager:
         return self._run_command(
             wallets.new_coldkey(wallet, n_words, use_password, overwrite_coldkey)
         )
+
+    def wallet_check_ck_swap(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+    ):
+        """
+        # wallet check-swap
+        Executes the `check-swap` command to check swap status of a coldkey in the Bittensor network.
+
+        ## Usage:
+        Users need to specify the wallet they want to check the swap status of.
+
+        ### Example usage:
+        ```
+        btcli wallet check_coldkey_swap
+        ```
+
+        #### Note:
+        This command is important for users who wish check if swap requests were made against their coldkey.
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        self.initialize_chain(network, chain)
+        return self._run_command(wallets.check_coldkey_swap(wallet, self.not_subtensor))
 
     def wallet_create_wallet(
         self,

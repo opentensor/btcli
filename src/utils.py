@@ -272,6 +272,20 @@ def format_error_message(error_message: dict) -> str:
     return f"Subtensor returned `{err_name} ({err_type})` error. This means: `{err_description}`"
 
 
+def convert_blocks_to_time(blocks: int, block_time: int = 12) -> tuple[int, int, int]:
+    """
+    Converts number of blocks into number of hours, minutes, seconds.
+    :param blocks: number of blocks
+    :param block_time: time per block, by default this is 12
+    :return: tuple containing number of hours, number of minutes, number of seconds
+    """
+    seconds = blocks * block_time
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    remaining_seconds = seconds % 60
+    return hours, minutes, remaining_seconds
+
+
 async def get_delegates_details_from_github(url: str) -> dict[str, DelegatesDetails]:
     all_delegates_details = {}
 

@@ -50,6 +50,7 @@ from src.utils import (
     get_all_wallets_for_path,
     get_hotkey_wallets_for_wallet,
     get_delegates_details_from_github,
+    convert_blocks_to_time,
 )
 from src.subtensor_interface import SubtensorInterface
 from src.bittensor.balances import Balance
@@ -1382,3 +1383,43 @@ async def get_id(subtensor: SubtensorInterface, ss58_address: str):
         table.add_row(key, str(value) if value is not None else "~")
 
     return console.print(table)
+
+
+async def check_coldkey_swap(wallet: Wallet, subtensor: SubtensorInterface):
+    async with subtensor:
+        arbitration_check = len(
+            (
+                await subtensor.substrate.query(
+                    module="SubtensorModule",
+                    storage_function="ColdkeySwapDestinations",
+                    params=[wallet.coldkeypub.ss58_address],
+                )
+            ).decode()
+        )
+        if arbitration_check == 0:
+            console.print(
+                "[green]There has been no previous key swap initiated for your coldkey.[/green]"
+            )
+        elif arbitration_check == 1:
+            arbitration_block = await subtensor.substrate.query(
+                module="SubtensorModule",
+                storage_function="ColdkeyArbitrationBlock",
+                params=[wallet.coldkeypub.ss58_address],
+            )
+            arbitration_remaining = (
+                arbitration_block.value
+                - await subtensor.substrate.get_block_number(None)
+            )
+
+            hours, minutes, seconds = convert_blocks_to_time(arbitration_remaining)
+            console.print(
+                "[yellow]There has been 1 swap request made for this coldkey already."
+                " By adding another swap request, the key will enter arbitration."
+                f" Your key swap is scheduled for {hours} hours, {minutes} minutes, {seconds} seconds"
+                " from now.[/yellow]"
+            )
+        elif arbitration_check > 1:
+            console.print(
+                f"[red]This coldkey is currently in arbitration with a total swaps of {arbitration_check}.[/red]"
+            )
+    await subtensor.substrate.close()
