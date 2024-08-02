@@ -179,7 +179,7 @@ class CLIManager:
         self.wallet_app.command("check-swap")(self.wallet_check_ck_swap)
 
         # delegates commands
-        self.root_app.command("list-delegates")(self.root_list)
+        self.root_app.command("list")(self.root_list)
 
     def initialize_chain(
         self,
@@ -1262,6 +1262,7 @@ class CLIManager:
         ### Example usage:
 
         ```
+
         $ btcli root list
 
         UID  NAME                             ADDRESS                                                STAKE(τ)  SENATOR
