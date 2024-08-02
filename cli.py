@@ -4,16 +4,21 @@ import os.path
 from typing import Optional, Coroutine
 
 from bittensor_wallet import Wallet
+from git import Repo
 import rich
 from rich.prompt import Confirm, Prompt
 from rich.table import Table, Column
 import typer
+from typing_extensions import Annotated
 from websockets import ConnectionClosed
 from yaml import safe_load, safe_dump
 
 from src import wallets, defaults, utils
 from src.subtensor_interface import SubtensorInterface
 from src.utils import console
+
+
+__version__ = "8.0.0"
 
 
 class Options:
@@ -100,6 +105,12 @@ def get_creation_data(mnemonic, seed, json, json_password):
     return mnemonic, seed, json, json_password
 
 
+def version_callback(value: bool):
+    if value:
+        typer.echo(f"BTCLI Version: {__version__}/{Repo('.').active_branch.name}")
+        raise typer.Exit()
+
+
 class CLIManager:
     def __init__(self):
         self.config = {
@@ -111,7 +122,7 @@ class CLIManager:
         }
         self.not_subtensor = None
 
-        self.app = typer.Typer(rich_markup_mode="markdown", callback=self.check_config)
+        self.app = typer.Typer(rich_markup_mode="markdown", callback=self.main_callback)
         self.config_app = typer.Typer()
         self.wallet_app = typer.Typer()
         self.delegates_app = typer.Typer()
@@ -192,7 +203,13 @@ class CLIManager:
         except ConnectionClosed:
             pass
 
-    def check_config(self):
+    def main_callback(
+        self,
+        version: Annotated[
+            Optional[bool], typer.Option("--version", callback=version_callback)
+        ] = None,
+    ):
+        # check config
         with open(os.path.expanduser("~/.bittensor/config.yml"), "r") as f:
             config = safe_load(f)
         for k, v in config.items():
