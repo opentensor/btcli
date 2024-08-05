@@ -7,6 +7,8 @@ from scalecodec import ScaleType
 from src import DelegatesDetails
 from src.bittensor.balances import Balance
 from src.bittensor.chain_data import NeuronInfoLite
+from src.bittensor.extrinsics.root import set_root_weights_extrinsic
+from src.bittensor.minigraph import MiniGraph
 from src.subtensor_interface import SubtensorInterface
 from src.utils import console, err_console, get_delegates_details_from_github
 from src import Constants
@@ -119,15 +121,19 @@ async def set_weights(
     weights_ = np.array(weights_, dtype=np.float32)
 
     # Run the set weights operation.
-    subtensor.root_set_weights(
-        wallet=wallet,
-        netuids=netuids_,
-        weights=weights_,
-        version_key=0,
-        prompt=True,
-        wait_for_finalization=True,
-        wait_for_inclusion=True,
-    )
+    with console.status("Setting root weights..."):
+        async with subtensor:
+            await set_root_weights_extrinsic(
+                subtensor=subtensor,
+                wallet=wallet,
+                netuids=netuids_,
+                weights=weights_,
+                version_key=0,
+                prompt=True,
+                wait_for_finalization=True,
+                wait_for_inclusion=True,
+            )
+    await subtensor.substrate.close()
 
 
 async def get_weights(subtensor: SubtensorInterface):
@@ -197,37 +203,41 @@ async def get_weights(subtensor: SubtensorInterface):
     return console.print(table)
 
 
-async def set_boots(
+async def set_boost(
     wallet: Wallet, subtensor: SubtensorInterface, netuid: int, amount: float
 ):
     """Set weights for root network."""
 
-    root = subtensor.metagraph(0, lite=False)
-    try:
-        my_uid = root.hotkeys.index(wallet.hotkey.ss58_address)
-    except ValueError:
-        err_console.print(
-            "Wallet hotkey: {} not found in root metagraph".format(wallet.hotkey)
-        )
-        raise typer.Exit()
+    async with subtensor:
+        block_hash = await subtensor.substrate.get_chain_head()
+        neurons = await subtensor.neurons(0, block_hash=block_hash)
 
-    my_weights = root.weights[my_uid]
-    prev_weight = my_weights[netuid]
-    new_weight = prev_weight + amount
+        async with MiniGraph(0, neurons, subtensor) as root:
+            try:
+                my_uid = root.hotkeys.index(wallet.hotkey.ss58_address)
+            except ValueError:
+                err_console.print(f"Wallet hotkey: {wallet.hotkey} not found in root metagraph")
+                raise typer.Exit()
 
-    console.print(
-        f"Boosting weight for netuid {netuid} from {prev_weight} -> {new_weight}"
-    )
-    my_weights[netuid] = new_weight
-    all_netuids = np.arange(len(my_weights))
+            my_weights = root.weights[my_uid]
+            prev_weight = my_weights[netuid]
+            new_weight = prev_weight + amount
 
-    with console.status("Setting root weights..."):
-        subtensor.root_set_weights(
-            wallet=wallet,
-            netuids=all_netuids,
-            weights=my_weights,
-            version_key=0,
-            prompt=True,
-            wait_for_finalization=True,
-            wait_for_inclusion=True,
-        )
+            console.print(
+                f"Boosting weight for netuid {netuid} from {prev_weight} -> {new_weight}"
+            )
+            my_weights[netuid] = new_weight
+            all_netuids = np.arange(len(my_weights))
+
+            with console.status("Setting root weights..."):
+                await set_root_weights_extrinsic(
+                    subtensor=subtensor,
+                    wallet=wallet,
+                    netuids=all_netuids,
+                    weights=my_weights,
+                    version_key=0,
+                    wait_for_inclusion=True,
+                    wait_for_finalization=True,
+                    prompt=True,
+                )
+    await subtensor.substrate.close()

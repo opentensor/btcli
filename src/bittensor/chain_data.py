@@ -171,6 +171,49 @@ class StakeInfo:
 
 
 @dataclass
+class NeuronInfo:
+    """Dataclass for neuron metadata."""
+
+    hotkey: str
+    coldkey: str
+    uid: int
+    netuid: int
+    active: int
+    stake: Balance
+    # mapping of coldkey to amount staked to this Neuron
+    stake_dict: dict[str, Balance]
+    total_stake: Balance
+    rank: float
+    emission: float
+    incentive: float
+    consensus: float
+    trust: float
+    validator_trust: float
+    dividends: float
+    last_update: int
+    validator_permit: bool
+    weights: list[list[int]]
+    bonds: list[list[int]]
+    pruning_score: int
+    prometheus_info: Optional["PrometheusInfo"] = None
+    axon_info: Optional[AxonInfo] = None
+    is_null: bool = False
+
+    @classmethod
+    def from_weights_bonds_and_neuron_lite(
+        cls,
+        neuron_lite: "NeuronInfoLite",
+        weights_as_dict: dict[int, list[tuple[int, int]]],
+        bonds_as_dict: dict[int, list[tuple[int, int]]],
+    ) -> "NeuronInfo":
+        n_dict = neuron_lite.__dict__
+        n_dict["weights"] = weights_as_dict.get(neuron_lite.uid, [])
+        n_dict["bonds"] = bonds_as_dict.get(neuron_lite.uid, [])
+
+        return cls(**n_dict)
+
+
+@dataclass
 class NeuronInfoLite:
     """Dataclass for neuron metadata, but without the weights and bonds."""
 

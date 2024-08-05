@@ -1,7 +1,7 @@
 # The MIT License (MIT)
 # Copyright © 2021 Yuma Rao
 # Copyright © 2023 Opentensor Foundation
-
+import asyncio
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
 # the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
@@ -29,7 +29,7 @@ from scalecodec import ScaleBytes, U16, Vec
 from substrateinterface import Keypair
 
 from src.subtensor_interface import SubtensorInterface
-from src.utils import console, err_console
+from src.utils import console, err_console, u16_normalized_float
 from src.bittensor.extrinsics.registration import (
     torch,
     legacy_torch_api_compat,
@@ -87,93 +87,6 @@ def normalize_max_weight(
         y = weights / weights.sum()
 
         return y
-
-
-def convert_weight_uids_and_vals_to_tensor(
-    n: int, uids: List[int], weights: List[int]
-) -> Union[NDArray[np.float32], "torch.FloatTensor"]:
-    """
-    Converts weights and uids from chain representation into a `np.array` (inverse operation from
-    convert_weights_and_uids_for_emit)
-
-    :param n: number of neurons on network.
-    :param uids: Tensor of uids as destinations for passed weights.
-    :param weights: Tensor of weights.
-
-    :return: row_weights: Converted row weights.
-    """
-    row_weights = (
-        torch.zeros([n], dtype=torch.float32)
-        if use_torch()
-        else np.zeros([n], dtype=np.float32)
-    )
-    for uid_j, wij in list(zip(uids, weights)):
-        row_weights[uid_j] = float(
-            wij
-        )  # assumes max-upscaled values (w_max = U16_MAX).
-    row_sum = row_weights.sum()
-    if row_sum > 0:
-        row_weights /= row_sum  # normalize
-    return row_weights
-
-
-def convert_root_weight_uids_and_vals_to_tensor(
-    n: int, uids: List[int], weights: List[int], subnets: List[int]
-) -> Union[NDArray[np.float32], "torch.FloatTensor"]:
-    """
-    Converts root weights and uids from chain representation into a `np.array` or `torch.FloatTensor` (inverse operation
-    from `convert_weights_and_uids_for_emit`)
-
-    :param n: number of neurons on network.
-    :param uids: Tensor of uids as destinations for passed weights.
-    :param weights: Tensor of weights.
-    :param subnets: list of subnets on the network
-
-    :return: row_weights: Converted row weights.
-    """
-
-    row_weights = (
-        torch.zeros([n], dtype=torch.float32)
-        if use_torch()
-        else np.zeros([n], dtype=np.float32)
-    )
-    for uid_j, wij in list(zip(uids, weights)):
-        if uid_j in subnets:
-            index_s = subnets.index(uid_j)
-            row_weights[index_s] = float(
-                wij
-            )  # assumes max-upscaled values (w_max = U16_MAX).
-        else:
-            # TODO standardise logging
-            logging.warning(
-                f"Incorrect Subnet uid {uid_j} in Subnets {subnets}. The subnet is unavailable at the moment."
-            )
-            continue
-    row_sum = row_weights.sum()
-    if row_sum > 0:
-        row_weights /= row_sum  # normalize
-    return row_weights
-
-
-def convert_bond_uids_and_vals_to_tensor(
-    n: int, uids: List[int], bonds: List[int]
-) -> Union[NDArray[np.int64], "torch.LongTensor"]:
-    """Converts bond and uids from chain representation into a np.array.
-
-    :param n: number of neurons on network.
-    :param uids: Tensor of uids as destinations for passed bonds.
-    :param bonds: Tensor of bonds.
-
-    :return: Converted row bonds.
-    """
-    row_bonds = (
-        torch.zeros([n], dtype=torch.int64)
-        if use_torch()
-        else np.zeros([n], dtype=np.int64)
-    )
-    for uid_j, bij in list(zip(uids, bonds)):
-        row_bonds[uid_j] = int(bij)
-    return row_bonds
 
 
 def convert_weights_and_uids_for_emit(
@@ -295,7 +208,6 @@ def process_weights_for_netuid(
         # bittensor.logging.warning(
         #     "No non-zero weights less than min allowed weight, returning all ones."
         # )
-        # ( const ): Should this be np.zeros( ( metagraph.n ) ) to reset everyone to build up weight?
         weights = (
             torch.ones(metagraph.n).to(metagraph.n) * 1e-5
             if use_torch()
@@ -457,7 +369,7 @@ def root_register_extrinsic(
 
 
 @legacy_torch_api_compat
-def set_root_weights_extrinsic(
+async def set_root_weights_extrinsic(
     subtensor: SubtensorInterface,
     wallet: Wallet,
     netuids: Union[NDArray[np.int64], "torch.LongTensor", List[int]],
@@ -483,6 +395,39 @@ def set_root_weights_extrinsic(
              the response is `True`.
     """
 
+    async def _do_set_weights():
+        call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="set_root_weights",
+            call_params={
+                "dests": weight_uids,
+                "weights": weight_vals,
+                "netuid": 0,
+                "version_key": version_key,
+                "hotkey": wallet.hotkey.ss58_address,
+            },
+        )
+        # Period dictates how long the extrinsic will stay as part of waiting pool
+        extrinsic = await subtensor.substrate.create_signed_extrinsic(
+            call=call,
+            keypair=wallet.coldkey,
+            era={"period": 5},
+        )
+        response = await subtensor.substrate.submit_extrinsic(
+            extrinsic,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+        )
+        # We only wait here if we expect finalization.
+        if not wait_for_finalization and not wait_for_inclusion:
+            return True, "Not waiting for finalization or inclusion."
+
+        response.process_events()
+        if response.is_success:
+            return True, "Successfully set weights."
+        else:
+            return False, response.error_message
+
     wallet.unlock_coldkey()
 
     # First convert types.
@@ -492,12 +437,15 @@ def set_root_weights_extrinsic(
         weights = np.array(weights, dtype=np.float32)
 
     # Get weight restrictions.
-    min_allowed_weights = subtensor.min_allowed_weights(netuid=0)
-    max_weight_limit = subtensor.max_weight_limit(netuid=0)
+    maw, mwl = await asyncio.gather(
+        subtensor.get_hyperparameter("MinAllowedWeights", netuid=0),
+        subtensor.get_hyperparameter("MaxWeightsLimit", netuid=0)
+    )
+    min_allowed_weights = int(maw)
+    max_weight_limit = u16_normalized_float(int(mwl))
 
     # Get non zero values.
     non_zero_weight_idx = np.argwhere(weights > 0).squeeze(axis=1)
-    non_zero_weight_uids = netuids[non_zero_weight_idx]
     non_zero_weights = weights[non_zero_weight_idx]
     if non_zero_weights.size < min_allowed_weights:
         raise ValueError(
@@ -532,16 +480,8 @@ def set_root_weights_extrinsic(
             weight_uids, weight_vals = convert_weights_and_uids_for_emit(
                 netuids, weights
             )
-            success, error_message = subtensor._do_set_root_weights(
-                wallet=wallet,
-                netuid=0,
-                uids=weight_uids,
-                vals=weight_vals,
-                version_key=version_key,
-                wait_for_finalization=wait_for_finalization,
-                wait_for_inclusion=wait_for_inclusion,
-            )
 
+            success, error_message = await _do_set_weights()
             console.print(success, error_message)
 
             if not wait_for_finalization and not wait_for_inclusion:

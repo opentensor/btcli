@@ -181,7 +181,7 @@ class CLIManager:
 
         # root commands
         self.root_app.command("list")(self.root_list)
-        # self.root_app.command("set-weights")(self.root_set_weights)
+        self.root_app.command("set-weights")(self.root_set_weights)
         self.root_app.command("get-weights")(self.root_get_weights)
         self.root_app.command("boost")(self.root_boost)
 
@@ -205,7 +205,7 @@ class CLIManager:
 
     def _run_command(self, cmd: Coroutine):
         try:
-            asyncio.run(cmd)
+            return asyncio.run(cmd)
         except ConnectionRefusedError:
             err_console.print(
                 f"Connection refused when connecting to chain: {self.not_subtensor}"

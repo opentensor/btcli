@@ -11,7 +11,7 @@ from src.bittensor.chain_data import (
     DelegateInfo,
     custom_rpc_type_registry,
     StakeInfo,
-    NeuronInfoLite,
+    NeuronInfoLite, NeuronInfo,
 )
 from src.bittensor.balances import Balance
 from src import Constants, defaults, TYPE_REGISTRY
@@ -415,6 +415,39 @@ class SubtensorInterface:
 
         return Balance.from_rao(result.value)
 
+    async def neurons(self, netuid: int, block_hash: Optional[str] = None) -> list[NeuronInfo]:
+        """
+        Retrieves a list of all neurons within a specified subnet of the Bittensor network. This function
+        provides a snapshot of the subnet's neuron population, including each neuron's attributes and network
+        interactions.
+
+        :param netuid: The unique identifier of the subnet.
+        :param block_hash: The hash of the blockchain block number for the query.
+
+        Returns:
+            List[NeuronInfo]: A list of NeuronInfo objects detailing each neuron's characteristics in the subnet.
+
+        Understanding the distribution and status of neurons within a subnet is key to comprehending the
+        network's decentralized structure and the dynamics of its consensus and governance processes.
+        """
+        neurons_lite, weights, bonds = await asyncio.gather(
+            self.neurons_lite(netuid=netuid, block_hash=block_hash),
+            self.weights(netuid=netuid, block_hash=block_hash),
+            self.bonds(netuid=netuid, block_hash=block_hash),
+        )
+
+        weights_as_dict = {uid: w for uid, w in weights}
+        bonds_as_dict = {uid: b for uid, b in bonds}
+
+        neurons = [
+            NeuronInfo.from_weights_bonds_and_neuron_lite(
+                neuron_lite, weights_as_dict, bonds_as_dict
+            )
+            for neuron_lite in neurons_lite
+        ]
+
+        return neurons
+
     async def neurons_lite(
         self, netuid: int, block_hash: Optional[str] = None, reuse_block: bool = False
     ) -> list[NeuronInfoLite]:
@@ -565,3 +598,34 @@ class SubtensorInterface:
                 w_map.append((uid.serialize(), w.serialize()))
 
         return w_map
+
+    async def bonds(
+        self, netuid: int, block_hash: Optional[str] = None
+    ) -> list[tuple[int, list[tuple[int, int]]]]:
+        """
+        Retrieves the bond distribution set by neurons within a specific subnet of the Bittensor network.
+        Bonds represent the investments or commitments made by neurons in one another, indicating a level
+        of trust and perceived value. This bonding mechanism is integral to the network's market-based approach
+        to measuring and rewarding machine intelligence.
+
+        :param netuid: The network UID of the subnet to query.
+        :param block_hash: The hash of the blockchain block number for the query.
+
+        :return: list of tuples mapping each neuron's UID to its bonds with other neurons.
+
+        Understanding bond distributions is crucial for analyzing the trust dynamics and market behavior
+        within the subnet. It reflects how neurons recognize and invest in each other's intelligence and
+        contributions, supporting diverse and niche systems within the Bittensor ecosystem.
+        """
+        b_map = []
+        b_map_encoded = await self.substrate.query_map(
+                module="SubtensorModule",
+                storage_function="Bonds",
+                params=[netuid],
+                block_hash=block_hash,
+            )
+        if b_map_encoded.records:
+            for uid, b in b_map_encoded:
+                b_map.append((uid.serialize(), b.serialize()))
+
+        return b_map
