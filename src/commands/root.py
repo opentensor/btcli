@@ -216,7 +216,9 @@ async def set_boost(
             try:
                 my_uid = root.hotkeys.index(wallet.hotkey.ss58_address)
             except ValueError:
-                err_console.print(f"Wallet hotkey: {wallet.hotkey} not found in root metagraph")
+                err_console.print(
+                    f"Wallet hotkey: {wallet.hotkey} not found in root metagraph"
+                )
                 raise typer.Exit()
 
             my_weights = root.weights[my_uid]

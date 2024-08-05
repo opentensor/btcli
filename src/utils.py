@@ -249,10 +249,6 @@ def is_valid_bittensor_address_or_public_key(address: Union[str, bytes]) -> bool
         return False
 
 
-def u16_normalized_float(x: int) -> float:
-    return float(x) / float(U16_MAX)
-
-
 def decode_scale_bytes(return_type, scale_bytes, custom_rpc_type_registry):
     rpc_runtime_config = RuntimeConfiguration()
     rpc_runtime_config.update_type_registry(load_type_registry_preset("legacy"))

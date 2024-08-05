@@ -13,7 +13,9 @@ from src.utils import (
 
 
 class MiniGraph:
-    def __init__(self, netuid: int, neurons: list[NeuronInfo], subtensor: "SubtensorInterface"):
+    def __init__(
+        self, netuid: int, neurons: list[NeuronInfo], subtensor: "SubtensorInterface"
+    ):
         self.neurons = neurons
         self.netuid = netuid
         self.axons = [n.axon_info for n in self.neurons]
@@ -42,8 +44,7 @@ class MiniGraph:
         # TODO: Check and test the computation of weights and bonds
         if self.netuid == 0:
             self.weights = self._process_root_weights(
-                [neuron.weights for neuron in self.neurons],
-                "weights"
+                [neuron.weights for neuron in self.neurons], "weights"
             )
         else:
             self.weights = self._process_weights_or_bonds(
@@ -86,7 +87,9 @@ class MiniGraph:
                             len(self.neurons), list(uids), list(values)
                         ).astype(np.float32)
                     )
-        tensor_param: NDArray = np.stack(data_array) if len(data_array) else np.array([], dtype=np.float32)
+        tensor_param: NDArray = (
+            np.stack(data_array) if len(data_array) else np.array([], dtype=np.float32)
+        )
         if len(data_array) == 0:
             # bittensor.logging.warning(
             #     f"Empty {attribute}_array on metagraph.sync(). The '{attribute}' tensor is empty."
@@ -94,9 +97,7 @@ class MiniGraph:
             pass
         return tensor_param
 
-    async def _process_root_weights(
-        self, data, attribute: str
-    ) -> NDArray:
+    async def _process_root_weights(self, data, attribute: str) -> NDArray:
         """
         Specifically processes the root weights data for the metagraph. This method is similar to
         `_process_weights_or_bonds` but is tailored for processing root weights, which have a different structure and
@@ -108,12 +109,13 @@ class MiniGraph:
 
         :return: A tensor parameter encapsulating the processed root weights data.
         """
+
         async def get_total_subnets():
             _result = self.subtensor.substrate.query(
                 module="SubtensorModule",
                 storage_function="TotalNetworks",
                 params=[],
-                reuse_block_hash=True
+                reuse_block_hash=True,
             )
             return getattr(_result, "value", 0)
 

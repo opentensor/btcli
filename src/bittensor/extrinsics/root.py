@@ -1,7 +1,6 @@
 # The MIT License (MIT)
 # Copyright © 2021 Yuma Rao
 # Copyright © 2023 Opentensor Foundation
-import asyncio
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
 # the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
@@ -16,10 +15,10 @@ import asyncio
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+import asyncio
 import hashlib
-import logging
 import time
-from typing import Union, List
+from typing import Union, List, TYPE_CHECKING
 
 from bittensor_wallet import Wallet
 import numpy as np
@@ -30,21 +29,28 @@ from substrateinterface import Keypair
 
 from src.subtensor_interface import SubtensorInterface
 from src.utils import console, err_console, u16_normalized_float
-from src.bittensor.extrinsics.registration import (
-    torch,
-    legacy_torch_api_compat,
-    use_torch,
-)
 
+if TYPE_CHECKING:
+    from src.bittensor.minigraph import MiniGraph
 
 U32_MAX = 4294967295
 U16_MAX = 65535
 
 
-@legacy_torch_api_compat
+async def get_limits(subtensor: SubtensorInterface) -> tuple[int, float]:
+    # Get weight restrictions.
+    maw, mwl = await asyncio.gather(
+        subtensor.get_hyperparameter("MinAllowedWeights", netuid=0),
+        subtensor.get_hyperparameter("MaxWeightsLimit", netuid=0),
+    )
+    min_allowed_weights = int(maw)
+    max_weight_limit = u16_normalized_float(int(mwl))
+    return min_allowed_weights, max_weight_limit
+
+
 def normalize_max_weight(
-    x: Union[NDArray[np.float32], "torch.FloatTensor"], limit: float = 0.1
-) -> Union[NDArray[np.float32], "torch.FloatTensor"]:
+    x: NDArray[np.float32], limit: float = 0.1
+) -> NDArray[np.float32]:
     """
     Normalizes the tensor x so that sum(x) = 1 and the max value is not greater than the limit.
 
@@ -90,8 +96,8 @@ def normalize_max_weight(
 
 
 def convert_weights_and_uids_for_emit(
-    uids: Union[NDArray[np.int64], "torch.LongTensor"],
-    weights: Union[NDArray[np.float32], "torch.FloatTensor"],
+    uids: NDArray[np.int64],
+    weights: NDArray[np.float32],
 ) -> tuple[List[int], List[int]]:
     """Converts weights into integer u32 representation that sum to MAX_INT_WEIGHT.
 
@@ -138,17 +144,14 @@ def convert_weights_and_uids_for_emit(
     return weight_uids, weight_vals
 
 
-def process_weights_for_netuid(
-    uids: Union[NDArray[np.int64], "torch.Tensor"],
-    weights: Union[NDArray[np.float32], "torch.Tensor"],
+async def process_weights_for_netuid(
+    uids: NDArray[np.int64],
+    weights: NDArray[np.float32],
     netuid: int,
     subtensor: SubtensorInterface,
-    metagraph: "bittensor.metagraph" = None,
+    metagraph: MiniGraph = None,
     exclude_quantile: int = 0,
-) -> Union[
-    tuple["torch.Tensor", "torch.FloatTensor"],
-    tuple[NDArray[np.int64], NDArray[np.float32]],
-]:
+) -> tuple[NDArray[np.int64], NDArray[np.float32]]:
     # bittensor.logging.debug("process_weights_for_netuid()")
     # bittensor.logging.debug("weights", weights)
     # bittensor.logging.debug("netuid", netuid)
@@ -159,68 +162,40 @@ def process_weights_for_netuid(
     if metagraph is None:
         metagraph = subtensor.metagraph(netuid)
 
-    # Cast weights to floats.
-    if use_torch():
-        if not isinstance(weights, torch.FloatTensor):
-            weights = weights.type(torch.float32)
-    else:
-        if not isinstance(weights, np.float32):
-            weights = weights.astype(np.float32)
+    if not isinstance(weights, np.float32):
+        weights = weights.astype(np.float32)
 
     # Network configuration parameters from a subtensor.
     # These parameters determine the range of acceptable weights for each neuron.
     quantile = exclude_quantile / U16_MAX
-    min_allowed_weights = subtensor.min_allowed_weights(netuid=netuid)
-    max_weight_limit = subtensor.max_weight_limit(netuid=netuid)
+    min_allowed_weights, max_weight_limit = await get_limits(subtensor)
     # bittensor.logging.debug("quantile", quantile)
     # bittensor.logging.debug("min_allowed_weights", min_allowed_weights)
     # bittensor.logging.debug("max_weight_limit", max_weight_limit)
 
     # Find all non zero weights.
-    non_zero_weight_idx = (
-        torch.argwhere(weights > 0).squeeze(dim=1)
-        if use_torch()
-        else np.argwhere(weights > 0).squeeze(axis=1)
-    )
+    non_zero_weight_idx = np.argwhere(weights > 0).squeeze(axis=1)
     non_zero_weight_uids = uids[non_zero_weight_idx]
     non_zero_weights = weights[non_zero_weight_idx]
-    nzw_size = non_zero_weights.numel() if use_torch() else non_zero_weights.size
+    nzw_size = non_zero_weights.size
     if nzw_size == 0 or metagraph.n < min_allowed_weights:
         # bittensor.logging.warning("No non-zero weights returning all ones.")
-        final_weights = (
-            torch.ones(metagraph.n).to(metagraph.n) / metagraph.n
-            if use_torch()
-            else np.ones(metagraph.n, dtype=np.int64) / metagraph.n
-        )
+        final_weights = np.ones(metagraph.n, dtype=np.int64) / metagraph.n
         # bittensor.logging.debug("final_weights", final_weights)
-        final_weights_count = (
-            torch.tensor(list(range(len(final_weights))))
-            if use_torch()
-            else np.arange(len(final_weights))
-        )
-        return (
-            (final_weights_count, final_weights)
-            if use_torch()
-            else (final_weights_count, final_weights)
-        )
+        final_weights_count = np.arange(len(final_weights))
+        return final_weights_count, final_weights
 
     elif nzw_size < min_allowed_weights:
         # bittensor.logging.warning(
         #     "No non-zero weights less than min allowed weight, returning all ones."
         # )
         weights = (
-            torch.ones(metagraph.n).to(metagraph.n) * 1e-5
-            if use_torch()
-            else np.ones(metagraph.n, dtype=np.int64) * 1e-5
+            np.ones(metagraph.n, dtype=np.int64) * 1e-5
         )  # creating minimum even non-zero weights
         weights[non_zero_weight_idx] += non_zero_weights
         # bittensor.logging.debug("final_weights", weights)
         normalized_weights = normalize_max_weight(x=weights, limit=max_weight_limit)
-        nw_arange = (
-            torch.tensor(list(range(len(normalized_weights))))
-            if use_torch()
-            else np.arange(len(normalized_weights))
-        )
+        nw_arange = np.arange(len(normalized_weights))
         return nw_arange, normalized_weights
 
     # bittensor.logging.debug("non_zero_weights", non_zero_weights)
@@ -230,11 +205,7 @@ def process_weights_for_netuid(
         non_zero_weights
     )
     exclude_quantile = min([quantile, max_exclude])
-    lowest_quantile = (
-        non_zero_weights.quantile(exclude_quantile)
-        if use_torch()
-        else np.quantile(non_zero_weights, exclude_quantile)
-    )
+    lowest_quantile = np.quantile(non_zero_weights, exclude_quantile)
     # bittensor.logging.debug("max_exclude", max_exclude)
     # bittensor.logging.debug("exclude_quantile", exclude_quantile)
     # bittensor.logging.debug("lowest_quantile", lowest_quantile)
@@ -368,12 +339,11 @@ def root_register_extrinsic(
                 )
 
 
-@legacy_torch_api_compat
 async def set_root_weights_extrinsic(
     subtensor: SubtensorInterface,
     wallet: Wallet,
-    netuids: Union[NDArray[np.int64], "torch.LongTensor", List[int]],
-    weights: Union[NDArray[np.float32], "torch.FloatTensor", List[float]],
+    netuids: Union[NDArray[np.int64], list[int]],
+    weights: Union[NDArray[np.float32], list[float]],
     version_key: int = 0,
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = False,
@@ -436,13 +406,7 @@ async def set_root_weights_extrinsic(
     if isinstance(weights, list):
         weights = np.array(weights, dtype=np.float32)
 
-    # Get weight restrictions.
-    maw, mwl = await asyncio.gather(
-        subtensor.get_hyperparameter("MinAllowedWeights", netuid=0),
-        subtensor.get_hyperparameter("MaxWeightsLimit", netuid=0)
-    )
-    min_allowed_weights = int(maw)
-    max_weight_limit = u16_normalized_float(int(mwl))
+    min_allowed_weights, max_weight_limit = await get_limits(subtensor)
 
     # Get non zero values.
     non_zero_weight_idx = np.argwhere(weights > 0).squeeze(axis=1)

@@ -11,7 +11,8 @@ from src.bittensor.chain_data import (
     DelegateInfo,
     custom_rpc_type_registry,
     StakeInfo,
-    NeuronInfoLite, NeuronInfo,
+    NeuronInfoLite,
+    NeuronInfo,
 )
 from src.bittensor.balances import Balance
 from src import Constants, defaults, TYPE_REGISTRY
@@ -415,7 +416,9 @@ class SubtensorInterface:
 
         return Balance.from_rao(result.value)
 
-    async def neurons(self, netuid: int, block_hash: Optional[str] = None) -> list[NeuronInfo]:
+    async def neurons(
+        self, netuid: int, block_hash: Optional[str] = None
+    ) -> list[NeuronInfo]:
         """
         Retrieves a list of all neurons within a specified subnet of the Bittensor network. This function
         provides a snapshot of the subnet's neuron population, including each neuron's attributes and network
@@ -619,11 +622,11 @@ class SubtensorInterface:
         """
         b_map = []
         b_map_encoded = await self.substrate.query_map(
-                module="SubtensorModule",
-                storage_function="Bonds",
-                params=[netuid],
-                block_hash=block_hash,
-            )
+            module="SubtensorModule",
+            storage_function="Bonds",
+            params=[netuid],
+            block_hash=block_hash,
+        )
         if b_map_encoded.records:
             for uid, b in b_map_encoded:
                 b_map.append((uid.serialize(), b.serialize()))

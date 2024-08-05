@@ -400,7 +400,7 @@ async def wallet_history(wallet: Wallet):
 
 
 async def wallet_list(wallet_path: str):
-    r"""Lists wallets."""
+    """Lists wallets."""
     wallets = utils.get_coldkey_wallets_for_path(wallet_path)
     if not wallets:
         err_console.print(f"[red]No wallets found in dir: {wallet_path}[/red]")
