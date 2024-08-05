@@ -1390,26 +1390,27 @@ class CLIManager:
         self.initialize_chain(network, chain)
         return self._run_command(root.get_weights(self.not_subtensor))
 
-    def root_boost(self,
-                   network: Optional[str] = Options.network,
-                   chain: Optional[str] = Options.chain,
-                   wallet_name: Optional[str] = Options.wallet_name,
-                   wallet_path: Optional[str] = Options.wallet_path,
-                   wallet_hotkey: Optional[str] = Options.wallet_hk_req,
-                   netuid: int = typer.Option(
-                       None,
-                       help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
-                       prompt=True
-                   ),
-                   amount: float = typer.Option(
-                       None,
-                       "--amount",
-                       "--increase",
-                       "-a",
-                       prompt=True,
-                       help="Amount (float) to boost, (e.g. 0.01)",
-                   )
-                   ):
+    def root_boost(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        netuid: int = typer.Option(
+            None,
+            help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
+            prompt=True,
+        ),
+        amount: float = typer.Option(
+            None,
+            "--amount",
+            "--increase",
+            "-a",
+            prompt=True,
+            help="Amount (float) to boost, (e.g. 0.01)",
+        ),
+    ):
         """
         # root boost
         Executes the `boost` command to boost the weights for a specific subnet within the root network on the Bittensor

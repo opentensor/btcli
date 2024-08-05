@@ -78,7 +78,7 @@ async def root_list(subtensor: SubtensorInterface):
         width=None,
     )
     with console.status(
-            f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
+        f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
     ):
         senate_members, root_neurons, delegate_info, total_stakes = await _get_list()
 
@@ -109,10 +109,10 @@ async def root_list(subtensor: SubtensorInterface):
 
 
 async def set_weights(
-        wallet: Wallet,
-        subtensor: SubtensorInterface,
-        netuids_: list[int],
-        weights_: list[float],
+    wallet: Wallet,
+    subtensor: SubtensorInterface,
+    netuids_: list[int],
+    weights_: list[float],
 ):
     """Set weights for root network."""
     netuids_ = np.array(netuids_, dtype=np.int64)
@@ -197,7 +197,9 @@ async def get_weights(subtensor: SubtensorInterface):
     return console.print(table)
 
 
-async def set_boots(wallet: Wallet, subtensor: SubtensorInterface, netuid: int, amount: float):
+async def set_boots(
+    wallet: Wallet, subtensor: SubtensorInterface, netuid: int, amount: float
+):
     """Set weights for root network."""
 
     root = subtensor.metagraph(0, lite=False)
