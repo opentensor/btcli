@@ -32,8 +32,8 @@ class SubtensorInterface:
             self.chain_endpoint = Constants.network_map[network]
             self.network = network
         else:
-            self.chain_endpoint = chain_endpoint
-            self.network = "local"
+            self.chain_endpoint = Constants.network_map[defaults.subtensor.network]
+            self.network = defaults.subtensor.network
 
         self.substrate = AsyncSubstrateInterface(
             chain_endpoint=self.chain_endpoint,

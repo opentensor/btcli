@@ -16,8 +16,8 @@ from yaml import safe_load, safe_dump
 from src import defaults, utils
 from src.commands import wallets, root
 from src.subtensor_interface import SubtensorInterface
-from src.utils import console
-
+from src.bittensor.async_substrate_interface import SubstrateRequestException
+from src.utils import console, err_console
 
 __version__ = "8.0.0"
 
@@ -73,11 +73,14 @@ class Options:
         prompt=True,
     )
     network = typer.Option(
-        defaults.subtensor.network, help="The subtensor network to connect to."
+        None,
+        help="The subtensor network to connect to. Default: finney.",
+        show_default=False
     )
     chain = typer.Option(
-        defaults.subtensor.chain_endpoint,
+        None,
         help="The subtensor chain endpoint to connect to.",
+        show_default=False
     )
     netuids = typer.Option([], help="Set the netuid(s) to filter by (e.g. `0 1 2`)")
 
@@ -187,24 +190,27 @@ class CLIManager:
         chain: str = typer.Option("default_chain", help="Chain name"),
     ):
         if not self.not_subtensor:
-            if self.config["chain"] or self.config["chain"]:
+            if network or chain:
+                self.not_subtensor = SubtensorInterface(network, chain)
+            elif self.config["chain"] or self.config["chain"]:
                 self.not_subtensor = SubtensorInterface(
                     self.config["network"], self.config["chain"]
                 )
             else:
-                self.not_subtensor = SubtensorInterface(network, chain)
-                # typer.echo(f"Initialized with {self.not_subtensor}")
+                self.not_subtensor = SubtensorInterface(defaults.subtensor.network, defaults.subtensor.chain_endpoint)
         console.print(f"[yellow] Connected to [/yellow][white]{self.not_subtensor}")
 
     def _run_command(self, cmd: Coroutine):
         try:
             asyncio.run(cmd)
         except ConnectionRefusedError:
-            typer.echo(
+            err_console.print(
                 f"Connection refused when connecting to chain: {self.not_subtensor}"
             )
         except ConnectionClosed:
             pass
+        except SubstrateRequestException as e:
+            err_console.print(str(e))
 
     def main_callback(
         self,
@@ -1295,6 +1301,8 @@ class CLIManager:
         return self._run_command(
             root.root_list(subtensor=self.not_subtensor)
         )
+
+
 
     def run(self):
         self.app()
