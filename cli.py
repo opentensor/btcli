@@ -179,8 +179,11 @@ class CLIManager:
         self.wallet_app.command("get-identity")(self.wallet_get_id)
         self.wallet_app.command("check-swap")(self.wallet_check_ck_swap)
 
-        # delegates commands
+        # root commands
         self.root_app.command("list")(self.root_list)
+        # self.root_app.command("set-weights")(self.root_set_weights)
+        self.root_app.command("get-weights")(self.root_get_weights)
+        self.root_app.command("boost")(self.root_boost)
 
     def initialize_chain(
         self,
@@ -1343,14 +1346,17 @@ class CLIManager:
         # root get-weights
         Executes the `get-weights` command to retrieve the weights set for the root network on the Bittensor network.
 
-        This command provides visibility into how network responsibilities and rewards are distributed among various subnets.
+        This command provides visibility into how network responsibilities and rewards are distributed among various
+        subnets.
 
         ## Usage:
-        The command outputs a table listing the weights assigned to each subnet within the root network. This information is crucial for understanding the current influence and reward distribution among the subnets.
+        The command outputs a table listing the weights assigned to each subnet within the root network. This
+        information is crucial for understanding the current influence and reward distribution among the subnets.
 
         ### Example usage:
 
         ```
+
         $ btcli root get_weights
 
                                                 Root Network Weights
@@ -1374,6 +1380,8 @@ class CLIManager:
         8          -   49.35%        -   7.18%   13.59%   21.14%   1.53%    0.12%    7.06%  0.03%       -        -
 
         9    100.00%        -        -       -        -        -       -        -        -      -       -        -
+
+
         ```
 
         #### Note:
@@ -1381,6 +1389,80 @@ class CLIManager:
         """
         self.initialize_chain(network, chain)
         return self._run_command(root.get_weights(self.not_subtensor))
+
+    def root_boost(self,
+                   network: Optional[str] = Options.network,
+                   chain: Optional[str] = Options.chain,
+                   wallet_name: Optional[str] = Options.wallet_name,
+                   wallet_path: Optional[str] = Options.wallet_path,
+                   wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+                   netuid: int = typer.Option(
+                       None,
+                       help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
+                       prompt=True
+                   ),
+                   amount: float = typer.Option(
+                       None,
+                       "--amount",
+                       "--increase",
+                       "-a",
+                       prompt=True,
+                       help="Amount (float) to boost, (e.g. 0.01)",
+                   )
+                   ):
+        """
+        # root boost
+        Executes the `boost` command to boost the weights for a specific subnet within the root network on the Bittensor
+        network.
+
+        ## Usage:
+        The command allows boosting the weights for different subnets within the root network.
+
+        ### Example usage:
+
+        ```
+
+        $ btcli root boost --netuid 1 --increase 0.01
+
+        Boosting weight for subnet: 1 by amount: 0.1
+
+        Normalized weights:
+
+        tensor([
+        0.0000, 0.5455, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.4545, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000]) ->
+        tensor([0.0000, 0.5455, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.4545, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000]
+        )
+
+
+        Do you want to set the following root weights?:
+
+        weights: tensor([
+        0.0000, 0.5455, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.4545, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000])
+
+        uids: tensor([ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17,
+        18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
+        36, 37, 38, 39, 40])? [y/n]: y
+
+        ✅ Finalized
+
+        ⠙ 📡 Setting root weights on test ...2023-11-28 22:09:14.001 |     SUCCESS      | Set weights
+                           Finalized: True
+
+
+        ```
+        """
 
     def run(self):
         self.app()

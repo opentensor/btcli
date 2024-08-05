@@ -1,5 +1,3 @@
-import re
-
 import numpy as np
 import typer
 from bittensor_wallet import Wallet
@@ -8,7 +6,7 @@ from scalecodec import ScaleType
 
 from src import DelegatesDetails
 from src.bittensor.balances import Balance
-from src.bittensor.chain_data import NeuronInfoLite, SubnetInfo
+from src.bittensor.chain_data import NeuronInfoLite
 from src.subtensor_interface import SubtensorInterface
 from src.utils import console, err_console, get_delegates_details_from_github
 from src import Constants
@@ -80,7 +78,7 @@ async def root_list(subtensor: SubtensorInterface):
         width=None,
     )
     with console.status(
-        f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
+            f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
     ):
         senate_members, root_neurons, delegate_info, total_stakes = await _get_list()
 
@@ -111,10 +109,10 @@ async def root_list(subtensor: SubtensorInterface):
 
 
 async def set_weights(
-    wallet: Wallet,
-    subtensor: SubtensorInterface,
-    netuids_: list[int],
-    weights_: list[float],
+        wallet: Wallet,
+        subtensor: SubtensorInterface,
+        netuids_: list[int],
+        weights_: list[float],
 ):
     """Set weights for root network."""
     netuids_ = np.array(netuids_, dtype=np.int64)
@@ -197,3 +195,37 @@ async def get_weights(subtensor: SubtensorInterface):
         table.add_row(*row)
 
     return console.print(table)
+
+
+async def set_boots(wallet: Wallet, subtensor: SubtensorInterface, netuid: int, amount: float):
+    """Set weights for root network."""
+
+    root = subtensor.metagraph(0, lite=False)
+    try:
+        my_uid = root.hotkeys.index(wallet.hotkey.ss58_address)
+    except ValueError:
+        err_console.print(
+            "Wallet hotkey: {} not found in root metagraph".format(wallet.hotkey)
+        )
+        raise typer.Exit()
+
+    my_weights = root.weights[my_uid]
+    prev_weight = my_weights[netuid]
+    new_weight = prev_weight + amount
+
+    console.print(
+        f"Boosting weight for netuid {netuid} from {prev_weight} -> {new_weight}"
+    )
+    my_weights[netuid] = new_weight
+    all_netuids = np.arange(len(my_weights))
+
+    with console.status("Setting root weights..."):
+        subtensor.root_set_weights(
+            wallet=wallet,
+            netuids=all_netuids,
+            weights=my_weights,
+            version_key=0,
+            prompt=True,
+            wait_for_finalization=True,
+            wait_for_inclusion=True,
+        )
