@@ -25,7 +25,7 @@ from rich.console import Console
 from rich.status import Status
 from substrateinterface.exceptions import SubstrateRequestException
 
-from src.subtensor_interface import SubtensorInterface
+# from src.subtensor_interface import SubtensorInterface
 from src.utils import (
     console,
     err_console,
@@ -97,7 +97,7 @@ class POWSolution:
     difficulty: int
     seal: bytes
 
-    async def is_stale(self, subtensor: SubtensorInterface) -> bool:
+    async def is_stale(self, subtensor: "SubtensorInterface") -> bool:
         """Returns True if the POW is stale.
         This means the block the POW is solved for is within 3 blocks of the current block.
         """
@@ -409,7 +409,7 @@ class MaxAttemptsException(Exception):
 
 
 async def run_faucet_extrinsic(
-    subtensor: SubtensorInterface,
+    subtensor: "SubtensorInterface",
     wallet: Wallet,
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = True,
@@ -563,7 +563,7 @@ async def run_faucet_extrinsic(
 
 
 async def _check_for_newest_block_and_update(
-    subtensor: SubtensorInterface,
+    subtensor: "SubtensorInterface",
     netuid: int,
     old_block_number: int,
     hotkey_bytes: bytes,
@@ -626,7 +626,7 @@ async def _check_for_newest_block_and_update(
 
 
 async def _block_solver(
-    subtensor: SubtensorInterface,
+    subtensor: "SubtensorInterface",
     wallet: Wallet,
     num_processes: int,
     netuid: int,
@@ -839,7 +839,7 @@ async def _block_solver(
 
 
 async def _solve_for_difficulty_fast_cuda(
-    subtensor: SubtensorInterface,
+    subtensor: "SubtensorInterface",
     wallet: Wallet,
     netuid: int,
     output_in_place: bool = True,
@@ -977,7 +977,7 @@ def _terminate_workers_and_wait_for_exit(
 # TODO verify this works with async
 @backoff.on_exception(backoff.constant, Exception, interval=1, max_tries=3)
 async def _get_block_with_retry(
-    subtensor: SubtensorInterface, netuid: int
+    subtensor: "SubtensorInterface", netuid: int
 ) -> tuple[int, int, bytes]:
     """
     Gets the current block number, difficulty, and block hash from the substrate node.
@@ -1319,7 +1319,7 @@ def log_cuda_errors() -> str:
 
 
 async def swap_hotkey_extrinsic(
-    subtensor: SubtensorInterface,
+    subtensor: "SubtensorInterface",
     wallet: Wallet,
     new_wallet: Wallet,
     wait_for_inclusion: bool = False,
