@@ -2560,6 +2560,54 @@ class CLIManager:
             )
         )
 
+    def root_get_weights(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+    ):
+        """
+        # root get-weights
+        Executes the `get-weights` command to retrieve the weights set for the root network on the Bittensor network.
+
+        This command provides visibility into how network responsibilities and rewards are distributed among various subnets.
+
+        ## Usage:
+        The command outputs a table listing the weights assigned to each subnet within the root network. This information is crucial for understanding the current influence and reward distribution among the subnets.
+
+        ### Example usage:
+
+        ```
+        $ btcli root get_weights
+
+                                                Root Network Weights
+
+        UID        0        1        2       3        4        5       8        9       11     13      18       19
+
+        1    100.00%        -        -       -        -        -       -        -        -      -       -        -
+
+        2          -   40.00%    5.00%  10.00%   10.00%   10.00%  10.00%    5.00%        -      -  10.00%        -
+
+        3          -        -   25.00%       -   25.00%        -  25.00%        -        -      -  25.00%        -
+
+        4          -        -    7.00%   7.00%   20.00%   20.00%  20.00%        -    6.00%      -  20.00%        -
+
+        5          -   20.00%        -  10.00%   15.00%   15.00%  15.00%    5.00%        -      -  10.00%   10.00%
+
+        6          -        -        -       -   10.00%   10.00%  25.00%   25.00%        -      -  30.00%        -
+
+        7          -   60.00%        -       -   20.00%        -       -        -   20.00%      -       -        -
+
+        8          -   49.35%        -   7.18%   13.59%   21.14%   1.53%    0.12%    7.06%  0.03%       -        -
+
+        9    100.00%        -        -       -        -        -       -        -        -      -       -        -
+        ```
+
+        #### Note:
+        This command is essential for users interested in the governance and operational dynamics of the Bittensor network. It offers transparency into how network rewards and responsibilities are allocated across different subnets.
+        """
+        self.initialize_chain(network, chain)
+        return self._run_command(root.get_weights(self.not_subtensor))
+
     def run(self):
         self.app()
 
