@@ -1,7 +1,8 @@
 import asyncio
-from typing import Optional, Any, Union, TypedDict
+from typing import Optional, Any, Union, TypedDict, Iterable
 
 import scalecodec
+from bittensor_wallet import Wallet
 from bittensor_wallet.utils import SS58_FORMAT
 from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
@@ -233,7 +234,7 @@ class SubtensorInterface:
         return obj.decode()
 
     async def get_balance(
-        self, *addresses, block_hash: Optional[int] = None, reuse_block: bool = False
+        self, *addresses: str, block_hash: Optional[int] = None, reuse_block: bool = False
     ) -> dict[str, Balance]:
         """
         Retrieves the balance for given coldkey(s)
@@ -252,13 +253,13 @@ class SubtensorInterface:
         return {k: Balance(v.value["data"]["free"]) for (k, v) in results.items()}
 
     async def get_total_stake_for_coldkey(
-        self, *ss58_addresses, block: Optional[int] = None, reuse_block: bool = False
+        self, *ss58_addresses, block_hash: Optional[str] = None, reuse_block: bool = False
     ) -> dict[str, Balance]:
         """
         Returns the total stake held on a coldkey.
 
         :param ss58_addresses: The SS58 address(es) of the coldkey(s)
-        :param block: The block number to retrieve the stake from. Currently unused.
+        :param block_hash: The hash of the block number to retrieve the stake from.
         :param reuse_block: Whether to reuse the last-used block hash when retrieving info.
 
         :return: {address: Balance objects}
@@ -267,6 +268,7 @@ class SubtensorInterface:
             params=[s for s in ss58_addresses],
             module="SubtensorModule",
             storage_function="TotalColdkeyStake",
+            block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
         return {
@@ -312,6 +314,7 @@ class SubtensorInterface:
 
         :param netuid: The unique identifier of the subnet.
         :param block_hash: The hash of the blockchain block number at which to check the subnet existence.
+        :param reuse_block: Whether to reuse the last-used block hash.
 
         :return: `True` if the subnet exists, `False` otherwise.
 
@@ -356,9 +359,9 @@ class SubtensorInterface:
 
     async def filter_netuids_by_registered_hotkeys(
         self,
-        all_netuids,
-        filter_for_netuids,
-        all_hotkeys,
+        all_netuids: Iterable[int],
+        filter_for_netuids: Iterable[int],
+        all_hotkeys: Iterable[Wallet],
         block_hash: Optional[str] = None,
         reuse_block: bool = False,
     ) -> list[int]:
@@ -427,8 +430,7 @@ class SubtensorInterface:
         :param netuid: The unique identifier of the subnet.
         :param block_hash: The hash of the blockchain block number for the query.
 
-        Returns:
-            List[NeuronInfo]: A list of NeuronInfo objects detailing each neuron's characteristics in the subnet.
+        :return: A list of NeuronInfo objects detailing each neuron's characteristics in the subnet.
 
         Understanding the distribution and status of neurons within a subnet is key to comprehending the
         network's decentralized structure and the dynamics of its consensus and governance processes.

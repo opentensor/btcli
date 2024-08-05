@@ -34,6 +34,9 @@ from src.utils import (
     get_human_readable,
 )
 
+if typing.TYPE_CHECKING:
+    from src.subtensor_interface import SubtensorInterface
+
 
 def use_torch() -> bool:
     """Force the use of torch over numpy for certain operations."""
