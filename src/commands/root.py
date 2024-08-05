@@ -1,10 +1,14 @@
+import re
+
+import numpy as np
 import typer
+from bittensor_wallet import Wallet
 from rich.table import Table, Column
 from scalecodec import ScaleType
 
 from src import DelegatesDetails
 from src.bittensor.balances import Balance
-from src.bittensor.chain_data import NeuronInfoLite
+from src.bittensor.chain_data import NeuronInfoLite, SubnetInfo
 from src.subtensor_interface import SubtensorInterface
 from src.utils import console, err_console, get_delegates_details_from_github
 from src import Constants
@@ -12,6 +16,7 @@ from src import Constants
 
 async def root_list(subtensor: SubtensorInterface):
     """List the root network"""
+
     async def _get_list() -> tuple:
         async with subtensor:
             senate_query = await subtensor.substrate.query(
@@ -21,9 +26,7 @@ async def root_list(subtensor: SubtensorInterface):
             )
         sm = senate_query.serialize() if hasattr(senate_query, "serialize") else None
 
-        rn: list[NeuronInfoLite] = await subtensor.neurons_lite(
-            netuid=0
-        )
+        rn: list[NeuronInfoLite] = await subtensor.neurons_lite(netuid=0)
         if not rn:
             return None, None, None, None
 
@@ -34,7 +37,7 @@ async def root_list(subtensor: SubtensorInterface):
             [n.hotkey for n in rn],
             module="SubtensorModule",
             storage_function="TotalHotkeyStake",
-            reuse_block_hash=True
+            reuse_block_hash=True,
         )
         return sm, rn, di, ts
 
@@ -69,19 +72,24 @@ async def root_list(subtensor: SubtensorInterface):
             footer_style="overline white",
             style="green",
             no_wrap=True,
-        ), title="[white]Root Network",
+        ),
+        title="[white]Root Network",
         show_footer=True,
         box=None,
         pad_edge=False,
-        width=None
+        width=None,
     )
-    with console.status(f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."):
+    with console.status(
+        f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
+    ):
         senate_members, root_neurons, delegate_info, total_stakes = await _get_list()
 
     await subtensor.substrate.close()
 
     if not root_neurons:
-        err_console.print(f"[red]Error: No neurons detected on network:[/red] [white]{subtensor}")
+        err_console.print(
+            f"[red]Error: No neurons detected on network:[/red] [white]{subtensor}"
+        )
         raise typer.Exit()
 
     for neuron_data in root_neurons:
@@ -100,3 +108,22 @@ async def root_list(subtensor: SubtensorInterface):
         )
 
     return console.print(table)
+
+
+async def set_weights(wallet: Wallet, subtensor: SubtensorInterface, netuids_: list[int], weights_: list[float]):
+    """Set weights for root network."""
+
+    # Parse from string
+    netuids_ = np.array(netuids_, dtype=np.int64)
+    weights_ = np.array(weights_, dtype=np.float32)
+
+    # Run the set weights operation.
+    subtensor.root_set_weights(
+        wallet=wallet,
+        netuids=netuids_,
+        weights=weights_,
+        version_key=0,
+        prompt=True,
+        wait_for_finalization=True,
+        wait_for_inclusion=True,
+    )

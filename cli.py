@@ -75,12 +75,10 @@ class Options:
     network = typer.Option(
         None,
         help="The subtensor network to connect to. Default: finney.",
-        show_default=False
+        show_default=False,
     )
     chain = typer.Option(
-        None,
-        help="The subtensor chain endpoint to connect to.",
-        show_default=False
+        None, help="The subtensor chain endpoint to connect to.", show_default=False
     )
     netuids = typer.Option([], help="Set the netuid(s) to filter by (e.g. `0 1 2`)")
 
@@ -197,7 +195,9 @@ class CLIManager:
                     self.config["network"], self.config["chain"]
                 )
             else:
-                self.not_subtensor = SubtensorInterface(defaults.subtensor.network, defaults.subtensor.chain_endpoint)
+                self.not_subtensor = SubtensorInterface(
+                    defaults.subtensor.network, defaults.subtensor.chain_endpoint
+                )
         console.print(f"[yellow] Connected to [/yellow][white]{self.not_subtensor}")
 
     def _run_command(self, cmd: Coroutine):
@@ -1298,11 +1298,41 @@ class CLIManager:
         responsibility within the network.
         """
         self.initialize_chain(network, chain)
-        return self._run_command(
-            root.root_list(subtensor=self.not_subtensor)
-        )
+        return self._run_command(root.root_list(subtensor=self.not_subtensor))
 
+    def root_set_weights(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        netuids: list[int] = typer.Option(None, help="Netuids, e.g. `0 1 2` ..."),
+        weights: list[float] = typer.Argument(
+            None,
+            help="Weights: e.g. `0.02 0.03 0.01` ...",
+        ),
+    ):
+        """
+        # root set-weights
+        Executes the `set-weights` command to set the weights for the root network on the Bittensor network.
 
+        This command is used by network senators to influence the distribution of network rewards and responsibilities.
+
+        ## Usage:
+        The command allows setting weights for different subnets within the root network. Users need to specify the
+        netuids (network unique identifiers) and corresponding weights they wish to assign.
+
+        ### Example usage::
+        ```
+        btcli root set-weights 0.3 0.3 0.4 --netuids 1 2 3 --chain ws://127.0.0.1:9945
+        ```
+
+        #### Note:
+        This command is particularly important for network senators and requires a comprehensive understanding of the
+        network's dynamics. It is a powerful tool that directly impacts the network's operational mechanics and reward
+        distribution.
+        """
 
     def run(self):
         self.app()
