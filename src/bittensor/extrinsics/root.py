@@ -30,7 +30,11 @@ from substrateinterface import Keypair
 
 from src.subtensor_interface import SubtensorInterface
 from src.utils import console, err_console
-from src.bittensor.extrinsics.registration import torch, legacy_torch_api_compat, use_torch
+from src.bittensor.extrinsics.registration import (
+    torch,
+    legacy_torch_api_compat,
+    use_torch,
+)
 
 
 U32_MAX = 4294967295
@@ -299,9 +303,7 @@ def process_weights_for_netuid(
         )  # creating minimum even non-zero weights
         weights[non_zero_weight_idx] += non_zero_weights
         # bittensor.logging.debug("final_weights", weights)
-        normalized_weights = normalize_max_weight(
-            x=weights, limit=max_weight_limit
-        )
+        normalized_weights = normalize_max_weight(x=weights, limit=max_weight_limit)
         nw_arange = (
             torch.tensor(list(range(len(normalized_weights))))
             if use_torch()
@@ -445,9 +447,7 @@ def root_register_extrinsic(
                 netuid=0, hotkey_ss58=wallet.hotkey.ss58_address
             )
             if is_registered:
-                console.print(
-                    ":white_heavy_check_mark: [green]Registered[/green]"
-                )
+                console.print(":white_heavy_check_mark: [green]Registered[/green]")
                 return True
             else:
                 # neuron not found, try again
@@ -507,9 +507,7 @@ def set_root_weights_extrinsic(
         )
 
     # Normalize the weights to max value.
-    formatted_weights = normalize_max_weight(
-        x=weights, limit=max_weight_limit
-    )
+    formatted_weights = normalize_max_weight(x=weights, limit=max_weight_limit)
     console.print(
         f"\nRaw Weights -> Normalized weights: \n\t{weights} -> \n\t{formatted_weights}\n"
     )
@@ -550,18 +548,14 @@ def set_root_weights_extrinsic(
                 return True
 
             if success is True:
-                console.print(
-                    ":white_heavy_check_mark: [green]Finalized[/green]"
-                )
+                console.print(":white_heavy_check_mark: [green]Finalized[/green]")
                 # bittensor.logging.success(
                 #     prefix="Set weights",
                 #     suffix="<green>Finalized: </green>" + str(success),
                 # )
                 return True
             else:
-                err_console.print(
-                    f":cross_mark: [red]Failed[/red]: {error_message}"
-                )
+                err_console.print(f":cross_mark: [red]Failed[/red]: {error_message}")
                 # bittensor.logging.warning(
                 #     prefix="Set weights",
                 #     suffix="<red>Failed: </red>" + str(error_message),
@@ -570,9 +564,7 @@ def set_root_weights_extrinsic(
 
         except Exception as e:
             # TODO( devs ): lets remove all of the bittensor.__console__ calls and replace with the bittensor logger.
-            err_console.print(
-                ":cross_mark: [red]Failed[/red]: error:{}".format(e)
-            )
+            err_console.print(":cross_mark: [red]Failed[/red]: error:{}".format(e))
             # bittensor.logging.warning(
             #     prefix="Set weights", suffix="<red>Failed: </red>" + str(e)
             # )

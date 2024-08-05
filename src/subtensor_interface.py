@@ -51,9 +51,6 @@ class SubtensorInterface:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         pass
 
-    async def get_chain_head(self):
-        return await self.substrate.get_chain_head()
-
     async def encode_params(
         self,
         call_definition: list["ParamWithTypes"],
@@ -537,3 +534,34 @@ class SubtensorInterface:
             reuse_block_hash=reuse_block,
         )
         return decode_hex_identity_dict(identity_info.value["info"])
+
+    async def weights(
+        self, netuid: int, block_hash: Optional[str] = None
+    ) -> list[tuple[int, list[tuple[int, int]]]]:
+        """
+        Retrieves the weight distribution set by neurons within a specific subnet of the Bittensor network.
+        This function maps each neuron's UID to the weights it assigns to other neurons, reflecting the
+        network's trust and value assignment mechanisms.
+
+        Args:
+        :param netuid: The network UID of the subnet to query.
+        :param block_hash: The hash of the blockchain block for the query.
+
+        :return: A list of tuples mapping each neuron's UID to its assigned weights.
+
+        The weight distribution is a key factor in the network's consensus algorithm and the ranking of neurons,
+        influencing their influence and reward allocation within the subnet.
+        """
+        w_map = []
+        w_map_encoded = await self.substrate.query_map(
+            module="SubtensorModule",
+            storage_function="Weights",
+            params=[netuid],
+            block_hash=block_hash,
+        )
+
+        if w_map_encoded.records:
+            for uid, w in w_map_encoded:
+                w_map.append((uid.serialize(), w.serialize()))
+
+        return w_map

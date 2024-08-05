@@ -397,6 +397,7 @@ class DelegateInfo:
 @dataclass
 class SubnetInfo:
     """Dataclass for subnet info."""
+
     netuid: int
     rho: int
     kappa: int

@@ -208,7 +208,7 @@ async def wallet_balance(
             wallet_names = [wallet.name]
 
         async with subtensor:
-            await subtensor.get_chain_head()
+            await subtensor.substrate.get_chain_head()
             free_balances, staked_balances = await asyncio.gather(
                 subtensor.get_balance(*coldkeys, reuse_block=True),
                 subtensor.get_total_stake_for_coldkey(*coldkeys, reuse_block=True),
@@ -500,7 +500,7 @@ async def overview(
     ):
         async with subtensor:
             # We are printing for every coldkey.
-            block_hash = await subtensor.get_chain_head()
+            block_hash = await subtensor.substrate.get_chain_head()
             all_hotkeys, total_balance = await _get_total_balance(
                 total_balance, subtensor, wallet, all_wallets
             )
