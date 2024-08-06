@@ -1471,6 +1471,8 @@ class CLIManager:
     ):
         """
         # root boost
+        Not currently working with new implementation
+
         Executes the `boost` command to boost the weights for a specific subnet within the root network on the Bittensor
         network.
 
@@ -1522,6 +1524,11 @@ class CLIManager:
 
         ```
         """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        self.initialize_chain(network, chain)
+        return self._run_command(
+            root.set_boost(wallet, self.not_subtensor, netuid, amount)
+        )
 
     def run(self):
         self.app()
