@@ -97,7 +97,9 @@ def get_n_words(n_words: Optional[int]) -> int:
     return n_words
 
 
-def get_creation_data(mnemonic: str, seed: str, json: str, json_password: str) -> tuple[str, str, str, str]:
+def get_creation_data(
+    mnemonic: str, seed: str, json: str, json_password: str
+) -> tuple[str, str, str, str]:
     """
     Determines which of the key creation elements have been supplied, if any. If None have been supplied,
     prompts to user, and determines what they've supplied. Returns all elements in a tuple.
@@ -134,6 +136,7 @@ class CLIManager:
     :var root_app: the Typer app as it relates to root commands
     :var not_subtensor: the SubtensorInterface object passed to the various commands that require it
     """
+
     def __init__(self):
         self.config = {
             "wallet_name": None,

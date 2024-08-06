@@ -281,7 +281,7 @@ def ss58_to_vec_u8(ss58_address: str) -> list[int]:
 def get_explorer_root_url_by_network_from_map(
     network: str, network_map: dict[str, dict[str, str]]
 ) -> dict[str, str]:
-    r"""
+    """
     Returns the explorer root url for the given network name from the given network map.
 
     :param network: The network to get the explorer url for.
@@ -300,7 +300,7 @@ def get_explorer_root_url_by_network_from_map(
 def get_explorer_url_for_network(
     network: str, block_hash: str, network_map: dict[str, str]
 ) -> dict[str, str]:
-    r"""
+    """
     Returns the explorer url for the given block hash and network.
 
     :param network: The network to get the explorer url for.
@@ -365,6 +365,11 @@ def convert_blocks_to_time(blocks: int, block_time: int = 12) -> tuple[int, int,
 
 
 async def get_delegates_details_from_github(url: str) -> dict[str, DelegatesDetails]:
+    """
+    Queries GitHub to get the delegates details.
+
+    :return: {delegate: DelegatesDetails}
+    """
     all_delegates_details = {}
 
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(10.0)) as session:
@@ -384,7 +389,12 @@ async def get_delegates_details_from_github(url: str) -> dict[str, DelegatesDeta
     return all_delegates_details
 
 
-def get_human_readable(num, suffix="H"):
+def get_human_readable(num: float, suffix="H"):
+    """
+    Converts a number to a human-readable string.
+
+    :return: human-readable string representation of a number.
+    """
     for unit in ["", "K", "M", "G", "T", "P", "E", "Z"]:
         if abs(num) < 1000.0:
             return f"{num:3.1f}{unit}{suffix}"
@@ -393,6 +403,17 @@ def get_human_readable(num, suffix="H"):
 
 
 def millify(n: int):
+    """
+    Convert a large number into a more readable format with appropriate suffixes.
+
+    This function transforms a large integer into a shorter, human-readable string with
+    suffixes such as K, M, B, and T for thousands, millions, billions, and trillions,
+    respectively. The number is formatted to two decimal places.
+
+    :param n: The number to be converted.
+
+    :return: The formatted string representing the number with a suffix.
+    """
     mill_names = ["", " K", " M", " B", " T"]
     n = float(n)
     mill_idx = max(

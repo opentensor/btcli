@@ -274,6 +274,7 @@ class _Solver(_SolverBase):
     """
     Performs POW Solution
     """
+
     def run(self):
         block_number: int
         block_and_hotkey_hash_bytes: bytes
@@ -319,6 +320,7 @@ class _CUDASolver(_SolverBase):
     """
     Performs POW Solution using CUDA
     """
+
     dev_id: int
     tpb: int
 
@@ -1382,6 +1384,7 @@ async def swap_hotkey_extrinsic(
 
     :return: Success
     """
+
     async def _do_swap_hotkey():
         async with subtensor:
             call = await subtensor.substrate.compose_call(

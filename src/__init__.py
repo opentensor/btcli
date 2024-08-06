@@ -43,7 +43,7 @@ class Defaults:
             "chain": None,
             "wallet_path": None,
             "wallet_name": None,
-            "wallet_hotkey": None
+            "wallet_hotkey": None,
         }
 
     class subtensor:

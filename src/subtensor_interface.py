@@ -234,7 +234,10 @@ class SubtensorInterface:
         return obj.decode()
 
     async def get_balance(
-        self, *addresses: str, block_hash: Optional[int] = None, reuse_block: bool = False
+        self,
+        *addresses: str,
+        block_hash: Optional[int] = None,
+        reuse_block: bool = False,
     ) -> dict[str, Balance]:
         """
         Retrieves the balance for given coldkey(s)
@@ -253,7 +256,10 @@ class SubtensorInterface:
         return {k: Balance(v.value["data"]["free"]) for (k, v) in results.items()}
 
     async def get_total_stake_for_coldkey(
-        self, *ss58_addresses, block_hash: Optional[str] = None, reuse_block: bool = False
+        self,
+        *ss58_addresses,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
     ) -> dict[str, Balance]:
         """
         Returns the total stake held on a coldkey.
@@ -365,6 +371,17 @@ class SubtensorInterface:
         block_hash: Optional[str] = None,
         reuse_block: bool = False,
     ) -> list[int]:
+        """
+        Filters a given list of all netuids for certain specified netuids and hotkeys
+
+        :param all_netuids: A list of netuids to filter.
+        :param filter_for_netuids: A subset of all_netuids to filter from the main list
+        :param all_hotkeys: Hotkeys to filter from the main list
+        :param block_hash: hash of the blockchain block number at which to perform the query.
+        :param reuse_block: whether to reuse the last-used blockchain hash when retrieving info.
+
+        :return: the filtered list of netuids.
+        """
         netuids_with_registered_hotkeys = [
             item
             for sublist in await asyncio.gather(

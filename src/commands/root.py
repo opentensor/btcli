@@ -212,8 +212,12 @@ async def set_boost(
         block_hash = await subtensor.substrate.get_chain_head()
         neurons = await subtensor.neurons(0, block_hash=block_hash)
 
-        my_uid = await subtensor.substrate.query('SubtensorModule', 'Uids', [netuid, wallet.hotkey.ss58_address])
-        my_weights = await subtensor.substrate.query('SubtensorModule', 'Weights', [netuid, my_uid])
+        my_uid = await subtensor.substrate.query(
+            "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
+        )
+        my_weights = await subtensor.substrate.query(
+            "SubtensorModule", "Weights", [netuid, my_uid]
+        )
 
         async with MiniGraph(0, neurons, subtensor) as root:
             try:
