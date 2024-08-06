@@ -189,7 +189,7 @@ class RequestManager:
         self.responses[request_id]["complete"] = complete
 
     @property
-    def is_complete(self):
+    def is_complete(self) -> bool:
         """
         Returns whether all requests in the manager have completed
         """
@@ -481,7 +481,7 @@ class AsyncSubstrateInterface:
         return response.get("result")
 
     async def get_block_metadata(
-        self, block_hash=None, decode=True
+        self, block_hash: Optional[str] = None, decode: bool = True
     ) -> Union[dict, ScaleType]:
         """
         A pass-though to existing JSONRPC method `state_getMetadata`.
@@ -578,6 +578,19 @@ class AsyncSubstrateInterface:
         runtime: Optional[Runtime] = None,
         result_handler: Optional[ResultHandler] = None,
     ) -> tuple[Union[ScaleType, dict], bool]:
+        """
+        Processes the RPC call response by decoding it, returning it as is, or setting a handler for subscriptions,
+        depending on the specific call.
+
+        :param response: the RPC call response
+        :param subscription_id: the subscription id for subscriptions, used only for subscriptions with a result handler
+        :param value_scale_type: Scale Type string used for decoding ScaleBytes results
+        :param storage_item: The ScaleType object used for decoding ScaleBytes results
+        :param runtime: the runtime object, used for decoding ScaleBytes results
+        :param result_handler: the result handler coroutine used for handling longer-running subscriptions
+
+        :return: (decoded response, completion)
+        """
         obj = response
 
         if value_scale_type:

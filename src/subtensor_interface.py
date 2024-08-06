@@ -26,6 +26,10 @@ class ParamWithTypes(TypedDict):
 
 
 class SubtensorInterface:
+    """
+    Thin layer for interacting with Substrate Interface. Mostly a collection of frequently-used calls.
+    """
+
     def __init__(self, network, chain_endpoint):
         if chain_endpoint and chain_endpoint != defaults.subtensor.chain_endpoint:
             self.chain_endpoint = chain_endpoint

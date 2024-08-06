@@ -4,7 +4,7 @@ from concurrent.futures import ProcessPoolExecutor
 import itertools
 import os
 from sys import getsizeof
-from typing import Optional, Any
+from typing import Optional, Any, Collection
 
 import aiohttp
 from bittensor_wallet import Wallet
@@ -1109,8 +1109,20 @@ async def _get_neurons_for_netuids(
 
 
 async def _get_de_registered_stake_for_coldkey_wallet(
-    subtensor: SubtensorInterface, all_hotkey_addresses, coldkey_wallet
+    subtensor: SubtensorInterface,
+    all_hotkey_addresses: Collection[str],
+    coldkey_wallet: Wallet,
 ) -> tuple[Wallet, list[tuple[str, Balance]], Optional[str]]:
+    """
+    Looks at the total stake of a coldkey, then filters this based on the supplied hotkey addresses
+    depending on whether the hotkey is a delegate
+
+    :param subtensor: SubtensorInterface to make queries with
+    :param all_hotkey_addresses: collection of hotkey SS58 addresses
+    :param coldkey_wallet: Wallet containing coldkey
+
+    :return: (original wallet, [(hotkey SS58, stake in TAO), ...], error message)
+    """
     # Pull all stake for our coldkey
     all_stake_info_for_coldkey = await subtensor.get_stake_info_for_coldkey(
         coldkey_ss58=coldkey_wallet.coldkeypub.ss58_address, reuse_block=True
