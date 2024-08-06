@@ -150,6 +150,9 @@ class RegistrationStatisticsLogger:
     def get_status_message(
         cls, stats: RegistrationStatistics, verbose: bool = False
     ) -> str:
+        """
+        Provides a message of the current status of the block solving as a str for a logger or stdout
+        """
         message = (
             "Solving\n"
             + f"Time Spent (total): [bold white]{timedelta(seconds=stats.time_spent_total)}[/bold white]\n"
@@ -168,6 +171,9 @@ class RegistrationStatisticsLogger:
         return message
 
     def update(self, stats: RegistrationStatistics, verbose: bool = False) -> None:
+        """
+        Passes the current status to the logger
+        """
         if self.status is not None:
             self.status.update(self.get_status_message(stats, verbose=verbose))
         else:
@@ -265,6 +271,9 @@ class _SolverBase(Process):
 
 
 class _Solver(_SolverBase):
+    """
+    Performs POW Solution
+    """
     def run(self):
         block_number: int
         block_and_hotkey_hash_bytes: bytes
@@ -307,6 +316,9 @@ class _Solver(_SolverBase):
 
 
 class _CUDASolver(_SolverBase):
+    """
+    Performs POW Solution using CUDA
+    """
     dev_id: int
     tpb: int
 
@@ -404,11 +416,15 @@ else:
 
 
 class MaxSuccessException(Exception):
-    pass
+    """
+    Raised when the POW Solver has reached the max number of successful solutions
+    """
 
 
 class MaxAttemptsException(Exception):
-    pass
+    """
+    Raised when the POW Solver has reached the max number of attempts
+    """
 
 
 async def run_faucet_extrinsic(
@@ -645,6 +661,9 @@ async def _block_solver(
     log_verbose,
     cuda: bool,
 ):
+    """
+    Shared code used by the Solvers to solve the POW solution
+    """
     limit = int(math.pow(2, 256)) - 1
 
     # Establish communication queues
@@ -1046,8 +1065,8 @@ class _UsingSpawnStartMethod:
 
 
 async def create_pow(
-    subtensor,
-    wallet,
+    subtensor: "SubtensorInterface",
+    wallet: Wallet,
     netuid: int,
     output_in_place: bool = True,
     cuda: bool = False,
@@ -1171,6 +1190,19 @@ def _hex_bytes_to_u8_list(hex_bytes: bytes):
 
 
 def _create_seal_hash(block_and_hotkey_hash_bytes: bytes, nonce: int) -> bytes:
+    """
+    Create a cryptographic seal hash from the given block and hotkey hash bytes and nonce.
+
+    This function generates a seal hash by combining the given block and hotkey hash bytes with a nonce.
+    It first converts the nonce to a byte representation, then concatenates it with the first 64 hex
+    characters of the block and hotkey hash bytes. The result is then hashed using SHA-256 followed by
+    the Keccak-256 algorithm to produce the final seal hash.
+
+    :param block_and_hotkey_hash_bytes: The combined hash bytes of the block and hotkey.
+    :param nonce: The nonce value used for hashing.
+
+    :return: The resulting seal hash.
+    """
     nonce_bytes = binascii.hexlify(nonce.to_bytes(8, "little"))
     pre_seal = nonce_bytes + binascii.hexlify(block_and_hotkey_hash_bytes)[:64]
     seal_sh256 = hashlib.sha256(bytearray(_hex_bytes_to_u8_list(pre_seal))).digest()
@@ -1179,7 +1211,8 @@ def _create_seal_hash(block_and_hotkey_hash_bytes: bytes, nonce: int) -> bytes:
     return seal
 
 
-def _seal_meets_difficulty(seal: bytes, difficulty: int, limit: int):
+def _seal_meets_difficulty(seal: bytes, difficulty: int, limit: int) -> bool:
+    """Determines if a seal meets the specified difficulty"""
     seal_number = int.from_bytes(seal, "big")
     product = seal_number * difficulty
     return product < limit
@@ -1203,6 +1236,21 @@ def _update_curr_block(
     hotkey_bytes: bytes,
     lock: Lock,
 ):
+    """
+    Update the current block data with the provided block information and difficulty.
+
+    This function updates the current block and its difficulty in a thread-safe manner. It sets the current block
+    number, hashes the block with the hotkey, updates the current block bytes, and packs the difficulty.
+
+    :param curr_diff: Shared array to store the current difficulty.
+    :param curr_block: Shared array to store the current block data.
+    :param curr_block_num: Shared value to store the current block number.
+    :param block_number: The block number to set as the current block number.
+    :param block_bytes: The block data bytes to be hashed with the hotkey.
+    :param diff: The difficulty value to be packed into the current difficulty array.
+    :param hotkey_bytes: The hotkey bytes used for hashing the block.
+    :param lock: A lock to ensure thread-safe updates.
+    """
     with lock:
         curr_block_num.value = block_number
         # Hash the block with the hotkey
@@ -1329,6 +1377,11 @@ async def swap_hotkey_extrinsic(
     wait_for_finalization: bool = True,
     prompt: bool = False,
 ) -> bool:
+    """
+    Performs an extrinsic update for swapping two hotkeys on the chain
+
+    :return: Success
+    """
     async def _do_swap_hotkey():
         async with subtensor:
             call = await subtensor.substrate.compose_call(

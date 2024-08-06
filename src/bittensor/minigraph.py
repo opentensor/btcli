@@ -43,7 +43,7 @@ class MiniGraph:
         """
         # TODO: Check and test the computation of weights and bonds
         if self.netuid == 0:
-            self.weights = self._process_root_weights(
+            self.weights = await self._process_root_weights(
                 [neuron.weights for neuron in self.neurons], "weights"
             )
         else:

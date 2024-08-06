@@ -36,6 +36,16 @@ class DelegatesDetails:
 class Defaults:
     netuid = 1
 
+    class config:
+        path = "~/.bittensor/config.yml"
+        dictionary = {
+            "network": None,
+            "chain": None,
+            "wallet_path": None,
+            "wallet_name": None,
+            "wallet_hotkey": None
+        }
+
     class subtensor:
         network = "finney"
         chain_endpoint = None

@@ -149,7 +149,7 @@ async def process_weights_for_netuid(
     weights: NDArray[np.float32],
     netuid: int,
     subtensor: SubtensorInterface,
-    metagraph: MiniGraph = None,
+    metagraph: "MiniGraph" = None,
     exclude_quantile: int = 0,
 ) -> tuple[NDArray[np.int64], NDArray[np.float32]]:
     # bittensor.logging.debug("process_weights_for_netuid()")

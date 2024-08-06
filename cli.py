@@ -84,6 +84,10 @@ class Options:
 
 
 def get_n_words(n_words: Optional[int]) -> int:
+    """
+    Prompts the user to select the number of words used in the mnemonic if not supplied or not within the
+    acceptable criteria of [12, 15, 18, 21, 24]
+    """
     while n_words not in [12, 15, 18, 21, 24]:
         n_words: int = Prompt.ask(
             "Choose number of words: 12, 15, 18, 21, 24",
@@ -93,7 +97,11 @@ def get_n_words(n_words: Optional[int]) -> int:
     return n_words
 
 
-def get_creation_data(mnemonic, seed, json, json_password):
+def get_creation_data(mnemonic: str, seed: str, json: str, json_password: str) -> tuple[str, str, str, str]:
+    """
+    Determines which of the key creation elements have been supplied, if any. If None have been supplied,
+    prompts to user, and determines what they've supplied. Returns all elements in a tuple.
+    """
     if not mnemonic and not seed and not json:
         prompt_answer = Prompt.ask("Enter mnemonic, seed, or json file location")
         if prompt_answer.startswith("0x"):
@@ -108,6 +116,9 @@ def get_creation_data(mnemonic, seed, json, json_password):
 
 
 def version_callback(value: bool):
+    """
+    Prints the current version/branch-name
+    """
     if value:
         typer.echo(
             f"BTCLI Version: {__version__}/{Repo(os.path.dirname(__file__)).active_branch.name}"
@@ -116,6 +127,13 @@ def version_callback(value: bool):
 
 
 class CLIManager:
+    """
+    :var app: the main CLI Typer app
+    :var config_app: the Typer app as it relates to config commands
+    :var wallet_app: the Typer app as it relates to wallet commands
+    :var root_app: the Typer app as it relates to root commands
+    :var not_subtensor: the SubtensorInterface object passed to the various commands that require it
+    """
     def __init__(self):
         self.config = {
             "wallet_name": None,
@@ -190,6 +208,11 @@ class CLIManager:
         network: str = typer.Option("default_network", help="Network name"),
         chain: str = typer.Option("default_chain", help="Chain name"),
     ):
+        """
+        Intelligently initializes a connection to the chain, depending on the supplied (or in config) values
+        :param network: Network name (e.g. finney, test, etc.)
+        :param chain: the chain endpoint (e.g. ws://127.0.0.1:9945, wss://entrypoint-finney.opentensor.ai:443, etc.)
+        """
         if not self.not_subtensor:
             if network or chain:
                 self.not_subtensor = SubtensorInterface(network, chain)
@@ -203,7 +226,10 @@ class CLIManager:
                 )
         console.print(f"[yellow] Connected to [/yellow][white]{self.not_subtensor}")
 
-    def _run_command(self, cmd: Coroutine):
+    def _run_command(self, cmd: Coroutine) -> None:
+        """
+        Runs the supplied coroutine with asyncio.run
+        """
         try:
             return asyncio.run(cmd)
         except ConnectionRefusedError:
@@ -221,8 +247,17 @@ class CLIManager:
             Optional[bool], typer.Option("--version", callback=version_callback)
         ] = None,
     ):
+        """
+        Method called before all others when using any CLI command. Gives version if that flag is set, otherwise
+        loads the config from the config file.
+        """
+        fp = os.path.expanduser(defaults.config.path)
+        # create config file if it does not exist
+        if not os.path.exists(fp):
+            with open(fp, "w") as f:
+                safe_dump(defaults.config.dictionary, f)
         # check config
-        with open(os.path.expanduser("~/.bittensor/config.yml"), "r") as f:
+        with open(fp, "r") as f:
             config = safe_load(f)
         for k, v in config.items():
             if k in self.config.keys():
@@ -259,6 +294,15 @@ class CLIManager:
             help="Chain name",
         ),
     ):
+        """
+        Sets values in config file
+        :param wallet_name: name of the wallet
+        :param wallet_path: root path of the wallets
+        :param wallet_hotkey: name of the wallet hotkey file
+        :param network: name of the network (e.g. finney, test, local)
+        :param chain: chain endpoint for the network (e.g. ws://127.0.0.1:9945,
+                      wss://entrypoint-finney.opentensor.ai:443)
+        """
         args = locals()
         for arg in ["wallet_name", "wallet_path", "wallet_hotkey", "network", "chain"]:
             if val := args.get(arg):
@@ -267,6 +311,9 @@ class CLIManager:
             safe_dump(self.config, f)
 
     def get_config(self):
+        """
+        Prints the current config file in a table
+        """
         table = Table(Column("Name"), Column("Value"))
         for k, v in self.config.items():
             table.add_row(*[k, v])
@@ -277,8 +324,16 @@ class CLIManager:
         wallet_name: str,
         wallet_path: str,
         wallet_hotkey: str,
-        validate=True,
-    ):
+        validate: bool = True,
+    ) -> Wallet:
+        """
+        Generates a wallet object based on supplied values, validating the wallet is valid if flag is set
+        :param wallet_name: name of the wallet
+        :param wallet_path: root path of the wallets
+        :param wallet_hotkey: name of the wallet hotkey file
+        :param validate: flag whether to check for the wallet's validity
+        :return: created Wallet object
+        """
         wallet_name = wallet_name or self.config.get("wallet_name")
         wallet_path = wallet_path or self.config.get("wallet_path")
         wallet_hotkey = wallet_hotkey or self.config.get("wallet_hotkey")

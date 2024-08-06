@@ -48,7 +48,7 @@ class SubtensorInterface:
 
     async def __aenter__(self):
         async with self.substrate:
-            return
+            return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         pass
