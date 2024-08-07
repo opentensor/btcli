@@ -1,9 +1,11 @@
 import asyncio
+from typing import TypedDict, Optional
 
 import numpy as np
 from numpy.typing import NDArray
 import typer
 from bittensor_wallet import Wallet
+from rich.prompt import Confirm
 from rich.table import Table, Column
 from scalecodec import ScaleType
 
@@ -17,8 +19,160 @@ from src.utils import (
     err_console,
     get_delegates_details_from_github,
     convert_weight_uids_and_vals_to_tensor,
+    format_error_message,
 )
 from src import Constants
+
+
+class ProposalVoteData(TypedDict):
+    index: int
+    threshold: int
+    ayes: list[str]
+    nays: list[str]
+    end: int
+
+
+async def _is_senate_member(subtensor: SubtensorInterface, hotkey_ss58: str) -> bool:
+    """
+    Checks if a given neuron (identified by its hotkey SS58 address) is a member of the Bittensor senate.
+    The senate is a key governance body within the Bittensor network, responsible for overseeing and
+    approving various network operations and proposals.
+
+    :param subtensor: SubtensorInterface object to use for the query
+    :param hotkey_ss58: The `SS58` address of the neuron's hotkey.
+
+    :return: `True` if the neuron is a senate member at the given block, `False` otherwise.
+
+    This function is crucial for understanding the governance dynamics of the Bittensor network and for
+    identifying the neurons that hold decision-making power within the network.
+    """
+    senate_members = await subtensor.substrate.query(
+        module="SenateMembers", storage_function="Members", params=None
+    )
+    if not hasattr(senate_members, "serialize"):
+        return False
+    senate_members_serialized = senate_members.serialize()
+
+    if not hasattr(senate_members_serialized, "count"):
+        return False
+
+    return senate_members_serialized.count(hotkey_ss58) > 0
+
+
+async def _get_vote_data(
+    subtensor: SubtensorInterface,
+    proposal_hash: str,
+    block_hash: Optional[str] = None,
+    reuse_block: bool = False,
+) -> Optional[ProposalVoteData]:
+    """
+    Retrieves the voting data for a specific proposal on the Bittensor blockchain. This data includes
+    information about how senate members have voted on the proposal.
+
+    :param subtensor: The SubtensorInterface object to use for the query
+    :param proposal_hash: The hash of the proposal for which voting data is requested.
+    :param block_hash: The hash of the blockchain block number to query the voting data.
+    :param reuse_block: Whether to reuse the last-used blockchain block hash.
+
+    :return: An object containing the proposal's voting data, or `None` if not found.
+
+    This function is important for tracking and understanding the decision-making processes within
+    the Bittensor network, particularly how proposals are received and acted upon by the governing body.
+    """
+    vote_data = await subtensor.substrate.query(
+        module="Triumvirate",
+        storage_function="Voting",
+        params=[proposal_hash],
+        block_hash=block_hash,
+        reuse_block_hash=reuse_block,
+    )
+    if not hasattr(vote_data, "serialize"):
+        return None
+    return vote_data.serialize() if vote_data is not None else None
+
+
+async def vote_senate_extrinsic(
+    subtensor: SubtensorInterface,
+    wallet: Wallet,
+    proposal_hash: str,
+    proposal_idx: int,
+    vote: bool,
+    wait_for_inclusion: bool = False,
+    wait_for_finalization: bool = True,
+    prompt: bool = False,
+) -> bool:
+    """Votes ayes or nays on proposals.
+
+    :param subtensor: The SubtensorInterface object to use for the query
+    :param wallet: Bittensor wallet object, with coldkey and hotkey unlocked.
+    :param proposal_hash: The hash of the proposal for which voting data is requested.
+    :param proposal_idx: The index of the proposal to vote.
+    :param vote: Whether to vote aye or nay.
+    :param wait_for_inclusion: If set, waits for the extrinsic to enter a block before returning `True`, or returns
+                               `False` if the extrinsic fails to enter the block within the timeout.
+    :param wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `True`,
+                                  or returns `False` if the extrinsic fails to be finalized within the timeout.
+    :param prompt: If `True`, the call waits for confirmation from the user before proceeding.
+
+    :return: Flag is `True` if extrinsic was finalized or included in the block. If we did not wait for
+             finalization/inclusion, the response is `True`.
+    """
+
+    if prompt:
+        # Prompt user for confirmation.
+        if not Confirm.ask(f"Cast a vote of {vote}?"):
+            return False
+
+    with console.status(":satellite: Casting vote.."):
+        call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="vote",
+            call_params={
+                "hotkey": wallet.hotkey.ss58_address,
+                "proposal": proposal_hash,
+                "index": proposal_idx,
+                "approve": vote,
+            },
+        )
+        extrinsic = await subtensor.substrate.create_signed_extrinsic(
+            call=call, keypair=wallet.coldkey
+        )
+        response = await subtensor.substrate.submit_extrinsic(
+            extrinsic,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+        )
+
+        # We only wait here if we expect finalization.
+        if not wait_for_finalization and not wait_for_inclusion:
+            return True
+
+        # process if vote successful
+        response.process_events()
+        if not response.is_success:
+            err_console.print(
+                f":cross_mark: [red]Failed[/red]: {format_error_message(response.error_message)}"
+            )
+            await asyncio.sleep(0.5)
+            return False
+
+        # Successful vote, final check for data
+        else:
+            vote_data = await _get_vote_data(subtensor, proposal_hash)
+            has_voted = (
+                vote_data["ayes"].count(wallet.hotkey.ss58_address) > 0
+                or vote_data["nays"].count(wallet.hotkey.ss58_address) > 0
+            )
+
+            if has_voted:
+                console.print(":white_heavy_check_mark: [green]Vote cast.[/green]")
+                return True
+            else:
+                # hotkey not found in ayes/nays
+                err_console.print(
+                    ":cross_mark: [red]Unknown error. Couldn't find vote.[/red]"
+                )
+                return False
 
 
 async def root_list(subtensor: SubtensorInterface):
@@ -294,3 +448,48 @@ async def set_slash(
             prompt=True,
         )
     await subtensor.substrate.close()
+
+
+async def senate_vote(
+    wallet: Wallet, subtensor: SubtensorInterface, proposal_hash: str
+) -> bool:
+    """Vote in Bittensor's governance protocol proposals"""
+
+    if not proposal_hash:
+        console.print(
+            'Aborting: Proposal hash not specified. View all proposals with the "proposals" command.'
+        )
+        return False
+
+    async with subtensor:
+        if not await _is_senate_member(
+            subtensor, hotkey_ss58=wallet.hotkey.ss58_address
+        ):
+            err_console.print(
+                f"Aborting: Hotkey {wallet.hotkey.ss58_address} isn't a senate member."
+            )
+            return False
+
+        # Unlock the wallet.
+        wallet.unlock_hotkey()
+        wallet.unlock_coldkey()
+
+        vote_data = await _get_vote_data(subtensor, proposal_hash, reuse_block=True)
+        if not vote_data:
+            err_console.print(":cross_mark: [red]Failed[/red]: Proposal not found.")
+            return False
+
+        vote: bool = Confirm.ask("Desired vote for proposal")
+        success = await vote_senate_extrinsic(
+            subtensor=subtensor,
+            wallet=wallet,
+            proposal_hash=proposal_hash,
+            proposal_idx=vote_data["index"],
+            vote=vote,
+            wait_for_inclusion=True,
+            wait_for_finalization=False,
+            prompt=True,
+        )
+
+    await subtensor.substrate.close()
+    return success

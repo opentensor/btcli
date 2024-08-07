@@ -1607,6 +1607,43 @@ class CLIManager:
             root.set_boost(wallet, self.not_subtensor, netuid, amount)
         )
 
+    def root_senate_vote(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        proposal: str = typer.Option(
+            None,
+            "--proposal",
+            "--proposal-hash",
+            help="The hash of the proposal to vote on.",
+        ),
+    ):
+        """
+        # root senate-vote
+        Executes the `senate-vote` command to cast a vote on an active proposal in Bittensor's governance protocol.
+
+        This command is used by Senate members to vote on various proposals that shape the network's future.
+
+        ## Usage:
+        The user needs to specify the hash of the proposal they want to vote on. The command then allows the Senate
+        member to cast an 'Aye' or 'Nay' vote, contributing to the decision-making process.
+
+        ### Example usage:
+
+        ```
+        btcli root senate_vote --proposal <proposal_hash>
+        ```
+
+        #### Note:
+        This command is crucial for Senate members to exercise their voting rights on key proposals. It plays a vital
+        role in the governance and evolution of the Bittensor network.
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        self.initialize_chain(network, chain)
+
     def run(self):
         self.app()
 
