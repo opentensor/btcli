@@ -152,12 +152,25 @@ TYPE_REGISTRY = {
                             "type": "u16",
                         },
                     ],
-                    "type": "Vec<u8>",
+                    "type": "Vec<Vec<u8>>",
                 }
             }
         },
         "SubnetRegistrationRuntimeApi": {
             "methods": {"get_network_registration_cost": {"params": [], "type": "u64"}}
+        },
+        "DelegateInfo": {
+            "methods": {
+                "get_delegated": {
+                    "params": [
+                        {
+                            "name": "coldkey_account_vec",
+                            "type": "Vec<u8>",
+                        }
+                    ],
+                    "type": "Vec<u8>",
+                }
+            }
         },
     },
 }

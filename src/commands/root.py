@@ -24,6 +24,9 @@ from src.utils import (
 from src import Constants
 
 
+# helpers
+
+
 class ProposalVoteData(TypedDict):
     index: int
     threshold: int
@@ -186,6 +189,140 @@ async def vote_senate_extrinsic(
                     ":cross_mark: [red]Unknown error. Couldn't find vote.[/red]"
                 )
                 return False
+
+
+async def burned_register_extrinsic(
+    subtensor: SubtensorInterface,
+    wallet: Wallet,
+    netuid: int,
+    recycle_amount: Balance,
+    old_balance: Balance,
+    wait_for_inclusion: bool = False,
+    wait_for_finalization: bool = True,
+    prompt: bool = False,
+) -> bool:
+    """Registers the wallet to chain by recycling TAO.
+
+    :param subtensor: The SubtensorInterface object to use for the call, initialized
+    :param wallet: Bittensor wallet object.
+    :param netuid: The `netuid` of the subnet to register on.
+    :param recycle_amount: The amount of TAO required for this burn.
+    :param old_balance: The wallet balance prior to the registration burn.
+    :param wait_for_inclusion: If set, waits for the extrinsic to enter a block before returning `True`, or returns
+                               `False` if the extrinsic fails to enter the block within the timeout.
+    :param wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `True`,
+                                  or returns `False` if the extrinsic fails to be finalized within the timeout.
+    :param prompt: If `True`, the call waits for confirmation from the user before proceeding.
+
+    :return: Flag is `True` if extrinsic was finalized or included in the block. If we did not wait for
+             finalization/inclusion, the response is `True`.
+    """
+
+    async def _do_burned_register() -> tuple[bool, Optional[str]]:
+        call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="burned_register",
+            call_params={
+                "netuid": netuid,
+                "hotkey": wallet.hotkey.ss58_address,
+            },
+        )
+        extrinsic = await subtensor.substrate.create_signed_extrinsic(
+            call=call, keypair=wallet.coldkey
+        )
+        response = await subtensor.substrate.submit_extrinsic(
+            extrinsic,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+        )
+
+        # We only wait here if we expect finalization.
+        if not wait_for_finalization and not wait_for_inclusion:
+            return True, None
+
+        # process if registration successful, try again if pow is still valid
+        response.process_events()
+        if not response.is_success:
+            return False, format_error_message(response.error_message)
+        # Successful registration
+        else:
+            return True, None
+
+    if not subtensor.subnet_exists(netuid):
+        err_console.print(
+            f":cross_mark: [red]Failed[/red]: error: [bold white]subnet:{netuid}[/bold white] does not exist."
+        )
+        return False
+
+    wallet.unlock_coldkey()
+
+    with console.status(
+        f":satellite: Checking Account on [bold]subnet:{netuid}[/bold]..."
+    ):
+        my_uid = await subtensor.substrate.query(
+            "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
+        )
+
+        neuron = await subtensor.neuron_for_uid(
+            uid=my_uid.value,
+            netuid=netuid,
+            block_hash=subtensor.substrate.last_block_hash,
+        )
+
+        if not neuron.is_null:
+            console.print(
+                ":white_heavy_check_mark: [green]Already Registered[/green]:\n"
+                f"uid: [bold white]{neuron.uid}[/bold white]\n"
+                f"netuid: [bold white]{neuron.netuid}[/bold white]\n"
+                f"hotkey: [bold white]{neuron.hotkey}[/bold white]\n"
+                f"coldkey: [bold white]{neuron.coldkey}[/bold white]"
+            )
+            return True
+
+    if prompt:
+        # Prompt user for confirmation.
+        if not Confirm.ask(f"Recycle {recycle_amount} to register on subnet:{netuid}?"):
+            return False
+
+    with console.status(":satellite: Recycling TAO for Registration..."):
+        success, err_msg = await _do_burned_register()
+
+    if not success:
+        err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+        await asyncio.sleep(0.5)
+        return False
+    # Successful registration, final check for neuron and pubkey
+    else:
+        with console.status(":satellite: Checking Balance..."):
+            block_hash = await subtensor.substrate.get_chain_head()
+            new_balance, netuids_for_hotkey = await asyncio.gather(
+                subtensor.get_balance(
+                    wallet.coldkeypub.ss58_address,
+                    block_hash=block_hash,
+                    reuse_block=False,
+                ),
+                subtensor.get_netuids_for_hotkey(
+                    wallet.hotkey.ss58_address, block_hash=block_hash
+                ),
+            )
+
+        console.print(
+            "Balance:\n"
+            f"  [blue]{old_balance}[/blue] :arrow_right: [green]{new_balance}[/green]"
+        )
+
+        if len(netuids_for_hotkey) > 0:
+            console.print(":white_heavy_check_mark: [green]Registered[/green]")
+            return True
+        else:
+            # neuron not found, try again
+            err_console.print(
+                ":cross_mark: [red]Unknown error. Neuron not found.[/red]"
+            )
+            return False
+
+
+# Commands
 
 
 async def root_list(subtensor: SubtensorInterface):
@@ -547,3 +684,62 @@ async def get_senate(subtensor: SubtensorInterface):
         )
 
     return console.print(table)
+
+
+async def register(wallet: Wallet, subtensor: SubtensorInterface, netuid: int):
+    """Register neuron by recycling some TAO."""
+
+    async with subtensor:
+        # Verify subnet exists
+        if not await subtensor.subnet_exists(netuid=netuid):
+            err_console.print(f"[red]Subnet {netuid} does not exist[/red]")
+            return False
+
+        # Check current recycle amount
+        recycle_call, balance_ = await asyncio.gather(
+            subtensor.get_hyperparameter(
+                param_name="Burn", netuid=netuid, reuse_block=True
+            ),
+            subtensor.get_balance(wallet.coldkeypub.ss58_address, reuse_block=True),
+        )
+        try:
+            current_recycle = Balance.from_rao(int(recycle_call))
+            balance: Balance = balance_[wallet.coldkeypub.ss58_address]
+        except TypeError:
+            err_console.print("Unable to retrieve current recycle.")
+            return False
+        except KeyError:
+            err_console.print("Unable to retrieve current balance.")
+            return False
+
+        # Check balance is sufficient
+        if balance < current_recycle:
+            err_console.print(
+                f"[red]Insufficient balance {balance} to register neuron. "
+                f"Current recycle is {current_recycle} TAO[/red]"
+            )
+            return False
+
+        # if not cli.config.no_prompt:
+        if not (
+            Confirm.ask(
+                f"Your balance is: [bold green]{balance}[/bold green]\n"
+                f"The cost to register by recycle is [bold red]{current_recycle}[/bold red]\n"
+                f"Do you want to continue?",
+                default=False,
+            )
+        ):
+            return False
+
+        await burned_register_extrinsic(
+            subtensor,
+            wallet,
+            netuid,
+            current_recycle,
+            balance,
+            wait_for_inclusion=False,
+            wait_for_finalization=True,
+            prompt=True,
+        )
+
+    await subtensor.substrate.close()

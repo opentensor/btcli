@@ -341,7 +341,11 @@ class SubtensorInterface:
         return getattr(result, "value", False)
 
     async def get_hyperparameter(
-        self, param_name: str, netuid: int, block_hash: Optional[str] = None
+        self,
+        param_name: str,
+        netuid: int,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
     ) -> Optional[Any]:
         """
         Retrieves a specified hyperparameter for a specific subnet.
@@ -349,6 +353,7 @@ class SubtensorInterface:
         :param param_name: The name of the hyperparameter to retrieve.
         :param netuid: The unique identifier of the subnet.
         :param block_hash: The hash of blockchain block number for the query.
+        :param reuse_block: Whether to reuse the last-used block hash.
 
         :return: The value of the specified hyperparameter if the subnet exists, or None
         """
@@ -360,6 +365,7 @@ class SubtensorInterface:
             storage_function=param_name,
             params=[netuid],
             block_hash=block_hash,
+            reuse_block_hash=reuse_block,
         )
 
         if result is None or not hasattr(result, "value"):
@@ -510,6 +516,35 @@ class SubtensorInterface:
             bytes_result = bytes.fromhex(hex_bytes_result)
 
         return NeuronInfoLite.list_from_vec_u8(bytes_result)  # type: ignore
+
+    async def neuron_for_uid(
+        self, uid: Optional[int], netuid: int, block_hash: Optional[str] = None
+    ) -> NeuronInfo:
+        """
+        Retrieves detailed information about a specific neuron identified by its unique identifier (UID)
+        within a specified subnet (netuid) of the Bittensor network. This function provides a comprehensive
+        view of a neuron's attributes, including its stake, rank, and operational status.
+
+
+        :param uid: The unique identifier of the neuron.
+        :param netuid: The unique identifier of the subnet.
+        :param block_hash: The hash of the blockchain block number for the query.
+
+        :return: Detailed information about the neuron if found, a null neuron otherwise
+
+        This function is crucial for analyzing individual neurons' contributions and status within a specific
+        subnet, offering insights into their roles in the network's consensus and validation mechanisms.
+        """
+        params = [netuid, uid, block_hash] if block_hash else [netuid, uid]
+        json_body = await self.substrate.rpc_request(
+            method="neuronInfo_getNeuron",
+            params=params,  # custom rpc method
+        )
+
+        if not (result := json_body.get("result", None)):
+            return NeuronInfo.get_null_neuron()
+
+        return NeuronInfo.from_vec_u8(result)
 
     async def get_delegated(
         self,

@@ -139,8 +139,14 @@ class CLIManager:
     :var config_app: the Typer app as it relates to config commands
     :var wallet_app: the Typer app as it relates to wallet commands
     :var root_app: the Typer app as it relates to root commands
-    :var not_subtensor: the SubtensorInterface object passed to the various commands that require it
+    :var not_subtensor: the `SubtensorInterface` object passed to the various commands that require it
     """
+
+    not_subtensor: Optional[SubtensorInterface]
+    app: typer.Typer
+    config_app: typer.Typer
+    wallet_app: typer.Typer
+    root_app: typer.Typer
 
     def __init__(self):
         self.config = {
@@ -212,14 +218,17 @@ class CLIManager:
         self.root_app.command("boost")(self.root_boost)
         self.root_app.command("senate")(self.root_senate)
         self.root_app.command("senate-vote")(self.root_senate_vote)
+        self.root_app.command("register")(self.root_register)
 
     def initialize_chain(
         self,
         network: str = typer.Option("default_network", help="Network name"),
         chain: str = typer.Option("default_chain", help="Chain name"),
-    ):
+    ) -> None:
         """
-        Intelligently initializes a connection to the chain, depending on the supplied (or in config) values
+        Intelligently initializes a connection to the chain, depending on the supplied (or in config) values. Set's the
+        `self.not_subtensor` object to this created connection.
+
         :param network: Network name (e.g. finney, test, etc.)
         :param chain: the chain endpoint (e.g. ws://127.0.0.1:9945, wss://entrypoint-finney.opentensor.ai:443, etc.)
         """
@@ -1674,6 +1683,66 @@ class CLIManager:
         """
         self.initialize_chain(network, chain)
         return self._run_command(root.get_senate(self.not_subtensor))
+
+    def root_register(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        netuid: str = Options.netuid,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+    ):
+        """
+        # root register
+        Executes the `register` command to register a neuron on the Bittensor network by recycling some TAO (the
+         network's native token).
+
+        This command is used to add a new neuron to a specified subnet within the network, contributing to the
+        decentralization and robustness of Bittensor.
+
+        ## Usage:
+        Before registering, the command checks if the specified subnet exists and whether the user's balance is
+        sufficient to cover the registration cost.
+
+        The registration cost is determined by the current recycle amount for the specified subnet. If the balance is
+        insufficient or the subnet does not exist, the command will exit with an appropriate error message.
+
+        If the preconditions are met, and the user confirms the transaction (if `no_prompt` is not set), the command
+        proceeds to register the neuron by recycling the required amount of TAO.
+
+        The command structure includes:
+
+        - Verification of subnet existence.
+
+        - Checking the user's balance against the current recycle amount for the subnet.
+
+        - User confirmation prompt for proceeding with registration.
+
+        - Execution of the registration process.
+
+
+        Columns Displayed in the confirmation prompt:
+
+        - Balance: The current balance of the user's wallet in TAO.
+
+        - Cost to Register: The required amount of TAO needed to register on the specified subnet.
+
+
+        ### Example usage:
+
+        ```
+        btcli subnets register --netuid 1
+        ```
+
+        #### Note:
+        This command is critical for users who wish to contribute a new neuron to the network. It requires careful
+        consideration of the subnet selection and an understanding of the registration costs. Users should ensure their
+        wallet is sufficiently funded before attempting to register a neuron.
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        self.initialize_chain(network, chain)
+        return self._run_command(root.register(wallet, self.not_subtensor, netuid))
 
     def run(self):
         self.app()

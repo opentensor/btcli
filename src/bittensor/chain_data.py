@@ -212,6 +212,60 @@ class NeuronInfo:
 
         return cls(**n_dict)
 
+    @staticmethod
+    def get_null_neuron() -> "NeuronInfo":
+        neuron = NeuronInfo(
+            uid=0,
+            netuid=0,
+            active=0,
+            stake=Balance.from_rao(0),
+            stake_dict={},
+            total_stake=Balance.from_rao(0),
+            rank=0,
+            emission=0,
+            incentive=0,
+            consensus=0,
+            trust=0,
+            validator_trust=0,
+            dividends=0,
+            last_update=0,
+            validator_permit=False,
+            weights=[],
+            bonds=[],
+            prometheus_info=None,
+            axon_info=None,
+            is_null=True,
+            coldkey="000000000000000000000000000000000000000000000000",
+            hotkey="000000000000000000000000000000000000000000000000",
+            pruning_score=0,
+        )
+        return neuron
+
+    @classmethod
+    def fix_decoded_values(cls, neuron_info_decoded: Any) -> "NeuronInfo":
+        """Fixes the values of the NeuronInfo object."""
+        neuron_info_decoded = NeuronInfoLite.fix_decoded(neuron_info_decoded)
+        neuron_info_decoded["weights"] = [
+            [int(weight[0]), int(weight[1])]
+            for weight in neuron_info_decoded["weights"]
+        ]
+        neuron_info_decoded["bonds"] = [
+            [int(bond[0]), int(bond[1])] for bond in neuron_info_decoded["bonds"]
+        ]
+        return cls(**neuron_info_decoded)
+
+    @classmethod
+    def from_vec_u8(cls, vec_u8: list[int]) -> "NeuronInfo":
+        """Returns a NeuronInfo object from a ``vec_u8``."""
+        if len(vec_u8) == 0:
+            return NeuronInfo.get_null_neuron()
+
+        decoded = from_scale_encoding(vec_u8, ChainDataType.NeuronInfo)
+        if decoded is None:
+            return NeuronInfo.get_null_neuron()
+
+        return NeuronInfo.fix_decoded_values(decoded)
+
 
 @dataclass
 class NeuronInfoLite:
@@ -267,9 +321,8 @@ class NeuronInfoLite:
         )
         return neuron
 
-    @classmethod
-    def fix_decoded_values(cls, neuron_info_decoded: Any) -> "NeuronInfoLite":
-        """Fixes the values of the NeuronInfoLite object."""
+    @staticmethod
+    def fix_decoded(neuron_info_decoded: dict) -> dict:
         neuron_info_decoded["hotkey"] = ss58_encode(
             neuron_info_decoded["hotkey"], SS58_FORMAT
         )
@@ -306,6 +359,12 @@ class NeuronInfoLite:
         neuron_info_decoded["axon_info"] = AxonInfo.from_neuron_info(
             neuron_info_decoded
         )
+        return neuron_info_decoded
+
+    @classmethod
+    def fix_decoded_values(cls, neuron_info_decoded: Any) -> "NeuronInfoLite":
+        """Fixes the values of the NeuronInfoLite object."""
+        neuron_info_decoded = cls.fix_decoded(neuron_info_decoded)
         return cls(**neuron_info_decoded)
 
     @classmethod
