@@ -210,6 +210,8 @@ class CLIManager:
         self.root_app.command("set-weights")(self.root_set_weights)
         self.root_app.command("get-weights")(self.root_get_weights)
         self.root_app.command("boost")(self.root_boost)
+        self.root_app.command("senate")(self.root_senate)
+        self.root_app.command("senate-vote")(self.root_senate_vote)
 
     def initialize_chain(
         self,
@@ -1643,6 +1645,35 @@ class CLIManager:
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         self.initialize_chain(network, chain)
+        return self._run_command(root.senate_vote(wallet, self.not_subtensor, proposal))
+
+    def root_senate(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+    ):
+        """
+        # root senate
+        Executes the `senate` command to view the members of Bittensor's governance protocol, known as the Senate.
+
+        This command lists the delegates involved in the decision-making process of the Bittensor network.
+
+        ## Usage:
+        The command retrieves and displays a list of Senate members, showing their names and wallet addresses.
+        This information is crucial for understanding who holds governance roles within the network.
+
+        ### Example usage:
+
+        ```
+        btcli root senate
+        ```
+
+        #### Note:
+        This command is particularly useful for users interested in the governance structure and participants of the
+        Bittensor network. It provides transparency into the network's decision-making body.
+        """
+        self.initialize_chain(network, chain)
+        return self._run_command(root.get_senate(self.not_subtensor))
 
     def run(self):
         self.app()

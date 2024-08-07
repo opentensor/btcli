@@ -32,6 +32,23 @@ class ProposalVoteData(TypedDict):
     end: int
 
 
+async def _get_senate_members(subtensor: SubtensorInterface) -> list[str]:
+    """
+    Gets all members of the senate on the given subtensor's network
+
+    :param subtensor: SubtensorInterface object to use for the query
+
+    :return: list of the senate members' ss58 addresses
+    """
+    senate_members = await subtensor.substrate.query(
+        module="SenateMembers", storage_function="Members", params=None
+    )
+    if not hasattr(senate_members, "serialize"):
+        raise TypeError("Senate Members cannot be serialized.")
+
+    return senate_members.serialize()
+
+
 async def _is_senate_member(subtensor: SubtensorInterface, hotkey_ss58: str) -> bool:
     """
     Checks if a given neuron (identified by its hotkey SS58 address) is a member of the Bittensor senate.
@@ -46,17 +63,13 @@ async def _is_senate_member(subtensor: SubtensorInterface, hotkey_ss58: str) -> 
     This function is crucial for understanding the governance dynamics of the Bittensor network and for
     identifying the neurons that hold decision-making power within the network.
     """
-    senate_members = await subtensor.substrate.query(
-        module="SenateMembers", storage_function="Members", params=None
-    )
-    if not hasattr(senate_members, "serialize"):
-        return False
-    senate_members_serialized = senate_members.serialize()
 
-    if not hasattr(senate_members_serialized, "count"):
+    senate_members = await _get_senate_members(subtensor)
+
+    if not hasattr(senate_members, "count"):
         return False
 
-    return senate_members_serialized.count(hotkey_ss58) > 0
+    return senate_members.count(hotkey_ss58) > 0
 
 
 async def _get_vote_data(
@@ -493,3 +506,44 @@ async def senate_vote(
 
     await subtensor.substrate.close()
     return success
+
+
+async def get_senate(subtensor: SubtensorInterface):
+    """View Bittensor's governance protocol proposals"""
+    console.print(f":satellite: Syncing with chain: [white]{subtensor}[/white] ...")
+    async with subtensor:
+        senate_members = await _get_senate_members(subtensor)
+
+    delegate_info: Optional[
+        dict[str, DelegatesDetails]
+    ] = await get_delegates_details_from_github(Constants.delegates_detail_url)
+
+    await subtensor.substrate.close()
+
+    table = Table(
+        Column(
+            "[overline white]NAME",
+            footer_style="overline white",
+            style="rgb(50,163,219)",
+            no_wrap=True,
+        ),
+        Column(
+            "[overline white]ADDRESS",
+            footer_style="overline white",
+            style="yellow",
+            no_wrap=True,
+        ),
+        title="[white]Senate",
+        show_footer=True,
+        box=None,
+        pad_edge=False,
+        width=None,
+    )
+
+    for ss58_address in senate_members:
+        table.add_row(
+            (delegate_info[ss58_address].name if ss58_address in delegate_info else ""),
+            ss58_address,
+        )
+
+    return console.print(table)
