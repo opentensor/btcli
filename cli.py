@@ -81,6 +81,11 @@ class Options:
         None, help="The subtensor chain endpoint to connect to.", show_default=False
     )
     netuids = typer.Option([], help="Set the netuid(s) to filter by (e.g. `0 1 2`)")
+    netuid = typer.Option(
+        None,
+        help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
+        prompt=True,
+    )
 
 
 def get_n_words(n_words: Optional[int]) -> int:
@@ -1443,7 +1448,9 @@ class CLIManager:
         ```
 
         #### Note:
-        This command is essential for users interested in the governance and operational dynamics of the Bittensor network. It offers transparency into how network rewards and responsibilities are allocated across different subnets.
+        This command is essential for users interested in the governance and operational dynamics of the Bittensor
+        network. It offers transparency into how network rewards and responsibilities are allocated across different
+        subnets.
         """
         self.initialize_chain(network, chain)
         return self._run_command(root.get_weights(self.not_subtensor))
@@ -1455,11 +1462,7 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
-        netuid: int = typer.Option(
-            None,
-            help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
-            prompt=True,
-        ),
+        netuid: int = Options.netuid,
         amount: float = typer.Option(
             None,
             "--amount",
@@ -1517,6 +1520,80 @@ class CLIManager:
         36, 37, 38, 39, 40])? [y/n]: y
 
         ✅ Finalized
+
+        ⠙ 📡 Setting root weights on test ...2023-11-28 22:09:14.001 |     SUCCESS      | Set weights
+                           Finalized: True
+
+
+        ```
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        self.initialize_chain(network, chain)
+        return self._run_command(
+            root.set_boost(wallet, self.not_subtensor, netuid, amount)
+        )
+
+    def root_slash(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        netuid: int = Options.netuid,
+        amount: float = typer.Option(
+            None,
+            "--amount",
+            "--decrease",
+            "-a",
+            prompt=True,
+            help="Amount (float) to boost, (e.g. 0.01)",
+        ),
+    ):
+        """
+        # root slash
+        Executes the `slash` command to decrease the weights for a specific subnet within the root network on the
+        Bittensor network.
+
+        ## Usage:
+        The command allows slashing (decreasing) the weights for different subnets within the root network.
+
+        ### Example usage:
+
+        ```
+        $ btcli root slash --netuid 1 --decrease 0.01
+
+        Enter netuid (e.g. 1): 1
+        Enter decrease amount (e.g. 0.01): 0.2
+        Slashing weight for subnet: 1 by amount: 0.2
+
+        Normalized weights:
+
+        tensor([
+        0.0000, 0.4318, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.5682, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000]) -> tensor([
+        0.0000, 0.4318, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.5682, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000]
+        )
+
+        Do you want to set the following root weights?:
+
+        weights: tensor([
+                0.0000, 0.4318, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+                0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+                0.0000, 0.0000, 0.0000, 0.0000, 0.5682, 0.0000, 0.0000, 0.0000, 0.0000,
+                0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+                0.0000, 0.0000, 0.0000, 0.0000, 0.0000])
+
+        uids: tensor([ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17,
+                18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
+                36, 37, 38, 39, 40])? [y/n]: y
 
         ⠙ 📡 Setting root weights on test ...2023-11-28 22:09:14.001 |     SUCCESS      | Set weights
                            Finalized: True

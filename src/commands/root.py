@@ -1,4 +1,7 @@
+import asyncio
+
 import numpy as np
+from numpy.typing import NDArray
 import typer
 from bittensor_wallet import Wallet
 from rich.table import Table, Column
@@ -8,13 +11,12 @@ from src import DelegatesDetails
 from src.bittensor.balances import Balance
 from src.bittensor.chain_data import NeuronInfoLite
 from src.bittensor.extrinsics.root import set_root_weights_extrinsic
-from src.bittensor.minigraph import MiniGraph
 from src.subtensor_interface import SubtensorInterface
 from src.utils import (
     console,
     err_console,
     get_delegates_details_from_github,
-    u16_normalized_float,
+    convert_weight_uids_and_vals_to_tensor,
 )
 from src import Constants
 
@@ -208,42 +210,87 @@ async def get_weights(subtensor: SubtensorInterface):
     return console.print(table)
 
 
+async def _get_my_weights(
+    subtensor: SubtensorInterface, ss58_address: str
+) -> NDArray[np.float32]:
+    """Retrieves the weight array for a given hotkey SS58 address."""
+    async with subtensor:
+        my_uid = (
+            await subtensor.substrate.query(
+                "SubtensorModule", "Uids", [0, ss58_address]
+            )
+        ).value
+        print("uid", my_uid)
+        my_weights_, total_subnets_ = await asyncio.gather(
+            subtensor.substrate.query(
+                "SubtensorModule", "Weights", [0, my_uid], reuse_block_hash=True
+            ),
+            subtensor.substrate.query(
+                "SubtensorModule", "TotalNetworks", reuse_block_hash=True
+            ),
+        )
+    my_weights: list[tuple[int, int]] = my_weights_.value
+    for i, w in enumerate(my_weights):
+        if w:
+            print(i, w)
+    total_subnets: int = total_subnets_.value
+
+    uids, values = zip(*my_weights)
+    weight_array = convert_weight_uids_and_vals_to_tensor(total_subnets, uids, values)
+    return weight_array
+
+
 async def set_boost(
     wallet: Wallet, subtensor: SubtensorInterface, netuid: int, amount: float
 ):
-    """Set weights for root network."""
+    """Boosts weight of a given netuid for root network."""
 
-    async with subtensor:
-        # block_hash = await subtensor.substrate.get_chain_head()
-        # neurons = await subtensor.neurons(0, block_hash=block_hash)
+    my_weights = await _get_my_weights(subtensor, wallet.hotkey.ss58_address)
+    prev_weight = my_weights[netuid]
+    new_weight = prev_weight + amount
 
-        my_uid = (
-            await subtensor.substrate.query(
-                "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
-            )
-        ).value
-        my_weights_ = (
-            await subtensor.substrate.query("SubtensorModule", "Weights", [0, my_uid])
-        ).value
-        my_weights = {x[0]: u16_normalized_float(x[1]) for x in my_weights_}
-        prev_weight = my_weights[netuid]  # TODO 0 if not found
-        new_weight = prev_weight + amount
+    console.print(
+        f"Boosting weight for netuid {netuid} from {prev_weight} -> {new_weight}"
+    )
+    my_weights[netuid] = new_weight
+    all_netuids = np.arange(len(my_weights))
 
-        console.print(
-            f"Boosting weight for netuid {netuid} from {prev_weight} -> {new_weight}"
+    console.print("all netuids", all_netuids)
+    with console.status("Setting root weights..."):
+        await set_root_weights_extrinsic(
+            subtensor=subtensor,
+            wallet=wallet,
+            netuids=all_netuids,
+            weights=my_weights,
+            version_key=0,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+            prompt=True,
         )
-        my_weights[netuid] = new_weight
-        all_netuids = np.arange(len(my_weights))
-        console.print("all netuids", all_netuids)
-        with console.status("Setting root weights..."):
-            await set_root_weights_extrinsic(
-                subtensor=subtensor,
-                wallet=wallet,
-                netuids=all_netuids,
-                weights=my_weights,
-                version_key=0,
-                wait_for_inclusion=True,
-                wait_for_finalization=True,
-                prompt=True,
-            )
+    await subtensor.substrate.close()
+
+
+async def set_slash(
+    wallet: Wallet, subtensor: SubtensorInterface, netuid: int, amount: float
+):
+    """Slashes weight I think"""
+    my_weights = await _get_my_weights(subtensor, wallet.hotkey.ss58_address)
+    prev_weights = my_weights.copy()
+    my_weights[netuid] -= amount
+    my_weights[my_weights < 0] = 0  # Ensure weights don't go negative
+    all_netuids = np.arange(len(my_weights))
+
+    console.print(f"Slash weights from {prev_weights} -> {my_weights}")
+
+    with console.status("Setting root weights..."):
+        await set_root_weights_extrinsic(
+            subtensor=subtensor,
+            wallet=wallet,
+            netuids=all_netuids,
+            weights=my_weights,
+            version_key=0,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+            prompt=True,
+        )
     await subtensor.substrate.close()
