@@ -219,6 +219,7 @@ class CLIManager:
         self.root_app.command("senate")(self.root_senate)
         self.root_app.command("senate-vote")(self.root_senate_vote)
         self.root_app.command("register")(self.root_register)
+        self.root_app.command("proposals")(self.root_proposals)
 
     def initialize_chain(
         self,
@@ -1743,6 +1744,35 @@ class CLIManager:
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         self.initialize_chain(network, chain)
         return self._run_command(root.register(wallet, self.not_subtensor, netuid))
+
+    def root_proposals(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+    ):
+        """
+        # root proposals
+        Executes the `proposals` command to view active proposals within Bittensor's governance protocol.
+
+        This command displays the details of ongoing proposals, including votes, thresholds, and proposal data.
+
+        ## Usage:
+        The command lists all active proposals, showing their hash, voting threshold, number of ayes and nays, detailed
+        votes by address, end block number, and call data associated with each proposal.
+
+        ### Example usage:
+
+        ```
+        btcli root proposals
+        ```
+
+        #### Note:
+        This command is essential for users who are actively participating in or monitoring the governance of the
+        Bittensor network. It provides a detailed view of the proposals being considered, along with the community's
+        response to each.
+        """
+        self.initialize_chain(network, chain)
+        return self._run_command(root.proposals(self.not_subtensor))
 
     def run(self):
         self.app()

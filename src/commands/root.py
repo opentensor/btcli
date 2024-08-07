@@ -7,11 +7,11 @@ import typer
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm
 from rich.table import Table, Column
-from scalecodec import ScaleType
+from scalecodec import ScaleType, GenericCall
 
 from src import DelegatesDetails
 from src.bittensor.balances import Balance
-from src.bittensor.chain_data import NeuronInfoLite
+from src.bittensor.chain_data import NeuronInfoLite, DelegateInfo
 from src.bittensor.extrinsics.root import set_root_weights_extrinsic
 from src.subtensor_interface import SubtensorInterface
 from src.utils import (
@@ -27,6 +27,51 @@ from src import Constants
 # helpers
 
 
+def display_votes(vote_data: "ProposalVoteData", delegate_info: DelegateInfo) -> str:
+    vote_list = list()
+
+    for address in vote_data["ayes"]:
+        vote_list.append(
+            "{}: {}".format(
+                delegate_info[address].name if address in delegate_info else address,
+                "[bold green]Aye[/bold green]",
+            )
+        )
+
+    for address in vote_data["nays"]:
+        vote_list.append(
+            "{}: {}".format(
+                delegate_info[address].name if address in delegate_info else address,
+                "[bold red]Nay[/bold red]",
+            )
+        )
+
+    return "\n".join(vote_list)
+
+
+def format_call_data(call_data: GenericCall) -> str:
+    human_call_data = list()
+
+    for arg in call_data["call_args"]:
+        arg_value = arg["value"]
+
+        # If this argument is a nested call
+        func_args = (
+            format_call_data(
+                {
+                    "call_function": arg_value["call_function"],
+                    "call_args": arg_value["call_args"],
+                }
+            )
+            if isinstance(arg_value, dict) and "call_function" in arg_value
+            else str(arg_value)
+        )
+
+        human_call_data.append("{}: {}".format(arg["name"], func_args))
+
+    return "{}({})".format(call_data["call_function"], ", ".join(human_call_data))
+
+
 class ProposalVoteData(TypedDict):
     index: int
     threshold: int
@@ -35,7 +80,9 @@ class ProposalVoteData(TypedDict):
     end: int
 
 
-async def _get_senate_members(subtensor: SubtensorInterface) -> list[str]:
+async def _get_senate_members(
+    subtensor: SubtensorInterface, block_hash: Optional[str] = None
+) -> list[str]:
     """
     Gets all members of the senate on the given subtensor's network
 
@@ -44,12 +91,58 @@ async def _get_senate_members(subtensor: SubtensorInterface) -> list[str]:
     :return: list of the senate members' ss58 addresses
     """
     senate_members = await subtensor.substrate.query(
-        module="SenateMembers", storage_function="Members", params=None
+        module="SenateMembers",
+        storage_function="Members",
+        params=None,
+        block_hash=block_hash,
     )
     if not hasattr(senate_members, "serialize"):
         raise TypeError("Senate Members cannot be serialized.")
 
     return senate_members.serialize()
+
+
+async def _get_proposals(
+    subtensor: SubtensorInterface, block_hash: str
+) -> dict[ProposalVoteData, tuple[GenericCall, ProposalVoteData]]:
+    async def get_proposal_call_data(p_hash: str):
+        proposal_data = subtensor.substrate.query(
+            module="Triumvirate",
+            name="ProposalOf",
+            block_hash=block_hash,
+            params=[p_hash],
+        )
+        return getattr(proposal_data, "serialize", lambda: None)()
+
+    async def get_proposal_vote_data(p_hash: str):
+        vote_data = subtensor.substrate.query(
+            module="Triumvirate", name="Voting", block_hash=block_hash, params=[p_hash]
+        )
+        return getattr(vote_data, "serialize", lambda: None)()
+
+    ph = await subtensor.substrate.query(
+        module="Triumvirate",
+        storage_function="Proposals",
+        params=None,
+        block_hash=block_hash,
+    )
+    proposal_hashes: Optional[ProposalVoteData] = getattr(
+        ph, "serialize", lambda: None
+    )()
+
+    if proposal_hashes is None:
+        return None
+    call_data_, vote_data_ = await asyncio.gather(
+        asyncio.gather(*[get_proposal_call_data(h) for h in proposal_hashes]),
+        asyncio.gather(*[get_proposal_vote_data(h) for h in proposal_hashes]),
+    )
+    return {
+        proposal_hash: (
+            cd,
+            vd,
+        )
+        for cd, vd, proposal_hash in zip(call_data_, vote_data_, proposal_hashes)
+    }
 
 
 async def _is_senate_member(subtensor: SubtensorInterface, hotkey_ss58: str) -> bool:
@@ -743,3 +836,66 @@ async def register(wallet: Wallet, subtensor: SubtensorInterface, netuid: int):
         )
 
     await subtensor.substrate.close()
+
+
+async def proposals(subtensor: SubtensorInterface):
+    console.print(
+        ":satellite: Syncing with chain: [white]{}[/white] ...".format(
+            subtensor.network
+        )
+    )
+    async with subtensor:
+        block_hash = await subtensor.substrate.get_chain_head()
+        senate_members, all_proposals = await asyncio.gather(
+            _get_senate_members(subtensor, block_hash),
+            _get_proposals(subtensor, block_hash),
+        )
+
+    await subtensor.substrate.close()
+
+    registered_delegate_info: dict[
+        str, DelegatesDetails
+    ] = await get_delegates_details_from_github(Constants.delegates_detail_url)
+
+    table = Table(
+        Column(
+            "[overline white]HASH",
+            footer_style="overline white",
+            style="yellow",
+            no_wrap=True,
+        ),
+        Column(
+            "[overline white]THRESHOLD", footer_style="overline white", style="white"
+        ),
+        Column("[overline white]AYES", footer_style="overline white", style="green"),
+        Column("[overline white]NAYS", footer_style="overline white", style="red"),
+        Column(
+            "[overline white]VOTES",
+            footer_style="overline white",
+            style="rgb(50,163,219)",
+        ),
+        Column("[overline white]END", footer_style="overline white", style="blue"),
+        Column(
+            "[overline white]CALLDATA", footer_style="overline white", style="white"
+        ),
+        title=f"[white]Proposals\t\tActive Proposals: {len(all_proposals)}\t\tSenate Size: {len(senate_members)}",
+        show_footer=True,
+        box=None,
+        pad_edge=False,
+        width=None,
+    )
+
+    for hash_ in all_proposals:
+        call_data, vote_data = all_proposals[hash_]
+
+        table.add_row(
+            hash_,
+            str(vote_data["threshold"]),
+            str(len(vote_data["ayes"])),
+            str(len(vote_data["nays"])),
+            display_votes(vote_data, registered_delegate_info),
+            str(vote_data["end"]),
+            format_call_data(call_data),
+        )
+
+    return console.print(table)
