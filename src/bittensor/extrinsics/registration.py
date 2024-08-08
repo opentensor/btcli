@@ -25,7 +25,6 @@ from rich.console import Console
 from rich.status import Status
 from substrateinterface.exceptions import SubstrateRequestException
 
-# from src.subtensor_interface import SubtensorInterface
 from src.utils import (
     console,
     err_console,
