@@ -1897,35 +1897,34 @@ class CLIManager:
         chain: Optional[str] = Options.chain,
     ):
         """
+        # root undelegate-stake
         Executes the ``undelegate`` command, allowing users to withdraw their staked Tao from a delegate on the Bittensor
         network.
 
         This process is known as "undelegating" and it reverses the delegation process, freeing up the staked tokens.
 
-        Optional Arguments:
-            - ``wallet.name``: The name of the wallet to use for the command.
-            - ``delegate_ss58key``: The ``SS58`` address of the delegate to undelegate from.
-            - ``amount``: The amount of Tao to undelegate.
-            - ``all``: If specified, the command undelegates all staked Tao from the delegate.
+        The command prompts the user for the amount of Tao to undelegate and the ``SS58`` address of the delegate from
+        which to undelegate. If the ``--all`` flag is used, it will attempt to undelegate the entire staked amount from
+        the specified delegate.
 
-        The command prompts the user for the amount of Tao to undelegate and the ``SS58`` address of the delegate from which
-        to undelegate. If the ``--all`` flag is used, it will attempt to undelegate the entire staked amount from the
-        specified delegate.
+        ## Usage:
+        The user must provide the delegate's SS58 address and the amount of Tao to undelegate. The function will then
+        send a transaction to the Bittensor network to process the undelegation.
 
-        Usage:
-            The user must provide the delegate's SS58 address and the amount of Tao to undelegate. The function will then
-            send a transaction to the Bittensor network to process the undelegation.
+        ### Example usage:
 
-        Example usage::
+        ```
+        btcli undelegate --delegate_ss58key <SS58_ADDRESS> --amount <AMOUNT>
 
-            btcli undelegate --delegate_ss58key <SS58_ADDRESS> --amount <AMOUNT>
-            btcli undelegate --delegate_ss58key <SS58_ADDRESS> --all
+        btcli undelegate --delegate_ss58key <SS58_ADDRESS> --all
 
-        Note:
-            This command can result in a change to the blockchain state and may incur transaction fees. It is interactive
-            and requires confirmation from the user before proceeding. It should be used with care as undelegating can
-            affect the delegate's total stake and
-            potentially the user's staking rewards.
+        ```
+
+        #### Note:
+        This command can result in a change to the blockchain state and may incur transaction fees. It is interactive
+        and requires confirmation from the user before proceeding. It should be used with care as undelegating can
+        affect the delegate's total stake and
+        potentially the user's staking rewards.
         """
         if amount and unstake_all:
             err_console.print(
