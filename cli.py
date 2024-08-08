@@ -220,6 +220,7 @@ class CLIManager:
         self.root_app.command("senate-vote")(self.root_senate_vote)
         self.root_app.command("register")(self.root_register)
         self.root_app.command("proposals")(self.root_proposals)
+        self.root_app.command("set-take")(self.root_set_take)
 
     def initialize_chain(
         self,
@@ -1773,6 +1774,37 @@ class CLIManager:
         """
         self.initialize_chain(network, chain)
         return self._run_command(root.proposals(self.not_subtensor))
+
+    def root_set_take(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        take: float = typer.Option(None, help="The new take value."),
+    ):
+        """
+        # root set-take
+        Executes the `set-take` command, which sets the delegate take.
+
+        The command performs several checks:
+
+        1. Hotkey is already a delegate
+        2. New take value is within 0-18% range
+
+        ## Usage:
+        To run the command, the user must have a configured wallet with both hotkey and coldkey. Also, the hotkey should already be a delegate.
+
+        ### Example usage:
+        btcli root set_take --wallet.name my_wallet --wallet.hotkey my_hotkey
+
+        #### Note:
+        This function can be used to update the takes individually for every subnet
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        self.initialize_chain(network, chain)
+        return self._run_command(root.set_take(wallet, self.not_subtensor, take))
 
     def run(self):
         self.app()

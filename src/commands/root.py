@@ -20,6 +20,7 @@ from src.utils import (
     get_delegates_details_from_github,
     convert_weight_uids_and_vals_to_tensor,
     format_error_message,
+    ss58_to_vec_u8,
 )
 from src import Constants
 
@@ -105,8 +106,8 @@ async def _get_senate_members(
 async def _get_proposals(
     subtensor: SubtensorInterface, block_hash: str
 ) -> dict[ProposalVoteData, tuple[GenericCall, ProposalVoteData]]:
-    async def get_proposal_call_data(p_hash: str):
-        proposal_data = subtensor.substrate.query(
+    async def get_proposal_call_data(p_hash: str) -> Optional[GenericCall]:
+        proposal_data = await subtensor.substrate.query(
             module="Triumvirate",
             name="ProposalOf",
             block_hash=block_hash,
@@ -114,8 +115,8 @@ async def _get_proposals(
         )
         return getattr(proposal_data, "serialize", lambda: None)()
 
-    async def get_proposal_vote_data(p_hash: str):
-        vote_data = subtensor.substrate.query(
+    async def get_proposal_vote_data(p_hash: str) -> Optional[ProposalVoteData]:
+        vote_data = await subtensor.substrate.query(
             module="Triumvirate", name="Voting", block_hash=block_hash, params=[p_hash]
         )
         return getattr(vote_data, "serialize", lambda: None)()
@@ -137,10 +138,7 @@ async def _get_proposals(
         asyncio.gather(*[get_proposal_vote_data(h) for h in proposal_hashes]),
     )
     return {
-        proposal_hash: (
-            cd,
-            vd,
-        )
+        proposal_hash: (cd, vd)
         for cd, vd, proposal_hash in zip(call_data_, vote_data_, proposal_hashes)
     }
 
@@ -413,6 +411,115 @@ async def burned_register_extrinsic(
                 ":cross_mark: [red]Unknown error. Neuron not found.[/red]"
             )
             return False
+
+
+async def set_take_extrinsic(
+    subtensor: SubtensorInterface,
+    wallet: Wallet,
+    delegate_ss58: str,
+    take: float = 0.0,
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = False,
+) -> bool:
+    """
+    Set delegate hotkey take
+
+    :param subtensor: SubtensorInterface (initialized)
+    :param wallet: The wallet containing the hotkey to be nominated.
+    :param delegate_ss58:  Hotkey
+    :param take: Delegate take on subnet ID
+    :param wait_for_finalization:  If `True`, waits until the transaction is finalized on the
+                                   blockchain.
+    :param wait_for_inclusion:  If `True`, waits until the transaction is included in a block.
+
+    :return: `True` if the process is successful, `False` otherwise.
+
+    This function is a key part of the decentralized governance mechanism of Bittensor, allowing for the
+    dynamic selection and participation of validators in the network's consensus process.
+    """
+
+    async def _get_delegate_by_hotkey(ss58: str) -> Optional[DelegateInfo]:
+        """Retrieves the delegate info for a given hotkey's ss58 address"""
+        encoded_hotkey = ss58_to_vec_u8(ss58)
+        json_body = await subtensor.substrate.rpc_request(
+            method="delegateInfo_getDelegate",  # custom rpc method
+            params=([encoded_hotkey, subtensor.substrate.last_block_hash]),
+        )
+        if not (result := json_body.get("result", None)):
+            return None
+        else:
+            return DelegateInfo.from_vec_u8(result)
+
+    async def _take_extrinsic(call_) -> tuple[bool, str]:
+        """Submits the previously-created extrinsic call to the chain"""
+        extrinsic = await subtensor.substrate.create_signed_extrinsic(
+            call=call_, keypair=wallet.coldkey
+        )  # sign with coldkey
+        response = await subtensor.substrate.submit_extrinsic(
+            extrinsic,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+        )
+        # We only wait here if we expect finalization.
+        if not wait_for_finalization and not wait_for_inclusion:
+            return True, ""
+        response.process_events()
+        if response.is_success:
+            return True, ""
+        else:
+            return False, format_error_message(response.error_message)
+
+    # Calculate u16 representation of the take
+    take_u16 = int(take * 0xFFFF)
+
+    # Check if the new take is greater or lower than existing take or if existing is set
+    delegate = await _get_delegate_by_hotkey(delegate_ss58)
+    current_take = None
+    if delegate is not None:
+        current_take = int(
+            float(delegate.take) * 65535.0
+        )  # TODO verify this, why not u16_float_to_int?
+
+    if take_u16 == current_take:
+        console.print("Nothing to do, take hasn't changed")
+        return True
+    if current_take is None or current_take < take_u16:
+        console.print(
+            "Current take is either not set or is lower than the new one. Will use increase_take"
+        )
+        with console.status(
+            f":satellite: Sending decrease_take_extrinsic call on [white]{subtensor}[/white] ..."
+        ):
+            call = await subtensor.substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function="increase_take",
+                call_params={
+                    "hotkey": delegate_ss58,
+                    "take": take,
+                },
+            )
+            success, err = await _take_extrinsic(call)
+
+    else:
+        console.print("Current take is higher than the new one. Will use decrease_take")
+        with console.status(
+            f":satellite: Sending increase_take_extrinsic call on [white]{subtensor}[/white] ..."
+        ):
+            call = await subtensor.substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function="decrease_take",
+                call_params={
+                    "hotkey": delegate_ss58,
+                    "take": take,
+                },
+            )
+            success, err = await _take_extrinsic(call)
+
+    if not success:
+        err_console.print(err)
+    else:
+        console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+    return success
 
 
 # Commands
@@ -899,3 +1006,61 @@ async def proposals(subtensor: SubtensorInterface):
         )
 
     return console.print(table)
+
+
+async def set_take(wallet: Wallet, subtensor: SubtensorInterface, take: float) -> bool:
+    """Set delegate take."""
+
+    async def _do_set_take() -> bool:
+        """
+        Just more easily allows an early return and to close the substrate interface after the logic
+        """
+
+        # Check if the hotkey is not a delegate.
+        if not await subtensor.is_hotkey_delegate(wallet.hotkey.ss58_address):
+            err_console.print(
+                f"Aborting: Hotkey {wallet.hotkey.ss58_address} is NOT a delegate."
+            )
+            return False
+
+        if take > 0.18:
+            err_console.print("ERROR: Take value should not exceed 18%")
+            return False
+
+        result: bool = set_take_extrinsic(
+            subtensor=subtensor,
+            wallet=wallet,
+            delegate_ss58=wallet.hotkey.ss58_address,
+            take=take,
+        )
+
+        if not result:
+            err_console.print("Could not set the take")
+            return False
+        else:
+            # Check if we are a delegate.
+            is_delegate: bool = await subtensor.is_hotkey_delegate(
+                wallet.hotkey.ss58_address
+            )
+            if not is_delegate:
+                err_console.print(
+                    "Could not set the take [white]{}[/white]".format(subtensor.network)
+                )
+                return False
+            else:
+                console.print(
+                    "Successfully set the take on [white]{}[/white]".format(
+                        subtensor.network
+                    )
+                )
+                return True
+
+    # Unlock the wallet.
+    wallet.unlock_hotkey()
+    wallet.unlock_coldkey()
+
+    async with subtensor:
+        result_ = await _do_set_take()
+
+    await subtensor.substrate.close()
+    return result_
