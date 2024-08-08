@@ -690,3 +690,31 @@ class SubtensorInterface:
                 b_map.append((uid.serialize(), b.serialize()))
 
         return b_map
+
+    async def does_hotkey_exist(
+        self,
+        hotkey_ss58: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> bool:
+        """
+        Returns true if the hotkey is known by the chain and there are accounts.
+
+        :param hotkey_ss58: The SS58 address of the hotkey.
+        :param block_hash: The hash of the block number to check the hotkey against.
+        :param reuse_block: Whether to reuse the last-used blockchain hash.
+
+        :return: `True` if the hotkey is known by the chain and there are accounts, `False` otherwise.
+        """
+        result = await self.substrate.query(
+            module="SubtensorModule",
+            storage_function="Owner",
+            params=[hotkey_ss58],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+        return (
+            False
+            if getattr(result, "value", None) is None
+            else result.value != "5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM"
+        )

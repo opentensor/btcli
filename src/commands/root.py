@@ -522,6 +522,181 @@ async def set_take_extrinsic(
     return success
 
 
+async def delegate_extrinsic(
+    subtensor: SubtensorInterface,
+    wallet: Wallet,
+    delegate_ss58: Optional[str] = None,
+    amount: Optional[Balance] = None,
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = False,
+    prompt: bool = False,
+) -> bool:
+    """Delegates the specified amount of stake to the passed delegate.
+
+    :param subtensor: The SubtensorInterface used to perform the delegation, initialized.
+    :param wallet: Bittensor wallet object.
+    :param delegate_ss58: The `ss58` address of the delegate.
+    :param amount: Amount to stake as bittensor balance
+    :param wait_for_inclusion: If set, waits for the extrinsic to enter a block before returning `True`, or returns
+                              `False` if the extrinsic fails to enter the block within the timeout.
+    :param wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `True`,
+                                  or returns `False` if the extrinsic fails to be finalized within the timeout.
+    :param prompt: If `True`, the call waits for confirmation from the user before proceeding.
+
+    :return: `True` if extrinsic was finalized or included in the block. If we did not wait for finalization/inclusion,
+             the response is `True`.
+    """
+
+    async def _do_delegation() -> tuple[bool, str]:
+        """Performs the delegation extrinsic call to the chain."""
+        call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="add_stake",
+            call_params={"hotkey": delegate_ss58, "amount_staked": amount.rao},
+        )
+        extrinsic = await subtensor.substrate.create_signed_extrinsic(
+            call=call, keypair=wallet.coldkey
+        )
+        response = await subtensor.substrate.submit_extrinsic(
+            extrinsic,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+        )
+        # We only wait here if we expect finalization.
+        if not wait_for_finalization and not wait_for_inclusion:
+            return True, ""
+        response.process_events()
+        if response.is_success:
+            return True, ""
+        else:
+            False, format_error_message(response.error_message)
+
+    async def get_hotkey_owner(ss58: str, block_hash_: str):
+        """Returns the coldkey owner of the passed hotkey."""
+        if not await subtensor.does_hotkey_exist(ss58, block_hash=block_hash_):
+            return None
+        _result = await subtensor.substrate.query(
+            module="SubtensorModule",
+            storage_function="Owner",
+            params=[ss58],
+            block_hash=block_hash_,
+        )
+        return getattr(_result, "value", None)
+
+    async def get_stake_for_coldkey_and_hotkey(
+        hotkey_ss58: str, coldkey_ss58: str, block_hash_: str
+    ):
+        """Returns the stake under a coldkey - hotkey pairing."""
+        _result = subtensor.substrate.query(
+            module="SubtensorModule",
+            storage_function="Stake",
+            params=[hotkey_ss58, coldkey_ss58],
+            block_hash=block_hash_,
+        )
+        return (
+            Balance.from_rao(_result.value) if getattr(_result, "value", None) else None
+        )
+
+    # Decrypt key
+    wallet.unlock_coldkey()
+    if not subtensor.is_hotkey_delegate(delegate_ss58):
+        err_console.print(f"Hotkey: {delegate_ss58} is not a delegate.")
+        return False
+
+    # Get state.
+    with console.status(
+        f":satellite: Syncing with [bold white]{subtensor}[/bold white] ..."
+    ):
+        initial_block_hash = await subtensor.substrate.get_chain_head()
+        (
+            my_prev_coldkey_balance_,
+            delegate_owner,
+            my_prev_delegated_stake,
+        ) = await asyncio.gather(
+            subtensor.get_balance(
+                wallet.coldkey.ss58_address, block_hash=initial_block_hash
+            ),
+            get_hotkey_owner(delegate_ss58, block_hash_=initial_block_hash),
+            get_stake_for_coldkey_and_hotkey(
+                coldkey_ss58=wallet.coldkeypub.ss58_address,
+                hotkey_ss58=delegate_ss58,
+                block_hash_=initial_block_hash,
+            ),
+        )
+
+    my_prev_coldkey_balance = my_prev_coldkey_balance_[wallet.coldkey.ss58_address]
+
+    # Convert to bittensor.Balance
+    if amount is None:
+        # Stake it all.
+        staking_balance = Balance.from_tao(my_prev_coldkey_balance.tao)
+    else:
+        staking_balance = Balance.from_tao(amount)
+
+    # Remove existential balance to keep key alive.
+    if staking_balance > (b1k := Balance.from_rao(1000)):
+        staking_balance = staking_balance - b1k
+    else:
+        staking_balance = staking_balance
+
+    # Check enough balance to stake.
+    if staking_balance > my_prev_coldkey_balance:
+        err_console.print(
+            ":cross_mark: [red]Not enough balance[/red]:[bold white]\n"
+            f"  balance:{my_prev_coldkey_balance}\n"
+            f"  amount: {staking_balance}\n"
+            f"  coldkey: {wallet.name}[/bold white]"
+        )
+        return False
+
+    # Ask before moving on.
+    if prompt:
+        if not Confirm.ask(
+            f"Do you want to delegate:[bold white]\n"
+            f"  amount: {staking_balance}\n"
+            f"  to: {delegate_ss58}\n"
+            f"  owner: {delegate_owner}[/bold white]"
+        ):
+            return False
+
+    with console.status(
+        f":satellite: Staking to: [bold white]{subtensor}[/bold white] ..."
+    ):
+        staking_response, err_msg = _do_delegation()
+
+    if staking_response is True:  # If we successfully staked.
+        # We only wait here if we expect finalization.
+        if not wait_for_finalization and not wait_for_inclusion:
+            return True
+
+        console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+        with console.status(
+            f":satellite: Checking Balance on: [white]{subtensor}[/white] ..."
+        ):
+            block_hash = await subtensor.substrate.get_chain_head()
+            new_balance, new_delegate_stake = await asyncio.gather(
+                subtensor.get_balance(
+                    wallet.coldkey.ss58_address, block_hash=block_hash
+                ),
+                get_stake_for_coldkey_and_hotkey(
+                    coldkey_ss58=wallet.coldkeypub.ss58_address,
+                    hotkey_ss58=delegate_ss58,
+                    block_hash_=block_hash,
+                ),
+            )
+
+        console.print(
+            "Balance:\n"
+            f"  [blue]{my_prev_coldkey_balance}[/blue] :arrow_right: [green]{new_balance}[/green]\n"
+            "Stake:\n"
+            f"  [blue]{my_prev_delegated_stake}[/blue] :arrow_right: [green]{new_delegate_stake}[/green]"
+        )
+        return True
+    else:
+        err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+        return False
+
+
 # Commands
 
 
@@ -1064,3 +1239,23 @@ async def set_take(wallet: Wallet, subtensor: SubtensorInterface, take: float) -
 
     await subtensor.substrate.close()
     return result_
+
+
+async def delegate_stake(
+    wallet: Wallet,
+    subtensor: SubtensorInterface,
+    amount: Optional[float],
+    delegate_ss58key: str,
+):
+    """Delegates stake to a chain delegate."""
+
+    async with subtensor:
+        await delegate_extrinsic(
+            subtensor,
+            wallet,
+            delegate_ss58key,
+            amount,
+            wait_for_inclusion=True,
+            prompt=True,
+        )
+    await subtensor.substrate.close()

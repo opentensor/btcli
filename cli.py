@@ -221,6 +221,7 @@ class CLIManager:
         self.root_app.command("register")(self.root_register)
         self.root_app.command("proposals")(self.root_proposals)
         self.root_app.command("set-take")(self.root_set_take)
+        self.root_app.command("set-delegate")(self.root_set_delegate)
 
     def initialize_chain(
         self,
@@ -1805,6 +1806,71 @@ class CLIManager:
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         self.initialize_chain(network, chain)
         return self._run_command(root.set_take(wallet, self.not_subtensor, take))
+
+    def root_set_delegate(
+        self,
+        delegate_ss58key: str = typer.Option(
+            None, help="The `SS58` address of the delegate to stake to.", prompt=True
+        ),
+        amount: Optional[float] = typer.Option(
+            None, help="The amount of Tao to stake. Do no specify if using `--all`"
+        ),
+        stake_all: Optional[bool] = typer.Option(
+            False,
+            "--all",
+            "-a",
+            help="If specified, the command stakes all available Tao. Do not specify if using"
+            " `--amount`",
+        ),
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+    ):
+        """
+        # root set-delegate
+        Executes the `delegate` command, which stakes Tao to a specified delegate on the Bittensor network.
+
+        This action allocates the user's Tao to support a delegate, potentially earning staking rewards in return.
+
+        The command interacts with the user to determine the delegate and the amount of Tao to be staked. If the
+        `--all` flag is used, it delegates the entire available balance.
+
+        ## Usage:
+        The user must specify the delegate's SS58 address and the amount of Tao to stake. The function sends a
+        transaction to the subtensor network to delegate the specified amount to the chosen delegate. These values are
+        prompted if not provided.
+
+        ### Example usage:
+
+        ```
+        btcli delegate --delegate_ss58key <SS58_ADDRESS> --amount <AMOUNT>
+
+        btcli delegate --delegate_ss58key <SS58_ADDRESS> --all
+        ```
+
+
+        #### Note:
+        This command modifies the blockchain state and may incur transaction fees. It requires user confirmation and
+        interaction, and is designed to be used within the Bittensor CLI environment. The user should ensure the
+        delegate's address and the amount to be staked are correct before executing the command.
+        """
+        # TODO instruct users how to show all delegates (I think list-delegates, but have to be sure)
+        if amount and stake_all:
+            err_console.print(
+                "`--amount` and `--all` specified. Choose one or the other."
+            )
+        if stake_all and not amount:
+            amount = typer.prompt(
+                "How much would you like to stake, in TAO?",
+                confirmation_prompt="Confirm you wish to stake: τ",
+            )
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        self.initialize_chain(network, chain)
+        return self._run_command(
+            root.delegate_stake(wallet, self.not_subtensor, amount, delegate_ss58key)
+        )
 
     def run(self):
         self.app()
