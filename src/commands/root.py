@@ -13,6 +13,7 @@ from src import DelegatesDetails
 from src.bittensor.balances import Balance
 from src.bittensor.chain_data import NeuronInfoLite, DelegateInfo
 from src.bittensor.extrinsics.root import set_root_weights_extrinsic
+from src.commands.wallets import get_coldkey_wallets_for_path
 from src.subtensor_interface import SubtensorInterface
 from src.utils import (
     console,
@@ -1292,3 +1293,125 @@ async def delegate_unstake(
             delegate=False,
         )
     await subtensor.substrate.close()
+
+
+async def my_delegates(
+    wallet: Wallet, subtensor: SubtensorInterface, all_wallets: bool
+):
+    """Delegates stake to a chain delegate."""
+
+    wallets = get_coldkey_wallets_for_path(wallet.path) if all_wallets else [wallet]
+
+    table = Table(
+        Column(
+            "[overline white]Wallet", footer_style="overline white", style="bold white"
+        ),
+        Column(
+            "[overline white]OWNER",
+            style="rgb(50,163,219)",
+            no_wrap=True,
+            justify="left",
+        ),
+        Column(
+            "[overline white]SS58", footer_style="overline white", style="bold yellow"
+        ),
+        Column(
+            "[overline green]Delegation",
+            footer_style="overline green",
+            style="bold green",
+        ),
+        Column(
+            "[overline green]\u03c4/24h",
+            footer_style="overline green",
+            style="bold green",
+        ),
+        Column("[overline white]NOMS", justify="center", style="green", no_wrap=True),
+        Column("[overline white]OWNER STAKE(\u03c4)", justify="right", no_wrap=True),
+        Column(
+            "[overline white]TOTAL STAKE(\u03c4)",
+            justify="right",
+            style="green",
+            no_wrap=True,
+        ),
+        Column("[overline white]SUBNETS", justify="right", style="white", no_wrap=True),
+        Column("[overline white]VPERMIT", justify="right", no_wrap=True),
+        Column("[overline white]24h/k\u03c4", style="green", justify="center"),
+        Column("[overline white]Desc", style="rgb(50,163,219)"),
+        show_footer=True,
+        pad_edge=False,
+        box=None,
+        expand=True,
+    )
+
+    total_delegated = 0
+
+    for wallet in tqdm(wallets):
+        if not wallet.coldkeypub_file.exists_on_device():
+            continue
+        delegates = subtensor.get_delegated(coldkey_ss58=wallet.coldkeypub.ss58_address)
+
+        my_delegates = {}  # hotkey, amount
+        for delegate in delegates:
+            for coldkey_addr, staked in delegate[0].nominators:
+                if coldkey_addr == wallet.coldkeypub.ss58_address and staked.tao > 0:
+                    my_delegates[delegate[0].hotkey_ss58] = staked
+
+        delegates.sort(key=lambda delegate: delegate[0].total_stake, reverse=True)
+        total_delegated += sum(my_delegates.values())
+
+        registered_delegate_info: Optional[
+            DelegatesDetails
+        ] = await get_delegates_details_from_github(Constants.delegates_detail_url)
+        if registered_delegate_info is None:
+            console.print(
+                ":warning:[yellow]Could not get delegate info from chain.[/yellow]"
+            )
+            registered_delegate_info = {}
+
+        for i, delegate in enumerate(delegates):
+            owner_stake = next(
+                map(
+                    lambda x: x[1],  # get stake
+                    filter(
+                        lambda x: x[0] == delegate[0].owner_ss58,
+                        delegate[0].nominators,
+                    ),  # filter for owner
+                ),
+                Balance.from_rao(0),  # default to 0 if no owner stake.
+            )
+            if delegate[0].hotkey_ss58 in registered_delegate_info:
+                delegate_name = registered_delegate_info[delegate[0].hotkey_ss58].name
+                delegate_url = registered_delegate_info[delegate[0].hotkey_ss58].url
+                delegate_description = registered_delegate_info[
+                    delegate[0].hotkey_ss58
+                ].description
+            else:
+                delegate_name = ""
+                delegate_url = ""
+                delegate_description = ""
+
+            if delegate[0].hotkey_ss58 in my_delegates:
+                table.add_row(
+                    wallet.name,
+                    Text(delegate_name, style=f"link {delegate_url}"),
+                    f"{delegate[0].hotkey_ss58:8.8}...",
+                    f"{my_delegates[delegate[0].hotkey_ss58]!s:13.13}",
+                    f"{delegate[0].total_daily_return.tao * (my_delegates[delegate[0].hotkey_ss58]/delegate[0].total_stake.tao)!s:6.6}",
+                    str(len(delegate[0].nominators)),
+                    f"{owner_stake!s:13.13}",
+                    f"{delegate[0].total_stake!s:13.13}",
+                    str(delegate[0].registrations),
+                    str(
+                        [
+                            "*" if subnet in delegate[0].validator_permits else ""
+                            for subnet in delegate[0].registrations
+                        ]
+                    ),
+                    # f'{delegate.take * 100:.1f}%',s
+                    f"{ delegate[0].total_daily_return.tao * ( 1000 / ( 0.001 + delegate[0].total_stake.tao ) )!s:6.6}",
+                    str(delegate_description),
+                    # f'{delegate_profile.description:140.140}',
+                )
+
+    console.print(table)
+    console.print(f"Total delegated Tao: {total_delegated}")

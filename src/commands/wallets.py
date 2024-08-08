@@ -150,7 +150,7 @@ def wallet_create(
     )
 
 
-def _get_coldkey_wallets_for_path(path: str) -> list[Wallet]:
+def get_coldkey_wallets_for_path(path: str) -> list[Wallet]:
     """Get all coldkey wallet names from path."""
     try:
         wallet_names = next(os.walk(os.path.expanduser(path)))[1]
@@ -1204,7 +1204,7 @@ async def inspect(
                     ]
 
     if all_wallets:
-        wallets = _get_coldkey_wallets_for_path(wallet.path)
+        wallets = get_coldkey_wallets_for_path(wallet.path)
         all_hotkeys = get_all_wallets_for_path(
             wallet.path
         )  # TODO verify this is correct

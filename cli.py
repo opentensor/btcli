@@ -1941,6 +1941,76 @@ class CLIManager:
             root.delegate_unstake(wallet, self.not_subtensor, amount, delegate_ss58key)
         )
 
+    def root_my_delegates(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        all_wallets: bool = typer.Option(
+            False,
+            "all-wallets",
+            "--all",
+            "-a",
+            help="If specified, the command aggregates information across all wallets.",
+        ),
+    ):
+        """
+        # root my-delegates
+        Executes the `my-delegates` command within the Bittensor CLI, which retrieves and displays a table of delegated
+        stakes from a user's wallet(s) to various delegates on the Bittensor network.
+
+        The command provides detailed insights into the user's
+        staking activities and the performance of their chosen delegates.
+
+        The table output includes the following columns:
+
+        - Wallet: The name of the user's wallet.
+
+        - OWNER: The name of the delegate's owner.
+
+        - SS58: The truncated SS58 address of the delegate.
+
+        - Delegation: The amount of Tao staked by the user to the delegate.
+
+        - τ/24h: The earnings from the delegate to the user over the past 24 hours.
+
+        - NOMS: The number of nominators for the delegate.
+
+        - OWNER STAKE(τ): The stake amount owned by the delegate.
+
+        - TOTAL STAKE(τ): The total stake amount held by the delegate.
+
+        - SUBNETS: The list of subnets the delegate is a part of.
+
+        - VPERMIT: Validator permits held by the delegate for various subnets.
+
+        - 24h/kτ: Earnings per 1000 Tao staked over the last 24 hours.
+
+        - Desc: A description of the delegate.
+
+
+        The command also sums and prints the total amount of Tao delegated across all wallets.
+
+        ## Usage:
+        The command can be run as part of the Bittensor CLI suite of tools and requires no parameters if a single wallet
+        is used. If multiple wallets are present, the `--all` flag can be specified to aggregate information across
+        all wallets.
+
+        ### Example usage:
+
+        ```
+        btcli root my-delegates
+        btcli root my-delegates --all
+        btcli root my-delegates --wallet-name my_wallet
+
+        ```
+
+        #### Note:
+        This function is typically called by the CLI parser and is not intended to be used directly in user code.
+        """
+
     def run(self):
         self.app()
 
