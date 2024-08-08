@@ -221,7 +221,8 @@ class CLIManager:
         self.root_app.command("register")(self.root_register)
         self.root_app.command("proposals")(self.root_proposals)
         self.root_app.command("set-take")(self.root_set_take)
-        self.root_app.command("set-delegate")(self.root_set_delegate)
+        self.root_app.command("delegate-stake")(self.root_delegate_stake)
+        self.root_app.command("undelegate-stake")(self.root_undelegate_stake)
 
     def initialize_chain(
         self,
@@ -1807,7 +1808,7 @@ class CLIManager:
         self.initialize_chain(network, chain)
         return self._run_command(root.set_take(wallet, self.not_subtensor, take))
 
-    def root_set_delegate(
+    def root_delegate_stake(
         self,
         delegate_ss58key: str = typer.Option(
             None, help="The `SS58` address of the delegate to stake to.", prompt=True
@@ -1829,8 +1830,8 @@ class CLIManager:
         chain: Optional[str] = Options.chain,
     ):
         """
-        # root set-delegate
-        Executes the `delegate` command, which stakes Tao to a specified delegate on the Bittensor network.
+        # root delegate-stake
+        Executes the `delegate-stake` command, which stakes Tao to a specified delegate on the Bittensor network.
 
         This action allocates the user's Tao to support a delegate, potentially earning staking rewards in return.
 
@@ -1845,9 +1846,9 @@ class CLIManager:
         ### Example usage:
 
         ```
-        btcli delegate --delegate_ss58key <SS58_ADDRESS> --amount <AMOUNT>
+        btcli delegate-stake --delegate_ss58key <SS58_ADDRESS> --amount <AMOUNT>
 
-        btcli delegate --delegate_ss58key <SS58_ADDRESS> --all
+        btcli delegate-stake --delegate_ss58key <SS58_ADDRESS> --all
         ```
 
 
@@ -1861,7 +1862,7 @@ class CLIManager:
             err_console.print(
                 "`--amount` and `--all` specified. Choose one or the other."
             )
-        if stake_all and not amount:
+        if not stake_all and not amount:
             amount = typer.prompt(
                 "How much would you like to stake, in TAO?",
                 confirmation_prompt="Confirm you wish to stake: τ",
@@ -1870,6 +1871,75 @@ class CLIManager:
         self.initialize_chain(network, chain)
         return self._run_command(
             root.delegate_stake(wallet, self.not_subtensor, amount, delegate_ss58key)
+        )
+
+    def root_undelegate_stake(
+        self,
+        delegate_ss58key: str = typer.Option(
+            None,
+            help="The `SS58` address of the delegate to undelegate from.",
+            prompt=True,
+        ),
+        amount: Optional[float] = typer.Option(
+            None, help="The amount of Tao to unstake. Do no specify if using `--all`"
+        ),
+        unstake_all: Optional[bool] = typer.Option(
+            False,
+            "--all",
+            "-a",
+            help="If specified, the command undelegates all staked Tao from the delegate. Do not specify if using"
+            " `--amount`",
+        ),
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+    ):
+        """
+        Executes the ``undelegate`` command, allowing users to withdraw their staked Tao from a delegate on the Bittensor
+        network.
+
+        This process is known as "undelegating" and it reverses the delegation process, freeing up the staked tokens.
+
+        Optional Arguments:
+            - ``wallet.name``: The name of the wallet to use for the command.
+            - ``delegate_ss58key``: The ``SS58`` address of the delegate to undelegate from.
+            - ``amount``: The amount of Tao to undelegate.
+            - ``all``: If specified, the command undelegates all staked Tao from the delegate.
+
+        The command prompts the user for the amount of Tao to undelegate and the ``SS58`` address of the delegate from which
+        to undelegate. If the ``--all`` flag is used, it will attempt to undelegate the entire staked amount from the
+        specified delegate.
+
+        Usage:
+            The user must provide the delegate's SS58 address and the amount of Tao to undelegate. The function will then
+            send a transaction to the Bittensor network to process the undelegation.
+
+        Example usage::
+
+            btcli undelegate --delegate_ss58key <SS58_ADDRESS> --amount <AMOUNT>
+            btcli undelegate --delegate_ss58key <SS58_ADDRESS> --all
+
+        Note:
+            This command can result in a change to the blockchain state and may incur transaction fees. It is interactive
+            and requires confirmation from the user before proceeding. It should be used with care as undelegating can
+            affect the delegate's total stake and
+            potentially the user's staking rewards.
+        """
+        if amount and unstake_all:
+            err_console.print(
+                "`--amount` and `--all` specified. Choose one or the other."
+            )
+        if not unstake_all and not amount:
+            amount = typer.prompt(
+                "How much would you like to unstake, in TAO?",
+                confirmation_prompt="Confirm you wish to unstake: τ",
+            )
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        self.initialize_chain(network, chain)
+        self._run_command(
+            root.delegate_unstake(wallet, self.not_subtensor, amount, delegate_ss58key)
         )
 
     def run(self):
