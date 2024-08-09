@@ -412,7 +412,7 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
             console.print(table)
 
             command = (
-                "btcli stake set_children --children <child_hotkey> --hotkey <parent_hotkey> "
+                "btcli stake set-children --children <child_hotkey> --hotkey <parent_hotkey> "
                 f"--netuid {nuid} --proportion <float>"
             )
             console.print(f"There are currently no child hotkeys on subnet {nuid}.")
