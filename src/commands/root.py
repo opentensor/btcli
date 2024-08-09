@@ -9,6 +9,7 @@ from rich.prompt import Confirm
 from rich.table import Table, Column
 from rich.text import Text
 from scalecodec import ScaleType, GenericCall
+from substrateinterface.exceptions import SubstrateRequestException
 
 from src import DelegatesDetails
 from src.bittensor.balances import Balance
@@ -1371,7 +1372,7 @@ async def my_delegates(
             ),
             get_delegates_details_from_github(Constants.delegates_detail_url),
         )
-        if registered_delegate_info is None:
+        if not registered_delegate_info:
             console.print(
                 ":warning:[yellow]Could not get delegate info from chain.[/yellow]"
             )
@@ -1437,3 +1438,160 @@ async def my_delegates(
 
     console.print(table)
     console.print(f"Total delegated Tao: {total_delegated}")
+
+
+async def list_delegates(subtensor: SubtensorInterface):
+    """List all delegates on the network."""
+
+    with console.status(":satellite: Loading delegates..."):
+        async with subtensor:
+            block_hash, registered_delegate_info = await asyncio.gather(
+                subtensor.substrate.get_chain_head(),
+                get_delegates_details_from_github(Constants.delegates_detail_url),
+            )
+            block_number = await subtensor.substrate.get_block_number(block_hash)
+            delegates: list[DelegateInfo] = await subtensor.get_delegates(
+                block_hash=block_hash
+            )
+
+            try:
+                prev_block_hash = await subtensor.substrate.get_block_hash(
+                    max(0, block_number - 1200)
+                )
+                prev_delegates = subtensor.get_delegates(block_hash=prev_block_hash)
+            except SubstrateRequestException:
+                prev_delegates = None
+
+    await subtensor.substrate.close()
+
+    if prev_delegates is None:
+        err_console.print(
+            ":warning: [yellow]Could not fetch delegates history[/yellow]"
+        )
+
+    delegates.sort(key=lambda d: d.total_stake, reverse=True)
+    prev_delegates_dict = {}
+    if prev_delegates is not None:
+        for prev_delegate in prev_delegates:
+            prev_delegates_dict[prev_delegate.hotkey_ss58] = prev_delegate
+
+    if not registered_delegate_info:
+        console.print(
+            ":warning:[yellow]Could not get delegate info from chain.[/yellow]"
+        )
+
+    table = Table(
+        Column(
+            "[overline white]INDEX",
+            str(len(delegates)),
+            footer_style="overline white",
+            style="bold white",
+        ),
+        Column(
+            "[overline white]DELEGATE",
+            style="rgb(50,163,219)",
+            no_wrap=True,
+            justify="left",
+        ),
+        Column(
+            "[overline white]SS58",
+            str(len(delegates)),
+            footer_style="overline white",
+            style="bold yellow",
+        ),
+        Column(
+            "[overline white]NOMINATORS", justify="center", style="green", no_wrap=True
+        ),
+        Column("[overline white]DELEGATE STAKE(\u03c4)", justify="right", no_wrap=True),
+        Column(
+            "[overline white]TOTAL STAKE(\u03c4)",
+            justify="right",
+            style="green",
+            no_wrap=True,
+        ),
+        Column("[overline white]CHANGE/(4h)", style="grey0", justify="center"),
+        Column("[overline white]VPERMIT", justify="right", no_wrap=False),
+        Column("[overline white]TAKE", style="white", no_wrap=True),
+        Column(
+            "[overline white]NOMINATOR/(24h)/k\u03c4", style="green", justify="center"
+        ),
+        Column("[overline white]DELEGATE/(24h)", style="green", justify="center"),
+        Column("[overline white]Desc", style="rgb(50,163,219)"),
+        show_footer=True,
+        width=None,
+        pad_edge=False,
+        box=None,
+        expand=True,
+    )
+
+    for i, delegate in enumerate(delegates):
+        owner_stake = next(
+            (
+                stake
+                for owner, stake in delegate.nominators
+                if owner == delegate.owner_ss58
+            ),
+            Balance.from_rao(0),  # default to 0 if no owner stake.
+        )
+        if delegate.hotkey_ss58 in registered_delegate_info:
+            delegate_name = registered_delegate_info[delegate.hotkey_ss58].name
+            delegate_url = registered_delegate_info[delegate.hotkey_ss58].url
+            delegate_description = registered_delegate_info[
+                delegate.hotkey_ss58
+            ].description
+        else:
+            delegate_name = ""
+            delegate_url = ""
+            delegate_description = ""
+
+        if delegate.hotkey_ss58 in prev_delegates_dict:
+            prev_stake = prev_delegates_dict[delegate.hotkey_ss58].total_stake
+            if prev_stake == 0:
+                rate_change_in_stake_str = "[green]100%[/green]"
+            else:
+                rate_change_in_stake = (
+                    100
+                    * (float(delegate.total_stake) - float(prev_stake))
+                    / float(prev_stake)
+                )
+                if rate_change_in_stake > 0:
+                    rate_change_in_stake_str = "[green]{:.2f}%[/green]".format(
+                        rate_change_in_stake
+                    )
+                elif rate_change_in_stake < 0:
+                    rate_change_in_stake_str = "[red]{:.2f}%[/red]".format(
+                        rate_change_in_stake
+                    )
+                else:
+                    rate_change_in_stake_str = "[grey0]0%[/grey0]"
+        else:
+            rate_change_in_stake_str = "[grey0]NA[/grey0]"
+
+        table.add_row(
+            # INDEX
+            str(i),
+            # DELEGATE
+            Text(delegate_name, style=f"link {delegate_url}"),
+            # SS58
+            f"{delegate.hotkey_ss58:8.8}...",
+            # NOMINATORS
+            str(len([nom for nom in delegate.nominators if nom[1].rao > 0])),
+            # DELEGATE STAKE
+            f"{owner_stake!s:13.13}",
+            # TOTAL STAKE
+            f"{delegate.total_stake!s:13.13}",
+            # CHANGE/(4h)
+            rate_change_in_stake_str,
+            # VPERMIT
+            str(delegate.registrations),
+            # TAKE
+            f"{delegate.take * 100:.1f}%",
+            # NOMINATOR/(24h)/k
+            f"{Balance.from_tao(delegate.total_daily_return.tao * (1000 / (0.001 + delegate.total_stake.tao)))!s:6.6}",
+            # DELEGATE/(24h)
+            f"{Balance.from_tao(delegate.total_daily_return.tao * 0.18) !s:6.6}",
+            # Desc
+            str(delegate_description),
+            end_section=True,
+        )
+    console.print(table)

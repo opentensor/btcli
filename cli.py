@@ -224,6 +224,7 @@ class CLIManager:
         self.root_app.command("delegate-stake")(self.root_delegate_stake)
         self.root_app.command("undelegate-stake")(self.root_undelegate_stake)
         self.root_app.command("my-delegates")(self.root_my_delegates)
+        self.root_app.command("list-delegates")(self.root_list_delegates)
 
     def initialize_chain(
         self,
@@ -2014,6 +2015,63 @@ class CLIManager:
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         self.initialize_chain(network, chain)
         self._run_command(root.my_delegates(wallet, self.not_subtensor, all_wallets))
+
+    def root_list_delegates(self):
+        """
+        # root list-delegates
+        Displays a formatted table of Bittensor network delegates, providing a comprehensive overview of delegate
+        statistics and information.
+
+        This table helps users make informed decisions on which delegates to allocate their TAO stake.
+
+        The table columns include:
+
+        - INDEX: The delegate's index in the sorted list.
+
+        - DELEGATE: The name of the delegate.
+
+        - SS58: The delegate's unique SS58 address (truncated for display).
+
+        - NOMINATORS: The count of nominators backing the delegate.
+
+        - DELEGATE STAKE(τ): The amount of delegate's own stake (not the TAO delegated from any nominators).
+
+        - TOTAL STAKE(τ): The delegate's cumulative stake, including self-staked and nominators' stakes.
+
+        - CHANGE/(4h): The percentage change in the delegate's stake over the last four hours.
+
+        - SUBNETS: The subnets to which the delegate is registered.
+
+        - VPERMIT: Indicates the subnets for which the delegate has validator permits.
+
+        - NOMINATOR/(24h)/kτ: The earnings per 1000 τ staked by nominators in the last 24 hours.
+
+        - DELEGATE/(24h): The total earnings of the delegate in the last 24 hours.
+
+        - DESCRIPTION: A brief description of the delegate's purpose and operations.
+
+
+        Sorting is done based on the `TOTAL STAKE` column in descending order. Changes in stake are highlighted:
+        increases in green and decreases in red. Entries with no previous data are marked with ``NA``. Each delegate's
+        name is a hyperlink to their respective URL, if available.
+
+        ### Example usage:
+
+        ```
+        btcli root list_delegates
+
+        btcli root list_delegates --wallet.name my_wallet
+
+        btcli root list_delegates --subtensor.network finney # can also be `test` or `local`
+
+        ```
+
+        #### Note:
+        This function is part of the Bittensor CLI tools and is intended for use within a console application. It prints
+        directly to the console and does not return any value.
+        """
+        self.initialize_chain("archive", "wss://archive.chain.opentensor.ai:443")
+        return self._run_command(root.list_delegates(self.not_subtensor))
 
     def run(self):
         self.app()
