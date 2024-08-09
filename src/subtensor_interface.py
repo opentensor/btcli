@@ -241,7 +241,7 @@ class SubtensorInterface:
     async def get_balance(
         self,
         *addresses: str,
-        block_hash: Optional[str] = None,
+        block_hash: Optional[int] = None,
         reuse_block: bool = False,
     ) -> dict[str, Balance]:
         """
