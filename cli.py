@@ -2252,10 +2252,10 @@ class CLIManager:
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
         netuid: int = Options.netuid,
-        children: list[str] = typer.Option(
+        children: list[str] = typer.Option(   # TODO not currently working correctly.
             [], "--children", "-c", help="Enter children hotkeys (ss58)", prompt=True
         ),
-        proportions: list[float] = typer.Option(
+        proportions: list[float] = typer.Option(  # TODO not currently working correctly.
             [],
             "--proportions",
             "-p",
