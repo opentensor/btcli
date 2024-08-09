@@ -1374,8 +1374,6 @@ async def swap_hotkey_extrinsic(
     subtensor: "SubtensorInterface",
     wallet: Wallet,
     new_wallet: Wallet,
-    wait_for_inclusion: bool = False,
-    wait_for_finalization: bool = True,
     prompt: bool = False,
 ) -> bool:
     """
@@ -1383,37 +1381,6 @@ async def swap_hotkey_extrinsic(
 
     :return: Success
     """
-
-    async def _do_swap_hotkey():
-        async with subtensor:
-            call = await subtensor.substrate.compose_call(
-                call_module="SubtensorModule",
-                call_function="swap_hotkey",
-                call_params={
-                    "hotkey": wallet.hotkey.ss58_address,
-                    "new_hotkey": new_wallet.hotkey.ss58_address,
-                },
-            )
-            extrinsic = await subtensor.substrate.create_signed_extrinsic(
-                call=call, keypair=wallet.coldkey
-            )
-            response = await subtensor.substrate.submit_extrinsic(
-                extrinsic,
-                wait_for_inclusion=wait_for_inclusion,
-                wait_for_finalization=wait_for_finalization,
-            )
-
-        # We only wait here if we expect finalization.
-        if not wait_for_finalization and not wait_for_inclusion:
-            return True, None
-
-        # process if registration successful, try again if pow is still valid
-        response.process_events()
-        if not response.is_success:
-            return False, format_error_message(response.error_message)
-        # Successful registration
-        else:
-            return True, None
 
     wallet.unlock_coldkey()  # unlock coldkey
     if prompt:
@@ -1424,7 +1391,16 @@ async def swap_hotkey_extrinsic(
             return False
 
     with console.status(":satellite: Swapping hotkeys..."):
-        success, err_msg = await _do_swap_hotkey()
+        async with subtensor:
+            call = await subtensor.substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function="swap_hotkey",
+                call_params={
+                    "hotkey": wallet.hotkey.ss58_address,
+                    "new_hotkey": new_wallet.hotkey.ss58_address,
+                },
+            )
+            success, err_msg = await subtensor.sign_and_send_extrinsic(call, wallet)
 
         if success:
             console.print(

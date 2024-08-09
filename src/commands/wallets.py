@@ -485,9 +485,9 @@ async def overview(
     all_wallets: bool = False,
     sort_by: Optional[str] = None,
     sort_order: Optional[str] = None,
-    include_hotkeys: Optional[list] = None,
-    exclude_hotkeys: Optional[list] = None,
-    netuids_filter: Optional[list] = None,
+    include_hotkeys: Optional[list[str]] = None,
+    exclude_hotkeys: Optional[list[str]] = None,
+    netuids_filter: Optional[list[int]] = None,
 ):
     """Prints an overview for the wallet's coldkey."""
 
@@ -1344,8 +1344,8 @@ def set_id_prompts() -> tuple[str, str, str, str, str, str, str, str, str, bool]
     :return: (display_name, legal_name, web_url, riot_handle, email,pgp_fingerprint, image_url, info_, twitter_url,
              validator_id)
     """
-    display_name = (
-        Prompt.ask("Display Name: The display name for the identity.", default=""),
+    display_name = Prompt.ask(
+        "Display Name: The display name for the identity.", default=""
     )
     legal_name = Prompt.ask("Legal Name: The legal name for the identity.", default="")
     web_url = Prompt.ask("Web URL: The web url for the identity.", default="")
@@ -1420,27 +1420,16 @@ async def set_id(
 
     with console.status(":satellite: [bold green]Updating identity on-chain..."):
         async with subtensor:
-            try:
-                call = await subtensor.substrate.compose_call(
-                    call_module="Registry",
-                    call_function="set_identity",
-                    call_params=id_dict,
-                )
-                extrinsic = await subtensor.substrate.create_signed_extrinsic(
-                    call=call, keypair=wallet.coldkey
-                )
-                response = await subtensor.substrate.submit_extrinsic(
-                    extrinsic,
-                    wait_for_inclusion=True,
-                    wait_for_finalization=False,
-                )
-                response.process_events()
-                if not response.is_success:
-                    raise Exception(response.error_message)
+            call = await subtensor.substrate.compose_call(
+                call_module="Registry",
+                call_function="set_identity",
+                call_params=id_dict,
+            )
+            success, err_msg = await subtensor.sign_and_send_extrinsic(call, wallet)
 
-            except Exception as e:
-                console.print(f"[red]:cross_mark: Failed![/red] {e}")
-                typer.Exit(1)
+            if not success:
+                err_console.print(f"[red]:cross_mark: Failed![/red] {err_msg}")
+                return
 
             console.print(":white_heavy_check_mark: Success!")
             identity = await subtensor.query_identity(

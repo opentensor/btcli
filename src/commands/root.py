@@ -499,7 +499,7 @@ async def delegate_extrinsic(
     subtensor: SubtensorInterface,
     wallet: Wallet,
     delegate_ss58: Optional[str] = None,
-    amount: Optional[Balance] = None,
+    amount: Balance = None,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt: bool = False,
@@ -634,7 +634,7 @@ async def delegate_extrinsic(
     with console.status(
         f":satellite: Staking to: [bold white]{subtensor}[/bold white] ..."
     ):
-        staking_response, err_msg = _do_delegation()
+        staking_response, err_msg = await _do_delegation()
 
     if staking_response is True:  # If we successfully staked.
         # We only wait here if we expect finalization.
@@ -838,7 +838,7 @@ async def get_weights(subtensor: SubtensorInterface):
     """Get weights for root network."""
     with console.status(":satellite: Synchronizing with chain..."):
         async with subtensor:
-            weights = subtensor.weights(0)
+            weights = await subtensor.weights(0)
 
     await subtensor.substrate.close()
 
@@ -1266,7 +1266,7 @@ async def delegate_stake(
             subtensor,
             wallet,
             delegate_ss58key,
-            amount,
+            Balance.from_tao(amount),
             wait_for_inclusion=True,
             prompt=True,
             delegate=True,
@@ -1277,7 +1277,7 @@ async def delegate_stake(
 async def delegate_unstake(
     wallet: Wallet,
     subtensor: SubtensorInterface,
-    amount: Optional[float],
+    amount: float,
     delegate_ss58key: str,
 ):
     """Undelegates stake from a chain delegate."""
@@ -1286,7 +1286,7 @@ async def delegate_unstake(
             subtensor,
             wallet,
             delegate_ss58key,
-            amount,
+            Balance.from_tao(amount),
             wait_for_inclusion=True,
             prompt=True,
             delegate=False,
@@ -1455,7 +1455,9 @@ async def list_delegates(subtensor: SubtensorInterface):
                 prev_block_hash = await subtensor.substrate.get_block_hash(
                     max(0, block_number - 1200)
                 )
-                prev_delegates = subtensor.get_delegates(block_hash=prev_block_hash)
+                prev_delegates = await subtensor.get_delegates(
+                    block_hash=prev_block_hash
+                )
             except SubstrateRequestException:
                 prev_delegates = None
 

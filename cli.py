@@ -94,10 +94,12 @@ def get_n_words(n_words: Optional[int]) -> int:
     acceptable criteria of [12, 15, 18, 21, 24]
     """
     while n_words not in [12, 15, 18, 21, 24]:
-        n_words: int = Prompt.ask(
-            "Choose number of words: 12, 15, 18, 21, 24",
-            choices=[12, 15, 18, 21, 24],
-            default=12,
+        n_words: int = int(
+            Prompt.ask(
+                "Choose number of words: 12, 15, 18, 21, 24",
+                choices=["12", "15", "18", "21", "24"],
+                default=12,
+            )
         )
     return n_words
 
@@ -229,9 +231,9 @@ class CLIManager:
 
     def initialize_chain(
         self,
-        network: str = typer.Option("default_network", help="Network name"),
-        chain: str = typer.Option("default_chain", help="Chain name"),
-    ) -> None:
+        network: Optional[str] = typer.Option("default_network", help="Network name"),
+        chain: Optional[str] = typer.Option("default_chain", help="Chain name"),
+    ) -> SubtensorInterface:
         """
         Intelligently initializes a connection to the chain, depending on the supplied (or in config) values. Set's the
         `self.not_subtensor` object to this created connection.
@@ -251,6 +253,7 @@ class CLIManager:
                     defaults.subtensor.network, defaults.subtensor.chain_endpoint
                 )
         console.print(f"[yellow] Connected to [/yellow][white]{self.not_subtensor}")
+        return self.not_subtensor
 
     def _run_command(self, cmd: Coroutine) -> None:
         """
@@ -347,9 +350,9 @@ class CLIManager:
 
     def wallet_ask(
         self,
-        wallet_name: str,
-        wallet_path: str,
-        wallet_hotkey: str,
+        wallet_name: Optional[str],
+        wallet_path: Optional[str],
+        wallet_hotkey: Optional[str],
         validate: bool = True,
     ) -> Wallet:
         """
@@ -424,7 +427,7 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        all_wallets: Optional[bool] = typer.Option(
+        all_wallets: bool = typer.Option(
             False, "--all", "-a", help="View overview for all wallets"
         ),
         sort_by: Optional[str] = typer.Option(
@@ -527,11 +530,10 @@ class CLIManager:
                     "Enter the path of the wallets", default=defaults.wallet.path
                 )
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        self.initialize_chain(network, chain)
         return self._run_command(
             wallets.overview(
                 wallet,
-                self.not_subtensor,
+                self.initialize_chain(network, chain),
                 all_wallets,
                 sort_by,
                 sort_order,
@@ -1171,51 +1173,51 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
-        display_name: Optional[str] = typer.Option(
+        display_name: str = typer.Option(
             "",
             "--display-name",
             "--display",
             help="The display name for the identity.",
             prompt=True,
         ),
-        legal_name: Optional[str] = typer.Option(
+        legal_name: str = typer.Option(
             "",
             "--legal-name",
             "--legal",
             help="The legal name for the identity.",
             prompt=True,
         ),
-        web_url: Optional[str] = typer.Option(
+        web_url: str = typer.Option(
             "", "--web-url", "--web", help="The web url for the identity.", prompt=True
         ),
-        riot_handle: Optional[str] = typer.Option(
+        riot_handle: str = typer.Option(
             "",
             "--riot-handle",
             "--riot",
             help="The riot handle for the identity.",
             prompt=True,
         ),
-        email: Optional[str] = typer.Option(
+        email: str = typer.Option(
             "", help="The email address for the identity.", prompt=True
         ),
-        pgp_fingerprint: Optional[str] = typer.Option(
+        pgp_fingerprint: str = typer.Option(
             "",
             "--pgp-fingerprint",
             "--pgp",
             help="The pgp fingerprint for the identity.",
             prompt=True,
         ),
-        image_url: Optional[str] = typer.Option(
+        image_url: str = typer.Option(
             "",
             "--image-url",
             "--image",
             help="The image url for the identity.",
             prompt=True,
         ),
-        info_: Optional[str] = typer.Option(
+        info_: str = typer.Option(
             "", "--info", "-i", help="The info for the identity.", prompt=True
         ),
-        twitter_url: Optional[str] = typer.Option(
+        twitter_url: str = typer.Option(
             "",
             "-x",
             "-𝕏",
@@ -1224,7 +1226,7 @@ class CLIManager:
             help="The 𝕏 (Twitter) url for the identity.",
             prompt=True,
         ),
-        validator_id: Optional[bool] = typer.Option(
+        validator_id: bool = typer.Option(
             "--validator/--not-validator",
             help="Are you updating a validator hotkey identity?",
             prompt=True,
@@ -1381,8 +1383,9 @@ class CLIManager:
         Bittensor network's root layer. It provides insights into which neurons hold significant influence and
         responsibility within the network.
         """
-        self.initialize_chain(network, chain)
-        return self._run_command(root.root_list(subtensor=self.not_subtensor))
+        return self._run_command(
+            root.root_list(subtensor=self.initialize_chain(network, chain))
+        )
 
     def root_set_weights(
         self,
@@ -1620,9 +1623,10 @@ class CLIManager:
         ```
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        self.initialize_chain(network, chain)
         return self._run_command(
-            root.set_boost(wallet, self.not_subtensor, netuid, amount)
+            root.set_boost(
+                wallet, self.initialize_chain(network, chain), netuid, amount
+            )
         )
 
     def root_senate_vote(
@@ -1688,14 +1692,13 @@ class CLIManager:
         This command is particularly useful for users interested in the governance structure and participants of the
         Bittensor network. It provides transparency into the network's decision-making body.
         """
-        self.initialize_chain(network, chain)
-        return self._run_command(root.get_senate(self.not_subtensor))
+        return self._run_command(root.get_senate(self.initialize_chain(network, chain)))
 
     def root_register(
         self,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
-        netuid: str = Options.netuid,
+        netuid: int = Options.netuid,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
@@ -1748,8 +1751,9 @@ class CLIManager:
         wallet is sufficiently funded before attempting to register a neuron.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        self.initialize_chain(network, chain)
-        return self._run_command(root.register(wallet, self.not_subtensor, netuid))
+        return self._run_command(
+            root.register(wallet, self.initialize_chain(network, chain), netuid)
+        )
 
     def root_proposals(
         self,
@@ -1777,8 +1781,7 @@ class CLIManager:
         Bittensor network. It provides a detailed view of the proposals being considered, along with the community's
         response to each.
         """
-        self.initialize_chain(network, chain)
-        return self._run_command(root.proposals(self.not_subtensor))
+        return self._run_command(root.proposals(self.initialize_chain(network, chain)))
 
     def root_set_take(
         self,
@@ -1808,8 +1811,9 @@ class CLIManager:
         This function can be used to update the takes individually for every subnet
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        self.initialize_chain(network, chain)
-        return self._run_command(root.set_take(wallet, self.not_subtensor, take))
+        return self._run_command(
+            root.set_take(wallet, self.initialize_chain(network, chain), take)
+        )
 
     def root_delegate_stake(
         self,
@@ -1871,9 +1875,10 @@ class CLIManager:
                 confirmation_prompt="Confirm you wish to stake: τ",
             )
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        self.initialize_chain(network, chain)
         return self._run_command(
-            root.delegate_stake(wallet, self.not_subtensor, amount, delegate_ss58key)
+            root.delegate_stake(
+                wallet, self.initialize_chain(network, chain), amount, delegate_ss58key
+            )
         )
 
     def root_undelegate_stake(
@@ -1939,9 +1944,10 @@ class CLIManager:
                 confirmation_prompt="Confirm you wish to unstake: τ",
             )
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        self.initialize_chain(network, chain)
         self._run_command(
-            root.delegate_unstake(wallet, self.not_subtensor, amount, delegate_ss58key)
+            root.delegate_unstake(
+                wallet, self.initialize_chain(network, chain), amount, delegate_ss58key
+            )
         )
 
     def root_my_delegates(
@@ -2014,8 +2020,11 @@ class CLIManager:
         This function is typically called by the CLI parser and is not intended to be used directly in user code.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        self.initialize_chain(network, chain)
-        self._run_command(root.my_delegates(wallet, self.not_subtensor, all_wallets))
+        self._run_command(
+            root.my_delegates(
+                wallet, self.initialize_chain(network, chain), all_wallets
+            )
+        )
 
     def root_list_delegates(self):
         """
@@ -2116,8 +2125,9 @@ class CLIManager:
         side effects on the network state.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        self.initialize_chain(network, chain)
-        return self._run_command(root.nominate(wallet, self.not_subtensor))
+        return self._run_command(
+            root.nominate(wallet, self.initialize_chain(network, chain))
+        )
 
     def run(self):
         self.app()

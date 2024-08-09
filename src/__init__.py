@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Any
 
 
 class Constants:
@@ -24,7 +25,7 @@ class DelegatesDetails:
     signature: str
 
     @classmethod
-    def from_json(cls, json: dict[str, any]) -> "DelegatesDetails":
+    def from_json(cls, json: dict[str, Any]) -> "DelegatesDetails":
         return cls(
             name=json["name"],
             url=json["url"],
