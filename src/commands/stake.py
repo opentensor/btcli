@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Union
 
 from bittensor_wallet import Wallet
 from rich.table import Table, Column
+from substrateinterface.exceptions import SubstrateRequestException
 
 from src import Constants
 from src.bittensor.balances import Balance
@@ -12,6 +13,7 @@ from src.utils import (
     get_hotkey_wallets_for_wallet,
     get_coldkey_wallets_for_path,
     console,
+    err_console,
 )
 
 if TYPE_CHECKING:
@@ -218,3 +220,127 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
                 "", "", value["name"], value["stake"], str(value["rate"]) + "/d"
             )
     console.print(table)
+
+
+async def get_children(wallet: Wallet, subtensor: SubtensorInterface, netuid: int):
+    async def _get_children(hotkey, nuid):
+        """
+        Get the children of a hotkey on a specific network.
+
+        :param hotkey: The hotkey to query.
+        :param nuid: The network ID.
+
+        :return: List of (proportion, child_address) tuples, or None if an error occurred.
+        """
+        try:
+            children = await subtensor.substrate.query(
+                module="SubtensorModule",
+                storage_function="ChildKeys",
+                params=[hotkey, netuid],
+            )
+            if children:
+                formatted_children = []
+                for proportion, child in children:
+                    # Convert U64 to int
+                    int_proportion = (
+                        proportion.value
+                        if hasattr(proportion, "value")
+                        else int(proportion)
+                    )
+                    formatted_children.append((int_proportion, child.value))
+                return formatted_children
+            else:
+                print("  No children found.")
+                return []
+        except SubstrateRequestException as e:
+            err_console.print(f"Error querying ChildKeys: {e}")
+            return None
+
+    async def get_total_stake_for_child_hk(child: tuple):
+        child_hotkey = child[1]
+        _result = await subtensor.substrate.query(
+            module="SubtensorModule",
+            storage_function="TotalHotkeyStake",
+            params=[child_hotkey],
+            reuse_block_hash=True,
+        )
+        return (
+            Balance.from_rao(_result.value)
+            if getattr(_result, "value", None)
+            else Balance(0)
+        )
+
+    async def render_table(
+        hk: str,
+        children: list[tuple[int, str]],
+        nuid: int,
+    ):
+        # Initialize Rich table for pretty printing
+        table = Table(
+            Column("Index", style="cyan", no_wrap=True, justify="right"),
+            Column("ChildHotkey", style="cyan", no_wrap=True),
+            Column("Proportion", style="cyan", no_wrap=True, justify="right"),
+            Column("Total Stake", style="cyan", no_wrap=True, justify="right"),
+            show_header=True,
+            header_style="bold magenta",
+            border_style="green",
+            style="green",
+        )
+
+        if not children:
+            console.print(table)
+
+            command = (
+                "btcli stake set_children --children <child_hotkey> --hotkey <parent_hotkey> "
+                f"--netuid {nuid} --proportion <float>"
+            )
+            console.print(f"There are currently no child hotkeys on subnet {nuid}.")
+            console.print(
+                f"To add a child hotkey you can run the command: [white]{command}[/white]"
+            )
+            return
+
+        console.print("ParentHotKey:", style="cyan", no_wrap=True)
+        console.print(hk)
+
+        # calculate totals
+        total_proportion = 0
+        total_stake = 0
+
+        children_info = []
+        child_stakes = await asyncio.gather(
+            *[get_total_stake_for_child_hk(c) for c in children]
+        )
+        for child, child_stake in zip(children, child_stakes):
+            proportion = child[0]
+            child_hotkey = child[1]
+
+            # add to totals
+            total_proportion += proportion
+            total_stake += child_stake
+
+            children_info.append((proportion, child_hotkey, child_stake))
+
+        children_info.sort(
+            key=lambda x: x[0], reverse=True
+        )  # sorting by proportion (highest first)
+
+        # add the children info to the table
+        for i, (proportion, hk, stake) in enumerate(children_info, 1):
+            table.add_row(
+                str(i),
+                hk,
+                str(proportion),
+                str(stake),
+            )
+
+        # add totals row
+        table.add_row("", "Total", str(total_proportion), str(total_stake), "")
+        console.print(table)
+
+    async with subtensor:
+        children_ = await _get_children(wallet.hotkey, netuid)
+
+        await render_table(wallet.hotkey, children_, netuid)
+
+    return children_

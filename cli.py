@@ -94,7 +94,7 @@ def get_n_words(n_words: Optional[int]) -> int:
     acceptable criteria of [12, 15, 18, 21, 24]
     """
     while n_words not in [12, 15, 18, 21, 24]:
-        n_words: int = int(
+        n_words = int(
             Prompt.ask(
                 "Choose number of words: 12, 15, 18, 21, 24",
                 choices=["12", "15", "18", "21", "24"],
@@ -2195,6 +2195,49 @@ class CLIManager:
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             stake.show(wallet, self.initialize_chain(network, chain), all_wallets)
+        )
+
+    def stake_get_children(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        wallet_path: Optional[str] = Options.wallet_path,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        netuid: int = Options.netuid,
+    ):
+        """
+        # stake get-children
+        Executes the `get_children_info` command to get all child hotkeys on a specified subnet on the Bittensor network.
+
+        This command is used to view delegated authority to different hotkeys on the subnet.
+
+        ## Usage:
+        Users can specify the subnet and see the children and the proportion that is given to them.
+
+        The command compiles a table showing:
+
+        - ChildHotkey: The hotkey associated with the child.
+
+        - ParentHotKey: The hotkey associated with the parent.
+
+        - Proportion: The proportion that is assigned to them.
+
+        - Expiration: The expiration of the hotkey.
+
+
+        ### Example usage:
+
+        ```
+            btcli stake get_children --netuid 1
+        ```
+
+        #### Note:
+        This command is for users who wish to see child hotkeys among different neurons (hotkeys) on the network.
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        return self._run_command(
+            stake.get_children(wallet, self.initialize_chain(network, chain), netuid)
         )
 
     def run(self):
