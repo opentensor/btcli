@@ -225,6 +225,7 @@ class CLIManager:
         self.root_app.command("undelegate-stake")(self.root_undelegate_stake)
         self.root_app.command("my-delegates")(self.root_my_delegates)
         self.root_app.command("list-delegates")(self.root_list_delegates)
+        self.root_app.command("nominate")(self.root_nominate)
 
     def initialize_chain(
         self,
@@ -2072,6 +2073,51 @@ class CLIManager:
         """
         self.initialize_chain("archive", "wss://archive.chain.opentensor.ai:443")
         return self._run_command(root.list_delegates(self.not_subtensor))
+
+    def root_nominate(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+    ):
+        """
+        # root nominate
+        Executes the `nominate` command, which facilitates a wallet to become a delegate on the Bittensor network.
+
+        This command handles the nomination process, including wallet unlocking and verification of the hotkey's current
+        delegate status.
+
+        The command performs several checks:
+
+        - Verifies that the hotkey is not already a delegate to prevent redundant nominations.
+
+        - Tries to nominate the wallet and reports success or failure.
+
+        Upon success, the wallet's hotkey is registered as a delegate on the network.
+
+        ## Usage:
+        To run the command, the user must have a configured wallet with both hotkey and coldkey. If the wallet is not
+        already nominated, this command will initiate the process.
+
+        ### Example usage:
+        ```
+
+        btcli root nominate
+
+        btcli root nominate --wallet.name my_wallet --wallet.hotkey my_hotkey
+
+        ```
+
+        #### Note:
+        This function is intended to be used as a CLI command. It prints the outcome directly to the console and does
+        not return any value. It should not be called programmatically in user code due to its interactive nature and
+        side effects on the network state.
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        self.initialize_chain(network, chain)
+        return self._run_command(root.nominate(wallet, self.not_subtensor))
 
     def run(self):
         self.app()

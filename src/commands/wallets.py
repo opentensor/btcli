@@ -11,7 +11,7 @@ from bittensor_wallet import Wallet
 from bittensor_wallet.keyfile import Keyfile
 from fuzzywuzzy import fuzz
 from rich.align import Align
-from rich.prompt import Confirm
+from rich.prompt import Confirm, Prompt
 from rich.table import Table, Column
 from rich.tree import Tree
 import scalecodec
@@ -1338,6 +1338,43 @@ async def swap_hotkey(
     )
 
 
+def set_id_prompts() -> tuple[str, str, str, str, str, str, str, str, str, bool]:
+    """
+    Used to prompt the user to input their info for setting the ID
+    :return: (display_name, legal_name, web_url, riot_handle, email,pgp_fingerprint, image_url, info_, twitter_url,
+             validator_id)
+    """
+    display_name = (
+        Prompt.ask("Display Name: The display name for the identity.", default=""),
+    )
+    legal_name = Prompt.ask("Legal Name: The legal name for the identity.", default="")
+    web_url = Prompt.ask("Web URL: The web url for the identity.", default="")
+    riot_handle = Prompt.ask(
+        "Riot Handle: The riot handle for the identity.", default=""
+    )
+    email = Prompt.ask("Email: The email address for the identity.", default="")
+    pgp_fingerprint = Prompt.ask(
+        "PGP Fingerprint: The pgp fingerprint for the identity.", default=""
+    )
+    image_url = Prompt.ask("Image URL: The image url for the identity.", default="")
+    info_ = Prompt.ask("Info: Info about the identity", default="")
+    twitter_url = Prompt.ask("𝕏 URL: The 𝕏 (Twitter) url for the identity.")
+    validator_id = Confirm.ask("Are you updating a validator hotkey identity?")
+
+    return (
+        display_name,
+        legal_name,
+        web_url,
+        riot_handle,
+        email,
+        pgp_fingerprint,
+        image_url,
+        info_,
+        twitter_url,
+        validator_id,
+    )
+
+
 async def set_id(
     wallet: Wallet,
     subtensor: SubtensorInterface,
@@ -1350,7 +1387,7 @@ async def set_id(
     image: str,
     twitter: str,
     info_: str,
-    validator_id,
+    validator_id: bool,
 ):
     """Create a new or update existing identity on-chain."""
 

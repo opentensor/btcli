@@ -15,7 +15,7 @@ from src import DelegatesDetails
 from src.bittensor.balances import Balance
 from src.bittensor.chain_data import NeuronInfoLite, DelegateInfo
 from src.bittensor.extrinsics.root import set_root_weights_extrinsic
-from src.commands.wallets import get_coldkey_wallets_for_path
+from src.commands.wallets import get_coldkey_wallets_for_path, set_id, set_id_prompts
 from src.subtensor_interface import SubtensorInterface
 from src.utils import (
     console,
@@ -31,7 +31,9 @@ from src import Constants
 # helpers
 
 
-def display_votes(vote_data: "ProposalVoteData", delegate_info: DelegateInfo) -> str:
+def display_votes(
+    vote_data: "ProposalVoteData", delegate_info: dict[str, DelegatesDetails]
+) -> str:
     vote_list = list()
 
     for address in vote_data["ayes"]:
@@ -244,24 +246,12 @@ async def vote_senate_extrinsic(
                 "approve": vote,
             },
         )
-        extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey
+        success, err_msg = await subtensor.sign_and_send_extrinsic(
+            call, wallet, wait_for_inclusion, wait_for_finalization
         )
-        response = await subtensor.substrate.submit_extrinsic(
-            extrinsic,
-            wait_for_inclusion=wait_for_inclusion,
-            wait_for_finalization=wait_for_finalization,
-        )
-
-        # We only wait here if we expect finalization.
-        if not wait_for_finalization and not wait_for_inclusion:
-            return True
-
-        # process if vote successful
-        response.process_events()
-        if not response.is_success:
+        if not success:
             err_console.print(
-                f":cross_mark: [red]Failed[/red]: {format_error_message(response.error_message)}"
+                f":cross_mark: [red]Failed[/red]: {format_error_message(err_msg)}"
             )
             await asyncio.sleep(0.5)
             return False
@@ -312,36 +302,6 @@ async def burned_register_extrinsic(
              finalization/inclusion, the response is `True`.
     """
 
-    async def _do_burned_register() -> tuple[bool, Optional[str]]:
-        call = await subtensor.substrate.compose_call(
-            call_module="SubtensorModule",
-            call_function="burned_register",
-            call_params={
-                "netuid": netuid,
-                "hotkey": wallet.hotkey.ss58_address,
-            },
-        )
-        extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey
-        )
-        response = await subtensor.substrate.submit_extrinsic(
-            extrinsic,
-            wait_for_inclusion=wait_for_inclusion,
-            wait_for_finalization=wait_for_finalization,
-        )
-
-        # We only wait here if we expect finalization.
-        if not wait_for_finalization and not wait_for_inclusion:
-            return True, None
-
-        # process if registration successful, try again if pow is still valid
-        response.process_events()
-        if not response.is_success:
-            return False, format_error_message(response.error_message)
-        # Successful registration
-        else:
-            return True, None
-
     if not subtensor.subnet_exists(netuid):
         err_console.print(
             f":cross_mark: [red]Failed[/red]: error: [bold white]subnet:{netuid}[/bold white] does not exist."
@@ -379,7 +339,17 @@ async def burned_register_extrinsic(
             return False
 
     with console.status(":satellite: Recycling TAO for Registration..."):
-        success, err_msg = await _do_burned_register()
+        call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="burned_register",
+            call_params={
+                "netuid": netuid,
+                "hotkey": wallet.hotkey.ss58_address,
+            },
+        )
+        success, err_msg = subtensor.sign_and_send_extrinsic(
+            call, wallet, wait_for_inclusion, wait_for_finalization
+        )
 
     if not success:
         err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
@@ -566,22 +536,9 @@ async def delegate_extrinsic(
                 call_function="remove_stake",
                 call_params={"hotkey": delegate_ss58, "amount_unstaked": amount.rao},
             )
-        extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey
+        return await subtensor.sign_and_send_extrinsic(
+            call, wallet, wait_for_inclusion, wait_for_finalization
         )
-        response = await subtensor.substrate.submit_extrinsic(
-            extrinsic,
-            wait_for_inclusion=wait_for_inclusion,
-            wait_for_finalization=wait_for_finalization,
-        )
-        # We only wait here if we expect finalization.
-        if not wait_for_finalization and not wait_for_inclusion:
-            return True, ""
-        response.process_events()
-        if response.is_success:
-            return True, ""
-        else:
-            False, format_error_message(response.error_message)
 
     async def get_hotkey_owner(ss58: str, block_hash_: str):
         """Returns the coldkey owner of the passed hotkey."""
@@ -710,6 +667,46 @@ async def delegate_extrinsic(
     else:
         err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
         return False
+
+
+async def nominate_extrinsic(
+    subtensor: SubtensorInterface,
+    wallet: Wallet,
+    wait_for_finalization: bool = False,
+    wait_for_inclusion: bool = True,
+) -> bool:
+    """Becomes a delegate for the hotkey.
+
+    :param wallet: The unlocked wallet to become a delegate for.
+    :param subtensor: The SubtensorInterface to use for the transaction
+    :param wait_for_finalization: Wait for finalization or not
+    :param wait_for_inclusion: Wait for inclusion or not
+
+    :return: success
+    """
+    with console.status(
+        ":satellite: Sending nominate call on [white]{}[/white] ...".format(
+            subtensor.network
+        )
+    ):
+        call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="become_delegate",
+            call_params={"hotkey": wallet.hotkey.ss58_address},
+        )
+        success, err_msg = await subtensor.sign_and_send_extrinsic(
+            call,
+            wallet,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+        )
+
+        if success is True:
+            console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+
+        else:
+            err_console.print(f":cross_mark: [red]Failed[/red]: error:{err_msg}")
+        return success
 
 
 # Commands
@@ -1595,3 +1592,49 @@ async def list_delegates(subtensor: SubtensorInterface):
             end_section=True,
         )
     console.print(table)
+
+
+async def nominate(wallet: Wallet, subtensor: SubtensorInterface):
+    """Nominate wallet."""
+
+    # Unlock the wallet.
+    wallet.unlock_hotkey()
+    wallet.unlock_coldkey()
+
+    async with subtensor:
+        # Check if the hotkey is already a delegate.
+        if await subtensor.is_hotkey_delegate(wallet.hotkey.ss58_address):
+            err_console.print(
+                f"Aborting: Hotkey {wallet.hotkey.ss58_address} is already a delegate."
+            )
+            return
+
+        result: bool = await nominate_extrinsic(subtensor, wallet)
+        if not result:
+            err_console.print(
+                f"Could not became a delegate on [white]{subtensor.network}[/white]"
+            )
+            return
+        else:
+            # Check if we are a delegate.
+            is_delegate: bool = subtensor.is_hotkey_delegate(wallet.hotkey.ss58_address)
+            if not is_delegate:
+                err_console.print(
+                    f"Could not became a delegate on [white]{subtensor.network}[/white]"
+                )
+                return
+            console.print(
+                f"Successfully became a delegate on [white]{subtensor.network}[/white]"
+            )
+
+            # Prompt use to set identity on chain.
+            if not False:  # TODO no-prompt here
+                do_set_identity = Confirm.ask(
+                    "Subnetwork registered successfully. Would you like to set your identity? [y/n]"
+                )
+
+                if do_set_identity:
+                    id_prompts = set_id_prompts()
+                    await set_id(wallet, subtensor, *id_prompts)
+
+    await subtensor.substrate.close()

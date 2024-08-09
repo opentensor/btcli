@@ -4,6 +4,7 @@ from typing import Optional, Any, Union, TypedDict, Iterable
 import scalecodec
 from bittensor_wallet import Wallet
 from bittensor_wallet.utils import SS58_FORMAT
+from scalecodec import GenericCall
 from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
 
@@ -17,7 +18,7 @@ from src.bittensor.chain_data import (
 )
 from src.bittensor.balances import Balance
 from src import Constants, defaults, TYPE_REGISTRY
-from src.utils import ss58_to_vec_u8
+from src.utils import ss58_to_vec_u8, format_error_message
 
 
 class ParamWithTypes(TypedDict):
@@ -718,3 +719,27 @@ class SubtensorInterface:
             if getattr(result, "value", None) is None
             else result.value != "5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM"
         )
+
+    async def sign_and_send_extrinsic(
+        self,
+        call: GenericCall,
+        wallet: Wallet,
+        wait_for_inclusion: bool = True,
+        wait_for_finalization: bool = False,
+    ) -> tuple[bool, str]:
+        extrinsic = await self.substrate.create_signed_extrinsic(
+            call=call, keypair=wallet.coldkey
+        )  # sign with coldkey
+        response = await self.substrate.submit_extrinsic(
+            extrinsic,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+        )
+        # We only wait here if we expect finalization.
+        if not wait_for_finalization and not wait_for_inclusion:
+            return True, ""
+        response.process_events()
+        if response.is_success:
+            return True, ""
+        else:
+            return False, format_error_message(response.error_message)
