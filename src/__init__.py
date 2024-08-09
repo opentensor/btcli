@@ -153,7 +153,7 @@ TYPE_REGISTRY = {
                             "type": "u16",
                         },
                     ],
-                    "type": "Vec<Vec<u8>>",
+                    "type": "Vec<u8>",
                 }
             }
         },

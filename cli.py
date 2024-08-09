@@ -94,7 +94,7 @@ def get_n_words(n_words: Optional[int]) -> int:
     acceptable criteria of [12, 15, 18, 21, 24]
     """
     while n_words not in [12, 15, 18, 21, 24]:
-        n_words: int = int(
+        n_words = int(
             Prompt.ask(
                 "Choose number of words: 12, 15, 18, 21, 24",
                 choices=["12", "15", "18", "21", "24"],
