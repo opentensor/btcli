@@ -7,6 +7,7 @@ import typer
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm
 from rich.table import Table, Column
+from rich.text import Text
 from scalecodec import ScaleType, GenericCall
 
 from src import DelegatesDetails
@@ -1300,6 +1301,19 @@ async def my_delegates(
 ):
     """Delegates stake to a chain delegate."""
 
+    async def wallet_to_delegates(
+        w: Wallet, bh: str
+    ) -> tuple[Optional[Wallet], Optional[list[tuple[DelegateInfo, Balance]]]]:
+        """Helper function to retrieve the validity of the wallet (if it has a coldkeypub on the device)
+        and its delegate info."""
+        if not w.coldkeypub_file.exists_on_device():
+            return None, None
+        else:
+            delegates_ = await subtensor.get_delegated(
+                w.coldkeypub.ss58_address, block_hash=bh
+            )
+            return w, delegates_
+
     wallets = get_coldkey_wallets_for_path(wallet.path) if all_wallets else [wallet]
 
     table = Table(
@@ -1345,37 +1359,44 @@ async def my_delegates(
 
     total_delegated = 0
 
-    for wallet in tqdm(wallets):
-        if not wallet.coldkeypub_file.exists_on_device():
-            continue
-        delegates = subtensor.get_delegated(coldkey_ss58=wallet.coldkeypub.ss58_address)
-
-        my_delegates = {}  # hotkey, amount
-        for delegate in delegates:
-            for coldkey_addr, staked in delegate[0].nominators:
-                if coldkey_addr == wallet.coldkeypub.ss58_address and staked.tao > 0:
-                    my_delegates[delegate[0].hotkey_ss58] = staked
-
-        delegates.sort(key=lambda delegate: delegate[0].total_stake, reverse=True)
-        total_delegated += sum(my_delegates.values())
-
-        registered_delegate_info: Optional[
-            DelegatesDetails
-        ] = await get_delegates_details_from_github(Constants.delegates_detail_url)
+    async with subtensor:
+        block_hash = await subtensor.substrate.get_chain_head()
+        registered_delegate_info: dict[str, DelegatesDetails]
+        wallets_with_delegates: tuple[
+            tuple[Optional[Wallet], Optional[list[tuple[DelegateInfo, Balance]]]]
+        ]
+        wallets_with_delegates, registered_delegate_info = await asyncio.gather(
+            asyncio.gather(
+                *[wallet_to_delegates(wallet_, block_hash) for wallet_ in wallets]
+            ),
+            get_delegates_details_from_github(Constants.delegates_detail_url),
+        )
         if registered_delegate_info is None:
             console.print(
                 ":warning:[yellow]Could not get delegate info from chain.[/yellow]"
             )
-            registered_delegate_info = {}
+
+    await subtensor.substrate.close()
+
+    for wall, delegates in wallets_with_delegates:
+        if not wall:
+            continue
+
+        my_delegates_ = {}  # hotkey, amount
+        for delegate in delegates:
+            for coldkey_addr, staked in delegate[0].nominators:
+                if coldkey_addr == wall.coldkeypub.ss58_address and staked.tao > 0:
+                    my_delegates_[delegate[0].hotkey_ss58] = staked
+
+        delegates.sort(key=lambda d: d[0].total_stake, reverse=True)
+        total_delegated += sum(my_delegates_.values())
 
         for i, delegate in enumerate(delegates):
             owner_stake = next(
-                map(
-                    lambda x: x[1],  # get stake
-                    filter(
-                        lambda x: x[0] == delegate[0].owner_ss58,
-                        delegate[0].nominators,
-                    ),  # filter for owner
+                (
+                    stake
+                    for owner, stake in delegate[0].nominators
+                    if owner == delegate[0].owner_ss58
                 ),
                 Balance.from_rao(0),  # default to 0 if no owner stake.
             )
@@ -1390,13 +1411,16 @@ async def my_delegates(
                 delegate_url = ""
                 delegate_description = ""
 
-            if delegate[0].hotkey_ss58 in my_delegates:
+            if delegate[0].hotkey_ss58 in my_delegates_:
+                twenty_four_hour = delegate[0].total_daily_return.tao * (
+                    my_delegates_[delegate[0].hotkey_ss58] / delegate[0].total_stake.tao
+                )
                 table.add_row(
-                    wallet.name,
+                    wall.name,
                     Text(delegate_name, style=f"link {delegate_url}"),
                     f"{delegate[0].hotkey_ss58:8.8}...",
-                    f"{my_delegates[delegate[0].hotkey_ss58]!s:13.13}",
-                    f"{delegate[0].total_daily_return.tao * (my_delegates[delegate[0].hotkey_ss58]/delegate[0].total_stake.tao)!s:6.6}",
+                    f"{my_delegates_[delegate[0].hotkey_ss58]!s:13.13}",
+                    f"{twenty_four_hour!s:6.6}",
                     str(len(delegate[0].nominators)),
                     f"{owner_stake!s:13.13}",
                     f"{delegate[0].total_stake!s:13.13}",
@@ -1407,10 +1431,8 @@ async def my_delegates(
                             for subnet in delegate[0].registrations
                         ]
                     ),
-                    # f'{delegate.take * 100:.1f}%',s
-                    f"{ delegate[0].total_daily_return.tao * ( 1000 / ( 0.001 + delegate[0].total_stake.tao ) )!s:6.6}",
+                    f"{delegate[0].total_daily_return.tao * (1000 / (0.001 + delegate[0].total_stake.tao))!s:6.6}",
                     str(delegate_description),
-                    # f'{delegate_profile.description:140.140}',
                 )
 
     console.print(table)

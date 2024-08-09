@@ -223,6 +223,7 @@ class CLIManager:
         self.root_app.command("set-take")(self.root_set_take)
         self.root_app.command("delegate-stake")(self.root_delegate_stake)
         self.root_app.command("undelegate-stake")(self.root_undelegate_stake)
+        self.root_app.command("my-delegates")(self.root_my_delegates)
 
     def initialize_chain(
         self,
@@ -2010,6 +2011,9 @@ class CLIManager:
         #### Note:
         This function is typically called by the CLI parser and is not intended to be used directly in user code.
         """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        self.initialize_chain(network, chain)
+        self._run_command(root.my_delegates(wallet, self.not_subtensor, all_wallets))
 
     def run(self):
         self.app()
