@@ -464,6 +464,8 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
 
         await render_table(wallet.hotkey, children_, netuid)
 
+    await subtensor.substrate.close()
+
     return children_
 
 
