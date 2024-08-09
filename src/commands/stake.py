@@ -8,7 +8,6 @@ from substrateinterface.exceptions import SubstrateRequestException
 
 from src import Constants
 from src.bittensor.balances import Balance
-from src.bittensor.chain_data import NeuronInfo
 from src.utils import (
     get_delegates_details_from_github,
     get_hotkey_wallets_for_wallet,
@@ -27,7 +26,7 @@ if TYPE_CHECKING:
 
 
 async def set_children_extrinsic(
-    subtensor: SubtensorInterface,
+    subtensor: "SubtensorInterface",
     wallet: Wallet,
     hotkey: str,
     netuid: int,
@@ -345,7 +344,7 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
     console.print(table)
 
 
-async def get_children(wallet: Wallet, subtensor: SubtensorInterface, netuid: int):
+async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: int):
     async def _get_children(hotkey):
         """
         Get the children of a hotkey on a specific network.
@@ -470,7 +469,7 @@ async def get_children(wallet: Wallet, subtensor: SubtensorInterface, netuid: in
 
 async def set_children(
     wallet: Wallet,
-    subtensor: SubtensorInterface,
+    subtensor: "SubtensorInterface",
     netuid: int,
     children: list[str],
     proportions: list[float],

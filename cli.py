@@ -241,6 +241,8 @@ class CLIManager:
 
         # stake commands
         self.stake_app.command("show")(self.stake_show)
+        self.stake_app.command("get-children")(self.stake_get_children)
+        self.stake_app.command("set-children")(self.stake_set_children)
 
     def initialize_chain(
         self,
