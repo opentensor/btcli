@@ -2146,6 +2146,9 @@ class CLIManager:
         self,
         all_wallets: bool = typer.Option(
             False,
+            "--all",
+            "--all-wallets",
+            "-a",
             help="When set, the command checks all coldkey wallets instead of just the specified wallet.",
         ),
         network: Optional[str] = Options.network,

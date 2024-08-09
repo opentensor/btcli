@@ -6,6 +6,7 @@ from rich.table import Table, Column
 
 from src import Constants
 from src.bittensor.balances import Balance
+from src.bittensor.chain_data import NeuronInfo
 from src.utils import (
     get_delegates_details_from_github,
     get_hotkey_wallets_for_wallet,
@@ -90,7 +91,7 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
             neurons = await asyncio.gather(
                 *[
                     subtensor.neuron_for_uid(uid, net)
-                    for (uid, net) in list(zip(uids, netuids))
+                    for (uid, net) in zip(uids, netuids)
                 ]
             )
             return neurons
@@ -105,17 +106,17 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
                     block_hash=block_hash,
                 ),
             )
-            emission_ = sum([n.emission for n in neurons])
+            emission_ = sum([n.emission for n in neurons]) if neurons else 0.0
             return emission_, Balance.from_rao(stake.value) if getattr(
                 stake, "value", None
-            ) else None
+            ) else Balance(0)
 
         hotkeys = get_hotkey_wallets_for_wallet(wallet_)
         stakes = {}
         query = await asyncio.gather(
             *[get_emissions_and_stake(hot.hotkey.ss58_address) for hot in hotkeys]
         )
-        for hot, (hotkey_stake, emission) in zip(hotkeys, query):
+        for hot, (emission, hotkey_stake) in zip(hotkeys, query):
             stakes[hot.hotkey.ss58_address] = {
                 "name": hot.hotkey_str,
                 "stake": hotkey_stake,
@@ -133,7 +134,7 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
         :return: A dictionary of stakes related to delegates.
         """
         delegates = await subtensor.get_delegated(
-            coldkey_ss58=wallet_.coldkeypub.ss58_address, block_hash=block_hash
+            coldkey_ss58=wallet_.coldkeypub.ss58_address, block_hash=None
         )
         stakes = {}
         for dele, staked in delegates:
@@ -171,6 +172,8 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
         async with subtensor:
             block_hash_ = await subtensor.substrate.get_chain_head()
             accounts = await get_all_wallet_accounts(block_hash=block_hash_)
+
+    await subtensor.substrate.close()
 
     total_stake = 0
     total_balance = 0
