@@ -147,7 +147,7 @@ class SubtensorInterface:
         coldkey_ss58: str,
         block_hash: Optional[str] = None,
         reuse_block: bool = False,
-    ) -> Optional[list[StakeInfo]]:
+    ) -> list[StakeInfo]:
         """
         Retrieves stake information associated with a specific coldkey. This function provides details
         about the stakes held by an account, including the staked amounts and associated delegates.
@@ -172,7 +172,7 @@ class SubtensorInterface:
         )
 
         if hex_bytes_result is None:
-            return None
+            return []
 
         if hex_bytes_result.startswith("0x"):
             bytes_result = bytes.fromhex(hex_bytes_result[2:])
@@ -185,7 +185,7 @@ class SubtensorInterface:
         self,
         runtime_api: str,
         method: str,
-        params: Optional[Union[list[int], dict[str, int]]],
+        params: Optional[Union[list[list[int]], dict[str, int]]],
         block_hash: Optional[str] = None,
         reuse_block: Optional[bool] = False,
     ) -> Optional[str]:

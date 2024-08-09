@@ -4,7 +4,7 @@ from concurrent.futures import ProcessPoolExecutor
 import itertools
 import os
 from sys import getsizeof
-from typing import Optional, Any, Collection
+from typing import Optional, Any, Collection, Generator
 
 import aiohttp
 from bittensor_wallet import Wallet
@@ -1112,7 +1112,7 @@ async def _get_de_registered_stake_for_coldkey_wallet(
     subtensor: SubtensorInterface,
     all_hotkey_addresses: Collection[str],
     coldkey_wallet: Wallet,
-) -> tuple[Wallet, list[tuple[str, Balance]], Optional[str]]:
+) -> tuple[Wallet, list[tuple[str, float]], Optional[str]]:
     """
     Looks at the total stake of a coldkey, then filters this based on the supplied hotkey addresses
     depending on whether the hotkey is a delegate
@@ -1139,7 +1139,9 @@ async def _get_de_registered_stake_for_coldkey_wallet(
             hotkey_ss58=stake_info.hotkey_ss58, reuse_block=True
         )
 
-    all_staked_hotkeys = filter(_filter_stake_info, all_stake_info_for_coldkey)
+    all_staked_hotkeys = (
+        x for x in all_stake_info_for_coldkey if await _filter_stake_info(x)
+    )
 
     # List of (hotkey_addr, our_stake) tuples.
     result = [
@@ -1168,7 +1170,9 @@ async def inspect(
     netuids_filter: list[int],
     all_wallets: bool = False,
 ):
-    def delegate_row_maker(delegates_: list[tuple[DelegateInfo, Balance]]) -> list[str]:
+    def delegate_row_maker(
+        delegates_: list[tuple[DelegateInfo, Balance]],
+    ) -> Generator[list[str]]:
         for d_, staked in delegates_:
             if d_.hotkey_ss58 in registered_delegate_info:
                 delegate_name = registered_delegate_info[d_.hotkey_ss58].name
@@ -1184,7 +1188,7 @@ async def inspect(
                 + [""] * 4
             )
 
-    def neuron_row_maker(wallet_, all_netuids_, nsd) -> list[str]:
+    def neuron_row_maker(wallet_, all_netuids_, nsd) -> Generator[list[str]]:
         hotkeys = get_hotkey_wallets_for_wallet(wallet_)
         for netuid in all_netuids_:
             for n in nsd[netuid]:
@@ -1223,8 +1227,8 @@ async def inspect(
             )
     # bittensor.logging.debug(f"Netuids to check: {all_netuids}")
     with console.status("Pulling delegates info"):
-        registered_delegate_info: Optional[
-            dict[str, DelegatesDetails]
+        registered_delegate_info: dict[
+            str, DelegatesDetails
         ] = await get_delegates_details_from_github(url=Constants.delegates_detail_url)
         if not registered_delegate_info:
             console.print(
