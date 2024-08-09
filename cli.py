@@ -14,7 +14,7 @@ from websockets import ConnectionClosed
 from yaml import safe_load, safe_dump
 
 from src import defaults, utils
-from src.commands import wallets, root
+from src.commands import wallets, root, stake
 from src.subtensor_interface import SubtensorInterface
 from src.bittensor.async_substrate_interface import SubstrateRequestException
 from src.utils import console, err_console
@@ -141,6 +141,7 @@ class CLIManager:
     :var config_app: the Typer app as it relates to config commands
     :var wallet_app: the Typer app as it relates to wallet commands
     :var root_app: the Typer app as it relates to root commands
+    :var stake_app: the Typer app as it relates to stake commands
     :var not_subtensor: the `SubtensorInterface` object passed to the various commands that require it
     """
 
@@ -164,6 +165,7 @@ class CLIManager:
         self.config_app = typer.Typer()
         self.wallet_app = typer.Typer()
         self.root_app = typer.Typer()
+        self.stake_app = typer.Typer()
 
         # config alias
         self.app.add_typer(
@@ -190,6 +192,14 @@ class CLIManager:
             short_help="Root commands, alias: `r`",
         )
         self.app.add_typer(self.root_app, name="d", hidden=True)
+
+        # stake aliases
+        self.app.add_typer(
+            self.stake_app,
+            name="stake",
+            short_help="Stake commands, alias: `st`",
+        )
+        self.app.add_typer(self.stake_app, name="st", hidden=True)
 
         # config commands
         self.config_app.command("set")(self.set_config)
@@ -228,6 +238,9 @@ class CLIManager:
         self.root_app.command("my-delegates")(self.root_my_delegates)
         self.root_app.command("list-delegates")(self.root_list_delegates)
         self.root_app.command("nominate")(self.root_nominate)
+
+        # stake commands
+        self.stake_app.command("show")(self.stake_show)
 
     def initialize_chain(
         self,
@@ -2127,6 +2140,58 @@ class CLIManager:
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             root.nominate(wallet, self.initialize_chain(network, chain))
+        )
+
+    def stake_show(
+        self,
+        all_wallets: bool = typer.Option(
+            False,
+            help="When set, the command checks all coldkey wallets instead of just the specified wallet.",
+        ),
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        wallet_path: Optional[str] = Options.wallet_path,
+    ):
+        """
+        # stake show
+        Executes the `show` command to list all stake accounts associated with a user's wallet on the Bittensor network.
+
+        This command provides a comprehensive view of the stakes associated with both hotkeys and delegates linked to
+        the user's coldkey.
+
+        ## Usage:
+        The command lists all stake accounts for a specified wallet or all wallets in the user's configuration
+        directory. It displays the coldkey, balance, account details (hotkey/delegate name), stake amount, and the rate
+        of return.
+
+        The command compiles a table showing:
+
+        - Coldkey: The coldkey associated with the wallet.
+
+        - Balance: The balance of the coldkey.
+
+        - Account: The name of the hotkey or delegate.
+
+        - Stake: The amount of TAO staked to the hotkey or delegate.
+
+        - Rate: The rate of return on the stake, typically shown in TAO per day.
+
+
+        ### Example usage:
+
+        ```
+        btcli stake show --all
+        ```
+
+        #### Note:
+        This command is essential for users who wish to monitor their stake distribution and returns across various
+        accounts on the Bittensor network. It provides a clear and detailed overview of the user's staking activities.
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        return self._run_command(
+            stake.show(wallet, self.initialize_chain(network, chain), all_wallets)
         )
 
     def run(self):
