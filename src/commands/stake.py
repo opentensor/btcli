@@ -9,6 +9,7 @@ from substrateinterface.exceptions import SubstrateRequestException
 
 from src import Constants
 from src.bittensor.balances import Balance
+from src.bittensor.chain_data import NeuronInfo
 from src.utils import (
     get_delegates_details_from_github,
     get_hotkey_wallets_for_wallet,
