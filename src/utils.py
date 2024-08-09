@@ -8,6 +8,8 @@ import scalecodec
 from bittensor_wallet import Wallet
 from bittensor_wallet.keyfile import Keypair
 from bittensor_wallet.utils import SS58_FORMAT, ss58
+import numpy as np
+from numpy.typing import NDArray
 from rich.console import Console
 from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
@@ -21,6 +23,86 @@ err_console = Console(stderr=True)
 RAO_PER_TAO = 1e9
 U16_MAX = 65535
 U64_MAX = 18446744073709551615
+
+
+def u16_normalized_float(x: int) -> float:
+    return float(x) / float(U16_MAX)
+
+
+def convert_weight_uids_and_vals_to_tensor(
+    n: int, uids: list[int], weights: list[int]
+) -> NDArray[np.float32]:
+    """
+    Converts weights and uids from chain representation into a `np.array` (inverse operation from
+    convert_weights_and_uids_for_emit)
+
+    :param n: number of neurons on network.
+    :param uids: Tensor of uids as destinations for passed weights.
+    :param weights: Tensor of weights.
+
+    :return: row_weights: Converted row weights.
+    """
+    row_weights = np.zeros([n], dtype=np.float32)
+    for uid_j, wij in list(zip(uids, weights)):
+        row_weights[uid_j] = float(
+            wij
+        )  # assumes max-upscaled values (w_max = U16_MAX).
+    row_sum = row_weights.sum()
+    if row_sum > 0:
+        row_weights /= row_sum  # normalize
+    return row_weights
+
+
+def convert_bond_uids_and_vals_to_tensor(
+    n: int, uids: list[int], bonds: list[int]
+) -> NDArray[np.int64]:
+    """Converts bond and uids from chain representation into a np.array.
+
+    :param n: number of neurons on network.
+    :param uids: Tensor of uids as destinations for passed bonds.
+    :param bonds: Tensor of bonds.
+
+    :return: Converted row bonds.
+    """
+    row_bonds = np.zeros([n], dtype=np.int64)
+
+    for uid_j, bij in list(zip(uids, bonds)):
+        row_bonds[uid_j] = int(bij)
+    return row_bonds
+
+
+def convert_root_weight_uids_and_vals_to_tensor(
+    n: int, uids: list[int], weights: list[int], subnets: list[int]
+) -> NDArray:
+    """
+    Converts root weights and uids from chain representation into a `np.array` or `torch.FloatTensor` (inverse operation
+    from `convert_weights_and_uids_for_emit`)
+
+    :param n: number of neurons on network.
+    :param uids: Tensor of uids as destinations for passed weights.
+    :param weights: Tensor of weights.
+    :param subnets: list of subnets on the network
+
+    :return: row_weights: Converted row weights.
+    """
+
+    row_weights = np.zeros([n], dtype=np.float32)
+    for uid_j, wij in list(zip(uids, weights)):
+        if uid_j in subnets:
+            index_s = subnets.index(uid_j)
+            row_weights[index_s] = float(
+                wij
+            )  # assumes max-upscaled values (w_max = U16_MAX).
+        else:
+            # TODO standardise logging
+            # logging.warning(
+            #     f"Incorrect Subnet uid {uid_j} in Subnets {subnets}. The subnet is unavailable at the moment."
+            # )
+            continue
+    row_sum = row_weights.sum()
+    if row_sum > 0:
+        row_weights /= row_sum  # normalize
+    return row_weights
 
 
 def get_hotkey_wallets_for_wallet(
@@ -167,10 +249,6 @@ def is_valid_bittensor_address_or_public_key(address: Union[str, bytes]) -> bool
         return False
 
 
-def u16_normalized_float(x: int) -> float:
-    return float(x) / float(U16_MAX)
-
-
 def decode_scale_bytes(return_type, scale_bytes, custom_rpc_type_registry):
     rpc_runtime_config = RuntimeConfiguration()
     rpc_runtime_config.update_type_registry(load_type_registry_preset("legacy"))
@@ -203,7 +281,7 @@ def ss58_to_vec_u8(ss58_address: str) -> list[int]:
 def get_explorer_root_url_by_network_from_map(
     network: str, network_map: dict[str, dict[str, str]]
 ) -> dict[str, str]:
-    r"""
+    """
     Returns the explorer root url for the given network name from the given network map.
 
     :param network: The network to get the explorer url for.
@@ -222,7 +300,7 @@ def get_explorer_root_url_by_network_from_map(
 def get_explorer_url_for_network(
     network: str, block_hash: str, network_map: dict[str, str]
 ) -> dict[str, str]:
-    r"""
+    """
     Returns the explorer url for the given block hash and network.
 
     :param network: The network to get the explorer url for.
@@ -287,6 +365,11 @@ def convert_blocks_to_time(blocks: int, block_time: int = 12) -> tuple[int, int,
 
 
 async def get_delegates_details_from_github(url: str) -> dict[str, DelegatesDetails]:
+    """
+    Queries GitHub to get the delegates details.
+
+    :return: {delegate: DelegatesDetails}
+    """
     all_delegates_details = {}
 
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(10.0)) as session:
@@ -306,7 +389,12 @@ async def get_delegates_details_from_github(url: str) -> dict[str, DelegatesDeta
     return all_delegates_details
 
 
-def get_human_readable(num, suffix="H"):
+def get_human_readable(num: float, suffix="H"):
+    """
+    Converts a number to a human-readable string.
+
+    :return: human-readable string representation of a number.
+    """
     for unit in ["", "K", "M", "G", "T", "P", "E", "Z"]:
         if abs(num) < 1000.0:
             return f"{num:3.1f}{unit}{suffix}"
@@ -315,6 +403,17 @@ def get_human_readable(num, suffix="H"):
 
 
 def millify(n: int):
+    """
+    Convert a large number into a more readable format with appropriate suffixes.
+
+    This function transforms a large integer into a shorter, human-readable string with
+    suffixes such as K, M, B, and T for thousands, millions, billions, and trillions,
+    respectively. The number is formatted to two decimal places.
+
+    :param n: The number to be converted.
+
+    :return: The formatted string representing the number with a suffix.
+    """
     mill_names = ["", " K", " M", " B", " T"]
     n = float(n)
     mill_idx = max(

@@ -1,38 +1,22 @@
-# The MIT License (MIT)
-# Copyright © 2021 Yuma Rao
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
-# documentation files (the “Software”), to deal in the Software without restriction, including without limitation
-# the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all copies or substantial portions of
-# the Software.
-
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-# THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
-# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-# DEALINGS IN THE SOFTWARE.
-
 import asyncio
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
 import itertools
 import os
 from sys import getsizeof
-from typing import Optional, Any
+from typing import Optional, Any, Collection, Generator
 
 import aiohttp
 from bittensor_wallet import Wallet
 from bittensor_wallet.keyfile import Keyfile
 from fuzzywuzzy import fuzz
 from rich.align import Align
-from rich.prompt import Confirm
+from rich.prompt import Confirm, Prompt
 from rich.table import Table, Column
 from rich.tree import Tree
 import scalecodec
 import typer
+from scalecodec import ScaleBytes
 
 from src import utils, TYPE_REGISTRY, DelegatesDetails, Constants
 from src.bittensor.chain_data import (
@@ -62,7 +46,7 @@ from src.bittensor.extrinsics.registration import (
 
 
 async def regen_coldkey(
-    wallet,
+    wallet: Wallet,
     mnemonic: Optional[str],
     seed: Optional[str] = None,
     json_path: Optional[str] = None,
@@ -70,6 +54,7 @@ async def regen_coldkey(
     use_password: Optional[bool] = True,
     overwrite_coldkey: Optional[bool] = False,
 ):
+    """Creates a new coldkey under this wallet"""
     json_str: Optional[str] = None
     if json_path:
         if not os.path.exists(json_path) or not os.path.isfile(json_path):
@@ -86,9 +71,9 @@ async def regen_coldkey(
 
 
 async def regen_coldkey_pub(
-    wallet, ss58_address: str, public_key_hex: str, overwrite_coldkeypub: bool
+    wallet: Wallet, ss58_address: str, public_key_hex: str, overwrite_coldkeypub: bool
 ):
-    r"""Creates a new coldkeypub under this wallet."""
+    """Creates a new coldkeypub under this wallet."""
     wallet.regenerate_coldkeypub(
         ss58_address=ss58_address,
         public_key=public_key_hex,
@@ -105,6 +90,7 @@ async def regen_hotkey(
     use_password: Optional[bool] = True,
     overwrite_hotkey: Optional[bool] = False,
 ):
+    """Creates a new hotkey under this wallet."""
     json_str: Optional[str] = None
     if json_path:
         if not os.path.exists(json_path) or not os.path.isfile(json_path):
@@ -125,6 +111,7 @@ async def regen_hotkey(
 async def new_hotkey(
     wallet: Wallet, n_words: int, use_password: bool, overwrite_hotkey: bool
 ):
+    """Creates a new hotkey under this wallet."""
     wallet.create_new_hotkey(
         n_words=n_words,
         use_password=use_password,
@@ -135,6 +122,7 @@ async def new_hotkey(
 async def new_coldkey(
     wallet: Wallet, n_words: int, use_password: bool, overwrite_coldkey: bool
 ):
+    """Creates a new coldkey under this wallet."""
     wallet.create_new_coldkey(
         n_words=n_words,
         use_password=use_password,
@@ -149,6 +137,7 @@ def wallet_create(
     overwrite_coldkey: bool = False,
     overwrite_hotkey: bool = False,
 ):
+    """Creates a new wallet."""
     wallet.create_new_coldkey(
         n_words=n_words,
         use_password=use_password,
@@ -161,7 +150,7 @@ def wallet_create(
     )
 
 
-def _get_coldkey_wallets_for_path(path: str) -> list[Wallet]:
+def get_coldkey_wallets_for_path(path: str) -> list[Wallet]:
     """Get all coldkey wallet names from path."""
     try:
         wallet_names = next(os.walk(os.path.expanduser(path)))[1]
@@ -196,6 +185,7 @@ def _get_coldkey_ss58_addresses_for_path(path: str) -> tuple[list[str], list[str
 async def wallet_balance(
     wallet: Wallet, subtensor: SubtensorInterface, all_balances: bool
 ):
+    """Retrieves the current balance of the specified wallet"""
     if not wallet.coldkeypub_file.exists_on_device():
         err_console.print("[bold red]No wallets found.[/bold red]")
         return
@@ -208,7 +198,7 @@ async def wallet_balance(
             wallet_names = [wallet.name]
 
         async with subtensor:
-            await subtensor.get_chain_head()
+            await subtensor.substrate.get_chain_head()
             free_balances, staked_balances = await asyncio.gather(
                 subtensor.get_balance(*coldkeys, reuse_block=True),
                 subtensor.get_total_stake_for_coldkey(*coldkeys, reuse_block=True),
@@ -400,7 +390,7 @@ async def wallet_history(wallet: Wallet):
 
 
 async def wallet_list(wallet_path: str):
-    r"""Lists wallets."""
+    """Lists wallets."""
     wallets = utils.get_coldkey_wallets_for_path(wallet_path)
     if not wallets:
         err_console.print(f"[red]No wallets found in dir: {wallet_path}[/red]")
@@ -438,6 +428,14 @@ async def _get_total_balance(
     wallet: Wallet,
     all_wallets: bool = False,
 ) -> tuple[list[Wallet], Balance]:
+    """
+    Retrieves total balance of all or specified wallets
+    :param total_balance: Balance object for which to add the retrieved balance(s)
+    :param subtensor: SubtensorInterface object used to make the queries
+    :param wallet: Wallet object from which to derive the queries (or path if all_wallets is set)
+    :param all_wallets: Flag on whether to use all wallets in the wallet.path or just the specified wallet
+    :return: (all hotkeys used to derive the balance, total balance of these)
+    """
     if all_wallets:
         cold_wallets = utils.get_coldkey_wallets_for_path(wallet.path)
         _balance_cold_wallets = [
@@ -487,9 +485,9 @@ async def overview(
     all_wallets: bool = False,
     sort_by: Optional[str] = None,
     sort_order: Optional[str] = None,
-    include_hotkeys: Optional[list] = None,
-    exclude_hotkeys: Optional[list] = None,
-    netuids_filter: Optional[list] = None,
+    include_hotkeys: Optional[list[str]] = None,
+    exclude_hotkeys: Optional[list[str]] = None,
+    netuids_filter: Optional[list[int]] = None,
 ):
     """Prints an overview for the wallet's coldkey."""
 
@@ -500,7 +498,7 @@ async def overview(
     ):
         async with subtensor:
             # We are printing for every coldkey.
-            block_hash = await subtensor.get_chain_head()
+            block_hash = await subtensor.substrate.get_chain_head()
             all_hotkeys, total_balance = await _get_total_balance(
                 total_balance, subtensor, wallet, all_wallets
             )
@@ -545,7 +543,7 @@ async def overview(
         results = await _get_neurons_for_netuids(
             subtensor, netuids, all_hotkey_addresses
         )
-        neurons = await _process_neuron_results(results, neurons, netuids)
+        neurons = _process_neuron_results(results, neurons, netuids)
         total_coldkey_stake_from_metagraph = await _calculate_total_coldkey_stake(
             neurons
         )
@@ -898,6 +896,7 @@ async def overview(
 def _get_hotkeys(
     include_hotkeys: list[str], exclude_hotkeys: list[str], all_hotkeys: list[Wallet]
 ) -> list[Wallet]:
+    """Filters a set of hotkeys (all_hotkeys) based on whether they are included or excluded."""
     if include_hotkeys:
         # We are only showing hotkeys that are specified.
         all_hotkeys = [
@@ -911,7 +910,14 @@ def _get_hotkeys(
     return all_hotkeys
 
 
-def _get_key_address(all_hotkeys: list[Wallet]):
+def _get_key_address(all_hotkeys: list[Wallet]) -> tuple[list[str], dict[str, Wallet]]:
+    """
+    Maps the hotkeys specified to their respective addresses
+
+    :param all_hotkeys: list of hotkeys from which to derive the addresses
+
+    :return: (list of all hotkey addresses, mapping of them vs their coldkeys to respective wallets)
+    """
     hotkey_coldkey_to_hotkey_wallet = {}
     for hotkey_wallet in all_hotkeys:
         if hotkey_wallet.coldkeypub:
@@ -933,6 +939,7 @@ def _get_key_address(all_hotkeys: list[Wallet]):
 async def _calculate_total_coldkey_stake(
     neurons: dict[str, list["NeuronInfoLite"]],
 ) -> dict[str, Balance]:
+    """Maps coldkeys to their stakes (Balance) in the specified neurons"""
     total_coldkey_stake_from_metagraph = defaultdict(lambda: Balance(0.0))
     checked_hotkeys = set()
     for neuron_list in neurons.values():
@@ -946,11 +953,20 @@ async def _calculate_total_coldkey_stake(
     return total_coldkey_stake_from_metagraph
 
 
-async def _process_neuron_results(
+def _process_neuron_results(
     results: list[tuple[int, list["NeuronInfoLite"], Optional[str]]],
     neurons: dict[str, list["NeuronInfoLite"]],
     netuids: list[int],
 ) -> dict[str, list["NeuronInfoLite"]]:
+    """
+    Filters a list of Neurons for their netuid, neuron info, and errors
+
+    :param results: [(netuid, neurons result, error message), ...]
+    :param neurons: {netuid: [], ...}
+    :param netuids: list of netuids to filter the neurons
+
+    :return: the filtered neurons dict
+    """
     for result in results:
         netuid, neurons_result, err_msg = result
         if err_msg is not None:
@@ -971,6 +987,7 @@ def _map_hotkey_to_neurons(
     hot_wallets: list[str],
     netuid: int,
 ) -> tuple[int, list["NeuronInfoLite"], Optional[str]]:
+    """Maps the hotkeys to their respective neurons"""
     result: list["NeuronInfoLite"] = []
     hotkey_to_neurons = {n.hotkey: n.uid for n in all_neurons}
     try:
@@ -987,7 +1004,16 @@ def _map_hotkey_to_neurons(
 
 async def _fetch_neuron_for_netuid(
     netuid: int, subtensor: SubtensorInterface
-) -> tuple[int, dict]:
+) -> tuple[int, dict[str, list[ScaleBytes]]]:
+    """
+    Retrieves all neurons for a specified netuid
+
+    :param netuid: the netuid to query
+    :param subtensor: the SubtensorInterface to make the query
+
+    :return: the original netuid, and a mapping of the neurons to their NeuronInfoLite objects
+    """
+
     async def neurons_lite_for_uid(uid: int) -> dict[Any, Any]:
         call_definition = TYPE_REGISTRY["runtime_api"]["NeuronInfoRuntimeApi"][
             "methods"
@@ -1011,7 +1037,8 @@ async def _fetch_neuron_for_netuid(
 
 async def _fetch_all_neurons(
     netuids: list[int], subtensor
-) -> list[tuple[int, list["NeuronInfoLite"]]]:
+) -> list[tuple[int, list[ScaleBytes]]]:
+    """Retrieves all neurons for each of the specified netuids"""
     return list(
         await asyncio.gather(
             *[_fetch_neuron_for_netuid(netuid, subtensor) for netuid in netuids]
@@ -1020,11 +1047,30 @@ async def _fetch_all_neurons(
 
 
 def _partial_decode(args):
-    rt, sb, crtr, nuid = args
-    return nuid, decode_scale_bytes(rt, sb, crtr)
+    """
+    Helper function for passing to ProcessPoolExecutor that decodes scale bytes based on a set return type and
+    rpc type registry, passing this back to the Executor with its specified netuid for easier mapping
+
+    :param args: (return type, scale bytes object, custom rpc type registry, netuid)
+
+    :return: (original netuid, decoded object)
+    """
+    return_type, as_scale_bytes, custom_rpc_type_registry_, netuid_ = args
+    return netuid_, decode_scale_bytes(
+        return_type, as_scale_bytes, custom_rpc_type_registry_
+    )
 
 
-def _process_neurons_for_netuids(netuids_with_all_neurons_hex_bytes):
+def _process_neurons_for_netuids(
+    netuids_with_all_neurons_hex_bytes: list[tuple[int, list[ScaleBytes]]],
+) -> list[tuple[int, list[NeuronInfoLite]]]:
+    """
+    Using multiprocessing to decode a list of hex-bytes neurons with their respective netuid
+
+    :param netuids_with_all_neurons_hex_bytes: netuids with hex-bytes neurons
+    :return: netuids mapped to decoded neurons
+    """
+
     def make_map(res_):
         netuid_, json_result = res_
         hex_bytes_result = json_result["result"]
@@ -1063,8 +1109,20 @@ async def _get_neurons_for_netuids(
 
 
 async def _get_de_registered_stake_for_coldkey_wallet(
-    subtensor: SubtensorInterface, all_hotkey_addresses, coldkey_wallet
-) -> tuple[Wallet, list[tuple[str, Balance]], Optional[str]]:
+    subtensor: SubtensorInterface,
+    all_hotkey_addresses: Collection[str],
+    coldkey_wallet: Wallet,
+) -> tuple[Wallet, list[tuple[str, float]], Optional[str]]:
+    """
+    Looks at the total stake of a coldkey, then filters this based on the supplied hotkey addresses
+    depending on whether the hotkey is a delegate
+
+    :param subtensor: SubtensorInterface to make queries with
+    :param all_hotkey_addresses: collection of hotkey SS58 addresses
+    :param coldkey_wallet: Wallet containing coldkey
+
+    :return: (original wallet, [(hotkey SS58, stake in TAO), ...], error message)
+    """
     # Pull all stake for our coldkey
     all_stake_info_for_coldkey = await subtensor.get_stake_info_for_coldkey(
         coldkey_ss58=coldkey_wallet.coldkeypub.ss58_address, reuse_block=True
@@ -1081,7 +1139,9 @@ async def _get_de_registered_stake_for_coldkey_wallet(
             hotkey_ss58=stake_info.hotkey_ss58, reuse_block=True
         )
 
-    all_staked_hotkeys = filter(_filter_stake_info, all_stake_info_for_coldkey)
+    all_staked_hotkeys = (
+        x for x in all_stake_info_for_coldkey if await _filter_stake_info(x)
+    )
 
     # List of (hotkey_addr, our_stake) tuples.
     result = [
@@ -1110,7 +1170,9 @@ async def inspect(
     netuids_filter: list[int],
     all_wallets: bool = False,
 ):
-    def delegate_row_maker(delegates_: list[tuple[DelegateInfo, Balance]]) -> list[str]:
+    def delegate_row_maker(
+        delegates_: list[tuple[DelegateInfo, Balance]],
+    ) -> Generator[list[str]]:
         for d_, staked in delegates_:
             if d_.hotkey_ss58 in registered_delegate_info:
                 delegate_name = registered_delegate_info[d_.hotkey_ss58].name
@@ -1126,7 +1188,7 @@ async def inspect(
                 + [""] * 4
             )
 
-    def neuron_row_maker(wallet_, all_netuids_, nsd) -> list[str]:
+    def neuron_row_maker(wallet_, all_netuids_, nsd) -> Generator[list[str]]:
         hotkeys = get_hotkey_wallets_for_wallet(wallet_)
         for netuid in all_netuids_:
             for n in nsd[netuid]:
@@ -1146,7 +1208,7 @@ async def inspect(
                     ]
 
     if all_wallets:
-        wallets = _get_coldkey_wallets_for_path(wallet.path)
+        wallets = get_coldkey_wallets_for_path(wallet.path)
         all_hotkeys = get_all_wallets_for_path(
             wallet.path
         )  # TODO verify this is correct
@@ -1165,8 +1227,8 @@ async def inspect(
             )
     # bittensor.logging.debug(f"Netuids to check: {all_netuids}")
     with console.status("Pulling delegates info"):
-        registered_delegate_info: Optional[
-            dict[str, DelegatesDetails]
+        registered_delegate_info: dict[
+            str, DelegatesDetails
         ] = await get_delegates_details_from_github(url=Constants.delegates_detail_url)
         if not registered_delegate_info:
             console.print(
@@ -1280,6 +1342,43 @@ async def swap_hotkey(
     )
 
 
+def set_id_prompts() -> tuple[str, str, str, str, str, str, str, str, str, bool]:
+    """
+    Used to prompt the user to input their info for setting the ID
+    :return: (display_name, legal_name, web_url, riot_handle, email,pgp_fingerprint, image_url, info_, twitter_url,
+             validator_id)
+    """
+    display_name = Prompt.ask(
+        "Display Name: The display name for the identity.", default=""
+    )
+    legal_name = Prompt.ask("Legal Name: The legal name for the identity.", default="")
+    web_url = Prompt.ask("Web URL: The web url for the identity.", default="")
+    riot_handle = Prompt.ask(
+        "Riot Handle: The riot handle for the identity.", default=""
+    )
+    email = Prompt.ask("Email: The email address for the identity.", default="")
+    pgp_fingerprint = Prompt.ask(
+        "PGP Fingerprint: The pgp fingerprint for the identity.", default=""
+    )
+    image_url = Prompt.ask("Image URL: The image url for the identity.", default="")
+    info_ = Prompt.ask("Info: Info about the identity", default="")
+    twitter_url = Prompt.ask("𝕏 URL: The 𝕏 (Twitter) url for the identity.")
+    validator_id = Confirm.ask("Are you updating a validator hotkey identity?")
+
+    return (
+        display_name,
+        legal_name,
+        web_url,
+        riot_handle,
+        email,
+        pgp_fingerprint,
+        image_url,
+        info_,
+        twitter_url,
+        validator_id,
+    )
+
+
 async def set_id(
     wallet: Wallet,
     subtensor: SubtensorInterface,
@@ -1292,7 +1391,7 @@ async def set_id(
     image: str,
     twitter: str,
     info_: str,
-    validator_id,
+    validator_id: bool,
 ):
     """Create a new or update existing identity on-chain."""
 
@@ -1325,27 +1424,16 @@ async def set_id(
 
     with console.status(":satellite: [bold green]Updating identity on-chain..."):
         async with subtensor:
-            try:
-                call = await subtensor.substrate.compose_call(
-                    call_module="Registry",
-                    call_function="set_identity",
-                    call_params=id_dict,
-                )
-                extrinsic = await subtensor.substrate.create_signed_extrinsic(
-                    call=call, keypair=wallet.coldkey
-                )
-                response = await subtensor.substrate.submit_extrinsic(
-                    extrinsic,
-                    wait_for_inclusion=True,
-                    wait_for_finalization=False,
-                )
-                response.process_events()
-                if not response.is_success:
-                    raise Exception(response.error_message)
+            call = await subtensor.substrate.compose_call(
+                call_module="Registry",
+                call_function="set_identity",
+                call_params=id_dict,
+            )
+            success, err_msg = await subtensor.sign_and_send_extrinsic(call, wallet)
 
-            except Exception as e:
-                console.print(f"[red]:cross_mark: Failed![/red] {e}")
-                typer.Exit(1)
+            if not success:
+                err_console.print(f"[red]:cross_mark: Failed![/red] {err_msg}")
+                return
 
             console.print(":white_heavy_check_mark: Success!")
             identity = await subtensor.query_identity(

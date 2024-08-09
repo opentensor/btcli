@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Any
 
 
 class Constants:
@@ -24,7 +25,7 @@ class DelegatesDetails:
     signature: str
 
     @classmethod
-    def from_json(cls, json: dict[str, any]) -> "DelegatesDetails":
+    def from_json(cls, json: dict[str, Any]) -> "DelegatesDetails":
         return cls(
             name=json["name"],
             url=json["url"],
@@ -35,6 +36,16 @@ class DelegatesDetails:
 
 class Defaults:
     netuid = 1
+
+    class config:
+        path = "~/.bittensor/config.yml"
+        dictionary = {
+            "network": None,
+            "chain": None,
+            "wallet_path": None,
+            "wallet_name": None,
+            "wallet_hotkey": None,
+        }
 
     class subtensor:
         network = "finney"
@@ -148,6 +159,19 @@ TYPE_REGISTRY = {
         },
         "SubnetRegistrationRuntimeApi": {
             "methods": {"get_network_registration_cost": {"params": [], "type": "u64"}}
+        },
+        "DelegateInfo": {
+            "methods": {
+                "get_delegated": {
+                    "params": [
+                        {
+                            "name": "coldkey_account_vec",
+                            "type": "Vec<u8>",
+                        }
+                    ],
+                    "type": "Vec<u8>",
+                }
+            }
         },
     },
 }

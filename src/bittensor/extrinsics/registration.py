@@ -25,7 +25,6 @@ from rich.console import Console
 from rich.status import Status
 from substrateinterface.exceptions import SubstrateRequestException
 
-from src.subtensor_interface import SubtensorInterface
 from src.utils import (
     console,
     err_console,
@@ -33,6 +32,9 @@ from src.utils import (
     millify,
     get_human_readable,
 )
+
+if typing.TYPE_CHECKING:
+    from src.subtensor_interface import SubtensorInterface
 
 
 def use_torch() -> bool:
@@ -97,7 +99,7 @@ class POWSolution:
     difficulty: int
     seal: bytes
 
-    async def is_stale(self, subtensor: SubtensorInterface) -> bool:
+    async def is_stale(self, subtensor: "SubtensorInterface") -> bool:
         """Returns True if the POW is stale.
         This means the block the POW is solved for is within 3 blocks of the current block.
         """
@@ -147,6 +149,9 @@ class RegistrationStatisticsLogger:
     def get_status_message(
         cls, stats: RegistrationStatistics, verbose: bool = False
     ) -> str:
+        """
+        Provides a message of the current status of the block solving as a str for a logger or stdout
+        """
         message = (
             "Solving\n"
             + f"Time Spent (total): [bold white]{timedelta(seconds=stats.time_spent_total)}[/bold white]\n"
@@ -165,6 +170,9 @@ class RegistrationStatisticsLogger:
         return message
 
     def update(self, stats: RegistrationStatistics, verbose: bool = False) -> None:
+        """
+        Passes the current status to the logger
+        """
         if self.status is not None:
             self.status.update(self.get_status_message(stats, verbose=verbose))
         else:
@@ -262,6 +270,10 @@ class _SolverBase(Process):
 
 
 class _Solver(_SolverBase):
+    """
+    Performs POW Solution
+    """
+
     def run(self):
         block_number: int
         block_and_hotkey_hash_bytes: bytes
@@ -304,6 +316,10 @@ class _Solver(_SolverBase):
 
 
 class _CUDASolver(_SolverBase):
+    """
+    Performs POW Solution using CUDA
+    """
+
     dev_id: int
     tpb: int
 
@@ -401,15 +417,19 @@ else:
 
 
 class MaxSuccessException(Exception):
-    pass
+    """
+    Raised when the POW Solver has reached the max number of successful solutions
+    """
 
 
 class MaxAttemptsException(Exception):
-    pass
+    """
+    Raised when the POW Solver has reached the max number of attempts
+    """
 
 
 async def run_faucet_extrinsic(
-    subtensor: SubtensorInterface,
+    subtensor: "SubtensorInterface",
     wallet: Wallet,
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = True,
@@ -563,7 +583,7 @@ async def run_faucet_extrinsic(
 
 
 async def _check_for_newest_block_and_update(
-    subtensor: SubtensorInterface,
+    subtensor: "SubtensorInterface",
     netuid: int,
     old_block_number: int,
     hotkey_bytes: bytes,
@@ -626,7 +646,7 @@ async def _check_for_newest_block_and_update(
 
 
 async def _block_solver(
-    subtensor: SubtensorInterface,
+    subtensor: "SubtensorInterface",
     wallet: Wallet,
     num_processes: int,
     netuid: int,
@@ -642,6 +662,9 @@ async def _block_solver(
     log_verbose,
     cuda: bool,
 ):
+    """
+    Shared code used by the Solvers to solve the POW solution
+    """
     limit = int(math.pow(2, 256)) - 1
 
     # Establish communication queues
@@ -839,7 +862,7 @@ async def _block_solver(
 
 
 async def _solve_for_difficulty_fast_cuda(
-    subtensor: SubtensorInterface,
+    subtensor: "SubtensorInterface",
     wallet: Wallet,
     netuid: int,
     output_in_place: bool = True,
@@ -977,7 +1000,7 @@ def _terminate_workers_and_wait_for_exit(
 # TODO verify this works with async
 @backoff.on_exception(backoff.constant, Exception, interval=1, max_tries=3)
 async def _get_block_with_retry(
-    subtensor: SubtensorInterface, netuid: int
+    subtensor: "SubtensorInterface", netuid: int
 ) -> tuple[int, int, bytes]:
     """
     Gets the current block number, difficulty, and block hash from the substrate node.
@@ -1043,8 +1066,8 @@ class _UsingSpawnStartMethod:
 
 
 async def create_pow(
-    subtensor,
-    wallet,
+    subtensor: "SubtensorInterface",
+    wallet: Wallet,
     netuid: int,
     output_in_place: bool = True,
     cuda: bool = False,
@@ -1168,6 +1191,19 @@ def _hex_bytes_to_u8_list(hex_bytes: bytes):
 
 
 def _create_seal_hash(block_and_hotkey_hash_bytes: bytes, nonce: int) -> bytes:
+    """
+    Create a cryptographic seal hash from the given block and hotkey hash bytes and nonce.
+
+    This function generates a seal hash by combining the given block and hotkey hash bytes with a nonce.
+    It first converts the nonce to a byte representation, then concatenates it with the first 64 hex
+    characters of the block and hotkey hash bytes. The result is then hashed using SHA-256 followed by
+    the Keccak-256 algorithm to produce the final seal hash.
+
+    :param block_and_hotkey_hash_bytes: The combined hash bytes of the block and hotkey.
+    :param nonce: The nonce value used for hashing.
+
+    :return: The resulting seal hash.
+    """
     nonce_bytes = binascii.hexlify(nonce.to_bytes(8, "little"))
     pre_seal = nonce_bytes + binascii.hexlify(block_and_hotkey_hash_bytes)[:64]
     seal_sh256 = hashlib.sha256(bytearray(_hex_bytes_to_u8_list(pre_seal))).digest()
@@ -1176,7 +1212,8 @@ def _create_seal_hash(block_and_hotkey_hash_bytes: bytes, nonce: int) -> bytes:
     return seal
 
 
-def _seal_meets_difficulty(seal: bytes, difficulty: int, limit: int):
+def _seal_meets_difficulty(seal: bytes, difficulty: int, limit: int) -> bool:
+    """Determines if a seal meets the specified difficulty"""
     seal_number = int.from_bytes(seal, "big")
     product = seal_number * difficulty
     return product < limit
@@ -1200,6 +1237,21 @@ def _update_curr_block(
     hotkey_bytes: bytes,
     lock: Lock,
 ):
+    """
+    Update the current block data with the provided block information and difficulty.
+
+    This function updates the current block and its difficulty in a thread-safe manner. It sets the current block
+    number, hashes the block with the hotkey, updates the current block bytes, and packs the difficulty.
+
+    :param curr_diff: Shared array to store the current difficulty.
+    :param curr_block: Shared array to store the current block data.
+    :param curr_block_num: Shared value to store the current block number.
+    :param block_number: The block number to set as the current block number.
+    :param block_bytes: The block data bytes to be hashed with the hotkey.
+    :param diff: The difficulty value to be packed into the current difficulty array.
+    :param hotkey_bytes: The hotkey bytes used for hashing the block.
+    :param lock: A lock to ensure thread-safe updates.
+    """
     with lock:
         curr_block_num.value = block_number
         # Hash the block with the hotkey
@@ -1319,43 +1371,16 @@ def log_cuda_errors() -> str:
 
 
 async def swap_hotkey_extrinsic(
-    subtensor: SubtensorInterface,
+    subtensor: "SubtensorInterface",
     wallet: Wallet,
     new_wallet: Wallet,
-    wait_for_inclusion: bool = False,
-    wait_for_finalization: bool = True,
     prompt: bool = False,
 ) -> bool:
-    async def _do_swap_hotkey():
-        async with subtensor:
-            call = await subtensor.substrate.compose_call(
-                call_module="SubtensorModule",
-                call_function="swap_hotkey",
-                call_params={
-                    "hotkey": wallet.hotkey.ss58_address,
-                    "new_hotkey": new_wallet.hotkey.ss58_address,
-                },
-            )
-            extrinsic = await subtensor.substrate.create_signed_extrinsic(
-                call=call, keypair=wallet.coldkey
-            )
-            response = await subtensor.substrate.submit_extrinsic(
-                extrinsic,
-                wait_for_inclusion=wait_for_inclusion,
-                wait_for_finalization=wait_for_finalization,
-            )
+    """
+    Performs an extrinsic update for swapping two hotkeys on the chain
 
-        # We only wait here if we expect finalization.
-        if not wait_for_finalization and not wait_for_inclusion:
-            return True, None
-
-        # process if registration successful, try again if pow is still valid
-        response.process_events()
-        if not response.is_success:
-            return False, format_error_message(response.error_message)
-        # Successful registration
-        else:
-            return True, None
+    :return: Success
+    """
 
     wallet.unlock_coldkey()  # unlock coldkey
     if prompt:
@@ -1366,7 +1391,16 @@ async def swap_hotkey_extrinsic(
             return False
 
     with console.status(":satellite: Swapping hotkeys..."):
-        success, err_msg = await _do_swap_hotkey()
+        async with subtensor:
+            call = await subtensor.substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function="swap_hotkey",
+                call_params={
+                    "hotkey": wallet.hotkey.ss58_address,
+                    "new_hotkey": new_wallet.hotkey.ss58_address,
+                },
+            )
+            success, err_msg = await subtensor.sign_and_send_extrinsic(call, wallet)
 
         if success:
             console.print(

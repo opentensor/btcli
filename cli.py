@@ -13,10 +13,11 @@ from typing_extensions import Annotated
 from websockets import ConnectionClosed
 from yaml import safe_load, safe_dump
 
-from src import wallets, defaults, utils
+from src import defaults, utils
+from src.commands import wallets, root
 from src.subtensor_interface import SubtensorInterface
-from src.utils import console
-
+from src.bittensor.async_substrate_interface import SubstrateRequestException
+from src.utils import console, err_console
 
 __version__ = "8.0.0"
 
@@ -72,26 +73,44 @@ class Options:
         prompt=True,
     )
     network = typer.Option(
-        defaults.subtensor.network, help="The subtensor network to connect to."
+        None,
+        help="The subtensor network to connect to. Default: finney.",
+        show_default=False,
     )
     chain = typer.Option(
-        defaults.subtensor.chain_endpoint,
-        help="The subtensor chain endpoint to connect to.",
+        None, help="The subtensor chain endpoint to connect to.", show_default=False
     )
     netuids = typer.Option([], help="Set the netuid(s) to filter by (e.g. `0 1 2`)")
+    netuid = typer.Option(
+        None,
+        help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
+        prompt=True,
+    )
 
 
 def get_n_words(n_words: Optional[int]) -> int:
+    """
+    Prompts the user to select the number of words used in the mnemonic if not supplied or not within the
+    acceptable criteria of [12, 15, 18, 21, 24]
+    """
     while n_words not in [12, 15, 18, 21, 24]:
-        n_words: int = Prompt.ask(
-            "Choose number of words: 12, 15, 18, 21, 24",
-            choices=[12, 15, 18, 21, 24],
-            default=12,
+        n_words = int(
+            Prompt.ask(
+                "Choose number of words: 12, 15, 18, 21, 24",
+                choices=["12", "15", "18", "21", "24"],
+                default=12,
+            )
         )
     return n_words
 
 
-def get_creation_data(mnemonic, seed, json, json_password):
+def get_creation_data(
+    mnemonic: str, seed: str, json: str, json_password: str
+) -> tuple[str, str, str, str]:
+    """
+    Determines which of the key creation elements have been supplied, if any. If None have been supplied,
+    prompts to user, and determines what they've supplied. Returns all elements in a tuple.
+    """
     if not mnemonic and not seed and not json:
         prompt_answer = Prompt.ask("Enter mnemonic, seed, or json file location")
         if prompt_answer.startswith("0x"):
@@ -106,6 +125,9 @@ def get_creation_data(mnemonic, seed, json, json_password):
 
 
 def version_callback(value: bool):
+    """
+    Prints the current version/branch-name
+    """
     if value:
         typer.echo(
             f"BTCLI Version: {__version__}/{Repo(os.path.dirname(__file__)).active_branch.name}"
@@ -114,6 +136,20 @@ def version_callback(value: bool):
 
 
 class CLIManager:
+    """
+    :var app: the main CLI Typer app
+    :var config_app: the Typer app as it relates to config commands
+    :var wallet_app: the Typer app as it relates to wallet commands
+    :var root_app: the Typer app as it relates to root commands
+    :var not_subtensor: the `SubtensorInterface` object passed to the various commands that require it
+    """
+
+    not_subtensor: Optional[SubtensorInterface]
+    app: typer.Typer
+    config_app: typer.Typer
+    wallet_app: typer.Typer
+    root_app: typer.Typer
+
     def __init__(self):
         self.config = {
             "wallet_name": None,
@@ -127,7 +163,7 @@ class CLIManager:
         self.app = typer.Typer(rich_markup_mode="markdown", callback=self.main_callback)
         self.config_app = typer.Typer()
         self.wallet_app = typer.Typer()
-        self.delegates_app = typer.Typer()
+        self.root_app = typer.Typer()
 
         # config alias
         self.app.add_typer(
@@ -147,13 +183,13 @@ class CLIManager:
         self.app.add_typer(self.wallet_app, name="w", hidden=True)
         self.app.add_typer(self.wallet_app, name="wallets", hidden=True)
 
-        # delegates aliases
+        # root aliases
         self.app.add_typer(
-            self.delegates_app,
-            name="delegates",
-            short_help="Delegate commands, alias: `d`",
+            self.root_app,
+            name="root",
+            short_help="Root commands, alias: `r`",
         )
-        self.app.add_typer(self.delegates_app, name="d", hidden=True)
+        self.app.add_typer(self.root_app, name="d", hidden=True)
 
         # config commands
         self.config_app.command("set")(self.set_config)
@@ -177,33 +213,62 @@ class CLIManager:
         self.wallet_app.command("get-identity")(self.wallet_get_id)
         self.wallet_app.command("check-swap")(self.wallet_check_ck_swap)
 
-        # delegates commands
-        self.delegates_app.command("list")(self.delegates_list)
+        # root commands
+        self.root_app.command("list")(self.root_list)
+        self.root_app.command("set-weights")(self.root_set_weights)
+        self.root_app.command("get-weights")(self.root_get_weights)
+        self.root_app.command("boost")(self.root_boost)
+        self.root_app.command("senate")(self.root_senate)
+        self.root_app.command("senate-vote")(self.root_senate_vote)
+        self.root_app.command("register")(self.root_register)
+        self.root_app.command("proposals")(self.root_proposals)
+        self.root_app.command("set-take")(self.root_set_take)
+        self.root_app.command("delegate-stake")(self.root_delegate_stake)
+        self.root_app.command("undelegate-stake")(self.root_undelegate_stake)
+        self.root_app.command("my-delegates")(self.root_my_delegates)
+        self.root_app.command("list-delegates")(self.root_list_delegates)
+        self.root_app.command("nominate")(self.root_nominate)
 
     def initialize_chain(
         self,
-        network: str = typer.Option("default_network", help="Network name"),
-        chain: str = typer.Option("default_chain", help="Chain name"),
-    ):
+        network: Optional[str] = typer.Option("default_network", help="Network name"),
+        chain: Optional[str] = typer.Option("default_chain", help="Chain name"),
+    ) -> SubtensorInterface:
+        """
+        Intelligently initializes a connection to the chain, depending on the supplied (or in config) values. Set's the
+        `self.not_subtensor` object to this created connection.
+
+        :param network: Network name (e.g. finney, test, etc.)
+        :param chain: the chain endpoint (e.g. ws://127.0.0.1:9945, wss://entrypoint-finney.opentensor.ai:443, etc.)
+        """
         if not self.not_subtensor:
-            if self.config["chain"] or self.config["chain"]:
+            if network or chain:
+                self.not_subtensor = SubtensorInterface(network, chain)
+            elif self.config["chain"] or self.config["chain"]:
                 self.not_subtensor = SubtensorInterface(
                     self.config["network"], self.config["chain"]
                 )
             else:
-                self.not_subtensor = SubtensorInterface(network, chain)
-                # typer.echo(f"Initialized with {self.not_subtensor}")
+                self.not_subtensor = SubtensorInterface(
+                    defaults.subtensor.network, defaults.subtensor.chain_endpoint
+                )
         console.print(f"[yellow] Connected to [/yellow][white]{self.not_subtensor}")
+        return self.not_subtensor
 
-    def _run_command(self, cmd: Coroutine):
+    def _run_command(self, cmd: Coroutine) -> None:
+        """
+        Runs the supplied coroutine with asyncio.run
+        """
         try:
-            asyncio.run(cmd)
+            return asyncio.run(cmd)
         except ConnectionRefusedError:
-            typer.echo(
+            err_console.print(
                 f"Connection refused when connecting to chain: {self.not_subtensor}"
             )
         except ConnectionClosed:
             pass
+        except SubstrateRequestException as e:
+            err_console.print(str(e))
 
     def main_callback(
         self,
@@ -211,8 +276,17 @@ class CLIManager:
             Optional[bool], typer.Option("--version", callback=version_callback)
         ] = None,
     ):
+        """
+        Method called before all others when using any CLI command. Gives version if that flag is set, otherwise
+        loads the config from the config file.
+        """
+        fp = os.path.expanduser(defaults.config.path)
+        # create config file if it does not exist
+        if not os.path.exists(fp):
+            with open(fp, "w") as f:
+                safe_dump(defaults.config.dictionary, f)
         # check config
-        with open(os.path.expanduser("~/.bittensor/config.yml"), "r") as f:
+        with open(fp, "r") as f:
             config = safe_load(f)
         for k, v in config.items():
             if k in self.config.keys():
@@ -249,6 +323,15 @@ class CLIManager:
             help="Chain name",
         ),
     ):
+        """
+        Sets values in config file
+        :param wallet_name: name of the wallet
+        :param wallet_path: root path of the wallets
+        :param wallet_hotkey: name of the wallet hotkey file
+        :param network: name of the network (e.g. finney, test, local)
+        :param chain: chain endpoint for the network (e.g. ws://127.0.0.1:9945,
+                      wss://entrypoint-finney.opentensor.ai:443)
+        """
         args = locals()
         for arg in ["wallet_name", "wallet_path", "wallet_hotkey", "network", "chain"]:
             if val := args.get(arg):
@@ -257,6 +340,9 @@ class CLIManager:
             safe_dump(self.config, f)
 
     def get_config(self):
+        """
+        Prints the current config file in a table
+        """
         table = Table(Column("Name"), Column("Value"))
         for k, v in self.config.items():
             table.add_row(*[k, v])
@@ -264,11 +350,19 @@ class CLIManager:
 
     def wallet_ask(
         self,
-        wallet_name: str,
-        wallet_path: str,
-        wallet_hotkey: str,
-        validate=True,
-    ):
+        wallet_name: Optional[str],
+        wallet_path: Optional[str],
+        wallet_hotkey: Optional[str],
+        validate: bool = True,
+    ) -> Wallet:
+        """
+        Generates a wallet object based on supplied values, validating the wallet is valid if flag is set
+        :param wallet_name: name of the wallet
+        :param wallet_path: root path of the wallets
+        :param wallet_hotkey: name of the wallet hotkey file
+        :param validate: flag whether to check for the wallet's validity
+        :return: created Wallet object
+        """
         wallet_name = wallet_name or self.config.get("wallet_name")
         wallet_path = wallet_path or self.config.get("wallet_path")
         wallet_hotkey = wallet_hotkey or self.config.get("wallet_hotkey")
@@ -333,7 +427,7 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        all_wallets: Optional[bool] = typer.Option(
+        all_wallets: bool = typer.Option(
             False, "--all", "-a", help="View overview for all wallets"
         ),
         sort_by: Optional[str] = typer.Option(
@@ -436,11 +530,10 @@ class CLIManager:
                     "Enter the path of the wallets", default=defaults.wallet.path
                 )
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        self.initialize_chain(network, chain)
         return self._run_command(
             wallets.overview(
                 wallet,
-                self.not_subtensor,
+                self.initialize_chain(network, chain),
                 all_wallets,
                 sort_by,
                 sort_order,
@@ -1080,51 +1173,51 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
-        display_name: Optional[str] = typer.Option(
+        display_name: str = typer.Option(
             "",
             "--display-name",
             "--display",
             help="The display name for the identity.",
             prompt=True,
         ),
-        legal_name: Optional[str] = typer.Option(
+        legal_name: str = typer.Option(
             "",
             "--legal-name",
             "--legal",
             help="The legal name for the identity.",
             prompt=True,
         ),
-        web_url: Optional[str] = typer.Option(
+        web_url: str = typer.Option(
             "", "--web-url", "--web", help="The web url for the identity.", prompt=True
         ),
-        riot_handle: Optional[str] = typer.Option(
+        riot_handle: str = typer.Option(
             "",
             "--riot-handle",
             "--riot",
             help="The riot handle for the identity.",
             prompt=True,
         ),
-        email: Optional[str] = typer.Option(
+        email: str = typer.Option(
             "", help="The email address for the identity.", prompt=True
         ),
-        pgp_fingerprint: Optional[str] = typer.Option(
+        pgp_fingerprint: str = typer.Option(
             "",
             "--pgp-fingerprint",
             "--pgp",
             help="The pgp fingerprint for the identity.",
             prompt=True,
         ),
-        image_url: Optional[str] = typer.Option(
+        image_url: str = typer.Option(
             "",
             "--image-url",
             "--image",
             help="The image url for the identity.",
             prompt=True,
         ),
-        info_: Optional[str] = typer.Option(
+        info_: str = typer.Option(
             "", "--info", "-i", help="The info for the identity.", prompt=True
         ),
-        twitter_url: Optional[str] = typer.Option(
+        twitter_url: str = typer.Option(
             "",
             "-x",
             "-𝕏",
@@ -1133,7 +1226,7 @@ class CLIManager:
             help="The 𝕏 (Twitter) url for the identity.",
             prompt=True,
         ),
-        validator_id: Optional[bool] = typer.Option(
+        validator_id: bool = typer.Option(
             "--validator/--not-validator",
             help="Are you updating a validator hotkey identity?",
             prompt=True,
@@ -1243,15 +1336,797 @@ class CLIManager:
         primarily used for informational purposes and has no side effects on the network state.
         """
 
-    def delegates_list(
+    def root_list(
         self,
-        wallet_name: Optional[str] = typer.Option(None, help="Wallet name"),
-        network: str = typer.Option("test", help="Network name"),
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
     ):
-        if not wallet_name:
-            wallet_name = typer.prompt("Please enter the wallet name")
+        """
+        # root list
+        Executes the `list` command to display the members of the root network on the Bittensor network.
+
+        This command provides an overview of the neurons that constitute the network's foundational layer.
+
+        ## Usage:
+        Upon execution, the command fetches and lists the neurons in the root network, showing their unique identifiers
+        (UIDs), names, addresses, stakes, and whether they are part of the senate (network governance body).
+
+        ### Example usage:
+
+        ```
+
+        $ btcli root list
+
+        UID  NAME                             ADDRESS                                                STAKE(τ)  SENATOR
+
+        0                                     5CaCUPsSSdKWcMJbmdmJdnWVa15fJQuz5HsSGgVdZffpHAUa    27086.37070  Yes
+
+        1    RaoK9                            5GmaAk7frPXnAxjbQvXcoEzMGZfkrDee76eGmKoB3wxUburE      520.24199  No
+
+        2    Openτensor Foundaτion            5F4tQyWrhfGVcNhoqeiNsR6KjD4wMZ2kfhLj4oHYuyHbZAc3  1275437.45895  Yes
+
+        3    RoundTable21                     5FFApaS75bv5pJHfAp2FVLBj9ZaXuFDjEypsaBNc1wCfe52v    84718.42095  Yes
+
+        4                                     5HK5tp6t2S59DywmHRWPBVJeJ86T61KjurYqeooqj8sREpeN   168897.40859  Yes
+
+        5    Rizzo                            5CXRfP2ekFhe62r7q3vppRajJmGhTi7vwvb2yr79jveZ282w    53383.34400  No
+
+        6    τaosτaτs and BitAPAI             5Hddm3iBFD2GLT5ik7LZnT3XJUnRnN8PoeCFgGQgawUVKNm8   646944.73569  Yes
+
+        ...
+
+        ```
+
+
+        #### Note:
+        This command is useful for users interested in understanding the composition and governance structure of the
+        Bittensor network's root layer. It provides insights into which neurons hold significant influence and
+        responsibility within the network.
+        """
         return self._run_command(
-            delegates.ListDelegatesCommand.run(wallet_name, network)
+            root.root_list(subtensor=self.initialize_chain(network, chain))
+        )
+
+    def root_set_weights(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        netuids: list[int] = typer.Option(None, help="Netuids, e.g. `0 1 2` ..."),
+        weights: list[float] = typer.Argument(
+            None,
+            help="Weights: e.g. `0.02 0.03 0.01` ...",
+        ),
+    ):
+        """
+        # root set-weights
+        Executes the `set-weights` command to set the weights for the root network on the Bittensor network.
+
+        This command is used by network senators to influence the distribution of network rewards and responsibilities.
+
+        ## Usage:
+        The command allows setting weights for different subnets within the root network. Users need to specify the
+        netuids (network unique identifiers) and corresponding weights they wish to assign.
+
+        ### Example usage::
+        ```
+        btcli root set-weights 0.3 0.3 0.4 --netuids 1 2 3 --chain ws://127.0.0.1:9945
+        ```
+
+        #### Note:
+        This command is particularly important for network senators and requires a comprehensive understanding of the
+        network's dynamics. It is a powerful tool that directly impacts the network's operational mechanics and reward
+        distribution.
+        """
+
+    def root_get_weights(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+    ):
+        """
+        # root get-weights
+        Executes the `get-weights` command to retrieve the weights set for the root network on the Bittensor network.
+
+        This command provides visibility into how network responsibilities and rewards are distributed among various
+        subnets.
+
+        ## Usage:
+        The command outputs a table listing the weights assigned to each subnet within the root network. This
+        information is crucial for understanding the current influence and reward distribution among the subnets.
+
+        ### Example usage:
+
+        ```
+
+        $ btcli root get_weights
+
+                                                Root Network Weights
+
+        UID        0        1        2       3        4        5       8        9       11     13      18       19
+
+        1    100.00%        -        -       -        -        -       -        -        -      -       -        -
+
+        2          -   40.00%    5.00%  10.00%   10.00%   10.00%  10.00%    5.00%        -      -  10.00%        -
+
+        3          -        -   25.00%       -   25.00%        -  25.00%        -        -      -  25.00%        -
+
+        4          -        -    7.00%   7.00%   20.00%   20.00%  20.00%        -    6.00%      -  20.00%        -
+
+        5          -   20.00%        -  10.00%   15.00%   15.00%  15.00%    5.00%        -      -  10.00%   10.00%
+
+        6          -        -        -       -   10.00%   10.00%  25.00%   25.00%        -      -  30.00%        -
+
+        7          -   60.00%        -       -   20.00%        -       -        -   20.00%      -       -        -
+
+        8          -   49.35%        -   7.18%   13.59%   21.14%   1.53%    0.12%    7.06%  0.03%       -        -
+
+        9    100.00%        -        -       -        -        -       -        -        -      -       -        -
+
+
+        ```
+
+        #### Note:
+        This command is essential for users interested in the governance and operational dynamics of the Bittensor
+        network. It offers transparency into how network rewards and responsibilities are allocated across different
+        subnets.
+        """
+        self.initialize_chain(network, chain)
+        return self._run_command(root.get_weights(self.not_subtensor))
+
+    def root_boost(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        netuid: int = Options.netuid,
+        amount: float = typer.Option(
+            None,
+            "--amount",
+            "--increase",
+            "-a",
+            prompt=True,
+            help="Amount (float) to boost, (e.g. 0.01)",
+        ),
+    ):
+        """
+        # root boost
+        Not currently working with new implementation
+
+        Executes the `boost` command to boost the weights for a specific subnet within the root network on the Bittensor
+        network.
+
+        ## Usage:
+        The command allows boosting the weights for different subnets within the root network.
+
+        ### Example usage:
+
+        ```
+
+        $ btcli root boost --netuid 1 --increase 0.01
+
+        Boosting weight for subnet: 1 by amount: 0.1
+
+        Normalized weights:
+
+        tensor([
+        0.0000, 0.5455, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.4545, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000]) ->
+        tensor([0.0000, 0.5455, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.4545, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000]
+        )
+
+
+        Do you want to set the following root weights?:
+
+        weights: tensor([
+        0.0000, 0.5455, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.4545, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000])
+
+        uids: tensor([ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17,
+        18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
+        36, 37, 38, 39, 40])? [y/n]: y
+
+        ✅ Finalized
+
+        ⠙ 📡 Setting root weights on test ...2023-11-28 22:09:14.001 |     SUCCESS      | Set weights
+                           Finalized: True
+
+
+        ```
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        self.initialize_chain(network, chain)
+        return self._run_command(
+            root.set_boost(wallet, self.not_subtensor, netuid, amount)
+        )
+
+    def root_slash(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        netuid: int = Options.netuid,
+        amount: float = typer.Option(
+            None,
+            "--amount",
+            "--decrease",
+            "-a",
+            prompt=True,
+            help="Amount (float) to boost, (e.g. 0.01)",
+        ),
+    ):
+        """
+        # root slash
+        Executes the `slash` command to decrease the weights for a specific subnet within the root network on the
+        Bittensor network.
+
+        ## Usage:
+        The command allows slashing (decreasing) the weights for different subnets within the root network.
+
+        ### Example usage:
+
+        ```
+        $ btcli root slash --netuid 1 --decrease 0.01
+
+        Enter netuid (e.g. 1): 1
+        Enter decrease amount (e.g. 0.01): 0.2
+        Slashing weight for subnet: 1 by amount: 0.2
+
+        Normalized weights:
+
+        tensor([
+        0.0000, 0.4318, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.5682, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000]) -> tensor([
+        0.0000, 0.4318, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.5682, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000]
+        )
+
+        Do you want to set the following root weights?:
+
+        weights: tensor([
+                0.0000, 0.4318, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+                0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+                0.0000, 0.0000, 0.0000, 0.0000, 0.5682, 0.0000, 0.0000, 0.0000, 0.0000,
+                0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+                0.0000, 0.0000, 0.0000, 0.0000, 0.0000])
+
+        uids: tensor([ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17,
+                18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
+                36, 37, 38, 39, 40])? [y/n]: y
+
+        ⠙ 📡 Setting root weights on test ...2023-11-28 22:09:14.001 |     SUCCESS      | Set weights
+                           Finalized: True
+
+
+        ```
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        return self._run_command(
+            root.set_boost(
+                wallet, self.initialize_chain(network, chain), netuid, amount
+            )
+        )
+
+    def root_senate_vote(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        proposal: str = typer.Option(
+            None,
+            "--proposal",
+            "--proposal-hash",
+            help="The hash of the proposal to vote on.",
+        ),
+    ):
+        """
+        # root senate-vote
+        Executes the `senate-vote` command to cast a vote on an active proposal in Bittensor's governance protocol.
+
+        This command is used by Senate members to vote on various proposals that shape the network's future.
+
+        ## Usage:
+        The user needs to specify the hash of the proposal they want to vote on. The command then allows the Senate
+        member to cast an 'Aye' or 'Nay' vote, contributing to the decision-making process.
+
+        ### Example usage:
+
+        ```
+        btcli root senate_vote --proposal <proposal_hash>
+        ```
+
+        #### Note:
+        This command is crucial for Senate members to exercise their voting rights on key proposals. It plays a vital
+        role in the governance and evolution of the Bittensor network.
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        self.initialize_chain(network, chain)
+        return self._run_command(root.senate_vote(wallet, self.not_subtensor, proposal))
+
+    def root_senate(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+    ):
+        """
+        # root senate
+        Executes the `senate` command to view the members of Bittensor's governance protocol, known as the Senate.
+
+        This command lists the delegates involved in the decision-making process of the Bittensor network.
+
+        ## Usage:
+        The command retrieves and displays a list of Senate members, showing their names and wallet addresses.
+        This information is crucial for understanding who holds governance roles within the network.
+
+        ### Example usage:
+
+        ```
+        btcli root senate
+        ```
+
+        #### Note:
+        This command is particularly useful for users interested in the governance structure and participants of the
+        Bittensor network. It provides transparency into the network's decision-making body.
+        """
+        return self._run_command(root.get_senate(self.initialize_chain(network, chain)))
+
+    def root_register(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        netuid: int = Options.netuid,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+    ):
+        """
+        # root register
+        Executes the `register` command to register a neuron on the Bittensor network by recycling some TAO (the
+         network's native token).
+
+        This command is used to add a new neuron to a specified subnet within the network, contributing to the
+        decentralization and robustness of Bittensor.
+
+        ## Usage:
+        Before registering, the command checks if the specified subnet exists and whether the user's balance is
+        sufficient to cover the registration cost.
+
+        The registration cost is determined by the current recycle amount for the specified subnet. If the balance is
+        insufficient or the subnet does not exist, the command will exit with an appropriate error message.
+
+        If the preconditions are met, and the user confirms the transaction (if `no_prompt` is not set), the command
+        proceeds to register the neuron by recycling the required amount of TAO.
+
+        The command structure includes:
+
+        - Verification of subnet existence.
+
+        - Checking the user's balance against the current recycle amount for the subnet.
+
+        - User confirmation prompt for proceeding with registration.
+
+        - Execution of the registration process.
+
+
+        Columns Displayed in the confirmation prompt:
+
+        - Balance: The current balance of the user's wallet in TAO.
+
+        - Cost to Register: The required amount of TAO needed to register on the specified subnet.
+
+
+        ### Example usage:
+
+        ```
+        btcli subnets register --netuid 1
+        ```
+
+        #### Note:
+        This command is critical for users who wish to contribute a new neuron to the network. It requires careful
+        consideration of the subnet selection and an understanding of the registration costs. Users should ensure their
+        wallet is sufficiently funded before attempting to register a neuron.
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        return self._run_command(
+            root.register(wallet, self.initialize_chain(network, chain), netuid)
+        )
+
+    def root_proposals(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+    ):
+        """
+        # root proposals
+        Executes the `proposals` command to view active proposals within Bittensor's governance protocol.
+
+        This command displays the details of ongoing proposals, including votes, thresholds, and proposal data.
+
+        ## Usage:
+        The command lists all active proposals, showing their hash, voting threshold, number of ayes and nays, detailed
+        votes by address, end block number, and call data associated with each proposal.
+
+        ### Example usage:
+
+        ```
+        btcli root proposals
+        ```
+
+        #### Note:
+        This command is essential for users who are actively participating in or monitoring the governance of the
+        Bittensor network. It provides a detailed view of the proposals being considered, along with the community's
+        response to each.
+        """
+        return self._run_command(root.proposals(self.initialize_chain(network, chain)))
+
+    def root_set_take(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        take: float = typer.Option(None, help="The new take value."),
+    ):
+        """
+        # root set-take
+        Executes the `set-take` command, which sets the delegate take.
+
+        The command performs several checks:
+
+        1. Hotkey is already a delegate
+        2. New take value is within 0-18% range
+
+        ## Usage:
+        To run the command, the user must have a configured wallet with both hotkey and coldkey. Also, the hotkey should already be a delegate.
+
+        ### Example usage:
+        btcli root set_take --wallet.name my_wallet --wallet.hotkey my_hotkey
+
+        #### Note:
+        This function can be used to update the takes individually for every subnet
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        return self._run_command(
+            root.set_take(wallet, self.initialize_chain(network, chain), take)
+        )
+
+    def root_delegate_stake(
+        self,
+        delegate_ss58key: str = typer.Option(
+            None, help="The `SS58` address of the delegate to stake to.", prompt=True
+        ),
+        amount: Optional[float] = typer.Option(
+            None, help="The amount of Tao to stake. Do no specify if using `--all`"
+        ),
+        stake_all: Optional[bool] = typer.Option(
+            False,
+            "--all",
+            "-a",
+            help="If specified, the command stakes all available Tao. Do not specify if using"
+            " `--amount`",
+        ),
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+    ):
+        """
+        # root delegate-stake
+        Executes the `delegate-stake` command, which stakes Tao to a specified delegate on the Bittensor network.
+
+        This action allocates the user's Tao to support a delegate, potentially earning staking rewards in return.
+
+        The command interacts with the user to determine the delegate and the amount of Tao to be staked. If the
+        `--all` flag is used, it delegates the entire available balance.
+
+        ## Usage:
+        The user must specify the delegate's SS58 address and the amount of Tao to stake. The function sends a
+        transaction to the subtensor network to delegate the specified amount to the chosen delegate. These values are
+        prompted if not provided.
+
+        ### Example usage:
+
+        ```
+        btcli delegate-stake --delegate_ss58key <SS58_ADDRESS> --amount <AMOUNT>
+
+        btcli delegate-stake --delegate_ss58key <SS58_ADDRESS> --all
+        ```
+
+
+        #### Note:
+        This command modifies the blockchain state and may incur transaction fees. It requires user confirmation and
+        interaction, and is designed to be used within the Bittensor CLI environment. The user should ensure the
+        delegate's address and the amount to be staked are correct before executing the command.
+        """
+        # TODO instruct users how to show all delegates (I think list-delegates, but have to be sure)
+        if amount and stake_all:
+            err_console.print(
+                "`--amount` and `--all` specified. Choose one or the other."
+            )
+        if not stake_all and not amount:
+            amount = typer.prompt(
+                "How much would you like to stake, in TAO?",
+                confirmation_prompt="Confirm you wish to stake: τ",
+            )
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        return self._run_command(
+            root.delegate_stake(
+                wallet, self.initialize_chain(network, chain), amount, delegate_ss58key
+            )
+        )
+
+    def root_undelegate_stake(
+        self,
+        delegate_ss58key: str = typer.Option(
+            None,
+            help="The `SS58` address of the delegate to undelegate from.",
+            prompt=True,
+        ),
+        amount: Optional[float] = typer.Option(
+            None, help="The amount of Tao to unstake. Do no specify if using `--all`"
+        ),
+        unstake_all: Optional[bool] = typer.Option(
+            False,
+            "--all",
+            "-a",
+            help="If specified, the command undelegates all staked Tao from the delegate. Do not specify if using"
+            " `--amount`",
+        ),
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+    ):
+        """
+        # root undelegate-stake
+        Executes the ``undelegate`` command, allowing users to withdraw their staked Tao from a delegate on the Bittensor
+        network.
+
+        This process is known as "undelegating" and it reverses the delegation process, freeing up the staked tokens.
+
+        The command prompts the user for the amount of Tao to undelegate and the ``SS58`` address of the delegate from
+        which to undelegate. If the ``--all`` flag is used, it will attempt to undelegate the entire staked amount from
+        the specified delegate.
+
+        ## Usage:
+        The user must provide the delegate's SS58 address and the amount of Tao to undelegate. The function will then
+        send a transaction to the Bittensor network to process the undelegation.
+
+        ### Example usage:
+
+        ```
+        btcli undelegate --delegate_ss58key <SS58_ADDRESS> --amount <AMOUNT>
+
+        btcli undelegate --delegate_ss58key <SS58_ADDRESS> --all
+
+        ```
+
+        #### Note:
+        This command can result in a change to the blockchain state and may incur transaction fees. It is interactive
+        and requires confirmation from the user before proceeding. It should be used with care as undelegating can
+        affect the delegate's total stake and
+        potentially the user's staking rewards.
+        """
+        if amount and unstake_all:
+            err_console.print(
+                "`--amount` and `--all` specified. Choose one or the other."
+            )
+        if not unstake_all and not amount:
+            amount = typer.prompt(
+                "How much would you like to unstake, in TAO?",
+                confirmation_prompt="Confirm you wish to unstake: τ",
+            )
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        self._run_command(
+            root.delegate_unstake(
+                wallet, self.initialize_chain(network, chain), amount, delegate_ss58key
+            )
+        )
+
+    def root_my_delegates(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        all_wallets: bool = typer.Option(
+            False,
+            "all-wallets",
+            "--all",
+            "-a",
+            help="If specified, the command aggregates information across all wallets.",
+        ),
+    ):
+        """
+        # root my-delegates
+        Executes the `my-delegates` command within the Bittensor CLI, which retrieves and displays a table of delegated
+        stakes from a user's wallet(s) to various delegates on the Bittensor network.
+
+        The command provides detailed insights into the user's
+        staking activities and the performance of their chosen delegates.
+
+        The table output includes the following columns:
+
+        - Wallet: The name of the user's wallet.
+
+        - OWNER: The name of the delegate's owner.
+
+        - SS58: The truncated SS58 address of the delegate.
+
+        - Delegation: The amount of Tao staked by the user to the delegate.
+
+        - τ/24h: The earnings from the delegate to the user over the past 24 hours.
+
+        - NOMS: The number of nominators for the delegate.
+
+        - OWNER STAKE(τ): The stake amount owned by the delegate.
+
+        - TOTAL STAKE(τ): The total stake amount held by the delegate.
+
+        - SUBNETS: The list of subnets the delegate is a part of.
+
+        - VPERMIT: Validator permits held by the delegate for various subnets.
+
+        - 24h/kτ: Earnings per 1000 Tao staked over the last 24 hours.
+
+        - Desc: A description of the delegate.
+
+
+        The command also sums and prints the total amount of Tao delegated across all wallets.
+
+        ## Usage:
+        The command can be run as part of the Bittensor CLI suite of tools and requires no parameters if a single wallet
+        is used. If multiple wallets are present, the `--all` flag can be specified to aggregate information across
+        all wallets.
+
+        ### Example usage:
+
+        ```
+        btcli root my-delegates
+        btcli root my-delegates --all
+        btcli root my-delegates --wallet-name my_wallet
+
+        ```
+
+        #### Note:
+        This function is typically called by the CLI parser and is not intended to be used directly in user code.
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        self._run_command(
+            root.my_delegates(
+                wallet, self.initialize_chain(network, chain), all_wallets
+            )
+        )
+
+    def root_list_delegates(self):
+        """
+        # root list-delegates
+        Displays a formatted table of Bittensor network delegates, providing a comprehensive overview of delegate
+        statistics and information.
+
+        This table helps users make informed decisions on which delegates to allocate their TAO stake.
+
+        The table columns include:
+
+        - INDEX: The delegate's index in the sorted list.
+
+        - DELEGATE: The name of the delegate.
+
+        - SS58: The delegate's unique SS58 address (truncated for display).
+
+        - NOMINATORS: The count of nominators backing the delegate.
+
+        - DELEGATE STAKE(τ): The amount of delegate's own stake (not the TAO delegated from any nominators).
+
+        - TOTAL STAKE(τ): The delegate's cumulative stake, including self-staked and nominators' stakes.
+
+        - CHANGE/(4h): The percentage change in the delegate's stake over the last four hours.
+
+        - SUBNETS: The subnets to which the delegate is registered.
+
+        - VPERMIT: Indicates the subnets for which the delegate has validator permits.
+
+        - NOMINATOR/(24h)/kτ: The earnings per 1000 τ staked by nominators in the last 24 hours.
+
+        - DELEGATE/(24h): The total earnings of the delegate in the last 24 hours.
+
+        - DESCRIPTION: A brief description of the delegate's purpose and operations.
+
+
+        Sorting is done based on the `TOTAL STAKE` column in descending order. Changes in stake are highlighted:
+        increases in green and decreases in red. Entries with no previous data are marked with ``NA``. Each delegate's
+        name is a hyperlink to their respective URL, if available.
+
+        ### Example usage:
+
+        ```
+        btcli root list_delegates
+
+        btcli root list_delegates --wallet.name my_wallet
+
+        btcli root list_delegates --subtensor.network finney # can also be `test` or `local`
+
+        ```
+
+        #### Note:
+        This function is part of the Bittensor CLI tools and is intended for use within a console application. It prints
+        directly to the console and does not return any value.
+        """
+        self.initialize_chain("archive", "wss://archive.chain.opentensor.ai:443")
+        return self._run_command(root.list_delegates(self.not_subtensor))
+
+    def root_nominate(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+    ):
+        """
+        # root nominate
+        Executes the `nominate` command, which facilitates a wallet to become a delegate on the Bittensor network.
+
+        This command handles the nomination process, including wallet unlocking and verification of the hotkey's current
+        delegate status.
+
+        The command performs several checks:
+
+        - Verifies that the hotkey is not already a delegate to prevent redundant nominations.
+
+        - Tries to nominate the wallet and reports success or failure.
+
+        Upon success, the wallet's hotkey is registered as a delegate on the network.
+
+        ## Usage:
+        To run the command, the user must have a configured wallet with both hotkey and coldkey. If the wallet is not
+        already nominated, this command will initiate the process.
+
+        ### Example usage:
+        ```
+
+        btcli root nominate
+
+        btcli root nominate --wallet.name my_wallet --wallet.hotkey my_hotkey
+
+        ```
+
+        #### Note:
+        This function is intended to be used as a CLI command. It prints the outcome directly to the console and does
+        not return any value. It should not be called programmatically in user code due to its interactive nature and
+        side effects on the network state.
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        return self._run_command(
+            root.nominate(wallet, self.initialize_chain(network, chain))
         )
 
     def run(self):
