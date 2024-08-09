@@ -2240,6 +2240,63 @@ class CLIManager:
             stake.get_children(wallet, self.initialize_chain(network, chain), netuid)
         )
 
+    def stake_set_children(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_hotkey: Optional[
+            str
+        ] = Options.wallet_hk_req,  # TODO verify this is not just the wallet hotkey
+        wallet_path: Optional[str] = Options.wallet_path,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        netuid: int = Options.netuid,
+        children: list[str] = typer.Option(
+            [], "--children", "-c", help="Enter children hotkeys (ss58)", prompt=True
+        ),
+        proportions: list[float] = typer.Option(
+            [],
+            "--proportions",
+            "-p",
+            help="Enter proportions for children as (sum less than 1)",
+            prompt=True,
+        ),
+    ):
+        """
+        # stake set-children
+        Executes the `set_children` command to add children hotkeys on a specified subnet on the Bittensor network.
+
+        This command is used to delegate authority to different hotkeys, securing their position and influence on the
+        subnet.
+
+        ## Usage:
+        Users can specify the amount or 'proportion' to delegate to child hotkeys (``SS58`` address),
+        the user needs to have sufficient authority to make this call, and the sum of proportions cannot be greater
+        than 1.
+
+        The command prompts for confirmation before executing the set_children operation.
+
+        ### Example usage:
+
+        ```
+        btcli stake set_children --children <child_hotkey>,<child_hotkey> --hotkey <parent_hotkey> --netuid 1
+        --proportions 0.3,0.3
+        ```
+
+        #### Note:
+        This command is critical for users who wish to delegate children hotkeys among different neurons (hotkeys) on
+        the network. It allows for a strategic allocation of authority to enhance network participation and influence.
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        return self._run_command(
+            stake.set_children(
+                wallet,
+                self.initialize_chain(network, chain),
+                netuid,
+                children,
+                proportions,
+            )
+        )
+
     def run(self):
         self.app()
 

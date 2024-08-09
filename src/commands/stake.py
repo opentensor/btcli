@@ -2,6 +2,7 @@ import asyncio
 from typing import TYPE_CHECKING, Union
 
 from bittensor_wallet import Wallet
+from rich.prompt import Confirm
 from rich.table import Table, Column
 from substrateinterface.exceptions import SubstrateRequestException
 
@@ -14,10 +15,132 @@ from src.utils import (
     get_coldkey_wallets_for_path,
     console,
     err_console,
+    is_valid_ss58_address,
+    float_to_u64,
 )
 
 if TYPE_CHECKING:
     from src.subtensor_interface import SubtensorInterface
+
+
+# Helpers and Extrinsics
+
+
+async def set_children_extrinsic(
+    subtensor: SubtensorInterface,
+    wallet: Wallet,
+    hotkey: str,
+    netuid: int,
+    children_with_proportions: list[tuple[float, str]],
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = False,
+    prompt: bool = False,
+) -> tuple[bool, str]:
+    """
+    Sets children hotkeys with proportions assigned from the parent.
+
+    :param: subtensor: Subtensor endpoint to use.
+    :param: wallet: Bittensor wallet object.
+    :param: hotkey: Parent hotkey.
+    :param: children_with_proportions: Children hotkeys.
+    :param: netuid: Unique identifier of for the subnet.
+    :param: wait_for_inclusion: If set, waits for the extrinsic to enter a block before returning `True`, or returns
+                                `False` if the extrinsic fails to enter the block within the timeout.
+    :param: wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `
+                                   `True`, or returns `False` if the extrinsic fails to be finalized within the timeout.
+    :param: prompt: If `True`, the call waits for confirmation from the user before proceeding.
+
+    :return: A tuple containing a success flag and an optional error message.
+    """
+    # Check if all children are being revoked
+    all_revoked = all(prop == 0.0 for prop, _ in children_with_proportions)
+
+    operation = "Revoke all children hotkeys" if all_revoked else "Set children hotkeys"
+
+    # Ask before moving on.
+    if prompt:
+        if all_revoked:
+            if not Confirm.ask(
+                f"Do you want to revoke all children hotkeys for hotkey {hotkey}?"
+            ):
+                return False, "Operation Cancelled"
+        else:
+            if not Confirm.ask(
+                "Do you want to set children hotkeys:\n[bold white]{}[/bold white]?".format(
+                    "\n".join(
+                        f"  {child[1]}: {child[0]}"
+                        for child in children_with_proportions
+                    )
+                )
+            ):
+                return False, "Operation Cancelled"
+
+    with console.status(
+        f":satellite: {operation} on [white]{subtensor.network}[/white] ..."
+    ):
+        normalized_children = (
+            prepare_child_proportions(children_with_proportions)
+            if not all_revoked
+            else children_with_proportions
+        )
+        call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="set_children",
+            call_params={
+                "hotkey": hotkey,
+                "children": normalized_children,
+                "netuid": netuid,
+            },
+        )
+        success, error_message = await subtensor.sign_and_send_extrinsic(
+            call, wallet, wait_for_inclusion, wait_for_finalization
+        )
+
+        if not wait_for_finalization and not wait_for_inclusion:
+            return (
+                True,
+                f"Not waiting for finalization or inclusion. {operation} initiated.",
+            )
+
+        if success:
+            console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+            # bittensor.logging.success(
+            #     prefix=operation,
+            #     suffix="<green>Finalized: </green>" + str(success),
+            # )
+            return True, f"Successfully {operation.lower()} and Finalized."
+        else:
+            err_console.print(f":cross_mark: [red]Failed[/red]: {error_message}")
+            # bittensor.logging.warning(
+            #     prefix=operation,
+            #     suffix="<red>Failed: </red>" + str(error_message),
+            # )
+            return False, error_message
+
+
+def prepare_child_proportions(children_with_proportions):
+    """
+    Convert proportions to u64 and normalize
+    """
+    children_u64 = [
+        (float_to_u64(prop), child) for prop, child in children_with_proportions
+    ]
+    normalized_children = normalize_children_and_proportions(children_u64)
+    return normalized_children
+
+
+def normalize_children_and_proportions(
+    children: list[tuple[int, str]],
+) -> list[tuple[int, str]]:
+    """
+    Normalizes the proportions of children so that they sum to u64::MAX.
+    """
+    total = sum(prop for prop, _ in children)
+    u64_max = 2**64 - 1
+    return [(int(prop * u64_max / total), child) for prop, child in children]
+
+
+# Commands
 
 
 async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: bool):
@@ -223,12 +346,11 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
 
 
 async def get_children(wallet: Wallet, subtensor: SubtensorInterface, netuid: int):
-    async def _get_children(hotkey, nuid):
+    async def _get_children(hotkey):
         """
         Get the children of a hotkey on a specific network.
 
         :param hotkey: The hotkey to query.
-        :param nuid: The network ID.
 
         :return: List of (proportion, child_address) tuples, or None if an error occurred.
         """
@@ -250,7 +372,7 @@ async def get_children(wallet: Wallet, subtensor: SubtensorInterface, netuid: in
                     formatted_children.append((int_proportion, child.value))
                 return formatted_children
             else:
-                print("  No children found.")
+                console.print("[yellow]No children found.[/yellow]")
                 return []
         except SubstrateRequestException as e:
             err_console.print(f"Error querying ChildKeys: {e}")
@@ -339,8 +461,49 @@ async def get_children(wallet: Wallet, subtensor: SubtensorInterface, netuid: in
         console.print(table)
 
     async with subtensor:
-        children_ = await _get_children(wallet.hotkey, netuid)
+        children_ = await _get_children(wallet.hotkey)
 
         await render_table(wallet.hotkey, children_, netuid)
 
     return children_
+
+
+async def set_children(
+    wallet: Wallet,
+    subtensor: SubtensorInterface,
+    netuid: int,
+    children: list[str],
+    proportions: list[float],
+):
+    # Validate children SS58 addresses
+    for child in children:
+        if not is_valid_ss58_address(child):
+            err_console.print(f":cross_mark:[red] Invalid SS58 address: {child}[/red]")
+            return
+
+    total_proposed = sum(proportions)
+    if total_proposed > 1:
+        raise ValueError(
+            f"Invalid proportion: The sum of all proportions cannot be greater than 1. "
+            f"Proposed sum of proportions is {total_proposed}."
+        )
+
+    children_with_proportions = list(zip(proportions, children))
+
+    async with subtensor:
+        success, message = await set_children_extrinsic(
+            subtensor=subtensor,
+            wallet=wallet,
+            netuid=netuid,
+            hotkey=wallet.hotkey.ss58_address,
+            children_with_proportions=children_with_proportions,
+            prompt=True,
+        )
+    await subtensor.substrate.close()
+    # Result
+    if success:
+        console.print(":white_heavy_check_mark: [green]Set children hotkeys.[/green]")
+    else:
+        console.print(
+            f":cross_mark:[red] Unable to set children hotkeys.[/red] {message}"
+        )

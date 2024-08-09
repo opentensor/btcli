@@ -29,6 +29,15 @@ def u16_normalized_float(x: int) -> float:
     return float(x) / float(U16_MAX)
 
 
+def float_to_u64(value: float) -> int:
+    # Ensure the input is within the expected range
+    if not (0 <= value < 1):
+        raise ValueError("Input value must be between 0 and 1")
+
+    # Convert the float to a u64 value
+    return int(value * (2**64 - 1))
+
+
 def convert_weight_uids_and_vals_to_tensor(
     n: int, uids: list[int], weights: list[int]
 ) -> NDArray[np.float32]:
