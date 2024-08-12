@@ -423,25 +423,6 @@ async def set_take_extrinsic(
         else:
             return DelegateInfo.from_vec_u8(result)
 
-    async def _take_extrinsic(call_) -> tuple[bool, str]:
-        """Submits the previously-created extrinsic call to the chain"""
-        extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call_, keypair=wallet.coldkey
-        )  # sign with coldkey
-        response = await subtensor.substrate.submit_extrinsic(
-            extrinsic,
-            wait_for_inclusion=wait_for_inclusion,
-            wait_for_finalization=wait_for_finalization,
-        )
-        # We only wait here if we expect finalization.
-        if not wait_for_finalization and not wait_for_inclusion:
-            return True, ""
-        response.process_events()
-        if response.is_success:
-            return True, ""
-        else:
-            return False, format_error_message(response.error_message)
-
     # Calculate u16 representation of the take
     take_u16 = int(take * 0xFFFF)
 
@@ -471,7 +452,7 @@ async def set_take_extrinsic(
                     "take": take,
                 },
             )
-            success, err = await _take_extrinsic(call)
+            success, err = await subtensor.sign_and_send_extrinsic(call, wallet)
 
     else:
         console.print("Current take is higher than the new one. Will use decrease_take")
@@ -486,7 +467,7 @@ async def set_take_extrinsic(
                     "take": take,
                 },
             )
-            success, err = await _take_extrinsic(call)
+            success, err = await subtensor.sign_and_send_extrinsic(call, wallet)
 
     if not success:
         err_console.print(err)

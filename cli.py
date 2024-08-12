@@ -93,10 +93,8 @@ class Options:
 
 def list_prompt(init_var: list, list_type: type, help_text: str) -> list:
     while not init_var:
-        prompt = Prompt.ask(
-            help_text
-        )
-        init_var = [list_type(x) for x in re.split(r'[ ,]+', prompt) if x]
+        prompt = Prompt.ask(help_text)
+        init_var = [list_type(x) for x in re.split(r"[ ,]+", prompt) if x]
     return init_var
 
 
@@ -1454,7 +1452,11 @@ class CLIManager:
         """
         netuids = list_prompt(netuids, int, "Enter netuids")
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        self._run_command(root.set_weights(wallet, self.initialize_chain(network, chain), netuids, weights))
+        self._run_command(
+            root.set_weights(
+                wallet, self.initialize_chain(network, chain), netuids, weights
+            )
+        )
 
     def root_get_weights(
         self,
@@ -2383,7 +2385,8 @@ class CLIManager:
         proportions = list_prompt(
             proportions,
             float,
-            "Enter proportions equal to the number of children (sum not exceeding a total of 1.0)")
+            "Enter proportions equal to the number of children (sum not exceeding a total of 1.0)",
+        )
         if len(proportions) != len(children):
             err_console.print("You must have as many proportions as you have children.")
             raise typer.Exit()
