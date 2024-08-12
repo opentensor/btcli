@@ -1,7 +1,7 @@
 import os
 import math
 from pathlib import Path
-from typing import Union, Any
+from typing import Union, Any, Collection
 
 import aiohttp
 import scalecodec
@@ -39,7 +39,7 @@ def float_to_u64(value: float) -> int:
 
 
 def convert_weight_uids_and_vals_to_tensor(
-    n: int, uids: list[int], weights: list[int]
+    n: int, uids: Collection[int], weights: Collection[int]
 ) -> NDArray[np.float32]:
     """
     Converts weights and uids from chain representation into a `np.array` (inverse operation from
@@ -307,7 +307,7 @@ def get_explorer_root_url_by_network_from_map(
 
 
 def get_explorer_url_for_network(
-    network: str, block_hash: str, network_map: dict[str, str]
+    network: str, block_hash: str, network_map: dict[str, dict[str, str]]
 ) -> dict[str, str]:
     """
     Returns the explorer url for the given block hash and network.
@@ -424,13 +424,13 @@ def millify(n: int):
     :return: The formatted string representing the number with a suffix.
     """
     mill_names = ["", " K", " M", " B", " T"]
-    n = float(n)
+    n_ = float(n)
     mill_idx = max(
         0,
         min(
             len(mill_names) - 1,
-            int(math.floor(0 if n == 0 else math.log10(abs(n)) / 3)),
+            int(math.floor(0 if n_ == 0 else math.log10(abs(n_)) / 3)),
         ),
     )
 
-    return "{:.2f}{}".format(n / 10 ** (3 * mill_idx), mill_names[mill_idx])
+    return "{:.2f}{}".format(n_ / 10 ** (3 * mill_idx), mill_names[mill_idx])
