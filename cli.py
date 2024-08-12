@@ -2,7 +2,7 @@
 import asyncio
 import os.path
 import re
-from typing import Optional, Coroutine
+from typing import Optional, Coroutine, Collection
 
 from bittensor_wallet import Wallet
 from git import Repo
@@ -89,6 +89,15 @@ class Options:
         help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
         prompt=True,
     )
+
+
+def list_prompt(init_var: list, list_type: type, help_text: str) -> list:
+    while not init_var:
+        prompt = Prompt.ask(
+            help_text
+        )
+        init_var = [list_type(x) for x in re.split(r'[ ,]+', prompt) if x]
+    return init_var
 
 
 def get_n_words(n_words: Optional[int]) -> int:
@@ -1443,11 +1452,7 @@ class CLIManager:
         network's dynamics. It is a powerful tool that directly impacts the network's operational mechanics and reward
         distribution.
         """
-        while not netuids:
-            nuid_prompt = Prompt.ask(
-                "Enter netuids:"
-            )
-            netuids = [int(x) for x in re.split(r'[ ,]+', nuid_prompt) if x]
+        netuids = list_prompt(netuids, int, "Enter netuids")
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         self._run_command(root.set_weights(wallet, self.initialize_chain(network, chain), netuids, weights))
 
@@ -2374,18 +2379,16 @@ class CLIManager:
         This command is critical for users who wish to delegate children hotkeys among different neurons (hotkeys) on
         the network. It allows for a strategic allocation of authority to enhance network participation and influence.
         """
-        while not children:
-            child_prompt = Prompt.ask(
-                "Enter the child hotkeys (ss58)."
-            )
-            children = [x for x in re.split(r'[ ,]+', child_prompt) if x]
-        while not proportions:
-            proportions_prompt = Prompt.ask(
-                "Enter proportions equal to the number of children (sum not exceeding a total of 1.0)",
-            )
-            proportions = [float(x) for x in re.split(r'[ ,]+', proportions_prompt) if x]
+        children = list_prompt(children, str, "Enter the child hotkeys (ss58)")
+        proportions = list_prompt(
+            proportions,
+            float,
+            "Enter proportions equal to the number of children (sum not exceeding a total of 1.0)")
         if len(proportions) != len(children):
             err_console.print("You must have as many proportions as you have children.")
+            raise typer.Exit()
+        if sum(proportions) > 1.0:
+            err_console.print("Your proportion total must sum not exceed 1.0.")
             raise typer.Exit()
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
