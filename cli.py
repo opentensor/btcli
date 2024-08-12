@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import asyncio
 import os.path
+import re
 from typing import Optional, Coroutine
 
 from bittensor_wallet import Wallet
@@ -455,23 +456,23 @@ class CLIManager:
             None,
             help="Sort the hotkeys in the specified ordering. (ascending/asc or descending/desc/reverse)",
         ),
-        include_hotkeys: Optional[list[str]] = typer.Option(
+        include_hotkeys: list[str] = typer.Option(
             [],
             "--include-hotkeys",
             "-in",
             help="Specify the hotkeys to include by name or ss58 address. (e.g. `hk1 hk2 hk3`). "
             "If left empty, all hotkeys not excluded will be included.",
         ),
-        exclude_hotkeys: Optional[list[str]] = typer.Option(
+        exclude_hotkeys: list[str] = typer.Option(
             [],
             "--exclude-hotkeys",
             "-ex",
             help="Specify the hotkeys to exclude by name or ss58 address. (e.g. `hk1 hk2 hk3`). "
             "If left empty, and no hotkeys included in --include-hotkeys, all hotkeys will be included.",
         ),
-        netuids: Optional[list[int]] = Options.netuids,
-        network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
+        netuids: list[int] = Options.netuids,
+        network: str = Options.network,
+        chain: str = Options.chain,
     ):
         """
         # wallet overview
@@ -581,11 +582,11 @@ class CLIManager:
             prompt=True,
             help="Amount (in TAO) to transfer.",
         ),
-        wallet_name: Optional[str] = Options.wallet_name,
-        wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        network: str = Options.network,
+        chain: str = Options.chain,
     ):
         """
         # wallet transfer
@@ -653,12 +654,12 @@ class CLIManager:
             "-a",
             help="Inspect all wallets within specified path.",
         ),
-        wallet_name: Optional[str] = Options.wallet_name,
-        wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
-        netuids: Optional[list[int]] = Options.netuids,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        network: str = Options.network,
+        chain: str = Options.chain,
+        netuids: list[int] = Options.netuids,
     ):
         """
         # wallet inspect
@@ -1409,11 +1410,11 @@ class CLIManager:
 
     def root_set_weights(
         self,
-        network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
-        wallet_name: Optional[str] = Options.wallet_name,
-        wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        network: str = Options.network,
+        chain: str = Options.chain,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hk_req,
         netuids: list[int] = typer.Option(
             None, help="Netuids, e.g. `-n 0 -n 1 -n 2` ..."
         ),
@@ -1442,6 +1443,13 @@ class CLIManager:
         network's dynamics. It is a powerful tool that directly impacts the network's operational mechanics and reward
         distribution.
         """
+        while not netuids:
+            nuid_prompt = Prompt.ask(
+                "Enter netuids:"
+            )
+            netuids = [int(x) for x in re.split(r'[ ,]+', nuid_prompt) if x]
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        self._run_command(root.set_weights(wallet, self.initialize_chain(network, chain), netuids, weights))
 
     def root_get_weights(
         self,
@@ -2325,20 +2333,20 @@ class CLIManager:
     def stake_set_children(
         self,
         children: list[str] = typer.Option(
-            [], "--children", "-c", help="Enter children hotkeys (ss58)", prompt=True
+            [], "--children", "-c", help="Enter children hotkeys (ss58)", prompt=False
         ),
-        wallet_name: Optional[str] = Options.wallet_name,
-        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
-        wallet_path: Optional[str] = Options.wallet_path,
-        network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
+        wallet_name: str = Options.wallet_name,
+        wallet_hotkey: str = Options.wallet_hk_req,
+        wallet_path: str = Options.wallet_path,
+        network: str = Options.network,
+        chain: str = Options.chain,
         netuid: int = Options.netuid,
         proportions: list[float] = typer.Option(
             [],
             "--proportions",
             "-p",
             help="Enter proportions for children as (sum less than 1)",
-            prompt=True,
+            prompt=False,
         ),
     ):
         """
@@ -2366,6 +2374,19 @@ class CLIManager:
         This command is critical for users who wish to delegate children hotkeys among different neurons (hotkeys) on
         the network. It allows for a strategic allocation of authority to enhance network participation and influence.
         """
+        while not children:
+            child_prompt = Prompt.ask(
+                "Enter the child hotkeys (ss58)."
+            )
+            children = [x for x in re.split(r'[ ,]+', child_prompt) if x]
+        while not proportions:
+            proportions_prompt = Prompt.ask(
+                "Enter proportions equal to the number of children (sum not exceeding a total of 1.0)",
+            )
+            proportions = [float(x) for x in re.split(r'[ ,]+', proportions_prompt) if x]
+        if len(proportions) != len(children):
+            err_console.print("You must have as many proportions as you have children.")
+            raise typer.Exit()
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             stake.set_children(
