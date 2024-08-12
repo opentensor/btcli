@@ -538,7 +538,9 @@ class AsyncSubstrateInterface:
         storage_item = metadata_pallet.get_storage_function(storage_function)
 
         if not metadata_pallet or not storage_item:
-            raise SubstrateRequestException(f'Storage function "{module}.{storage_function}" not found')
+            raise SubstrateRequestException(
+                f'Storage function "{module}.{storage_function}" not found'
+            )
 
         # SCALE type string of value
         param_types = storage_item.get_params_type_string()

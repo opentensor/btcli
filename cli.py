@@ -80,7 +80,9 @@ class Options:
     chain = typer.Option(
         None, help="The subtensor chain endpoint to connect to.", show_default=False
     )
-    netuids = typer.Option([], help="Set the netuid(s) to filter by (e.g. `0 1 2`)")
+    netuids = typer.Option(
+        [], "--netuids", "-n", help="Set the netuid(s) to filter by (e.g. `0 1 2`)"
+    )
     netuid = typer.Option(
         None,
         help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
@@ -455,11 +457,15 @@ class CLIManager:
         ),
         include_hotkeys: Optional[list[str]] = typer.Option(
             [],
+            "--include-hotkeys",
+            "-in",
             help="Specify the hotkeys to include by name or ss58 address. (e.g. `hk1 hk2 hk3`). "
             "If left empty, all hotkeys not excluded will be included.",
         ),
         exclude_hotkeys: Optional[list[str]] = typer.Option(
             [],
+            "--exclude-hotkeys",
+            "-ex",
             help="Specify the hotkeys to exclude by name or ss58 address. (e.g. `hk1 hk2 hk3`). "
             "If left empty, and no hotkeys included in --include-hotkeys, all hotkeys will be included.",
         ),
@@ -525,7 +531,7 @@ class CLIManager:
         ```
 
         - ```
-        btcli wallet overview --include-hotkeys hk1 hk2 --sort-by stake
+        btcli wallet overview -in hk1 -in hk2 --sort-by stake
         ```
 
         #### Note:
@@ -694,11 +700,11 @@ class CLIManager:
         ```
 
         ```
-        btcli wallet inspect --all
+        btcli wallet inspect --all -n 1 -n 2 -n 3
         ```
 
         #### Note:
-        The ``inspect`` command is for displaying information only and does not perform any
+        The `inspect` command is for displaying information only and does not perform any
         transactions or state changes on the Bittensor network. It is intended to be used as
         part of the Bittensor CLI and not as a standalone function within user code.
         """
@@ -797,11 +803,10 @@ class CLIManager:
         CUDA-based GPU calculations. It is currently disabled on testnet and finney. You must use this on a local chain.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        self.initialize_chain(network, chain)
         return self._run_command(
             wallets.faucet(
                 wallet,
-                self.not_subtensor,
+                self.initialize_chain(network, chain),
                 threads_per_block,
                 update_interval,
                 processors,
@@ -1409,7 +1414,9 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
-        netuids: list[int] = typer.Option(None, help="Netuids, e.g. `0 1 2` ..."),
+        netuids: list[int] = typer.Option(
+            None, help="Netuids, e.g. `-n 0 -n 1 -n 2` ..."
+        ),
         weights: list[float] = typer.Argument(
             None,
             help="Weights: e.g. `0.02 0.03 0.01` ...",
@@ -1427,7 +1434,7 @@ class CLIManager:
 
         ### Example usage::
         ```
-        btcli root set-weights 0.3 0.3 0.4 --netuids 1 2 3 --chain ws://127.0.0.1:9945
+        btcli root set-weights 0.3 0.3 0.4 -n 1 -n 2 -n 3 --chain ws://127.0.0.1:9945
         ```
 
         #### Note:
@@ -1488,8 +1495,9 @@ class CLIManager:
         network. It offers transparency into how network rewards and responsibilities are allocated across different
         subnets.
         """
-        self.initialize_chain(network, chain)
-        return self._run_command(root.get_weights(self.not_subtensor))
+        return self._run_command(
+            root.get_weights(self.initialize_chain(network, chain))
+        )
 
     def root_boost(
         self,
@@ -1564,9 +1572,10 @@ class CLIManager:
         ```
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        self.initialize_chain(network, chain)
         return self._run_command(
-            root.set_boost(wallet, self.not_subtensor, netuid, amount)
+            root.set_boost(
+                wallet, self.initialize_chain(network, chain), netuid, amount
+            )
         )
 
     def root_slash(
@@ -1679,8 +1688,9 @@ class CLIManager:
         role in the governance and evolution of the Bittensor network.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        self.initialize_chain(network, chain)
-        return self._run_command(root.senate_vote(wallet, self.not_subtensor, proposal))
+        return self._run_command(
+            root.senate_vote(wallet, self.initialize_chain(network, chain), proposal)
+        )
 
     def root_senate(
         self,
@@ -2095,8 +2105,8 @@ class CLIManager:
         This function is part of the Bittensor CLI tools and is intended for use within a console application. It prints
         directly to the console and does not return any value.
         """
-        self.initialize_chain("archive", "wss://archive.chain.opentensor.ai:443")
-        return self._run_command(root.list_delegates(self.not_subtensor))
+        sub = self.initialize_chain("archive", "wss://archive.chain.opentensor.ai:443")
+        return self._run_command(root.list_delegates(sub))
 
     def root_nominate(
         self,
@@ -2199,6 +2209,76 @@ class CLIManager:
             stake.show(wallet, self.initialize_chain(network, chain), all_wallets)
         )
 
+    def stake_add(
+        self,
+        all_tokens: Optional[bool] = typer.Option(
+            False,
+            "--all-tokens",
+            "--all",
+            "-a",
+            help="When set, stakes all available tokens from the coldkey.",
+        ),
+        uid: int = typer.Option(
+            None,
+            "--uid",
+            "-u",
+            help="The unique identifier of the neuron to which the stake is to be added.",
+        ),
+        amount: float = typer.Option(
+            0.0, "--amount", help="The amount of TAO tokens to stake"
+        ),
+        max_stake: float = typer.Option(
+            0.0,
+            "--max-stake",
+            "-m",
+            help="Sets the maximum amount of TAO to have staked in each hotkey.",
+        ),
+        include_hotkeys: list[str] = typer.Option(
+            [],
+            "--include-hotkeys",
+            "-in",
+            help="Specifies hotkeys by name or SS58 address to stake to. i.e `-in hk1 -in hk2`",
+        ),
+        exclude_hotkeys: list[str] = typer.Option(
+            [],
+            "--include-hotkeys",
+            "-in",
+            help="Specifies hotkeys by name/SS58 address not to stake to (only use with `--all-hotkeys`.)"
+            " i.e. `-ex hk3 -ex hk4`",
+        ),
+        all_hotkeys: bool = typer.Option(
+            False,
+            help="When set, stakes to all hotkeys associated with the wallet. Do not use if specifying "
+            "hotkeys in `--include-hotkeys`.",
+        ),
+    ):
+        """
+        # stake add
+        Executes the `stake_add` command to stake tokens to one or more hotkeys from a user's coldkey on the Bittensor
+         network.
+
+        This command is used to allocate tokens to different hotkeys, securing their position and influence on the
+         network.
+
+        ## Usage:
+        Users can specify the amount to stake, the hotkeys to stake to (either by name or ``SS58`` address), and whether
+        to stake to all hotkeys. The command checks for sufficient balance and hotkey registration before proceeding
+        with the staking process.
+
+
+        The command prompts for confirmation before executing the staking operation.
+
+        ### Example usage:
+
+        ```
+        btcli stake add --amount 100 --wallet-name <my_wallet> --wallet-hotkey <my_hotkey>
+        ```
+
+        #### Note:
+        This command is critical for users who wish to distribute their stakes among different neurons (hotkeys) on the
+        network. It allows for a strategic allocation of tokens to enhance network participation and influence.
+        """
+
     def stake_get_children(
         self,
         wallet_name: Optional[str] = Options.wallet_name,
@@ -2244,18 +2324,16 @@ class CLIManager:
 
     def stake_set_children(
         self,
+        children: list[str] = typer.Option(
+            [], "--children", "-c", help="Enter children hotkeys (ss58)", prompt=True
+        ),
         wallet_name: Optional[str] = Options.wallet_name,
-        wallet_hotkey: Optional[
-            str
-        ] = Options.wallet_hk_req,  # TODO verify this is not just the wallet hotkey
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         wallet_path: Optional[str] = Options.wallet_path,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
         netuid: int = Options.netuid,
-        children: list[str] = typer.Option(   # TODO not currently working correctly.
-            [], "--children", "-c", help="Enter children hotkeys (ss58)", prompt=True
-        ),
-        proportions: list[float] = typer.Option(  # TODO not currently working correctly.
+        proportions: list[float] = typer.Option(
             [],
             "--proportions",
             "-p",
@@ -2280,8 +2358,8 @@ class CLIManager:
         ### Example usage:
 
         ```
-        btcli stake set_children --children <child_hotkey>,<child_hotkey> --hotkey <parent_hotkey> --netuid 1
-        --proportions 0.3,0.3
+        btcli stake set_children - <child_hotkey> -c <child_hotkey> --hotkey <parent_hotkey> --netuid 1
+        -p 0.3 -p 0.3
         ```
 
         #### Note:
