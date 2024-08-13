@@ -7,7 +7,7 @@ from typing import Optional, Coroutine, Collection
 from bittensor_wallet import Wallet
 from git import Repo
 import rich
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Confirm, Prompt, FloatPrompt
 from rich.table import Table, Column
 import typer
 from typing_extensions import Annotated
@@ -251,6 +251,7 @@ class CLIManager:
 
         # stake commands
         self.stake_app.command("show")(self.stake_show)
+        self.stake_app.command("add")(self.stake_add)
         self.stake_app.command("get-children")(self.stake_get_children)
         self.stake_app.command("set-children")(self.stake_set_children)
 
@@ -2226,7 +2227,7 @@ class CLIManager:
 
     def stake_add(
         self,
-        all_tokens: Optional[bool] = typer.Option(
+        stake_all: bool = typer.Option(
             False,
             "--all-tokens",
             "--all",
@@ -2256,8 +2257,8 @@ class CLIManager:
         ),
         exclude_hotkeys: list[str] = typer.Option(
             [],
-            "--include-hotkeys",
-            "-in",
+            "--exclude-hotkeys",
+            "-ex",
             help="Specifies hotkeys by name/SS58 address not to stake to (only use with `--all-hotkeys`.)"
             " i.e. `-ex hk3 -ex hk4`",
         ),
@@ -2266,11 +2267,16 @@ class CLIManager:
             help="When set, stakes to all hotkeys associated with the wallet. Do not use if specifying "
             "hotkeys in `--include-hotkeys`.",
         ),
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        network: str = Options.network,
+        chain: str = Options.chain,
     ):
         """
         # stake add
         Executes the `stake_add` command to stake tokens to one or more hotkeys from a user's coldkey on the Bittensor
-         network.
+        network.
 
         This command is used to allocate tokens to different hotkeys, securing their position and influence on the
          network.
@@ -2293,6 +2299,41 @@ class CLIManager:
         This command is critical for users who wish to distribute their stakes among different neurons (hotkeys) on the
         network. It allows for a strategic allocation of tokens to enhance network participation and influence.
         """
+        if stake_all and amount:
+            err_console.print(
+                "Cannot specify an amount and 'stake-all'. Choose one or the other."
+            )
+            raise typer.Exit()
+        if not stake_all and not amount:
+            amount = FloatPrompt.ask("Please enter an amount to stake.")
+        if stake_all and not amount:
+            if not Confirm.ask("Stake all available TAO tokens?", default=False):
+                raise typer.Exit()
+        if all_hotkeys and include_hotkeys:
+            err_console.print(
+                "You have specified hotkeys to include and the `--all-hotkeys` flag. The flag"
+                "should only be used standalone (to use all hotkeys) or with `--exclude-hotkeys`."
+            )
+            raise typer.Exit()
+        if include_hotkeys and exclude_hotkeys:
+            err_console.print(
+                "You have specified including and excluding hotkeys. Select one or the other."
+            )
+            raise typer.Exit()
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        return self._run_command(
+            stake.stake_add(
+                wallet,
+                self.initialize_chain(network, chain),
+                uid,
+                amount,
+                stake_all,
+                max_stake,
+                include_hotkeys,
+                exclude_hotkeys,
+                all_hotkeys,
+            )
+        )
 
     def stake_get_children(
         self,

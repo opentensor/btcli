@@ -90,6 +90,9 @@ class Balance:
     def __repr__(self):
         return self.__str__()
 
+    def __bool__(self):
+        return self.rao != 0
+
     def __eq__(self, other: Union[int, float, "Balance"]):
         if other is None:
             return False

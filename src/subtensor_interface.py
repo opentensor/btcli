@@ -181,6 +181,17 @@ class SubtensorInterface:
         # TODO: review if this is the correct type / works
         return StakeInfo.list_from_vec_u8(bytes_result)  # type: ignore
 
+    async def get_stake_for_coldkey_and_hotkey(
+        self, hotkey_ss58: str, coldkey_ss58: str, block_hash: Optional[str]
+    ) -> Balance:
+        _result = await self.substrate.query(
+            module="SubtensorModule",
+            storage_function="Stake",
+            params=[hotkey_ss58, coldkey_ss58],
+            block_hash=block_hash,
+        )
+        return Balance.from_rao(getattr(_result, "value", 0))
+
     async def query_runtime_api(
         self,
         runtime_api: str,
@@ -421,7 +432,7 @@ class SubtensorInterface:
 
     async def get_existential_deposit(
         self, block_hash: Optional[str] = None, reuse_block: bool = False
-    ) -> Optional[Balance]:
+    ) -> Balance:
         """
         Retrieves the existential deposit amount for the Bittensor blockchain. The existential deposit
         is the minimum amount of TAO required for an account to exist on the blockchain. Accounts with

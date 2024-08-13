@@ -1,5 +1,6 @@
 import asyncio
-from typing import TYPE_CHECKING, Union
+import copy
+from typing import TYPE_CHECKING, Union, Optional
 
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm
@@ -16,6 +17,7 @@ from src.utils import (
     err_console,
     is_valid_ss58_address,
     float_to_u64,
+    u16_normalized_float,
 )
 
 if TYPE_CHECKING:
@@ -23,6 +25,415 @@ if TYPE_CHECKING:
 
 
 # Helpers and Extrinsics
+
+
+async def add_stake_extrinsic(
+    subtensor: "SubtensorInterface",
+    wallet: Wallet,
+    old_balance: Balance,
+    hotkey_ss58: Optional[str] = None,
+    amount: Optional[Balance] = None,
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = False,
+    prompt: bool = False,
+) -> bool:
+    """
+    Adds the specified amount of stake to passed hotkey `uid`.
+
+    :param subtensor: the initialized SubtensorInterface object to use
+    :param wallet: Bittensor wallet object.
+    :param old_balance: the balance prior to the staking
+    :param hotkey_ss58: The `ss58` address of the hotkey account to stake to defaults to the wallet's hotkey.
+    :param amount: Amount to stake as Bittensor balance, `None` if staking all.
+    :param wait_for_inclusion: If set, waits for the extrinsic to enter a block before returning `True`, or returns
+                               `False` if the extrinsic fails to enter the block within the timeout.
+    :param wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `True`,
+                                  or returns `False` if the extrinsic fails to be finalized within the timeout.
+    :param prompt: If `True`, the call waits for confirmation from the user before proceeding.
+
+    :return: success: Flag is `True` if extrinsic was finalized or included in the block. If we did not wait for
+                      finalization/inclusion, the response is `True`.
+    """
+
+    async def _check_threshold_amount(sb: Balance) -> tuple[bool, Balance]:
+        """
+        Checks if the new stake balance will be above the minimum required stake threshold.
+
+        :param sb: the balance to check for threshold limits.
+
+        :return: (success, threshold)
+                `True` if the staking balance is above the threshold, or `False` if the staking balance is below the
+                threshold.
+                The threshold balance required to stake.
+        """
+        mrs = await subtensor.substrate.query(
+            module="SubtensorModule",
+            storage_function="NominatorMinRequiredStake",
+            block_hash=block_hash,
+        )
+        min_req_stake: Balance = Balance.from_rao(mrs.decode())
+
+        if min_req_stake > sb:
+            return False, min_req_stake
+        else:
+            return True, min_req_stake
+
+    # Decrypt keys,
+    wallet.unlock_coldkey()
+
+    # Default to wallet's own hotkey if the value is not passed.
+    if hotkey_ss58 is None:
+        hotkey_ss58 = wallet.hotkey.ss58_address
+
+    # Flag to indicate if we are using the wallet's own hotkey.
+    own_hotkey: bool
+
+    with console.status(
+        f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
+    ):
+        block_hash = await subtensor.substrate.get_chain_head()
+        # Get hotkey owner
+        hk_owner_query = await subtensor.substrate.query(
+            module="SubtensorModule",
+            storage_function="Owner",
+            params=[hotkey_ss58],
+            block_hash=block_hash,
+        )
+        hotkey_owner = (
+            val
+            if (
+                (val := getattr(hk_owner_query, "value", None))
+                and await subtensor.does_hotkey_exist(val, block_hash=block_hash)
+            )
+            else None
+        )
+        own_hotkey = wallet.coldkeypub.ss58_address == hotkey_owner
+        if not own_hotkey:
+            # This is not the wallet's own hotkey, so we are delegating.
+            if not await subtensor.is_hotkey_delegate(
+                hotkey_ss58, block_hash=block_hash
+            ):
+                err_console.print(
+                    f"Hotkey {hotkey_ss58} is not a delegate on the chain."
+                )
+                return False
+
+            # Get hotkey take
+            hk_result = await subtensor.substrate.query(
+                module="SubtensorModule",
+                storage_function="Delegates",
+                params=[hotkey_ss58],
+                block_hash=block_hash,
+            )
+            hotkey_take = u16_normalized_float(getattr(hk_result, "value", 0))
+
+        # Get current stake
+        old_stake = await subtensor.get_stake_for_coldkey_and_hotkey(
+            coldkey_ss58=wallet.coldkeypub.ss58_address,
+            hotkey_ss58=hotkey_ss58,
+            block_hash=block_hash,
+        )
+
+        # Grab the existential deposit.
+        existential_deposit = await subtensor.get_existential_deposit()
+
+    # Convert to bittensor.Balance
+    if amount is None:
+        # Stake it all.
+        staking_balance = Balance.from_tao(old_balance.tao)
+    else:
+        staking_balance = amount
+
+    # Leave existential balance to keep key alive.
+    if staking_balance > old_balance - existential_deposit:
+        # If we are staking all, we need to leave at least the existential deposit.
+        staking_balance = old_balance - existential_deposit
+    else:
+        staking_balance = staking_balance
+
+    # Check enough to stake.
+    if staking_balance > old_balance:
+        err_console.print(
+            f":cross_mark: [red]Not enough stake[/red]:[bold white]\n"
+            f"\tbalance:\t{old_balance}\n"
+            f"\tamount:\t{staking_balance}\n"
+            f"\tcoldkey:\t{wallet.name}[/bold white]"
+        )
+        return False
+
+    # If nominating, we need to check if the new stake balance will be above the minimum required stake threshold.
+    if not own_hotkey:
+        new_stake_balance = old_stake + staking_balance
+        is_above_threshold, threshold = await _check_threshold_amount(new_stake_balance)
+        if not is_above_threshold:
+            err_console.print(
+                f":cross_mark: [red]New stake balance of {new_stake_balance} is below the minimum required nomination"
+                f" stake threshold {threshold}.[/red]"
+            )
+            return False
+
+    # Ask before moving on.
+    if prompt:
+        if not own_hotkey:
+            # We are delegating.
+            if not Confirm.ask(
+                f"Do you want to delegate:[bold white]\n"
+                f"\tamount: {staking_balance}\n"
+                f"\tto: {wallet.hotkey_str}\n"
+                f"\ttake: {hotkey_take}\n"
+                f"\towner: {hotkey_owner}[/bold white]"
+            ):
+                return False
+        else:
+            if not Confirm.ask(
+                f"Do you want to stake:[bold white]\n"
+                f"\tamount: {staking_balance}\n"
+                f"\tto: {wallet.hotkey_str}[/bold white]"
+            ):
+                return False
+
+    with console.status(
+        f":satellite: Staking to: [bold white]{subtensor}[/bold white] ..."
+    ):
+        call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="add_stake",
+            call_params={"hotkey": hotkey_ss58, "amount_staked": staking_balance.rao},
+        )
+        staking_response, err_msg = await subtensor.sign_and_send_extrinsic(
+            call, wallet, wait_for_inclusion, wait_for_finalization
+        )
+
+    if staking_response is True:  # If we successfully staked.
+        # We only wait here if we expect finalization.
+        if not wait_for_finalization and not wait_for_inclusion:
+            return True
+
+        console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+        with console.status(
+            f":satellite: Checking Balance on: [white]{subtensor}[/white] ..."
+        ):
+            new_block_hash = await subtensor.substrate.get_chain_head()
+            new_balance, new_stake = await asyncio.gather(
+                subtensor.get_balance(
+                    wallet.coldkeypub.ss58_address, block_hash=new_block_hash
+                ),
+                subtensor.get_stake_for_coldkey_and_hotkey(
+                    coldkey_ss58=wallet.coldkeypub.ss58_address,
+                    hotkey_ss58=hotkey_ss58,
+                    block_hash=new_block_hash,
+                ),
+            )
+
+            console.print(
+                f"Balance:\n"
+                f"\t[blue]{old_balance}[/blue] :arrow_right: "
+                f"[green]{new_balance[wallet.coldkeypub.ss58_address]}[/green]"
+            )
+            console.print(
+                f"Stake:\n"
+                f"\t[blue]{old_stake}[/blue] :arrow_right: [green]{new_stake}[/green]"
+            )
+            return True
+    else:
+        err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+        return False
+
+
+async def add_stake_multiple_extrinsic(
+    subtensor: SubtensorInterface,
+    wallet: Wallet,
+    old_balance: Balance,
+    hotkey_ss58s: list[str],
+    amounts: Optional[list[Balance]] = None,
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = False,
+    prompt: bool = False,
+) -> bool:
+    """Adds stake to each ``hotkey_ss58`` in the list, using each amount, from a common coldkey.
+
+    :param subtensor: The initialized SubtensorInterface object.
+    :param wallet: Bittensor wallet object for the coldkey.
+    :param old_balance: The balance of the wallet prior to staking.
+    :param hotkey_ss58s: List of hotkeys to stake to.
+    :param amounts: List of amounts to stake. If `None`, stake all to the first hotkey.
+    :param wait_for_inclusion: If set, waits for the extrinsic to enter a block before returning `True`, or returns
+                               `False` if the extrinsic fails to enter the block within the timeout.
+    :param wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `True`,
+                                  or returns `False` if the extrinsic fails to be finalized within the timeout.
+    :param prompt: If `True`, the call waits for confirmation from the user before proceeding.
+
+    :return: success: `True` if extrinsic was finalized or included in the block. `True` if any wallet was staked. If
+                      we did not wait for finalization/inclusion, the response is `True`.
+    """
+
+    if len(hotkey_ss58s) == 0:
+        return True
+
+    if amounts is not None and len(amounts) != len(hotkey_ss58s):
+        raise ValueError("amounts must be a list of the same length as hotkey_ss58s")
+
+    new_amounts: list[Optional[Balance]]
+    if amounts is None:
+        new_amounts = [None] * len(hotkey_ss58s)
+    else:
+        new_amounts = amounts
+        if sum(amount.tao for amount in amounts) == 0:
+            # Staking 0 tao
+            return True
+
+    # Decrypt coldkey.
+    wallet.unlock_coldkey()
+
+    old_stakes = []
+    with console.status(
+        f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
+    ):
+        block_hash = await subtensor.substrate.get_chain_head()
+        old_stakes = await asyncio.gather(
+            *[
+                subtensor.get_stake_for_coldkey_and_hotkey(
+                    hk, wallet.coldkeypub.ss58_address, block_hash=block_hash
+                )
+                for hk in hotkey_ss58s
+            ]
+        )
+
+    # Remove existential balance to keep key alive.
+    ## Keys must maintain a balance of at least 1000 rao to stay alive.
+    total_staking_rao = sum(
+        [amount.rao if amount is not None else 0 for amount in new_amounts]
+    )
+    if total_staking_rao == 0:
+        # Staking all to the first wallet.
+        if old_balance.rao > 1000:
+            old_balance -= Balance.from_rao(1000)
+
+    elif total_staking_rao < 1000:
+        # Staking less than 1000 rao to the wallets.
+        pass
+    else:
+        # Staking more than 1000 rao to the wallets.
+        ## Reduce the amount to stake to each wallet to keep the balance above 1000 rao.
+        percent_reduction = 1 - (1000 / total_staking_rao)
+        new_amounts = [
+            Balance.from_tao(amount.tao * percent_reduction) for amount in new_amounts
+        ]
+
+    successful_stakes = 0
+    for idx, (hotkey_ss58, amount, old_stake) in enumerate(
+        zip(hotkey_ss58s, new_amounts, old_stakes)
+    ):
+        staking_all = False
+        # Convert to bittensor.Balance
+        if amount is None:
+            # Stake it all.
+            staking_balance = Balance.from_tao(old_balance.tao)
+            staking_all = True
+        else:
+            # Amounts are cast to balance earlier in the function
+            assert isinstance(amount, Balance)
+            staking_balance = amount
+
+        # Check enough to stake
+        if staking_balance > old_balance:
+            err_console.print(
+                f":cross_mark: [red]Not enough balance[/red]:"
+                f" [green]{old_balance}[/green] to stake: [blue]{staking_balance}[/blue]"
+                f" from coldkey: [white]{wallet.name}[/white]"
+            )
+            continue
+
+        # Ask before moving on.
+        if prompt:
+            if not Confirm.ask(
+                f"Do you want to stake:\n"
+                f"\t[bold white]amount: {staking_balance}\n"
+                f"\thotkey: {wallet.hotkey_str}[/bold white ]?"
+            ):
+                continue
+
+        call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="add_stake",
+            call_params={"hotkey": hotkey_ss58, "amount_staked": staking_balance.rao},
+        )
+        staking_response, err_msg = await subtensor.sign_and_send_extrinsic(
+            call, wallet, wait_for_inclusion, wait_for_finalization
+        )
+
+        if staking_response is True:  # If we successfully staked.
+            # We only wait here if we expect finalization.
+
+            if idx < len(hotkey_ss58s) - 1:
+                # Wait for tx rate limit.
+                tx_query = await subtensor.substrate.query(
+                    module="SubtensorModule",
+                    storage_function="TxRateLimit",
+                    block_hash=block_hash,
+                )
+                tx_rate_limit_blocks: int = getattr(tx_query, "value", 0)
+                if tx_rate_limit_blocks > 0:
+                    with console.status(
+                        f":hourglass: [yellow]Waiting for tx rate limit:"
+                        f" [white]{tx_rate_limit_blocks}[/white] blocks[/yellow]"
+                    ):
+                        await asyncio.sleep(
+                            tx_rate_limit_blocks * 12
+                        )  # 12 seconds per block
+
+            if not wait_for_finalization and not wait_for_inclusion:
+                old_balance -= staking_balance
+                successful_stakes += 1
+                if staking_all:
+                    # If staked all, no need to continue
+                    break
+
+                continue
+
+            console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+
+            new_block_hash = await subtensor.substrate.get_chain_head()
+            new_stake, new_balance_ = await asyncio.gather(
+                subtensor.get_stake_for_coldkey_and_hotkey(
+                    coldkey_ss58=wallet.coldkeypub.ss58_address,
+                    hotkey_ss58=hotkey_ss58,
+                    block_hash=new_block_hash,
+                ),
+                subtensor.get_balance(
+                    wallet.coldkeypub.ss58_address, block_hash=new_block_hash
+                ),
+            )
+            new_balance = new_balance_[wallet.coldkeypub.ss58_address]
+            console.print(
+                "Stake ({}): [blue]{}[/blue] :arrow_right: [green]{}[/green]".format(
+                    hotkey_ss58, old_stake, new_stake
+                )
+            )
+            old_balance = new_balance
+            successful_stakes += 1
+            if staking_all:
+                # If staked all, no need to continue
+                break
+
+        else:
+            err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+            continue
+
+    if successful_stakes != 0:
+        with console.status(
+            f":satellite: Checking Balance on: ([white]{subtensor}[/white] ..."
+        ):
+            new_balance_ = await subtensor.get_balance(
+                wallet.coldkeypub.ss58_address, reuse_block=False
+            )
+            new_balance = new_balance_[wallet.coldkeypub.ss58_address]
+        console.print(
+            "Balance: [blue]{old_balance}[/blue] :arrow_right: [green]{new_balance}[/green]"
+        )
+        return True
+
+    return False
 
 
 async def set_children_extrinsic(
@@ -344,241 +755,185 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
     console.print(table)
 
 
-# class StakeCommand:
-#
-#
-#     @staticmethod
-#     def run(cli: "bittensor.cli"):
-#         r"""Stake token of amount to hotkey(s)."""
-#         try:
-#             config = cli.config.copy()
-#             subtensor: "bittensor.subtensor" = bittensor.subtensor(
-#                 config=config, log_verbose=False
-#             )
-#             StakeCommand._run(cli, subtensor)
-#         finally:
-#             if "subtensor" in locals():
-#                 subtensor.close()
-#                 bittensor.logging.debug("closing subtensor connection")
-#
-#     @staticmethod
-#     def _run(cli: "bittensor.cli", subtensor: "bittensor.subtensor"):
-#         r"""Stake token of amount to hotkey(s)."""
-#         config = cli.config.copy()
-#         wallet = bittensor.wallet(config=config)
-#
-#         # Get the hotkey_names (if any) and the hotkey_ss58s.
-#         hotkeys_to_stake_to: List[Tuple[Optional[str], str]] = []
-#         if config.get("all_hotkeys"):
-#             # Stake to all hotkeys.
-#             all_hotkeys: List[bittensor.wallet] = get_hotkey_wallets_for_wallet(
-#                 wallet=wallet
-#             )
-#             # Get the hotkeys to exclude. (d)efault to no exclusions.
-#             hotkeys_to_exclude: List[str] = cli.config.get("hotkeys", d=[])
-#             # Exclude hotkeys that are specified.
-#             hotkeys_to_stake_to = [
-#                 (wallet.hotkey_str, wallet.hotkey.ss58_address)
-#                 for wallet in all_hotkeys
-#                 if wallet.hotkey_str not in hotkeys_to_exclude
-#             ]  # definitely wallets
-#
-#         elif config.get("hotkeys"):
-#             # Stake to specific hotkeys.
-#             for hotkey_ss58_or_hotkey_name in config.get("hotkeys"):
-#                 if bittensor.utils.is_valid_ss58_address(hotkey_ss58_or_hotkey_name):
-#                     # If the hotkey is a valid ss58 address, we add it to the list.
-#                     hotkeys_to_stake_to.append((None, hotkey_ss58_or_hotkey_name))
-#                 else:
-#                     # If the hotkey is not a valid ss58 address, we assume it is a hotkey name.
-#                     #  We then get the hotkey from the wallet and add it to the list.
-#                     wallet_ = bittensor.wallet(
-#                         config=config, hotkey=hotkey_ss58_or_hotkey_name
-#                     )
-#                     hotkeys_to_stake_to.append(
-#                         (wallet_.hotkey_str, wallet_.hotkey.ss58_address)
-#                     )
-#         elif config.wallet.get("hotkey"):
-#             # Only config.wallet.hotkey is specified.
-#             #  so we stake to that single hotkey.
-#             hotkey_ss58_or_name = config.wallet.get("hotkey")
-#             if bittensor.utils.is_valid_ss58_address(hotkey_ss58_or_name):
-#                 hotkeys_to_stake_to = [(None, hotkey_ss58_or_name)]
-#             else:
-#                 # Hotkey is not a valid ss58 address, so we assume it is a hotkey name.
-#                 wallet_ = bittensor.wallet(config=config, hotkey=hotkey_ss58_or_name)
-#                 hotkeys_to_stake_to = [
-#                     (wallet_.hotkey_str, wallet_.hotkey.ss58_address)
-#                 ]
-#         else:
-#             # Only config.wallet.hotkey is specified.
-#             #  so we stake to that single hotkey.
-#             assert config.wallet.hotkey is not None
-#             hotkeys_to_stake_to = [
-#                 (None, bittensor.wallet(config=config).hotkey.ss58_address)
-#             ]
-#
-#         # Get coldkey balance
-#         wallet_balance: Balance = subtensor.get_balance(wallet.coldkeypub.ss58_address)
-#         final_hotkeys: List[Tuple[str, str]] = []
-#         final_amounts: List[Union[float, Balance]] = []
-#         for hotkey in tqdm(hotkeys_to_stake_to):
-#             hotkey: Tuple[Optional[str], str]  # (hotkey_name (or None), hotkey_ss58)
-#             if not subtensor.is_hotkey_registered_any(hotkey_ss58=hotkey[1]):
-#                 # Hotkey is not registered.
-#                 if len(hotkeys_to_stake_to) == 1:
-#                     # Only one hotkey, error
-#                     bittensor.__console__.print(
-#                         f"[red]Hotkey [bold]{hotkey[1]}[/bold] is not registered. Aborting.[/red]"
-#                     )
-#                     return None
-#                 else:
-#                     # Otherwise, print warning and skip
-#                     bittensor.__console__.print(
-#                         f"[yellow]Hotkey [bold]{hotkey[1]}[/bold] is not registered. Skipping.[/yellow]"
-#                     )
-#                     continue
-#
-#             stake_amount_tao: float = config.get("amount")
-#             if config.get("max_stake"):
-#                 # Get the current stake of the hotkey from this coldkey.
-#                 hotkey_stake: Balance = subtensor.get_stake_for_coldkey_and_hotkey(
-#                     hotkey_ss58=hotkey[1], coldkey_ss58=wallet.coldkeypub.ss58_address
-#                 )
-#                 stake_amount_tao: float = config.get("max_stake") - hotkey_stake.tao
-#
-#                 # If the max_stake is greater than the current wallet balance, stake the entire balance.
-#                 stake_amount_tao: float = min(stake_amount_tao, wallet_balance.tao)
-#                 if (
-#                     stake_amount_tao <= 0.00001
-#                 ):  # Threshold because of fees, might create a loop otherwise
-#                     # Skip hotkey if max_stake is less than current stake.
-#                     continue
-#                 wallet_balance = Balance.from_tao(wallet_balance.tao - stake_amount_tao)
-#
-#                 if wallet_balance.tao < 0:
-#                     # No more balance to stake.
-#                     break
-#
-#             final_amounts.append(stake_amount_tao)
-#             final_hotkeys.append(hotkey)  # add both the name and the ss58 address.
-#
-#         if len(final_hotkeys) == 0:
-#             # No hotkeys to stake to.
-#             bittensor.__console__.print(
-#                 "Not enough balance to stake to any hotkeys or max_stake is less than current stake."
-#             )
-#             return None
-#
-#         # Ask to stake
-#         if not config.no_prompt:
-#             if not Confirm.ask(
-#                 f"Do you want to stake to the following keys from {wallet.name}:\n"
-#                 + "".join(
-#                     [
-#                         f"    [bold white]- {hotkey[0] + ':' if hotkey[0] else ''}{hotkey[1]}: {f'{amount} {bittensor.__tao_symbol__}' if amount else 'All'}[/bold white]\n"
-#                         for hotkey, amount in zip(final_hotkeys, final_amounts)
-#                     ]
-#                 )
-#             ):
-#                 return None
-#
-#         if len(final_hotkeys) == 1:
-#             # do regular stake
-#             return subtensor.add_stake(
-#                 wallet=wallet,
-#                 hotkey_ss58=final_hotkeys[0][1],
-#                 amount=None if config.get("stake_all") else final_amounts[0],
-#                 wait_for_inclusion=True,
-#                 prompt=not config.no_prompt,
-#             )
-#
-#         subtensor.add_stake_multiple(
-#             wallet=wallet,
-#             hotkey_ss58s=[hotkey_ss58 for _, hotkey_ss58 in final_hotkeys],
-#             amounts=None if config.get("stake_all") else final_amounts,
-#             wait_for_inclusion=True,
-#             prompt=False,
-#         )
-#
-#     @classmethod
-#     def check_config(cls, config: "bittensor.config"):
-#         if not config.is_set("wallet.name") and not config.no_prompt:
-#             wallet_name = Prompt.ask("Enter wallet name", default=defaults.wallet.name)
-#             config.wallet.name = str(wallet_name)
-#
-#         if (
-#             not config.is_set("wallet.hotkey")
-#             and not config.no_prompt
-#             and not config.wallet.get("all_hotkeys")
-#             and not config.wallet.get("hotkeys")
-#         ):
-#             hotkey = Prompt.ask("Enter hotkey name", default=defaults.wallet.hotkey)
-#             config.wallet.hotkey = str(hotkey)
-#
-#         # Get amount.
-#         if (
-#             not config.get("amount")
-#             and not config.get("stake_all")
-#             and not config.get("max_stake")
-#         ):
-#             if not Confirm.ask(
-#                 "Stake all Tao from account: [bold]'{}'[/bold]?".format(
-#                     config.wallet.get("name", defaults.wallet.name)
-#                 )
-#             ):
-#                 amount = Prompt.ask("Enter Tao amount to stake")
-#                 try:
-#                     config.amount = float(amount)
-#                 except ValueError:
-#                     console.print(
-#                         ":cross_mark:[red]Invalid Tao amount[/red] [bold white]{}[/bold white]".format(
-#                             amount
-#                         )
-#                     )
-#                     sys.exit()
-#             else:
-#                 config.stake_all = True
-#
-#     @classmethod
-#     def add_args(cls, parser: argparse.ArgumentParser):
-#         stake_parser = parser.add_parser(
-#             "add", help="""Add stake to your hotkey accounts from your coldkey."""
-#         )
-#         stake_parser.add_argument("--all", dest="stake_all", action="store_true")
-#         stake_parser.add_argument("--uid", dest="uid", type=int, required=False)
-#         stake_parser.add_argument("--amount", dest="amount", type=float, required=False)
-#         stake_parser.add_argument(
-#             "--max_stake",
-#             dest="max_stake",
-#             type=float,
-#             required=False,
-#             action="store",
-#             default=None,
-#             help="""Specify the maximum amount of Tao to have staked in each hotkey.""",
-#         )
-#         stake_parser.add_argument(
-#             "--hotkeys",
-#             "--exclude_hotkeys",
-#             "--wallet.hotkeys",
-#             "--wallet.exclude_hotkeys",
-#             required=False,
-#             action="store",
-#             default=[],
-#             type=str,
-#             nargs="*",
-#             help="""Specify the hotkeys by name or ss58 address. (e.g. hk1 hk2 hk3)""",
-#         )
-#         stake_parser.add_argument(
-#             "--all_hotkeys",
-#             "--wallet.all_hotkeys",
-#             required=False,
-#             action="store_true",
-#             default=False,
-#             help="""To specify all hotkeys. Specifying hotkeys will exclude them from this all.""",
-#         )
-#         bittensor.wallet.add_args(stake_parser)
-#         bittensor.subtensor.add_args(stake_parser)
+async def stake_add(
+    wallet: Wallet,
+    subtensor: SubtensorInterface,
+    uid: int,
+    amount: float,
+    stake_all: bool,
+    max_stake: float,
+    include_hotkeys: list[str],
+    exclude_hotkeys: list[str],
+    all_hotkeys: bool,
+) -> None:
+    """Stake token of amount to hotkey(s)."""
+
+    async def is_hotkey_registered_any(hk: str, bh: str) -> bool:
+        return len(await subtensor.get_netuids_for_hotkey(hk, bh)) > 0
+
+    # Get the hotkey_names (if any) and the hotkey_ss58s.
+    hotkeys_to_stake_to: list[tuple[Optional[str], str]] = []
+    if all_hotkeys:
+        # Stake to all hotkeys.
+        all_hotkeys_: list[Wallet] = get_hotkey_wallets_for_wallet(wallet=wallet)
+        # Get the hotkeys to exclude. (d)efault to no exclusions.
+        # Exclude hotkeys that are specified.
+        hotkeys_to_stake_to = [
+            (wallet.hotkey_str, wallet.hotkey.ss58_address)
+            for wallet in all_hotkeys_
+            if wallet.hotkey_str not in exclude_hotkeys
+        ]  # definitely wallets
+
+    elif include_hotkeys:
+        # Stake to specific hotkeys.
+        for hotkey_ss58_or_hotkey_name in include_hotkeys:
+            if is_valid_ss58_address(hotkey_ss58_or_hotkey_name):
+                # If the hotkey is a valid ss58 address, we add it to the list.
+                hotkeys_to_stake_to.append((None, hotkey_ss58_or_hotkey_name))
+            else:
+                # If the hotkey is not a valid ss58 address, we assume it is a hotkey name.
+                #  We then get the hotkey from the wallet and add it to the list.
+                wallet_ = Wallet(
+                    path=wallet.path,
+                    name=wallet.name,
+                    hotkey=hotkey_ss58_or_hotkey_name,
+                )
+                hotkeys_to_stake_to.append(
+                    (wallet_.hotkey_str, wallet_.hotkey.ss58_address)
+                )
+    else:
+        # Only config.wallet.hotkey is specified.
+        #  so we stake to that single hotkey.
+        assert wallet.hotkey is not None
+        hotkey_ss58_or_name = wallet.hotkey.ss58_address
+        hotkeys_to_stake_to = [(None, hotkey_ss58_or_name)]
+
+    try:
+        async with subtensor:
+            # Get coldkey balance
+            wallet_balance_: dict[str, Balance] = await subtensor.get_balance(
+                wallet.coldkeypub.ss58_address
+            )
+            block_hash = subtensor.substrate.last_block_hash
+            wallet_balance: Balance = wallet_balance_[wallet.coldkeypub.ss58_address]
+            old_balance = copy.copy(wallet_balance)
+            final_hotkeys: list[tuple[Optional[str], str]] = []
+            final_amounts: list[Union[float, Balance]] = []
+            hotkey: tuple[Optional[str], str]  # (hotkey_name (or None), hotkey_ss58)
+            registered_ = asyncio.gather(
+                *[
+                    is_hotkey_registered_any(h[1], block_hash)
+                    for h in hotkeys_to_stake_to
+                ]
+            )
+            if max_stake:
+                hotkey_stakes_ = asyncio.gather(
+                    *[
+                        subtensor.get_stake_for_coldkey_and_hotkey(
+                            hotkey_ss58=h[1],
+                            coldkey_ss58=wallet.coldkeypub.ss58_address,
+                            block_hash=block_hash,
+                        )
+                        for h in hotkeys_to_stake_to
+                    ]
+                )
+            else:
+
+                async def null():
+                    return [None] * len(hotkeys_to_stake_to)
+
+                hotkey_stakes_ = null()
+            registered: list[bool]
+            hotkey_stakes: list[Optional[Balance]]
+            registered, hotkey_stakes = await asyncio.gather(
+                registered_, hotkey_stakes_
+            )
+
+            for hotkey, reg, hotkey_stake in zip(
+                hotkeys_to_stake_to, registered, hotkey_stakes
+            ):
+                if not reg:
+                    # Hotkey is not registered.
+                    if len(hotkeys_to_stake_to) == 1:
+                        # Only one hotkey, error
+                        err_console.print(
+                            f"[red]Hotkey [bold]{hotkey[1]}[/bold] is not registered. Aborting.[/red]"
+                        )
+                        raise ValueError
+                    else:
+                        # Otherwise, print warning and skip
+                        console.print(
+                            f"[yellow]Hotkey [bold]{hotkey[1]}[/bold] is not registered. Skipping.[/yellow]"
+                        )
+                        continue
+
+                stake_amount_tao: float = amount
+                if max_stake:
+                    stake_amount_tao = max_stake - hotkey_stake.tao
+
+                    # If the max_stake is greater than the current wallet balance, stake the entire balance.
+                    stake_amount_tao = min(stake_amount_tao, wallet_balance.tao)
+                    if (
+                        stake_amount_tao <= 0.00001
+                    ):  # Threshold because of fees, might create a loop otherwise
+                        # Skip hotkey if max_stake is less than current stake.
+                        continue
+                    wallet_balance = Balance.from_tao(
+                        wallet_balance.tao - stake_amount_tao
+                    )
+
+                    if wallet_balance.tao < 0:
+                        # No more balance to stake.
+                        break
+
+                final_amounts.append(stake_amount_tao)
+                final_hotkeys.append(hotkey)  # add both the name and the ss58 address.
+
+            if len(final_hotkeys) == 0:
+                # No hotkeys to stake to.
+                err_console.print(
+                    "Not enough balance to stake to any hotkeys or max_stake is less than current stake."
+                )
+                raise ValueError
+
+            # Ask to stake
+            if not False:  # TODO no-prompt
+                if not Confirm.ask(
+                    f"Do you want to stake to the following keys from {wallet.name}:\n"
+                    + "".join(
+                        [
+                            f"    [bold white]- {hotkey[0] + ':' if hotkey[0] else ''}{hotkey[1]}: "
+                            f"{f'{amount} {Balance.unit}' if amount else 'All'}[/bold white]\n"
+                            for hotkey, amount in zip(final_hotkeys, final_amounts)
+                        ]
+                    )
+                ):
+                    raise ValueError
+
+            if len(final_hotkeys) == 1:
+                # do regular stake
+                await add_stake_extrinsic(
+                    subtensor,
+                    wallet=wallet,
+                    old_balance=old_balance,
+                    hotkey_ss58=final_hotkeys[0][1],
+                    amount=None if stake_all else final_amounts[0],
+                    wait_for_inclusion=True,
+                    prompt=True,
+                )
+            else:
+                await add_stake_multiple_extrinsic(
+                    subtensor,
+                    wallet=wallet,
+                    old_balance=old_balance,
+                    hotkey_ss58s=[hotkey_ss58 for _, hotkey_ss58 in final_hotkeys],
+                    amounts=None if stake_all else final_amounts,
+                    wait_for_inclusion=True,
+                    prompt=False,
+                )
+    except ValueError:
+        pass
+    await subtensor.substrate.close()
 
 
 async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: int):
