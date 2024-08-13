@@ -1564,6 +1564,7 @@ async def set_children(
     children: list[str],
     proportions: list[float],
 ):
+    """Set children hotkeys."""
     # Validate children SS58 addresses
     for child in children:
         if not is_valid_ss58_address(child):

@@ -92,6 +92,16 @@ class Options:
 
 
 def list_prompt(init_var: list, list_type: type, help_text: str) -> list:
+    """
+    Serves a similar purpose to rich.FloatPrompt or rich.Prompt, but for creating a list of those variables for
+    a given type
+    :param init_var: starting variable, this will generally be `None` if you intend to get something out of this
+                     prompt, if it is not empty, it will return the same
+    :param list_type: the type for each item in the list you're creating
+    :param help_text: the helper text to display to the user in the prompt
+
+    :return: list of the specified type of the user inputs
+    """
     while not init_var:
         prompt = Prompt.ask(help_text)
         init_var = [list_type(x) for x in re.split(r"[ ,]+", prompt) if x]

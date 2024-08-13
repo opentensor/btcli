@@ -1,7 +1,7 @@
 import os
 import math
 from pathlib import Path
-from typing import Union, Any, Collection
+from typing import Union, Any, Collection, Optional
 
 import aiohttp
 import scalecodec
@@ -26,10 +26,12 @@ U64_MAX = 18446744073709551615
 
 
 def u16_normalized_float(x: int) -> float:
+    """Converts a u16 int to a float"""
     return float(x) / float(U16_MAX)
 
 
 def float_to_u64(value: float) -> int:
+    """Converts a float to a u64 int"""
     # Ensure the input is within the expected range
     if not (0 <= value < 1):
         raise ValueError("Input value must be between 0 and 1")
@@ -116,7 +118,16 @@ def convert_root_weight_uids_and_vals_to_tensor(
 
 def get_hotkey_wallets_for_wallet(
     wallet: Wallet, show_nulls: bool = False
-) -> list[Wallet]:
+) -> list[Optional[Wallet]]:
+    """
+    Returns wallet objects with hotkeys for a single given wallet
+
+    :param wallet: Wallet object to use for the path
+    :param show_nulls: will add `None` into the output if a hotkey is encrypted or not on the device
+
+    :return: a list of wallets (with Nones included for cases of a hotkey being encrypted or not on the device, if
+             `show_nulls` is set to `True`)
+    """
     hotkey_wallets = []
     wallet_path = Path(wallet.path).expanduser()
     hotkeys_path = wallet_path / wallet.name / "hotkeys"
@@ -146,6 +157,7 @@ def get_hotkey_wallets_for_wallet(
 
 
 def get_coldkey_wallets_for_path(path: str) -> list[Wallet]:
+    """Gets all wallets with coldkeys from a given path"""
     wallet_path = Path(path).expanduser()
     wallets = [
         Wallet(name=directory.name, path=path)
@@ -156,6 +168,7 @@ def get_coldkey_wallets_for_path(path: str) -> list[Wallet]:
 
 
 def get_all_wallets_for_path(path: str) -> list[Wallet]:
+    """Gets all wallets from a given path."""
     all_wallets = []
     cold_wallets = get_coldkey_wallets_for_path(path)
     for cold_wallet in cold_wallets:
@@ -259,6 +272,7 @@ def is_valid_bittensor_address_or_public_key(address: Union[str, bytes]) -> bool
 
 
 def decode_scale_bytes(return_type, scale_bytes, custom_rpc_type_registry):
+    """Decodes a ScaleBytes object using our type registry and return type"""
     rpc_runtime_config = RuntimeConfiguration()
     rpc_runtime_config.update_type_registry(load_type_registry_preset("legacy"))
     rpc_runtime_config.update_type_registry(custom_rpc_type_registry)
