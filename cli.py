@@ -265,6 +265,7 @@ class CLIManager:
         self.stake_app.command("remove")(self.stake_remove)
         self.stake_app.command("get-children")(self.stake_get_children)
         self.stake_app.command("set-children")(self.stake_set_children)
+        self.stake_app.command("revoke-children")(self.stake_revoke_children)
 
     def initialize_chain(
         self,
@@ -2560,53 +2561,42 @@ class CLIManager:
             )
         )
 
-    def root_get_weights(
+    def stake_revoke_children(
         self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        wallet_path: Optional[str] = Options.wallet_path,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
+        netuid: int = Options.netuid,
     ):
         """
-        # root get-weights
-        Executes the `get-weights` command to retrieve the weights set for the root network on the Bittensor network.
+           Executes the ``revoke_children`` command to remove all children hotkeys on a specified subnet on the Bittensor network.
 
-        This command provides visibility into how network responsibilities and rewards are distributed among various subnets.
+           This command is used to remove delegated authority from all child hotkeys, removing their position and influence on the subnet.
 
-        ## Usage:
-        The command outputs a table listing the weights assigned to each subnet within the root network. This information is crucial for understanding the current influence and reward distribution among the subnets.
+           Usage:
+               Users need to specify the parent hotkey and the subnet ID (netuid).
+               The user needs to have sufficient authority to make this call.
 
-        ### Example usage:
+           The command prompts for confirmation before executing the revoke_children operation.
 
-        ```
-        $ btcli root get_weights
+           Example usage::
 
-                                                Root Network Weights
+               btcli stake revoke_children --hotkey <parent_hotkey> --netuid 1
 
-        UID        0        1        2       3        4        5       8        9       11     13      18       19
-
-        1    100.00%        -        -       -        -        -       -        -        -      -       -        -
-
-        2          -   40.00%    5.00%  10.00%   10.00%   10.00%  10.00%    5.00%        -      -  10.00%        -
-
-        3          -        -   25.00%       -   25.00%        -  25.00%        -        -      -  25.00%        -
-
-        4          -        -    7.00%   7.00%   20.00%   20.00%  20.00%        -    6.00%      -  20.00%        -
-
-        5          -   20.00%        -  10.00%   15.00%   15.00%  15.00%    5.00%        -      -  10.00%   10.00%
-
-        6          -        -        -       -   10.00%   10.00%  25.00%   25.00%        -      -  30.00%        -
-
-        7          -   60.00%        -       -   20.00%        -       -        -   20.00%      -       -        -
-
-        8          -   49.35%        -   7.18%   13.59%   21.14%   1.53%    0.12%    7.06%  0.03%       -        -
-
-        9    100.00%        -        -       -        -        -       -        -        -      -       -        -
-        ```
-
-        #### Note:
-        This command is essential for users interested in the governance and operational dynamics of the Bittensor network. It offers transparency into how network rewards and responsibilities are allocated across different subnets.
-        """
-        self.initialize_chain(network, chain)
-        return self._run_command(root.get_weights(self.not_subtensor))
+           Note:
+               This command is critical for users who wish to remove children hotkeys on the network.
+               It allows for a complete removal of delegated authority to enhance network participation and influence.
+           """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        return self._run_command(
+            stake.revoke_children(
+                wallet,
+                self.initialize_chain(network, chain),
+                netuid
+            )
+        )
 
     def run(self):
         self.app()

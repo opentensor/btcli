@@ -7,6 +7,7 @@ from bittensor_wallet.utils import SS58_FORMAT
 from scalecodec import GenericCall
 from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
+from substrateinterface.exceptions import SubstrateRequestException
 
 from src.bittensor.async_substrate_interface import AsyncSubstrateInterface
 from src.bittensor.chain_data import (
@@ -779,3 +780,49 @@ class SubtensorInterface:
             return True, ""
         else:
             return False, format_error_message(response.error_message)
+
+    async def get_children(self, hotkey, netuid) -> tuple[bool, list]:
+        """
+        Method: get_children
+
+        Description:
+        This method retrieves the children of a given hotkey and netuid. It queries the SubtensorModule's ChildKeys storage function to get the children and formats them before returning as a tuple.
+
+        Parameters:
+        - hotkey (str): The hotkey value.
+        - netuid (str): The netuid value.
+
+        Return Type:
+        tuple[bool, list]: A tuple containing a boolean indicating success or failure, and a list of formatted children. If an error occurs, the list will contain an exception object.
+
+        Example Usage:
+        ```python
+        success, children = await get_children(hotkey_value, netuid_value)
+        if success:
+            for proportion, child in children:
+                print(proportion, child)
+        else:
+            print("Failed to get children:", children[0])
+        ```
+        """
+        try:
+            children = await self.substrate.query(
+                module="SubtensorModule",
+                storage_function="ChildKeys",
+                params=[hotkey, netuid],
+            )
+            if children:
+                formatted_children = []
+                for proportion, child in children:
+                    # Convert U64 to int
+                    int_proportion = (
+                        proportion.value
+                        if hasattr(proportion, "value")
+                        else int(proportion)
+                    )
+                    formatted_children.append((int_proportion, child.value))
+                return True, formatted_children
+            else:
+                return True, []
+        except SubstrateRequestException as e:
+            return False, [e]  # TODO: find a more elegant way of returning error message
