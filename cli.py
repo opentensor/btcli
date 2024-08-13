@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 import asyncio
 import os.path
-from typing import Optional, Coroutine
+import re
+from typing import Optional, Coroutine, Collection
 
 from bittensor_wallet import Wallet
 from git import Repo
 import rich
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Confirm, Prompt, FloatPrompt
 from rich.table import Table, Column
 import typer
 from typing_extensions import Annotated
@@ -14,7 +15,7 @@ from websockets import ConnectionClosed
 from yaml import safe_load, safe_dump
 
 from src import defaults, utils
-from src.commands import wallets, root
+from src.commands import wallets, root, stake
 from src.subtensor_interface import SubtensorInterface
 from src.bittensor.async_substrate_interface import SubstrateRequestException
 from src.utils import console, err_console
@@ -80,12 +81,31 @@ class Options:
     chain = typer.Option(
         None, help="The subtensor chain endpoint to connect to.", show_default=False
     )
-    netuids = typer.Option([], help="Set the netuid(s) to filter by (e.g. `0 1 2`)")
+    netuids = typer.Option(
+        [], "--netuids", "-n", help="Set the netuid(s) to filter by (e.g. `0 1 2`)"
+    )
     netuid = typer.Option(
         None,
         help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
         prompt=True,
     )
+
+
+def list_prompt(init_var: list, list_type: type, help_text: str) -> list:
+    """
+    Serves a similar purpose to rich.FloatPrompt or rich.Prompt, but for creating a list of those variables for
+    a given type
+    :param init_var: starting variable, this will generally be `None` if you intend to get something out of this
+                     prompt, if it is not empty, it will return the same
+    :param list_type: the type for each item in the list you're creating
+    :param help_text: the helper text to display to the user in the prompt
+
+    :return: list of the specified type of the user inputs
+    """
+    while not init_var:
+        prompt = Prompt.ask(help_text)
+        init_var = [list_type(x) for x in re.split(r"[ ,]+", prompt) if x]
+    return init_var
 
 
 def get_n_words(n_words: Optional[int]) -> int:
@@ -141,6 +161,7 @@ class CLIManager:
     :var config_app: the Typer app as it relates to config commands
     :var wallet_app: the Typer app as it relates to wallet commands
     :var root_app: the Typer app as it relates to root commands
+    :var stake_app: the Typer app as it relates to stake commands
     :var not_subtensor: the `SubtensorInterface` object passed to the various commands that require it
     """
 
@@ -164,6 +185,7 @@ class CLIManager:
         self.config_app = typer.Typer()
         self.wallet_app = typer.Typer()
         self.root_app = typer.Typer()
+        self.stake_app = typer.Typer()
 
         # config alias
         self.app.add_typer(
@@ -190,6 +212,14 @@ class CLIManager:
             short_help="Root commands, alias: `r`",
         )
         self.app.add_typer(self.root_app, name="d", hidden=True)
+
+        # stake aliases
+        self.app.add_typer(
+            self.stake_app,
+            name="stake",
+            short_help="Stake commands, alias: `st`",
+        )
+        self.app.add_typer(self.stake_app, name="st", hidden=True)
 
         # config commands
         self.config_app.command("set")(self.set_config)
@@ -228,6 +258,13 @@ class CLIManager:
         self.root_app.command("my-delegates")(self.root_my_delegates)
         self.root_app.command("list-delegates")(self.root_list_delegates)
         self.root_app.command("nominate")(self.root_nominate)
+
+        # stake commands
+        self.stake_app.command("show")(self.stake_show)
+        self.stake_app.command("add")(self.stake_add)
+        self.stake_app.command("remove")(self.stake_remove)
+        self.stake_app.command("get-children")(self.stake_get_children)
+        self.stake_app.command("set-children")(self.stake_set_children)
 
     def initialize_chain(
         self,
@@ -438,19 +475,23 @@ class CLIManager:
             None,
             help="Sort the hotkeys in the specified ordering. (ascending/asc or descending/desc/reverse)",
         ),
-        include_hotkeys: Optional[list[str]] = typer.Option(
+        include_hotkeys: list[str] = typer.Option(
             [],
+            "--include-hotkeys",
+            "-in",
             help="Specify the hotkeys to include by name or ss58 address. (e.g. `hk1 hk2 hk3`). "
             "If left empty, all hotkeys not excluded will be included.",
         ),
-        exclude_hotkeys: Optional[list[str]] = typer.Option(
+        exclude_hotkeys: list[str] = typer.Option(
             [],
+            "--exclude-hotkeys",
+            "-ex",
             help="Specify the hotkeys to exclude by name or ss58 address. (e.g. `hk1 hk2 hk3`). "
             "If left empty, and no hotkeys included in --include-hotkeys, all hotkeys will be included.",
         ),
-        netuids: Optional[list[int]] = Options.netuids,
-        network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
+        netuids: list[int] = Options.netuids,
+        network: str = Options.network,
+        chain: str = Options.chain,
     ):
         """
         # wallet overview
@@ -510,7 +551,7 @@ class CLIManager:
         ```
 
         - ```
-        btcli wallet overview --include-hotkeys hk1 hk2 --sort-by stake
+        btcli wallet overview -in hk1 -in hk2 --sort-by stake
         ```
 
         #### Note:
@@ -560,11 +601,11 @@ class CLIManager:
             prompt=True,
             help="Amount (in TAO) to transfer.",
         ),
-        wallet_name: Optional[str] = Options.wallet_name,
-        wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        network: str = Options.network,
+        chain: str = Options.chain,
     ):
         """
         # wallet transfer
@@ -632,12 +673,12 @@ class CLIManager:
             "-a",
             help="Inspect all wallets within specified path.",
         ),
-        wallet_name: Optional[str] = Options.wallet_name,
-        wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
-        netuids: Optional[list[int]] = Options.netuids,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        network: str = Options.network,
+        chain: str = Options.chain,
+        netuids: list[int] = Options.netuids,
     ):
         """
         # wallet inspect
@@ -679,11 +720,11 @@ class CLIManager:
         ```
 
         ```
-        btcli wallet inspect --all
+        btcli wallet inspect --all -n 1 -n 2 -n 3
         ```
 
         #### Note:
-        The ``inspect`` command is for displaying information only and does not perform any
+        The `inspect` command is for displaying information only and does not perform any
         transactions or state changes on the Bittensor network. It is intended to be used as
         part of the Bittensor CLI and not as a standalone function within user code.
         """
@@ -782,11 +823,10 @@ class CLIManager:
         CUDA-based GPU calculations. It is currently disabled on testnet and finney. You must use this on a local chain.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        self.initialize_chain(network, chain)
         return self._run_command(
             wallets.faucet(
                 wallet,
-                self.not_subtensor,
+                self.initialize_chain(network, chain),
                 threads_per_block,
                 update_interval,
                 processors,
@@ -1389,12 +1429,14 @@ class CLIManager:
 
     def root_set_weights(
         self,
-        network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
-        wallet_name: Optional[str] = Options.wallet_name,
-        wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
-        netuids: list[int] = typer.Option(None, help="Netuids, e.g. `0 1 2` ..."),
+        network: str = Options.network,
+        chain: str = Options.chain,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hk_req,
+        netuids: list[int] = typer.Option(
+            None, help="Netuids, e.g. `-n 0 -n 1 -n 2` ..."
+        ),
         weights: list[float] = typer.Argument(
             None,
             help="Weights: e.g. `0.02 0.03 0.01` ...",
@@ -1412,7 +1454,7 @@ class CLIManager:
 
         ### Example usage::
         ```
-        btcli root set-weights 0.3 0.3 0.4 --netuids 1 2 3 --chain ws://127.0.0.1:9945
+        btcli root set-weights 0.3 0.3 0.4 -n 1 -n 2 -n 3 --chain ws://127.0.0.1:9945
         ```
 
         #### Note:
@@ -1420,6 +1462,13 @@ class CLIManager:
         network's dynamics. It is a powerful tool that directly impacts the network's operational mechanics and reward
         distribution.
         """
+        netuids = list_prompt(netuids, int, "Enter netuids")
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        self._run_command(
+            root.set_weights(
+                wallet, self.initialize_chain(network, chain), netuids, weights
+            )
+        )
 
     def root_get_weights(
         self,
@@ -1473,8 +1522,9 @@ class CLIManager:
         network. It offers transparency into how network rewards and responsibilities are allocated across different
         subnets.
         """
-        self.initialize_chain(network, chain)
-        return self._run_command(root.get_weights(self.not_subtensor))
+        return self._run_command(
+            root.get_weights(self.initialize_chain(network, chain))
+        )
 
     def root_boost(
         self,
@@ -1549,9 +1599,10 @@ class CLIManager:
         ```
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        self.initialize_chain(network, chain)
         return self._run_command(
-            root.set_boost(wallet, self.not_subtensor, netuid, amount)
+            root.set_boost(
+                wallet, self.initialize_chain(network, chain), netuid, amount
+            )
         )
 
     def root_slash(
@@ -1664,8 +1715,9 @@ class CLIManager:
         role in the governance and evolution of the Bittensor network.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        self.initialize_chain(network, chain)
-        return self._run_command(root.senate_vote(wallet, self.not_subtensor, proposal))
+        return self._run_command(
+            root.senate_vote(wallet, self.initialize_chain(network, chain), proposal)
+        )
 
     def root_senate(
         self,
@@ -1848,7 +1900,7 @@ class CLIManager:
         ## Usage:
         The user must specify the delegate's SS58 address and the amount of Tao to stake. The function sends a
         transaction to the subtensor network to delegate the specified amount to the chosen delegate. These values are
-        prompted if not provided.
+        prompted if not provided. You can list all delegates with `btcli root list-delegates`.
 
         ### Example usage:
 
@@ -1864,7 +1916,6 @@ class CLIManager:
         interaction, and is designed to be used within the Bittensor CLI environment. The user should ensure the
         delegate's address and the amount to be staked are correct before executing the command.
         """
-        # TODO instruct users how to show all delegates (I think list-delegates, but have to be sure)
         if amount and stake_all:
             err_console.print(
                 "`--amount` and `--all` specified. Choose one or the other."
@@ -2080,8 +2131,8 @@ class CLIManager:
         This function is part of the Bittensor CLI tools and is intended for use within a console application. It prints
         directly to the console and does not return any value.
         """
-        self.initialize_chain("archive", "wss://archive.chain.opentensor.ai:443")
-        return self._run_command(root.list_delegates(self.not_subtensor))
+        sub = self.initialize_chain("archive", "wss://archive.chain.opentensor.ai:443")
+        return self._run_command(root.list_delegates(sub))
 
     def root_nominate(
         self,
@@ -2127,6 +2178,386 @@ class CLIManager:
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             root.nominate(wallet, self.initialize_chain(network, chain))
+        )
+
+    def stake_show(
+        self,
+        all_wallets: bool = typer.Option(
+            False,
+            "--all",
+            "--all-wallets",
+            "-a",
+            help="When set, the command checks all coldkey wallets instead of just the specified wallet.",
+        ),
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        wallet_path: Optional[str] = Options.wallet_path,
+    ):
+        """
+        # stake show
+        Executes the `show` command to list all stake accounts associated with a user's wallet on the Bittensor network.
+
+        This command provides a comprehensive view of the stakes associated with both hotkeys and delegates linked to
+        the user's coldkey.
+
+        ## Usage:
+        The command lists all stake accounts for a specified wallet or all wallets in the user's configuration
+        directory. It displays the coldkey, balance, account details (hotkey/delegate name), stake amount, and the rate
+        of return.
+
+        The command compiles a table showing:
+
+        - Coldkey: The coldkey associated with the wallet.
+
+        - Balance: The balance of the coldkey.
+
+        - Account: The name of the hotkey or delegate.
+
+        - Stake: The amount of TAO staked to the hotkey or delegate.
+
+        - Rate: The rate of return on the stake, typically shown in TAO per day.
+
+
+        ### Example usage:
+
+        ```
+        btcli stake show --all
+        ```
+
+        #### Note:
+        This command is essential for users who wish to monitor their stake distribution and returns across various
+        accounts on the Bittensor network. It provides a clear and detailed overview of the user's staking activities.
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        return self._run_command(
+            stake.show(wallet, self.initialize_chain(network, chain), all_wallets)
+        )
+
+    def stake_add(
+        self,
+        stake_all: bool = typer.Option(
+            False,
+            "--all-tokens",
+            "--all",
+            "-a",
+            help="When set, stakes all available tokens from the coldkey.",
+        ),
+        uid: int = typer.Option(
+            None,
+            "--uid",
+            "-u",
+            help="The unique identifier of the neuron to which the stake is to be added.",
+        ),
+        amount: float = typer.Option(
+            0.0, "--amount", help="The amount of TAO tokens to stake"
+        ),
+        max_stake: float = typer.Option(
+            0.0,
+            "--max-stake",
+            "-m",
+            help="Sets the maximum amount of TAO to have staked in each hotkey.",
+        ),
+        include_hotkeys: list[str] = typer.Option(
+            [],
+            "--include-hotkeys",
+            "-in",
+            help="Specifies hotkeys by name or SS58 address to stake to. i.e `-in hk1 -in hk2`",
+        ),
+        exclude_hotkeys: list[str] = typer.Option(
+            [],
+            "--exclude-hotkeys",
+            "-ex",
+            help="Specifies hotkeys by name/SS58 address not to stake to (only use with `--all-hotkeys`.)"
+            " i.e. `-ex hk3 -ex hk4`",
+        ),
+        all_hotkeys: bool = typer.Option(
+            False,
+            help="When set, stakes to all hotkeys associated with the wallet. Do not use if specifying "
+            "hotkeys in `--include-hotkeys`.",
+        ),
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        network: str = Options.network,
+        chain: str = Options.chain,
+    ):
+        """
+        # stake add
+        Executes the `stake_add` command to stake tokens to one or more hotkeys from a user's coldkey on the Bittensor
+        network.
+
+        This command is used to allocate tokens to different hotkeys, securing their position and influence on the
+         network.
+
+        ## Usage:
+        Users can specify the amount to stake, the hotkeys to stake to (either by name or ``SS58`` address), and whether
+        to stake to all hotkeys. The command checks for sufficient balance and hotkey registration before proceeding
+        with the staking process.
+
+
+        The command prompts for confirmation before executing the staking operation.
+
+        ### Example usage:
+
+        ```
+        btcli stake add --amount 100 --wallet-name <my_wallet> --wallet-hotkey <my_hotkey>
+        ```
+
+        #### Note:
+        This command is critical for users who wish to distribute their stakes among different neurons (hotkeys) on the
+        network. It allows for a strategic allocation of tokens to enhance network participation and influence.
+        """
+        if stake_all and amount:
+            err_console.print(
+                "Cannot specify an amount and 'stake-all'. Choose one or the other."
+            )
+            raise typer.Exit()
+        if not stake_all and not amount:
+            amount = FloatPrompt.ask("Please enter an amount to stake.")
+        if stake_all and not amount:
+            if not Confirm.ask("Stake all available TAO tokens?", default=False):
+                raise typer.Exit()
+        if all_hotkeys and include_hotkeys:
+            err_console.print(
+                "You have specified hotkeys to include and the `--all-hotkeys` flag. The flag"
+                "should only be used standalone (to use all hotkeys) or with `--exclude-hotkeys`."
+            )
+            raise typer.Exit()
+        if include_hotkeys and exclude_hotkeys:
+            err_console.print(
+                "You have specified including and excluding hotkeys. Select one or the other."
+            )
+            raise typer.Exit()
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        return self._run_command(
+            stake.stake_add(
+                wallet,
+                self.initialize_chain(network, chain),
+                uid,
+                amount,
+                stake_all,
+                max_stake,
+                include_hotkeys,
+                exclude_hotkeys,
+                all_hotkeys,
+            )
+        )
+
+    def stake_remove(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        unstake_all: bool = typer.Option(
+            False,
+            "--unstake-all",
+            "--all",
+            help="When set, unstakes all staked tokens from the specified hotkeys.",
+        ),
+        amount: float = typer.Option(
+            0.0, "--amount", "-a", help="The amount of TAO tokens to unstake."
+        ),
+        hotkey_ss58_address: str = typer.Option(
+            "",
+            help="The SS58 address of the hotkey to unstake from.",
+        ),
+        max_stake: float = typer.Option(
+            0.0,
+            "--max-stake",
+            "--max",
+            help="Sets the maximum amount of TAO to remain staked in each hotkey.",
+        ),
+        include_hotkeys: list[str] = typer.Option(
+            [],
+            "--include-hotkeys",
+            "-in",
+            help="Specifies hotkeys by name or SS58 address to unstake from. i.e `-in hk1 -in hk2`",
+        ),
+        exclude_hotkeys: list[str] = typer.Option(
+            [],
+            "--exclude-hotkeys",
+            "-ex",
+            help="Specifies hotkeys by name/SS58 address not to unstake from (only use with `--all-hotkeys`.)"
+            " i.e. `-ex hk3 -ex hk4`",
+        ),
+        all_hotkeys: bool = typer.Option(
+            False,
+            help="When set, unstakes from all hotkeys associated with the wallet. Do not use if specifying "
+            "hotkeys in `--include-hotkeys`.",
+        ),
+    ):
+        """
+        # stake remove
+        Executes the `remove` command to unstake TAO tokens from one or more hotkeys and transfer them back to the
+        user's coldkey on the Bittensor network.
+
+        This command is used to withdraw tokens previously staked to different hotkeys.
+
+        ## Usage:
+        Users can specify the amount to unstake, the hotkeys to unstake from (either by name or `SS58` address), and
+        whether to unstake from all hotkeys. The command checks for sufficient stake and prompts for confirmation before
+        proceeding with the unstaking process.
+
+        The command prompts for confirmation before executing the unstaking operation.
+
+        ### Example usage:
+
+        ```
+        btcli stake remove --amount 100 -in hk1 -in hk2
+        ```
+
+        #### Note:
+        This command is important for users who wish to reallocate their stakes or withdraw them from the network.
+        It allows for flexible management of token stakes across different neurons (hotkeys) on the network.
+        """
+        if unstake_all and amount:
+            err_console.print(
+                "Cannot specify an amount and 'unstake-all'. Choose one or the other."
+            )
+            raise typer.Exit()
+        if not unstake_all and not amount:
+            amount = FloatPrompt.ask("Please enter an amount to unstake.")
+        if unstake_all and not amount:
+            if not Confirm.ask("Unstake all staked TAO tokens?", default=False):
+                raise typer.Exit()
+        if all_hotkeys and include_hotkeys:
+            err_console.print(
+                "You have specified hotkeys to include and the `--all-hotkeys` flag. The flag"
+                "should only be used standalone (to use all hotkeys) or with `--exclude-hotkeys`."
+            )
+            raise typer.Exit()
+        if include_hotkeys and exclude_hotkeys:
+            err_console.print(
+                "You have specified including and excluding hotkeys. Select one or the other."
+            )
+            raise typer.Exit()
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        return self._run_command(
+            stake.unstake(
+                wallet,
+                self.initialize_chain(network, chain),
+                hotkey_ss58_address,
+                all_hotkeys,
+                include_hotkeys,
+                exclude_hotkeys,
+                amount,
+                max_stake,
+                unstake_all,
+            )
+        )
+
+    def stake_get_children(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        wallet_path: Optional[str] = Options.wallet_path,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        netuid: int = Options.netuid,
+    ):
+        """
+        # stake get-children
+        Executes the `get_children_info` command to get all child hotkeys on a specified subnet on the Bittensor network.
+
+        This command is used to view delegated authority to different hotkeys on the subnet.
+
+        ## Usage:
+        Users can specify the subnet and see the children and the proportion that is given to them.
+
+        The command compiles a table showing:
+
+        - ChildHotkey: The hotkey associated with the child.
+
+        - ParentHotKey: The hotkey associated with the parent.
+
+        - Proportion: The proportion that is assigned to them.
+
+        - Expiration: The expiration of the hotkey.
+
+
+        ### Example usage:
+
+        ```
+            btcli stake get_children --netuid 1
+        ```
+
+        #### Note:
+        This command is for users who wish to see child hotkeys among different neurons (hotkeys) on the network.
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        return self._run_command(
+            stake.get_children(wallet, self.initialize_chain(network, chain), netuid)
+        )
+
+    def stake_set_children(
+        self,
+        children: list[str] = typer.Option(
+            [], "--children", "-c", help="Enter children hotkeys (ss58)", prompt=False
+        ),
+        wallet_name: str = Options.wallet_name,
+        wallet_hotkey: str = Options.wallet_hk_req,
+        wallet_path: str = Options.wallet_path,
+        network: str = Options.network,
+        chain: str = Options.chain,
+        netuid: int = Options.netuid,
+        proportions: list[float] = typer.Option(
+            [],
+            "--proportions",
+            "-p",
+            help="Enter proportions for children as (sum less than 1)",
+            prompt=False,
+        ),
+    ):
+        """
+        # stake set-children
+        Executes the `set_children` command to add children hotkeys on a specified subnet on the Bittensor network.
+
+        This command is used to delegate authority to different hotkeys, securing their position and influence on the
+        subnet.
+
+        ## Usage:
+        Users can specify the amount or 'proportion' to delegate to child hotkeys (``SS58`` address),
+        the user needs to have sufficient authority to make this call, and the sum of proportions cannot be greater
+        than 1.
+
+        The command prompts for confirmation before executing the set_children operation.
+
+        ### Example usage:
+
+        ```
+        btcli stake set_children - <child_hotkey> -c <child_hotkey> --hotkey <parent_hotkey> --netuid 1
+        -p 0.3 -p 0.3
+        ```
+
+        #### Note:
+        This command is critical for users who wish to delegate children hotkeys among different neurons (hotkeys) on
+        the network. It allows for a strategic allocation of authority to enhance network participation and influence.
+        """
+        children = list_prompt(children, str, "Enter the child hotkeys (ss58)")
+        proportions = list_prompt(
+            proportions,
+            float,
+            "Enter proportions equal to the number of children (sum not exceeding a total of 1.0)",
+        )
+        if len(proportions) != len(children):
+            err_console.print("You must have as many proportions as you have children.")
+            raise typer.Exit()
+        if sum(proportions) > 1.0:
+            err_console.print("Your proportion total must sum not exceed 1.0.")
+            raise typer.Exit()
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        return self._run_command(
+            stake.set_children(
+                wallet,
+                self.initialize_chain(network, chain),
+                netuid,
+                children,
+                proportions,
+            )
         )
 
     def run(self):

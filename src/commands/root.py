@@ -22,7 +22,6 @@ from src.utils import (
     err_console,
     get_delegates_details_from_github,
     convert_weight_uids_and_vals_to_tensor,
-    format_error_message,
     ss58_to_vec_u8,
 )
 from src import Constants
@@ -110,7 +109,7 @@ async def _get_senate_members(
 
 async def _get_proposals(
     subtensor: SubtensorInterface, block_hash: str
-) -> dict[ProposalVoteData, tuple[GenericCall, ProposalVoteData]]:
+) -> dict[str, tuple[GenericCall, ProposalVoteData]]:
     async def get_proposal_call_data(p_hash: str) -> Optional[GenericCall]:
         proposal_data = await subtensor.substrate.query(
             module="Triumvirate",
@@ -132,12 +131,13 @@ async def _get_proposals(
         params=None,
         block_hash=block_hash,
     )
-    proposal_hashes: Optional[ProposalVoteData] = getattr(
-        ph, "serialize", lambda: None
-    )()
 
-    if proposal_hashes is None:
-        return None
+    try:
+        proposal_hashes: list[str] = ph.serialize()
+    except AttributeError:
+        err_console.print("Unable to retrieve proposal vote data")
+        raise typer.Exit()
+
     call_data_, vote_data_ = await asyncio.gather(
         asyncio.gather(*[get_proposal_call_data(h) for h in proposal_hashes]),
         asyncio.gather(*[get_proposal_vote_data(h) for h in proposal_hashes]),
@@ -250,28 +250,26 @@ async def vote_senate_extrinsic(
             call, wallet, wait_for_inclusion, wait_for_finalization
         )
         if not success:
-            err_console.print(
-                f":cross_mark: [red]Failed[/red]: {format_error_message(err_msg)}"
-            )
+            err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
             await asyncio.sleep(0.5)
             return False
 
         # Successful vote, final check for data
         else:
-            vote_data = await _get_vote_data(subtensor, proposal_hash)
-            has_voted = (
-                vote_data["ayes"].count(wallet.hotkey.ss58_address) > 0
-                or vote_data["nays"].count(wallet.hotkey.ss58_address) > 0
-            )
-
-            if has_voted:
-                console.print(":white_heavy_check_mark: [green]Vote cast.[/green]")
-                return True
+            if vote_data := await _get_vote_data(subtensor, proposal_hash):
+                if (
+                    vote_data["ayes"].count(wallet.hotkey.ss58_address) > 0
+                    or vote_data["nays"].count(wallet.hotkey.ss58_address) > 0
+                ):
+                    console.print(":white_heavy_check_mark: [green]Vote cast.[/green]")
+                    return True
+                else:
+                    # hotkey not found in ayes/nays
+                    err_console.print(
+                        ":cross_mark: [red]Unknown error. Couldn't find vote.[/red]"
+                    )
+                    return False
             else:
-                # hotkey not found in ayes/nays
-                err_console.print(
-                    ":cross_mark: [red]Unknown error. Couldn't find vote.[/red]"
-                )
                 return False
 
 
@@ -347,7 +345,7 @@ async def burned_register_extrinsic(
                 "hotkey": wallet.hotkey.ss58_address,
             },
         )
-        success, err_msg = subtensor.sign_and_send_extrinsic(
+        success, err_msg = await subtensor.sign_and_send_extrinsic(
             call, wallet, wait_for_inclusion, wait_for_finalization
         )
 
@@ -423,25 +421,6 @@ async def set_take_extrinsic(
         else:
             return DelegateInfo.from_vec_u8(result)
 
-    async def _take_extrinsic(call_) -> tuple[bool, str]:
-        """Submits the previously-created extrinsic call to the chain"""
-        extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call_, keypair=wallet.coldkey
-        )  # sign with coldkey
-        response = await subtensor.substrate.submit_extrinsic(
-            extrinsic,
-            wait_for_inclusion=wait_for_inclusion,
-            wait_for_finalization=wait_for_finalization,
-        )
-        # We only wait here if we expect finalization.
-        if not wait_for_finalization and not wait_for_inclusion:
-            return True, ""
-        response.process_events()
-        if response.is_success:
-            return True, ""
-        else:
-            return False, format_error_message(response.error_message)
-
     # Calculate u16 representation of the take
     take_u16 = int(take * 0xFFFF)
 
@@ -471,7 +450,7 @@ async def set_take_extrinsic(
                     "take": take,
                 },
             )
-            success, err = await _take_extrinsic(call)
+            success, err = await subtensor.sign_and_send_extrinsic(call, wallet)
 
     else:
         console.print("Current take is higher than the new one. Will use decrease_take")
@@ -486,7 +465,7 @@ async def set_take_extrinsic(
                     "take": take,
                 },
             )
-            success, err = await _take_extrinsic(call)
+            success, err = await subtensor.sign_and_send_extrinsic(call, wallet)
 
     if not success:
         err_console.print(err)
@@ -498,8 +477,8 @@ async def set_take_extrinsic(
 async def delegate_extrinsic(
     subtensor: SubtensorInterface,
     wallet: Wallet,
-    delegate_ss58: Optional[str] = None,
-    amount: Balance = None,
+    delegate_ss58: str,
+    amount: Balance,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt: bool = False,
@@ -602,7 +581,7 @@ async def delegate_extrinsic(
         # Stake it all.
         staking_balance = Balance.from_tao(my_prev_coldkey_balance.tao)
     else:
-        staking_balance = Balance.from_tao(amount)
+        staking_balance = amount
 
     if delegate:
         # Remove existential balance to keep key alive.
@@ -811,12 +790,12 @@ async def root_list(subtensor: SubtensorInterface):
 async def set_weights(
     wallet: Wallet,
     subtensor: SubtensorInterface,
-    netuids_: list[int],
-    weights_: list[float],
+    netuids: list[int],
+    weights: list[float],
 ):
     """Set weights for root network."""
-    netuids_ = np.array(netuids_, dtype=np.int64)
-    weights_ = np.array(weights_, dtype=np.float32)
+    netuids_ = np.array(netuids, dtype=np.int64)
+    weights_ = np.array(weights, dtype=np.float32)
 
     # Run the set weights operation.
     with console.status("Setting root weights..."):
@@ -842,7 +821,7 @@ async def get_weights(subtensor: SubtensorInterface):
 
     await subtensor.substrate.close()
 
-    uid_to_weights = {}
+    uid_to_weights: dict[int, dict] = {}
     netuids = set()
     for matrix in weights:
         [uid, weights_data] = matrix
@@ -1038,8 +1017,8 @@ async def get_senate(subtensor: SubtensorInterface):
     async with subtensor:
         senate_members = await _get_senate_members(subtensor)
 
-    delegate_info: Optional[
-        dict[str, DelegatesDetails]
+    delegate_info: dict[
+        str, DelegatesDetails
     ] = await get_delegates_details_from_github(Constants.delegates_detail_url)
 
     await subtensor.substrate.close()
@@ -1214,7 +1193,7 @@ async def set_take(wallet: Wallet, subtensor: SubtensorInterface, take: float) -
             err_console.print("ERROR: Take value should not exceed 18%")
             return False
 
-        result: bool = set_take_extrinsic(
+        result: bool = await set_take_extrinsic(
             subtensor=subtensor,
             wallet=wallet,
             delegate_ss58=wallet.hotkey.ss58_address,
@@ -1256,7 +1235,7 @@ async def set_take(wallet: Wallet, subtensor: SubtensorInterface, take: float) -
 async def delegate_stake(
     wallet: Wallet,
     subtensor: SubtensorInterface,
-    amount: Optional[float],
+    amount: float,
     delegate_ss58key: str,
 ):
     """Delegates stake to a chain delegate."""
@@ -1377,7 +1356,7 @@ async def my_delegates(
     await subtensor.substrate.close()
 
     for wall, delegates in wallets_with_delegates:
-        if not wall:
+        if not wall or not delegates:
             continue
 
         my_delegates_ = {}  # hotkey, amount
@@ -1619,7 +1598,9 @@ async def nominate(wallet: Wallet, subtensor: SubtensorInterface):
             return
         else:
             # Check if we are a delegate.
-            is_delegate: bool = subtensor.is_hotkey_delegate(wallet.hotkey.ss58_address)
+            is_delegate: bool = await subtensor.is_hotkey_delegate(
+                wallet.hotkey.ss58_address
+            )
             if not is_delegate:
                 err_console.print(
                     f"Could not became a delegate on [white]{subtensor.network}[/white]"

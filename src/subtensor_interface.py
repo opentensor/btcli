@@ -130,7 +130,15 @@ class SubtensorInterface:
 
     async def get_delegates(
         self, block_hash: Optional[str] = None, reuse_block: Optional[bool] = False
-    ):
+    ) -> list[DelegateInfo]:
+        """
+        Fetches all delegates on the chain
+
+        :param block_hash: hash of the blockchain block number for the query.
+        :param reuse_block: whether to reuse the last-used block hash.
+
+        :return: List of DelegateInfo objects, or an empty list if there are no delegates.
+        """
         json_body = await self.substrate.rpc_request(
             method="delegateInfo_getDelegates",  # custom rpc method
             params=[block_hash] if block_hash else [],
@@ -180,6 +188,24 @@ class SubtensorInterface:
             bytes_result = bytes.fromhex(hex_bytes_result)
         # TODO: review if this is the correct type / works
         return StakeInfo.list_from_vec_u8(bytes_result)  # type: ignore
+
+    async def get_stake_for_coldkey_and_hotkey(
+        self, hotkey_ss58: str, coldkey_ss58: str, block_hash: Optional[str]
+    ) -> Balance:
+        """
+        Retrieves stake information associated with a specific coldkey and hotkey.
+        :param hotkey_ss58: the hotkey SS58 address to query
+        :param coldkey_ss58: the coldkey SS58 address to query
+        :param block_hash: the hash of the blockchain block number for the query.
+        :return: Stake Balance for the given coldkey and hotkey
+        """
+        _result = await self.substrate.query(
+            module="SubtensorModule",
+            storage_function="Stake",
+            params=[hotkey_ss58, coldkey_ss58],
+            block_hash=block_hash,
+        )
+        return Balance.from_rao(getattr(_result, "value", 0))
 
     async def query_runtime_api(
         self,
@@ -241,7 +267,7 @@ class SubtensorInterface:
     async def get_balance(
         self,
         *addresses: str,
-        block_hash: Optional[int] = None,
+        block_hash: Optional[str] = None,
         reuse_block: bool = False,
     ) -> dict[str, Balance]:
         """
@@ -421,7 +447,7 @@ class SubtensorInterface:
 
     async def get_existential_deposit(
         self, block_hash: Optional[str] = None, reuse_block: bool = False
-    ) -> Optional[Balance]:
+    ) -> Balance:
         """
         Retrieves the existential deposit amount for the Bittensor blockchain. The existential deposit
         is the minimum amount of TAO required for an account to exist on the blockchain. Accounts with
@@ -727,6 +753,16 @@ class SubtensorInterface:
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = False,
     ) -> tuple[bool, str]:
+        """
+        Helper method to sign and submit an extrinsic call to chain.
+
+        :param call: a prepared Call object
+        :param wallet: the wallet whose coldkey will be used to sign the extrinsic
+        :param wait_for_inclusion: whether to wait until the extrinsic call is included on the chain
+        :param wait_for_finalization: whether to wait until the extrinsic call is finalized on the chain
+
+        :return: (success, error message)
+        """
         extrinsic = await self.substrate.create_signed_extrinsic(
             call=call, keypair=wallet.coldkey
         )  # sign with coldkey
