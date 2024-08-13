@@ -1,6 +1,6 @@
 aiohttp~=3.9.5
 backoff~=2.2.1
-git+https://github.com/opentensor/btwallet  # bittensor_wallet
+git+ssh://git@github.com/opentensor/btwallet.git  # bittensor_wallet
 GitPython>=3.0.0
 fuzzywuzzy~=0.18.0
 netaddr~=1.3.0

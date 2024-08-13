@@ -1,9 +1,11 @@
 import asyncio
+from math import floor
 from typing import TYPE_CHECKING, Union
 
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm
 from rich.table import Table, Column
+from rich.text import Text
 from substrateinterface.exceptions import SubstrateRequestException
 
 from src import Constants
@@ -136,8 +138,23 @@ def normalize_children_and_proportions(
     """
     total = sum(prop for prop, _ in children)
     u64_max = 2**64 - 1
-    return [(int(prop * u64_max / total), child) for prop, child in children]
+    normalized_children = [
+        (int(floor(prop * (u64_max - 1) / total)), child) for prop, child in children
+    ]
+    sum_norm = sum(prop for prop, _ in normalized_children)
 
+    # if the sum is more, subtract the excess from the first child
+    if sum_norm > u64_max:
+        if abs(sum_norm - u64_max) > 10:
+            raise ValueError(
+                "The sum of normalized proportions is out of the acceptable range."
+            )
+        normalized_children[0] = (
+            normalized_children[0][0] - (sum_norm - (u64_max - 1)),
+            normalized_children[0][1],
+        )
+
+    return normalized_children
 
 # Commands
 
@@ -582,37 +599,6 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
 
 
 async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: int):
-    async def _get_children(hotkey):
-        """
-        Get the children of a hotkey on a specific network.
-
-        :param hotkey: The hotkey to query.
-
-        :return: List of (proportion, child_address) tuples, or None if an error occurred.
-        """
-        try:
-            children = await subtensor.substrate.query(
-                module="SubtensorModule",
-                storage_function="ChildKeys",
-                params=[hotkey, netuid],
-            )
-            if children:
-                formatted_children = []
-                for proportion, child in children:
-                    # Convert U64 to int
-                    int_proportion = (
-                        proportion.value
-                        if hasattr(proportion, "value")
-                        else int(proportion)
-                    )
-                    formatted_children.append((int_proportion, child.value))
-                return formatted_children
-            else:
-                console.print("[yellow]No children found.[/yellow]")
-                return []
-        except SubstrateRequestException as e:
-            err_console.print(f"Error querying ChildKeys: {e}")
-            return None
 
     async def get_total_stake_for_child_hk(child: tuple):
         child_hotkey = child[1]
@@ -632,6 +618,7 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
         hk: str,
         children: list[tuple[int, str]],
         nuid: int,
+        prompt: bool = True
     ):
         # Initialize Rich table for pretty printing
         table = Table(
@@ -647,15 +634,14 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
 
         if not children:
             console.print(table)
-
-            command = (
-                "btcli stake set-children --children <child_hotkey> --hotkey <parent_hotkey> "
-                f"--netuid {nuid} --proportion <float>"
-            )
-            console.print(f"There are currently no child hotkeys on subnet {nuid}.")
             console.print(
-                f"To add a child hotkey you can run the command: [white]{command}[/white]"
+                f"There are currently no child hotkeys on subnet {netuid} with ParentHotKey {hk}."
             )
+            if prompt:
+                command = f"btcli stake set_children --children <child_hotkey> --hotkey <parent_hotkey> --netuid {netuid} --proportion <float>"
+                console.print(
+                    f"To add a child hotkey you can run the command: [white]{command}[/white]"
+                )
             return
 
         console.print("ParentHotKey:", style="cyan", no_wrap=True)
@@ -684,11 +670,15 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
         )  # sorting by proportion (highest first)
 
         # add the children info to the table
-        for i, (proportion, hk, stake) in enumerate(children_info, 1):
+        for i, (proportion, hotkey, stake) in enumerate(children_info, 1):
+            proportion_str = Text(
+                str(proportion), style="red" if proportion == 0 else ""
+            )
+            hotkey = Text(hotkey, style="red" if proportion == 0 else "")
             table.add_row(
                 str(i),
-                hk,
-                str(proportion),
+                hotkey,
+                proportion_str,
                 str(stake),
             )
 
@@ -697,13 +687,17 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
         console.print(table)
 
     async with subtensor:
-        children_ = await _get_children(wallet.hotkey)
+        err, children = await subtensor.get_children(wallet.hotkey, netuid)
+        if err:
+            err_console.print(f"Failed to get children from subtensor. {children[0]}")
+        if not children:
+            console.print("[yellow]No children found.[/yellow]")
 
-        await render_table(wallet.hotkey, children_, netuid)
+        await render_table(wallet.hotkey, children, netuid)
 
     await subtensor.substrate.close()
 
-    return children_
+    return children
 
 
 async def set_children(
@@ -744,4 +738,61 @@ async def set_children(
     else:
         console.print(
             f":cross_mark:[red] Unable to set children hotkeys.[/red] {message}"
+        )
+
+
+async def revoke_children(
+    wallet: Wallet,
+    subtensor: "SubtensorInterface",
+    netuid: int,
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = False,
+):
+    """
+    Revokes the children hotkeys associated with a given network identifier (netuid).
+
+    Parameters:
+    - wallet: An instance of the Wallet class representing the user's wallet.
+    - subtensor: An instance of the SubtensorInterface class.
+    - netuid: An integer representing the network identifier.
+    - wait_for_inclusion: A boolean indicating whether to wait for the transaction to be included in a block. Defaults to True.
+    - wait_for_finalization: A boolean indicating whether to wait for the transaction to be finalized. Defaults to False.
+
+    Returns:
+    None
+
+    Example:
+    >>> wallet = Wallet()
+    >>> subtensor = SubtensorInterface()
+    >>> revoke_children(wallet, subtensor, 12345, wait_for_inclusion=True)
+    """
+    # print table with diff prompts
+    status, current_children = await subtensor.get_children(wallet.hotkey.ss58_address, netuid)
+    # Validate children SS58 addresses
+    for child in current_children:
+        if not is_valid_ss58_address(child):
+            err_console.print(f":cross_mark:[red] Invalid SS58 address: {child}[/red]")
+            return
+
+    # Prepare children with zero proportions
+    children_with_zero_proportions = [(0.0, child[1]) for child in current_children]
+
+    async with subtensor:
+        success, message = await set_children_extrinsic(
+            subtensor=subtensor,
+            wallet=wallet,
+            netuid=netuid,
+            hotkey=wallet.hotkey.ss58_address,
+            children_with_proportions=children_with_zero_proportions,
+            prompt=True,
+        )
+    await subtensor.substrate.close()
+    # Result
+    if success:
+        if wait_for_finalization and wait_for_inclusion:
+            await get_children(wallet, subtensor, netuid)
+        console.print(":white_heavy_check_mark: [green]Revoked children hotkeys.[/green]")
+    else:
+        console.print(
+            f":cross_mark:[red] Unable to revoke children hotkeys.[/red] {message}"
         )
