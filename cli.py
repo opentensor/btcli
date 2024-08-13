@@ -252,6 +252,7 @@ class CLIManager:
         # stake commands
         self.stake_app.command("show")(self.stake_show)
         self.stake_app.command("add")(self.stake_add)
+        self.stake_app.command("remove")(self.stake_remove)
         self.stake_app.command("get-children")(self.stake_get_children)
         self.stake_app.command("set-children")(self.stake_set_children)
 
@@ -1889,7 +1890,7 @@ class CLIManager:
         ## Usage:
         The user must specify the delegate's SS58 address and the amount of Tao to stake. The function sends a
         transaction to the subtensor network to delegate the specified amount to the chosen delegate. These values are
-        prompted if not provided.
+        prompted if not provided. You can list all delegates with `btcli root list-delegates`.
 
         ### Example usage:
 
@@ -1905,7 +1906,6 @@ class CLIManager:
         interaction, and is designed to be used within the Bittensor CLI environment. The user should ensure the
         delegate's address and the amount to be staked are correct before executing the command.
         """
-        # TODO instruct users how to show all delegates (I think list-delegates, but have to be sure)
         if amount and stake_all:
             err_console.print(
                 "`--amount` and `--all` specified. Choose one or the other."
@@ -2332,6 +2332,111 @@ class CLIManager:
                 include_hotkeys,
                 exclude_hotkeys,
                 all_hotkeys,
+            )
+        )
+
+    def stake_remove(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        unstake_all: bool = typer.Option(
+            False,
+            "--unstake-all",
+            "--all",
+            help="When set, unstakes all staked tokens from the specified hotkeys.",
+        ),
+        amount: float = typer.Option(
+            0.0, "--amount", "-a", help="The amount of TAO tokens to unstake."
+        ),
+        hotkey_ss58_address: str = typer.Option(
+            "",
+            help="The SS58 address of the hotkey to unstake from.",
+        ),
+        max_stake: float = typer.Option(
+            0.0,
+            "--max-stake",
+            "--max",
+            help="Sets the maximum amount of TAO to remain staked in each hotkey.",
+        ),
+        include_hotkeys: list[str] = typer.Option(
+            [],
+            "--include-hotkeys",
+            "-in",
+            help="Specifies hotkeys by name or SS58 address to unstake from. i.e `-in hk1 -in hk2`",
+        ),
+        exclude_hotkeys: list[str] = typer.Option(
+            [],
+            "--exclude-hotkeys",
+            "-ex",
+            help="Specifies hotkeys by name/SS58 address not to unstake from (only use with `--all-hotkeys`.)"
+            " i.e. `-ex hk3 -ex hk4`",
+        ),
+        all_hotkeys: bool = typer.Option(
+            False,
+            help="When set, unstakes from all hotkeys associated with the wallet. Do not use if specifying "
+            "hotkeys in `--include-hotkeys`.",
+        ),
+    ):
+        """
+        # stake remove
+        Executes the `remove` command to unstake TAO tokens from one or more hotkeys and transfer them back to the
+        user's coldkey on the Bittensor network.
+
+        This command is used to withdraw tokens previously staked to different hotkeys.
+
+        ## Usage:
+        Users can specify the amount to unstake, the hotkeys to unstake from (either by name or `SS58` address), and
+        whether to unstake from all hotkeys. The command checks for sufficient stake and prompts for confirmation before
+        proceeding with the unstaking process.
+
+        The command prompts for confirmation before executing the unstaking operation.
+
+        ### Example usage:
+
+        ```
+        btcli stake remove --amount 100 -in hk1 -in hk2
+        ```
+
+        #### Note:
+        This command is important for users who wish to reallocate their stakes or withdraw them from the network.
+        It allows for flexible management of token stakes across different neurons (hotkeys) on the network.
+        """
+        if unstake_all and amount:
+            err_console.print(
+                "Cannot specify an amount and 'unstake-all'. Choose one or the other."
+            )
+            raise typer.Exit()
+        if not unstake_all and not amount:
+            amount = FloatPrompt.ask("Please enter an amount to unstake.")
+        if unstake_all and not amount:
+            if not Confirm.ask("Unstake all staked TAO tokens?", default=False):
+                raise typer.Exit()
+        if all_hotkeys and include_hotkeys:
+            err_console.print(
+                "You have specified hotkeys to include and the `--all-hotkeys` flag. The flag"
+                "should only be used standalone (to use all hotkeys) or with `--exclude-hotkeys`."
+            )
+            raise typer.Exit()
+        if include_hotkeys and exclude_hotkeys:
+            err_console.print(
+                "You have specified including and excluding hotkeys. Select one or the other."
+            )
+            raise typer.Exit()
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        return self._run_command(
+            stake.unstake(
+                wallet,
+                self.initialize_chain(network, chain),
+                hotkey_ss58_address,
+                all_hotkeys,
+                include_hotkeys,
+                exclude_hotkeys,
+                amount,
+                max_stake,
+                unstake_all,
             )
         )
 
