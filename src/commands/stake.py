@@ -1412,21 +1412,23 @@ async def unstake(
 
             if len(final_hotkeys) == 1:
                 # do regular unstake
-                return subtensor.unstake(
+                await unstake_extrinsic(
+                    subtensor,
                     wallet=wallet,
                     hotkey_ss58=final_hotkeys[0][1],
                     amount=None if unstake_all else final_amounts[0],
                     wait_for_inclusion=True,
                     prompt=True,
                 )
-
-            subtensor.unstake_multiple(
-                wallet=wallet,
-                hotkey_ss58s=[hotkey_ss58 for _, hotkey_ss58 in final_hotkeys],
-                amounts=None if unstake_all else final_amounts,
-                wait_for_inclusion=True,
-                prompt=False,
-            )
+            else:
+                await unstake_multiple_extrinsic(
+                    subtensor,
+                    wallet=wallet,
+                    hotkey_ss58s=[hotkey_ss58 for _, hotkey_ss58 in final_hotkeys],
+                    amounts=None if unstake_all else final_amounts,
+                    wait_for_inclusion=True,
+                    prompt=False,
+                )
     except ValueError:
         pass
     await subtensor.substrate.close()
