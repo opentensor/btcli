@@ -163,6 +163,7 @@ class CLIManager:
     :var root_app: the Typer app as it relates to root commands
     :var stake_app: the Typer app as it relates to stake commands
     :var sudo_app: the Typer app as it relates to sudo commands
+    :var subnets_app: the Typer app as it relates to subnets commands
     :var not_subtensor: the `SubtensorInterface` object passed to the various commands that require it
     """
 
@@ -188,6 +189,7 @@ class CLIManager:
         self.root_app = typer.Typer()
         self.stake_app = typer.Typer()
         self.sudo_app = typer.Typer()
+        self.subnets_app = typer.Typer()
 
         # config alias
         self.app.add_typer(
@@ -230,6 +232,9 @@ class CLIManager:
             short_help="Sudo commands, alias: `su`",
         )
         self.app.add_typer(self.sudo_app, name="su", hidden=True)
+
+        # subnets aliases
+        self.app.add_typer(self.subnets_app, name="subnets", short_help="Subnets commands")
 
         # config commands
         self.config_app.command("set")(self.set_config)
@@ -282,7 +287,7 @@ class CLIManager:
         self.sudo_app.command("get")(self.sudo_get)
 
         # subnets commands
-        # self.subnets_app.command("hyperparameters")(self.sudo_get)
+        self.subnets_app.command("hyperparameters")(self.sudo_get)
 
     def initialize_chain(
         self,
