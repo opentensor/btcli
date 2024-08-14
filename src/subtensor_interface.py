@@ -781,7 +781,7 @@ class SubtensorInterface:
         else:
             return False, format_error_message(response.error_message)
 
-    async def get_children(self, hotkey, netuid) -> tuple[bool, list]:
+    async def get_children(self, hotkey, netuid) -> tuple[bool, list, str]:
         """
         This method retrieves the children of a given hotkey and netuid. It queries the SubtensorModule's ChildKeys
         storage function to get the children and formats them before returning as a tuple.
@@ -789,8 +789,8 @@ class SubtensorInterface:
         :param hotkey: The hotkey value.
         :param netuid: The netuid value.
 
-        :return: A tuple containing a boolean indicating success or failure, and a list of formatted children.
-        If an error occurs, the list will contain an exception object.
+        :return: A tuple containing a boolean indicating success or failure, a list of formatted children, and an error
+        message (if applicable)
         """
         try:
             children = await self.substrate.query(
@@ -808,8 +808,8 @@ class SubtensorInterface:
                         else int(proportion)
                     )
                     formatted_children.append((int_proportion, child.value))
-                return True, formatted_children
+                return True, formatted_children, ""
             else:
-                return True, []
+                return True, [], ""
         except SubstrateRequestException as e:
-            return False, [e]  # TODO: find a more elegant way of returning error message
+            return False, [], str(e)

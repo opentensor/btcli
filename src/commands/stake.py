@@ -1537,9 +1537,9 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
         console.print(table)
 
     async with subtensor:
-        err, children = await subtensor.get_children(wallet.hotkey, netuid)
-        if err:
-            err_console.print(f"Failed to get children from subtensor. {children[0]}")
+        success, children, err_mg = await subtensor.get_children(wallet.hotkey, netuid)
+        if not success:
+            err_console.print(f"Failed to get children from subtensor. {children[0]}: {err_mg}")
         if not children:
             console.print("[yellow]No children found.[/yellow]")
 
@@ -1618,11 +1618,17 @@ async def revoke_children(
     >>> revoke_children(wallet, subtensor, 12345, wait_for_inclusion=True)
     """
     # print table with diff prompts
-    status, current_children = await subtensor.get_children(wallet.hotkey.ss58_address, netuid)
+    async with subtensor:
+        success, current_children, err_msg = await subtensor.get_children(wallet.hotkey.ss58_address, netuid)
+    if not success:
+        await subtensor.substrate.close()
+        err_console.print(f"[red]Error retrieving children[/red]: {err_msg}")
+        return
     # Validate children SS58 addresses
     for child in current_children:
         if not is_valid_ss58_address(child):
             err_console.print(f":cross_mark:[red] Invalid SS58 address: {child}[/red]")
+            await subtensor.substrate.close()
             return
 
     # Prepare children with zero proportions
