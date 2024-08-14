@@ -1064,16 +1064,16 @@ async def register(wallet: Wallet, subtensor: SubtensorInterface, netuid: int):
         )
         return False
 
-    # if not cli.config.no_prompt:
-    if not (
-        Confirm.ask(
-            f"Your balance is: [bold green]{balance}[/bold green]\n"
-            f"The cost to register by recycle is [bold red]{current_recycle}[/bold red]\n"
-            f"Do you want to continue?",
-            default=False,
-        )
-    ):
-        return False
+    if not False:  # TODO no-prompt
+        if not (
+            Confirm.ask(
+                f"Your balance is: [bold green]{balance}[/bold green]\n"
+                f"The cost to register by recycle is [bold red]{current_recycle}[/bold red]\n"
+                f"Do you want to continue?",
+                default=False,
+            )
+        ):
+            return False
 
     await burned_register_extrinsic(
         subtensor,
