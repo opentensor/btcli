@@ -103,8 +103,7 @@ class POWSolution:
         """Returns True if the POW is stale.
         This means the block the POW is solved for is within 3 blocks of the current block.
         """
-        async with subtensor:
-            current_block = await subtensor.substrate.get_block_number(None)
+        current_block = await subtensor.substrate.get_block_number(None)
         return self.block_number < current_block - 3
 
 
@@ -483,103 +482,99 @@ async def run_faucet_extrinsic(
     wallet.unlock_coldkey()
 
     # Get previous balance.
-    async with subtensor:
-        old_balance = await subtensor.get_balance(wallet.coldkeypub.ss58_address)
+    old_balance = await subtensor.get_balance(wallet.coldkeypub.ss58_address)
 
     # Attempt rolling registration.
     attempts = 1
     successes = 1
     while True:
-        async with subtensor:
-            try:
-                pow_result = None
-                while pow_result is None or await pow_result.is_stale(
-                    subtensor=subtensor
-                ):
-                    # Solve latest POW.
-                    if cuda:
-                        if not torch.cuda.is_available():
-                            if prompt:
-                                err_console.print("CUDA is not available.")
-                            return False, "CUDA is not available."
-                        pow_result: Optional[POWSolution] = await create_pow(
-                            subtensor,
-                            wallet,
-                            -1,
-                            output_in_place,
-                            cuda=cuda,
-                            dev_id=dev_id,
-                            tpb=tpb,
-                            num_processes=num_processes,
-                            update_interval=update_interval,
-                            log_verbose=log_verbose,
-                        )
-                    else:
-                        pow_result: Optional[POWSolution] = await create_pow(
-                            subtensor,
-                            wallet,
-                            -1,
-                            output_in_place,
-                            cuda=cuda,
-                            num_processes=num_processes,
-                            update_interval=update_interval,
-                            log_verbose=log_verbose,
-                        )
-                call = await subtensor.substrate.compose_call(
-                    call_module="SubtensorModule",
-                    call_function="faucet",
-                    call_params={
-                        "block_number": pow_result.block_number,
-                        "nonce": pow_result.nonce,
-                        "work": [int(byte_) for byte_ in pow_result.seal],
-                    },
-                )
-                extrinsic = await subtensor.substrate.create_signed_extrinsic(
-                    call=call, keypair=wallet.coldkey
-                )
-                response = await subtensor.substrate.submit_extrinsic(
-                    extrinsic,
-                    wait_for_inclusion=wait_for_inclusion,
-                    wait_for_finalization=wait_for_finalization,
-                )
-
-                # process if registration successful, try again if pow is still valid
-                response.process_events()
-                if not response.is_success:
-                    err_console.print(
-                        f":cross_mark: [red]Failed[/red]: {format_error_message(response.error_message)}"
+        try:
+            pow_result = None
+            while pow_result is None or await pow_result.is_stale(subtensor=subtensor):
+                # Solve latest POW.
+                if cuda:
+                    if not torch.cuda.is_available():
+                        if prompt:
+                            err_console.print("CUDA is not available.")
+                        return False, "CUDA is not available."
+                    pow_result: Optional[POWSolution] = await create_pow(
+                        subtensor,
+                        wallet,
+                        -1,
+                        output_in_place,
+                        cuda=cuda,
+                        dev_id=dev_id,
+                        tpb=tpb,
+                        num_processes=num_processes,
+                        update_interval=update_interval,
+                        log_verbose=log_verbose,
                     )
-                    if attempts == max_allowed_attempts:
-                        raise MaxAttemptsException
-                    attempts += 1
-                    # Wait a bit before trying again
-                    time.sleep(1)
-
-                # Successful registration
                 else:
-                    new_balance = await subtensor.get_balance(
-                        wallet.coldkeypub.ss58_address
+                    pow_result: Optional[POWSolution] = await create_pow(
+                        subtensor,
+                        wallet,
+                        -1,
+                        output_in_place,
+                        cuda=cuda,
+                        num_processes=num_processes,
+                        update_interval=update_interval,
+                        log_verbose=log_verbose,
                     )
-                    console.print(
-                        f"Balance: [blue]{old_balance[wallet.coldkeypub.ss58_address]}[/blue] :arrow_right:"
-                        f" [green]{new_balance[wallet.coldkeypub.ss58_address]}[/green]"
-                    )
-                    old_balance = new_balance
+            call = await subtensor.substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function="faucet",
+                call_params={
+                    "block_number": pow_result.block_number,
+                    "nonce": pow_result.nonce,
+                    "work": [int(byte_) for byte_ in pow_result.seal],
+                },
+            )
+            extrinsic = await subtensor.substrate.create_signed_extrinsic(
+                call=call, keypair=wallet.coldkey
+            )
+            response = await subtensor.substrate.submit_extrinsic(
+                extrinsic,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+            )
 
-                    if successes == max_successes:
-                        raise MaxSuccessException
+            # process if registration successful, try again if pow is still valid
+            response.process_events()
+            if not response.is_success:
+                err_console.print(
+                    f":cross_mark: [red]Failed[/red]: {format_error_message(response.error_message)}"
+                )
+                if attempts == max_allowed_attempts:
+                    raise MaxAttemptsException
+                attempts += 1
+                # Wait a bit before trying again
+                time.sleep(1)
 
-                    attempts = 1  # Reset attempts on success
-                    successes += 1
+            # Successful registration
+            else:
+                new_balance = await subtensor.get_balance(
+                    wallet.coldkeypub.ss58_address
+                )
+                console.print(
+                    f"Balance: [blue]{old_balance[wallet.coldkeypub.ss58_address]}[/blue] :arrow_right:"
+                    f" [green]{new_balance[wallet.coldkeypub.ss58_address]}[/green]"
+                )
+                old_balance = new_balance
 
-            except KeyboardInterrupt:
-                return True, "Done"
+                if successes == max_successes:
+                    raise MaxSuccessException
 
-            except MaxSuccessException:
-                return True, f"Max successes reached: {3}"
+                attempts = 1  # Reset attempts on success
+                successes += 1
 
-            except MaxAttemptsException:
-                return False, f"Max attempts reached: {max_allowed_attempts}"
+        except KeyboardInterrupt:
+            return True, "Done"
+
+        except MaxSuccessException:
+            return True, f"Max successes reached: {3}"
+
+        except MaxAttemptsException:
+            return False, f"Max attempts reached: {max_allowed_attempts}"
 
 
 async def _check_for_newest_block_and_update(
@@ -612,8 +607,7 @@ async def _check_for_newest_block_and_update(
 
     :return: The current block number.
     """
-    async with subtensor:
-        block_number = await subtensor.substrate.get_block_number(None)
+    block_number = await subtensor.substrate.get_block_number(None)
     if block_number != old_block_number:
         old_block_number = block_number
         # update block information
@@ -772,84 +766,83 @@ async def _block_solver(
     weights = [alpha_**i for i in range(n_samples)]  # weights decay by alpha
 
     timeout = 0.15 if cuda else 0.15
-    async with subtensor:
-        while netuid == -1 or not await subtensor.substrate.query(
-            module="SubtensorModule",
-            storage_function="Uids",
-            params=[netuid, wallet.hotkey.ss58_address],
-        ):
-            # Wait until a solver finds a solution
+    while netuid == -1 or not await subtensor.substrate.query(
+        module="SubtensorModule",
+        storage_function="Uids",
+        params=[netuid, wallet.hotkey.ss58_address],
+    ):
+        # Wait until a solver finds a solution
+        try:
+            solution = solution_queue.get(block=True, timeout=timeout)
+            if solution is not None:
+                break
+        except Empty:
+            # No solution found, try again
+            pass
+
+        # check for new block
+        old_block_number = await _check_for_newest_block_and_update(
+            subtensor=subtensor,
+            netuid=netuid,
+            hotkey_bytes=hotkey_bytes,
+            old_block_number=old_block_number,
+            curr_diff=curr_diff,
+            curr_block=curr_block,
+            curr_block_num=curr_block_num,
+            curr_stats=curr_stats,
+            update_curr_block=_update_curr_block,
+            check_block=check_block,
+            solvers=solvers,
+        )
+
+        num_time = 0
+        for finished_queue in finished_queues:
             try:
-                solution = solution_queue.get(block=True, timeout=timeout)
-                if solution is not None:
-                    break
+                finished_queue.get(timeout=0.1)
+                num_time += 1
+
             except Empty:
-                # No solution found, try again
-                pass
+                continue
 
-            # check for new block
-            old_block_number = await _check_for_newest_block_and_update(
-                subtensor=subtensor,
-                netuid=netuid,
-                hotkey_bytes=hotkey_bytes,
-                old_block_number=old_block_number,
-                curr_diff=curr_diff,
-                curr_block=curr_block,
-                curr_block_num=curr_block_num,
-                curr_stats=curr_stats,
-                update_curr_block=_update_curr_block,
-                check_block=check_block,
-                solvers=solvers,
-            )
+        time_now = time.time()  # get current time
+        time_since_last = time_now - time_last  # get time since last work block(s)
+        if num_time > 0 and time_since_last > 0.0:
+            # create EWMA of the hash_rate to make measure more robust
 
-            num_time = 0
-            for finished_queue in finished_queues:
-                try:
-                    finished_queue.get(timeout=0.1)
-                    num_time += 1
-
-                except Empty:
-                    continue
-
-            time_now = time.time()  # get current time
-            time_since_last = time_now - time_last  # get time since last work block(s)
-            if num_time > 0 and time_since_last > 0.0:
-                # create EWMA of the hash_rate to make measure more robust
-
-                if cuda:
-                    hash_rate_ = (num_time * tpb * update_interval) / time_since_last
-                else:
-                    hash_rate_ = (num_time * update_interval) / time_since_last
-                hash_rates.append(hash_rate_)
-                hash_rates.pop(0)  # remove the 0th data point
-                curr_stats.hash_rate = sum(
-                    [hash_rates[i] * weights[i] for i in range(n_samples)]
-                ) / (sum(weights))
-
-                # update time last to now
-                time_last = time_now
-
-                curr_stats.time_average = (
-                    curr_stats.time_average * curr_stats.rounds_total
-                    + curr_stats.time_spent
-                ) / (curr_stats.rounds_total + num_time)
-                curr_stats.rounds_total += num_time
-
-            # Update stats
-            curr_stats.time_spent = time_since_last
-            new_time_spent_total = time_now - start_time_perpetual
             if cuda:
-                curr_stats.hash_rate_perpetual = (
-                    curr_stats.rounds_total * (tpb * update_interval)
-                ) / new_time_spent_total
+                hash_rate_ = (num_time * tpb * update_interval) / time_since_last
             else:
-                curr_stats.hash_rate_perpetual = (
-                    curr_stats.rounds_total * update_interval
-                ) / new_time_spent_total
-            curr_stats.time_spent_total = new_time_spent_total
+                hash_rate_ = (num_time * update_interval) / time_since_last
+            hash_rates.append(hash_rate_)
+            hash_rates.pop(0)  # remove the 0th data point
+            curr_stats.hash_rate = sum(
+                [hash_rates[i] * weights[i] for i in range(n_samples)]
+            ) / (sum(weights))
 
-            # Update the logger
-            logger.update(curr_stats, verbose=log_verbose)
+            # update time last to now
+            time_last = time_now
+
+            curr_stats.time_average = (
+                curr_stats.time_average * curr_stats.rounds_total
+                + curr_stats.time_spent
+            ) / (curr_stats.rounds_total + num_time)
+            curr_stats.rounds_total += num_time
+
+        # Update stats
+        curr_stats.time_spent = time_since_last
+        new_time_spent_total = time_now - start_time_perpetual
+        if cuda:
+            curr_stats.hash_rate_perpetual = (
+                curr_stats.rounds_total * (tpb * update_interval)
+            ) / new_time_spent_total
+        else:
+            curr_stats.hash_rate_perpetual = (
+                curr_stats.rounds_total * update_interval
+            ) / new_time_spent_total
+        curr_stats.time_spent_total = new_time_spent_total
+
+        # Update the logger
+        logger.update(curr_stats, verbose=log_verbose)
 
     # exited while, solution contains the nonce or wallet is registered
     stop_event.set()  # stop all other processes
@@ -1013,27 +1006,26 @@ async def _get_block_with_retry(
     :raises Exception: If the block hash is None.
     :raises ValueError: If the difficulty is None.
     """
-    async with subtensor:
-        block_number = await subtensor.substrate.get_block_number(None)
-        block_hash = await subtensor.substrate.get_block_hash(
-            block_number
-        )  # TODO check if I need to do all this
-        try:
-            difficulty = (
-                1_000_000
-                if netuid == -1
-                else int(
-                    await subtensor.get_hyperparameter(
-                        param_name="Difficulty", netuid=netuid, block_hash=block_hash
-                    )
+    block_number = await subtensor.substrate.get_block_number(None)
+    block_hash = await subtensor.substrate.get_block_hash(
+        block_number
+    )  # TODO check if I need to do all this
+    try:
+        difficulty = (
+            1_000_000
+            if netuid == -1
+            else int(
+                await subtensor.get_hyperparameter(
+                    param_name="Difficulty", netuid=netuid, block_hash=block_hash
                 )
             )
-        except TypeError:
-            raise ValueError("Chain error. Difficulty is None")
-        except SubstrateRequestException:
-            raise Exception(
-                "Network error. Could not connect to substrate to get block hash"
-            )
+        )
+    except TypeError:
+        raise ValueError("Chain error. Difficulty is None")
+    except SubstrateRequestException:
+        raise Exception(
+            "Network error. Could not connect to substrate to get block hash"
+        )
     return block_number, difficulty, block_hash
 
 
@@ -1099,9 +1091,8 @@ async def create_pow(
     :raises ValueError: If the subnet does not exist.
     """
     if netuid != -1:
-        async with subtensor:
-            if not await subtensor.subnet_exists(netuid=netuid):
-                raise ValueError(f"Subnet {netuid} does not exist")
+        if not await subtensor.subnet_exists(netuid=netuid):
+            raise ValueError(f"Subnet {netuid} does not exist")
 
     if cuda:
         solution: Optional[POWSolution] = await _solve_for_difficulty_fast_cuda(
@@ -1391,16 +1382,15 @@ async def swap_hotkey_extrinsic(
             return False
 
     with console.status(":satellite: Swapping hotkeys..."):
-        async with subtensor:
-            call = await subtensor.substrate.compose_call(
-                call_module="SubtensorModule",
-                call_function="swap_hotkey",
-                call_params={
-                    "hotkey": wallet.hotkey.ss58_address,
-                    "new_hotkey": new_wallet.hotkey.ss58_address,
-                },
-            )
-            success, err_msg = await subtensor.sign_and_send_extrinsic(call, wallet)
+        call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="swap_hotkey",
+            call_params={
+                "hotkey": wallet.hotkey.ss58_address,
+                "new_hotkey": new_wallet.hotkey.ss58_address,
+            },
+        )
+        success, err_msg = await subtensor.sign_and_send_extrinsic(call, wallet)
 
         if success:
             console.print(

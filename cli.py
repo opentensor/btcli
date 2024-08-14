@@ -1676,7 +1676,7 @@ class CLIManager:
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
-            root.set_boost(
+            root.set_slash(
                 wallet, self.initialize_chain(network, chain), netuid, amount
             )
         )
@@ -2596,7 +2596,7 @@ class CLIManager:
                 self.initialize_chain(network, chain),
                 netuid,
                 wait_for_inclusion,
-                wait_for_finalization
+                wait_for_finalization,
             )
         )
 
