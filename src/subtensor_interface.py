@@ -7,6 +7,7 @@ from bittensor_wallet.utils import SS58_FORMAT
 from scalecodec import GenericCall
 from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
+from substrateinterface.exceptions import SubstrateRequestException
 
 from src.bittensor.async_substrate_interface import AsyncSubstrateInterface
 from src.bittensor.chain_data import (
@@ -779,3 +780,36 @@ class SubtensorInterface:
             return True, ""
         else:
             return False, format_error_message(response.error_message)
+
+    async def get_children(self, hotkey, netuid) -> tuple[bool, list, str]:
+        """
+        This method retrieves the children of a given hotkey and netuid. It queries the SubtensorModule's ChildKeys
+        storage function to get the children and formats them before returning as a tuple.
+
+        :param hotkey: The hotkey value.
+        :param netuid: The netuid value.
+
+        :return: A tuple containing a boolean indicating success or failure, a list of formatted children, and an error
+        message (if applicable)
+        """
+        try:
+            children = await self.substrate.query(
+                module="SubtensorModule",
+                storage_function="ChildKeys",
+                params=[hotkey, netuid],
+            )
+            if children:
+                formatted_children = []
+                for proportion, child in children:
+                    # Convert U64 to int
+                    int_proportion = (
+                        proportion.value
+                        if hasattr(proportion, "value")
+                        else int(proportion)
+                    )
+                    formatted_children.append((int_proportion, child.value))
+                return True, formatted_children, ""
+            else:
+                return True, [], ""
+        except SubstrateRequestException as e:
+            return False, [], str(e)
