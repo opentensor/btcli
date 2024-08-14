@@ -267,7 +267,7 @@ async def add_stake_extrinsic(
 
 
 async def add_stake_multiple_extrinsic(
-    subtensor: SubtensorInterface,
+    subtensor: "SubtensorInterface",
     wallet: Wallet,
     old_balance: Balance,
     hotkey_ss58s: list[str],
@@ -1123,7 +1123,7 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
 
 async def stake_add(
     wallet: Wallet,
-    subtensor: SubtensorInterface,
+    subtensor: "SubtensorInterface",
     uid: int,
     amount: float,
     stake_all: bool,
