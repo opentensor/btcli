@@ -1466,8 +1466,7 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
 
     async def render_table(
         hk: str,
-        children: list[tuple[int, str]],
-        nuid: int,
+        children_: list[tuple[int, str]],
         prompt: bool = True
     ):
         # Initialize Rich table for pretty printing
@@ -1482,13 +1481,14 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
             style="green",
         )
 
-        if not children:
+        if not children_:
             console.print(table)
             console.print(
                 f"There are currently no child hotkeys on subnet {netuid} with ParentHotKey {hk}."
             )
             if prompt:
-                command = f"btcli stake set_children --children <child_hotkey> --hotkey <parent_hotkey> --netuid {netuid} --proportion <float>"
+                command = (f"btcli stake set_children --children <child_hotkey> --hotkey <parent_hotkey> --netuid"
+                           f" {netuid} --proportion <float>")
                 console.print(
                     f"To add a child hotkey you can run the command: [white]{command}[/white]"
                 )
@@ -1503,9 +1503,9 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
 
         children_info = []
         child_stakes = await asyncio.gather(
-            *[get_total_stake_for_child_hk(c) for c in children]
+            *[get_total_stake_for_child_hk(c) for c in children_]
         )
-        for child, child_stake in zip(children, child_stakes):
+        for child, child_stake in zip(children_, child_stakes):
             proportion = child[0]
             child_hotkey = child[1]
 
@@ -1526,7 +1526,7 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
             )
             hotkey = Text(hotkey, style="red" if proportion == 0 else "")
             table.add_row(
-                str(i),
+                str(idx),
                 hotkey,
                 proportion_str,
                 str(stake),
@@ -1606,8 +1606,10 @@ async def revoke_children(
     - wallet: An instance of the Wallet class representing the user's wallet.
     - subtensor: An instance of the SubtensorInterface class.
     - netuid: An integer representing the network identifier.
-    - wait_for_inclusion: A boolean indicating whether to wait for the transaction to be included in a block. Defaults to True.
-    - wait_for_finalization: A boolean indicating whether to wait for the transaction to be finalized. Defaults to False.
+    - wait_for_inclusion: A boolean indicating whether to wait for the transaction to be included in a block. Defaults
+      to True.
+    - wait_for_finalization: A boolean indicating whether to wait for the transaction to be finalized. Defaults to
+      False.
 
     Returns:
     None
