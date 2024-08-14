@@ -783,27 +783,14 @@ class SubtensorInterface:
 
     async def get_children(self, hotkey, netuid) -> tuple[bool, list]:
         """
-        Method: get_children
+        This method retrieves the children of a given hotkey and netuid. It queries the SubtensorModule's ChildKeys
+        storage function to get the children and formats them before returning as a tuple.
 
-        Description:
-        This method retrieves the children of a given hotkey and netuid. It queries the SubtensorModule's ChildKeys storage function to get the children and formats them before returning as a tuple.
+        :param hotkey: The hotkey value.
+        :param netuid: The netuid value.
 
-        Parameters:
-        - hotkey (str): The hotkey value.
-        - netuid (str): The netuid value.
-
-        Return Type:
-        tuple[bool, list]: A tuple containing a boolean indicating success or failure, and a list of formatted children. If an error occurs, the list will contain an exception object.
-
-        Example Usage:
-        ```python
-        success, children = await get_children(hotkey_value, netuid_value)
-        if success:
-            for proportion, child in children:
-                print(proportion, child)
-        else:
-            print("Failed to get children:", children[0])
-        ```
+        :return: A tuple containing a boolean indicating success or failure, and a list of formatted children.
+        If an error occurs, the list will contain an exception object.
         """
         try:
             children = await self.substrate.query(

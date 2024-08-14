@@ -2571,24 +2571,29 @@ class CLIManager:
         netuid: int = Options.netuid,
     ):
         """
-           Executes the ``revoke_children`` command to remove all children hotkeys on a specified subnet on the Bittensor network.
+        # stake revoke-children
+        Executes the `revoke_children` command to remove all children hotkeys on a specified subnet on the Bittensor
+        network.
 
-           This command is used to remove delegated authority from all child hotkeys, removing their position and influence on the subnet.
+        This command is used to remove delegated authority from all child hotkeys, removing their position and influence
+        on the subnet.
 
-           Usage:
-               Users need to specify the parent hotkey and the subnet ID (netuid).
-               The user needs to have sufficient authority to make this call.
+        ## Usage:
+        Users need to specify the parent hotkey and the subnet ID (netuid).
+        The user needs to have sufficient authority to make this call.
 
-           The command prompts for confirmation before executing the revoke_children operation.
+        The command prompts for confirmation before executing the revoke_children operation.
 
-           Example usage::
+        ### Example usage:
 
-               btcli stake revoke_children --hotkey <parent_hotkey> --netuid 1
+        ```
+        btcli stake revoke_children --hotkey <parent_hotkey> --netuid 1
+        ```
 
-           Note:
-               This command is critical for users who wish to remove children hotkeys on the network.
-               It allows for a complete removal of delegated authority to enhance network participation and influence.
-           """
+        #### Note:
+        This command is critical for users who wish to remove children hotkeys on the network.
+        It allows for a complete removal of delegated authority to enhance network participation and influence.
+        """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             stake.revoke_children(
