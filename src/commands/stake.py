@@ -1,5 +1,6 @@
 import asyncio
 import copy
+from contextlib import suppress
 from typing import TYPE_CHECKING, Union, Optional
 
 from bittensor_wallet import Wallet
@@ -1355,7 +1356,7 @@ async def unstake(
     final_hotkeys: list[tuple[str, str]] = []
     final_amounts: list[Union[float, Balance]] = []
     hotkey: tuple[Optional[str], str]  # (hotkey_name (or None), hotkey_ss58)
-    try:
+    with suppress(ValueError):
         async with subtensor:
             with console.status(f":satellite:Syncing with chain {subtensor}"):
                 block_hash = await subtensor.substrate.get_chain_head()
@@ -1429,8 +1430,6 @@ async def unstake(
                     wait_for_inclusion=True,
                     prompt=False,
                 )
-    except ValueError:
-        pass
     await subtensor.substrate.close()
 
 
