@@ -608,7 +608,9 @@ async def overview(
                     # Make a neuron info lite for this hotkey and coldkey.
                     de_registered_neuron = NeuronInfoLite.get_null_neuron()
                     de_registered_neuron.hotkey = hotkey_addr
-                    de_registered_neuron.coldkey = coldkey_wallet.coldkeypub.ss58_address
+                    de_registered_neuron.coldkey = (
+                        coldkey_wallet.coldkeypub.ss58_address
+                    )
                     de_registered_neuron.total_stake = Balance(our_stake)
                     de_registered_neurons.append(de_registered_neuron)
 

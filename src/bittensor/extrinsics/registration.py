@@ -490,9 +490,7 @@ async def run_faucet_extrinsic(
     while True:
         try:
             pow_result = None
-            while pow_result is None or await pow_result.is_stale(
-                subtensor=subtensor
-            ):
+            while pow_result is None or await pow_result.is_stale(subtensor=subtensor):
                 # Solve latest POW.
                 if cuda:
                     if not torch.cuda.is_available():

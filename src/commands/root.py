@@ -701,7 +701,9 @@ async def root_list(subtensor: SubtensorInterface):
                 storage_function="Members",
                 params=None,
             )
-            sm = senate_query.serialize() if hasattr(senate_query, "serialize") else None
+            sm = (
+                senate_query.serialize() if hasattr(senate_query, "serialize") else None
+            )
 
             rn: list[NeuronInfoLite] = await subtensor.neurons_lite(netuid=0)
             if not rn:
@@ -880,9 +882,7 @@ async def _get_my_weights(
 ) -> NDArray[np.float32]:
     """Retrieves the weight array for a given hotkey SS58 address."""
     my_uid = (
-        await subtensor.substrate.query(
-            "SubtensorModule", "Uids", [0, ss58_address]
-        )
+        await subtensor.substrate.query("SubtensorModule", "Uids", [0, ss58_address])
     ).value
     my_weights_, total_subnets_ = await asyncio.gather(
         subtensor.substrate.query(

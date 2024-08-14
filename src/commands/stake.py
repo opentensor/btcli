@@ -931,6 +931,7 @@ def normalize_children_and_proportions(
 
     return normalized_children
 
+
 # Commands
 
 
@@ -1444,7 +1445,6 @@ async def unstake(
 
 
 async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: int):
-
     async def get_total_stake_for_child_hk(child: tuple):
         child_hotkey = child[1]
         _result = await subtensor.substrate.query(
@@ -1460,9 +1460,7 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
         )
 
     async def render_table(
-        hk: str,
-        children_: list[tuple[int, str]],
-        prompt: bool = True
+        hk: str, children_: list[tuple[int, str]], prompt: bool = True
     ):
         # Initialize Rich table for pretty printing
         table = Table(
@@ -1482,8 +1480,10 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
                 f"There are currently no child hotkeys on subnet {netuid} with ParentHotKey {hk}."
             )
             if prompt:
-                command = (f"btcli stake set_children --children <child_hotkey> --hotkey <parent_hotkey> --netuid"
-                           f" {netuid} --proportion <float>")
+                command = (
+                    f"btcli stake set_children --children <child_hotkey> --hotkey <parent_hotkey> --netuid"
+                    f" {netuid} --proportion <float>"
+                )
                 console.print(
                     f"To add a child hotkey you can run the command: [white]{command}[/white]"
                 )
@@ -1534,7 +1534,9 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
     async with subtensor:
         success, children, err_mg = await subtensor.get_children(wallet.hotkey, netuid)
         if not success:
-            err_console.print(f"Failed to get children from subtensor. {children[0]}: {err_mg}")
+            err_console.print(
+                f"Failed to get children from subtensor. {children[0]}: {err_mg}"
+            )
         if not children:
             console.print("[yellow]No children found.[/yellow]")
 
@@ -1613,14 +1615,18 @@ async def revoke_children(
     """
     # print table with diff prompts
     async with subtensor:
-        success, current_children, err_msg = await subtensor.get_children(wallet.hotkey.ss58_address, netuid)
+        success, current_children, err_msg = await subtensor.get_children(
+            wallet.hotkey.ss58_address, netuid
+        )
         if not success:
             err_console.print(f"[red]Error retrieving children[/red]: {err_msg}")
             return
         # Validate children SS58 addresses
         for child in current_children:
             if not is_valid_ss58_address(child):
-                err_console.print(f":cross_mark:[red] Invalid SS58 address: {child}[/red]")
+                err_console.print(
+                    f":cross_mark:[red] Invalid SS58 address: {child}[/red]"
+                )
                 return
 
         # Prepare children with zero proportions
@@ -1639,7 +1645,9 @@ async def revoke_children(
     if success:
         if wait_for_finalization and wait_for_inclusion:
             await get_children(wallet, subtensor, netuid)
-        console.print(":white_heavy_check_mark: [green]Revoked children hotkeys.[/green]")
+        console.print(
+            ":white_heavy_check_mark: [green]Revoked children hotkeys.[/green]"
+        )
     else:
         console.print(
             f":cross_mark:[red] Unable to revoke children hotkeys.[/red] {message}"

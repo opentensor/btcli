@@ -2596,7 +2596,7 @@ class CLIManager:
                 self.initialize_chain(network, chain),
                 netuid,
                 wait_for_inclusion,
-                wait_for_finalization
+                wait_for_finalization,
             )
         )
 
