@@ -701,21 +701,21 @@ async def root_list(subtensor: SubtensorInterface):
                 storage_function="Members",
                 params=None,
             )
-        sm = senate_query.serialize() if hasattr(senate_query, "serialize") else None
+            sm = senate_query.serialize() if hasattr(senate_query, "serialize") else None
 
-        rn: list[NeuronInfoLite] = await subtensor.neurons_lite(netuid=0)
-        if not rn:
-            return None, None, None, None
+            rn: list[NeuronInfoLite] = await subtensor.neurons_lite(netuid=0)
+            if not rn:
+                return None, None, None, None
 
-        di: dict[str, DelegatesDetails] = await get_delegates_details_from_github(
-            url=Constants.delegates_detail_url
-        )
-        ts: dict[str, ScaleType] = await subtensor.substrate.query_multiple(
-            [n.hotkey for n in rn],
-            module="SubtensorModule",
-            storage_function="TotalHotkeyStake",
-            reuse_block_hash=True,
-        )
+            di: dict[str, DelegatesDetails] = await get_delegates_details_from_github(
+                url=Constants.delegates_detail_url
+            )
+            ts: dict[str, ScaleType] = await subtensor.substrate.query_multiple(
+                [n.hotkey for n in rn],
+                module="SubtensorModule",
+                storage_function="TotalHotkeyStake",
+                reuse_block_hash=True,
+            )
         return sm, rn, di, ts
 
     table = Table(
@@ -760,8 +760,6 @@ async def root_list(subtensor: SubtensorInterface):
         f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
     ):
         senate_members, root_neurons, delegate_info, total_stakes = await _get_list()
-
-    await subtensor.substrate.close()
 
     if not root_neurons:
         err_console.print(
@@ -810,7 +808,6 @@ async def set_weights(
                 wait_for_finalization=True,
                 wait_for_inclusion=True,
             )
-    await subtensor.substrate.close()
 
 
 async def get_weights(subtensor: SubtensorInterface):
@@ -818,8 +815,6 @@ async def get_weights(subtensor: SubtensorInterface):
     with console.status(":satellite: Synchronizing with chain..."):
         async with subtensor:
             weights = await subtensor.weights(0)
-
-    await subtensor.substrate.close()
 
     uid_to_weights: dict[int, dict] = {}
     netuids = set()
@@ -884,21 +879,19 @@ async def _get_my_weights(
     subtensor: SubtensorInterface, ss58_address: str
 ) -> NDArray[np.float32]:
     """Retrieves the weight array for a given hotkey SS58 address."""
-    async with subtensor:
-        my_uid = (
-            await subtensor.substrate.query(
-                "SubtensorModule", "Uids", [0, ss58_address]
-            )
-        ).value
-        print("uid", my_uid)
-        my_weights_, total_subnets_ = await asyncio.gather(
-            subtensor.substrate.query(
-                "SubtensorModule", "Weights", [0, my_uid], reuse_block_hash=True
-            ),
-            subtensor.substrate.query(
-                "SubtensorModule", "TotalNetworks", reuse_block_hash=True
-            ),
+    my_uid = (
+        await subtensor.substrate.query(
+            "SubtensorModule", "Uids", [0, ss58_address]
         )
+    ).value
+    my_weights_, total_subnets_ = await asyncio.gather(
+        subtensor.substrate.query(
+            "SubtensorModule", "Weights", [0, my_uid], reuse_block_hash=True
+        ),
+        subtensor.substrate.query(
+            "SubtensorModule", "TotalNetworks", reuse_block_hash=True
+        ),
+    )
     my_weights: list[tuple[int, int]] = my_weights_.value
     for i, w in enumerate(my_weights):
         if w:
@@ -915,55 +908,55 @@ async def set_boost(
 ):
     """Boosts weight of a given netuid for root network."""
 
-    my_weights = await _get_my_weights(subtensor, wallet.hotkey.ss58_address)
-    prev_weight = my_weights[netuid]
-    new_weight = prev_weight + amount
+    async with subtensor:
+        my_weights = await _get_my_weights(subtensor, wallet.hotkey.ss58_address)
+        prev_weight = my_weights[netuid]
+        new_weight = prev_weight + amount
 
-    console.print(
-        f"Boosting weight for netuid {netuid} from {prev_weight} -> {new_weight}"
-    )
-    my_weights[netuid] = new_weight
-    all_netuids = np.arange(len(my_weights))
-
-    console.print("all netuids", all_netuids)
-    with console.status("Setting root weights..."):
-        await set_root_weights_extrinsic(
-            subtensor=subtensor,
-            wallet=wallet,
-            netuids=all_netuids,
-            weights=my_weights,
-            version_key=0,
-            wait_for_inclusion=True,
-            wait_for_finalization=True,
-            prompt=True,
+        console.print(
+            f"Boosting weight for netuid {netuid} from {prev_weight} -> {new_weight}"
         )
-    await subtensor.substrate.close()
+        my_weights[netuid] = new_weight
+        all_netuids = np.arange(len(my_weights))
+
+        console.print("all netuids", all_netuids)
+        with console.status("Setting root weights..."):
+            await set_root_weights_extrinsic(
+                subtensor=subtensor,
+                wallet=wallet,
+                netuids=all_netuids,
+                weights=my_weights,
+                version_key=0,
+                wait_for_inclusion=True,
+                wait_for_finalization=True,
+                prompt=True,
+            )
 
 
 async def set_slash(
     wallet: Wallet, subtensor: SubtensorInterface, netuid: int, amount: float
 ):
     """Slashes weight I think"""
-    my_weights = await _get_my_weights(subtensor, wallet.hotkey.ss58_address)
-    prev_weights = my_weights.copy()
-    my_weights[netuid] -= amount
-    my_weights[my_weights < 0] = 0  # Ensure weights don't go negative
-    all_netuids = np.arange(len(my_weights))
+    async with subtensor:
+        my_weights = await _get_my_weights(subtensor, wallet.hotkey.ss58_address)
+        prev_weights = my_weights.copy()
+        my_weights[netuid] -= amount
+        my_weights[my_weights < 0] = 0  # Ensure weights don't go negative
+        all_netuids = np.arange(len(my_weights))
 
-    console.print(f"Slash weights from {prev_weights} -> {my_weights}")
+        console.print(f"Slash weights from {prev_weights} -> {my_weights}")
 
-    with console.status("Setting root weights..."):
-        await set_root_weights_extrinsic(
-            subtensor=subtensor,
-            wallet=wallet,
-            netuids=all_netuids,
-            weights=my_weights,
-            version_key=0,
-            wait_for_inclusion=True,
-            wait_for_finalization=True,
-            prompt=True,
-        )
-    await subtensor.substrate.close()
+        with console.status("Setting root weights..."):
+            await set_root_weights_extrinsic(
+                subtensor=subtensor,
+                wallet=wallet,
+                netuids=all_netuids,
+                weights=my_weights,
+                version_key=0,
+                wait_for_inclusion=True,
+                wait_for_finalization=True,
+                prompt=True,
+            )
 
 
 async def senate_vote(
@@ -1007,7 +1000,6 @@ async def senate_vote(
             prompt=True,
         )
 
-    await subtensor.substrate.close()
     return success
 
 
@@ -1020,8 +1012,6 @@ async def get_senate(subtensor: SubtensorInterface):
     delegate_info: dict[
         str, DelegatesDetails
     ] = await get_delegates_details_from_github(Constants.delegates_detail_url)
-
-    await subtensor.substrate.close()
 
     table = Table(
         Column(
@@ -1108,8 +1098,6 @@ async def register(wallet: Wallet, subtensor: SubtensorInterface, netuid: int):
             prompt=True,
         )
 
-    await subtensor.substrate.close()
-
 
 async def proposals(subtensor: SubtensorInterface):
     console.print(
@@ -1123,8 +1111,6 @@ async def proposals(subtensor: SubtensorInterface):
             _get_senate_members(subtensor, block_hash),
             _get_proposals(subtensor, block_hash),
         )
-
-    await subtensor.substrate.close()
 
     registered_delegate_info: dict[
         str, DelegatesDetails
@@ -1228,7 +1214,6 @@ async def set_take(wallet: Wallet, subtensor: SubtensorInterface, take: float) -
     async with subtensor:
         result_ = await _do_set_take()
 
-    await subtensor.substrate.close()
     return result_
 
 
@@ -1250,7 +1235,6 @@ async def delegate_stake(
             prompt=True,
             delegate=True,
         )
-    await subtensor.substrate.close()
 
 
 async def delegate_unstake(
@@ -1270,7 +1254,6 @@ async def delegate_unstake(
             prompt=True,
             delegate=False,
         )
-    await subtensor.substrate.close()
 
 
 async def my_delegates(
@@ -1352,8 +1335,6 @@ async def my_delegates(
             console.print(
                 ":warning:[yellow]Could not get delegate info from chain.[/yellow]"
             )
-
-    await subtensor.substrate.close()
 
     for wall, delegates in wallets_with_delegates:
         if not wall or not delegates:
@@ -1439,8 +1420,6 @@ async def list_delegates(subtensor: SubtensorInterface):
                 )
             except SubstrateRequestException:
                 prev_delegates = None
-
-    await subtensor.substrate.close()
 
     if prev_delegates is None:
         err_console.print(
@@ -1619,5 +1598,3 @@ async def nominate(wallet: Wallet, subtensor: SubtensorInterface):
                 if do_set_identity:
                     id_prompts = set_id_prompts()
                     await set_id(wallet, subtensor, *id_prompts)
-
-    await subtensor.substrate.close()

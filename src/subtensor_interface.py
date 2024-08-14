@@ -57,7 +57,7 @@ class SubtensorInterface:
             return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        pass
+        await self.substrate.close()
 
     async def encode_params(
         self,

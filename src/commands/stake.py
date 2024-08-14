@@ -1089,8 +1089,6 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
             block_hash_ = await subtensor.substrate.get_chain_head()
             accounts = await get_all_wallet_accounts(block_hash=block_hash_)
 
-    await subtensor.substrate.close()
-
     total_stake = 0
     total_balance = 0
     total_rate = 0
@@ -1313,7 +1311,6 @@ async def stake_add(
                 )
     except ValueError:
         pass
-    await subtensor.substrate.close()
 
 
 async def unstake(
@@ -1444,7 +1441,6 @@ async def unstake(
                     wait_for_inclusion=True,
                     prompt=False,
                 )
-    await subtensor.substrate.close()
 
 
 async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: int):
@@ -1544,8 +1540,6 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
 
         await render_table(wallet.hotkey, children, netuid)
 
-    await subtensor.substrate.close()
-
     return children
 
 
@@ -1581,7 +1575,6 @@ async def set_children(
             children_with_proportions=children_with_proportions,
             prompt=True,
         )
-    await subtensor.substrate.close()
     # Result
     if success:
         console.print(":white_heavy_check_mark: [green]Set children hotkeys.[/green]")
@@ -1621,21 +1614,18 @@ async def revoke_children(
     # print table with diff prompts
     async with subtensor:
         success, current_children, err_msg = await subtensor.get_children(wallet.hotkey.ss58_address, netuid)
-    if not success:
-        await subtensor.substrate.close()
-        err_console.print(f"[red]Error retrieving children[/red]: {err_msg}")
-        return
-    # Validate children SS58 addresses
-    for child in current_children:
-        if not is_valid_ss58_address(child):
-            err_console.print(f":cross_mark:[red] Invalid SS58 address: {child}[/red]")
-            await subtensor.substrate.close()
+        if not success:
+            err_console.print(f"[red]Error retrieving children[/red]: {err_msg}")
             return
+        # Validate children SS58 addresses
+        for child in current_children:
+            if not is_valid_ss58_address(child):
+                err_console.print(f":cross_mark:[red] Invalid SS58 address: {child}[/red]")
+                return
 
-    # Prepare children with zero proportions
-    children_with_zero_proportions = [(0.0, child[1]) for child in current_children]
+        # Prepare children with zero proportions
+        children_with_zero_proportions = [(0.0, child[1]) for child in current_children]
 
-    async with subtensor:
         success, message = await set_children_extrinsic(
             subtensor=subtensor,
             wallet=wallet,
@@ -1644,7 +1634,7 @@ async def revoke_children(
             children_with_proportions=children_with_zero_proportions,
             prompt=True,
         )
-    await subtensor.substrate.close()
+
     # Result
     if success:
         if wait_for_finalization and wait_for_inclusion:

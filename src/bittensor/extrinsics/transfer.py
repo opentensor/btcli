@@ -27,7 +27,7 @@ async def transfer_extrinsic(
 ) -> bool:
     """Transfers funds from this wallet to the destination public key address.
 
-    :param subtensor: SubtensorInterface object used for transfer
+    :param subtensor: initialized SubtensorInterface object used for transfer
     :param wallet: Bittensor wallet object to make transfer from.
     :param destination: Destination public key address (ss58_address or ed25519) of recipient.
     :param amount: Amount to stake as Bittensor balance.
@@ -109,13 +109,12 @@ async def transfer_extrinsic(
 
     # Check balance.
     with console.status(":satellite: Checking balance and fees..."):
-        async with subtensor:
-            # check existential deposit and fee
-            account_balance, existential_deposit, fee = await asyncio.gather(
-                subtensor.get_balance(wallet.coldkey.ss58_address),
-                subtensor.get_existential_deposit(reuse_block=True),
-                get_transfer_fee(),
-            )
+        # check existential deposit and fee
+        account_balance, existential_deposit, fee = await asyncio.gather(
+            subtensor.get_balance(wallet.coldkey.ss58_address),
+            subtensor.get_existential_deposit(reuse_block=True),
+            get_transfer_fee(),
+        )
 
     if not keep_alive:
         # Check if the transfer should keep_alive the account
@@ -142,8 +141,7 @@ async def transfer_extrinsic(
             return False
 
     with console.status(":satellite: Transferring..."):
-        async with subtensor:
-            success, block_hash, err_msg = await do_transfer()
+        success, block_hash, err_msg = await do_transfer()
 
         if success:
             console.print(":white_heavy_check_mark: [green]Finalized[/green]")
@@ -164,10 +162,9 @@ async def transfer_extrinsic(
 
     if success:
         with console.status(":satellite: Checking Balance..."):
-            async with subtensor:
-                new_balance = await subtensor.get_balance(
-                    wallet.coldkey.ss58_address, reuse_block=False
-                )
+            new_balance = await subtensor.get_balance(
+                wallet.coldkey.ss58_address, reuse_block=False
+            )
             console.print(
                 f"Balance:\n"
                 f"  [blue]{account_balance}[/blue] :arrow_right: [green]{new_balance}[/green]"
