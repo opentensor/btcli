@@ -109,6 +109,7 @@ class AxonInfo:
             coldkey=neuron_info["coldkey"],
         )
 
+
 @dataclass
 class SubnetHyperparameters:
     """Dataclass for subnet hyperparameters."""

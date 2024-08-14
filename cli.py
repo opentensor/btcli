@@ -15,7 +15,7 @@ from websockets import ConnectionClosed
 from yaml import safe_load, safe_dump
 
 from src import defaults, utils, HYPERPARAMS
-from src.commands import wallets, root, stake, sudo
+from src.commands import wallets, root, stake, sudo, subnets
 from src.subtensor_interface import SubtensorInterface
 from src.bittensor.async_substrate_interface import SubstrateRequestException
 from src.utils import console, err_console
@@ -234,7 +234,9 @@ class CLIManager:
         self.app.add_typer(self.sudo_app, name="su", hidden=True)
 
         # subnets aliases
-        self.app.add_typer(self.subnets_app, name="subnets", short_help="Subnets commands")
+        self.app.add_typer(
+            self.subnets_app, name="subnets", short_help="Subnets commands"
+        )
 
         # config commands
         self.config_app.command("set")(self.set_config)
@@ -288,11 +290,12 @@ class CLIManager:
 
         # subnets commands
         self.subnets_app.command("hyperparameters")(self.sudo_get)
+        self.subnets_app.command("list")(self.subnets_list)
 
     def initialize_chain(
         self,
-        network: Optional[str] = typer.Option("default_network", help="Network name"),
-        chain: Optional[str] = typer.Option("default_chain", help="Chain name"),
+        network: Optional[str] = None,
+        chain: Optional[str] = None,
     ) -> SubtensorInterface:
         """
         Intelligently initializes a connection to the chain, depending on the supplied (or in config) values. Set's the
@@ -2758,6 +2761,58 @@ class CLIManager:
         """
         return self._run_command(
             sudo.get_hyperparameters(self.initialize_chain(network, chain), netuid)
+        )
+
+    def subnets_list(self, network: str = Options.network, chain: str = Options.chain):
+        """
+        # subnets list
+        Executes the `list` command to list all subnets and their detailed information on the Bittensor network.
+
+        This command is designed to provide users with comprehensive information about each subnet within the
+        network, including its unique identifier (netuid), the number of neurons, maximum neuron capacity,
+        emission rate, tempo, recycle register cost (burn), proof of work (PoW) difficulty, and the name or
+        SS58 address of the subnet owner.
+
+        ## Usage:
+
+        Upon invocation, the command performs the following actions:
+
+        1. It initializes the Bittensor subtensor object with the user's configuration.
+
+        2. It retrieves a list of all subnets in the network along with their detailed information.
+
+        3. The command compiles this data into a table format, displaying key information about each subnet.
+
+
+        In addition to the basic subnet details, the command also fetches delegate information to provide the
+        name of the subnet owner where available. If the owner's name is not available, the owner's ``SS58``
+        address is displayed.
+
+        The command structure includes:
+
+        - Initializing the Bittensor subtensor and retrieving subnet information.
+
+        - Calculating the total number of neurons across all subnets.
+
+        - Constructing a table that includes columns for `NETUID`, `N` (current neurons), `MAX_N`
+        (maximum neurons), `EMISSION`, `TEMPO`, `BURN`, `POW` (proof of work difficulty), and
+        `SUDO` (owner's name or `SS58` address).
+
+        - Displaying the table with a footer that summarizes the total number of subnets and neurons.
+
+
+        ### Example usage:
+
+        ```
+        btcli subnets list
+        ```
+
+        #### Note:
+        This command is particularly useful for users seeking an overview of the Bittensor network's structure and the
+        distribution of its resources and ownership information for each subnet.
+        """
+        return self._run_command(
+            subnets.subnets_list(self.initialize_chain(network, chain))
         )
 
     def run(self):
