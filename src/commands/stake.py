@@ -1,5 +1,6 @@
 import asyncio
 import copy
+from contextlib import suppress
 from math import floor
 from typing import TYPE_CHECKING, Union, Optional
 
@@ -267,7 +268,7 @@ async def add_stake_extrinsic(
 
 
 async def add_stake_multiple_extrinsic(
-    subtensor: SubtensorInterface,
+    subtensor: "SubtensorInterface",
     wallet: Wallet,
     old_balance: Balance,
     hotkey_ss58s: list[str],
@@ -311,7 +312,6 @@ async def add_stake_multiple_extrinsic(
     # Decrypt coldkey.
     wallet.unlock_coldkey()
 
-    old_stakes = []
     with console.status(
         f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
     ):
@@ -455,7 +455,7 @@ async def add_stake_multiple_extrinsic(
             )
             new_balance = new_balance_[wallet.coldkeypub.ss58_address]
         console.print(
-            "Balance: [blue]{old_balance}[/blue] :arrow_right: [green]{new_balance}[/green]"
+            f"Balance: [blue]{old_balance}[/blue] :arrow_right: [green]{new_balance}[/green]"
         )
         return True
 
@@ -963,7 +963,7 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
                 wallet_.coldkeypub.ss58_address, block_hash=block_hash
             ),
             get_stakes_from_hotkeys(wallet_, block_hash=block_hash),
-            get_stakes_from_delegates(wallet_, block_hash=block_hash),
+            get_stakes_from_delegates(wallet_),
         )
 
         cold_balance = cold_balance_[wallet_.coldkeypub.ss58_address]
@@ -1041,7 +1041,7 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
         return stakes
 
     async def get_stakes_from_delegates(
-        wallet_, block_hash: str
+        wallet_,
     ) -> dict[str, dict[str, Union[str, Balance]]]:
         """Fetch stakes from delegates for the provided wallet.
 
@@ -1138,8 +1138,7 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
 
 async def stake_add(
     wallet: Wallet,
-    subtensor: SubtensorInterface,
-    uid: int,
+    subtensor: "SubtensorInterface",
     amount: float,
     stake_all: bool,
     max_stake: float,
@@ -1371,7 +1370,7 @@ async def unstake(
     final_hotkeys: list[tuple[str, str]] = []
     final_amounts: list[Union[float, Balance]] = []
     hotkey: tuple[Optional[str], str]  # (hotkey_name (or None), hotkey_ss58)
-    try:
+    with suppress(ValueError):
         async with subtensor:
             with console.status(f":satellite:Syncing with chain {subtensor}"):
                 block_hash = await subtensor.substrate.get_chain_head()
@@ -1428,23 +1427,23 @@ async def unstake(
 
             if len(final_hotkeys) == 1:
                 # do regular unstake
-                return subtensor.unstake(
+                await unstake_extrinsic(
+                    subtensor,
                     wallet=wallet,
                     hotkey_ss58=final_hotkeys[0][1],
                     amount=None if unstake_all else final_amounts[0],
                     wait_for_inclusion=True,
                     prompt=True,
                 )
-
-            subtensor.unstake_multiple(
-                wallet=wallet,
-                hotkey_ss58s=[hotkey_ss58 for _, hotkey_ss58 in final_hotkeys],
-                amounts=None if unstake_all else final_amounts,
-                wait_for_inclusion=True,
-                prompt=False,
-            )
-    except ValueError:
-        pass
+            else:
+                await unstake_multiple_extrinsic(
+                    subtensor,
+                    wallet=wallet,
+                    hotkey_ss58s=[hotkey_ss58 for _, hotkey_ss58 in final_hotkeys],
+                    amounts=None if unstake_all else final_amounts,
+                    wait_for_inclusion=True,
+                    prompt=False,
+                )
     await subtensor.substrate.close()
 
 
