@@ -188,3 +188,29 @@ NETWORK_EXPLORER_MAP = {
         "finney": "https://x.taostats.io",
     },
 }
+
+
+HYPERPARAMS = {
+    "serving_rate_limit": "sudo_set_serving_rate_limit",
+    "min_difficulty": "sudo_set_min_difficulty",
+    "max_difficulty": "sudo_set_max_difficulty",
+    "weights_version": "sudo_set_weights_version_key",
+    "weights_rate_limit": "sudo_set_weights_set_rate_limit",
+    "max_weight_limit": "sudo_set_max_weight_limit",
+    "immunity_period": "sudo_set_immunity_period",
+    "min_allowed_weights": "sudo_set_min_allowed_weights",
+    "activity_cutoff": "sudo_set_activity_cutoff",
+    "network_registration_allowed": "sudo_set_network_registration_allowed",
+    "network_pow_registration_allowed": "sudo_set_network_pow_registration_allowed",
+    "min_burn": "sudo_set_min_burn",
+    "max_burn": "sudo_set_max_burn",
+    "adjustment_alpha": "sudo_set_adjustment_alpha",
+    "rho": "sudo_set_rho",
+    "kappa": "sudo_set_kappa",
+    "difficulty": "sudo_set_difficulty",
+    "bonds_moving_avg": "sudo_set_bonds_moving_average",
+    "commit_reveal_weights_interval": "sudo_set_commit_reveal_weights_interval",
+    "commit_reveal_weights_enabled": "sudo_set_commit_reveal_weights_enabled",
+    "alpha_values": "sudo_set_alpha_values",
+    "liquid_alpha_enabled": "sudo_set_liquid_alpha_enabled",
+}
