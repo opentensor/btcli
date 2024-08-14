@@ -2573,24 +2573,28 @@ class CLIManager:
         wait_for_finalization: bool = True,
     ):
         """
-        Revokes the children hotkeys associated with a given network identifier (netuid).
+        # stake revoke-children
+        Executes the `revoke_children` command to remove all children hotkeys on a specified subnet on the Bittensor
+        network.
 
-        Parameters:
-        - wallet: An instance of the Wallet class representing the user's wallet.
-        - subtensor: An instance of the SubtensorInterface class.
-        - netuid: An integer representing the network identifier.
-        - wait_for_inclusion: A boolean indicating whether to wait for the transaction to be included in a block. Defaults
-          to True.
-        - wait_for_finalization: A boolean indicating whether to wait for the transaction to be finalized. Defaults to
-          False.
+        This command is used to remove delegated authority from all child hotkeys, removing their position and influence
+        on the subnet.
 
-        Returns:
-        None
+        ## Usage:
+        Users need to specify the parent hotkey and the subnet ID (netuid).
+        The user needs to have sufficient authority to make this call.
 
-        Example:
-        >>> wallet = Wallet()
-        >>> subtensor = SubtensorInterface()
-        >>> revoke_children(wallet, subtensor, 12345, wait_for_inclusion=True)
+        The command prompts for confirmation before executing the revoke_children operation.
+
+        ### Example usage:
+
+        ```
+        btcli stake revoke_children --hotkey <parent_hotkey> --netuid 1
+        ```
+
+        #### Note:
+        This command is critical for users who wish to remove children hotkeys on the network.
+        It allows for a complete removal of delegated authority to enhance network participation and influence.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
