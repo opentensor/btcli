@@ -2244,12 +2244,6 @@ class CLIManager:
             "-a",
             help="When set, stakes all available tokens from the coldkey.",
         ),
-        uid: int = typer.Option(
-            None,
-            "--uid",
-            "-u",
-            help="The unique identifier of the neuron to which the stake is to be added.",
-        ),
         amount: float = typer.Option(
             0.0, "--amount", help="The amount of TAO tokens to stake"
         ),
@@ -2335,7 +2329,6 @@ class CLIManager:
             stake.stake_add(
                 wallet,
                 self.initialize_chain(network, chain),
-                uid,
                 amount,
                 stake_all,
                 max_stake,

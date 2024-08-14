@@ -311,7 +311,6 @@ async def add_stake_multiple_extrinsic(
     # Decrypt coldkey.
     wallet.unlock_coldkey()
 
-    old_stakes = []
     with console.status(
         f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
     ):
@@ -455,7 +454,7 @@ async def add_stake_multiple_extrinsic(
             )
             new_balance = new_balance_[wallet.coldkeypub.ss58_address]
         console.print(
-            "Balance: [blue]{old_balance}[/blue] :arrow_right: [green]{new_balance}[/green]"
+            f"Balance: [blue]{old_balance}[/blue] :arrow_right: [green]{new_balance}[/green]"
         )
         return True
 
@@ -948,7 +947,7 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
                 wallet_.coldkeypub.ss58_address, block_hash=block_hash
             ),
             get_stakes_from_hotkeys(wallet_, block_hash=block_hash),
-            get_stakes_from_delegates(wallet_, block_hash=block_hash),
+            get_stakes_from_delegates(wallet_),
         )
 
         cold_balance = cold_balance_[wallet_.coldkeypub.ss58_address]
@@ -1026,7 +1025,7 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
         return stakes
 
     async def get_stakes_from_delegates(
-        wallet_, block_hash: str
+        wallet_,
     ) -> dict[str, dict[str, Union[str, Balance]]]:
         """Fetch stakes from delegates for the provided wallet.
 
@@ -1124,7 +1123,6 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
 async def stake_add(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
-    uid: int,
     amount: float,
     stake_all: bool,
     max_stake: float,
