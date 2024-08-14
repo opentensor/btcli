@@ -2,7 +2,7 @@
 import asyncio
 import os.path
 import re
-from typing import Optional, Coroutine, Collection
+from typing import Optional, Coroutine
 
 from bittensor_wallet import Wallet
 from git import Repo
@@ -14,8 +14,8 @@ from typing_extensions import Annotated
 from websockets import ConnectionClosed
 from yaml import safe_load, safe_dump
 
-from src import defaults, utils
-from src.commands import wallets, root, stake
+from src import defaults, utils, HYPERPARAMS
+from src.commands import wallets, root, stake, sudo
 from src.subtensor_interface import SubtensorInterface
 from src.bittensor.async_substrate_interface import SubstrateRequestException
 from src.utils import console, err_console
@@ -162,6 +162,7 @@ class CLIManager:
     :var wallet_app: the Typer app as it relates to wallet commands
     :var root_app: the Typer app as it relates to root commands
     :var stake_app: the Typer app as it relates to stake commands
+    :var sudo_app: the Typer app as it relates to sudo commands
     :var not_subtensor: the `SubtensorInterface` object passed to the various commands that require it
     """
 
@@ -186,6 +187,7 @@ class CLIManager:
         self.wallet_app = typer.Typer()
         self.root_app = typer.Typer()
         self.stake_app = typer.Typer()
+        self.sudo_app = typer.Typer()
 
         # config alias
         self.app.add_typer(
@@ -220,6 +222,14 @@ class CLIManager:
             short_help="Stake commands, alias: `st`",
         )
         self.app.add_typer(self.stake_app, name="st", hidden=True)
+
+        # sudo aliases
+        self.app.add_typer(
+            self.sudo_app,
+            name="sudo",
+            short_help="Sudo commands, alias: `su`",
+        )
+        self.app.add_typer(self.sudo_app, name="su", hidden=True)
 
         # config commands
         self.config_app.command("set")(self.set_config)
@@ -267,6 +277,13 @@ class CLIManager:
         self.stake_app.command("set-children")(self.stake_set_children)
         self.stake_app.command("revoke-children")(self.stake_revoke_children)
 
+        # sudo commands
+        self.sudo_app.command("set")(self.sudo_set)
+        self.sudo_app.command("get")(self.sudo_get)
+
+        # subnets commands
+        # self.subnets_app.command("hyperparameters")(self.sudo_get)
+
     def initialize_chain(
         self,
         network: Optional[str] = typer.Option("default_network", help="Network name"),
@@ -297,8 +314,16 @@ class CLIManager:
         """
         Runs the supplied coroutine with asyncio.run
         """
+
+        async def _run():
+            if self.not_subtensor:
+                async with self.not_subtensor:
+                    await cmd
+            else:
+                await cmd
+
         try:
-            return asyncio.run(cmd)
+            return asyncio.run(_run())
         except ConnectionRefusedError:
             err_console.print(
                 f"Connection refused when connecting to chain: {self.not_subtensor}"
@@ -2598,6 +2623,136 @@ class CLIManager:
                 wait_for_inclusion,
                 wait_for_finalization,
             )
+        )
+
+    def sudo_set(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        netuid: int = Options.netuid,
+        param_name: str = typer.Option(
+            "", "--param", "--parameter", help="The subnet hyperparameter to set"
+        ),
+        param_value: str = typer.Option(
+            "", "--value", help="The subnet hyperparameter value to set."
+        ),
+    ):
+        """
+        # sudo set
+        Executes the `set` command to set hyperparameters for a specific subnet on the Bittensor network.
+
+        This command allows subnet owners to modify various hyperparameters of theirs subnet, such as its tempo,
+        emission rates, and other network-specific settings.
+
+        ## Usage:
+        The command first prompts the user to enter the hyperparameter they wish to change and its new value.
+        It then uses the user's wallet and configuration settings to authenticate and send the hyperparameter update
+        to the specified subnet.
+
+        ### Example usage:
+
+        ```
+        btcli sudo set --netuid 1 --param 'tempo' --value '0.5'
+        ```
+
+        #### Note:
+        This command requires the user to specify the subnet identifier (``netuid``) and both the hyperparameter
+        and its new value. It is intended for advanced users who are familiar with the network's functioning
+        and the impact of changing these parameters.
+        """
+        if not param_name:
+            param_name = Prompt.ask(
+                "Enter hyperparameter", choices=list(HYPERPARAMS.keys())
+            )
+        if not param_value:
+            param_value = Prompt.ask(f"Enter new value for {param_name}")
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        return self._run_command(
+            sudo.sudo_set_hyperparameter(
+                wallet,
+                self.initialize_chain(network, chain),
+                netuid,
+                param_name,
+                param_value,
+            )
+        )
+
+    def sudo_get(
+        self,
+        network: str = Options.network,
+        chain: str = Options.chain,
+        netuid: int = Options.netuid,
+    ):
+        """
+        # sudo get
+        Executes the `get` command to retrieve the hyperparameters of a specific subnet on the Bittensor network.
+
+        This command is used for both `sudo get` and `subnets hyperparameters`.
+
+        ## Usage:
+        The command connects to the Bittensor network, queries the specified subnet, and returns a detailed list
+        of all its hyperparameters. This includes crucial operational parameters that determine the subnet's
+        performance and interaction within the network.
+
+        ### Example usage:
+
+        ```
+
+        $ btcli sudo get --netuid 1
+
+
+
+        Subnet Hyperparameters - NETUID: 1 - finney
+
+        HYPERPARAMETER            VALUE
+
+        rho                       10
+
+        kappa                     32767
+
+        immunity_period           7200
+
+        min_allowed_weights       8
+
+        max_weight_limit          455
+
+        tempo                     99
+
+        min_difficulty            1000000000000000000
+
+        max_difficulty            1000000000000000000
+
+        weights_version           2013
+
+        weights_rate_limit        100
+
+        adjustment_interval       112
+
+        activity_cutoff           5000
+
+        registration_allowed      True
+
+        target_regs_per_interval  2
+
+        min_burn                  1000000000
+
+        max_burn                  100000000000
+
+        bonds_moving_avg          900000
+
+        max_regs_per_block        1
+
+        ```
+
+        #### Note:
+        Users need to provide the `netuid` of the subnet whose hyperparameters they wish to view. This command is
+        designed for informational purposes and does not alter any network settings or configurations.
+        """
+        return self._run_command(
+            sudo.get_hyperparameters(self.initialize_chain(network, chain), netuid)
         )
 
     def run(self):

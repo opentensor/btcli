@@ -1,7 +1,7 @@
 import os
 import math
 from pathlib import Path
-from typing import Union, Any, Collection, Optional
+from typing import Union, Any, Collection, Optional, TYPE_CHECKING
 
 import aiohttp
 import scalecodec
@@ -15,6 +15,11 @@ from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
 
 from src import DelegatesDetails
+from src.bittensor.balances import Balance
+
+if TYPE_CHECKING:
+    from src.bittensor.chain_data import SubnetHyperparameters
+
 
 console = Console()
 err_console = Console(stderr=True)
@@ -28,6 +33,11 @@ U64_MAX = 18446744073709551615
 def u16_normalized_float(x: int) -> float:
     """Converts a u16 int to a float"""
     return float(x) / float(U16_MAX)
+
+
+def u64_normalized_float(x: int) -> float:
+    """Converts a u64 int to a float"""
+    return float(x) / float(U64_MAX)
 
 
 def float_to_u64(value: float) -> int:
@@ -448,3 +458,47 @@ def millify(n: int):
     )
 
     return "{:.2f}{}".format(n_ / 10 ** (3 * mill_idx), mill_names[mill_idx])
+
+
+def normalize_hyperparameters(
+    subnet: "SubnetHyperparameters",
+) -> list[tuple[str, str, str]]:
+    """
+    Normalizes the hyperparameters of a subnet.
+
+    :param subnet: The subnet hyperparameters object.
+
+    :return: A list of tuples containing the parameter name, value, and normalized value.
+    """
+    param_mappings = {
+        "adjustment_alpha": u64_normalized_float,
+        "min_difficulty": u64_normalized_float,
+        "max_difficulty": u64_normalized_float,
+        "difficulty": u64_normalized_float,
+        "bonds_moving_avg": u64_normalized_float,
+        "max_weight_limit": u16_normalized_float,
+        "kappa": u16_normalized_float,
+        "alpha_high": u16_normalized_float,
+        "alpha_low": u16_normalized_float,
+        "min_burn": Balance.from_rao,
+        "max_burn": Balance.from_rao,
+    }
+
+    normalized_values: list[tuple[str, str, str]] = []
+    subnet_dict = subnet.__dict__
+
+    for param, value in subnet_dict.items():
+        try:
+            if param in param_mappings:
+                norm_value = param_mappings[param](value)
+                if isinstance(norm_value, float):
+                    norm_value = f"{norm_value:.{10}g}"
+            else:
+                norm_value = value
+        except Exception as e:
+            # bittensor.logging.warning(f"Error normalizing parameter '{param}': {e}")
+            norm_value = "-"
+
+        normalized_values.append((param, str(value), str(norm_value)))
+
+    return normalized_values

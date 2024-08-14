@@ -16,6 +16,7 @@ from src.bittensor.chain_data import (
     StakeInfo,
     NeuronInfoLite,
     NeuronInfo,
+    SubnetHyperparameters,
 )
 from src.bittensor.balances import Balance
 from src import Constants, defaults, TYPE_REGISTRY
@@ -813,3 +814,35 @@ class SubtensorInterface:
                 return True, [], ""
         except SubstrateRequestException as e:
             return False, [], str(e)
+
+    async def get_subnet_hyperparameters(
+        self, netuid: int, block_hash: Optional[str] = None
+    ) -> Optional[Union[list, SubnetHyperparameters]]:
+        """
+        Retrieves the hyperparameters for a specific subnet within the Bittensor network. These hyperparameters
+        define the operational settings and rules governing the subnet's behavior.
+
+        :param netuid: The network UID of the subnet to query.
+        :param block_hash: The hash of the blockchain block number for the query.
+
+        :return: The subnet's hyperparameters, or `None` if not available.
+
+        Understanding the hyperparameters is crucial for comprehending how subnets are configured and
+        managed, and how they interact with the network's consensus and incentive mechanisms.
+        """
+        hex_bytes_result = await self.query_runtime_api(
+            runtime_api="SubnetInfoRuntimeApi",
+            method="get_subnet_hyperparams",
+            params=[netuid],
+            block_hash=block_hash,
+        )
+
+        if hex_bytes_result is None:
+            return []
+
+        if hex_bytes_result.startswith("0x"):
+            bytes_result = bytes.fromhex(hex_bytes_result[2:])
+        else:
+            bytes_result = bytes.fromhex(hex_bytes_result)
+
+        return SubnetHyperparameters.from_vec_u8(bytes_result)  # type: ignore
