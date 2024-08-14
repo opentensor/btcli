@@ -2573,17 +2573,24 @@ class CLIManager:
         wait_for_finalization: bool = True,
     ):
         """
-        Revoke children staking method
+        Revokes the children hotkeys associated with a given network identifier (netuid).
 
-        :param wallet_name: Optional[str] = Options.wallet_name, the name of the wallet (default: Options.wallet_name)
-        :param wallet_hotkey: Optional[str] = Options.wallet_hk_req, the hotkey of the wallet (default: Options.wallet_hk_req)
-        :param wallet_path: Optional[str] = Options.wallet_path, the path of the wallet (default: Options.wallet_path)
-        :param network: Optional[str] = Options.network, the network to stake on (default: Options.network)
-        :param chain: Optional[str] = Options.chain, the chain to stake on (default: Options.chain)
-        :param netuid: int = Options.netuid, the unique id of the network (default: Options.netuid)
-        :param wait_for_inclusion: bool = True, wait for transaction inclusion (default: True)
-        :param wait_for_finalization: bool = True, wait for transaction finalization (default: True)
-        :return: the result of the revoke children stake command
+        Parameters:
+        - wallet: An instance of the Wallet class representing the user's wallet.
+        - subtensor: An instance of the SubtensorInterface class.
+        - netuid: An integer representing the network identifier.
+        - wait_for_inclusion: A boolean indicating whether to wait for the transaction to be included in a block. Defaults
+          to True.
+        - wait_for_finalization: A boolean indicating whether to wait for the transaction to be finalized. Defaults to
+          False.
+
+        Returns:
+        None
+
+        Example:
+        >>> wallet = Wallet()
+        >>> subtensor = SubtensorInterface()
+        >>> revoke_children(wallet, subtensor, 12345, wait_for_inclusion=True)
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
