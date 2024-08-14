@@ -1198,10 +1198,7 @@ async def stake_add(
         final_amounts: list[Union[float, Balance]] = []
         hotkey: tuple[Optional[str], str]  # (hotkey_name (or None), hotkey_ss58)
         registered_ = asyncio.gather(
-            *[
-                is_hotkey_registered_any(h[1], block_hash)
-                for h in hotkeys_to_stake_to
-            ]
+            *[is_hotkey_registered_any(h[1], block_hash) for h in hotkeys_to_stake_to]
         )
         if max_stake:
             hotkey_stakes_ = asyncio.gather(
@@ -1222,9 +1219,7 @@ async def stake_add(
             hotkey_stakes_ = null()
         registered: list[bool]
         hotkey_stakes: list[Optional[Balance]]
-        registered, hotkey_stakes = await asyncio.gather(
-            registered_, hotkey_stakes_
-        )
+        registered, hotkey_stakes = await asyncio.gather(registered_, hotkey_stakes_)
 
         for hotkey, reg, hotkey_stake in zip(
             hotkeys_to_stake_to, registered, hotkey_stakes
@@ -1255,9 +1250,7 @@ async def stake_add(
                 ):  # Threshold because of fees, might create a loop otherwise
                     # Skip hotkey if max_stake is less than current stake.
                     continue
-                wallet_balance = Balance.from_tao(
-                    wallet_balance.tao - stake_amount_tao
-                )
+                wallet_balance = Balance.from_tao(wallet_balance.tao - stake_amount_tao)
 
                 if wallet_balance.tao < 0:
                     # No more balance to stake.
@@ -1617,9 +1610,7 @@ async def revoke_children(
     # Validate children SS58 addresses
     for child in current_children:
         if not is_valid_ss58_address(child):
-            err_console.print(
-                f":cross_mark:[red] Invalid SS58 address: {child}[/red]"
-            )
+            err_console.print(f":cross_mark:[red] Invalid SS58 address: {child}[/red]")
             return
 
     # Prepare children with zero proportions

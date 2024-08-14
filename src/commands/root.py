@@ -700,9 +700,7 @@ async def root_list(subtensor: SubtensorInterface):
             storage_function="Members",
             params=None,
         )
-        sm = (
-            senate_query.serialize() if hasattr(senate_query, "serialize") else None
-        )
+        sm = senate_query.serialize() if hasattr(senate_query, "serialize") else None
 
         rn: list[NeuronInfoLite] = await subtensor.neurons_lite(netuid=0)
         if not rn:
@@ -964,9 +962,7 @@ async def senate_vote(
         )
         return False
 
-    if not await _is_senate_member(
-        subtensor, hotkey_ss58=wallet.hotkey.ss58_address
-    ):
+    if not await _is_senate_member(subtensor, hotkey_ss58=wallet.hotkey.ss58_address):
         err_console.print(
             f"Aborting: Hotkey {wallet.hotkey.ss58_address} isn't a senate member."
         )
@@ -998,7 +994,9 @@ async def senate_vote(
 
 async def get_senate(subtensor: SubtensorInterface):
     """View Bittensor's governance protocol proposals"""
-    with console.status(f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."):
+    with console.status(
+        f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
+    ):
         senate_members = await _get_senate_members(subtensor)
 
     delegate_info: dict[
@@ -1399,9 +1397,7 @@ async def list_delegates(subtensor: SubtensorInterface):
             prev_block_hash = await subtensor.substrate.get_block_hash(
                 max(0, block_number - 1200)
             )
-            prev_delegates = await subtensor.get_delegates(
-                block_hash=prev_block_hash
-            )
+            prev_delegates = await subtensor.get_delegates(block_hash=prev_block_hash)
         except SubstrateRequestException:
             prev_delegates = None
 

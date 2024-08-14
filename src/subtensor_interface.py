@@ -15,7 +15,8 @@ from src.bittensor.chain_data import (
     custom_rpc_type_registry,
     StakeInfo,
     NeuronInfoLite,
-    NeuronInfo, SubnetHyperparameters,
+    NeuronInfo,
+    SubnetHyperparameters,
 )
 from src.bittensor.balances import Balance
 from src import Constants, defaults, TYPE_REGISTRY

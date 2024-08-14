@@ -279,6 +279,10 @@ class CLIManager:
 
         # sudo commands
         self.sudo_app.command("set")(self.sudo_set)
+        self.sudo_app.command("get")(self.sudo_get)
+
+        # subnets commands
+        # self.subnets_app.command("hyperparameters")(self.sudo_get)
 
     def initialize_chain(
         self,
@@ -310,12 +314,14 @@ class CLIManager:
         """
         Runs the supplied coroutine with asyncio.run
         """
+
         async def _run():
             if self.not_subtensor:
                 async with self.not_subtensor:
                     await cmd
             else:
                 await cmd
+
         try:
             return asyncio.run(_run())
         except ConnectionRefusedError:
@@ -2619,24 +2625,21 @@ class CLIManager:
             )
         )
 
-    def sudo_set(self,
-                 network: Optional[str] = Options.network,
-                 chain: Optional[str] = Options.chain,
-                 wallet_name: str = Options.wallet_name,
-                 wallet_path: str = Options.wallet_path,
-                 wallet_hotkey: str = Options.wallet_hotkey,
-                 netuid: int = Options.netuid,
-                 param_name: str = typer.Option(
-                     "",
-                     "--param", "--parameter",
-                    help="The subnet hyperparameter to set"
-                 ),
-                 param_value: str = typer.Option(
-                     "",
-                     "--value",
-                     help="The subnet hyperparameter value to set."
-                 )
-                 ):
+    def sudo_set(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        netuid: int = Options.netuid,
+        param_name: str = typer.Option(
+            "", "--param", "--parameter", help="The subnet hyperparameter to set"
+        ),
+        param_value: str = typer.Option(
+            "", "--value", help="The subnet hyperparameter value to set."
+        ),
+    ):
         """
         # sudo set
         Executes the `set` command to set hyperparameters for a specific subnet on the Bittensor network.
@@ -2661,40 +2664,44 @@ class CLIManager:
         and the impact of changing these parameters.
         """
         if not param_name:
-            param_name = Prompt.ask("Enter hyperparameter", choices=list(HYPERPARAMS.keys()))
+            param_name = Prompt.ask(
+                "Enter hyperparameter", choices=list(HYPERPARAMS.keys())
+            )
         if not param_value:
             param_value = Prompt.ask(f"Enter new value for {param_name}")
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        return self._run_command(sudo.sudo_set_hyperparameter(
-            wallet,
-            self.initialize_chain(network, chain),
-            netuid,
-            param_name,
-            param_value
-        ))
+        return self._run_command(
+            sudo.sudo_set_hyperparameter(
+                wallet,
+                self.initialize_chain(network, chain),
+                netuid,
+                param_name,
+                param_value,
+            )
+        )
 
-    def subnets_get_hyperparameters(self,
-                                    network: str = Options.network,
-                                    chain: str = Options.chain,
-                                    netuid: int = Options.netuid
-                                    ):
+    def sudo_get(
+        self,
+        network: str = Options.network,
+        chain: str = Options.chain,
+        netuid: int = Options.netuid,
+    ):
         """
-        # subnets get-hyperparameters
-        Executes the `hyperparameters` command to view the current hyperparameters of a specific subnet on the Bittensor
-        network.
+        # sudo get
+        Executes the `get` command to retrieve the hyperparameters of a specific subnet on the Bittensor network.
 
-        This command is useful for users who wish to understand the configuration and
-        operational parameters of a particular subnet.
+        This command is used for both `sudo get` and `subnets hyperparameters`.
 
         ## Usage:
-        Upon invocation, the command fetches and displays a list of all hyperparameters for the specified subnet.
-        These include settings like tempo, emission rates, and other critical network parameters that define
-        the subnet's behavior.
+        The command connects to the Bittensor network, queries the specified subnet, and returns a detailed list
+        of all its hyperparameters. This includes crucial operational parameters that determine the subnet's
+        performance and interaction within the network.
 
         ### Example usage:
 
         ```
-        $ btcli subnets hyperparameters --netuid 1
+
+        $ btcli sudo get --netuid 1
 
 
 
@@ -2738,13 +2745,15 @@ class CLIManager:
 
         max_regs_per_block        1
 
-
         ```
 
         #### Note:
-        The user must specify the subnet identifier (`netuid`) for which they want to view the hyperparameters.
-        This command is read-only and does not modify the network state or configurations.
+        Users need to provide the `netuid` of the subnet whose hyperparameters they wish to view. This command is
+        designed for informational purposes and does not alter any network settings or configurations.
         """
+        return self._run_command(
+            sudo.get_hyperparameters(self.initialize_chain(network, chain), netuid)
+        )
 
     def run(self):
         self.app()

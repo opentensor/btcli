@@ -503,9 +503,7 @@ async def overview(
 
         # We are printing for a select number of hotkeys from all_hotkeys.
         if include_hotkeys:
-            all_hotkeys = _get_hotkeys(
-                include_hotkeys, exclude_hotkeys, all_hotkeys
-            )
+            all_hotkeys = _get_hotkeys(include_hotkeys, exclude_hotkeys, all_hotkeys)
 
         # Check we have keys to display.
         if not all_hotkeys:
@@ -606,9 +604,7 @@ async def overview(
                 # Make a neuron info lite for this hotkey and coldkey.
                 de_registered_neuron = NeuronInfoLite.get_null_neuron()
                 de_registered_neuron.hotkey = hotkey_addr
-                de_registered_neuron.coldkey = (
-                    coldkey_wallet.coldkeypub.ss58_address
-                )
+                de_registered_neuron.coldkey = coldkey_wallet.coldkeypub.ss58_address
                 de_registered_neuron.total_stake = Balance(our_stake)
                 de_registered_neurons.append(de_registered_neuron)
 
@@ -1481,8 +1477,7 @@ async def check_coldkey_swap(wallet: Wallet, subtensor: SubtensorInterface):
             params=[wallet.coldkeypub.ss58_address],
         )
         arbitration_remaining = (
-            arbitration_block.value
-            - await subtensor.substrate.get_block_number(None)
+            arbitration_block.value - await subtensor.substrate.get_block_number(None)
         )
 
         hours, minutes, seconds = convert_blocks_to_time(arbitration_remaining)

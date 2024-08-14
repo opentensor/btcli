@@ -2,16 +2,17 @@ import asyncio
 from typing import TYPE_CHECKING, Union
 
 from bittensor_wallet import Wallet
+from rich.table import Table, Column
 
 from src import HYPERPARAMS
-from src.commands.subnets import hyperparameters
-from src.utils import console, err_console
+from src.utils import console, err_console, normalize_hyperparameters
 
 if TYPE_CHECKING:
     from src.subtensor_interface import SubtensorInterface
 
 
 # helpers and extrinsics
+
 
 def allowed_value(
     param: str, value: Union[str, bool]
@@ -78,11 +79,15 @@ async def set_hyperparameter_extrinsic(
     :return: success: `True` if extrinsic was finalized or included in the block. If we did not wait for
                       finalization/inclusion, the response is `True`.
     """
-    subnet_owner = getattr(await subtensor.substrate.query(
-                module="SubtensorModule",
-                storage_function="SubnetOwner",
-                params=[netuid],
-            ), "value", None)
+    subnet_owner = getattr(
+        await subtensor.substrate.query(
+            module="SubtensorModule",
+            storage_function="SubnetOwner",
+            params=[netuid],
+        ),
+        "value",
+        None,
+    )
     if subnet_owner != wallet.coldkeypub.ss58_address:
         err_console.print(
             ":cross_mark: [red]This wallet doesn't own the specified subnet.[/red]"
@@ -93,9 +98,7 @@ async def set_hyperparameter_extrinsic(
 
     extrinsic = HYPERPARAMS.get(parameter)
     if extrinsic is None:
-        err_console.print(
-            ":cross_mark: [red]Invalid hyperparameter specified.[/red]"
-        )
+        err_console.print(":cross_mark: [red]Invalid hyperparameter specified.[/red]")
         return False
 
     with console.status(
@@ -110,13 +113,20 @@ async def set_hyperparameter_extrinsic(
             # if input value is a list, iterate through the list and assign values
             if isinstance(value, list):
                 # Ensure that there are enough values for all non-netuid parameters
-                non_netuid_fields = [param["name"] for param in extrinsic_params["fields"] if
-                                     "netuid" not in param["name"]]
+                non_netuid_fields = [
+                    param["name"]
+                    for param in extrinsic_params["fields"]
+                    if "netuid" not in param["name"]
+                ]
 
                 if len(value) < len(non_netuid_fields):
-                    raise ValueError("Not enough values provided in the list for all parameters")
+                    raise ValueError(
+                        "Not enough values provided in the list for all parameters"
+                    )
 
-                call_params.update({str(name): val for name, val in zip(non_netuid_fields, value)})
+                call_params.update(
+                    {str(name): val for name, val in zip(non_netuid_fields, value)}
+                )
 
             else:
                 value_argument = extrinsic_params["fields"][
@@ -131,14 +141,10 @@ async def set_hyperparameter_extrinsic(
                 call_params=call_params,
             )
             success, err_msg = await subtensor.sign_and_send_extrinsic(
-                call,
-                wallet,
-                wait_for_inclusion, wait_for_finalization
+                call, wallet, wait_for_inclusion, wait_for_finalization
             )
             if not success:
-                err_console.print(
-                    f":cross_mark: [red]Failed[/red]: {err_msg}"
-                )
+                err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
                 await asyncio.sleep(0.5)
 
             # Successful registration, final check for membership
@@ -151,6 +157,7 @@ async def set_hyperparameter_extrinsic(
 
 # commands
 
+
 async def sudo_set_hyperparameter(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
@@ -160,12 +167,16 @@ async def sudo_set_hyperparameter(
 ):
     """Set subnet hyperparameters."""
     console.print("\n")
-    await hyperparameters(subtensor, netuid=netuid)
+    await get_hyperparameters(subtensor, netuid=netuid)
 
     normalized_value: Union[str, bool]
-    if param_name in ["network_registration_allowed", "network_pow_registration_allowed", "commit_reveal_weights_enabled",
-                      "liquid_alpha_enabled"]:
-        normalized_value = (param_value.lower() in ["true", "1"])
+    if param_name in [
+        "network_registration_allowed",
+        "network_pow_registration_allowed",
+        "commit_reveal_weights_enabled",
+        "liquid_alpha_enabled",
+    ]:
+        normalized_value = param_value.lower() in ["true", "1"]
     else:
         normalized_value = param_value
 
@@ -176,10 +187,28 @@ async def sudo_set_hyperparameter(
         )
         return
 
-    await set_hyperparameter_extrinsic(
-        subtensor,
-        wallet,
-        netuid,
-        param_name,
-        value
+    await set_hyperparameter_extrinsic(subtensor, wallet, netuid, param_name, value)
+
+
+async def get_hyperparameters(subtensor: "SubtensorInterface", netuid: int):
+    """View hyperparameters of a subnetwork."""
+    subnet = await subtensor.get_subnet_hyperparameters(netuid)
+
+    table = Table(
+        Column("[overline white]HYPERPARAMETER", style="white"),
+        Column("[overline white]VALUE", style="green"),
+        Column("[overline white]NORMALIZED", style="cyan"),
+        title=f"[white]Subnet Hyperparameters - NETUID: {netuid} - {subtensor}",
+        show_footer=True,
+        width=None,
+        pad_edge=True,
+        box=None,
+        show_edge=True,
     )
+
+    normalized_values = normalize_hyperparameters(subnet)
+
+    for param, value, norm_value in normalized_values:
+        table.add_row("  " + param, value, norm_value)
+
+    console.print(table)
