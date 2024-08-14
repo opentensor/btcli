@@ -1597,7 +1597,7 @@ async def revoke_children(
     subtensor: "SubtensorInterface",
     netuid: int,
     wait_for_inclusion: bool = True,
-    wait_for_finalization: bool = False,
+    wait_for_finalization: bool = True,
 ):
     """
     Revokes the children hotkeys associated with a given network identifier (netuid).

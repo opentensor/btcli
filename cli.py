@@ -2569,37 +2569,30 @@ class CLIManager:
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
         netuid: int = Options.netuid,
+        wait_for_inclusion: bool = True,
+        wait_for_finalization: bool = True,
     ):
         """
-        # stake revoke-children
-        Executes the `revoke_children` command to remove all children hotkeys on a specified subnet on the Bittensor
-        network.
+        Revoke children staking method
 
-        This command is used to remove delegated authority from all child hotkeys, removing their position and influence
-        on the subnet.
-
-        ## Usage:
-        Users need to specify the parent hotkey and the subnet ID (netuid).
-        The user needs to have sufficient authority to make this call.
-
-        The command prompts for confirmation before executing the revoke_children operation.
-
-        ### Example usage:
-
-        ```
-        btcli stake revoke_children --hotkey <parent_hotkey> --netuid 1
-        ```
-
-        #### Note:
-        This command is critical for users who wish to remove children hotkeys on the network.
-        It allows for a complete removal of delegated authority to enhance network participation and influence.
+        :param wallet_name: Optional[str] = Options.wallet_name, the name of the wallet (default: Options.wallet_name)
+        :param wallet_hotkey: Optional[str] = Options.wallet_hk_req, the hotkey of the wallet (default: Options.wallet_hk_req)
+        :param wallet_path: Optional[str] = Options.wallet_path, the path of the wallet (default: Options.wallet_path)
+        :param network: Optional[str] = Options.network, the network to stake on (default: Options.network)
+        :param chain: Optional[str] = Options.chain, the chain to stake on (default: Options.chain)
+        :param netuid: int = Options.netuid, the unique id of the network (default: Options.netuid)
+        :param wait_for_inclusion: bool = True, wait for transaction inclusion (default: True)
+        :param wait_for_finalization: bool = True, wait for transaction finalization (default: True)
+        :return: the result of the revoke children stake command
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             stake.revoke_children(
                 wallet,
                 self.initialize_chain(network, chain),
-                netuid
+                netuid,
+                wait_for_inclusion,
+                wait_for_finalization
             )
         )
 
