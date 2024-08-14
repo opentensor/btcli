@@ -1520,7 +1520,7 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
         )  # sorting by proportion (highest first)
 
         # add the children info to the table
-        for i, (proportion, hotkey, stake) in enumerate(children_info, 1):
+        for idx, (proportion, hotkey, stake) in enumerate(children_info, 1):
             proportion_str = Text(
                 str(proportion), style="red" if proportion == 0 else ""
             )
