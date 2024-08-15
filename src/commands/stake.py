@@ -2,7 +2,7 @@ import asyncio
 import copy
 from contextlib import suppress
 from math import floor
-from typing import TYPE_CHECKING, Union, Optional
+from typing import TYPE_CHECKING, Union, Optional, Sequence
 
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm
@@ -300,7 +300,7 @@ async def add_stake_multiple_extrinsic(
     if amounts is not None and len(amounts) != len(hotkey_ss58s):
         raise ValueError("amounts must be a list of the same length as hotkey_ss58s")
 
-    new_amounts: list[Optional[Balance]]
+    new_amounts: Sequence[Optional[Balance]]
     if amounts is None:
         new_amounts = [None] * len(hotkey_ss58s)
     else:
@@ -638,7 +638,7 @@ async def unstake_multiple_extrinsic(
             "amounts must be a [list of bittensor.Balance or float] or None"
         )
 
-    new_amounts: list[Optional[Balance]]
+    new_amounts: Sequence[Optional[Balance]]
     if amounts is None:
         new_amounts = [None] * len(hotkey_ss58s)
     else:
