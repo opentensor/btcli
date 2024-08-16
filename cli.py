@@ -291,6 +291,7 @@ class CLIManager:
         # subnets commands
         self.subnets_app.command("hyperparameters")(self.sudo_get)
         self.subnets_app.command("list")(self.subnets_list)
+        self.subnets_app.command("lock-cost")(self.subnets_lock_cost)
 
     def initialize_chain(
         self,
@@ -315,7 +316,6 @@ class CLIManager:
                 self.not_subtensor = SubtensorInterface(
                     defaults.subtensor.network, defaults.subtensor.chain_endpoint
                 )
-        console.print(f"[yellow] Connected to [/yellow][white]{self.not_subtensor}")
         return self.not_subtensor
 
     def _run_command(self, cmd: Coroutine) -> None:
@@ -2813,6 +2813,61 @@ class CLIManager:
         """
         return self._run_command(
             subnets.subnets_list(self.initialize_chain(network, chain))
+        )
+
+    def subnets_lock_cost(
+        self, network: str = Options.network, chain: str = Options.chain
+    ):
+        """
+        # subnets lock-cost
+        Executes the `lock_cost` command to view the locking cost required for creating a new subnetwork on the
+        Bittensor network.
+
+        This command is designed to provide users with the current cost of registering a new subnetwork, which is a
+        critical piece of information for anyone considering expanding the network's infrastructure.
+
+        The current implementation anneals the cost of creating a subnet over a period of two days. If the cost is
+        unappealing currently, check back in a day or two to see if it has reached a more amenable level.
+
+        ## Usage:
+
+        Upon invocation, the command performs the following operations:
+
+        1. It copies the user's current Bittensor configuration.
+
+        2. It initializes the Bittensor subtensor object with this configuration.
+
+        3. It then retrieves the subnet lock cost using the ``get_subnet_burn_cost()`` method from the subtensor object.
+
+        4. The cost is displayed to the user in a readable format, indicating the amount of Tao required to lock for
+        registering a new subnetwork.
+
+        In case of any errors during the process (e.g., network issues, configuration problems), the command will catch
+        these exceptions and inform the user that it failed to retrieve the lock cost, along with the specific error
+        encountered.
+
+        The command structure includes:
+
+        - Copying and using the user's configuration for Bittensor.
+
+        - Retrieving the current subnet lock cost from the Bittensor network.
+
+        - Displaying the cost in a user-friendly manner.
+
+
+        Example usage:
+
+        ```
+        btcli subnets lock_cost
+        ```
+
+        #### Note:
+        This command is particularly useful for users who are planning to contribute to the Bittensor network by adding
+        new subnetworks. Understanding the lock cost is essential for these users to make informed decisions about their
+         potential contributions and investments in the network.
+        """
+        return self._run_command(
+            subnets.lock_cost(self.initialize_chain(network, chain))
         )
 
     def run(self):

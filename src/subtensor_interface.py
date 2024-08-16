@@ -20,7 +20,7 @@ from src.bittensor.chain_data import (
 )
 from src.bittensor.balances import Balance
 from src import Constants, defaults, TYPE_REGISTRY
-from src.utils import ss58_to_vec_u8, format_error_message
+from src.utils import ss58_to_vec_u8, format_error_message, console
 
 
 class ParamWithTypes(TypedDict):
@@ -54,8 +54,11 @@ class SubtensorInterface:
         return f"Network: {self.network}, Chain: {self.chain_endpoint}"
 
     async def __aenter__(self):
-        async with self.substrate:
-            return self
+        with console.status(
+            f"[yellow]Connecting to Substrate:[/yellow][bold white] {self}..."
+        ):
+            async with self.substrate:
+                return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.substrate.close()

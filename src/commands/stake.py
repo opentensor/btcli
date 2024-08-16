@@ -343,7 +343,8 @@ async def add_stake_multiple_extrinsic(
         ## Reduce the amount to stake to each wallet to keep the balance above 1000 rao.
         percent_reduction = 1 - (1000 / total_staking_rao)
         new_amounts = [
-            Balance.from_tao(amount.tao * percent_reduction) for amount in cast(Sequence[Balance], new_amounts)
+            Balance.from_tao(amount.tao * percent_reduction)
+            for amount in cast(Sequence[Balance], new_amounts)
         ]
 
     successful_stakes = 0

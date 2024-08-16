@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from rich.table import Table, Column
 
 from src import Constants, DelegatesDetails
+from src.bittensor.balances import Balance
 from src.bittensor.chain_data import SubnetInfo
 from src.utils import (
     console,
@@ -92,3 +93,17 @@ async def subnets_list(subtensor: "SubtensorInterface"):
     for row in rows:
         table.add_row(*row)
     console.print(table)
+
+
+async def lock_cost(subtensor: "SubtensorInterface"):
+    """View locking cost of creating a new subnetwork"""
+    with console.status(f":satellite:Retrieving lock cost from {subtensor.network}..."):
+        lc = await subtensor.query_runtime_api(
+            runtime_api="SubnetRegistrationRuntimeApi",
+            method="get_network_registration_cost",
+            params=[],
+        )
+    if lc:
+        console.print(f"Subnet lock cost: [green]{Balance(lc)}[/green]")
+    else:
+        err_console.print("Subnet lock cost: [red]Failed to get subnet lock cost[/red]")
