@@ -888,7 +888,7 @@ class CLIManager:
 
         ### Example usage:
         ```
-        btcli wallet regen_coldkey --mnemonic "word1 word2 ... word12"
+        btcli wallet regen-coldkey --mnemonic "word1 word2 ... word12"
         ```
 
         ### Note: This command is critical for users who need to regenerate their coldkey, possibly for recovery or
@@ -961,7 +961,7 @@ class CLIManager:
             raise typer.Exit()
         return self._run_command(
             wallets.regen_coldkey_pub(
-                wallet, public_key_hex, ss58_address, overwrite_coldkeypub
+                wallet, ss58_address, public_key_hex, overwrite_coldkeypub
             )
         )
 
@@ -1077,7 +1077,7 @@ class CLIManager:
         setting up a new wallet. It's a foundational step in establishing a secure presence on the Bittensor
         network.
         """
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey, validate=False)
         n_words = get_n_words(n_words)
         return self._run_command(
             wallets.new_coldkey(wallet, n_words, use_password, overwrite_coldkey)
