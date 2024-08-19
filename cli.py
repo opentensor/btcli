@@ -28,7 +28,7 @@ class Options:
     Re-usable typer args
     """
 
-    wallet_name = typer.Option(None, "--wallet-name", "-w", help="Name of wallet")
+    wallet_name = typer.Option(None, "--wallet-name", "-w", help="Name of wallet", prompt=True)
     wallet_path = typer.Option(
         None, "--wallet-path", "-p", help="Filepath of root of wallets"
     )
@@ -56,7 +56,7 @@ class Options:
         None, "--json-password", help="Password to decrypt the json file."
     )
     use_password = typer.Option(
-        None,
+        True,
         help="Set true to protect the generated bittensor key with a password.",
         is_flag=True,
         flag_value=False,
@@ -895,7 +895,7 @@ class CLIManager:
         security reasons. It should be used with caution to avoid overwriting existing keys unintentionally.
         """
 
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey, validate=False)
         mnemonic, seed, json, json_password = get_creation_data(
             mnemonic, seed, json, json_password
         )
@@ -945,7 +945,7 @@ class CLIManager:
             corruption or loss. It is a recovery-focused utility that ensures continued access to wallet
             functionalities.
         """
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey, validate=False)
         if not ss58_address and not public_key_hex:
             prompt_answer = typer.prompt(
                 "Enter the ss58_address or the public key in hex"
