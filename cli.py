@@ -292,6 +292,8 @@ class CLIManager:
         self.subnets_app.command("hyperparameters")(self.sudo_get)
         self.subnets_app.command("list")(self.subnets_list)
         self.subnets_app.command("lock-cost")(self.subnets_lock_cost)
+        self.subnets_app.command("create")(self.subnets_create)
+        self.subnets_app.command("pow-register")(self.subnets_pow_register)
 
     def initialize_chain(
         self,
@@ -2927,6 +2929,100 @@ class CLIManager:
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             subnets.create(wallet, self.initialize_chain(network, chain))
+        )
+
+    def subnets_pow_register(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        netuid: int = Options.netuid,
+        # TODO add the following to config
+        processors: Optional[int] = typer.Option(
+            defaults.pow_register.num_processes,
+            "-processors",
+            "-p",
+            help="Number of processors to use for POW registration.",
+        ),
+        update_interval: Optional[int] = typer.Option(
+            defaults.pow_register.update_interval,
+            "-update-interval",
+            "-u",
+            help="The number of nonces to process before checking for next block during registration",
+        ),
+        output_in_place: Optional[bool] = typer.Option(
+            defaults.pow_register.output_in_place,
+            help="Whether to output the registration statistics in-place.",
+        ),
+        verbose: Optional[bool] = typer.Option(
+            defaults.pow_register.verbose,
+            "--verbose",
+            "-v",
+            help="Whether to output the registration statistics verbosely.",
+        ),
+        use_cuda: Optional[bool] = typer.Option(
+            defaults.pow_register.cuda.use_cuda,
+            "--use-cuda/--no-use-cuda",
+            "--cuda/--no-cuda",
+            help="Set flag to use CUDA to pow_register.",
+        ),
+        dev_id: Optional[int] = typer.Option(
+            defaults.pow_register.cuda.dev_id,
+            "--dev-id",
+            "-d",
+            help="Set the CUDA device id(s). Goes by the order of speed. (i.e. 0 is the fastest).",
+        ),
+        threads_per_block: Optional[int] = typer.Option(
+            defaults.pow_register.cuda.tpb,
+            "--threads-per-block",
+            "-tbp",
+            help="Set the number of Threads Per Block for CUDA.",
+        ),
+    ):
+        """
+        # subnets pow-register
+        Executes the `pow_register` command to register a neuron on the Bittensor network using Proof of Work (PoW).
+
+        This method is an alternative registration process that leverages computational work for securing a neuron's
+        place on the network.
+
+        ## Usage:
+        The command starts by verifying the existence of the specified subnet. If the subnet does not exist, it
+        terminates with an error message. On successful verification, the PoW registration process is initiated, which
+        requires solving computational puzzles.
+
+        The command also supports additional wallet and subtensor arguments, enabling further customization of the
+        registration process.
+
+        ### Example usage:
+
+        ```
+        btcli pow_register --netuid 1 --num_processes 4 --cuda
+        ```
+
+        #### Note:
+        This command is suited for users with adequate computational resources to participate in PoW registration. It
+        requires a sound understanding of the network's operations and PoW mechanics. Users should ensure their systems
+        meet the necessary hardware and software requirements, particularly when opting for CUDA-based GPU acceleration.
+
+        This command may be disabled according to the subnet owner's directive. For example, on netuid 1 this is
+        permanently disabled.
+        """
+        return self._run_command(
+            subnets.pow_register(
+                self.wallet_ask(wallet_name, wallet_path, wallet_hotkey),
+                self.initialize_chain(network, chain),
+                netuid,
+                processors,
+                update_interval,
+                output_in_place,
+                verbose,
+                use_cuda,
+                dev_id,
+                threads_per_block,
+            )
         )
 
     def run(self):

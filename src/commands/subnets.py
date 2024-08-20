@@ -8,6 +8,7 @@ from rich.table import Table, Column
 from src import Constants, DelegatesDetails
 from src.bittensor.balances import Balance
 from src.bittensor.chain_data import SubnetInfo
+from src.bittensor.extrinsics.registration import register_extrinsic
 from src.commands.wallets import set_id_prompts, set_id
 from src.utils import (
     console,
@@ -15,6 +16,7 @@ from src.utils import (
     get_delegates_details_from_github,
     millify,
     RAO_PER_TAO,
+    format_error_message,
 )
 
 if TYPE_CHECKING:
@@ -107,7 +109,9 @@ async def register_subnetwork_extrinsic(
 
             response.process_events()
             if not response.is_success:
-                err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+                err_console.print(
+                    f":cross_mark: [red]Failed[/red]: {format_error_message(response.error_message)}"
+                )
                 await asyncio.sleep(0.5)
                 return False
 
@@ -233,3 +237,37 @@ async def create(wallet: Wallet, subtensor: "SubtensorInterface"):
         if do_set_identity:
             id_prompts = set_id_prompts()
             await set_id(wallet, subtensor, *id_prompts)
+
+
+async def pow_register(
+    wallet: Wallet,
+    subtensor: "SubtensorInterface",
+    netuid,
+    processors,
+    update_interval,
+    output_in_place,
+    verbose,
+    use_cuda,
+    dev_id,
+    threads_per_block,
+):
+    """Register neuron."""
+
+    # Verify subnet exists
+    if not await subtensor.subnet_exists(netuid=netuid):
+        err_console.print(f"[red]Subnet {netuid} does not exist[/red]")
+        return
+
+    await register_extrinsic(
+        subtensor,
+        wallet=wallet,
+        netuid=netuid,
+        prompt=True,
+        tpb=threads_per_block,
+        update_interval=update_interval,
+        num_processes=processors,
+        cuda=use_cuda,
+        dev_id=dev_id,
+        output_in_place=output_in_place,
+        log_verbose=verbose,
+    )
