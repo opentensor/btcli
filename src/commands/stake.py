@@ -1523,9 +1523,7 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
 
     success, children, err_mg = await subtensor.get_children(wallet.hotkey, netuid)
     if not success:
-        err_console.print(
-            f"Failed to get children from subtensor: {err_mg}"
-        )
+        err_console.print(f"Failed to get children from subtensor: {err_mg}")
     await render_table(wallet.hotkey, children, netuid)
 
     return children

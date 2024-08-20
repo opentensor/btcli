@@ -192,7 +192,7 @@ def test_wallet_creations():
     # Command 1: <btcli w create>
     # -----------------------------
 
-    logging.info("Testing wallet create command")    
+    logging.info("Testing wallet create command")
     # Create a new wallet (coldkey + hotkey)
     exec_command(
         command="wallet",
@@ -232,9 +232,9 @@ def test_wallet_creations():
     # -----------------------------
     # Command 2: <btcli w new_coldkey>
     # -----------------------------
-    
+
     logging.info("Testing wallet new_coldkey command")
-    
+
     # Create a new wallet (coldkey)
     exec_command(
         "wallet",
@@ -451,4 +451,3 @@ def test_wallet_regen():
     assert (
         initial_hotkey_mod_time != new_hotkey_mod_time
     ), "Hotkey file was not regenerated as expected"
-

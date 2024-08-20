@@ -1049,9 +1049,13 @@ def _partial_decode(args):
     :return: (original netuid, decoded object)
     """
     return_type, as_scale_bytes, custom_rpc_type_registry_, netuid_ = args
-    return netuid_, decode_scale_bytes(
-        return_type, as_scale_bytes, custom_rpc_type_registry_
-    )
+    decoded = decode_scale_bytes(return_type, as_scale_bytes, custom_rpc_type_registry_)
+    if decoded.startswith("0x"):
+        bytes_result = bytes.fromhex(decoded[2:])
+    else:
+        bytes_result = bytes.fromhex(decoded)
+
+    return netuid_, NeuronInfoLite.list_from_vec_u8(bytes_result)
 
 
 def _process_neurons_for_netuids(
@@ -1074,18 +1078,11 @@ def _process_neurons_for_netuids(
         "get_neurons_lite"
     ]["type"]
 
-    all_results = []
     preprocessed = [make_map(r) for r in netuids_with_all_neurons_hex_bytes]
     with ProcessPoolExecutor() as executor:
-        results = executor.map(_partial_decode, preprocessed)
-        for netuid, result in results:
-            all_results.append(
-                (
-                    netuid,
-                    list(results),
-                )
-            )
+        results = list(executor.map(_partial_decode, preprocessed))
 
+    all_results = [(netuid, result) for netuid, result in results]
     return all_results
 
 
@@ -1132,20 +1129,22 @@ async def _get_de_registered_stake_for_coldkey_wallet(
             hotkey_ss58=stake_info.hotkey_ss58, reuse_block=True
         )
 
-    all_staked_hotkeys = (
-        x for x in all_stake_info_for_coldkey if await _filter_stake_info(x)
+    all_staked = await asyncio.gather(
+        *[_filter_stake_info(stake_info) for stake_info in all_stake_info_for_coldkey]
     )
 
-    # List of (hotkey_addr, our_stake) tuples.
-    result = [
-        (
-            stake_info.hotkey_ss58,
-            stake_info.stake.tao,
-        )  # stake is a Balance object
-        for stake_info in all_staked_hotkeys
-    ]
+    # Collecting all filtered stake info using async for loop
+    all_staked_hotkeys = []
+    for stake_info, staked in zip(all_stake_info_for_coldkey, all_staked):
+        if staked:
+            all_staked_hotkeys.append(
+                (
+                    stake_info.hotkey_ss58,
+                    stake_info.stake.tao,
+                )
+            )
 
-    return coldkey_wallet, result, None
+    return coldkey_wallet, all_staked_hotkeys, None
 
 
 async def transfer(
@@ -1182,7 +1181,9 @@ async def inspect(
                 + [""] * 4
             )
 
-    def neuron_row_maker(wallet_, all_netuids_, nsd) -> Generator[list[str], None, None]:
+    def neuron_row_maker(
+        wallet_, all_netuids_, nsd
+    ) -> Generator[list[str], None, None]:
         hotkeys = get_hotkey_wallets_for_wallet(wallet_)
         for netuid in all_netuids_:
             for n in nsd[netuid]:

@@ -29,7 +29,9 @@ class Options:
     """
 
     wallet_name = typer.Option(None, "--wallet-name", "-w", help="Name of wallet")
-    wallet_name_req = typer.Option(None, "--wallet-name", "-w", help="Name of wallet", prompt=True)
+    wallet_name_req = typer.Option(
+        None, "--wallet-name", "-w", help="Name of wallet", prompt=True
+    )
     wallet_path = typer.Option(
         None, "--wallet-path", "-p", help="Filepath of root of wallets"
     )
@@ -896,7 +898,9 @@ class CLIManager:
         security reasons. It should be used with caution to avoid overwriting existing keys unintentionally.
         """
 
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey, validate=False)
+        wallet = self.wallet_ask(
+            wallet_name, wallet_path, wallet_hotkey, validate=False
+        )
         mnemonic, seed, json, json_password = get_creation_data(
             mnemonic, seed, json, json_password
         )
@@ -946,7 +950,9 @@ class CLIManager:
             corruption or loss. It is a recovery-focused utility that ensures continued access to wallet
             functionalities.
         """
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey, validate=False)
+        wallet = self.wallet_ask(
+            wallet_name, wallet_path, wallet_hotkey, validate=False
+        )
         if not ss58_address and not public_key_hex:
             prompt_answer = typer.prompt(
                 "Enter the ss58_address or the public key in hex"
@@ -1078,7 +1084,9 @@ class CLIManager:
         setting up a new wallet. It's a foundational step in establishing a secure presence on the Bittensor
         network.
         """
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey, validate=False)
+        wallet = self.wallet_ask(
+            wallet_name, wallet_path, wallet_hotkey, validate=False
+        )
         n_words = get_n_words(n_words)
         return self._run_command(
             wallets.new_coldkey(wallet, n_words, use_password, overwrite_coldkey)
@@ -1200,7 +1208,7 @@ class CLIManager:
         btcli w balance --all
         ```
         """
-        subtensor=self.initialize_chain(network, chain)
+        subtensor = self.initialize_chain(network, chain)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             wallets.wallet_balance(wallet, subtensor, all_balances)
