@@ -1151,9 +1151,10 @@ async def _get_de_registered_stake_for_coldkey_wallet(
 async def transfer(
     wallet: Wallet, subtensor: SubtensorInterface, destination: str, amount: float
 ):
+    # To:do - work out prompts to be passed through the cli
     """Transfer token of amount to destination."""
     await transfer_extrinsic(
-        subtensor, wallet, destination, Balance.from_tao(amount), prompt=True
+        subtensor, wallet, destination, Balance.from_tao(amount), prompt=False
     )
 
 
@@ -1165,7 +1166,7 @@ async def inspect(
 ):
     def delegate_row_maker(
         delegates_: list[tuple[DelegateInfo, Balance]],
-    ) -> Generator[list[str]]:
+    ) -> Generator[list[str], None, None]:
         for d_, staked in delegates_:
             if d_.hotkey_ss58 in registered_delegate_info:
                 delegate_name = registered_delegate_info[d_.hotkey_ss58].name
@@ -1181,7 +1182,7 @@ async def inspect(
                 + [""] * 4
             )
 
-    def neuron_row_maker(wallet_, all_netuids_, nsd) -> Generator[list[str]]:
+    def neuron_row_maker(wallet_, all_netuids_, nsd) -> Generator[list[str], None, None]:
         hotkeys = get_hotkey_wallets_for_wallet(wallet_)
         for netuid in all_netuids_:
             for n in nsd[netuid]:

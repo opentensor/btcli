@@ -5,11 +5,12 @@ import shutil
 import subprocess
 import sys
 from typing import List
-
+import typer
 import pytest
 from bittensor_wallet import Wallet
 from substrateinterface import Keypair
-
+from btcli.cli import CLIManager
+from typer.testing import CliRunner
 template_path = os.getcwd() + "/neurons/"
 templates_repo = "templates repository"
 
@@ -23,28 +24,14 @@ def setup_wallet(uri: str):
     wallet.set_hotkey(keypair=keypair, encrypt=False, overwrite=True)
 
     def exec_command(command: str, sub_command: str, extra_args: List[str] = []):
-        cli_path = os.getenv("BTCLI_PATH")  
-        if not (cli_path and os.path.isfile(cli_path)):
-            pytest.skip("cli.py not found. Set the BTCLI_PATH environment variable")
-
+        cli_manager = CLIManager()
+        runner = CliRunner()
         # Prepare the command arguments
         args = [
-            sys.executable,  # This ensures the correct Python interpreter is used
-            cli_path,
             command,
             sub_command,
         ] + extra_args
-
-        # Run the command using subprocess
-        result = None
-        try:
-            result = subprocess.run(args, check=True, capture_output=True, text=True)
-        except subprocess.CalledProcessError as e:
-            # Handle errors in execution
-            print(f"Command failed with error: {e.stderr}")
-            result = e
-            
-
+        result = runner.invoke(cli_manager.app, args, env={"COLUMNS": "1000"})
         return result
 
     return keypair, wallet, wallet_path, exec_command

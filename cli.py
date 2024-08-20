@@ -28,7 +28,8 @@ class Options:
     Re-usable typer args
     """
 
-    wallet_name = typer.Option(None, "--wallet-name", "-w", help="Name of wallet", prompt=True)
+    wallet_name = typer.Option(None, "--wallet-name", "-w", help="Name of wallet")
+    wallet_name_req = typer.Option(None, "--wallet-name", "-w", help="Name of wallet", prompt=True)
     wallet_path = typer.Option(
         None, "--wallet-path", "-p", help="Filepath of root of wallets"
     )
@@ -655,9 +656,9 @@ class CLIManager:
         destination address and amount before confirming the transaction to avoid errors or loss of funds.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        self.initialize_chain(network, chain)
+        subtensor = self.initialize_chain(network, chain)
         return self._run_command(
-            wallets.transfer(wallet, self.not_subtensor, destination, amount)
+            wallets.transfer(wallet, subtensor, destination, amount)
         )
 
     def wallet_swap_hotkey(
@@ -1015,7 +1016,7 @@ class CLIManager:
 
     def wallet_new_hotkey(
         self,
-        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_name: Optional[str] = Options.wallet_name_req,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         n_words: Optional[int] = None,
@@ -1112,7 +1113,7 @@ class CLIManager:
 
     def wallet_create_wallet(
         self,
-        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_name: Optional[str] = Options.wallet_name_req,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         n_words: Optional[int] = None,
@@ -1199,7 +1200,7 @@ class CLIManager:
         btcli w balance --all
         ```
         """
-        subtensor = SubtensorInterface(network, chain)
+        subtensor=self.initialize_chain(network, chain)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             wallets.wallet_balance(wallet, subtensor, all_balances)

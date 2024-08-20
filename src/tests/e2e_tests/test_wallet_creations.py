@@ -247,6 +247,7 @@ def test_wallet_creations():
             wallet_path,
             "--n-words",
             "12",
+            "--no-use-password",
         ],
     )
 
@@ -281,6 +282,7 @@ def test_wallet_creations():
             wallet_path,
             "--n-words",
             "12",
+            "--no-use-password",
         ],
     )
 
@@ -437,6 +439,7 @@ def test_wallet_regen():
             "--mnemonic",
             mnemonics["hotkey"],
             "--overwrite-hotkey",
+            "--no-use-password",
         ],
     )
 
@@ -448,3 +451,4 @@ def test_wallet_regen():
     assert (
         initial_hotkey_mod_time != new_hotkey_mod_time
     ), "Hotkey file was not regenerated as expected"
+
