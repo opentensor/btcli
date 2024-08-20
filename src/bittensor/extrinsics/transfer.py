@@ -110,8 +110,12 @@ async def transfer_extrinsic(
     # Check balance.
     with console.status(":satellite: Checking balance and fees..."):
         # check existential deposit and fee
-        account_balance = await subtensor.get_balance(wallet.coldkey.ss58_address)
-        existential_deposit = await subtensor.get_existential_deposit(reuse_block=True)
+        block_hash = await subtensor.substrate.get_chain_head()
+        account_balance_, existential_deposit = await asyncio.gather(
+            subtensor.get_balance(wallet.coldkey.ss58_address, block_hash=block_hash),
+            subtensor.get_existential_deposit(block_hash=block_hash),
+        )
+        account_balance = account_balance_[wallet.coldkey.ss58_address]
         fee = await get_transfer_fee()
 
     if not keep_alive:
@@ -119,8 +123,7 @@ async def transfer_extrinsic(
         existential_deposit = Balance(0)
 
     # Check if we have enough balance.
-    # Temp: See if there is a better way.
-    if list(account_balance.values())[0] < (amount + fee + existential_deposit):
+    if account_balance < (amount + fee + existential_deposit):
         err_console.print(
             ":cross_mark: [red]Not enough balance[/red]:[bold white]\n"
             f"  balance: {account_balance}\n"
@@ -166,7 +169,7 @@ async def transfer_extrinsic(
             )
             console.print(
                 f"Balance:\n"
-                f"  [blue]{account_balance}[/blue] :arrow_right: [green]{new_balance}[/green]"
+                f"  [blue]{account_balance[wallet.coldkey.ss58_address]}[/blue] :arrow_right: [green]{new_balance[wallet.coldkey.ss58_address]}[/green]"
             )
             return True
 

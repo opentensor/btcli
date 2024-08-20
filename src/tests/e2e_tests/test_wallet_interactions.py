@@ -2,7 +2,7 @@ import re
 
 from btcli.src.bittensor.balances import Balance
 
-from .utils import setup_wallet
+from .utils import setup_wallet, extract_coldkey_balance
 
 """
 Verify commands:
@@ -10,29 +10,6 @@ Verify commands:
 * btcli w balance
 * btcli w transfer
 """
-
-
-def extract_coldkey_balance(text: str) -> float:
-    """
-    Extracts the last final τ balance from the given string.
-
-    This function uses a regular expression to find all τ amounts in the string
-    and returns the last (rightmost) balance as a float.
-
-    Args:
-        text (str): The input string containing τ amounts.
-    Returns:
-        float: The last τ amount found in the string, converted to a float.
-                Returns 0.0 if no amount is found.
-    """
-    pattern = r"τ([\d,]+\.\d+)"
-    matches = re.findall(pattern, text)
-
-    if matches:
-        last_amount = matches[-1]
-        return float(last_amount.replace(",", ""))
-    else:
-        return 0.0
 
 
 def test_wallet_interactions(local_chain):
