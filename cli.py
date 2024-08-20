@@ -323,7 +323,7 @@ class CLIManager:
 
     def _run_command(self, cmd: Coroutine) -> None:
         """
-        Runs the supplied coroutine with asyncio.run
+        Runs the supplied coroutine with `asyncio.run`
         """
 
         async def _run():
