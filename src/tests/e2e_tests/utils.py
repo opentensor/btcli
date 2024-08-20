@@ -5,12 +5,13 @@ import shutil
 import subprocess
 import sys
 from typing import List
-import typer
-import pytest
+
 from bittensor_wallet import Wallet
 from substrateinterface import Keypair
-from btcli.cli import CLIManager
 from typer.testing import CliRunner
+
+from btcli.cli import CLIManager
+
 template_path = os.getcwd() + "/neurons/"
 templates_repo = "templates repository"
 
