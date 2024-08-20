@@ -1345,11 +1345,10 @@ class CLIManager:
         part of other scripts or applications.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        self.initialize_chain(network, chain)
         return self._run_command(
             wallets.set_id(
                 wallet,
-                self.not_subtensor,
+                self.initialize_chain(network, chain),
                 display_name,
                 legal_name,
                 web_url,
@@ -2868,6 +2867,66 @@ class CLIManager:
         """
         return self._run_command(
             subnets.lock_cost(self.initialize_chain(network, chain))
+        )
+
+    def subnets_create(
+        self,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        network: str = Options.network,
+        chain: str = Options.chain,
+    ):
+        """
+        # subnets create
+        Executes the `create` command to register a new subnetwork on the Bittensor network.
+
+        This command facilitates the creation and registration of a subnetwork, which involves interaction with the
+        user's wallet and the Bittensor subtensor. It ensures that the user has the necessary credentials and
+        configurations to successfully register a new subnetwork.
+
+        ## Usage:
+        Upon invocation, the command performs several key steps to register a subnetwork:
+
+        1. It copies the user's current configuration settings.
+
+        2. It accesses the user's wallet using the provided configuration.
+
+        3. It initializes the Bittensor subtensor object with the user's configuration.
+
+        4. It then calls the `create` function of the subtensor object, passing the user's wallet and a prompt setting
+        based on the user's configuration.
+
+
+        If the user's configuration does not specify a wallet name and `no_prompt` is not set, the command will prompt
+        the user to enter a wallet name. This name is then used in the registration process.
+
+        The command structure includes:
+
+        - Copying the user's configuration.
+
+        - Accessing and preparing the user's wallet.
+
+        - Initializing the Bittensor subtensor.
+
+        - Registering the subnetwork with the necessary credentials.
+
+
+        ### Example usage:
+
+        ```
+        btcli subnets create
+        ```
+
+        #### Note:
+        This command is intended for advanced users of the Bittensor network who wish to contribute by adding new
+        subnetworks. It requires a clear understanding of the network's functioning and the roles of subnetworks. Users
+        should ensure that they have secured their wallet and are aware of the implications of adding a new subnetwork
+        to the Bittensor ecosystem.
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        return self._run_command(
+            subnets.create(wallet, self.initialize_chain(network, chain))
         )
 
     def run(self):
