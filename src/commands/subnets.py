@@ -9,6 +9,7 @@ from src import Constants, DelegatesDetails
 from src.bittensor.balances import Balance
 from src.bittensor.chain_data import SubnetInfo
 from src.bittensor.extrinsics.registration import register_extrinsic
+from src.commands.root import burned_register_extrinsic
 from src.commands.wallets import set_id_prompts, set_id
 from src.utils import (
     console,
@@ -270,4 +271,52 @@ async def pow_register(
         dev_id=dev_id,
         output_in_place=output_in_place,
         log_verbose=verbose,
+    )
+
+
+async def register(wallet: Wallet, subtensor: "SubtensorInterface", netuid: int):
+    """Register neuron by recycling some TAO."""
+
+    # Verify subnet exists
+    block_hash = await subtensor.substrate.get_chain_head()
+    if not await subtensor.subnet_exists(netuid=netuid, block_hash=block_hash):
+        err_console.print(f"[red]Subnet {netuid} does not exist[/red]")
+        return
+
+    # Check current recycle amount
+    current_recycle_, balance_ = await asyncio.gather(
+        subtensor.get_hyperparameter(
+            param_name="Burn", netuid=netuid, block_hash=block_hash
+        ),
+        subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash=block_hash),
+    )
+    current_recycle = (
+        Balance.from_rao(int(current_recycle_)) if current_recycle_ else Balance(0)
+    )
+    balance = balance_[wallet.coldkeypub.ss58_address]
+
+    # Check balance is sufficient
+    if balance < current_recycle:
+        err_console.print(
+            f"[red]Insufficient balance {balance} to register neuron. Current recycle is {current_recycle} TAO[/red]"
+        )
+        return
+
+    if not False:  # TODO no-prompt
+        if not (
+            Confirm.ask(
+                f"Your balance is: [bold green]{balance}[/bold green]\nThe cost to register by recycle is "
+                f"[bold red]{current_recycle}[/bold red]\nDo you want to continue?",
+                default=False,
+            )
+        ):
+            return
+
+    await burned_register_extrinsic(
+        subtensor,
+        wallet=wallet,
+        netuid=netuid,
+        prompt=True,
+        recycle_amount=current_recycle,
+        old_balance=balance,
     )

@@ -294,6 +294,7 @@ class CLIManager:
         self.subnets_app.command("lock-cost")(self.subnets_lock_cost)
         self.subnets_app.command("create")(self.subnets_create)
         self.subnets_app.command("pow-register")(self.subnets_pow_register)
+        self.subnets_app.command("register")(self.subnets_register)
 
     def initialize_chain(
         self,
@@ -3022,6 +3023,64 @@ class CLIManager:
                 use_cuda,
                 dev_id,
                 threads_per_block,
+            )
+        )
+
+    def subnets_register(
+        self,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hk_req,
+        chain: str = Options.chain,
+        network: str = Options.network,
+        netuid: int = Options.netuid,
+    ):
+        """
+        # subnets register
+        Executes the `register` command to register a neuron on the Bittensor network by recycling some TAO (the
+        network's native token).
+
+        This command is used to add a new neuron to a specified subnet within the network, contributing to the
+        decentralization and robustness of Bittensor.
+
+        ## Usage:
+        Before registering, the command checks if the specified subnet exists and whether the user's balance is
+        sufficient to cover the registration cost.
+
+        The registration cost is determined by the current recycle amount for the specified subnet. If the balance is
+        insufficient or the subnet does not exist, the command will exit with an appropriate error message.
+
+        If the preconditions are met, and the user confirms the transaction (if `no_prompt` is not set), the command
+        proceeds to register the neuron by recycling the required amount of TAO.
+
+        The command structure includes:
+
+        - Verification of subnet existence.
+        - Checking the user's balance against the current recycle amount for the subnet.
+        - User confirmation prompt for proceeding with registration.
+        - Execution of the registration process.
+
+        Columns Displayed in the confirmation prompt:
+
+        - Balance: The current balance of the user's wallet in TAO.
+        - Cost to Register: The required amount of TAO needed to register on the specified subnet.
+
+        ### Example usage:
+
+        ```
+        btcli subnets register --netuid 1
+        ```
+
+        #### Note:
+        This command is critical for users who wish to contribute a new neuron to the network. It requires careful
+        consideration of the subnet selection and an understanding of the registration costs. Users should ensure their
+        wallet is sufficiently funded before attempting to register a neuron.
+        """
+        return self._run_command(
+            subnets.register(
+                self.wallet_ask(wallet_name, wallet_path, wallet_hotkey),
+                self.initialize_chain(network, chain),
+                netuid,
             )
         )
 
