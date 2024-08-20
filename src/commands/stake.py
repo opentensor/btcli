@@ -2,7 +2,7 @@ import asyncio
 import copy
 from contextlib import suppress
 from math import floor
-from typing import TYPE_CHECKING, Union, Optional
+from typing import TYPE_CHECKING, Union, Optional, Sequence, cast
 
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm
@@ -300,7 +300,7 @@ async def add_stake_multiple_extrinsic(
     if amounts is not None and len(amounts) != len(hotkey_ss58s):
         raise ValueError("amounts must be a list of the same length as hotkey_ss58s")
 
-    new_amounts: list[Optional[Balance]]
+    new_amounts: Sequence[Optional[Balance]]
     if amounts is None:
         new_amounts = [None] * len(hotkey_ss58s)
     else:
@@ -343,7 +343,8 @@ async def add_stake_multiple_extrinsic(
         ## Reduce the amount to stake to each wallet to keep the balance above 1000 rao.
         percent_reduction = 1 - (1000 / total_staking_rao)
         new_amounts = [
-            Balance.from_tao(amount.tao * percent_reduction) for amount in new_amounts
+            Balance.from_tao(amount.tao * percent_reduction)
+            for amount in cast(Sequence[Balance], new_amounts)
         ]
 
     successful_stakes = 0
@@ -638,12 +639,12 @@ async def unstake_multiple_extrinsic(
             "amounts must be a [list of bittensor.Balance or float] or None"
         )
 
-    new_amounts: list[Optional[Balance]]
+    new_amounts: Sequence[Optional[Balance]]
     if amounts is None:
         new_amounts = [None] * len(hotkey_ss58s)
     else:
         new_amounts = amounts
-        if sum(amount.tao for amount in new_amounts) == 0:
+        if sum(amount.tao for amount in cast(Sequence[Balance], new_amounts)) == 0:
             # Staking 0 tao
             return True
 
@@ -1028,7 +1029,7 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
                 stake, "value", None
             ) else Balance(0)
 
-        hotkeys = get_hotkey_wallets_for_wallet(wallet_)
+        hotkeys = cast(list[Wallet], get_hotkey_wallets_for_wallet(wallet_))
         stakes = {}
         query = await asyncio.gather(
             *[get_emissions_and_stake(hot.hotkey.ss58_address) for hot in hotkeys]
@@ -1089,13 +1090,13 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
         block_hash_ = await subtensor.substrate.get_chain_head()
         accounts = await get_all_wallet_accounts(block_hash=block_hash_)
 
-    total_stake = 0
-    total_balance = 0
-    total_rate = 0
+    total_stake: float = 0.0
+    total_balance: float = 0.0
+    total_rate: float = 0.0
     for acc in accounts:
-        total_balance += acc["balance"].tao
-        for key, value in acc["accounts"].items():
-            total_stake += value["stake"].tao
+        total_balance += cast(Balance, acc["balance"]).tao
+        for key, value in cast(dict, acc["accounts"]).items():
+            total_stake += cast(Balance, value["stake"]).tao
             total_rate += float(value["rate"])
     table = Table(
         Column(
@@ -1126,8 +1127,8 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
         expand=False,
     )
     for acc in accounts:
-        table.add_row(acc["name"], acc["balance"], "", "")
-        for key, value in acc["accounts"].items():
+        table.add_row(cast(str, acc["name"]), cast(Balance, acc["balance"]), "", "")
+        for key, value in cast(dict, acc["accounts"]).items():
             table.add_row(
                 "", "", value["name"], value["stake"], str(value["rate"]) + "/d"
             )

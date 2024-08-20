@@ -1,3 +1,4 @@
+import asyncio
 import binascii
 from contextlib import redirect_stdout
 from dataclasses import dataclass
@@ -425,6 +426,224 @@ class MaxAttemptsException(Exception):
     """
     Raised when the POW Solver has reached the max number of attempts
     """
+
+
+async def is_hotkey_registered(
+    subtensor: "SubtensorInterface", netuid: int, hotkey_ss58: str
+) -> bool:
+    """Checks to see if the hotkey is registered on a given netuid"""
+    _result = await subtensor.substrate.query(
+        module="SubtensorModule",
+        storage_function="Uids",
+        params=[netuid, hotkey_ss58],
+    )
+    if getattr(_result, "value", None):
+        return True
+    else:
+        return False
+
+
+async def register_extrinsic(
+    subtensor: "SubtensorInterface",
+    wallet: Wallet,
+    netuid: int,
+    wait_for_inclusion: bool = False,
+    wait_for_finalization: bool = True,
+    prompt: bool = False,
+    max_allowed_attempts: int = 3,
+    output_in_place: bool = True,
+    cuda: bool = False,
+    dev_id: typing.Union[list[int], int] = 0,
+    tpb: int = 256,
+    num_processes: Optional[int] = None,
+    update_interval: Optional[int] = None,
+    log_verbose: bool = False,
+) -> bool:
+    """Registers the wallet to the chain.
+
+    :param subtensor: initialized SubtensorInterface object to use for chain interactions
+    :param wallet: Bittensor wallet object.
+    :param netuid: The ``netuid`` of the subnet to register on.
+    :param wait_for_inclusion: If set, waits for the extrinsic to enter a block before returning `True`, or returns
+                               `False` if the extrinsic fails to enter the block within the timeout.
+    :param wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `True`,
+                                 or returns `False` if the extrinsic fails to be finalized within the timeout.
+    :param prompt: If `True`, the call waits for confirmation from the user before proceeding.
+    :param max_allowed_attempts: Maximum number of attempts to register the wallet.
+    :param output_in_place: Whether the POW solving should be outputted to the console as it goes along.
+    :param cuda: If `True`, the wallet should be registered using CUDA device(s).
+    :param dev_id: The CUDA device id to use, or a list of device ids.
+    :param tpb: The number of threads per block (CUDA).
+    :param num_processes: The number of processes to use to register.
+    :param update_interval: The number of nonces to solve between updates.
+    :param log_verbose: If `True`, the registration process will log more information.
+
+    :return: `True` if extrinsic was finalized or included in the block. If we did not wait for finalization/inclusion,
+             the response is `True`.
+    """
+    if not subtensor.subnet_exists(netuid):
+        err_console.print(
+            f":cross_mark: [red]Failed[/red]: error: [bold white]subnet:{netuid}[/bold white] does not exist."
+        )
+        return False
+
+    with console.status(
+        f":satellite: Checking Account on [bold]subnet:{netuid}[/bold]..."
+    ):
+        neuron = subtensor.get_neuron_for_pubkey_and_subnet(
+            wallet.hotkey.ss58_address, netuid=netuid
+        )
+        if not neuron.is_null:
+            # bittensor.logging.debug(
+            #     f"Wallet {wallet} is already registered on {neuron.netuid} with {neuron.uid}"
+            # )
+            return True
+
+    if prompt:
+        if not Confirm.ask(
+            f"Continue Registration?\n"
+            f"  hotkey:\t[bold white]{wallet.hotkey.ss58_address}[/bold white]\n"
+            f"  coldkey:\t[bold white]{wallet.coldkeypub.ss58_address}[/bold white]\n"
+            f"  network:\t[bold white]{subtensor.network}[/bold white]"
+        ):
+            return False
+
+    if not torch:
+        log_no_torch_error()
+        return False
+
+    # Attempt rolling registration.
+    attempts = 1
+    pow_result: Optional[POWSolution]
+    while True:
+        console.print(
+            ":satellite: Registering...({}/{})".format(attempts, max_allowed_attempts)
+        )
+        # Solve latest POW.
+        if cuda:
+            if not torch.cuda.is_available():
+                if prompt:
+                    console.print("CUDA is not available.")
+                return False
+            pow_result = await create_pow(
+                subtensor,
+                wallet,
+                netuid,
+                output_in_place,
+                cuda=cuda,
+                dev_id=dev_id,
+                tpb=tpb,
+                num_processes=num_processes,
+                update_interval=update_interval,
+                log_verbose=log_verbose,
+            )
+        else:
+            pow_result = await create_pow(
+                subtensor,
+                wallet,
+                netuid,
+                output_in_place,
+                cuda=cuda,
+                num_processes=num_processes,
+                update_interval=update_interval,
+                log_verbose=log_verbose,
+            )
+
+        # pow failed
+        if not pow_result:
+            # might be registered already on this subnet
+            is_registered = await is_hotkey_registered(
+                subtensor, netuid=netuid, hotkey_ss58=wallet.hotkey.ss58_address
+            )
+            if is_registered:
+                err_console.print(
+                    f":white_heavy_check_mark: [green]Already registered on netuid:{netuid}[/green]"
+                )
+                return True
+
+        # pow successful, proceed to submit pow to chain for registration
+        else:
+            with console.status(":satellite: Submitting POW..."):
+                # check if pow result is still valid
+                while not await pow_result.is_stale(subtensor=subtensor):
+                    call = await subtensor.substrate.compose_call(
+                        call_module="SubtensorModule",
+                        call_function="register",
+                        call_params={
+                            "netuid": netuid,
+                            "block_number": pow_result.block_number,
+                            "nonce": pow_result.nonce,
+                            "work": [int(byte_) for byte_ in pow_result.seal],
+                            "hotkey": wallet.hotkey.ss58_address,
+                            "coldkey": wallet.coldkeypub.ss58_address,
+                        },
+                    )
+                    extrinsic = await subtensor.substrate.create_signed_extrinsic(
+                        call=call, keypair=wallet.hotkey
+                    )
+                    response = await subtensor.substrate.submit_extrinsic(
+                        extrinsic,
+                        wait_for_inclusion=wait_for_inclusion,
+                        wait_for_finalization=wait_for_finalization,
+                    )
+                    if not wait_for_finalization and not wait_for_inclusion:
+                        success, err_msg = True, ""
+                    else:
+                        response.process_events()
+                        if not response.is_success:
+                            success, err_msg = (
+                                False,
+                                format_error_message(response.error_message),
+                            )
+
+                    if not success:
+                        # Look error here
+                        # https://github.com/opentensor/subtensor/blob/development/pallets/subtensor/src/errors.rs
+                        if "HotKeyAlreadyRegisteredInSubNet" in err_msg:
+                            console.print(
+                                f":white_heavy_check_mark: [green]Already Registered on "
+                                f"[bold]subnet:{netuid}[/bold][/green]"
+                            )
+                            return True
+
+                        err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+                        await asyncio.sleep(0.5)
+
+                    # Successful registration, final check for neuron and pubkey
+                    else:
+                        console.print(":satellite: Checking Balance...")
+                        is_registered = await is_hotkey_registered(
+                            subtensor,
+                            netuid=netuid,
+                            hotkey_ss58=wallet.hotkey.ss58_address,
+                        )
+                        if is_registered:
+                            console.print(
+                                ":white_heavy_check_mark: [green]Registered[/green]"
+                            )
+                            return True
+                        else:
+                            # neuron not found, try again
+                            err_console.print(
+                                ":cross_mark: [red]Unknown error. Neuron not found.[/red]"
+                            )
+                            continue
+                else:
+                    # Exited loop because pow is no longer valid.
+                    err_console.print("[red]POW is stale.[/red]")
+                    # Try again.
+                    continue
+
+        if attempts < max_allowed_attempts:
+            # Failed registration, retry pow
+            attempts += 1
+            err_console.print(
+                ":satellite: Failed registration, retrying pow ...({attempts}/{max_allowed_attempts})"
+            )
+        else:
+            # Failed to register after max attempts.
+            err_console.print("[red]No more attempts.[/red]")
+            return False
 
 
 async def run_faucet_extrinsic(

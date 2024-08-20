@@ -15,7 +15,7 @@ from websockets import ConnectionClosed
 from yaml import safe_load, safe_dump
 
 from src import defaults, utils, HYPERPARAMS
-from src.commands import wallets, root, stake, sudo
+from src.commands import wallets, root, stake, sudo, subnets
 from src.subtensor_interface import SubtensorInterface
 from src.bittensor.async_substrate_interface import SubstrateRequestException
 from src.utils import console, err_console
@@ -166,6 +166,7 @@ class CLIManager:
     :var root_app: the Typer app as it relates to root commands
     :var stake_app: the Typer app as it relates to stake commands
     :var sudo_app: the Typer app as it relates to sudo commands
+    :var subnets_app: the Typer app as it relates to subnets commands
     :var not_subtensor: the `SubtensorInterface` object passed to the various commands that require it
     """
 
@@ -191,6 +192,7 @@ class CLIManager:
         self.root_app = typer.Typer()
         self.stake_app = typer.Typer()
         self.sudo_app = typer.Typer()
+        self.subnets_app = typer.Typer()
 
         # config alias
         self.app.add_typer(
@@ -233,6 +235,11 @@ class CLIManager:
             short_help="Sudo commands, alias: `su`",
         )
         self.app.add_typer(self.sudo_app, name="su", hidden=True)
+
+        # subnets aliases
+        self.app.add_typer(
+            self.subnets_app, name="subnets", short_help="Subnets commands"
+        )
 
         # config commands
         self.config_app.command("set")(self.set_config)
@@ -285,12 +292,17 @@ class CLIManager:
         self.sudo_app.command("get")(self.sudo_get)
 
         # subnets commands
-        # self.subnets_app.command("hyperparameters")(self.sudo_get)
+        self.subnets_app.command("hyperparameters")(self.sudo_get)
+        self.subnets_app.command("list")(self.subnets_list)
+        self.subnets_app.command("lock-cost")(self.subnets_lock_cost)
+        self.subnets_app.command("create")(self.subnets_create)
+        self.subnets_app.command("pow-register")(self.subnets_pow_register)
+        self.subnets_app.command("register")(self.subnets_register)
 
     def initialize_chain(
         self,
-        network: Optional[str] = typer.Option("default_network", help="Network name"),
-        chain: Optional[str] = typer.Option("default_chain", help="Chain name"),
+        network: Optional[str] = None,
+        chain: Optional[str] = None,
     ) -> SubtensorInterface:
         """
         Intelligently initializes a connection to the chain, depending on the supplied (or in config) values. Set's the
@@ -310,12 +322,11 @@ class CLIManager:
                 self.not_subtensor = SubtensorInterface(
                     defaults.subtensor.network, defaults.subtensor.chain_endpoint
                 )
-        console.print(f"[yellow] Connected to [/yellow][white]{self.not_subtensor}")
         return self.not_subtensor
 
     def _run_command(self, cmd: Coroutine) -> None:
         """
-        Runs the supplied coroutine with asyncio.run
+        Runs the supplied coroutine with `asyncio.run`
         """
 
         async def _run():
@@ -1346,11 +1357,10 @@ class CLIManager:
         part of other scripts or applications.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        self.initialize_chain(network, chain)
         return self._run_command(
             wallets.set_id(
                 wallet,
-                self.not_subtensor,
+                self.initialize_chain(network, chain),
                 display_name,
                 legal_name,
                 web_url,
@@ -2762,6 +2772,325 @@ class CLIManager:
         """
         return self._run_command(
             sudo.get_hyperparameters(self.initialize_chain(network, chain), netuid)
+        )
+
+    def subnets_list(self, network: str = Options.network, chain: str = Options.chain):
+        """
+        # subnets list
+        Executes the `list` command to list all subnets and their detailed information on the Bittensor network.
+
+        This command is designed to provide users with comprehensive information about each subnet within the
+        network, including its unique identifier (netuid), the number of neurons, maximum neuron capacity,
+        emission rate, tempo, recycle register cost (burn), proof of work (PoW) difficulty, and the name or
+        SS58 address of the subnet owner.
+
+        ## Usage:
+
+        Upon invocation, the command performs the following actions:
+
+        1. It initializes the Bittensor subtensor object with the user's configuration.
+
+        2. It retrieves a list of all subnets in the network along with their detailed information.
+
+        3. The command compiles this data into a table format, displaying key information about each subnet.
+
+
+        In addition to the basic subnet details, the command also fetches delegate information to provide the
+        name of the subnet owner where available. If the owner's name is not available, the owner's ``SS58``
+        address is displayed.
+
+        The command structure includes:
+
+        - Initializing the Bittensor subtensor and retrieving subnet information.
+
+        - Calculating the total number of neurons across all subnets.
+
+        - Constructing a table that includes columns for `NETUID`, `N` (current neurons), `MAX_N`
+        (maximum neurons), `EMISSION`, `TEMPO`, `BURN`, `POW` (proof of work difficulty), and
+        `SUDO` (owner's name or `SS58` address).
+
+        - Displaying the table with a footer that summarizes the total number of subnets and neurons.
+
+
+        ### Example usage:
+
+        ```
+        btcli subnets list
+        ```
+
+        #### Note:
+        This command is particularly useful for users seeking an overview of the Bittensor network's structure and the
+        distribution of its resources and ownership information for each subnet.
+        """
+        return self._run_command(
+            subnets.subnets_list(self.initialize_chain(network, chain))
+        )
+
+    def subnets_lock_cost(
+        self, network: str = Options.network, chain: str = Options.chain
+    ):
+        """
+        # subnets lock-cost
+        Executes the `lock_cost` command to view the locking cost required for creating a new subnetwork on the
+        Bittensor network.
+
+        This command is designed to provide users with the current cost of registering a new subnetwork, which is a
+        critical piece of information for anyone considering expanding the network's infrastructure.
+
+        The current implementation anneals the cost of creating a subnet over a period of two days. If the cost is
+        unappealing currently, check back in a day or two to see if it has reached a more amenable level.
+
+        ## Usage:
+
+        Upon invocation, the command performs the following operations:
+
+        1. It copies the user's current Bittensor configuration.
+
+        2. It initializes the Bittensor subtensor object with this configuration.
+
+        3. It then retrieves the subnet lock cost using the ``get_subnet_burn_cost()`` method from the subtensor object.
+
+        4. The cost is displayed to the user in a readable format, indicating the amount of Tao required to lock for
+        registering a new subnetwork.
+
+        In case of any errors during the process (e.g., network issues, configuration problems), the command will catch
+        these exceptions and inform the user that it failed to retrieve the lock cost, along with the specific error
+        encountered.
+
+        The command structure includes:
+
+        - Copying and using the user's configuration for Bittensor.
+
+        - Retrieving the current subnet lock cost from the Bittensor network.
+
+        - Displaying the cost in a user-friendly manner.
+
+
+        Example usage:
+
+        ```
+        btcli subnets lock_cost
+        ```
+
+        #### Note:
+        This command is particularly useful for users who are planning to contribute to the Bittensor network by adding
+        new subnetworks. Understanding the lock cost is essential for these users to make informed decisions about their
+         potential contributions and investments in the network.
+        """
+        return self._run_command(
+            subnets.lock_cost(self.initialize_chain(network, chain))
+        )
+
+    def subnets_create(
+        self,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        network: str = Options.network,
+        chain: str = Options.chain,
+    ):
+        """
+        # subnets create
+        Executes the `create` command to register a new subnetwork on the Bittensor network.
+
+        This command facilitates the creation and registration of a subnetwork, which involves interaction with the
+        user's wallet and the Bittensor subtensor. It ensures that the user has the necessary credentials and
+        configurations to successfully register a new subnetwork.
+
+        ## Usage:
+        Upon invocation, the command performs several key steps to register a subnetwork:
+
+        1. It copies the user's current configuration settings.
+
+        2. It accesses the user's wallet using the provided configuration.
+
+        3. It initializes the Bittensor subtensor object with the user's configuration.
+
+        4. It then calls the `create` function of the subtensor object, passing the user's wallet and a prompt setting
+        based on the user's configuration.
+
+
+        If the user's configuration does not specify a wallet name and `no_prompt` is not set, the command will prompt
+        the user to enter a wallet name. This name is then used in the registration process.
+
+        The command structure includes:
+
+        - Copying the user's configuration.
+
+        - Accessing and preparing the user's wallet.
+
+        - Initializing the Bittensor subtensor.
+
+        - Registering the subnetwork with the necessary credentials.
+
+
+        ### Example usage:
+
+        ```
+        btcli subnets create
+        ```
+
+        #### Note:
+        This command is intended for advanced users of the Bittensor network who wish to contribute by adding new
+        subnetworks. It requires a clear understanding of the network's functioning and the roles of subnetworks. Users
+        should ensure that they have secured their wallet and are aware of the implications of adding a new subnetwork
+        to the Bittensor ecosystem.
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        return self._run_command(
+            subnets.create(wallet, self.initialize_chain(network, chain))
+        )
+
+    def subnets_pow_register(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        netuid: int = Options.netuid,
+        # TODO add the following to config
+        processors: Optional[int] = typer.Option(
+            defaults.pow_register.num_processes,
+            "-processors",
+            "-p",
+            help="Number of processors to use for POW registration.",
+        ),
+        update_interval: Optional[int] = typer.Option(
+            defaults.pow_register.update_interval,
+            "-update-interval",
+            "-u",
+            help="The number of nonces to process before checking for next block during registration",
+        ),
+        output_in_place: Optional[bool] = typer.Option(
+            defaults.pow_register.output_in_place,
+            help="Whether to output the registration statistics in-place.",
+        ),
+        verbose: Optional[bool] = typer.Option(
+            defaults.pow_register.verbose,
+            "--verbose",
+            "-v",
+            help="Whether to output the registration statistics verbosely.",
+        ),
+        use_cuda: Optional[bool] = typer.Option(
+            defaults.pow_register.cuda.use_cuda,
+            "--use-cuda/--no-use-cuda",
+            "--cuda/--no-cuda",
+            help="Set flag to use CUDA to pow_register.",
+        ),
+        dev_id: Optional[int] = typer.Option(
+            defaults.pow_register.cuda.dev_id,
+            "--dev-id",
+            "-d",
+            help="Set the CUDA device id(s). Goes by the order of speed. (i.e. 0 is the fastest).",
+        ),
+        threads_per_block: Optional[int] = typer.Option(
+            defaults.pow_register.cuda.tpb,
+            "--threads-per-block",
+            "-tbp",
+            help="Set the number of Threads Per Block for CUDA.",
+        ),
+    ):
+        """
+        # subnets pow-register
+        Executes the `pow_register` command to register a neuron on the Bittensor network using Proof of Work (PoW).
+
+        This method is an alternative registration process that leverages computational work for securing a neuron's
+        place on the network.
+
+        ## Usage:
+        The command starts by verifying the existence of the specified subnet. If the subnet does not exist, it
+        terminates with an error message. On successful verification, the PoW registration process is initiated, which
+        requires solving computational puzzles.
+
+        The command also supports additional wallet and subtensor arguments, enabling further customization of the
+        registration process.
+
+        ### Example usage:
+
+        ```
+        btcli pow_register --netuid 1 --num_processes 4 --cuda
+        ```
+
+        #### Note:
+        This command is suited for users with adequate computational resources to participate in PoW registration. It
+        requires a sound understanding of the network's operations and PoW mechanics. Users should ensure their systems
+        meet the necessary hardware and software requirements, particularly when opting for CUDA-based GPU acceleration.
+
+        This command may be disabled according to the subnet owner's directive. For example, on netuid 1 this is
+        permanently disabled.
+        """
+        return self._run_command(
+            subnets.pow_register(
+                self.wallet_ask(wallet_name, wallet_path, wallet_hotkey),
+                self.initialize_chain(network, chain),
+                netuid,
+                processors,
+                update_interval,
+                output_in_place,
+                verbose,
+                use_cuda,
+                dev_id,
+                threads_per_block,
+            )
+        )
+
+    def subnets_register(
+        self,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hk_req,
+        chain: str = Options.chain,
+        network: str = Options.network,
+        netuid: int = Options.netuid,
+    ):
+        """
+        # subnets register
+        Executes the `register` command to register a neuron on the Bittensor network by recycling some TAO (the
+        network's native token).
+
+        This command is used to add a new neuron to a specified subnet within the network, contributing to the
+        decentralization and robustness of Bittensor.
+
+        ## Usage:
+        Before registering, the command checks if the specified subnet exists and whether the user's balance is
+        sufficient to cover the registration cost.
+
+        The registration cost is determined by the current recycle amount for the specified subnet. If the balance is
+        insufficient or the subnet does not exist, the command will exit with an appropriate error message.
+
+        If the preconditions are met, and the user confirms the transaction (if `no_prompt` is not set), the command
+        proceeds to register the neuron by recycling the required amount of TAO.
+
+        The command structure includes:
+
+        - Verification of subnet existence.
+        - Checking the user's balance against the current recycle amount for the subnet.
+        - User confirmation prompt for proceeding with registration.
+        - Execution of the registration process.
+
+        Columns Displayed in the confirmation prompt:
+
+        - Balance: The current balance of the user's wallet in TAO.
+        - Cost to Register: The required amount of TAO needed to register on the specified subnet.
+
+        ### Example usage:
+
+        ```
+        btcli subnets register --netuid 1
+        ```
+
+        #### Note:
+        This command is critical for users who wish to contribute a new neuron to the network. It requires careful
+        consideration of the subnet selection and an understanding of the registration costs. Users should ensure their
+        wallet is sufficiently funded before attempting to register a neuron.
+        """
+        return self._run_command(
+            subnets.register(
+                self.wallet_ask(wallet_name, wallet_path, wallet_hotkey),
+                self.initialize_chain(network, chain),
+                netuid,
+            )
         )
 
     def run(self):
