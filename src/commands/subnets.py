@@ -8,6 +8,7 @@ from rich.table import Table, Column
 from src import Constants, DelegatesDetails
 from src.bittensor.balances import Balance
 from src.bittensor.chain_data import SubnetInfo
+from src.bittensor.minigraph import MiniGraph
 from src.bittensor.extrinsics.registration import register_extrinsic
 from src.commands.root import burned_register_extrinsic
 from src.commands.wallets import set_id_prompts, set_id
@@ -81,50 +82,50 @@ async def register_subnetwork_extrinsic(
     if prompt:
         console.print(f"Your balance is: [green]{your_balance}[/green]")
         if not Confirm.ask(
-            f"Do you want to register a subnet for [green]{ burn_cost }[/green]?"
+            f"Do you want to register a subnet for [green]{burn_cost}[/green]?"
         ):
             return False
 
     wallet.unlock_coldkey()
 
     with console.status(":satellite: Registering subnet..."):
-        # create extrinsic call
-        substrate = subtensor.substrate
-        call = await substrate.compose_call(
-            call_module="SubtensorModule",
-            call_function="register_network",
-            call_params={"immunity_period": 0, "reg_allowed": True},
-        )
-        extrinsic = await substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey
-        )
-        response = await substrate.submit_extrinsic(
-            extrinsic,
-            wait_for_inclusion=wait_for_inclusion,
-            wait_for_finalization=wait_for_finalization,
-        )
-
-        # We only wait here if we expect finalization.
-        if not wait_for_finalization and not wait_for_inclusion:
-            return True
-
-        response.process_events()
-        if not response.is_success:
-            err_console.print(
-                f":cross_mark: [red]Failed[/red]: {format_error_message(response.error_message)}"
+        with subtensor.substrate as substrate:
+            # create extrinsic call
+            call = await substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function="register_network",
+                call_params={"immunity_period": 0, "reg_allowed": True},
             )
-            await asyncio.sleep(0.5)
-            return False
+            extrinsic = await substrate.create_signed_extrinsic(
+                call=call, keypair=wallet.coldkey
+            )
+            response = await substrate.submit_extrinsic(
+                extrinsic,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+            )
 
-        # Successful registration, final check for membership
-        else:
-            attributes = _find_event_attributes_in_extrinsic_receipt(
-                response, "NetworkAdded"
-            )
-            console.print(
-                f":white_heavy_check_mark: [green]Registered subnetwork with netuid: {attributes[0]}[/green]"
-            )
-            return True
+            # We only wait here if we expect finalization.
+            if not wait_for_finalization and not wait_for_inclusion:
+                return True
+
+            response.process_events()
+            if not response.is_success:
+                err_console.print(
+                    f":cross_mark: [red]Failed[/red]: {format_error_message(response.error_message)}"
+                )
+                await asyncio.sleep(0.5)
+                return False
+
+            # Successful registration, final check for membership
+            else:
+                attributes = _find_event_attributes_in_extrinsic_receipt(
+                    response, "NetworkAdded"
+                )
+                console.print(
+                    f":white_heavy_check_mark: [green]Registered subnetwork with netuid: {attributes[0]}[/green]"
+                )
+                return True
 
 
 # commands
@@ -316,7 +317,174 @@ async def register(wallet: Wallet, subtensor: "SubtensorInterface", netuid: int)
         subtensor,
         wallet=wallet,
         netuid=netuid,
-        prompt=False,
+        prompt=True,
         recycle_amount=current_recycle,
         old_balance=balance,
     )
+
+
+async def metagraph_cmd(subtensor: "SubtensorInterface", netuid: int):
+    """Prints an entire metagraph."""
+    console.print(
+        f":satellite: Syncing with chain: [white]{subtensor.network}[/white] ..."
+    )
+    block_hash = await subtensor.substrate.get_chain_head()
+    neurons, difficulty_, total_issuance_, block = await asyncio.gather(
+        subtensor.neurons(netuid, block_hash=block_hash),
+        subtensor.get_hyperparameter(
+            param_name="Difficulty", netuid=netuid, block_hash=block_hash
+        ),
+        subtensor.substrate.query(
+            module="SubtensorModule",
+            storage_function="TotalIssuance",
+            params=[],
+            block_hash=block_hash,
+        ),
+        subtensor.substrate.get_block_number(block_hash=block_hash),
+    )
+
+    difficulty = int(difficulty_)
+    total_issuance = Balance.from_rao(total_issuance_.value)
+    metagraph = MiniGraph(
+        netuid=netuid, neurons=neurons, subtensor=subtensor, block=block
+    )
+    # metagraph.save()  TODO maybe?
+    table_data = []
+    total_stake = 0.0
+    total_rank = 0.0
+    total_validator_trust = 0.0
+    total_trust = 0.0
+    total_consensus = 0.0
+    total_incentive = 0.0
+    total_dividends = 0.0
+    total_emission = 0
+    for uid in metagraph.uids:
+        neuron = metagraph.neurons[uid]
+        ep = metagraph.axons[uid]
+        row = [
+            str(neuron.uid),
+            "{:.5f}".format(metagraph.total_stake[uid]),
+            "{:.5f}".format(metagraph.ranks[uid]),
+            "{:.5f}".format(metagraph.trust[uid]),
+            "{:.5f}".format(metagraph.consensus[uid]),
+            "{:.5f}".format(metagraph.incentive[uid]),
+            "{:.5f}".format(metagraph.dividends[uid]),
+            "{}".format(int(metagraph.emission[uid] * 1000000000)),
+            "{:.5f}".format(metagraph.validator_trust[uid]),
+            "*" if metagraph.validator_permit[uid] else "",
+            str((metagraph.block.item() - metagraph.last_update[uid].item())),
+            str(metagraph.active[uid].item()),
+            (ep.ip + ":" + str(ep.port) if ep.is_serving else "[yellow]none[/yellow]"),
+            ep.hotkey[:10],
+            ep.coldkey[:10],
+        ]
+        total_stake += metagraph.total_stake[uid]
+        total_rank += metagraph.ranks[uid]
+        total_validator_trust += metagraph.validator_trust[uid]
+        total_trust += metagraph.trust[uid]
+        total_consensus += metagraph.consensus[uid]
+        total_incentive += metagraph.incentive[uid]
+        total_dividends += metagraph.dividends[uid]
+        total_emission += int(metagraph.emission[uid] * 1000000000)
+        table_data.append(row)
+    total_neurons = len(metagraph.uids)
+    table = Table(show_footer=False)
+    table.title = (
+        f"[white]Metagraph: "
+        f"net: {subtensor.network}:{metagraph.netuid}, "
+        f"block: {metagraph.block.item()},"
+        f"N: {sum(metagraph.active.tolist())}/{metagraph.n.item()}, "
+        f"stake: {Balance.from_tao(total_stake)}, "
+        f"issuance: {total_issuance}, "
+        f"difficulty: {difficulty}"
+    )
+    table.add_column(
+        "[overline white]UID",
+        str(total_neurons),
+        footer_style="overline white",
+        style="yellow",
+    )
+    table.add_column(
+        "[overline white]STAKE(\u03c4)",
+        "\u03c4{:.5f}".format(total_stake),
+        footer_style="overline white",
+        justify="right",
+        style="green",
+        no_wrap=True,
+    )
+    table.add_column(
+        "[overline white]RANK",
+        "{:.5f}".format(total_rank),
+        footer_style="overline white",
+        justify="right",
+        style="green",
+        no_wrap=True,
+    )
+    table.add_column(
+        "[overline white]TRUST",
+        "{:.5f}".format(total_trust),
+        footer_style="overline white",
+        justify="right",
+        style="green",
+        no_wrap=True,
+    )
+    table.add_column(
+        "[overline white]CONSENSUS",
+        "{:.5f}".format(total_consensus),
+        footer_style="overline white",
+        justify="right",
+        style="green",
+        no_wrap=True,
+    )
+    table.add_column(
+        "[overline white]INCENTIVE",
+        "{:.5f}".format(total_incentive),
+        footer_style="overline white",
+        justify="right",
+        style="green",
+        no_wrap=True,
+    )
+    table.add_column(
+        "[overline white]DIVIDENDS",
+        "{:.5f}".format(total_dividends),
+        footer_style="overline white",
+        justify="right",
+        style="green",
+        no_wrap=True,
+    )
+    table.add_column(
+        "[overline white]EMISSION(\u03c1)",
+        "\u03c1{}".format(int(total_emission)),
+        footer_style="overline white",
+        justify="right",
+        style="green",
+        no_wrap=True,
+    )
+    table.add_column(
+        "[overline white]VTRUST",
+        "{:.5f}".format(total_validator_trust),
+        footer_style="overline white",
+        justify="right",
+        style="green",
+        no_wrap=True,
+    )
+    table.add_column(
+        "[overline white]VAL", justify="right", style="green", no_wrap=True
+    )
+    table.add_column("[overline white]UPDATED", justify="right", no_wrap=True)
+    table.add_column(
+        "[overline white]ACTIVE", justify="right", style="green", no_wrap=True
+    )
+    table.add_column(
+        "[overline white]AXON", justify="left", style="dim blue", no_wrap=True
+    )
+    table.add_column("[overline white]HOTKEY", style="dim blue", no_wrap=False)
+    table.add_column("[overline white]COLDKEY", style="dim purple", no_wrap=False)
+    table.show_footer = True
+
+    for row in table_data:
+        table.add_row(*row)
+    table.box = None
+    table.pad_edge = False
+    table.width = None
+    console.print(table)
