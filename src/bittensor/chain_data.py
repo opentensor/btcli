@@ -203,6 +203,7 @@ class SubnetHyperparameters:
             liquid_alpha_enabled=decoded["liquid_alpha_enabled"],
         )
 
+
 @dataclass
 class StakeInfo:
     """Dataclass for stake info."""

@@ -1441,6 +1441,43 @@ class CLIManager:
         primarily used for informational purposes and has no side effects on the network state.
         """
 
+    def wallet_sign(
+        self,
+        wallet_path: str = Options.wallet_path,
+        wallet_name: str = Options.wallet_name,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        message: str = typer.Option("", help="The message to encode and sign"),
+    ):
+        """
+        # wallet sign
+        Executes the `sign` command to sign a message with the provided wallet or wallet hotkey.
+
+        This command signs a message using the provided wallet.
+
+        ## Usage:
+        The command generates a signature for a given message using the provided wallet
+
+
+        ### Example usage:
+
+        ```
+        btcli wallet sign --wallet-name default --message '{"something": "here", "timestamp": 1719908486}'
+
+        ```
+
+        ```
+        btcli wallet sign --wallet.name default --wallet-hotkey hotkey --message
+        '{"something": "here", "timestamp": 1719908486}'
+        ```
+
+        #### Note:
+        When using `btcli`, `w` is used interchangeably with `wallet`. You may use either based on your preference for
+        brevity or clarity. This command is essential for users to easily prove their ownership over a coldkey or a
+        hotkey.
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        return self._run_command(wallets.sign(wallet, message))
+
     def root_list(
         self,
         network: Optional[str] = Options.network,
