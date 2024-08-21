@@ -1,7 +1,7 @@
+import logging
 import os
 import re
 import time
-import logging
 from typing import Dict, Optional, Tuple
 
 from .utils import setup_wallet
@@ -192,7 +192,7 @@ def test_wallet_creations():
     # Command 1: <btcli w create>
     # -----------------------------
 
-    logging.info("Testing wallet create command")
+    logging.info("Testing wallet create command 🧪")
     # Create a new wallet (coldkey + hotkey)
     exec_command(
         command="wallet",
@@ -233,7 +233,7 @@ def test_wallet_creations():
     # Command 2: <btcli w new_coldkey>
     # -----------------------------
 
-    logging.info("Testing wallet new_coldkey command")
+    logging.info("Testing wallet new_coldkey command 🧪")
 
     # Create a new wallet (coldkey)
     exec_command(
@@ -267,7 +267,7 @@ def test_wallet_creations():
     # Command 3: <btcli w new_hotkey>
     # -----------------------------
 
-    logging.info("Testing wallet new_hotkey command")
+    logging.info("Testing wallet new_hotkey command 🧪")
     # Create a new hotkey for new_coldkey wallet
     result = exec_command(
         "wallet",
@@ -349,7 +349,7 @@ def test_wallet_regen():
     # -----------------------------
     # Command 1: <btcli w regen_coldkey>
     # -----------------------------
-    logging.info("Testing wallet regen_coldkey command")
+    logging.info("Testing wallet regen_coldkey command 🧪")
     coldkey_path = os.path.join(wallet_path, "new_wallet", "coldkey")
     initial_coldkey_mod_time = os.path.getmtime(coldkey_path)
 
@@ -378,12 +378,13 @@ def test_wallet_regen():
     assert (
         initial_coldkey_mod_time != new_coldkey_mod_time
     ), "Coldkey file was not regenerated as expected"
+    logging.info("Passed wallet regen_coldkey command ✅")
 
     # -----------------------------
     # Command 2: <btcli w regen_coldkeypub>
     # -----------------------------
 
-    logging.info("Testing wallet regen_coldkeypub command")
+    logging.info("Testing wallet regen_coldkeypub command 🧪")
     coldkeypub_path = os.path.join(wallet_path, "new_wallet", "coldkeypub.txt")
     initial_coldkeypub_mod_time = os.path.getmtime(coldkeypub_path)
 
@@ -417,12 +418,13 @@ def test_wallet_regen():
     assert (
         initial_coldkeypub_mod_time != new_coldkeypub_mod_time
     ), "Coldkeypub file was not regenerated as expected"
+    logging.info("Passed wallet regen_coldkeypub command ✅")
 
     # -----------------------------
     # Command 3: <btcli w regen_hotkey>
     # -----------------------------
 
-    logging.info("Testing wallet regen_hotkey command")
+    logging.info("Testing wallet regen_hotkey command 🧪")
     hotkey_path = os.path.join(wallet_path, "new_wallet", "hotkeys", "new_hotkey")
     initial_hotkey_mod_time = os.path.getmtime(hotkey_path)
 
@@ -451,3 +453,4 @@ def test_wallet_regen():
     assert (
         initial_hotkey_mod_time != new_hotkey_mod_time
     ), "Hotkey file was not regenerated as expected"
+    logging.info("Passed wallet regen_hotkey command ✅")

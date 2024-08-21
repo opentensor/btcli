@@ -1,3 +1,5 @@
+import logging
+
 from btcli.src.bittensor.balances import Balance
 
 from .utils import (
@@ -32,6 +34,7 @@ def test_wallet_overview_inspect(local_chain):
     Raises:
         AssertionError: If any of the checks or verifications fail
     """
+    logging.info("Testing wallet overview, inspect command 🧪")
     netuid = 1
     wallet_path_name = "//Alice"
 
@@ -169,6 +172,7 @@ def test_wallet_overview_inspect(local_chain):
             (1, f"default-{wallet.hotkey.ss58_address}", 0, False)
         ],  # (netuid, hotkey-display, stake, check_emissions)
     )
+    logging.info("Passed wallet overview, inspect command ✅")
 
 
 """
@@ -193,6 +197,7 @@ def test_wallet_transfer(local_chain):
     Raises:
         AssertionError: If any of the checks or verifications fail
     """
+    logging.info("Testing wallet transfer, balance command 🧪")
     wallet_path_alice = "//Alice"
     wallet_path_bob = "//Bob"
 
@@ -347,3 +352,4 @@ def test_wallet_transfer(local_chain):
 
     # This transfer is expected to fail due to low balance
     assert "❌ Not enough balance" in result.stdout
+    logging.info("Testing wallet transfer, balance command ✅")
