@@ -14,14 +14,60 @@ from src.utils import (
 
 class MiniGraph:
     def __init__(
-        self, netuid: int, neurons: list[NeuronInfo], subtensor: "SubtensorInterface"
+        self,
+        netuid: int,
+        neurons: list[NeuronInfo],
+        subtensor: "SubtensorInterface",
+        block: int,
     ):
         self.neurons = neurons
         self.netuid = netuid
-        self.axons = [n.axon_info for n in self.neurons]
-        self.n = np.array(len(neurons), dtype=np.int64)
         self.weights = None
         self.subtensor = subtensor
+        self.network = subtensor.network
+
+        self.axons = [n.axon_info for n in self.neurons]
+        self.n = self._create_tensor(len(self.neurons), dtype=np.int64)
+        self.block = self._create_tensor(block, dtype=np.int64)
+        self.uids = self._create_tensor(
+            [neuron.uid for neuron in self.neurons], dtype=np.int64
+        )
+        self.trust = self._create_tensor(
+            [neuron.trust for neuron in self.neurons], dtype=np.float32
+        )
+        self.consensus = self._create_tensor(
+            [neuron.consensus for neuron in self.neurons], dtype=np.float32
+        )
+        self.incentive = self._create_tensor(
+            [neuron.incentive for neuron in self.neurons], dtype=np.float32
+        )
+        self.dividends = self._create_tensor(
+            [neuron.dividends for neuron in self.neurons], dtype=np.float32
+        )
+        self.ranks = self._create_tensor(
+            [neuron.rank for neuron in self.neurons], dtype=np.float32
+        )
+        self.emission = self._create_tensor(
+            [neuron.emission for neuron in self.neurons], dtype=np.float32
+        )
+        self.active = self._create_tensor(
+            [neuron.active for neuron in self.neurons], dtype=np.int64
+        )
+        self.last_update = self._create_tensor(
+            [neuron.last_update for neuron in self.neurons], dtype=np.int64
+        )
+        self.validator_permit = self._create_tensor(
+            [neuron.validator_permit for neuron in self.neurons], dtype=bool
+        )
+        self.validator_trust = self._create_tensor(
+            [neuron.validator_trust for neuron in self.neurons], dtype=np.float32
+        )
+        self.total_stake = self._create_tensor(
+            [neuron.total_stake.tao for neuron in self.neurons], dtype=np.float32
+        )
+        self.stake = self._create_tensor(
+            [neuron.stake for neuron in self.neurons], dtype=np.float32
+        )
 
     async def __aenter__(self):
         if not self.weights:
@@ -34,6 +80,26 @@ class MiniGraph:
     @property
     def hotkeys(self):
         return [axon.hotkey for axon in self.axons]
+
+    @staticmethod
+    def _create_tensor(data, dtype) -> NDArray:
+        """
+        Creates a numpy array with the given data and data type. This method is a utility function used internally to encapsulate data into a np.array, making it compatible with the metagraph's numpy model structure.
+
+        Args:
+            data: The data to be included in the tensor. This could be any numeric data, like stakes, ranks, etc.
+            dtype: The data type for the tensor, typically a numpy data type like ``np.float32`` or ``np.int64``.
+
+        Returns:
+            A tensor parameter encapsulating the provided data.
+
+        Internal Usage:
+            Used internally to create tensor parameters for various metagraph attributes::
+
+                self.stake = self._create_tensor(neuron_stakes, dtype=np.float32)
+        """
+        # TODO: Check and test the creation of tensor
+        return np.array(data, dtype=dtype)
 
     async def _set_weights_and_bonds(self):
         """
