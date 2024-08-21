@@ -64,7 +64,7 @@ jobs:
         run: git checkout testnet
 
       - name: Install Python dependencies
-        run: python3 -m pip install -e .[dev] pytest
+        run: python3 -m pip install -r requirements.txt pytest
 
       - name: Run all tests
         run: |
