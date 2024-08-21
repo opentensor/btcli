@@ -1184,12 +1184,8 @@ class CLIManager:
             "-a",
             help="Whether to display the balances for all wallets.",
         ),
-        network: Optional[str] = typer.Option(
-            defaults.subtensor.network,
-            help="The subtensor network to connect to.",
-            prompt=True,
-        ),
-        chain: Optional[str] = Options.chain,
+        network: str = Options.network,
+        chain: str = Options.chain,
     ):
         """
         # wallet balance
