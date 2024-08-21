@@ -300,7 +300,7 @@ async def burned_register_extrinsic(
              finalization/inclusion, the response is `True`.
     """
 
-    if not subtensor.subnet_exists(netuid):
+    if not await subtensor.subnet_exists(netuid):
         err_console.print(
             f":cross_mark: [red]Failed[/red]: error: [bold white]subnet:{netuid}[/bold white] does not exist."
         )
@@ -370,7 +370,7 @@ async def burned_register_extrinsic(
 
         console.print(
             "Balance:\n"
-            f"  [blue]{old_balance}[/blue] :arrow_right: [green]{new_balance}[/green]"
+            f"  [blue]{old_balance}[/blue] :arrow_right: [green]{new_balance[wallet.coldkey.ss58_address]}[/green]"
         )
 
         if len(netuids_for_hotkey) > 0:

@@ -567,6 +567,9 @@ class SubtensorInterface:
         This function is crucial for analyzing individual neurons' contributions and status within a specific
         subnet, offering insights into their roles in the network's consensus and validation mechanisms.
         """
+        if uid is None:
+            return NeuronInfo.get_null_neuron()
+
         params = [netuid, uid, block_hash] if block_hash else [netuid, uid]
         json_body = await self.substrate.rpc_request(
             method="neuronInfo_getNeuron",

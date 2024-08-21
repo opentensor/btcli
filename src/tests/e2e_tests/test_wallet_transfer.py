@@ -1,5 +1,3 @@
-import re
-
 from btcli.src.bittensor.balances import Balance
 
 from .utils import setup_wallet, extract_coldkey_balance
@@ -12,16 +10,16 @@ Verify commands:
 """
 
 
-def test_wallet_interactions(local_chain):
+def test_wallet_transfer(local_chain):
     """
     Test the transfer and balance functionality in the Bittensor network.
 
     Steps:
-        1. Create wallets for alice and bob with initial balance already
-        2.
-        3. Create a new coldkey and verify both its display in the command line output and its physical file.
-        4. Create a new hotkey for an existing coldkey, verify its display in the command line output,
-           and check for both coldkey and hotkey files.
+        1. Create wallets for Alice and Bob with initial balance already
+        2. Ensure initial balance is displayed correctly
+        3. Transfer 100 TAO from Alice to Bob
+        4. Assert amount was transferred along with transfer tolerance
+        5. Assert transfer fails with no balance for Anakin
 
     Raises:
         AssertionError: If any of the checks or verifications fail
@@ -60,7 +58,13 @@ def test_wallet_interactions(local_chain):
     assert keypair_alice.ss58_address in result.stdout
 
     # Assert correct initial balance is shown
-    initial_balance = Balance.from_tao(extract_coldkey_balance(result.stdout))
+    initial_balance = Balance.from_tao(
+        extract_coldkey_balance(
+            result.stdout,
+            wallet_name=wallet_alice.name,
+            coldkey_address=wallet_alice.coldkey.ss58_address,
+        )["free_balance"]
+    )
     assert initial_balance == alice_bob_initial_balance
 
     # Transfer of 100 tao for this test
@@ -105,7 +109,13 @@ def test_wallet_interactions(local_chain):
     )
 
     # Extract balance after the transfer
-    balance_remaining = Balance.from_tao(extract_coldkey_balance(result.stdout))
+    balance_remaining = Balance.from_tao(
+        extract_coldkey_balance(
+            result.stdout,
+            wallet_name=wallet_alice.name,
+            coldkey_address=wallet_alice.coldkey.ss58_address,
+        )["free_balance"]
+    )
 
     tolerance = Balance.from_rao(200_000)  # Tolerance for transaction fee
     balance_difference = initial_balance - balance_remaining
@@ -130,7 +140,13 @@ def test_wallet_interactions(local_chain):
     )
 
     # Extract Bob's balance from output
-    new_balance_bob = Balance.from_tao(extract_coldkey_balance(result.stdout))
+    new_balance_bob = Balance.from_tao(
+        extract_coldkey_balance(
+            result.stdout,
+            wallet_name=wallet_bob.name,
+            coldkey_address=wallet_bob.coldkey.ss58_address,
+        )["free_balance"]
+    )
 
     # Assert correct balance was transferred from Bob
     assert alice_bob_initial_balance + expected_transfer == new_balance_bob
