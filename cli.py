@@ -3250,6 +3250,74 @@ class CLIManager:
             )
         )
 
+    def weights_commit(
+        self,
+        network: str = Options.network,
+        chain: str = Options.chain,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        netuid: int = Options.netuid,
+        uids: list[int] = typer.Option(
+            [],
+            "--uids",
+            "-u",
+            help="Corresponding UIDs for the specified netuid, e.g. -u 1 -u 2 -u 3 ...",
+        ),
+        weights: list[float] = typer.Option(
+            [],
+            "--weights",
+            "-w",
+            help="Corresponding weights for the specified UIDs, e.g. `-w 0.2 -w 0.4 -w 0.1 ...",
+        ),
+        salt: list[int] = typer.Option(
+            [],
+            "--salt",
+            "-s",
+            help="Corresponding salt for the hash function, e.g. -s 163 -s 241 -s 217 ...",
+        ),
+    ):
+        """
+        # weights commit
+        Executes the `commit` command to commit weights for specific subnet on the Bittensor network.
+
+        ## Usage:
+        The command allows committing weights for a specific subnet. Users need to specify the netuid (network unique
+        identifier), corresponding UIDs, and weights they wish to commit.
+
+
+        ### Example usage:
+
+        ```
+        $ btcli wt commit --netuid 1 --uids 1,2,3,4 --w 0.1 -w 0.2 -w 0.3 -w 0.4
+        ```
+
+        #### Note:
+        This command is used to commit weights for a specific subnet and requires the user to have the necessary
+        permissions.
+        """
+        uids = list_prompt(uids, int, "Corresponding UIDs for the specified netuid")
+        weights = list_prompt(
+            weights, float, "Corresponding weights for the specified UIDs"
+        )
+        if len(uids) != len(weights):
+            err_console.print(
+                "The number of UIDs you specify must match up with the number of weights you specify"
+            )
+            raise typer.Exit()
+        salt = list_prompt(salt, int, "Corresponding salt for the hash function")
+        return self._run_command(
+            weights_cmds.commit_weights(
+                self.initialize_chain(network, chain),
+                self.wallet_ask(wallet_name, wallet_path, wallet_hotkey),
+                netuid,
+                uids,
+                weights,
+                salt,
+                __version_as_int__,
+            )
+        )
+
     def run(self):
         self.app()
 
