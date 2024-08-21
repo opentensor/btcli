@@ -89,6 +89,11 @@ class AxonInfo:
     placeholder1: int = 0
     placeholder2: int = 0
 
+    @property
+    def is_serving(self) -> bool:
+        """True if the endpoint is serving."""
+        return self.ip != "0.0.0.0"
+
     @classmethod
     def from_neuron_info(cls, neuron_info: dict) -> "AxonInfo":
         """
