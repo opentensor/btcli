@@ -196,8 +196,10 @@ class SetWeightsExtrinsic:
             )
 
             # Attempt executing reveal function after a delay of 'interval'
+            await self.subtensor.substrate.close()
             await asyncio.sleep(interval)
-            return await self.reveal(weight_uids, weight_vals)
+            async with self.subtensor:
+                return await self.reveal(weight_uids, weight_vals)
         else:
             console.print(f":cross_mark: [red]Failed[/red]: error:{commit_msg}")
             # bittensor.logging.error(msg=commit_msg, prefix="Set weights with hash commit",
