@@ -284,6 +284,7 @@ class CLIManager:
         self.wallet_app.command("set-identity")(self.wallet_set_id)
         self.wallet_app.command("get-identity")(self.wallet_get_id)
         self.wallet_app.command("check-swap")(self.wallet_check_ck_swap)
+        self.wallet_app.command("sign")(self.wallet_sign)
 
         # root commands
         self.root_app.command("list")(self.root_list)
@@ -324,6 +325,7 @@ class CLIManager:
 
         # weights commands
         self.weights_app.command("reveal")(self.weights_reveal)
+        self.weights_app.command("commit")(self.weights_commit)
 
     def initialize_chain(
         self,
