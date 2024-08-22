@@ -155,7 +155,7 @@ def validate_wallet_inspect(
     delegates: List[Tuple[str, float, bool]],
     hotkeys_netuid: List[Tuple[str, str, float, bool]],
 ):
-    # To:do - Handle stake in Balance format as well
+    # TODO: Handle stake in Balance format as well
     """
     Validates the presence of specific coldkey, balance, delegates, and hotkeys/netuid in the wallet information.
 

@@ -1150,7 +1150,7 @@ async def _get_de_registered_stake_for_coldkey_wallet(
 async def transfer(
     wallet: Wallet, subtensor: SubtensorInterface, destination: str, amount: float
 ):
-    # To:do - work out prompts to be passed through the cli
+    # TODO: - work out prompts to be passed through the cli
     """Transfer token of amount to destination."""
     await transfer_extrinsic(
         subtensor, wallet, destination, Balance.from_tao(amount), prompt=False
@@ -1300,7 +1300,7 @@ async def faucet(
     log_verbose: bool,
     max_successes: int = 3,
 ):
-    # To:do - work out prompts to be passed through the cli 
+    # TODO: - work out prompts to be passed through the cli 
     success = await run_faucet_extrinsic(
         subtensor,
         wallet,

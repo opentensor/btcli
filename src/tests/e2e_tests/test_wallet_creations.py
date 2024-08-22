@@ -143,16 +143,18 @@ def extract_mnemonics_from_commands(output: str) -> Dict[str, Optional[str]]:
     mnemonics: Dict[str, Optional[str]] = {"coldkey": None, "hotkey": None}
     lines = output.splitlines()
 
-    # Regex pattern to capture the mnemonic
-    pattern = re.compile(r"btcli w regen_(coldkey|hotkey) --mnemonic ([a-z ]+)")
+    key_types = ["coldkey", "hotkey"]
+    command_prefix = "btcli w regen_"
 
     for line in lines:
         line = line.strip().lower()
-        match = pattern.search(line)
-        if match:
-            key_type = match.group(1)  # 'coldkey' or 'hotkey'
-            mnemonic_phrase = match.group(2).strip()
-            mnemonics[key_type] = mnemonic_phrase
+
+        if line.startswith(command_prefix):
+            for key_type in key_types:
+                if line.startswith(f"{command_prefix}{key_type} --mnemonic "):
+                    mnemonic_phrase = line.split("--mnemonic ")[1].strip()
+                    mnemonics[key_type] = mnemonic_phrase
+                    break
 
     return mnemonics
 
