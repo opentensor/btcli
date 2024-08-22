@@ -8,6 +8,7 @@ from typing import Optional, Any, Collection, Generator
 
 import aiohttp
 from bittensor_wallet import Wallet
+from bittensor_wallet.errors import KeyFileError
 from bittensor_wallet.keyfile import Keyfile
 from fuzzywuzzy import fuzz
 from rich.align import Align
@@ -1494,3 +1495,25 @@ async def check_coldkey_swap(wallet: Wallet, subtensor: SubtensorInterface):
         console.print(
             f"[red]This coldkey is currently in arbitration with a total swaps of {arbitration_check}.[/red]"
         )
+
+
+async def sign(wallet: Wallet, message: str):
+    """Sign a message using the provided wallet or hotkey."""
+
+    try:
+        wallet.unlock_coldkey()
+    except KeyFileError:
+        err_console.print(
+            ":cross_mark: [red]Keyfile is corrupt, non-writable, non-readable or the password used to decrypt is "
+            "invalid[/red]:[bold white]\n  [/bold white]"
+        )
+
+    keypair = wallet.coldkey
+
+    # Use a hotkey if the user specified it
+    if wallet.hotkey:
+        keypair = wallet.hotkey
+
+    signed_message = keypair.sign(message.encode("utf-8")).hex()
+    console.print("[bold green]Message signed successfully:")
+    console.print(signed_message)
