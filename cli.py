@@ -15,12 +15,24 @@ from websockets import ConnectionClosed
 from yaml import safe_load, safe_dump
 
 from src import defaults, utils, HYPERPARAMS
-from src.commands import wallets, root, stake, sudo, subnets
+from src.commands import wallets, root, stake, sudo, subnets, weights as weights_cmds
 from src.subtensor_interface import SubtensorInterface
 from src.bittensor.async_substrate_interface import SubstrateRequestException
 from src.utils import console, err_console
 
+
 __version__ = "8.0.0"
+
+_version_split = __version__.split(".")
+__version_info__ = tuple(int(part) for part in _version_split)
+_version_int_base = 1000
+assert max(__version_info__) < _version_int_base
+
+__version_as_int__: int = sum(
+    e * (_version_int_base**i) for i, e in enumerate(reversed(__version_info__))
+)
+assert __version_as_int__ < 2**31  # fits in int32
+__new_signature_version__ = 360
 
 
 class Options:
@@ -172,6 +184,8 @@ class CLIManager:
     config_app: typer.Typer
     wallet_app: typer.Typer
     root_app: typer.Typer
+    subnets_app: typer.Typer
+    weights_app: typer.Typer
 
     def __init__(self):
         self.config = {
@@ -190,6 +204,7 @@ class CLIManager:
         self.stake_app = typer.Typer()
         self.sudo_app = typer.Typer()
         self.subnets_app = typer.Typer()
+        self.weights_app = typer.Typer()
 
         # config alias
         self.app.add_typer(
@@ -235,8 +250,18 @@ class CLIManager:
 
         # subnets aliases
         self.app.add_typer(
-            self.subnets_app, name="subnets", short_help="Subnets commands"
+            self.subnets_app, name="subnets", short_help="Subnets commands, alias: `s`"
         )
+        self.app.add_typer(self.subnets_app, name="s", hidden=True)
+
+        # weights aliases
+        self.app.add_typer(
+            self.weights_app,
+            name="weights",
+            short_help="Weights commands, aliases: `wt`, `weight`",
+        )
+        self.app.add_typer(self.weights_app, name="wt", hidden=True)
+        self.app.add_typer(self.weights_app, name="weight", hidden=True)
 
         # config commands
         self.config_app.command("set")(self.set_config)
@@ -296,6 +321,9 @@ class CLIManager:
         self.subnets_app.command("pow-register")(self.subnets_pow_register)
         self.subnets_app.command("register")(self.subnets_register)
         self.subnets_app.command("metagraph")(self.subnets_metagraph)
+
+        # weights commands
+        self.weights_app.command("reveal")(self.weights_reveal)
 
     def initialize_chain(
         self,
@@ -1412,6 +1440,43 @@ class CLIManager:
         This function is designed for CLI use and should be executed in a terminal. It is
         primarily used for informational purposes and has no side effects on the network state.
         """
+
+    def wallet_sign(
+        self,
+        wallet_path: str = Options.wallet_path,
+        wallet_name: str = Options.wallet_name,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        message: str = typer.Option("", help="The message to encode and sign"),
+    ):
+        """
+        # wallet sign
+        Executes the `sign` command to sign a message with the provided wallet or wallet hotkey.
+
+        This command signs a message using the provided wallet.
+
+        ## Usage:
+        The command generates a signature for a given message using the provided wallet
+
+
+        ### Example usage:
+
+        ```
+        btcli wallet sign --wallet-name default --message '{"something": "here", "timestamp": 1719908486}'
+
+        ```
+
+        ```
+        btcli wallet sign --wallet.name default --wallet-hotkey hotkey --message
+        '{"something": "here", "timestamp": 1719908486}'
+        ```
+
+        #### Note:
+        When using `btcli`, `w` is used interchangeably with `wallet`. You may use either based on your preference for
+        brevity or clarity. This command is essential for users to easily prove their ownership over a coldkey or a
+        hotkey.
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        return self._run_command(wallets.sign(wallet, message))
 
     def root_list(
         self,
@@ -3153,6 +3218,141 @@ class CLIManager:
         """
         return self._run_command(
             subnets.metagraph_cmd(self.initialize_chain(network, chain), netuid)
+        )
+
+    def weights_reveal(
+        self,
+        network: str = Options.network,
+        chain: str = Options.chain,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        netuid: int = Options.netuid,
+        uids: list[int] = typer.Option(
+            [],
+            "--uids",
+            "-u",
+            help="Corresponding UIDs for the specified netuid, e.g. -u 1 -u 2 -u 3 ...",
+        ),
+        weights: list[float] = typer.Option(
+            [],
+            "--weights",
+            "-w",
+            help="Corresponding weights for the specified UIDs, e.g. `-w 0.2 -w 0.4 -w 0.1 ...",
+        ),
+        salt: list[int] = typer.Option(
+            [],
+            "--salt",
+            "-s",
+            help="Corresponding salt for the hash function, e.g. -s 163 -s 241 -s 217 ...",
+        ),
+    ):
+        """
+        # weights reveal
+        Executes the `reveal` command to reveal weights for a specific subnet on the Bittensor network.
+
+        ## Usage:
+        The command allows revealing weights for a specific subnet. Users need to specify the netuid (network unique
+        identifier), corresponding UIDs, and weights they wish to reveal.
+
+
+        ### Example usage:
+
+        ```
+        $ btcli wt reveal --netuid 1 --uids 1,2,3,4 --weights 0.1,0.2,0.3,0.4 --salt 163,241,217,11,161,142,147,189
+        ```
+
+        #### Note:
+        This command is used to reveal weights for a specific subnet and requires the user to have the necessary permissions.
+        """
+        uids = list_prompt(uids, int, "Corresponding UIDs for the specified netuid")
+        weights = list_prompt(
+            weights, float, "Corresponding weights for the specified UIDs"
+        )
+        if len(uids) != len(weights):
+            err_console.print(
+                "The number of UIDs you specify must match up with the number of weights you specify"
+            )
+            raise typer.Exit()
+        salt = list_prompt(salt, int, "Corresponding salt for the hash function")
+        return self._run_command(
+            weights_cmds.reveal_weights(
+                self.initialize_chain(network, chain),
+                self.wallet_ask(wallet_name, wallet_path, wallet_hotkey),
+                netuid,
+                uids,
+                weights,
+                salt,
+                __version_as_int__,
+            )
+        )
+
+    def weights_commit(
+        self,
+        network: str = Options.network,
+        chain: str = Options.chain,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        netuid: int = Options.netuid,
+        uids: list[int] = typer.Option(
+            [],
+            "--uids",
+            "-u",
+            help="Corresponding UIDs for the specified netuid, e.g. -u 1 -u 2 -u 3 ...",
+        ),
+        weights: list[float] = typer.Option(
+            [],
+            "--weights",
+            "-w",
+            help="Corresponding weights for the specified UIDs, e.g. `-w 0.2 -w 0.4 -w 0.1 ...",
+        ),
+        salt: list[int] = typer.Option(
+            [],
+            "--salt",
+            "-s",
+            help="Corresponding salt for the hash function, e.g. -s 163 -s 241 -s 217 ...",
+        ),
+    ):
+        """
+        # weights commit
+        Executes the `commit` command to commit weights for specific subnet on the Bittensor network.
+
+        ## Usage:
+        The command allows committing weights for a specific subnet. Users need to specify the netuid (network unique
+        identifier), corresponding UIDs, and weights they wish to commit.
+
+
+        ### Example usage:
+
+        ```
+        $ btcli wt commit --netuid 1 --uids 1,2,3,4 --w 0.1 -w 0.2 -w 0.3 -w 0.4
+        ```
+
+        #### Note:
+        This command is used to commit weights for a specific subnet and requires the user to have the necessary
+        permissions.
+        """
+        uids = list_prompt(uids, int, "Corresponding UIDs for the specified netuid")
+        weights = list_prompt(
+            weights, float, "Corresponding weights for the specified UIDs"
+        )
+        if len(uids) != len(weights):
+            err_console.print(
+                "The number of UIDs you specify must match up with the number of weights you specify"
+            )
+            raise typer.Exit()
+        salt = list_prompt(salt, int, "Corresponding salt for the hash function")
+        return self._run_command(
+            weights_cmds.commit_weights(
+                self.initialize_chain(network, chain),
+                self.wallet_ask(wallet_name, wallet_path, wallet_hotkey),
+                netuid,
+                uids,
+                weights,
+                salt,
+                __version_as_int__,
+            )
         )
 
     def run(self):
