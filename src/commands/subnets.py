@@ -89,43 +89,43 @@ async def register_subnetwork_extrinsic(
     wallet.unlock_coldkey()
 
     with console.status(":satellite: Registering subnet..."):
-        with subtensor.substrate as substrate:
-            # create extrinsic call
-            call = await substrate.compose_call(
-                call_module="SubtensorModule",
-                call_function="register_network",
-                call_params={"immunity_period": 0, "reg_allowed": True},
-            )
-            extrinsic = await substrate.create_signed_extrinsic(
-                call=call, keypair=wallet.coldkey
-            )
-            response = await substrate.submit_extrinsic(
-                extrinsic,
-                wait_for_inclusion=wait_for_inclusion,
-                wait_for_finalization=wait_for_finalization,
-            )
+        substrate = subtensor.substrate
+        # create extrinsic call
+        call = await substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="register_network",
+            call_params={"immunity_period": 0, "reg_allowed": True},
+        )
+        extrinsic = await substrate.create_signed_extrinsic(
+            call=call, keypair=wallet.coldkey
+        )
+        response = await substrate.submit_extrinsic(
+            extrinsic,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+        )
 
-            # We only wait here if we expect finalization.
-            if not wait_for_finalization and not wait_for_inclusion:
-                return True
+        # We only wait here if we expect finalization.
+        if not wait_for_finalization and not wait_for_inclusion:
+            return True
 
-            response.process_events()
-            if not response.is_success:
-                err_console.print(
-                    f":cross_mark: [red]Failed[/red]: {format_error_message(response.error_message)}"
-                )
-                await asyncio.sleep(0.5)
-                return False
+        response.process_events()
+        if not response.is_success:
+            err_console.print(
+                f":cross_mark: [red]Failed[/red]: {format_error_message(response.error_message)}"
+            )
+            await asyncio.sleep(0.5)
+            return False
 
-            # Successful registration, final check for membership
-            else:
-                attributes = _find_event_attributes_in_extrinsic_receipt(
-                    response, "NetworkAdded"
-                )
-                console.print(
-                    f":white_heavy_check_mark: [green]Registered subnetwork with netuid: {attributes[0]}[/green]"
-                )
-                return True
+        # Successful registration, final check for membership
+        else:
+            attributes = _find_event_attributes_in_extrinsic_receipt(
+                response, "NetworkAdded"
+            )
+            console.print(
+                f":white_heavy_check_mark: [green]Registered subnetwork with netuid: {attributes[0]}[/green]"
+            )
+            return True
 
 
 # commands
@@ -303,7 +303,7 @@ async def register(wallet: Wallet, subtensor: "SubtensorInterface", netuid: int)
         )
         return
 
-    if not False:  # TODO no-prompt
+    if not True:  # TODO no-prompt
         if not (
             Confirm.ask(
                 f"Your balance is: [bold green]{balance}[/bold green]\nThe cost to register by recycle is "
@@ -317,7 +317,7 @@ async def register(wallet: Wallet, subtensor: "SubtensorInterface", netuid: int)
         subtensor,
         wallet=wallet,
         netuid=netuid,
-        prompt=True,
+        prompt=False,
         recycle_amount=current_recycle,
         old_balance=balance,
     )

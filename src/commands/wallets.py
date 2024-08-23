@@ -131,7 +131,7 @@ async def new_coldkey(
     )
 
 
-def wallet_create(
+async def wallet_create(
     wallet: Wallet,
     n_words: int = 12,
     use_password: bool = True,
@@ -408,10 +408,10 @@ async def wallet_list(wallet_path: str):
         wallet_tree = root.add(f"\n[bold white]{wallet.name} ({coldkeypub_str})")
         hotkeys = utils.get_hotkey_wallets_for_wallet(wallet, show_nulls=True)
         for hkey in hotkeys:
-            data = f"[bold grey]{hkey.name} (?)"
+            data = f"[bold grey]{hkey.hotkey_str} (?)"
             if hkey:
                 try:
-                    data = f"[bold grey]{hkey.name} ({hkey.hotkey.ss58_address})"
+                    data = f"[bold grey]{hkey.hotkey_str} ({hkey.hotkey.ss58_address})"
                 except UnicodeDecodeError:
                     pass
             wallet_tree.add(data)
@@ -1050,9 +1050,13 @@ def _partial_decode(args):
     :return: (original netuid, decoded object)
     """
     return_type, as_scale_bytes, custom_rpc_type_registry_, netuid_ = args
-    return netuid_, decode_scale_bytes(
-        return_type, as_scale_bytes, custom_rpc_type_registry_
-    )
+    decoded = decode_scale_bytes(return_type, as_scale_bytes, custom_rpc_type_registry_)
+    if decoded.startswith("0x"):
+        bytes_result = bytes.fromhex(decoded[2:])
+    else:
+        bytes_result = bytes.fromhex(decoded)
+
+    return netuid_, NeuronInfoLite.list_from_vec_u8(bytes_result)
 
 
 def _process_neurons_for_netuids(
@@ -1075,18 +1079,11 @@ def _process_neurons_for_netuids(
         "get_neurons_lite"
     ]["type"]
 
-    all_results = []
     preprocessed = [make_map(r) for r in netuids_with_all_neurons_hex_bytes]
     with ProcessPoolExecutor() as executor:
-        results = executor.map(_partial_decode, preprocessed)
-        for netuid, result in results:
-            all_results.append(
-                (
-                    netuid,
-                    list(results),
-                )
-            )
+        results = list(executor.map(_partial_decode, preprocessed))
 
+    all_results = [(netuid, result) for netuid, result in results]
     return all_results
 
 
@@ -1133,28 +1130,31 @@ async def _get_de_registered_stake_for_coldkey_wallet(
             hotkey_ss58=stake_info.hotkey_ss58, reuse_block=True
         )
 
-    all_staked_hotkeys = (
-        x for x in all_stake_info_for_coldkey if await _filter_stake_info(x)
+    all_staked = await asyncio.gather(
+        *[_filter_stake_info(stake_info) for stake_info in all_stake_info_for_coldkey]
     )
 
-    # List of (hotkey_addr, our_stake) tuples.
-    result = [
-        (
-            stake_info.hotkey_ss58,
-            stake_info.stake.tao,
-        )  # stake is a Balance object
-        for stake_info in all_staked_hotkeys
-    ]
+    # Collecting all filtered stake info using async for loop
+    all_staked_hotkeys = []
+    for stake_info, staked in zip(all_stake_info_for_coldkey, all_staked):
+        if staked:
+            all_staked_hotkeys.append(
+                (
+                    stake_info.hotkey_ss58,
+                    stake_info.stake.tao,
+                )
+            )
 
-    return coldkey_wallet, result, None
+    return coldkey_wallet, all_staked_hotkeys, None
 
 
 async def transfer(
     wallet: Wallet, subtensor: SubtensorInterface, destination: str, amount: float
 ):
+    # TODO: - work out prompts to be passed through the cli
     """Transfer token of amount to destination."""
     await transfer_extrinsic(
-        subtensor, wallet, destination, Balance.from_tao(amount), prompt=True
+        subtensor, wallet, destination, Balance.from_tao(amount), prompt=False
     )
 
 
@@ -1166,7 +1166,7 @@ async def inspect(
 ):
     def delegate_row_maker(
         delegates_: list[tuple[DelegateInfo, Balance]],
-    ) -> Generator[list[str]]:
+    ) -> Generator[list[str], None, None]:
         for d_, staked in delegates_:
             if d_.hotkey_ss58 in registered_delegate_info:
                 delegate_name = registered_delegate_info[d_.hotkey_ss58].name
@@ -1182,7 +1182,9 @@ async def inspect(
                 + [""] * 4
             )
 
-    def neuron_row_maker(wallet_, all_netuids_, nsd) -> Generator[list[str]]:
+    def neuron_row_maker(
+        wallet_, all_netuids_, nsd
+    ) -> Generator[list[str], None, None]:
         hotkeys = get_hotkey_wallets_for_wallet(wallet_)
         for netuid in all_netuids_:
             for n in nsd[netuid]:
@@ -1299,11 +1301,12 @@ async def faucet(
     log_verbose: bool,
     max_successes: int = 3,
 ):
+    # TODO: - work out prompts to be passed through the cli 
     success = await run_faucet_extrinsic(
         subtensor,
         wallet,
         tpb=threads_per_block,
-        prompt=True,
+        prompt=False,
         update_interval=update_interval,
         num_processes=processes,
         cuda=use_cuda,

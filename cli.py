@@ -41,6 +41,9 @@ class Options:
     """
 
     wallet_name = typer.Option(None, "--wallet-name", "-w", help="Name of wallet")
+    wallet_name_req = typer.Option(
+        None, "--wallet-name", "-w", help="Name of wallet", prompt=True
+    )
     wallet_path = typer.Option(
         None, "--wallet-path", "-p", help="Filepath of root of wallets"
     )
@@ -68,7 +71,7 @@ class Options:
         None, "--json-password", help="Password to decrypt the json file."
     )
     use_password = typer.Option(
-        None,
+        True,
         help="Set true to protect the generated bittensor key with a password.",
         is_flag=True,
         flag_value=False,
@@ -697,9 +700,9 @@ class CLIManager:
         destination address and amount before confirming the transaction to avoid errors or loss of funds.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        self.initialize_chain(network, chain)
+        subtensor = self.initialize_chain(network, chain)
         return self._run_command(
-            wallets.transfer(wallet, self.not_subtensor, destination, amount)
+            wallets.transfer(wallet, subtensor, destination, amount)
         )
 
     def wallet_swap_hotkey(
@@ -930,14 +933,16 @@ class CLIManager:
 
         ### Example usage:
         ```
-        btcli wallet regen_coldkey --mnemonic "word1 word2 ... word12"
+        btcli wallet regen-coldkey --mnemonic "word1 word2 ... word12"
         ```
 
         ### Note: This command is critical for users who need to regenerate their coldkey, possibly for recovery or
         security reasons. It should be used with caution to avoid overwriting existing keys unintentionally.
         """
 
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name, wallet_path, wallet_hotkey, validate=False
+        )
         mnemonic, seed, json, json_password = get_creation_data(
             mnemonic, seed, json, json_password
         )
@@ -987,7 +992,9 @@ class CLIManager:
             corruption or loss. It is a recovery-focused utility that ensures continued access to wallet
             functionalities.
         """
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name, wallet_path, wallet_hotkey, validate=False
+        )
         if not ss58_address and not public_key_hex:
             prompt_answer = typer.prompt(
                 "Enter the ss58_address or the public key in hex"
@@ -1003,7 +1010,7 @@ class CLIManager:
             raise typer.Exit()
         return self._run_command(
             wallets.regen_coldkey_pub(
-                wallet, public_key_hex, ss58_address, overwrite_coldkeypub
+                wallet, ss58_address, public_key_hex, overwrite_coldkeypub
             )
         )
 
@@ -1057,7 +1064,7 @@ class CLIManager:
 
     def wallet_new_hotkey(
         self,
-        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_name: Optional[str] = Options.wallet_name_req,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         n_words: Optional[int] = None,
@@ -1119,7 +1126,9 @@ class CLIManager:
         setting up a new wallet. It's a foundational step in establishing a secure presence on the Bittensor
         network.
         """
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name, wallet_path, wallet_hotkey, validate=False
+        )
         n_words = get_n_words(n_words)
         return self._run_command(
             wallets.new_coldkey(wallet, n_words, use_password, overwrite_coldkey)
@@ -1154,7 +1163,7 @@ class CLIManager:
 
     def wallet_create_wallet(
         self,
-        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_name: Optional[str] = Options.wallet_name_req,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         n_words: Optional[int] = None,
@@ -1206,12 +1215,8 @@ class CLIManager:
             "-a",
             help="Whether to display the balances for all wallets.",
         ),
-        network: Optional[str] = typer.Option(
-            defaults.subtensor.network,
-            help="The subtensor network to connect to.",
-            prompt=True,
-        ),
-        chain: Optional[str] = Options.chain,
+        network: str = Options.network,
+        chain: str = Options.chain,
     ):
         """
         # wallet balance
@@ -1241,7 +1246,7 @@ class CLIManager:
         btcli w balance --all
         ```
         """
-        subtensor = SubtensorInterface(network, chain)
+        subtensor = self.initialize_chain(network, chain)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             wallets.wallet_balance(wallet, subtensor, all_balances)
