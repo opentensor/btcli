@@ -1859,7 +1859,6 @@ class CLIManager:
         self,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
-        netuid: int = Options.netuid,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
@@ -1913,7 +1912,7 @@ class CLIManager:
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
-            root.register(wallet, self.initialize_chain(network, chain), netuid)
+            root.register(wallet, self.initialize_chain(network, chain))
         )
 
     def root_proposals(

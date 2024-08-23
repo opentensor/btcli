@@ -14,7 +14,7 @@ from substrateinterface.exceptions import SubstrateRequestException
 from src import DelegatesDetails
 from src.bittensor.balances import Balance
 from src.bittensor.chain_data import NeuronInfoLite, DelegateInfo
-from src.bittensor.extrinsics.root import set_root_weights_extrinsic
+from src.bittensor.extrinsics.root import set_root_weights_extrinsic, root_register_extrinsic
 from src.commands.wallets import get_coldkey_wallets_for_path, set_id, set_id_prompts
 from src.subtensor_interface import SubtensorInterface
 from src.utils import (
@@ -1032,17 +1032,13 @@ async def get_senate(subtensor: SubtensorInterface):
     return console.print(table)
 
 
-async def register(wallet: Wallet, subtensor: SubtensorInterface, netuid: int):
+async def register(wallet: Wallet, subtensor: SubtensorInterface):
     """Register neuron by recycling some TAO."""
-    # Verify subnet exists
-    if not await subtensor.subnet_exists(netuid=netuid):
-        err_console.print(f"[red]Subnet {netuid} does not exist[/red]")
-        return False
 
     # Check current recycle amount
     recycle_call, balance_ = await asyncio.gather(
         subtensor.get_hyperparameter(
-            param_name="Burn", netuid=netuid, reuse_block=True
+            param_name="Burn", netuid=0, reuse_block=True
         ),
         subtensor.get_balance(wallet.coldkeypub.ss58_address, reuse_block=True),
     )
@@ -1064,7 +1060,7 @@ async def register(wallet: Wallet, subtensor: SubtensorInterface, netuid: int):
         )
         return False
 
-    if not False:  # TODO no-prompt
+    if not True:  # TODO no-prompt
         if not (
             Confirm.ask(
                 f"Your balance is: [bold green]{balance}[/bold green]\n"
@@ -1075,15 +1071,12 @@ async def register(wallet: Wallet, subtensor: SubtensorInterface, netuid: int):
         ):
             return False
 
-    await burned_register_extrinsic(
+    await root_register_extrinsic(
         subtensor,
         wallet,
-        netuid,
-        current_recycle,
-        balance,
         wait_for_inclusion=False,
         wait_for_finalization=True,
-        prompt=True,
+        prompt=False,
     )
 
 
