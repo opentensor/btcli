@@ -308,7 +308,6 @@ async def root_register_extrinsic(
             ":white_heavy_check_mark: [green]Already registered on root network.[/green]"
         )
         return True
-    print(is_registered)
     if prompt:
         # Prompt user for confirmation.
         if not Confirm.ask("Register to root network?"):

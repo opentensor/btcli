@@ -437,7 +437,6 @@ async def is_hotkey_registered(
         storage_function="Uids",
         params=[netuid, hotkey_ss58],
     )
-    print(_result)
     if getattr(_result, "value", None):
         return True
     else:
