@@ -280,7 +280,7 @@ def generate_weight_hash(
 async def root_register_extrinsic(
     subtensor: SubtensorInterface,
     wallet: Wallet,
-    wait_for_inclusion: bool = False,
+    wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
     prompt: bool = False,
 ) -> bool:

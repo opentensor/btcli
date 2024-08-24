@@ -227,7 +227,7 @@ def validate_wallet_inspect(
 async def wait_epoch(subtensor, netuid=1):
     q_tempo = [
         v.value
-        for [k, v] in subtensor.query_map_subtensor("Tempo")
+        for [k, v] in await subtensor.query_map("Tempo")
         if k.value == netuid
     ]
     if len(q_tempo) == 0:
@@ -239,7 +239,7 @@ async def wait_epoch(subtensor, netuid=1):
 
 async def wait_interval(tempo, subtensor, netuid=1):
     interval = tempo + 1
-    current_block = subtensor.get_current_block()
+    current_block = await subtensor.get_current_block()
     last_epoch = current_block - 1 - (current_block + netuid + 1) % interval
     next_tempo_block_start = last_epoch + interval
     last_reported = None
@@ -247,13 +247,10 @@ async def wait_interval(tempo, subtensor, netuid=1):
         await asyncio.sleep(
             1
         )  # Wait for 1 second before checking the block number again
-        current_block = subtensor.get_current_block()
+        current_block = await subtensor.get_current_block()
         if last_reported is None or current_block - last_reported >= 10:
             last_reported = current_block
             print(
-                f"Current Block: {current_block}  Next tempo for netuid {netuid} at: {next_tempo_block_start}"
-            )
-            logging.info(
                 f"Current Block: {current_block}  Next tempo for netuid {netuid} at: {next_tempo_block_start}"
             )
 

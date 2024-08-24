@@ -1971,6 +1971,13 @@ class CLIManager:
         This function can be used to update the takes individually for every subnet
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        if not take:
+            max_value = typer.style("Max: 0.18", fg="red")
+            min_value = typer.style("Min: 0.08", fg="blue")
+            prompt_text = typer.style(
+                "Enter take value (0.18 for 18%)", fg="green", bold=True
+            )
+            take = float(typer.prompt(f"{prompt_text} {min_value} {max_value}"))
         return self._run_command(
             root.set_take(wallet, self.initialize_chain(network, chain), take)
         )
@@ -2030,13 +2037,18 @@ class CLIManager:
             )
         if not stake_all and not amount:
             amount = typer.prompt(
-                "How much would you like to stake, in TAO?",
-                confirmation_prompt="Confirm you wish to stake: τ",
+                typer.style("Amount to stake (TAO τ)", fg=typer.colors.BLUE, bold=True),
+                confirmation_prompt=typer.style(
+                    "Confirm the amount again (TAO τ)", fg=typer.colors.BLUE, bold=True
+                ),
             )
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             root.delegate_stake(
-                wallet, self.initialize_chain(network, chain), amount, delegate_ss58key
+                wallet,
+                self.initialize_chain(network, chain),
+                float(amount),
+                delegate_ss58key,
             )
         )
 
@@ -2099,13 +2111,18 @@ class CLIManager:
             )
         if not unstake_all and not amount:
             amount = typer.prompt(
-                "How much would you like to unstake, in TAO?",
-                confirmation_prompt="Confirm you wish to unstake: τ",
+                typer.style("Amount to stake (TAO τ)", fg=typer.colors.BLUE, bold=True),
+                confirmation_prompt=typer.style(
+                    "Confirm the amount again (TAO τ)", fg=typer.colors.BLUE, bold=True
+                ),
             )
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         self._run_command(
             root.delegate_unstake(
-                wallet, self.initialize_chain(network, chain), amount, delegate_ss58key
+                wallet,
+                self.initialize_chain(network, chain),
+                float(amount),
+                delegate_ss58key,
             )
         )
 
@@ -2118,7 +2135,7 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         all_wallets: bool = typer.Option(
             False,
-            "all-wallets",
+            "--all-wallets",
             "--all",
             "-a",
             help="If specified, the command aggregates information across all wallets.",
@@ -2185,7 +2202,11 @@ class CLIManager:
             )
         )
 
-    def root_list_delegates(self):
+    def root_list_delegates(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+    ):
         """
         # root list-delegates
         Displays a formatted table of Bittensor network delegates, providing a comprehensive overview of delegate
@@ -2239,8 +2260,9 @@ class CLIManager:
         This function is part of the Bittensor CLI tools and is intended for use within a console application. It prints
         directly to the console and does not return any value.
         """
-        sub = self.initialize_chain("archive", "wss://archive.chain.opentensor.ai:443")
-        return self._run_command(root.list_delegates(sub))
+        return self._run_command(
+            root.list_delegates(subtensor=self.initialize_chain(network, chain))
+        )
 
     def root_nominate(
         self,

@@ -447,7 +447,7 @@ async def set_take_extrinsic(
                 call_function="increase_take",
                 call_params={
                     "hotkey": delegate_ss58,
-                    "take": take,
+                    "take": take_u16,
                 },
             )
             success, err = await subtensor.sign_and_send_extrinsic(call, wallet)
@@ -462,7 +462,7 @@ async def set_take_extrinsic(
                 call_function="decrease_take",
                 call_params={
                     "hotkey": delegate_ss58,
-                    "take": take,
+                    "take": take_u16,
                 },
             )
             success, err = await subtensor.sign_and_send_extrinsic(call, wallet)
@@ -535,7 +535,7 @@ async def delegate_extrinsic(
         hotkey_ss58: str, coldkey_ss58: str, block_hash_: str
     ):
         """Returns the stake under a coldkey - hotkey pairing."""
-        _result = subtensor.substrate.query(
+        _result = await subtensor.substrate.query(
             module="SubtensorModule",
             storage_function="Stake",
             params=[hotkey_ss58, coldkey_ss58],
@@ -549,7 +549,7 @@ async def delegate_extrinsic(
 
     # Decrypt key
     wallet.unlock_coldkey()
-    if not subtensor.is_hotkey_delegate(delegate_ss58):
+    if not await subtensor.is_hotkey_delegate(delegate_ss58):
         err_console.print(f"Hotkey: {delegate_ss58} is not a delegate.")
         return False
 
@@ -600,13 +600,25 @@ async def delegate_extrinsic(
         )
         return False
 
+    print(my_prev_delegated_stake)
+    print(staking_balance)
+    if delegate_string == "undelegate" and (my_prev_delegated_stake is None or staking_balance > my_prev_delegated_stake):
+        err_console.print(
+            "\n:cross_mark: [red]Not enough balance to unstake[/red]:\n"
+            f"  [bold blue]current stake[/bold blue]: {my_prev_delegated_stake}\n"
+            f"  [bold red]amount unstaking[/bold red]: {staking_balance}\n"
+            f"  [bold white]coldkey: {wallet.name}[/bold white]\n\n"
+        )
+        return False
+
     # Ask before moving on.
     if prompt:
         if not Confirm.ask(
-            f"Do you want to {delegate_string}:[bold white]\n"
-            f"  amount: {staking_balance}\n"
-            f"  to: {delegate_ss58}\n"
-            f"  owner: {delegate_owner}[/bold white]"
+            f"\n[bold blue]Current stake[/bold blue]: [blue]{my_prev_delegated_stake}[/blue]\n"
+            f"[bold white]Do you want to {delegate_string}:[/bold white]\n"
+            f"  [bold red]amount[/bold red]: [red]{staking_balance}\n[/red]"
+            f"  [bold yellow]to hotkey[/bold yellow]: [yellow]{delegate_ss58}\n[/yellow]"
+            f"  [bold green]hotkey owner[/bold green]: [green]{delegate_owner}[/green]"
         ):
             return False
 
@@ -620,7 +632,7 @@ async def delegate_extrinsic(
         if not wait_for_finalization and not wait_for_inclusion:
             return True
 
-        console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+        console.print(":white_heavy_check_mark: [green]Finalized[/green]\n")
         with console.status(
             f":satellite: Checking Balance on: [white]{subtensor}[/white] ..."
         ):
@@ -638,7 +650,7 @@ async def delegate_extrinsic(
 
         console.print(
             "Balance:\n"
-            f"  [blue]{my_prev_coldkey_balance}[/blue] :arrow_right: [green]{new_balance}[/green]\n"
+            f"  [blue]{my_prev_coldkey_balance}[/blue] :arrow_right: [green]{new_balance[wallet.coldkey.ss58_address]}[/green]\n"
             "Stake:\n"
             f"  [blue]{my_prev_delegated_stake}[/blue] :arrow_right: [green]{new_delegate_stake}[/green]"
         )
@@ -1074,7 +1086,7 @@ async def register(wallet: Wallet, subtensor: SubtensorInterface):
     await root_register_extrinsic(
         subtensor,
         wallet,
-        wait_for_inclusion=False,
+        wait_for_inclusion=True,
         wait_for_finalization=True,
         prompt=False,
     )
@@ -1155,8 +1167,8 @@ async def set_take(wallet: Wallet, subtensor: SubtensorInterface, take: float) -
             )
             return False
 
-        if take > 0.18:
-            err_console.print("ERROR: Take value should not exceed 18%")
+        if take > 0.18 or take < 0.08:
+            err_console.print("ERROR: Take value should not exceed 18% or be below 8%")
             return False
 
         result: bool = await set_take_extrinsic(
@@ -1210,7 +1222,7 @@ async def delegate_stake(
         delegate_ss58key,
         Balance.from_tao(amount),
         wait_for_inclusion=True,
-        prompt=True,
+        prompt=False,
         delegate=True,
     )
 
@@ -1222,13 +1234,14 @@ async def delegate_unstake(
     delegate_ss58key: str,
 ):
     """Undelegates stake from a chain delegate."""
+    # TODO: Pass prompt thru cli
     await delegate_extrinsic(
         subtensor,
         wallet,
         delegate_ss58key,
         Balance.from_tao(amount),
         wait_for_inclusion=True,
-        prompt=True,
+        prompt=False,
         delegate=False,
     )
 
@@ -1296,14 +1309,16 @@ async def my_delegates(
 
     total_delegated = 0
 
-    block_hash = await subtensor.substrate.get_chain_head()
+    # TODO: this doesnt work when passed to wallets_with_delegates
+    # block_hash = await subtensor.substrate.get_chain_head()
+
     registered_delegate_info: dict[str, DelegatesDetails]
     wallets_with_delegates: tuple[
         tuple[Optional[Wallet], Optional[list[tuple[DelegateInfo, Balance]]]]
     ]
     wallets_with_delegates, registered_delegate_info = await asyncio.gather(
         asyncio.gather(
-            *[wallet_to_delegates(wallet_, block_hash) for wallet_ in wallets]
+            *[wallet_to_delegates(wallet_, None) for wallet_ in wallets]
         ),
         get_delegates_details_from_github(Constants.delegates_detail_url),
     )
