@@ -257,4 +257,4 @@ def test_root_commands(local_chain):
             "10",
         ],
     )
-    print(undelegate_alice)
+    assert "✅ Finalized" in undelegate_alice.stdout

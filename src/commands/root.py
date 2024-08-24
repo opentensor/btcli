@@ -14,7 +14,10 @@ from substrateinterface.exceptions import SubstrateRequestException
 from src import DelegatesDetails
 from src.bittensor.balances import Balance
 from src.bittensor.chain_data import NeuronInfoLite, DelegateInfo
-from src.bittensor.extrinsics.root import set_root_weights_extrinsic, root_register_extrinsic
+from src.bittensor.extrinsics.root import (
+    set_root_weights_extrinsic,
+    root_register_extrinsic,
+)
 from src.commands.wallets import get_coldkey_wallets_for_path, set_id, set_id_prompts
 from src.subtensor_interface import SubtensorInterface
 from src.utils import (
@@ -600,9 +603,9 @@ async def delegate_extrinsic(
         )
         return False
 
-    print(my_prev_delegated_stake)
-    print(staking_balance)
-    if delegate_string == "undelegate" and (my_prev_delegated_stake is None or staking_balance > my_prev_delegated_stake):
+    if delegate_string == "undelegate" and (
+        my_prev_delegated_stake is None or staking_balance > my_prev_delegated_stake
+    ):
         err_console.print(
             "\n:cross_mark: [red]Not enough balance to unstake[/red]:\n"
             f"  [bold blue]current stake[/bold blue]: {my_prev_delegated_stake}\n"
@@ -1049,9 +1052,7 @@ async def register(wallet: Wallet, subtensor: SubtensorInterface):
 
     # Check current recycle amount
     recycle_call, balance_ = await asyncio.gather(
-        subtensor.get_hyperparameter(
-            param_name="Burn", netuid=0, reuse_block=True
-        ),
+        subtensor.get_hyperparameter(param_name="Burn", netuid=0, reuse_block=True),
         subtensor.get_balance(wallet.coldkeypub.ss58_address, reuse_block=True),
     )
     try:
@@ -1317,9 +1318,7 @@ async def my_delegates(
         tuple[Optional[Wallet], Optional[list[tuple[DelegateInfo, Balance]]]]
     ]
     wallets_with_delegates, registered_delegate_info = await asyncio.gather(
-        asyncio.gather(
-            *[wallet_to_delegates(wallet_, None) for wallet_ in wallets]
-        ),
+        asyncio.gather(*[wallet_to_delegates(wallet_, None) for wallet_ in wallets]),
         get_delegates_details_from_github(Constants.delegates_detail_url),
     )
     if not registered_delegate_info:
