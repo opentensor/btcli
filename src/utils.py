@@ -508,38 +508,85 @@ def normalize_hyperparameters(
     return normalized_values
 
 
+class DB:
+    def __init__(
+        self,
+        db_path: str = os.path.expanduser("~/.bittensor/bittensor.db"),
+        row_factory=None,
+    ):
+        self.db_path = db_path
+        self.conn: Optional[sqlite3.Connection] = None
+        self.row_factory = row_factory
+
+    def __enter__(self):
+        self.conn = sqlite3.connect(self.db_path)
+        self.conn.autocommit = True
+        self.conn.row_factory = self.row_factory
+        return self.conn, self.conn.cursor()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.conn:
+            self.conn.close()
+
+
 def create_table(title: str, columns: list[tuple[str, str]], rows: list[list]) -> bool:
     """
+    Creates and populates the rows of a table in the SQLite database.
 
     :param title: title of the table
     :param columns: [(column name, column type), ...]
     :param rows: [(element, element, ...), ...]
     :return:
     """
-    conn = sqlite3.connect(os.path.expanduser("~/.bittensor/bittensor.db"))
-    cursor = conn.cursor()
-    columns_ = ", ".join([" ".join(x) for x in columns])
-    creation_query = f"CREATE TABLE IF NOT EXISTS {title} ({columns_})"
-    cursor.execute(creation_query)
-    conn.commit()
-    cursor.execute(f"DELETE FROM {title};")
-    conn.commit()
-    query = f"INSERT INTO {title} ({', '.join([x[0] for x in columns])}) VALUES ({', '.join(['?'] * len(columns))})"
-    cursor.executemany(query, rows)
-    conn.commit()
-    conn.close()
+    with DB() as (conn, cursor):
+        columns_ = ", ".join([" ".join(x) for x in columns])
+        creation_query = f"CREATE TABLE IF NOT EXISTS {title} ({columns_})"
+        cursor.execute(creation_query)
+        cursor.execute(f"DELETE FROM {title};")
+        query = f"INSERT INTO {title} ({', '.join([x[0] for x in columns])}) VALUES ({', '.join(['?'] * len(columns))})"
+        cursor.executemany(query, rows)
     return True
 
 
 def read_table(table_name: str) -> tuple[list, list]:
-    conn = sqlite3.connect(os.path.expanduser("~/.bittensor/bittensor.db"))
-    cursor = conn.cursor()
-    cursor.execute(f"PRAGMA table_info({table_name})")
-    columns_info = cursor.fetchall()
-    column_names = [info[1] for info in columns_info]
-    cursor.execute(f"SELECT * FROM {table_name}")
-    rows = cursor.fetchall()
+    with DB() as (conn, cursor):
+        cursor.execute(f"PRAGMA table_info({table_name})")
+        columns_info = cursor.fetchall()
+        column_names = [info[1] for info in columns_info]
+        cursor.execute(f"SELECT * FROM {table_name}")
+        rows = cursor.fetchall()
     return column_names, rows
+
+
+def update_metadata_table(table_name: str, values: dict[str, str]) -> None:
+    with DB() as (conn, cursor):
+        cursor.execute(
+            "CREATE TABLE IF NOT EXISTS metadata ("
+            "TableName TEXT, "
+            "Key TEXT, "
+            "Value TEXT"
+            ")"
+        )
+        for key, value in values.items():
+            cursor.execute(
+                "UPDATE metadata SET TableName = ?, Value = ? WHERE Key = ?",
+                (table_name, value, key),
+            )
+            if cursor.rowcount == 0:
+                cursor.execute(
+                    "INSERT INTO metadata (TableName, Key, Value) VALUES (?, ?, ?)",
+                    (table_name, key, value),
+                )
+    return
+
+
+def get_metadata_table(table_name: str) -> dict[str, str]:
+    with DB() as (conn, cursor):
+        cursor.execute(
+            "SELECT Key, Value FROM metadata WHERE TableName = ?", (table_name,)
+        )
+        data = cursor.fetchall()
+        return dict(data)
 
 
 def render_table(table_name: str):

@@ -1,4 +1,5 @@
 import asyncio
+import json
 from typing import TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet
@@ -21,6 +22,8 @@ from src.utils import (
     format_error_message,
     render_table,
     create_table,
+    update_metadata_table,
+    get_metadata_table,
 )
 
 if TYPE_CHECKING:
@@ -329,7 +332,7 @@ async def register(wallet: Wallet, subtensor: "SubtensorInterface", netuid: int)
         )
         return
 
-    if not True:  # TODO no-prompt
+    if not False:  # TODO no-prompt
         if not (
             Confirm.ask(
                 f"Your balance is: [bold green]{balance}[/bold green]\nThe cost to register by recycle is "
@@ -353,6 +356,7 @@ async def metagraph_cmd(
     subtensor: "SubtensorInterface", netuid: int, reuse_last: bool, html_output: bool
 ):
     """Prints an entire metagraph."""
+    # TODO allow config to set certain columns
     if not reuse_last:
         with console.status(
             f":satellite: Syncing with chain: [white]{subtensor.network}[/white] ..."
@@ -377,7 +381,6 @@ async def metagraph_cmd(
         metagraph = MiniGraph(
             netuid=netuid, neurons=neurons, subtensor=subtensor, block=block
         )
-        # metagraph.save()  TODO maybe?
         table_data = []
         db_table = []
         total_stake = 0.0
@@ -439,26 +442,74 @@ async def metagraph_cmd(
             total_dividends += metagraph.dividends[uid]
             total_emission += int(metagraph.emission[uid] * 1000000000)
             table_data.append(row)
-        total_neurons = len(metagraph.uids)
-        table = Table(show_footer=False)
+        metadata_info = {
+            "stake": str(Balance.from_tao(total_stake)),
+            "total_stake": "\u03c4{:.5f}".format(total_stake),
+            "rank": "{:.5f}".format(total_rank),
+            "validator_trust": "{:.5f}".format(total_validator_trust),
+            "trust": "{:.5f}".format(total_trust),
+            "consensus": "{:.5f}".format(total_consensus),
+            "incentive": "{:.5f}".format(total_incentive),
+            "dividends": "{:.5f}".format(total_dividends),
+            "emission": "\u03c1{}".format(int(total_emission)),
+            "net": f"{subtensor.network}:{metagraph.netuid}",
+            "block": str(metagraph.block.item()),
+            "N": f"{sum(metagraph.active.tolist())}/{metagraph.n.item()}",
+            "issuance": str(total_issuance),
+            "difficulty": str(difficulty),
+            "total_neurons": str(len(metagraph.uids)),
+            "table_data": json.dumps(table_data),
+        }
+        update_metadata_table("metagraph", metadata_info)
+        create_table(
+            "metagraph",
+            columns=[
+                ("UID", "INTEGER"),
+                ("STAKE", "REAL"),
+                ("RANK", "REAL"),
+                ("TRUST", "REAL"),
+                ("CONSENSUS", "REAL"),
+                ("INCENTIVE", "REAL"),
+                ("DIVIDENDS", "REAL"),
+                ("EMISSION", "INTEGER"),
+                ("VTRUST", "REAL"),
+                ("VAL", "INTEGER"),
+                ("UPDATED", "INTEGER"),
+                ("ACTIVE", "INTEGER"),
+                ("AXON", "TEXT"),
+                ("HOTKEY", "TEXT"),
+                ("COLDKEY", "TEXT"),
+            ],
+            rows=db_table,
+        )
+    else:
+        metadata_info = get_metadata_table("metagraph")
+        table_data = json.loads(metadata_info["table_data"])
+
+    if html_output:
+        # TODO add the metadata_info to the table
+        render_table("metagraph")
+    else:
+        table = Table(show_footer=False, box=None, pad_edge=False, width=None)
+
         table.title = (
             f"[white]Metagraph: "
-            f"net: {subtensor.network}:{metagraph.netuid}, "
-            f"block: {metagraph.block.item()},"
-            f"N: {sum(metagraph.active.tolist())}/{metagraph.n.item()}, "
-            f"stake: {Balance.from_tao(total_stake)}, "
-            f"issuance: {total_issuance}, "
-            f"difficulty: {difficulty}"
+            f"net: {metadata_info['net']}, "
+            f"block: {metadata_info['block']},"
+            f"N: {metadata_info['N']}, "
+            f"stake: {metadata_info['stake']}, "
+            f"issuance: {metadata_info['issuance']}, "
+            f"difficulty: {metadata_info['difficulty']}"
         )
         table.add_column(
             "[overline white]UID",
-            str(total_neurons),
+            metadata_info["total_neurons"],
             footer_style="overline white",
             style="yellow",
         )
         table.add_column(
             "[overline white]STAKE(\u03c4)",
-            "\u03c4{:.5f}".format(total_stake),
+            metadata_info["total_stake"],
             footer_style="overline white",
             justify="right",
             style="green",
@@ -466,7 +517,7 @@ async def metagraph_cmd(
         )
         table.add_column(
             "[overline white]RANK",
-            "{:.5f}".format(total_rank),
+            metadata_info["rank"],
             footer_style="overline white",
             justify="right",
             style="green",
@@ -474,7 +525,7 @@ async def metagraph_cmd(
         )
         table.add_column(
             "[overline white]TRUST",
-            "{:.5f}".format(total_trust),
+            metadata_info["trust"],
             footer_style="overline white",
             justify="right",
             style="green",
@@ -482,7 +533,7 @@ async def metagraph_cmd(
         )
         table.add_column(
             "[overline white]CONSENSUS",
-            "{:.5f}".format(total_consensus),
+            metadata_info["consensus"],
             footer_style="overline white",
             justify="right",
             style="green",
@@ -490,7 +541,7 @@ async def metagraph_cmd(
         )
         table.add_column(
             "[overline white]INCENTIVE",
-            "{:.5f}".format(total_incentive),
+            metadata_info["incentive"],
             footer_style="overline white",
             justify="right",
             style="green",
@@ -498,7 +549,7 @@ async def metagraph_cmd(
         )
         table.add_column(
             "[overline white]DIVIDENDS",
-            "{:.5f}".format(total_dividends),
+            metadata_info["dividends"],
             footer_style="overline white",
             justify="right",
             style="green",
@@ -506,7 +557,7 @@ async def metagraph_cmd(
         )
         table.add_column(
             "[overline white]EMISSION(\u03c1)",
-            "\u03c1{}".format(int(total_emission)),
+            metadata_info["emission"],
             footer_style="overline white",
             justify="right",
             style="green",
@@ -514,7 +565,7 @@ async def metagraph_cmd(
         )
         table.add_column(
             "[overline white]VTRUST",
-            "{:.5f}".format(total_validator_trust),
+            metadata_info["validator_trust"],
             footer_style="overline white",
             justify="right",
             style="green",
@@ -537,33 +588,4 @@ async def metagraph_cmd(
         for row in table_data:
             table.add_row(*row)
 
-        create_table(
-            "metagraph",
-            columns=[
-                ("UID", "INTEGER"),
-                ("STAKE", "REAL"),
-                ("RANK", "REAL"),
-                ("TRUST", "REAL"),
-                ("CONSENSUS", "REAL"),
-                ("INCENTIVE", "REAL"),
-                ("DIVIDENDS", "REAL"),
-                ("EMISSION", "INTEGER"),
-                ("VTRUST", "REAL"),
-                ("VAL", "INTEGER"),
-                ("UPDATED", "INTEGER"),
-                ("ACTIVE", "INTEGER"),
-                ("AXON", "TEXT"),
-                ("HOTKEY", "TEXT"),
-                ("COLDKEY", "TEXT"),
-            ],
-            rows=db_table,
-        )
-
-        table.box = None
-        table.pad_edge = False
-        table.width = None
-    # TODO add support for reuse-last with the CLI table output
-    if html_output:
-        render_table("metagraph")
-    else:
         console.print(table)
