@@ -3205,7 +3205,11 @@ class CLIManager:
 
     def subnets_metagraph(
         self,
-        netuid: int = Options.netuid,
+        netuid: Optional[int] = typer.Option(
+            None,
+            help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1). This does"
+            "is ignored when used with `--reuse-last`.",
+        ),
         network: str = Options.network,
         chain: str = Options.chain,
         reuse_last: bool = typer.Option(
@@ -3280,8 +3284,15 @@ class CLIManager:
         not as a standalone function within user code.
         """
         if reuse_last:
+            if netuid is not None:
+                console.print("Cannot specify netuid when using `--reuse-last`")
+                raise typer.Exit()
             subtensor = None
         else:
+            if netuid is None:
+                netuid = rich.prompt.IntPrompt.ask(
+                    "Enter the netuid (network unique identifier) of the subnet within the root network, (e.g. 1)."
+                )
             subtensor = self.initialize_chain(network, chain)
         return self._run_command(
             subnets.metagraph_cmd(subtensor, netuid, reuse_last, html_output)

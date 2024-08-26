@@ -353,7 +353,10 @@ async def register(wallet: Wallet, subtensor: "SubtensorInterface", netuid: int)
 
 
 async def metagraph_cmd(
-    subtensor: "SubtensorInterface", netuid: int, reuse_last: bool, html_output: bool
+    subtensor: "SubtensorInterface",
+    netuid: Optional[int],
+    reuse_last: bool,
+    html_output: bool,
 ):
     """Prints an entire metagraph."""
     # TODO allow config to set certain columns
