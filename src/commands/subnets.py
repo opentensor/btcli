@@ -1,5 +1,4 @@
 import asyncio
-import json
 from typing import TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet
