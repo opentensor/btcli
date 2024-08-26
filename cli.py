@@ -2260,9 +2260,14 @@ class CLIManager:
         This function is part of the Bittensor CLI tools and is intended for use within a console application. It prints
         directly to the console and does not return any value.
         """
-        return self._run_command(
-            root.list_delegates(subtensor=self.initialize_chain(network, chain))
-        )
+        if network not in ["local", "test"]:
+            sub = self.initialize_chain(
+                "archive", "wss://archive.chain.opentensor.ai:443"
+            )
+        else:
+            sub = self.initialize_chain(network, chain)
+
+        return self._run_command(root.list_delegates(sub))
 
     def root_nominate(
         self,
