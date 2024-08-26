@@ -1977,7 +1977,7 @@ class CLIManager:
             prompt_text = typer.style(
                 "Enter take value (0.18 for 18%)", fg="green", bold=True
             )
-            take = float(typer.prompt(f"{prompt_text} {min_value} {max_value}"))
+            take = FloatPrompt.ask(f"{prompt_text} {min_value} {max_value}")
         return self._run_command(
             root.set_take(wallet, self.initialize_chain(network, chain), take)
         )
@@ -2036,12 +2036,21 @@ class CLIManager:
                 "`--amount` and `--all` specified. Choose one or the other."
             )
         if not stake_all and not amount:
-            amount = typer.prompt(
-                typer.style("Amount to stake (TAO τ)", fg=typer.colors.BLUE, bold=True),
-                confirmation_prompt=typer.style(
-                    "Confirm the amount again (TAO τ)", fg=typer.colors.BLUE, bold=True
-                ),
-            )
+            while True:
+                amount = FloatPrompt.ask(
+                    "[blue bold]Amount to stake (TAO τ)[/blue bold]", console=console
+                )
+                confirmation = FloatPrompt.ask(
+                    "[blue bold]Confirm the amount to stake (TAO τ)[/blue bold]",
+                    console=console,
+                )
+                if amount == confirmation:
+                    break
+                else:
+                    err_console.print(
+                        "[red]The amounts do not match. Please try again.[/red]"
+                    )
+
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             root.delegate_stake(
@@ -2110,12 +2119,21 @@ class CLIManager:
                 "`--amount` and `--all` specified. Choose one or the other."
             )
         if not unstake_all and not amount:
-            amount = typer.prompt(
-                typer.style("Amount to stake (TAO τ)", fg=typer.colors.BLUE, bold=True),
-                confirmation_prompt=typer.style(
-                    "Confirm the amount again (TAO τ)", fg=typer.colors.BLUE, bold=True
-                ),
-            )
+            while True:
+                amount = FloatPrompt.ask(
+                    "[blue bold]Amount to stake (TAO τ)[/blue bold]", console=console
+                )
+                confirmation = FloatPrompt.ask(
+                    "[blue bold]Confirm the amount to stake (TAO τ)[/blue bold]",
+                    console=console,
+                )
+                if amount == confirmation:
+                    break
+                else:
+                    err_console.print(
+                        "[red]The amounts do not match. Please try again.[/red]"
+                    )
+
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         self._run_command(
             root.delegate_unstake(
