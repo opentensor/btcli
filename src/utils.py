@@ -1,13 +1,17 @@
 import os
 import math
 from pathlib import Path
+import sqlite3
 from typing import Union, Any, Collection, Optional, TYPE_CHECKING
+import webbrowser
 
 import aiohttp
 import scalecodec
 from bittensor_wallet import Wallet
 from bittensor_wallet.keyfile import Keypair
 from bittensor_wallet.utils import SS58_FORMAT, ss58
+from jinja2 import Template
+from markupsafe import Markup
 import numpy as np
 from numpy.typing import NDArray
 from rich.console import Console
@@ -502,3 +506,54 @@ def normalize_hyperparameters(
         normalized_values.append((param, str(value), str(norm_value)))
 
     return normalized_values
+
+
+def create_table(title: str, columns: list[tuple[str, str]], rows: list[list]) -> bool:
+    """
+
+    :param title: title of the table
+    :param columns: [(column name, column type), ...]
+    :param rows: [(element, element, ...), ...]
+    :return:
+    """
+    conn = sqlite3.connect(os.path.expanduser("~/.bittensor/bittensor.db"))
+    cursor = conn.cursor()
+    columns_ = ", ".join([" ".join(x) for x in columns])
+    creation_query = f"CREATE TABLE IF NOT EXISTS {title} ({columns_})"
+    cursor.execute(creation_query)
+    conn.commit()
+    cursor.execute(f"DELETE FROM {title};")
+    conn.commit()
+    query = f"INSERT INTO {title} ({', '.join([x[0] for x in columns])}) VALUES ({', '.join(['?'] * len(columns))})"
+    cursor.executemany(query, rows)
+    conn.commit()
+    conn.close()
+    return True
+
+
+def read_table(table_name: str) -> tuple[list, list]:
+    conn = sqlite3.connect(os.path.expanduser("~/.bittensor/bittensor.db"))
+    cursor = conn.cursor()
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    columns_info = cursor.fetchall()
+    column_names = [info[1] for info in columns_info]
+    cursor.execute(f"SELECT * FROM {table_name}")
+    rows = cursor.fetchall()
+    return column_names, rows
+
+
+def render_table(table_name: str):
+    columns, rows = read_table(table_name)
+    template_dir = os.path.join(os.path.dirname(__file__), "templates")
+    with open(os.path.join(template_dir, "table.j2"), "r") as f:
+        template = Template(f.read())
+    rendered = template.render(
+        title=table_name,
+        columns=Markup([{"title": c, "field": c} for c in columns]),
+        rows=Markup([{c: v for (c, v) in zip(columns, r)} for r in rows]),
+        column_names=columns,
+    )
+    output_file = "/tmp/bittensor_table.html"
+    with open(output_file, "w+") as f:
+        f.write(rendered)
+    webbrowser.open(f"file://{output_file}")

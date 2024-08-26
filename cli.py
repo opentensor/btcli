@@ -1167,9 +1167,9 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         n_words: Optional[int] = None,
-        use_password: Optional[bool] = Options.use_password,
-        overwrite_hotkey: Optional[bool] = Options.overwrite_hotkey,
-        overwrite_coldkey: Optional[bool] = Options.overwrite_coldkey,
+        use_password: bool = Options.use_password,
+        overwrite_hotkey: bool = Options.overwrite_hotkey,
+        overwrite_coldkey: bool = Options.overwrite_coldkey,
     ):
         """
         # wallet create
@@ -3208,6 +3208,16 @@ class CLIManager:
         netuid: int = Options.netuid,
         network: str = Options.network,
         chain: str = Options.chain,
+        reuse_last: bool = typer.Option(
+            False,
+            help="Reuse the metagraph data you last retrieved. Only use this if you have already retrieved metagraph"
+            "data",
+        ),
+        html_output: bool = typer.Option(
+            False,
+            "--html",
+            help="Display the table as HTML in the browser, rather than in the Terminal.",
+        ),
     ):
         """
         Executes the `metagraph` command to retrieve and display the entire metagraph for a specified network.
@@ -3269,8 +3279,12 @@ class CLIManager:
         It is useful for network analysis and diagnostics. It is intended to be used as part of the Bittensor CLI and
         not as a standalone function within user code.
         """
+        if reuse_last:
+            subtensor = None
+        else:
+            subtensor = self.initialize_chain(network, chain)
         return self._run_command(
-            subnets.metagraph_cmd(self.initialize_chain(network, chain), netuid)
+            subnets.metagraph_cmd(subtensor, netuid, reuse_last, html_output)
         )
 
     def weights_reveal(

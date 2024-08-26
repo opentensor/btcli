@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <link href="https://unpkg.com/tabulator-tables@6.2.5/dist/css/tabulator.min.css" rel="stylesheet">
+    <script type="text/javascript" src="https://unpkg.com/tabulator-tables@6.2.5/dist/js/tabulator.min.js"></script>
+</head>
+<body>
+
+<div>
+  <select id="filter-field">
+    <option></option>
+      {% for col in column_names %}
+      <option value="{{ col }}">{{ col }}</option>
+
+      {% endfor %}
+  </select>
+
+  <select id="filter-type">
+    <option value="=">=</option>
+    <option value="<"><</option>
+    <option value="<="><=</option>
+    <option value=">">></option>
+    <option value=">=">>=</option>
+    <option value="!=">!=</option>
+    <option value="like">like</option>
+  </select>
+
+  <input id="filter-value" type="text" placeholder="value to filter">
+
+  <button id="filter-clear">Clear Filter</button>
+</div>
+
+<div id="my-table"></div>
+
+</body>
+
+<script>
+
+    let table = new Tabulator("#my-table",
+        {
+            columns:[
+                {"title": "UID", "field": "UID"},
+                {title: "Stake", field: "STAKE", formatter: "money", formatterParams:{
+                    symbol:"τ",
+                        precision:5
+                    }},
+                {title: "Rank", field:"RANK", formatter: "money", formatterParams: {precision: 5}},
+                {title: "Trust", field: "TRUST", formatter: "money", formatterParams: {precision: 5}},
+                {title: "Consensus", field: "CONSENSUS", formatter: "money", formatterParams: {precision: 5}},
+                {title: "Incentive", field: "INCENTIVE", formatter: "money", formatterParams: {precision: 5}},
+                {title: "Dividends", field: "DIVIDENDS", formatter: "money", formatterParams: {precision: 5}},
+                {title: "Emission", field: "EMISSION"},
+                {title: "VTrust", field: "VTRUST", formatter: "money", formatterParams: {precision: 5}},
+                {title: "Validated", field: "VAL"},
+                {title: "Updated", field: "UPDATED"},
+                {title: "Active", field:"ACTIVE"},
+                {title: "Axon", field: "AXON"},
+                {title: "Hotkey", field: "HOTKEY"},
+                {title: "Coldkey", field: "COLDKEY"}
+            ],
+            data:{{ rows|safe }},
+            pagination:"local",
+            paginationSize:50,
+            paginationSizeSelector:[50, 100, 150, 200],
+            movableColumns:true,
+            paginationCounter:"rows",
+            layout:"fitDataTable",
+        }
+);
+    //Define variables for input elements
+    var fieldEl = document.getElementById("filter-field");
+    var typeEl = document.getElementById("filter-type");
+    var valueEl = document.getElementById("filter-value");
+
+    //Custom filter example
+    function customFilter(data){
+        return data.car && data.rating < 3;
+    }
+
+    //Trigger setFilter function with correct parameters
+    function updateFilter(){
+      var filterVal = fieldEl.options[fieldEl.selectedIndex].value;
+      var typeVal = typeEl.options[typeEl.selectedIndex].value;
+
+      var filter = filterVal == "function" ? customFilter : filterVal;
+
+      if(filterVal == "function" ){
+        typeEl.disabled = true;
+        valueEl.disabled = true;
+      }else{
+        typeEl.disabled = false;
+        valueEl.disabled = false;
+      }
+
+      if(filterVal){
+        table.setFilter(filter,typeVal, valueEl.value);
+      }
+    }
+
+    //Update filters on value change
+    document.getElementById("filter-field").addEventListener("change", updateFilter);
+    document.getElementById("filter-type").addEventListener("change", updateFilter);
+    document.getElementById("filter-value").addEventListener("keyup", updateFilter);
+
+    //Clear filters on "Clear Filters" button click
+    document.getElementById("filter-clear").addEventListener("click", function(){
+      fieldEl.value = "";
+      typeEl.value = "=";
+      valueEl.value = "";
+
+      table.clearFilter();
+    });
+</script>
+
+</html>

@@ -19,6 +19,8 @@ from src.utils import (
     millify,
     RAO_PER_TAO,
     format_error_message,
+    render_table,
+    create_table,
 )
 
 if TYPE_CHECKING:
@@ -347,168 +349,221 @@ async def register(wallet: Wallet, subtensor: "SubtensorInterface", netuid: int)
     )
 
 
-async def metagraph_cmd(subtensor: "SubtensorInterface", netuid: int):
+async def metagraph_cmd(
+    subtensor: "SubtensorInterface", netuid: int, reuse_last: bool, html_output: bool
+):
     """Prints an entire metagraph."""
-    console.print(
-        f":satellite: Syncing with chain: [white]{subtensor.network}[/white] ..."
-    )
-    block_hash = await subtensor.substrate.get_chain_head()
-    neurons, difficulty_, total_issuance_, block = await asyncio.gather(
-        subtensor.neurons(netuid, block_hash=block_hash),
-        subtensor.get_hyperparameter(
-            param_name="Difficulty", netuid=netuid, block_hash=block_hash
-        ),
-        subtensor.substrate.query(
-            module="SubtensorModule",
-            storage_function="TotalIssuance",
-            params=[],
-            block_hash=block_hash,
-        ),
-        subtensor.substrate.get_block_number(block_hash=block_hash),
-    )
+    if not reuse_last:
+        with console.status(
+            f":satellite: Syncing with chain: [white]{subtensor.network}[/white] ..."
+        ):
+            block_hash = await subtensor.substrate.get_chain_head()
+            neurons, difficulty_, total_issuance_, block = await asyncio.gather(
+                subtensor.neurons(netuid, block_hash=block_hash),
+                subtensor.get_hyperparameter(
+                    param_name="Difficulty", netuid=netuid, block_hash=block_hash
+                ),
+                subtensor.substrate.query(
+                    module="SubtensorModule",
+                    storage_function="TotalIssuance",
+                    params=[],
+                    block_hash=block_hash,
+                ),
+                subtensor.substrate.get_block_number(block_hash=block_hash),
+            )
 
-    difficulty = int(difficulty_)
-    total_issuance = Balance.from_rao(total_issuance_.value)
-    metagraph = MiniGraph(
-        netuid=netuid, neurons=neurons, subtensor=subtensor, block=block
-    )
-    # metagraph.save()  TODO maybe?
-    table_data = []
-    total_stake = 0.0
-    total_rank = 0.0
-    total_validator_trust = 0.0
-    total_trust = 0.0
-    total_consensus = 0.0
-    total_incentive = 0.0
-    total_dividends = 0.0
-    total_emission = 0
-    for uid in metagraph.uids:
-        neuron = metagraph.neurons[uid]
-        ep = metagraph.axons[uid]
-        row = [
-            str(neuron.uid),
-            "{:.5f}".format(metagraph.total_stake[uid]),
-            "{:.5f}".format(metagraph.ranks[uid]),
-            "{:.5f}".format(metagraph.trust[uid]),
-            "{:.5f}".format(metagraph.consensus[uid]),
-            "{:.5f}".format(metagraph.incentive[uid]),
-            "{:.5f}".format(metagraph.dividends[uid]),
-            "{}".format(int(metagraph.emission[uid] * 1000000000)),
-            "{:.5f}".format(metagraph.validator_trust[uid]),
-            "*" if metagraph.validator_permit[uid] else "",
-            str((metagraph.block.item() - metagraph.last_update[uid].item())),
-            str(metagraph.active[uid].item()),
-            (ep.ip + ":" + str(ep.port) if ep.is_serving else "[yellow]none[/yellow]"),
-            ep.hotkey[:10],
-            ep.coldkey[:10],
-        ]
-        total_stake += metagraph.total_stake[uid]
-        total_rank += metagraph.ranks[uid]
-        total_validator_trust += metagraph.validator_trust[uid]
-        total_trust += metagraph.trust[uid]
-        total_consensus += metagraph.consensus[uid]
-        total_incentive += metagraph.incentive[uid]
-        total_dividends += metagraph.dividends[uid]
-        total_emission += int(metagraph.emission[uid] * 1000000000)
-        table_data.append(row)
-    total_neurons = len(metagraph.uids)
-    table = Table(show_footer=False)
-    table.title = (
-        f"[white]Metagraph: "
-        f"net: {subtensor.network}:{metagraph.netuid}, "
-        f"block: {metagraph.block.item()},"
-        f"N: {sum(metagraph.active.tolist())}/{metagraph.n.item()}, "
-        f"stake: {Balance.from_tao(total_stake)}, "
-        f"issuance: {total_issuance}, "
-        f"difficulty: {difficulty}"
-    )
-    table.add_column(
-        "[overline white]UID",
-        str(total_neurons),
-        footer_style="overline white",
-        style="yellow",
-    )
-    table.add_column(
-        "[overline white]STAKE(\u03c4)",
-        "\u03c4{:.5f}".format(total_stake),
-        footer_style="overline white",
-        justify="right",
-        style="green",
-        no_wrap=True,
-    )
-    table.add_column(
-        "[overline white]RANK",
-        "{:.5f}".format(total_rank),
-        footer_style="overline white",
-        justify="right",
-        style="green",
-        no_wrap=True,
-    )
-    table.add_column(
-        "[overline white]TRUST",
-        "{:.5f}".format(total_trust),
-        footer_style="overline white",
-        justify="right",
-        style="green",
-        no_wrap=True,
-    )
-    table.add_column(
-        "[overline white]CONSENSUS",
-        "{:.5f}".format(total_consensus),
-        footer_style="overline white",
-        justify="right",
-        style="green",
-        no_wrap=True,
-    )
-    table.add_column(
-        "[overline white]INCENTIVE",
-        "{:.5f}".format(total_incentive),
-        footer_style="overline white",
-        justify="right",
-        style="green",
-        no_wrap=True,
-    )
-    table.add_column(
-        "[overline white]DIVIDENDS",
-        "{:.5f}".format(total_dividends),
-        footer_style="overline white",
-        justify="right",
-        style="green",
-        no_wrap=True,
-    )
-    table.add_column(
-        "[overline white]EMISSION(\u03c1)",
-        "\u03c1{}".format(int(total_emission)),
-        footer_style="overline white",
-        justify="right",
-        style="green",
-        no_wrap=True,
-    )
-    table.add_column(
-        "[overline white]VTRUST",
-        "{:.5f}".format(total_validator_trust),
-        footer_style="overline white",
-        justify="right",
-        style="green",
-        no_wrap=True,
-    )
-    table.add_column(
-        "[overline white]VAL", justify="right", style="green", no_wrap=True
-    )
-    table.add_column("[overline white]UPDATED", justify="right", no_wrap=True)
-    table.add_column(
-        "[overline white]ACTIVE", justify="right", style="green", no_wrap=True
-    )
-    table.add_column(
-        "[overline white]AXON", justify="left", style="dim blue", no_wrap=True
-    )
-    table.add_column("[overline white]HOTKEY", style="dim blue", no_wrap=False)
-    table.add_column("[overline white]COLDKEY", style="dim purple", no_wrap=False)
-    table.show_footer = True
+        difficulty = int(difficulty_)
+        total_issuance = Balance.from_rao(total_issuance_.value)
+        metagraph = MiniGraph(
+            netuid=netuid, neurons=neurons, subtensor=subtensor, block=block
+        )
+        # metagraph.save()  TODO maybe?
+        table_data = []
+        db_table = []
+        total_stake = 0.0
+        total_rank = 0.0
+        total_validator_trust = 0.0
+        total_trust = 0.0
+        total_consensus = 0.0
+        total_incentive = 0.0
+        total_dividends = 0.0
+        total_emission = 0
+        for uid in metagraph.uids:
+            neuron = metagraph.neurons[uid]
+            ep = metagraph.axons[uid]
+            row = [
+                str(neuron.uid),
+                "{:.5f}".format(metagraph.total_stake[uid]),
+                "{:.5f}".format(metagraph.ranks[uid]),
+                "{:.5f}".format(metagraph.trust[uid]),
+                "{:.5f}".format(metagraph.consensus[uid]),
+                "{:.5f}".format(metagraph.incentive[uid]),
+                "{:.5f}".format(metagraph.dividends[uid]),
+                "{}".format(int(metagraph.emission[uid] * 1000000000)),
+                "{:.5f}".format(metagraph.validator_trust[uid]),
+                "*" if metagraph.validator_permit[uid] else "",
+                str(metagraph.block.item() - metagraph.last_update[uid].item()),
+                str(metagraph.active[uid].item()),
+                (
+                    ep.ip + ":" + str(ep.port)
+                    if ep.is_serving
+                    else "[yellow]none[/yellow]"
+                ),
+                ep.hotkey[:10],
+                ep.coldkey[:10],
+            ]
+            db_row = [
+                neuron.uid,
+                float(metagraph.total_stake[uid]),
+                float(metagraph.ranks[uid]),
+                float(metagraph.trust[uid]),
+                float(metagraph.consensus[uid]),
+                float(metagraph.incentive[uid]),
+                float(metagraph.dividends[uid]),
+                int(metagraph.emission[uid] * 1000000000),
+                float(metagraph.validator_trust[uid]),
+                bool(metagraph.validator_permit[uid]),
+                metagraph.block.item() - metagraph.last_update[uid].item(),
+                metagraph.active[uid].item(),
+                (ep.ip + ":" + str(ep.port) if ep.is_serving else "ERROR"),
+                ep.hotkey[:10],
+                ep.coldkey[:10],
+            ]
+            db_table.append(db_row)
+            total_stake += metagraph.total_stake[uid]
+            total_rank += metagraph.ranks[uid]
+            total_validator_trust += metagraph.validator_trust[uid]
+            total_trust += metagraph.trust[uid]
+            total_consensus += metagraph.consensus[uid]
+            total_incentive += metagraph.incentive[uid]
+            total_dividends += metagraph.dividends[uid]
+            total_emission += int(metagraph.emission[uid] * 1000000000)
+            table_data.append(row)
+        total_neurons = len(metagraph.uids)
+        table = Table(show_footer=False)
+        table.title = (
+            f"[white]Metagraph: "
+            f"net: {subtensor.network}:{metagraph.netuid}, "
+            f"block: {metagraph.block.item()},"
+            f"N: {sum(metagraph.active.tolist())}/{metagraph.n.item()}, "
+            f"stake: {Balance.from_tao(total_stake)}, "
+            f"issuance: {total_issuance}, "
+            f"difficulty: {difficulty}"
+        )
+        table.add_column(
+            "[overline white]UID",
+            str(total_neurons),
+            footer_style="overline white",
+            style="yellow",
+        )
+        table.add_column(
+            "[overline white]STAKE(\u03c4)",
+            "\u03c4{:.5f}".format(total_stake),
+            footer_style="overline white",
+            justify="right",
+            style="green",
+            no_wrap=True,
+        )
+        table.add_column(
+            "[overline white]RANK",
+            "{:.5f}".format(total_rank),
+            footer_style="overline white",
+            justify="right",
+            style="green",
+            no_wrap=True,
+        )
+        table.add_column(
+            "[overline white]TRUST",
+            "{:.5f}".format(total_trust),
+            footer_style="overline white",
+            justify="right",
+            style="green",
+            no_wrap=True,
+        )
+        table.add_column(
+            "[overline white]CONSENSUS",
+            "{:.5f}".format(total_consensus),
+            footer_style="overline white",
+            justify="right",
+            style="green",
+            no_wrap=True,
+        )
+        table.add_column(
+            "[overline white]INCENTIVE",
+            "{:.5f}".format(total_incentive),
+            footer_style="overline white",
+            justify="right",
+            style="green",
+            no_wrap=True,
+        )
+        table.add_column(
+            "[overline white]DIVIDENDS",
+            "{:.5f}".format(total_dividends),
+            footer_style="overline white",
+            justify="right",
+            style="green",
+            no_wrap=True,
+        )
+        table.add_column(
+            "[overline white]EMISSION(\u03c1)",
+            "\u03c1{}".format(int(total_emission)),
+            footer_style="overline white",
+            justify="right",
+            style="green",
+            no_wrap=True,
+        )
+        table.add_column(
+            "[overline white]VTRUST",
+            "{:.5f}".format(total_validator_trust),
+            footer_style="overline white",
+            justify="right",
+            style="green",
+            no_wrap=True,
+        )
+        table.add_column(
+            "[overline white]VAL", justify="right", style="green", no_wrap=True
+        )
+        table.add_column("[overline white]UPDATED", justify="right", no_wrap=True)
+        table.add_column(
+            "[overline white]ACTIVE", justify="right", style="green", no_wrap=True
+        )
+        table.add_column(
+            "[overline white]AXON", justify="left", style="dim blue", no_wrap=True
+        )
+        table.add_column("[overline white]HOTKEY", style="dim blue", no_wrap=False)
+        table.add_column("[overline white]COLDKEY", style="dim purple", no_wrap=False)
+        table.show_footer = True
 
-    for row in table_data:
-        table.add_row(*row)
-    table.box = None
-    table.pad_edge = False
-    table.width = None
-    console.print(table)
+        for row in table_data:
+            table.add_row(*row)
+
+        create_table(
+            "metagraph",
+            columns=[
+                ("UID", "INTEGER"),
+                ("STAKE", "REAL"),
+                ("RANK", "REAL"),
+                ("TRUST", "REAL"),
+                ("CONSENSUS", "REAL"),
+                ("INCENTIVE", "REAL"),
+                ("DIVIDENDS", "REAL"),
+                ("EMISSION", "INTEGER"),
+                ("VTRUST", "REAL"),
+                ("VAL", "INTEGER"),
+                ("UPDATED", "INTEGER"),
+                ("ACTIVE", "INTEGER"),
+                ("AXON", "TEXT"),
+                ("HOTKEY", "TEXT"),
+                ("COLDKEY", "TEXT"),
+            ],
+            rows=db_table,
+        )
+
+        table.box = None
+        table.pad_edge = False
+        table.width = None
+    # TODO add support for reuse-last with the CLI table output
+    if html_output:
+        render_table("metagraph")
+    else:
+        console.print(table)
