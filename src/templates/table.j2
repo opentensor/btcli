@@ -3,9 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <title>{{ title }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400&display=swap" rel="stylesheet">
     <link href="https://unpkg.com/tabulator-tables@6.2.5/dist/css/tabulator.min.css" rel="stylesheet">
     <script type="text/javascript" src="https://unpkg.com/tabulator-tables@6.2.5/dist/js/tabulator.min.js"></script>
 </head>
+<style>
+    .tabulator {
+        font-family: 'DM Mono', monospace !important;
+    }
+
+    .tabulator .tabulator-header .tabulator-col {
+        font-family: 'DM Mono', monospace !important;
+    }
+
+    .tabulator .tabulator-tableHolder .tabulator-row .tabulator-cell {
+        font-family: 'DM Mono', monospace !important;
+    }
+
+    .tabulator .tabulator-header {
+        background-color: #282A2D !important;
+        color: white !important;
+    }
+
+    .tabulator .tabulator-header .tabulator-col {
+        background-color: #282A2D !important;
+        color: white !important;
+        padding: 16px 12px;
+    }
+
+    .tabulator .tabulator-tableHolder .tabulator-row .tabulator-cell {
+        padding: 16px 12px;
+    }
+
+    .tabulator .tabulator-tableHolder .tabulator-row:nth-child(even) {
+        background-color: #f2f2f2;
+    }
+
+    .tabulator .tabulator-tableHolder .tabulator-row:hover {
+        background-color: #ddd;
+    }
+</style>
 <body>
 
 <div>
@@ -41,11 +78,16 @@
     let table = new Tabulator("#my-table",
         {
             columns:[
-                {"title": "UID", "field": "UID"},
-                {title: "Stake", field: "STAKE", formatter: "money", formatterParams:{
-                    symbol:"τ",
+                {title: "UID", field: "UID", minWidth: 70},
+                {
+                    title: "Stake",
+                    field: "STAKE",
+                    formatter: "money",
+                    formatterParams:{
+                        symbol:"τ",
                         precision:5
-                    }},
+                    }
+                },
                 {title: "Rank", field:"RANK", formatter: "money", formatterParams: {precision: 5}},
                 {title: "Trust", field: "TRUST", formatter: "money", formatterParams: {precision: 5}},
                 {title: "Consensus", field: "CONSENSUS", formatter: "money", formatterParams: {precision: 5}},
