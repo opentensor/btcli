@@ -1,6 +1,7 @@
 import asyncio
 import copy
 import json
+import sqlite3
 from contextlib import suppress
 from math import floor
 from typing import TYPE_CHECKING, Union, Optional, Sequence, cast
@@ -1159,8 +1160,17 @@ async def show(
         }
         update_metadata_table("stakeshow", metadata)
     else:
-        metadata = get_metadata_table("stakeshow")
-        rows = json.loads(metadata["rows"])
+        try:
+            metadata = get_metadata_table("stakeshow")
+            rows = json.loads(metadata["rows"])
+        except sqlite3.OperationalError:
+            err_console.print(
+                "[red]Error[/red] Unable to retrieve table data. This is usually caused by attempting to use "
+                "`--reuse-last` before running the command a first time. In rare cases, this could also be due to "
+                "a corrupted database. Re-run the command (do not use `--reuse-last`) and see if that resolves your "
+                "issue."
+            )
+            return
     if not html_output:
         table = Table(
             Column(
