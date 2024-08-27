@@ -316,7 +316,7 @@ async def subnets_list(
                     "title": "Recycle",
                     "field": "RECYCLE",
                     "formatter": "money",
-                    "formatterParams": {"symbol": "", "precision": 5},
+                    "formatterParams": {"symbol": "τ", "precision": 5},
                 },
                 {
                     "title": "Difficulty",
