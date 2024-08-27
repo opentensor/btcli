@@ -490,15 +490,75 @@ async def metagraph_cmd(
         table_data = json.loads(metadata_info["table_data"])
 
     if html_output:
-        # TODO add the metadata_info to the table
-        render_table("metagraph")
+        render_table(
+            table_name="metagraph",
+            table_info=f"Metagraph | "
+            f"net: {metadata_info['net']}, "
+            f"block: {metadata_info['block']}, "
+            f"N: {metadata_info['N']}, "
+            f"stake: {metadata_info['stake']}, "
+            f"issuance: {metadata_info['issuance']}, "
+            f"difficulty: {metadata_info['difficulty']}",
+            columns=[
+                {"title": "UID", "field": "UID"},
+                {
+                    "title": "Stake",
+                    "field": "STAKE",
+                    "formatter": "money",
+                    "formatterParams": {"symbol": "τ", "precision": 5},
+                },
+                {
+                    "title": "Rank",
+                    "field": "RANK",
+                    "formatter": "money",
+                    "formatterParams": {"precision": 5},
+                },
+                {
+                    "title": "Trust",
+                    "field": "TRUST",
+                    "formatter": "money",
+                    "formatterParams": {"precision": 5},
+                },
+                {
+                    "title": "Consensus",
+                    "field": "CONSENSUS",
+                    "formatter": "money",
+                    "formatterParams": {"precision": 5},
+                },
+                {
+                    "title": "Incentive",
+                    "field": "INCENTIVE",
+                    "formatter": "money",
+                    "formatterParams": {"precision": 5},
+                },
+                {
+                    "title": "Dividends",
+                    "field": "DIVIDENDS",
+                    "formatter": "money",
+                    "formatterParams": {"precision": 5},
+                },
+                {"title": "Emission", "field": "EMISSION"},
+                {
+                    "title": "VTrust",
+                    "field": "VTRUST",
+                    "formatter": "money",
+                    "formatterParams": {"precision": 5},
+                },
+                {"title": "Validated", "field": "VAL"},
+                {"title": "Updated", "field": "UPDATED"},
+                {"title": "Active", "field": "ACTIVE"},
+                {"title": "Axon", "field": "AXON"},
+                {"title": "Hotkey", "field": "HOTKEY"},
+                {"title": "Coldkey", "field": "COLDKEY"},
+            ],
+        )
     else:
         table = Table(show_footer=False, box=None, pad_edge=False, width=None)
 
         table.title = (
             f"[white]Metagraph: "
             f"net: {metadata_info['net']}, "
-            f"block: {metadata_info['block']},"
+            f"block: {metadata_info['block']}, "
             f"N: {metadata_info['N']}, "
             f"stake: {metadata_info['stake']}, "
             f"issuance: {metadata_info['issuance']}, "

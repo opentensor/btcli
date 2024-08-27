@@ -5,6 +5,7 @@
     <title>{{ title }}</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400&display=swap" rel="stylesheet">
     <link href="https://unpkg.com/tabulator-tables@6.2.5/dist/css/tabulator.min.css" rel="stylesheet">
+    <script type="text/javascript" src="https://oss.sheetjs.com/sheetjs/xlsx.full.min.js"></script>
     <script type="text/javascript" src="https://unpkg.com/tabulator-tables@6.2.5/dist/js/tabulator.min.js"></script>
 </head>
 <style>
@@ -43,102 +44,104 @@
         background-color: #ddd;
     }
 </style>
-<body>
-
-<div>
-  <select id="filter-field">
-    <option></option>
-      {% for col in column_names %}
-      <option value="{{ col }}">{{ col }}</option>
-
-      {% endfor %}
-  </select>
-
-  <select id="filter-type">
-    <option value="=">=</option>
-    <option value="<"><</option>
-    <option value="<="><=</option>
-    <option value=">">></option>
-    <option value=">=">>=</option>
-    <option value="!=">!=</option>
-    <option value="like">like</option>
-  </select>
-
-  <input id="filter-value" type="text" placeholder="value to filter">
-
-  <button id="filter-clear">Clear Filter</button>
+<body style="margin: 0; padding: 0;">
+<!-- Header Bar -->
+<div style="position: relative; width: 1648px; height: 48px; margin: 32px auto 0 auto; background-color: #282A2D; color: white;">
+    <!-- Tao Symbol on the Left -->
+    <div style="position: absolute; width: 48px; height: 48px; left: 16px; top: 0; text-align: center;
+            font-family: 'GFS Neohellenic', serif; font-weight: 400; font-size: 48px; line-height: 48px; color: #ffffff;">
+        τ
+    </div>
+    <!-- Table Info slightly off-center and constrained to one line -->
+    <div style="position: absolute; left: 25%; transform: translateX(-25%); top: 12px; width: 60%;
+            font-family: 'DM Mono', monospace; font-weight: 400; font-size: 12px; letter-spacing: 0.05em;
+            text-transform: uppercase; color: #ffffff; white-space: nowrap;">
+        {{ table_info }}
+    </div>
 </div>
 
-<div id="my-table"></div>
+<!-- Filter Section -->
+<div style="margin: 20px auto; text-align: center;">
+    <div style="display: inline-block;">
+        <select id="filter-field">
+            <option></option>
+            {% for col in column_names %}
+                <option value="{{ col }}">{{ col }}</option>
+            {% endfor %}
+        </select>
+
+        <select id="filter-type">
+            <option value="=">=</option>
+            <option value="<"><</option>
+            <option value="<="><=</option>
+            <option value=">">></option>
+            <option value=">=">>=</option>
+            <option value="!=">!=</option>
+            <option value="like">like</option>
+        </select>
+
+        <input id="filter-value" type="text" placeholder="value to filter">
+
+        <button id="filter-clear">Clear Filter</button>
+    </div>
+</div>
+
+<!-- Table Placeholder (for reference) -->
+<div id="my-table" style="width: 1648px; margin: 20px auto;">
+    <!-- Table content will go here -->
+</div>
+
+<div style="margin: 20px auto; text-align: center;">
+    <button id="download-csv">Download CSV</button>
+    <button id="download-json">Download JSON</button>
+    <button id="download-xlsx">Download XLSX</button>
+    <button id="download-html">Download HTML</button>
+</div>
 
 </body>
 
 <script>
 
-    let table = new Tabulator("#my-table",
+    const table = new Tabulator("#my-table",
         {
-            columns:[
-                {title: "UID", field: "UID", minWidth: 70},
-                {
-                    title: "Stake",
-                    field: "STAKE",
-                    formatter: "money",
-                    formatterParams:{
-                        symbol:"τ",
-                        precision:5
-                    }
-                },
-                {title: "Rank", field:"RANK", formatter: "money", formatterParams: {precision: 5}},
-                {title: "Trust", field: "TRUST", formatter: "money", formatterParams: {precision: 5}},
-                {title: "Consensus", field: "CONSENSUS", formatter: "money", formatterParams: {precision: 5}},
-                {title: "Incentive", field: "INCENTIVE", formatter: "money", formatterParams: {precision: 5}},
-                {title: "Dividends", field: "DIVIDENDS", formatter: "money", formatterParams: {precision: 5}},
-                {title: "Emission", field: "EMISSION"},
-                {title: "VTrust", field: "VTRUST", formatter: "money", formatterParams: {precision: 5}},
-                {title: "Validated", field: "VAL"},
-                {title: "Updated", field: "UPDATED"},
-                {title: "Active", field:"ACTIVE"},
-                {title: "Axon", field: "AXON"},
-                {title: "Hotkey", field: "HOTKEY"},
-                {title: "Coldkey", field: "COLDKEY"}
-            ],
-            data:{{ rows|safe }},
-            pagination:"local",
-            paginationSize:50,
-            paginationSizeSelector:[50, 100, 150, 200],
-            movableColumns:true,
-            paginationCounter:"rows",
-            layout:"fitDataTable",
+            columns: {{ columns|safe }},
+            data: {{ rows|safe }},
+            pagination: "local",
+            paginationSize: 50,
+            paginationSizeSelector: [50, 100, 150, 200],
+            movableColumns: true,
+            paginationCounter: "rows",
+            layout: "fitColumns",
         }
-);
+    )
     //Define variables for input elements
-    var fieldEl = document.getElementById("filter-field");
-    var typeEl = document.getElementById("filter-type");
-    var valueEl = document.getElementById("filter-value");
+    const fieldEl = document.getElementById("filter-field");
+    const typeEl = document.getElementById("filter-type");
+    const valueEl = document.getElementById("filter-value");
 
     //Custom filter example
-    function customFilter(data){
+    function customFilter(data) {
         return data.car && data.rating < 3;
     }
 
     //Trigger setFilter function with correct parameters
-    function updateFilter(){
-      var filterVal = fieldEl.options[fieldEl.selectedIndex].value;
-      var typeVal = typeEl.options[typeEl.selectedIndex].value;
+    function updateFilter() {
+        var filterVal = fieldEl.options[fieldEl.selectedIndex].value;
+        var typeVal = typeEl.options[typeEl.selectedIndex].value;
 
-      var filter = filterVal == "function" ? customFilter : filterVal;
+        var filter = filterVal == "function" ? customFilter : filterVal;
 
-      if(filterVal == "function" ){
-        typeEl.disabled = true;
-        valueEl.disabled = true;
-      }else{
-        typeEl.disabled = false;
-        valueEl.disabled = false;
-      }
+        if (filterVal == "function") {
+            typeEl.disabled = true;
+            valueEl.disabled = true;
+        } else {
+            typeEl.disabled = false;
+            valueEl.disabled = false;
+        }
 
-      if(filterVal){
-        table.setFilter(filter,typeVal, valueEl.value);
-      }
+        if (filterVal) {
+            table.setFilter(filter, typeVal, valueEl.value);
+        }
     }
 
     //Update filters on value change
@@ -147,13 +150,34 @@
     document.getElementById("filter-value").addEventListener("keyup", updateFilter);
 
     //Clear filters on "Clear Filters" button click
-    document.getElementById("filter-clear").addEventListener("click", function(){
-      fieldEl.value = "";
-      typeEl.value = "=";
-      valueEl.value = "";
+    document.getElementById("filter-clear").addEventListener("click", function () {
+        fieldEl.value = "";
+        typeEl.value = "=";
+        valueEl.value = "";
 
-      table.clearFilter();
+        table.clearFilter();
     });
+
+    //trigger download of data.csv file
+    document.getElementById("download-csv").addEventListener("click", function () {
+        table.download("csv", "{{ title }}.csv");
+    });
+
+    //trigger download of data.json file
+    document.getElementById("download-json").addEventListener("click", function () {
+        table.download("json", "{{ title }}.json");
+    });
+
+    //trigger download of data.xlsx file
+    document.getElementById("download-xlsx").addEventListener("click", function () {
+        table.download("xlsx", "{{ title }}.xlsx", {sheetName: "My Data"});
+    });
+
+    //trigger download of data.html file
+    document.getElementById("download-html").addEventListener("click", function () {
+        table.download("html", "{{ title }}.html", {style: true});
+    });
+
 </script>
 
 </html>

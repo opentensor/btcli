@@ -589,16 +589,17 @@ def get_metadata_table(table_name: str) -> dict[str, str]:
         return dict(data)
 
 
-def render_table(table_name: str):
-    columns, rows = read_table(table_name)
+def render_table(table_name: str, table_info: str, columns: list[dict]):
+    db_cols, rows = read_table(table_name)
     template_dir = os.path.join(os.path.dirname(__file__), "templates")
     with open(os.path.join(template_dir, "table.j2"), "r") as f:
         template = Template(f.read())
     rendered = template.render(
         title=table_name,
-        columns=Markup([{"title": c, "field": c} for c in columns]),
-        rows=Markup([{c: v for (c, v) in zip(columns, r)} for r in rows]),
-        column_names=columns,
+        columns=Markup(columns),
+        rows=Markup([{c: v for (c, v) in zip(db_cols, r)} for r in rows]),
+        column_names=db_cols,
+        table_info=table_info,
     )
     output_file = "/tmp/bittensor_table.html"
     with open(output_file, "w+") as f:
