@@ -538,13 +538,23 @@ def create_table(title: str, columns: list[tuple[str, str]], rows: list[list]) -
     :param rows: [(element, element, ...), ...]
     :return:
     """
+    blob_cols = []
+    for idx, (_, col_type) in enumerate(columns):
+        if col_type == "BLOB":
+            blob_cols.append(idx)
+    if blob_cols:
+        for row in rows:
+            for idx in blob_cols:
+                row[idx] = row[idx].to_bytes(row[idx].bit_length() + 7, byteorder="big")
     with DB() as (conn, cursor):
         columns_ = ", ".join([" ".join(x) for x in columns])
         creation_query = f"CREATE TABLE IF NOT EXISTS {title} ({columns_})"
         cursor.execute(creation_query)
         cursor.execute(f"DELETE FROM {title};")
         query = f"INSERT INTO {title} ({', '.join([x[0] for x in columns])}) VALUES ({', '.join(['?'] * len(columns))})"
-        cursor.executemany(query, rows)
+        for row in rows:
+            cursor.execute(query, row)
+        # cursor.executemany(query, rows)
     return True
 
 
@@ -553,8 +563,18 @@ def read_table(table_name: str) -> tuple[list, list]:
         cursor.execute(f"PRAGMA table_info({table_name})")
         columns_info = cursor.fetchall()
         column_names = [info[1] for info in columns_info]
+        column_types = [info[2] for info in columns_info]
         cursor.execute(f"SELECT * FROM {table_name}")
         rows = cursor.fetchall()
+    blob_cols = []
+    for idx, col_type in enumerate(column_types):
+        if col_type == "BLOB":
+            blob_cols.append(idx)
+    if blob_cols:
+        rows = [list(row) for row in rows]
+        for row in rows:
+            for idx in blob_cols:
+                row[idx] = int.from_bytes(row[idx], byteorder="big")
     return column_names, rows
 
 

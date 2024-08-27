@@ -104,6 +104,16 @@ class Options:
         help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
         prompt=True,
     )
+    reuse_last = typer.Option(
+        False,
+        help="Reuse the metagraph data you last retrieved. Only use this if you have already retrieved metagraph"
+        "data",
+    )
+    html_output = typer.Option(
+        False,
+        "--html",
+        help="Display the table as HTML in the browser, rather than in the Terminal.",
+    )
 
 
 def list_prompt(init_var: list, list_type: type, help_text: str) -> list:
@@ -2884,7 +2894,13 @@ class CLIManager:
             sudo.get_hyperparameters(self.initialize_chain(network, chain), netuid)
         )
 
-    def subnets_list(self, network: str = Options.network, chain: str = Options.chain):
+    def subnets_list(
+        self,
+        network: str = Options.network,
+        chain: str = Options.chain,
+        reuse_last: bool = Options.reuse_last,
+        html_output: bool = Options.html_output,
+    ):
         """
         # subnets list
         Executes the `list` command to list all subnets and their detailed information on the Bittensor network.
@@ -2932,8 +2948,12 @@ class CLIManager:
         This command is particularly useful for users seeking an overview of the Bittensor network's structure and the
         distribution of its resources and ownership information for each subnet.
         """
+        if reuse_last:
+            subtensor = None
+        else:
+            subtensor = self.initialize_chain(network, chain)
         return self._run_command(
-            subnets.subnets_list(self.initialize_chain(network, chain))
+            subnets.subnets_list(subtensor, reuse_last, html_output)
         )
 
     def subnets_lock_cost(
@@ -3212,16 +3232,8 @@ class CLIManager:
         ),
         network: str = Options.network,
         chain: str = Options.chain,
-        reuse_last: bool = typer.Option(
-            False,
-            help="Reuse the metagraph data you last retrieved. Only use this if you have already retrieved metagraph"
-            "data",
-        ),
-        html_output: bool = typer.Option(
-            False,
-            "--html",
-            help="Display the table as HTML in the browser, rather than in the Terminal.",
-        ),
+        reuse_last: bool = Options.reuse_last,
+        html_output: bool = Options.html_output,
     ):
         """
         Executes the `metagraph` command to retrieve and display the entire metagraph for a specified network.

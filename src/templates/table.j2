@@ -101,10 +101,17 @@
 </body>
 
 <script>
+    const columns = {{ columns|safe }};
+    columns.forEach(column => {
+        if (column.customFormatter === "millify") {
+            column.formatter = millify;
+            delete column.customFormatter;
+        }
+    });
 
     const table = new Tabulator("#my-table",
         {
-            columns: {{ columns|safe }},
+            columns: columns,
             data: {{ rows|safe }},
             pagination: "local",
             paginationSize: 50,
@@ -142,6 +149,15 @@
         if (filterVal) {
             table.setFilter(filter, typeVal, valueEl.value);
         }
+    }
+
+    function millify(cell, formatterParams, onRendered) {
+        const millNames = ["", "K", "M", "B", "T"];
+        const n = cell.getValue();
+        const nAbs = Math.abs(n);
+        const millIdx = Math.max(0, Math.min(millNames.length - 1, Math.floor(nAbs === 0 ? 0 : Math.log10(nAbs) / 3)));
+
+        return (n / Math.pow(10, 3 * millIdx)).toFixed(2) + millNames[millIdx];
     }
 
     //Update filters on value change
