@@ -604,8 +604,8 @@ def update_metadata_table(table_name: str, values: dict[str, str]) -> None:
         )
         for key, value in values.items():
             cursor.execute(
-                "UPDATE metadata SET TableName = ?, Value = ? WHERE Key = ?",
-                (table_name, value, key),
+                "UPDATE metadata SET Value = ? WHERE Key = ? AND TableName = ?",
+                (value, key, table_name),
             )
             if cursor.rowcount == 0:
                 cursor.execute(
