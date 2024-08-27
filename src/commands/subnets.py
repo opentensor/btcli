@@ -175,37 +175,61 @@ async def subnets_list(subtensor: "SubtensorInterface"):
                 f"{delegate_info[subnet.owner_ss58].name if subnet.owner_ss58 in delegate_info else subnet.owner_ss58}",
             )
         )
+
+    table_width = console.width - 20
+
     table = Table(
-        Column(
-            "[overline white]NETUID",
-            str(len(subnets)),
-            footer_style="overline white",
-            style="bold green",
-            justify="center",
-        ),
-        Column(
-            "[overline white]N",
-            str(total_neurons),
-            footer_style="overline white",
-            style="green",
-            justify="center",
-        ),
-        Column("[overline white]MAX_N", style="white", justify="center"),
-        Column("[overline white]EMISSION", style="white", justify="center"),
-        Column("[overline white]TEMPO", style="white", justify="center"),
-        Column("[overline white]RECYCLE", style="white", justify="center"),
-        Column("[overline white]POW", style="white", justify="center"),
-        Column("[overline white]SUDO", style="white"),
-        title=f"[white]Subnets - {subtensor.network}",
+        title=f"[bold magenta]Subnets - {subtensor.network}[/bold magenta]",
         show_footer=True,
-        width=None,
+        show_edge=False,
+        header_style="bold white",
+        border_style="bright_black",
+        style="bold",
+        title_style="bold white",
+        title_justify="center",
+        show_lines=False,
+        expand=True,
+        width=table_width,
         pad_edge=True,
-        box=None,
-        show_edge=True,
     )
+
+    table.add_column(
+        "[bold white]NETUID",
+        footer=f"[white]{len(subnets)}[/white]",
+        style="white",
+        justify="center",
+    )
+    table.add_column(
+        "[bold white]N",
+        footer=f"[white]{total_neurons}[/white]",
+        style="bright_cyan",
+        justify="center",
+    )
+    table.add_column("[bold white]MAX_N", style="bright_yellow", justify="center")
+    table.add_column("[bold white]EMISSION", style="bright_yellow", justify="center")
+    table.add_column("[bold white]TEMPO", style="magenta", justify="center")
+    table.add_column("[bold white]RECYCLE", style="bright_red", justify="center")
+    table.add_column("[bold white]POW", style="medium_purple", justify="center")
+    table.add_column("[bold white]SUDO", style="bright_magenta", justify="center")
+
     for row in rows:
         table.add_row(*row)
+
     console.print(table)
+    console.print(
+        """
+Description:
+    The table displays the list of subnets registered in the Bittensor network.
+        - NETIUID: The network identifier of the subnet.
+        - N: The current UIDs registered to the network. 
+        - MAX_N: The total UIDs allowed on the network.
+        - EMISSION: The emission accrued by this subnet in the network.
+        - TEMPO: A duration of a number of blocks. Several subnet events occur at the end of every tempo period.
+        - RECYCLE: Cost to register to the subnet.
+        - POW: Proof of work metric of the subnet.
+        - SUDO: Owner's identity.
+"""
+    )
 
 
 async def lock_cost(subtensor: "SubtensorInterface") -> Optional[Balance]:

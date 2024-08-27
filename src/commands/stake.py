@@ -167,7 +167,7 @@ async def add_stake_extrinsic(
         # Stake it all.
         staking_balance = Balance.from_tao(old_balance.tao)
     else:
-        staking_balance = amount
+        staking_balance = Balance.from_tao(amount)
 
     # Leave existential balance to keep key alive.
     if staking_balance > old_balance - existential_deposit:
@@ -551,7 +551,8 @@ async def unstake_extrinsic(
 
     with console.status(
         f":satellite: Unstaking from chain: [white]{subtensor}[/white] ..."
-    ):
+    ):  
+        unstaking_balance = Balance.from_tao(unstaking_balance)
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function="remove_stake",
@@ -579,7 +580,7 @@ async def unstake_extrinsic(
                     wallet.coldkeypub.ss58_address, block_hash=new_block_hash
                 ),
                 subtensor.get_stake_for_coldkey_and_hotkey(
-                    hotkey_ss58, wallet.coldkeypub.ss58_address, block_hash
+                    hotkey_ss58, wallet.coldkeypub.ss58_address, new_block_hash
                 ),
             )
             console.print(
@@ -1268,7 +1269,7 @@ async def stake_add(
             raise ValueError
 
         # Ask to stake
-        if not False:  # TODO no-prompt
+        if not True:  # TODO no-prompt
             if not Confirm.ask(
                 f"Do you want to stake to the following keys from {wallet.name}:\n"
                 + "".join(
@@ -1290,7 +1291,7 @@ async def stake_add(
                 hotkey_ss58=final_hotkeys[0][1],
                 amount=None if stake_all else final_amounts[0],
                 wait_for_inclusion=True,
-                prompt=True,
+                prompt=False,
             )
         else:
             await add_stake_multiple_extrinsic(
@@ -1401,7 +1402,7 @@ async def unstake(
             return None
 
         # Ask to unstake
-        if not False:  # TODO no prompt
+        if not True:  # TODO no prompt
             if not Confirm.ask(
                 f"Do you want to unstake from the following keys to {wallet.name}:\n"
                 + "".join(
@@ -1422,7 +1423,7 @@ async def unstake(
                 hotkey_ss58=final_hotkeys[0][1],
                 amount=None if unstake_all else final_amounts[0],
                 wait_for_inclusion=True,
-                prompt=True,
+                prompt=False, #TODO: Add no prompt 
             )
         else:
             await unstake_multiple_extrinsic(

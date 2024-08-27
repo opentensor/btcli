@@ -2462,7 +2462,7 @@ class CLIManager:
             )
             raise typer.Exit()
         if not stake_all and not amount:
-            amount = FloatPrompt.ask("Please enter an amount to stake.")
+            amount = FloatPrompt.ask("[blue bold]Amount to stake (TAO τ)[/blue bold]")
         if stake_all and not amount:
             if not Confirm.ask("Stake all available TAO tokens?", default=False):
                 raise typer.Exit()
@@ -2566,7 +2566,9 @@ class CLIManager:
             )
             raise typer.Exit()
         if not unstake_all and not amount:
-            amount = FloatPrompt.ask("Please enter an amount to unstake.")
+            amount = FloatPrompt.ask(
+                "[blue bold]Amount to unstakestake (TAO τ)[/blue bold]"
+            )
         if unstake_all and not amount:
             if not Confirm.ask("Unstake all staked TAO tokens?", default=False):
                 raise typer.Exit()
