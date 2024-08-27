@@ -1,5 +1,6 @@
 import asyncio
 import json
+import signal
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Optional, Any, Union, Callable, Awaitable
@@ -16,6 +17,14 @@ from substrateinterface.storage import StorageKey
 
 
 ResultHandler = Callable[[dict, Any], Awaitable[tuple[dict, bool]]]
+
+
+class TimeoutException(Exception):
+    pass
+
+
+def timeout_handler(signum, frame):
+    raise TimeoutException("Operation timed out")
 
 
 @dataclass
@@ -404,15 +413,24 @@ class AsyncSubstrateInterface:
         """
         async with self._lock:
             if not self.substrate:
-                self.substrate = SubstrateInterface(
-                    ss58_format=self.ss58_format,
-                    use_remote_preset=True,
-                    url=self.chain_endpoint,
-                    type_registry=self.type_registry,
-                )
-                self.__chain = (await self.rpc_request("system_chain", [])).get(
-                    "result"
-                )
+                # This is low-level timeout handling
+                # We set a timeout for 10 seconds.
+                # NOTE: this will not work on Windows, but it's not supported anyway
+                signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(10)  # Set timeout to 10 seconds
+                try:
+                    self.substrate = SubstrateInterface(
+                        ss58_format=self.ss58_format,
+                        use_remote_preset=True,
+                        url=self.chain_endpoint,
+                        type_registry=self.type_registry,
+                    )
+                finally:
+                    # Cancel the alarm if the function completes before timeout
+                    signal.alarm(0)
+
+                chain = await self.rpc_request("system_chain", [])
+                self.__chain = chain.get("result")
             self.initialized = True
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):

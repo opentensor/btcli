@@ -2,6 +2,7 @@ import asyncio
 from typing import Optional, Any, Union, TypedDict, Iterable
 
 import scalecodec
+import typer
 from bittensor_wallet import Wallet
 from bittensor_wallet.utils import SS58_FORMAT
 from scalecodec import GenericCall
@@ -9,7 +10,10 @@ from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
 from substrateinterface.exceptions import SubstrateRequestException
 
-from src.bittensor.async_substrate_interface import AsyncSubstrateInterface
+from src.bittensor.async_substrate_interface import (
+    AsyncSubstrateInterface,
+    TimeoutException,
+)
 from src.bittensor.chain_data import (
     DelegateInfo,
     custom_rpc_type_registry,
@@ -20,7 +24,7 @@ from src.bittensor.chain_data import (
 )
 from src.bittensor.balances import Balance
 from src import Constants, defaults, TYPE_REGISTRY
-from src.utils import ss58_to_vec_u8, format_error_message, console
+from src.utils import ss58_to_vec_u8, format_error_message, console, err_console
 
 
 class ParamWithTypes(TypedDict):
@@ -67,8 +71,15 @@ class SubtensorInterface:
         with console.status(
             f"[yellow]Connecting to Substrate:[/yellow][bold white] {self}..."
         ):
-            async with self.substrate:
-                return self
+            try:
+                async with self.substrate:
+                    return self
+            except TimeoutException:
+                err_console.print(
+                    "\n[red]Error[/red]: Timeout occurred connecting to substrate. "
+                    f"Verify your chain and network settings: {self}"
+                )
+                raise typer.Exit(code=1)
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.substrate.close()
