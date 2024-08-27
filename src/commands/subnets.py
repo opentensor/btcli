@@ -190,13 +190,13 @@ async def subnets_list(
                 [
                     int(subnet.netuid),
                     int(subnet.subnetwork_n),
-                    int(subnet.max_n),  # need to millify on table
+                    int(subnet.max_n),  # millified in HTML table
                     float(
                         subnet.emission_value / RAO_PER_TAO * 100
-                    ),  # show as percentage in table
+                    ),  # shown as percentage in HTML table
                     int(subnet.tempo),
                     float(subnet.burn),
-                    int(subnet.difficulty),  # millify on table
+                    int(subnet.difficulty),  # millified in HTML table
                     str(
                         delegate_info[subnet.owner_ss58].name
                         if subnet.owner_ss58 in delegate_info

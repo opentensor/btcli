@@ -509,6 +509,10 @@ def normalize_hyperparameters(
 
 
 class DB:
+    """
+    For ease of interaction with the SQLite database used for --reuse-last and --html outputs of tables
+    """
+
     def __init__(
         self,
         db_path: str = os.path.expanduser("~/.bittensor/bittensor.db"),
@@ -529,14 +533,14 @@ class DB:
             self.conn.close()
 
 
-def create_table(title: str, columns: list[tuple[str, str]], rows: list[list]) -> bool:
+def create_table(title: str, columns: list[tuple[str, str]], rows: list[list]) -> None:
     """
     Creates and populates the rows of a table in the SQLite database.
 
     :param title: title of the table
     :param columns: [(column name, column type), ...]
-    :param rows: [(element, element, ...), ...]
-    :return:
+    :param rows: [[element, element, ...], ...]
+    :return: None
     """
     blob_cols = []
     for idx, (_, col_type) in enumerate(columns):
@@ -555,10 +559,15 @@ def create_table(title: str, columns: list[tuple[str, str]], rows: list[list]) -
         for row in rows:
             cursor.execute(query, row)
         # cursor.executemany(query, rows)
-    return True
+    return
 
 
 def read_table(table_name: str) -> tuple[list, list]:
+    """
+    Reads a table from a SQLite database, returning back a column names and rows as a tuple
+    :param table_name: the table name in the database
+    :return: ([column names], [rows])
+    """
     with DB() as (conn, cursor):
         cursor.execute(f"PRAGMA table_info({table_name})")
         columns_info = cursor.fetchall()
@@ -579,6 +588,13 @@ def read_table(table_name: str) -> tuple[list, list]:
 
 
 def update_metadata_table(table_name: str, values: dict[str, str]) -> None:
+    """
+    Used for updating the metadata for storing a table. This includes items like total_neurons, etc.
+    :param table_name: the name of the table you're referencing inside of the metadata table (this is generally
+                       going to be the same as the table for which you have rows.)
+    :param values: {key: value} dict for items you wish to insert
+    :return: None
+    """
     with DB() as (conn, cursor):
         cursor.execute(
             "CREATE TABLE IF NOT EXISTS metadata ("
@@ -601,6 +617,11 @@ def update_metadata_table(table_name: str, values: dict[str, str]) -> None:
 
 
 def get_metadata_table(table_name: str) -> dict[str, str]:
+    """
+    Retrieves the metadata dict for the specified table.
+    :param table_name: Table name within the metadata table.
+    :return: {key: value} dict for metadata items.
+    """
     with DB() as (conn, cursor):
         cursor.execute(
             "SELECT Key, Value FROM metadata WHERE TableName = ?", (table_name,)
@@ -609,7 +630,15 @@ def get_metadata_table(table_name: str) -> dict[str, str]:
         return dict(data)
 
 
-def render_table(table_name: str, table_info: str, columns: list[dict]):
+def render_table(table_name: str, table_info: str, columns: list[dict], show=True):
+    """
+    Renders the table to HTML, and displays it in the browser
+    :param table_name: The table name in the database
+    :param table_info: Think of this like a subtitle
+    :param columns: list of dicts that conform to Tabulator's expected columns format
+    :param show: whether to open a browser window with the rendered table HTML
+    :return: None
+    """
     db_cols, rows = read_table(table_name)
     template_dir = os.path.join(os.path.dirname(__file__), "templates")
     with open(os.path.join(template_dir, "table.j2"), "r") as f:
@@ -624,4 +653,5 @@ def render_table(table_name: str, table_info: str, columns: list[dict]):
     output_file = "/tmp/bittensor_table.html"
     with open(output_file, "w+") as f:
         f.write(rendered)
-    webbrowser.open(f"file://{output_file}")
+    if show:
+        webbrowser.open(f"file://{output_file}")
