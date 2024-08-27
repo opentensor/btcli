@@ -44,38 +44,36 @@
         background-color: #ddd;
     }
 
-    /* General styles for all select elements */
-    select {
-        -webkit-appearance: none; /* Remove default styling in WebKit browsers */
-        -moz-appearance: none; /* Remove default styling in Firefox */
-        appearance: none; /* Remove default styling in all browsers */
+    /* Apply styles only to the filter section selects */
+    .filter-section select {
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
         padding: 8px;
         border: 1px solid #DBDDE1;
         border-radius: 4px;
-        background-color: #F0F0F0;
         font-family: 'DM Mono', monospace;
         font-size: 12px;
         color: #0E1013;
-        background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 5"><path fill="%230E1013" d="M2 0L0 2h4z"/></svg>');
         background-repeat: no-repeat;
         background-position: right 10px center;
         background-size: 10px;
-        width: 100%; /* Ensure the select takes the full width of its container */
+        background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 5"><path fill="%230E1013" d="M2 0L0 2h4z"/></svg>');
     }
 
-    /* Specific styles for the different select elements */
-    #filter-field {
-        background-color: #F0F0F0; /* Light gray background */
+    /* Specific styles for each select element */
+    .filter-section #filter-field {
+        background-color: #F0F0F0;
     }
 
-    #filter-type {
-        background-color: #E8E8E8; /* Slightly darker gray background */
-        border: 1px solid #C0C0C0; /* Darker border */
+    .filter-section #filter-type {
+        background-color: #E8E8E8;
+        border: 1px solid #C0C0C0;
     }
 
-    #filter-value {
-        background-color: #FFFFFF; /* White background */
-        border: 1px solid #DBDDE1; /* Standard border */
+    .filter-section #filter-value {
+        background-color: #FFFFFF;
+        border: 1px solid #DBDDE1;
     }
 
 </style>
@@ -96,7 +94,8 @@
 </div>
 
 <!-- Filter Section -->
-<div style="display: flex; flex-direction: row; align-items: center; gap: 16px; padding: 16px; border: 1px dashed #0E1013; border-radius: 5px; width: fit-content; margin: 20px auto; box-sizing: border-box;">
+<div class="filter-section"
+     style="display: flex; flex-direction: row; align-items: center; gap: 16px; padding: 16px; border: 1px dashed #0E1013; border-radius: 5px; width: fit-content; margin: 20px auto; box-sizing: border-box;">
 
     <!-- Filter Field -->
     <div style="display: flex; flex-direction: column; gap: 4px; flex-grow: 0;">
