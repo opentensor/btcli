@@ -309,7 +309,7 @@ async def subnets_list(
                     "title": "EMISSION",
                     "field": "EMISSION",
                     "formatter": "money",
-                    "formatterParams": {"symbolAfter": "%", "precision": 2},
+                    "formatterParams": {"symbolAfter": "p", "symbol": "%", "precision": 2},
                 },
                 {"title": "Tempo", "field": "TEMPO"},
                 {
