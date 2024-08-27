@@ -560,10 +560,11 @@ def create_table(title: str, columns: list[tuple[str, str]], rows: list[list]) -
     return
 
 
-def read_table(table_name: str) -> tuple[list, list]:
+def read_table(table_name: str, order_by: str = "") -> tuple[list, list]:
     """
     Reads a table from a SQLite database, returning back a column names and rows as a tuple
     :param table_name: the table name in the database
+    :param order_by: the order of the columns in the table, optional
     :return: ([column names], [rows])
     """
     with DB() as (conn, cursor):
@@ -571,7 +572,7 @@ def read_table(table_name: str) -> tuple[list, list]:
         columns_info = cursor.fetchall()
         column_names = [info[1] for info in columns_info]
         column_types = [info[2] for info in columns_info]
-        cursor.execute(f"SELECT * FROM {table_name}")
+        cursor.execute(f"SELECT * FROM {table_name} {order_by}")
         rows = cursor.fetchall()
     blob_cols = []
     for idx, col_type in enumerate(column_types):
@@ -647,6 +648,57 @@ def render_table(table_name: str, table_info: str, columns: list[dict], show=Tru
         rows=Markup([{c: v for (c, v) in zip(db_cols, r)} for r in rows]),
         column_names=db_cols,
         table_info=table_info,
+        tree=False,
+    )
+    output_file = "/tmp/bittensor_table.html"
+    with open(output_file, "w+") as f:
+        f.write(rendered)
+    if show:
+        webbrowser.open(f"file://{output_file}")
+
+
+def render_tree(
+    table_name: str,
+    table_info: str,
+    columns: list[dict],
+    parent_column: int = 0,
+    show=True,
+):
+    db_cols, rows = read_table(table_name, "ORDER BY CHILD ASC")
+    template_dir = os.path.join(os.path.dirname(__file__), "templates")
+    result = []
+    parent_dicts = {}
+    for row in rows:
+        coldkey, balance, account, stake, rate, child = row
+
+        # Create a dictionary for the current row
+        row_dict = {
+            "COLDKEY": coldkey,
+            "BALANCE": balance,
+            "ACCOUNT": account,
+            "STAKE": stake,
+            "RATE": rate,
+        }
+        if child == 0:
+            # If this is a parent row (CHILD=0), add it to the result list
+            row_dict["_children"] = []
+            result.append(row_dict)
+            # Store a reference to this parent row in the dictionary for easy access
+            parent_dicts[coldkey] = row_dict
+        elif child == 1:
+            # If this is a child row (CHILD=1), add it to the corresponding parent's "children" list
+            parent_key = row[parent_column]
+            if parent_key in parent_dicts:
+                parent_dicts[parent_key]["_children"].append(row_dict)
+    with open(os.path.join(template_dir, "table.j2"), "r") as f:
+        template = Template(f.read())
+    rendered = template.render(
+        title=table_name,
+        columns=Markup(columns),
+        rows=Markup(result),
+        column_names=db_cols,
+        table_info=table_info,
+        tree=True,
     )
     output_file = "/tmp/bittensor_table.html"
     with open(output_file, "w+") as f:

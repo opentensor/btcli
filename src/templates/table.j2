@@ -108,7 +108,7 @@
             delete column.customFormatter;
         }
     });
-
+    const None = null;
     const table = new Tabulator("#my-table",
         {
             columns: columns,
@@ -119,6 +119,7 @@
             movableColumns: true,
             paginationCounter: "rows",
             layout: "fitColumns",
+    {% if tree %} dataTree:true, {% endif %}
         }
     )
     //Define variables for input elements
