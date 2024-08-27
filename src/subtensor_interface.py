@@ -34,13 +34,23 @@ class SubtensorInterface:
     """
 
     def __init__(self, network, chain_endpoint):
-        if chain_endpoint and chain_endpoint != defaults.subtensor.chain_endpoint:
+        if chain_endpoint:
+            if not chain_endpoint.startswith("ws"):
+                console.log(
+                    "[yellow]Warning[/yellow] verify your chain endpoint is a valid substrate endpoint."
+                )
             self.chain_endpoint = chain_endpoint
             self.network = "local"
         elif network and network in Constants.network_map:
             self.chain_endpoint = Constants.network_map[network]
             self.network = network
         else:
+            console.log(
+                f"Network not specified or not valid. Using default chain endpoint: "
+                f"{Constants.network_map[defaults.subtensor.network]}.\n"
+                f"You can set this for commands with the `--network` flag, or by setting this"
+                f" in the config."
+            )
             self.chain_endpoint = Constants.network_map[defaults.subtensor.network]
             self.network = defaults.subtensor.network
 

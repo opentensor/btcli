@@ -45,6 +45,7 @@ class Defaults:
             "wallet_path": None,
             "wallet_name": None,
             "wallet_hotkey": None,
+            "no_cache": False,
         }
 
     class subtensor:

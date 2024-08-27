@@ -2,7 +2,7 @@ import asyncio
 import json
 import sqlite3
 from textwrap import dedent
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, cast
 
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm
@@ -139,7 +139,7 @@ async def register_subnetwork_extrinsic(
 
 
 async def subnets_list(
-    subtensor: "SubtensorInterface", reuse_last: bool, html_output: bool
+    subtensor: "SubtensorInterface", reuse_last: bool, html_output: bool, no_cache: bool
 ):
     """List all subnet netuids in the network."""
 
@@ -210,21 +210,22 @@ async def subnets_list(
             "N": total_neurons,
             "rows": json.dumps(rows),
         }
-        create_table(
-            "subnetslist",
-            [
-                ("NETUID", "INTEGER"),
-                ("N", "INTEGER"),
-                ("MAX_N", "BLOB"),
-                ("EMISSION", "REAL"),
-                ("TEMPO", "INTEGER"),
-                ("RECYCLE", "REAL"),
-                ("DIFFICULTY", "BLOB"),
-                ("SUDO", "TEXT"),
-            ],
-            db_rows,
-        )
-        update_metadata_table("subnetslist", values=metadata)
+        if not no_cache:
+            create_table(
+                "subnetslist",
+                [
+                    ("NETUID", "INTEGER"),
+                    ("N", "INTEGER"),
+                    ("MAX_N", "BLOB"),
+                    ("EMISSION", "REAL"),
+                    ("TEMPO", "INTEGER"),
+                    ("RECYCLE", "REAL"),
+                    ("DIFFICULTY", "BLOB"),
+                    ("SUDO", "TEXT"),
+                ],
+                db_rows,
+            )
+            update_metadata_table("subnetslist", values=metadata)
     else:
         try:
             metadata = get_metadata_table("subnetslist")
@@ -448,14 +449,17 @@ async def register(wallet: Wallet, subtensor: "SubtensorInterface", netuid: int)
 
 
 async def metagraph_cmd(
-    subtensor: "SubtensorInterface",
+    subtensor: Optional["SubtensorInterface"],
     netuid: Optional[int],
     reuse_last: bool,
     html_output: bool,
+    no_cache: bool,
 ):
     """Prints an entire metagraph."""
     # TODO allow config to set certain columns
     if not reuse_last:
+        cast("SubtensorInterface", subtensor)
+        cast(int, netuid)
         with console.status(
             f":satellite: Syncing with chain: [white]{subtensor.network}[/white] ..."
         ):
@@ -558,28 +562,29 @@ async def metagraph_cmd(
             "total_neurons": str(len(metagraph.uids)),
             "table_data": json.dumps(table_data),
         }
-        update_metadata_table("metagraph", metadata_info)
-        create_table(
-            "metagraph",
-            columns=[
-                ("UID", "INTEGER"),
-                ("STAKE", "REAL"),
-                ("RANK", "REAL"),
-                ("TRUST", "REAL"),
-                ("CONSENSUS", "REAL"),
-                ("INCENTIVE", "REAL"),
-                ("DIVIDENDS", "REAL"),
-                ("EMISSION", "INTEGER"),
-                ("VTRUST", "REAL"),
-                ("VAL", "INTEGER"),
-                ("UPDATED", "INTEGER"),
-                ("ACTIVE", "INTEGER"),
-                ("AXON", "TEXT"),
-                ("HOTKEY", "TEXT"),
-                ("COLDKEY", "TEXT"),
-            ],
-            rows=db_table,
-        )
+        if not no_cache:
+            update_metadata_table("metagraph", metadata_info)
+            create_table(
+                "metagraph",
+                columns=[
+                    ("UID", "INTEGER"),
+                    ("STAKE", "REAL"),
+                    ("RANK", "REAL"),
+                    ("TRUST", "REAL"),
+                    ("CONSENSUS", "REAL"),
+                    ("INCENTIVE", "REAL"),
+                    ("DIVIDENDS", "REAL"),
+                    ("EMISSION", "INTEGER"),
+                    ("VTRUST", "REAL"),
+                    ("VAL", "INTEGER"),
+                    ("UPDATED", "INTEGER"),
+                    ("ACTIVE", "INTEGER"),
+                    ("AXON", "TEXT"),
+                    ("HOTKEY", "TEXT"),
+                    ("COLDKEY", "TEXT"),
+                ],
+                rows=db_table,
+            )
     else:
         try:
             metadata_info = get_metadata_table("metagraph")
