@@ -317,6 +317,32 @@ class SubtensorInterface:
             k: Balance.from_rao(getattr(r, "value", 0)) for (k, r) in results.items()
         }
 
+    async def get_total_stake_for_hotkey(
+        self,
+        *ss58_addresses,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> dict[str, Balance]:
+        """
+        Returns the total stake held on a hotkey.
+
+        :param ss58_addresses: The SS58 address(es) of the hotkey(s)
+        :param block_hash: The hash of the block number to retrieve the stake from.
+        :param reuse_block: Whether to reuse the last-used block hash when retrieving info.
+
+        :return: {address: Balance objects}
+        """
+        results = await self.substrate.query_multiple(
+            params=[s for s in ss58_addresses],
+            module="SubtensorModule",
+            storage_function="TotalHotkeyStake",
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+        return {
+            k: Balance.from_rao(getattr(r, "value", 0)) for (k, r) in results.items()
+        }
+
     async def get_netuids_for_hotkey(
         self,
         hotkey_ss58: str,

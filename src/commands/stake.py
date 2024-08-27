@@ -4,13 +4,16 @@ from contextlib import suppress
 from math import floor
 from typing import TYPE_CHECKING, Union, Optional, Sequence, cast
 
+from ansible_collections.amazon.aws.plugins.modules.ec2_instance import module
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm
 from rich.table import Table, Column
 from rich.text import Text
+from substrateinterface.exceptions import SubstrateRequestException
 
 from src import Constants
 from src.bittensor.balances import Balance
+from src.commands.root import set_take_extrinsic
 from src.utils import (
     get_delegates_details_from_github,
     get_hotkey_wallets_for_wallet,
@@ -19,7 +22,7 @@ from src.utils import (
     err_console,
     is_valid_ss58_address,
     float_to_u64,
-    u16_normalized_float,
+    u16_normalized_float, float_to_u16, u16_to_float, u64_to_float,
 )
 
 if TYPE_CHECKING:
@@ -28,9 +31,8 @@ if TYPE_CHECKING:
 
 # Helpers and Extrinsics
 
-
 async def _get_threshold_amount(
-    subtensor: "SubtensorInterface", block_hash: str
+        subtensor: "SubtensorInterface", block_hash: str
 ) -> Balance:
     mrs = await subtensor.substrate.query(
         module="SubtensorModule",
@@ -42,10 +44,10 @@ async def _get_threshold_amount(
 
 
 async def _check_threshold_amount(
-    subtensor: "SubtensorInterface",
-    sb: Balance,
-    block_hash: str,
-    min_req_stake: Optional[Balance] = None,
+        subtensor: "SubtensorInterface",
+        sb: Balance,
+        block_hash: str,
+        min_req_stake: Optional[Balance] = None,
 ) -> tuple[bool, Balance]:
     """
     Checks if the new stake balance will be above the minimum required stake threshold.
@@ -67,7 +69,7 @@ async def _check_threshold_amount(
 
 
 async def _get_hotkey_owner(
-    subtensor: "SubtensorInterface", hotkey_ss58: str, block_hash: str
+        subtensor: "SubtensorInterface", hotkey_ss58: str, block_hash: str
 ) -> Optional[str]:
     hk_owner_query = await subtensor.substrate.query(
         module="SubtensorModule",
@@ -78,8 +80,8 @@ async def _get_hotkey_owner(
     hotkey_owner = (
         val
         if (
-            (val := getattr(hk_owner_query, "value", None))
-            and await subtensor.does_hotkey_exist(val, block_hash=block_hash)
+                (val := getattr(hk_owner_query, "value", None))
+                and await subtensor.does_hotkey_exist(val, block_hash=block_hash)
         )
         else None
     )
@@ -87,14 +89,14 @@ async def _get_hotkey_owner(
 
 
 async def add_stake_extrinsic(
-    subtensor: "SubtensorInterface",
-    wallet: Wallet,
-    old_balance: Balance,
-    hotkey_ss58: Optional[str] = None,
-    amount: Optional[Balance] = None,
-    wait_for_inclusion: bool = True,
-    wait_for_finalization: bool = False,
-    prompt: bool = False,
+        subtensor: "SubtensorInterface",
+        wallet: Wallet,
+        old_balance: Balance,
+        hotkey_ss58: Optional[str] = None,
+        amount: Optional[Balance] = None,
+        wait_for_inclusion: bool = True,
+        wait_for_finalization: bool = False,
+        prompt: bool = False,
 ) -> bool:
     """
     Adds the specified amount of stake to passed hotkey `uid`.
@@ -125,7 +127,7 @@ async def add_stake_extrinsic(
     own_hotkey: bool
 
     with console.status(
-        f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
+            f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
     ):
         block_hash = await subtensor.substrate.get_chain_head()
         # Get hotkey owner
@@ -136,7 +138,7 @@ async def add_stake_extrinsic(
         if not own_hotkey:
             # This is not the wallet's own hotkey, so we are delegating.
             if not await subtensor.is_hotkey_delegate(
-                hotkey_ss58, block_hash=block_hash
+                    hotkey_ss58, block_hash=block_hash
             ):
                 err_console.print(
                     f"Hotkey {hotkey_ss58} is not a delegate on the chain."
@@ -204,23 +206,23 @@ async def add_stake_extrinsic(
         if not own_hotkey:
             # We are delegating.
             if not Confirm.ask(
-                f"Do you want to delegate:[bold white]\n"
-                f"\tamount: {staking_balance}\n"
-                f"\tto: {wallet.hotkey_str}\n"
-                f"\ttake: {hotkey_take}\n"
-                f"\towner: {hotkey_owner}[/bold white]"
+                    f"Do you want to delegate:[bold white]\n"
+                    f"\tamount: {staking_balance}\n"
+                    f"\tto: {wallet.hotkey_str}\n"
+                    f"\ttake: {hotkey_take}\n"
+                    f"\towner: {hotkey_owner}[/bold white]"
             ):
                 return False
         else:
             if not Confirm.ask(
-                f"Do you want to stake:[bold white]\n"
-                f"\tamount: {staking_balance}\n"
-                f"\tto: {wallet.hotkey_str}[/bold white]"
+                    f"Do you want to stake:[bold white]\n"
+                    f"\tamount: {staking_balance}\n"
+                    f"\tto: {wallet.hotkey_str}[/bold white]"
             ):
                 return False
 
     with console.status(
-        f":satellite: Staking to: [bold white]{subtensor}[/bold white] ..."
+            f":satellite: Staking to: [bold white]{subtensor}[/bold white] ..."
     ):
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
@@ -238,7 +240,7 @@ async def add_stake_extrinsic(
 
         console.print(":white_heavy_check_mark: [green]Finalized[/green]")
         with console.status(
-            f":satellite: Checking Balance on: [white]{subtensor}[/white] ..."
+                f":satellite: Checking Balance on: [white]{subtensor}[/white] ..."
         ):
             new_block_hash = await subtensor.substrate.get_chain_head()
             new_balance, new_stake = await asyncio.gather(
@@ -268,14 +270,14 @@ async def add_stake_extrinsic(
 
 
 async def add_stake_multiple_extrinsic(
-    subtensor: "SubtensorInterface",
-    wallet: Wallet,
-    old_balance: Balance,
-    hotkey_ss58s: list[str],
-    amounts: Optional[list[Balance]] = None,
-    wait_for_inclusion: bool = True,
-    wait_for_finalization: bool = False,
-    prompt: bool = False,
+        subtensor: "SubtensorInterface",
+        wallet: Wallet,
+        old_balance: Balance,
+        hotkey_ss58s: list[str],
+        amounts: Optional[list[Balance]] = None,
+        wait_for_inclusion: bool = True,
+        wait_for_finalization: bool = False,
+        prompt: bool = False,
 ) -> bool:
     """Adds stake to each ``hotkey_ss58`` in the list, using each amount, from a common coldkey.
 
@@ -313,7 +315,7 @@ async def add_stake_multiple_extrinsic(
     wallet.unlock_coldkey()
 
     with console.status(
-        f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
+            f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
     ):
         block_hash = await subtensor.substrate.get_chain_head()
         old_stakes = await asyncio.gather(
@@ -349,7 +351,7 @@ async def add_stake_multiple_extrinsic(
 
     successful_stakes = 0
     for idx, (hotkey_ss58, amount, old_stake) in enumerate(
-        zip(hotkey_ss58s, new_amounts, old_stakes)
+            zip(hotkey_ss58s, new_amounts, old_stakes)
     ):
         staking_all = False
         # Convert to bittensor.Balance
@@ -374,9 +376,9 @@ async def add_stake_multiple_extrinsic(
         # Ask before moving on.
         if prompt:
             if not Confirm.ask(
-                f"Do you want to stake:\n"
-                f"\t[bold white]amount: {staking_balance}\n"
-                f"\thotkey: {wallet.hotkey_str}[/bold white ]?"
+                    f"Do you want to stake:\n"
+                    f"\t[bold white]amount: {staking_balance}\n"
+                    f"\thotkey: {wallet.hotkey_str}[/bold white ]?"
             ):
                 continue
 
@@ -402,8 +404,8 @@ async def add_stake_multiple_extrinsic(
                 tx_rate_limit_blocks: int = getattr(tx_query, "value", 0)
                 if tx_rate_limit_blocks > 0:
                     with console.status(
-                        f":hourglass: [yellow]Waiting for tx rate limit:"
-                        f" [white]{tx_rate_limit_blocks}[/white] blocks[/yellow]"
+                            f":hourglass: [yellow]Waiting for tx rate limit:"
+                            f" [white]{tx_rate_limit_blocks}[/white] blocks[/yellow]"
                     ):
                         await asyncio.sleep(
                             tx_rate_limit_blocks * 12
@@ -449,7 +451,7 @@ async def add_stake_multiple_extrinsic(
 
     if successful_stakes != 0:
         with console.status(
-            f":satellite: Checking Balance on: ([white]{subtensor}[/white] ..."
+                f":satellite: Checking Balance on: ([white]{subtensor}[/white] ..."
         ):
             new_balance_ = await subtensor.get_balance(
                 wallet.coldkeypub.ss58_address, reuse_block=False
@@ -464,13 +466,13 @@ async def add_stake_multiple_extrinsic(
 
 
 async def unstake_extrinsic(
-    subtensor: "SubtensorInterface",
-    wallet: Wallet,
-    hotkey_ss58: Optional[str] = None,
-    amount: Optional[Balance] = None,
-    wait_for_inclusion: bool = True,
-    wait_for_finalization: bool = False,
-    prompt: bool = False,
+        subtensor: "SubtensorInterface",
+        wallet: Wallet,
+        hotkey_ss58: Optional[str] = None,
+        amount: Optional[Balance] = None,
+        wait_for_inclusion: bool = True,
+        wait_for_finalization: bool = False,
+        prompt: bool = False,
 ) -> bool:
     """Removes stake into the wallet coldkey from the specified hotkey ``uid``.
 
@@ -494,7 +496,7 @@ async def unstake_extrinsic(
         hotkey_ss58 = wallet.hotkey.ss58_address  # Default to wallet's own hotkey.
 
     with console.status(
-        f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
+            f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
     ):
         block_hash = await subtensor.substrate.get_chain_head()
         old_balance, old_stake, hotkey_owner = await asyncio.gather(
@@ -531,9 +533,9 @@ async def unstake_extrinsic(
 
     # If nomination stake, check threshold.
     if not own_hotkey and not await _check_threshold_amount(
-        subtensor=subtensor,
-        sb=(stake_on_uid - unstaking_balance),
-        block_hash=block_hash,
+            subtensor=subtensor,
+            sb=(stake_on_uid - unstaking_balance),
+            block_hash=block_hash,
     ):
         console.print(
             ":warning: [yellow]This action will unstake the entire staked balance![/yellow]"
@@ -543,14 +545,14 @@ async def unstake_extrinsic(
     # Ask before moving on.
     if prompt:
         if not Confirm.ask(
-            f"Do you want to unstake:\n"
-            f"[bold white]\tamount: {unstaking_balance}\n"
-            f"\thotkey: {wallet.hotkey_str}[/bold white ]?"
+                f"Do you want to unstake:\n"
+                f"[bold white]\tamount: {unstaking_balance}\n"
+                f"\thotkey: {wallet.hotkey_str}[/bold white ]?"
         ):
             return False
 
     with console.status(
-        f":satellite: Unstaking from chain: [white]{subtensor}[/white] ..."
+            f":satellite: Unstaking from chain: [white]{subtensor}[/white] ..."
     ):
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
@@ -571,7 +573,7 @@ async def unstake_extrinsic(
 
         console.print(":white_heavy_check_mark: [green]Finalized[/green]")
         with console.status(
-            f":satellite: Checking Balance on: [white]{subtensor}[/white] ..."
+                f":satellite: Checking Balance on: [white]{subtensor}[/white] ..."
         ):
             new_block_hash = await subtensor.substrate.get_chain_head()
             new_balance, new_stake = await asyncio.gather(
@@ -597,13 +599,13 @@ async def unstake_extrinsic(
 
 
 async def unstake_multiple_extrinsic(
-    subtensor: "SubtensorInterface",
-    wallet: Wallet,
-    hotkey_ss58s: list[str],
-    amounts: Optional[list[Union[Balance, float]]] = None,
-    wait_for_inclusion: bool = True,
-    wait_for_finalization: bool = False,
-    prompt: bool = False,
+        subtensor: "SubtensorInterface",
+        wallet: Wallet,
+        hotkey_ss58s: list[str],
+        amounts: Optional[list[Union[Balance, float]]] = None,
+        wait_for_inclusion: bool = True,
+        wait_for_finalization: bool = False,
+        prompt: bool = False,
 ) -> bool:
     """
     Removes stake from each `hotkey_ss58` in the list, using each amount, to a common coldkey.
@@ -622,7 +624,7 @@ async def unstake_multiple_extrinsic(
                       unstaked. If we did not wait for finalization/inclusion, the response is `True`.
     """
     if not isinstance(hotkey_ss58s, list) or not all(
-        isinstance(hotkey_ss58, str) for hotkey_ss58 in hotkey_ss58s
+            isinstance(hotkey_ss58, str) for hotkey_ss58 in hotkey_ss58s
     ):
         raise TypeError("hotkey_ss58s must be a list of str")
 
@@ -633,7 +635,7 @@ async def unstake_multiple_extrinsic(
         raise ValueError("amounts must be a list of the same length as hotkey_ss58s")
 
     if amounts is not None and not all(
-        isinstance(amount, (Balance, float)) for amount in amounts
+            isinstance(amount, (Balance, float)) for amount in amounts
     ):
         raise TypeError(
             "amounts must be a [list of bittensor.Balance or float] or None"
@@ -652,7 +654,7 @@ async def unstake_multiple_extrinsic(
     wallet.unlock_coldkey()
 
     with console.status(
-        f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
+            f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
     ):
         block_hash = await subtensor.substrate.get_chain_head()
 
@@ -684,7 +686,7 @@ async def unstake_multiple_extrinsic(
 
     successful_unstakes = 0
     for idx, (hotkey_ss58, amount, old_stake, own_hotkey) in enumerate(
-        zip(hotkey_ss58s, new_amounts, old_stakes, own_hotkeys)
+            zip(hotkey_ss58s, new_amounts, old_stakes, own_hotkeys)
     ):
         # Covert to bittensor.Balance
         if amount is None:
@@ -706,16 +708,16 @@ async def unstake_multiple_extrinsic(
 
         # If nomination stake, check threshold.
         if (
-            not own_hotkey
-            and (
+                not own_hotkey
+                and (
                 await _check_threshold_amount(
                     subtensor=subtensor,
                     sb=(stake_on_uid - unstaking_balance),
                     block_hash=block_hash,
                     min_req_stake=threshold,
                 )
-            )[0]
-            is False
+        )[0]
+                is False
         ):
             console.print(
                 ":warning: [yellow]This action will unstake the entire staked balance![/yellow]"
@@ -725,14 +727,14 @@ async def unstake_multiple_extrinsic(
         # Ask before moving on.
         if prompt:
             if not Confirm.ask(
-                f"Do you want to unstake:\n"
-                f"[bold white]\tamount: {unstaking_balance}\n"
-                f"\thotkey: {wallet.hotkey_str}[/bold white ]?"
+                    f"Do you want to unstake:\n"
+                    f"[bold white]\tamount: {unstaking_balance}\n"
+                    f"\thotkey: {wallet.hotkey_str}[/bold white ]?"
             ):
                 continue
 
         with console.status(
-            f":satellite: Unstaking from chain: [white]{subtensor}[/white] ..."
+                f":satellite: Unstaking from chain: [white]{subtensor}[/white] ..."
         ):
             call = await subtensor.substrate.compose_call(
                 call_module="SubtensorModule",
@@ -772,7 +774,7 @@ async def unstake_multiple_extrinsic(
 
             console.print(":white_heavy_check_mark: [green]Finalized[/green]")
             with console.status(
-                f":satellite: Checking stake balance on: [white]{subtensor}[/white] ..."
+                    f":satellite: Checking stake balance on: [white]{subtensor}[/white] ..."
             ):
                 new_stake = await subtensor.get_stake_for_coldkey_and_hotkey(
                     coldkey_ss58=wallet.coldkeypub.ss58_address,
@@ -791,7 +793,7 @@ async def unstake_multiple_extrinsic(
 
     if successful_unstakes != 0:
         with console.status(
-            f":satellite: Checking balance on: ([white]{subtensor}[/white] ..."
+                f":satellite: Checking balance on: ([white]{subtensor}[/white] ..."
         ):
             new_balance = await subtensor.get_balance(wallet.coldkeypub.ss58_address)
         console.print(
@@ -804,14 +806,14 @@ async def unstake_multiple_extrinsic(
 
 
 async def set_children_extrinsic(
-    subtensor: "SubtensorInterface",
-    wallet: Wallet,
-    hotkey: str,
-    netuid: int,
-    children_with_proportions: list[tuple[float, str]],
-    wait_for_inclusion: bool = True,
-    wait_for_finalization: bool = False,
-    prompt: bool = False,
+        subtensor: "SubtensorInterface",
+        wallet: Wallet,
+        hotkey: str,
+        netuid: int,
+        children_with_proportions: list[tuple[float, str]],
+        wait_for_inclusion: bool = True,
+        wait_for_finalization: bool = False,
+        prompt: bool = False,
 ) -> tuple[bool, str]:
     """
     Sets children hotkeys with proportions assigned from the parent.
@@ -830,36 +832,39 @@ async def set_children_extrinsic(
     :return: A tuple containing a success flag and an optional error message.
     """
     # Check if all children are being revoked
-    all_revoked = all(prop == 0.0 for prop, _ in children_with_proportions)
+    all_revoked = len(children_with_proportions) == 0
 
-    operation = "Revoke all children hotkeys" if all_revoked else "Set children hotkeys"
+    operation = "Revoking all child hotkeys" if all_revoked else "Setting child hotkeys"
 
     # Ask before moving on.
     if prompt:
         if all_revoked:
             if not Confirm.ask(
-                f"Do you want to revoke all children hotkeys for hotkey {hotkey}?"
+                    f"Do you want to revoke all children hotkeys for hotkey {hotkey}?"
             ):
                 return False, "Operation Cancelled"
         else:
             if not Confirm.ask(
-                "Do you want to set children hotkeys:\n[bold white]{}[/bold white]?".format(
-                    "\n".join(
-                        f"  {child[1]}: {child[0]}"
-                        for child in children_with_proportions
+                    "Do you want to set children hotkeys:\n[bold white]{}[/bold white]?".format(
+                        "\n".join(
+                            f"  {child[1]}: {child[0]}"
+                            for child in children_with_proportions
+                        )
                     )
-                )
             ):
                 return False, "Operation Cancelled"
 
+    # Decrypt coldkey.
+    wallet.coldkey
+
     with console.status(
-        f":satellite: {operation} on [white]{subtensor.network}[/white] ..."
+            f":satellite: {operation} on [white]{subtensor.network}[/white] ..."
     ):
-        normalized_children = (
-            prepare_child_proportions(children_with_proportions)
-            if not all_revoked
-            else children_with_proportions
-        )
+        if not all_revoked:
+            normalized_children = prepare_child_proportions(children_with_proportions)
+        else:
+            normalized_children = []
+
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function="set_children",
@@ -895,43 +900,148 @@ async def set_children_extrinsic(
             return False, error_message
 
 
+async def set_childkey_take_extrinsic(
+        subtensor: "SubtensorInterface",
+        wallet: Wallet,
+        hotkey: str,
+        netuid: int,
+        take: float,
+        wait_for_inclusion: bool = True,
+        wait_for_finalization: bool = False,
+        prompt: bool = False,
+) -> tuple[bool, str]:
+    """
+    Sets childkey take.
+
+    :param: subtensor: Subtensor endpoint to use.
+    :param: wallet: Bittensor wallet object.
+    :param: hotkey: Child hotkey.
+    :param: take: Childkey Take value.
+    :param: netuid: Unique identifier of for the subnet.
+    :param: wait_for_inclusion: If set, waits for the extrinsic to enter a block before returning `True`, or returns
+                                `False` if the extrinsic fails to enter the block within the timeout.
+    :param: wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `
+                                   `True`, or returns `False` if the extrinsic fails to be finalized within the timeout.
+    :param: prompt: If `True`, the call waits for confirmation from the user before proceeding.
+
+    :return: A tuple containing a success flag and an optional error message.
+    """
+
+    # Decrypt coldkey.
+    wallet.coldkey
+
+    user_hotkey_ss58 = wallet.hotkey.ss58_address  # Default to wallet's own hotkey.
+    if hotkey != user_hotkey_ss58:
+        raise ValueError("You can only set childkey take for ss58 hotkey that you own.")
+
+    # Ask before moving on.
+    if prompt:
+        if not Confirm.ask(
+                f"Do you want to set childkey take to: [bold white]{take * 100}%[/bold white]?"
+        ):
+            return False, "Operation Cancelled"
+
+    with console.status(
+            f":satellite: Setting childkey take on [white]{subtensor.network}[/white] ..."
+    ):
+        try:
+
+            if 0 < take < 0.18:
+                take_u16 = float_to_u16(take)
+            else:
+                return False, "Invalid take value"
+
+            call = subtensor.substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function="set_childkey_take",
+                call_params={
+                    "hotkey": hotkey,
+                    "take": take_u16,
+                    "netuid": netuid,
+                },
+            )
+            success, error_message = await subtensor.sign_and_send_extrinsic(
+                call, wallet, wait_for_inclusion, wait_for_finalization
+            )
+
+            if not wait_for_finalization and not wait_for_inclusion:
+                return (
+                    True,
+                    "Not waiting for finalization or inclusion. Set childkey take initiated.",
+                )
+
+            if success:
+                console.print(
+                    ":white_heavy_check_mark: [green]Finalized[/green]"
+                )
+                # bittensor.logging.success(
+                #     prefix="Setting childkey take",
+                #     suffix="<green>Finalized: </green>" + str(success),
+                # )
+                return True, "Successfully set childkey take and Finalized."
+            else:
+                console.print(
+                    f":cross_mark: [red]Failed[/red]: {error_message}"
+                )
+                # bittensor.logging.warning(
+                #     prefix="Setting childkey take",
+                #     suffix="<red>Failed: </red>" + str(error_message),
+                # )
+                return False, error_message
+
+        except Exception as e:
+            return False, f"Exception occurred while setting childkey take: {str(e)}"
+
+
+async def get_childkey_take(subtensor, hotkey: str, netuid: int, block: Optional[int] = None) -> Optional[int]:
+    """
+    Get the childkey take of a hotkey on a specific network.
+    Args:
+    - hotkey (str): The hotkey to search for.
+    - netuid (int): The netuid to search for.
+    - block (Optional[int]): Optional parameter specifying the block number. Defaults to None.
+
+    Returns:
+    - Optional[float]: The value of the "ChildkeyTake" if found, or None if any error occurs.
+    """
+    try:
+        childkey_take = await subtensor.substrate.query(
+            module="SubtensorModule",
+            storage_function="ChildkeyTake",
+            block_hash=(
+                None if block is None else subtensor.substrate.get_block_hash(block)
+            ),
+            params=[hotkey, netuid],
+        )
+        if childkey_take:
+            return int(childkey_take.value)
+
+    except SubstrateRequestException as e:
+        print(f"Error querying ChildKeys: {e}")
+        return None
+    except Exception as e:
+        print(f"Unexpected error in get_children: {e}")
+        return None
+
+
 def prepare_child_proportions(children_with_proportions):
     """
-    Convert proportions to u64 and normalize
+    Convert proportions to u64 and normalize, ensuring total does not exceed u64 max.
     """
-    children_u64 = [
-        (float_to_u64(prop), child) for prop, child in children_with_proportions
-    ]
-    normalized_children = normalize_children_and_proportions(children_u64)
-    return normalized_children
+    children_u64 = [(float_to_u64(proportion), child) for proportion, child in children_with_proportions]
+    total = sum(proportion for proportion, _ in children_u64)
 
-
-def normalize_children_and_proportions(
-    children: list[tuple[int, str]],
-) -> list[tuple[int, str]]:
-    """
-    Normalizes the proportions of children so that they sum to u64::MAX.
-    """
-    total = sum(prop for prop, _ in children)
-    u64_max = 2**64 - 1
-    normalized_children = [
-        (int(floor(prop * (u64_max - 1) / total)), child) for prop, child in children
-    ]
-    sum_norm = sum(prop for prop, _ in normalized_children)
-
-    # if the sum is more, subtract the excess from the first child
-    if sum_norm > u64_max:
-        if abs(sum_norm - u64_max) > 10:
-            raise ValueError(
-                "The sum of normalized proportions is out of the acceptable range."
-            )
-        normalized_children[0] = (
-            normalized_children[0][0] - (sum_norm - (u64_max - 1)),
-            normalized_children[0][1],
+    if total > (2 ** 64 - 1):
+        excess = total - (2 ** 64 - 1)
+        if excess > (2 ** 64 * 0.01):  # Example threshold of 1% of u64 max
+            raise ValueError("Excess is too great to normalize proportions")
+        largest_child_index = max(range(len(children_u64)), key=lambda i: children_u64[i][0])
+        children_u64[largest_child_index] = (
+            children_u64[largest_child_index][0] - excess,
+            children_u64[largest_child_index][1]
         )
 
-    return normalized_children
-
+    return children_u64
 
 # Commands
 
@@ -948,7 +1058,7 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
     )
 
     async def get_stake_accounts(
-        wallet_, block_hash: str
+            wallet_, block_hash: str
     ) -> dict[str, Union[str, Balance, dict[str, Union[str, Balance]]]]:
         """Get stake account details for the given wallet.
 
@@ -983,7 +1093,7 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
         }
 
     async def get_stakes_from_hotkeys(
-        wallet_, block_hash: str
+            wallet_, block_hash: str
     ) -> dict[str, dict[str, Union[str, Balance]]]:
         """Fetch stakes from hotkeys for the provided wallet.
 
@@ -1043,7 +1153,7 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
         return stakes
 
     async def get_stakes_from_delegates(
-        wallet_,
+            wallet_,
     ) -> dict[str, dict[str, Union[str, Balance]]]:
         """Fetch stakes from delegates for the provided wallet.
 
@@ -1067,12 +1177,12 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
                         "name": delegate_name,
                         "stake": nom[1],
                         "rate": dele.total_daily_return.tao
-                        * (nom[1] / dele.total_stake.tao),
+                                * (nom[1] / dele.total_stake.tao),
                     }
         return stakes
 
     async def get_all_wallet_accounts(
-        block_hash: str,
+            block_hash: str,
     ) -> list[dict[str, Union[str, Balance, dict[str, Union[str, Balance]]]]]:
         """Fetch stake accounts for all provided wallets using a ThreadPool.
 
@@ -1136,14 +1246,14 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
 
 
 async def stake_add(
-    wallet: Wallet,
-    subtensor: "SubtensorInterface",
-    amount: float,
-    stake_all: bool,
-    max_stake: float,
-    include_hotkeys: list[str],
-    exclude_hotkeys: list[str],
-    all_hotkeys: bool,
+        wallet: Wallet,
+        subtensor: "SubtensorInterface",
+        amount: float,
+        stake_all: bool,
+        max_stake: float,
+        include_hotkeys: list[str],
+        exclude_hotkeys: list[str],
+        all_hotkeys: bool,
 ) -> None:
     """Stake token of amount to hotkey(s)."""
 
@@ -1223,7 +1333,7 @@ async def stake_add(
         registered, hotkey_stakes = await asyncio.gather(registered_, hotkey_stakes_)
 
         for hotkey, reg, hotkey_stake in zip(
-            hotkeys_to_stake_to, registered, hotkey_stakes
+                hotkeys_to_stake_to, registered, hotkey_stakes
         ):
             if not reg:
                 # Hotkey is not registered.
@@ -1247,7 +1357,7 @@ async def stake_add(
                 # If the max_stake is greater than the current wallet balance, stake the entire balance.
                 stake_amount_tao = min(stake_amount_tao, wallet_balance.tao)
                 if (
-                    stake_amount_tao <= 0.00001
+                        stake_amount_tao <= 0.00001
                 ):  # Threshold because of fees, might create a loop otherwise
                     # Skip hotkey if max_stake is less than current stake.
                     continue
@@ -1270,14 +1380,14 @@ async def stake_add(
         # Ask to stake
         if not False:  # TODO no-prompt
             if not Confirm.ask(
-                f"Do you want to stake to the following keys from {wallet.name}:\n"
-                + "".join(
-                    [
-                        f"    [bold white]- {hotkey[0] + ':' if hotkey[0] else ''}{hotkey[1]}: "
-                        f"{f'{amount} {Balance.unit}' if amount else 'All'}[/bold white]\n"
-                        for hotkey, amount in zip(final_hotkeys, final_amounts)
-                    ]
-                )
+                    f"Do you want to stake to the following keys from {wallet.name}:\n"
+                    + "".join(
+                        [
+                            f"    [bold white]- {hotkey[0] + ':' if hotkey[0] else ''}{hotkey[1]}: "
+                            f"{f'{amount} {Balance.unit}' if amount else 'All'}[/bold white]\n"
+                            for hotkey, amount in zip(final_hotkeys, final_amounts)
+                        ]
+                    )
             ):
                 raise ValueError
 
@@ -1307,15 +1417,15 @@ async def stake_add(
 
 
 async def unstake(
-    wallet: Wallet,
-    subtensor: "SubtensorInterface",
-    hotkey_ss58_address: str,
-    all_hotkeys: bool,
-    include_hotkeys: list[str],
-    exclude_hotkeys: list[str],
-    amount: float,
-    max_stake: float,
-    unstake_all: bool,
+        wallet: Wallet,
+        subtensor: "SubtensorInterface",
+        hotkey_ss58_address: str,
+        all_hotkeys: bool,
+        include_hotkeys: list[str],
+        exclude_hotkeys: list[str],
+        amount: float,
+        max_stake: float,
+        unstake_all: bool,
 ):
     """Unstake token of amount from hotkey(s)."""
 
@@ -1403,14 +1513,14 @@ async def unstake(
         # Ask to unstake
         if not False:  # TODO no prompt
             if not Confirm.ask(
-                f"Do you want to unstake from the following keys to {wallet.name}:\n"
-                + "".join(
-                    [
-                        f"    [bold white]- {hotkey[0] + ':' if hotkey[0] else ''}{hotkey[1]}: "
-                        f"{f'{amount} {Balance.unit}' if amount else 'All'}[/bold white]\n"
-                        for hotkey, amount in zip(final_hotkeys, final_amounts)
-                    ]
-                )
+                    f"Do you want to unstake from the following keys to {wallet.name}:\n"
+                    + "".join(
+                        [
+                            f"    [bold white]- {hotkey[0] + ':' if hotkey[0] else ''}{hotkey[1]}: "
+                            f"{f'{amount} {Balance.unit}' if amount else 'All'}[/bold white]\n"
+                            for hotkey, amount in zip(final_hotkeys, final_amounts)
+                        ]
+                    )
             ):
                 return None
 
@@ -1436,12 +1546,11 @@ async def unstake(
 
 
 async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: int):
-    async def get_total_stake_for_child_hk(child: tuple):
-        child_hotkey = child[1]
+    async def get_total_stake_for_hk(hotkey: str):
         _result = await subtensor.substrate.query(
             module="SubtensorModule",
             storage_function="TotalHotkeyStake",
-            params=[child_hotkey],
+            params=[hotkey],
             reuse_block_hash=True,
         )
         return (
@@ -1450,92 +1559,147 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
             else Balance(0)
         )
 
+    async def get_take(child: tuple) -> float:
+        """
+        Get the take value for a given subtensor, hotkey, and netuid.
+
+        @param child: The hotkey to retrieve the take value for.
+
+        @return: The take value as a float. If the take value is not available, it returns 0.
+
+        """
+        child_hotkey = child[1]
+        try:
+            take_u16 = await get_childkey_take(subtensor=subtensor, hotkey=child_hotkey, netuid=netuid)
+            if take_u16:
+                return u16_to_float(take_u16)
+            else:
+                return 0
+        except Exception as e:
+            print(f"Unexpected error in get_take: {e}")
+            return 0
+
     async def render_table(
-        hk: str, children_: list[tuple[int, str]], prompt: bool = True
+            hk: str, children_: list[tuple[int, str]], prompt: bool = True
     ):
         # Initialize Rich table for pretty printing
         table = Table(
-            Column("Index", style="cyan", no_wrap=True, justify="right"),
-            Column("ChildHotkey", style="cyan", no_wrap=True),
-            Column("Proportion", style="cyan", no_wrap=True, justify="right"),
-            Column("Total Stake", style="cyan", no_wrap=True, justify="right"),
             show_header=True,
             header_style="bold magenta",
-            border_style="green",
-            style="green",
+            border_style="blue",
+            style="dim",
+        )
+
+        # Add columns to the table with specific styles
+        table.add_column("Index", style="bold yellow", no_wrap=True, justify="center")
+        table.add_column("ChildHotkey", style="bold green")
+        table.add_column("Proportion", style="bold cyan", no_wrap=True, justify="right")
+        table.add_column("Childkey Take", style="bold blue", no_wrap=True, justify="right")
+        table.add_column(
+            "Current Stake Weight", style="bold red", no_wrap=True, justify="right"
         )
 
         if not children_:
             console.print(table)
             console.print(
-                f"There are currently no child hotkeys on subnet {netuid} with ParentHotKey {hk}."
+                f"[bold red]There are currently no child hotkeys on subnet {netuid} with Parent HotKey {hk}.[/bold red]"
             )
             if prompt:
-                command = (
-                    f"btcli stake set_children --children <child_hotkey> --hotkey <parent_hotkey> --netuid"
-                    f" {netuid} --proportion <float>"
-                )
+                command = f"btcli stake set_children --children <child_hotkey> --hotkey <parent_hotkey> --netuid {netuid} --proportion <float>"
                 console.print(
-                    f"To add a child hotkey you can run the command: [white]{command}[/white]"
+                    f"[bold cyan]To add a child hotkey you can run the command: [white]{command}[/white][/bold cyan]"
                 )
             return
-
-        console.print("ParentHotKey:", style="cyan", no_wrap=True)
-        console.print(hk)
 
         # calculate totals
         total_proportion = 0
         total_stake = 0
+        total_stake_weight = 0
+        avg_take = 0
+
+        hotkey_stake_dict = await subtensor.get_total_stake_for_hotkey(hk)
+        hotkey_stake = hotkey_stake_dict.get(hk, Balance(0))
 
         children_info = []
         child_stakes = await asyncio.gather(
-            *[get_total_stake_for_child_hk(c) for c in children_]
+            *[get_total_stake_for_hk(c[1]) for c in children_]
         )
-        for child, child_stake in zip(children_, child_stakes):
+        child_takes = await asyncio.gather(
+            *[get_take(c) for c in children_]
+        )
+        for child, child_stake, child_take in zip(children_, child_stakes, child_takes):
             proportion = child[0]
             child_hotkey = child[1]
 
             # add to totals
-            total_proportion += proportion
+            avg_take += child_take
             total_stake += child_stake
 
-            children_info.append((proportion, child_hotkey, child_stake))
+            proportion = u64_to_float(proportion)
+
+            children_info.append((proportion, child_hotkey, child_stake, child_take))
 
         children_info.sort(
             key=lambda x: x[0], reverse=True
         )  # sorting by proportion (highest first)
 
+        console.print(
+            f"Parent Hotkey: {hk}  |  ", style="cyan", end="", no_wrap=True
+        )
+        console.print(f"Total Parent Stake: {hotkey_stake}τ")
+
         # add the children info to the table
-        for idx, (proportion, hotkey, stake) in enumerate(children_info, 1):
-            proportion_str = Text(
-                str(proportion), style="red" if proportion == 0 else ""
-            )
-            hotkey = Text(hotkey, style="red" if proportion == 0 else "")
+        for i, (proportion, hotkey, stake, child_take) in enumerate(children_info, 1):
+            proportion_percent = proportion * 100  # Proportion in percent
+            proportion_tao = hotkey_stake.tao * proportion  # Proportion in TAO
+
+            total_proportion += proportion_percent
+
+            # Conditionally format text
+            proportion_str = f"{proportion_percent:.3f}% ({proportion_tao:.3f}τ)"
+            stake_weight = stake.tao + proportion_tao
+            total_stake_weight += stake_weight
+            take_str = f"{child_take * 100:.3f}%"
+
+            hotkey = Text(hotkey, style="italic red" if proportion == 0 else "")
             table.add_row(
-                str(idx),
+                str(i),
                 hotkey,
                 proportion_str,
-                str(stake),
+                take_str,
+                str(f"{stake_weight:.3f}"),
             )
 
+        avg_take = avg_take / len(children_info)
+
         # add totals row
-        table.add_row("", "Total", str(total_proportion), str(total_stake), "")
+        table.add_row(
+            "",
+            "[dim]Total[/dim]",
+            f"[dim]{total_proportion:.3f}%[/dim]",
+            f"[dim](avg) {avg_take * 100:.3f}%[/dim]",
+            f"[dim]{total_stake_weight:.3f}τ[/dim]",
+            style="dim"
+        )
         console.print(table)
 
-    success, children, err_mg = await subtensor.get_children(wallet.hotkey, netuid)
+    # execute get_children
+    success, children, err_mg = await subtensor.get_children(wallet.hotkey.ss58_address, netuid)
     if not success:
         err_console.print(f"Failed to get children from subtensor: {err_mg}")
-    await render_table(wallet.hotkey, children, netuid)
+    await render_table(wallet.hotkey.ss58_address, children, True)
 
     return children
 
 
 async def set_children(
-    wallet: Wallet,
-    subtensor: "SubtensorInterface",
-    netuid: int,
-    children: list[str],
-    proportions: list[float],
+        wallet: Wallet,
+        subtensor: "SubtensorInterface",
+        netuid: int,
+        children: list[str],
+        proportions: list[float],
+        wait_for_inclusion: bool = True,
+        wait_for_finalization: bool = True,
 ):
     """Set children hotkeys."""
     # Validate children SS58 addresses
@@ -1559,9 +1723,14 @@ async def set_children(
         hotkey=wallet.hotkey.ss58_address,
         children_with_proportions=children_with_proportions,
         prompt=True,
+        wait_for_inclusion=wait_for_inclusion,
+        wait_for_finalization=wait_for_finalization,
     )
     # Result
     if success:
+        if wait_for_inclusion and wait_for_finalization:
+            console.print("New Status:")
+            await get_children(wallet, subtensor, netuid)
         console.print(":white_heavy_check_mark: [green]Set children hotkeys.[/green]")
     else:
         console.print(
@@ -1570,55 +1739,25 @@ async def set_children(
 
 
 async def revoke_children(
-    wallet: Wallet,
-    subtensor: "SubtensorInterface",
-    netuid: int,
-    wait_for_inclusion: bool = True,
-    wait_for_finalization: bool = True,
+        wallet: Wallet,
+        subtensor: "SubtensorInterface",
+        netuid: int,
+        wait_for_inclusion: bool = True,
+        wait_for_finalization: bool = True,
 ):
     """
     Revokes the children hotkeys associated with a given network identifier (netuid).
-
-    Parameters:
-    - wallet: An instance of the Wallet class representing the user's wallet.
-    - subtensor: An instance of the SubtensorInterface class.
-    - netuid: An integer representing the network identifier.
-    - wait_for_inclusion: A boolean indicating whether to wait for the transaction to be included in a block. Defaults
-      to True.
-    - wait_for_finalization: A boolean indicating whether to wait for the transaction to be finalized. Defaults to
-      False.
-
-    Returns:
-    None
-
-    Example:
-    >>> wallet = Wallet()
-    >>> subtensor = SubtensorInterface()
-    >>> revoke_children(wallet, subtensor, 12345, wait_for_inclusion=True)
     """
-    # print table with diff prompts
-    success, current_children, err_msg = await subtensor.get_children(
-        wallet.hotkey.ss58_address, netuid
-    )
-    if not success:
-        err_console.print(f"[red]Error retrieving children[/red]: {err_msg}")
-        return
-    # Validate children SS58 addresses
-    for child in current_children:
-        if not is_valid_ss58_address(child):
-            err_console.print(f":cross_mark:[red] Invalid SS58 address: {child}[/red]")
-            return
-
-    # Prepare children with zero proportions
-    children_with_zero_proportions = [(0.0, child[1]) for child in current_children]
 
     success, message = await set_children_extrinsic(
         subtensor=subtensor,
         wallet=wallet,
         netuid=netuid,
         hotkey=wallet.hotkey.ss58_address,
-        children_with_proportions=children_with_zero_proportions,
+        children_with_proportions=[],
         prompt=True,
+        wait_for_inclusion=wait_for_inclusion,
+        wait_for_finalization=wait_for_finalization,
     )
 
     # Result
@@ -1631,4 +1770,59 @@ async def revoke_children(
     else:
         console.print(
             f":cross_mark:[red] Unable to revoke children hotkeys.[/red] {message}"
+        )
+
+
+async def childkey_take(
+        wallet: Wallet,
+        subtensor: "SubtensorInterface",
+        netuid: int,
+        child_hotkey: str,
+        take: Optional[float],
+):
+    """Get or Set childkey take."""
+    # Validate child SS58 addresses
+    if not is_valid_ss58_address(child_hotkey):
+        err_console.print(f":cross_mark:[red] Invalid SS58 address: {child_hotkey}[/red]")
+        return
+
+    if not take:
+        # print current Take, ask if change
+        curr_take = get_childkey_take(subtensor=subtensor, netuid=netuid, hotkey=child_hotkey)
+        take = u16_to_float(curr_take)
+        console.print(f"Current child take is: {take*100:.2f}%")
+
+        prompt = Confirm.ask("Would you like to change the child take?")
+        if not prompt:
+            return
+        new_take = console.prompt("Enter the new take value (between 0 and 0.18): ")
+        try:
+            new_take = float(new_take)
+            if not (0 <= new_take <= 0.18):
+                err_console.print(f":cross_mark:[red] Invalid take value: {new_take}[/red]")
+                return
+        except ValueError:
+            err_console.print(":cross_mark:[red] Invalid input. Please enter a number between 0 and 0.18.[/red]")
+            return
+        take = new_take
+
+    else:
+        if not (0 <= take <= 0.18):
+            err_console.print(f":cross_mark:[red] Invalid take value: {take}[/red]")
+            return
+
+    success, message = await set_childkey_take_extrinsic(
+        subtensor=subtensor,
+        wallet=wallet,
+        netuid=netuid,
+        hotkey=wallet.hotkey.ss58_address,
+        take=take,
+        prompt=False,
+    )
+    # Result
+    if success:
+        console.print(":white_heavy_check_mark: [green]Set childkey take.[/green]")
+    else:
+        console.print(
+            f":cross_mark:[red] Unable to set childkey take.[/red] {message}"
         )

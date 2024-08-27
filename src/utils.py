@@ -20,10 +20,8 @@ from src.bittensor.balances import Balance
 if TYPE_CHECKING:
     from src.bittensor.chain_data import SubnetHyperparameters
 
-
 console = Console()
 err_console = Console(stderr=True)
-
 
 RAO_PER_TAO = 1e9
 U16_MAX = 65535
@@ -47,11 +45,41 @@ def float_to_u64(value: float) -> int:
         raise ValueError("Input value must be between 0 and 1")
 
     # Convert the float to a u64 value
-    return int(value * (2**64 - 1))
+    return int(value * (2 ** 64 - 1))
+
+
+def u64_to_float(value: int) -> float:
+    u64_max = 2 ** 64 - 1
+    # Allow for a small margin of error (e.g., 1) to account for potential rounding issues
+    if not (0 <= value <= u64_max + 1):
+        raise ValueError(
+            f"Input value ({value}) must be between 0 and {u64_max} (2^64 - 1)"
+        )
+    return min(value / u64_max, 1.0)  # Ensure the result is never greater than 1.0
+
+
+def float_to_u16(value: float) -> int:
+    # Ensure the input is within the expected range
+    if not (0 <= value <= 1):
+        raise ValueError("Input value must be between 0 and 1")
+
+    # Calculate the u16 representation
+    u16_max = 65535
+    return int(value * u16_max)
+
+
+def u16_to_float(value: int) -> float:
+    # Ensure the input is within the expected range
+    if not (0 <= value <= 65535):
+        raise ValueError("Input value must be between 0 and 65535")
+
+    # Calculate the float representation
+    u16_max = 65535
+    return value / u16_max
 
 
 def convert_weight_uids_and_vals_to_tensor(
-    n: int, uids: Collection[int], weights: Collection[int]
+        n: int, uids: Collection[int], weights: Collection[int]
 ) -> NDArray[np.float32]:
     """
     Converts weights and uids from chain representation into a `np.array` (inverse operation from
@@ -75,7 +103,7 @@ def convert_weight_uids_and_vals_to_tensor(
 
 
 def convert_bond_uids_and_vals_to_tensor(
-    n: int, uids: list[int], bonds: list[int]
+        n: int, uids: list[int], bonds: list[int]
 ) -> NDArray[np.int64]:
     """Converts bond and uids from chain representation into a np.array.
 
@@ -93,7 +121,7 @@ def convert_bond_uids_and_vals_to_tensor(
 
 
 def convert_root_weight_uids_and_vals_to_tensor(
-    n: int, uids: list[int], weights: list[int], subnets: list[int]
+        n: int, uids: list[int], weights: list[int], subnets: list[int]
 ) -> NDArray:
     """
     Converts root weights and uids from chain representation into a `np.array` or `torch.FloatTensor` (inverse operation
@@ -127,7 +155,7 @@ def convert_root_weight_uids_and_vals_to_tensor(
 
 
 def get_hotkey_wallets_for_wallet(
-    wallet: Wallet, show_nulls: bool = False
+        wallet: Wallet, show_nulls: bool = False
 ) -> list[Optional[Wallet]]:
     """
     Returns wallet objects with hotkeys for a single given wallet
@@ -149,17 +177,17 @@ def get_hotkey_wallets_for_wallet(
         hotkey_for_name = Wallet(path=str(wallet_path), name=wallet.name, hotkey=h_name)
         try:
             if (
-                hotkey_for_name.hotkey_file.exists_on_device()
-                and not hotkey_for_name.hotkey_file.is_encrypted()
-                # and hotkey_for_name.coldkeypub.ss58_address
-                and hotkey_for_name.hotkey.ss58_address
+                    hotkey_for_name.hotkey_file.exists_on_device()
+                    and not hotkey_for_name.hotkey_file.is_encrypted()
+                    # and hotkey_for_name.coldkeypub.ss58_address
+                    and hotkey_for_name.hotkey.ss58_address
             ):
                 hotkey_wallets.append(hotkey_for_name)
             elif show_nulls:
                 hotkey_wallets.append(None)
         except (
-            UnicodeDecodeError,
-            AttributeError,
+                UnicodeDecodeError,
+                AttributeError,
         ):  # usually an unrelated file like .DS_Store
             continue
 
@@ -184,8 +212,8 @@ def get_all_wallets_for_path(path: str) -> list[Wallet]:
     for cold_wallet in cold_wallets:
         try:
             if (
-                cold_wallet.coldkeypub_file.exists_on_device()
-                and not cold_wallet.coldkeypub_file.is_encrypted()
+                    cold_wallet.coldkeypub_file.exists_on_device()
+                    and not cold_wallet.coldkeypub_file.is_encrypted()
             ):
                 all_wallets.extend(get_hotkey_wallets_for_wallet(cold_wallet))
         except UnicodeDecodeError:  # usually an incorrect file like .DS_Store
@@ -312,7 +340,7 @@ def ss58_to_vec_u8(ss58_address: str) -> list[int]:
 
 
 def get_explorer_root_url_by_network_from_map(
-    network: str, network_map: dict[str, dict[str, str]]
+        network: str, network_map: dict[str, dict[str, str]]
 ) -> dict[str, str]:
     """
     Returns the explorer root url for the given network name from the given network map.
@@ -331,7 +359,7 @@ def get_explorer_root_url_by_network_from_map(
 
 
 def get_explorer_url_for_network(
-    network: str, block_hash: str, network_map: dict[str, dict[str, str]]
+        network: str, block_hash: str, network_map: dict[str, dict[str, str]]
 ) -> dict[str, str]:
     """
     Returns the explorer url for the given block hash and network.
@@ -461,7 +489,7 @@ def millify(n: int):
 
 
 def normalize_hyperparameters(
-    subnet: "SubnetHyperparameters",
+        subnet: "SubnetHyperparameters",
 ) -> list[tuple[str, str, str]]:
     """
     Normalizes the hyperparameters of a subnet.
