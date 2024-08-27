@@ -551,7 +551,7 @@ async def unstake_extrinsic(
 
     with console.status(
         f":satellite: Unstaking from chain: [white]{subtensor}[/white] ..."
-    ):  
+    ):
         unstaking_balance = Balance.from_tao(unstaking_balance)
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
@@ -1423,7 +1423,7 @@ async def unstake(
                 hotkey_ss58=final_hotkeys[0][1],
                 amount=None if unstake_all else final_amounts[0],
                 wait_for_inclusion=True,
-                prompt=False, #TODO: Add no prompt 
+                prompt=False,  # TODO: Add no prompt
             )
         else:
             await unstake_multiple_extrinsic(

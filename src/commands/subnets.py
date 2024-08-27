@@ -1,9 +1,12 @@
 import asyncio
+import json
+import sqlite3
+from textwrap import dedent
 from typing import TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm
-from rich.table import Table, Column
+from rich.table import Table
 
 from src import Constants, DelegatesDetails
 from src.bittensor.balances import Balance
@@ -19,6 +22,10 @@ from src.utils import (
     millify,
     RAO_PER_TAO,
     format_error_message,
+    render_table,
+    create_table,
+    update_metadata_table,
+    get_metadata_table,
 )
 
 if TYPE_CHECKING:
@@ -131,7 +138,9 @@ async def register_subnetwork_extrinsic(
 # commands
 
 
-async def subnets_list(subtensor: "SubtensorInterface"):
+async def subnets_list(
+    subtensor: "SubtensorInterface", reuse_last: bool, html_output: bool
+):
     """List all subnet netuids in the network."""
 
     async def _get_all_subnets_info():
@@ -146,90 +155,177 @@ async def subnets_list(subtensor: "SubtensorInterface"):
             else []
         )
 
-    subnets: list[SubnetInfo]
-    delegate_info: dict[str, DelegatesDetails]
+    if not reuse_last:
+        subnets: list[SubnetInfo]
+        delegate_info: dict[str, DelegatesDetails]
 
-    subnets, delegate_info = await asyncio.gather(
-        _get_all_subnets_info(),
-        get_delegates_details_from_github(url=Constants.delegates_detail_url),
-    )
-
-    if not subnets:
-        err_console.print("[red]No subnets found[/red]")
-        return
-
-    rows = []
-    total_neurons = 0
-
-    for subnet in subnets:
-        total_neurons += subnet.max_n
-        rows.append(
-            (
-                str(subnet.netuid),
-                str(subnet.subnetwork_n),
-                str(millify(subnet.max_n)),
-                f"{subnet.emission_value / RAO_PER_TAO * 100:0.2f}%",
-                str(subnet.tempo),
-                f"{subnet.burn!s:8.8}",
-                str(millify(subnet.difficulty)),
-                f"{delegate_info[subnet.owner_ss58].name if subnet.owner_ss58 in delegate_info else subnet.owner_ss58}",
-            )
+        subnets, delegate_info = await asyncio.gather(
+            _get_all_subnets_info(),
+            get_delegates_details_from_github(url=Constants.delegates_detail_url),
         )
 
-    table_width = console.width - 20
+        if not subnets:
+            err_console.print("[red]No subnets found[/red]")
+            return
 
-    table = Table(
-        title=f"[bold magenta]Subnets - {subtensor.network}[/bold magenta]",
-        show_footer=True,
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        style="bold",
-        title_style="bold white",
-        title_justify="center",
-        show_lines=False,
-        expand=True,
-        width=table_width,
-        pad_edge=True,
-    )
+        rows = []
+        db_rows = []
+        total_neurons = 0
 
-    table.add_column(
-        "[bold white]NETUID",
-        footer=f"[white]{len(subnets)}[/white]",
-        style="white",
-        justify="center",
-    )
-    table.add_column(
-        "[bold white]N",
-        footer=f"[white]{total_neurons}[/white]",
-        style="bright_cyan",
-        justify="center",
-    )
-    table.add_column("[bold white]MAX_N", style="bright_yellow", justify="center")
-    table.add_column("[bold white]EMISSION", style="bright_yellow", justify="center")
-    table.add_column("[bold white]TEMPO", style="magenta", justify="center")
-    table.add_column("[bold white]RECYCLE", style="bright_red", justify="center")
-    table.add_column("[bold white]POW", style="medium_purple", justify="center")
-    table.add_column("[bold white]SUDO", style="bright_magenta", justify="center")
+        for subnet in subnets:
+            total_neurons += subnet.max_n
+            rows.append(
+                (
+                    str(subnet.netuid),
+                    str(subnet.subnetwork_n),
+                    str(millify(subnet.max_n)),
+                    f"{subnet.emission_value / RAO_PER_TAO * 100:0.2f}%",
+                    str(subnet.tempo),
+                    f"{subnet.burn!s:8.8}",
+                    str(millify(subnet.difficulty)),
+                    f"{delegate_info[subnet.owner_ss58].name if subnet.owner_ss58 in delegate_info else subnet.owner_ss58}",
+                )
+            )
+            db_rows.append(
+                [
+                    int(subnet.netuid),
+                    int(subnet.subnetwork_n),
+                    int(subnet.max_n),  # millified in HTML table
+                    float(
+                        subnet.emission_value / RAO_PER_TAO * 100
+                    ),  # shown as percentage in HTML table
+                    int(subnet.tempo),
+                    float(subnet.burn),
+                    int(subnet.difficulty),  # millified in HTML table
+                    str(
+                        delegate_info[subnet.owner_ss58].name
+                        if subnet.owner_ss58 in delegate_info
+                        else subnet.owner_ss58
+                    ),
+                ]
+            )
+        metadata = {
+            "network": subtensor.network,
+            "netuid_count": len(subnets),
+            "N": total_neurons,
+            "rows": json.dumps(rows),
+        }
+        create_table(
+            "subnetslist",
+            [
+                ("NETUID", "INTEGER"),
+                ("N", "INTEGER"),
+                ("MAX_N", "BLOB"),
+                ("EMISSION", "REAL"),
+                ("TEMPO", "INTEGER"),
+                ("RECYCLE", "REAL"),
+                ("DIFFICULTY", "BLOB"),
+                ("SUDO", "TEXT"),
+            ],
+            db_rows,
+        )
+        update_metadata_table("subnetslist", values=metadata)
+    else:
+        try:
+            metadata = get_metadata_table("subnetslist")
+            rows = json.loads(metadata["rows"])
+        except sqlite3.OperationalError:
+            err_console.print(
+                "[red]Error[/red] Unable to retrieve table data. This is usually caused by attempting to use "
+                "`--reuse-last` before running the command a first time. In rare cases, this could also be due to "
+                "a corrupted database. Re-run the command (do not use `--reuse-last`) and see if that resolves your "
+                "issue."
+            )
+            return
+    if not html_output:
+        table_width = console.width - 20
 
-    for row in rows:
-        table.add_row(*row)
+        table = Table(
+            title=f"[bold magenta]Subnets - {metadata['network']}[/bold magenta]",
+            show_footer=True,
+            show_edge=False,
+            header_style="bold white",
+            border_style="bright_black",
+            style="bold",
+            title_style="bold white",
+            title_justify="center",
+            show_lines=False,
+            expand=True,
+            width=table_width,
+            pad_edge=True,
+        )
 
-    console.print(table)
-    console.print(
-        """
-Description:
-    The table displays the list of subnets registered in the Bittensor network.
-        - NETIUID: The network identifier of the subnet.
-        - N: The current UIDs registered to the network. 
-        - MAX_N: The total UIDs allowed on the network.
-        - EMISSION: The emission accrued by this subnet in the network.
-        - TEMPO: A duration of a number of blocks. Several subnet events occur at the end of every tempo period.
-        - RECYCLE: Cost to register to the subnet.
-        - POW: Proof of work metric of the subnet.
-        - SUDO: Owner's identity.
-"""
-    )
+        table.add_column(
+            "[bold white]NETUID",
+            footer=f"[white]{metadata['netuid_count']}[/white]",
+            style="white",
+            justify="center",
+        )
+        table.add_column(
+            "[bold white]N",
+            footer=f"[white]{metadata['N']}[/white]",
+            style="bright_cyan",
+            justify="center",
+        )
+        table.add_column("[bold white]MAX_N", style="bright_yellow", justify="center")
+        table.add_column(
+            "[bold white]EMISSION", style="bright_yellow", justify="center"
+        )
+        table.add_column("[bold white]TEMPO", style="magenta", justify="center")
+        table.add_column("[bold white]RECYCLE", style="bright_red", justify="center")
+        table.add_column("[bold white]POW", style="medium_purple", justify="center")
+        table.add_column("[bold white]SUDO", style="bright_magenta", justify="center")
+
+        for row in rows:
+            table.add_row(*row)
+
+        console.print(table)
+        console.print(
+            dedent(
+                """
+            Description:
+                The table displays the list of subnets registered in the Bittensor network.
+                    - NETUID: The network identifier of the subnet.
+                    - N: The current UIDs registered to the network. 
+                    - MAX_N: The total UIDs allowed on the network.
+                    - EMISSION: The emission accrued by this subnet in the network.
+                    - TEMPO: A duration of a number of blocks. Several subnet events occur at the end of every tempo period.
+                    - RECYCLE: Cost to register to the subnet.
+                    - POW: Proof of work metric of the subnet.
+                    - SUDO: Owner's identity.
+            """
+            )
+        )
+    else:
+        render_table(
+            "subnetslist",
+            f"Subnets List | Network: {metadata['network']} - "
+            f"Netuids: {metadata['netuid_count']} - N: {metadata['N']}",
+            columns=[
+                {"title": "NetUID", "field": "NETUID"},
+                {"title": "N", "field": "N"},
+                {"title": "MAX_N", "field": "MAX_N", "customFormatter": "millify"},
+                {
+                    "title": "EMISSION",
+                    "field": "EMISSION",
+                    "formatter": "money",
+                    "formatterParams": {"symbolAfter": "%", "precision": 2},
+                },
+                {"title": "Tempo", "field": "TEMPO"},
+                {
+                    "title": "Recycle",
+                    "field": "RECYCLE",
+                    "formatter": "money",
+                    "formatterParams": {"symbol": "", "precision": 5},
+                },
+                {
+                    "title": "Difficulty",
+                    "field": "DIFFICULTY",
+                    "customFormatter": "millify",
+                },
+                {"title": "sudo", "field": "SUDO"},
+            ],
+        )
 
 
 async def lock_cost(subtensor: "SubtensorInterface") -> Optional[Balance]:
@@ -327,7 +423,7 @@ async def register(wallet: Wallet, subtensor: "SubtensorInterface", netuid: int)
         )
         return
 
-    if not True:  # TODO no-prompt
+    if not False:  # TODO no-prompt
         if not (
             Confirm.ask(
                 f"Your balance is: [bold green]{balance}[/bold green]\nThe cost to register by recycle is "
@@ -347,168 +443,319 @@ async def register(wallet: Wallet, subtensor: "SubtensorInterface", netuid: int)
     )
 
 
-async def metagraph_cmd(subtensor: "SubtensorInterface", netuid: int):
+async def metagraph_cmd(
+    subtensor: "SubtensorInterface",
+    netuid: Optional[int],
+    reuse_last: bool,
+    html_output: bool,
+):
     """Prints an entire metagraph."""
-    console.print(
-        f":satellite: Syncing with chain: [white]{subtensor.network}[/white] ..."
-    )
-    block_hash = await subtensor.substrate.get_chain_head()
-    neurons, difficulty_, total_issuance_, block = await asyncio.gather(
-        subtensor.neurons(netuid, block_hash=block_hash),
-        subtensor.get_hyperparameter(
-            param_name="Difficulty", netuid=netuid, block_hash=block_hash
-        ),
-        subtensor.substrate.query(
-            module="SubtensorModule",
-            storage_function="TotalIssuance",
-            params=[],
-            block_hash=block_hash,
-        ),
-        subtensor.substrate.get_block_number(block_hash=block_hash),
-    )
+    # TODO allow config to set certain columns
+    if not reuse_last:
+        with console.status(
+            f":satellite: Syncing with chain: [white]{subtensor.network}[/white] ..."
+        ):
+            block_hash = await subtensor.substrate.get_chain_head()
+            neurons, difficulty_, total_issuance_, block = await asyncio.gather(
+                subtensor.neurons(netuid, block_hash=block_hash),
+                subtensor.get_hyperparameter(
+                    param_name="Difficulty", netuid=netuid, block_hash=block_hash
+                ),
+                subtensor.substrate.query(
+                    module="SubtensorModule",
+                    storage_function="TotalIssuance",
+                    params=[],
+                    block_hash=block_hash,
+                ),
+                subtensor.substrate.get_block_number(block_hash=block_hash),
+            )
 
-    difficulty = int(difficulty_)
-    total_issuance = Balance.from_rao(total_issuance_.value)
-    metagraph = MiniGraph(
-        netuid=netuid, neurons=neurons, subtensor=subtensor, block=block
-    )
-    # metagraph.save()  TODO maybe?
-    table_data = []
-    total_stake = 0.0
-    total_rank = 0.0
-    total_validator_trust = 0.0
-    total_trust = 0.0
-    total_consensus = 0.0
-    total_incentive = 0.0
-    total_dividends = 0.0
-    total_emission = 0
-    for uid in metagraph.uids:
-        neuron = metagraph.neurons[uid]
-        ep = metagraph.axons[uid]
-        row = [
-            str(neuron.uid),
-            "{:.5f}".format(metagraph.total_stake[uid]),
-            "{:.5f}".format(metagraph.ranks[uid]),
-            "{:.5f}".format(metagraph.trust[uid]),
-            "{:.5f}".format(metagraph.consensus[uid]),
-            "{:.5f}".format(metagraph.incentive[uid]),
-            "{:.5f}".format(metagraph.dividends[uid]),
-            "{}".format(int(metagraph.emission[uid] * 1000000000)),
-            "{:.5f}".format(metagraph.validator_trust[uid]),
-            "*" if metagraph.validator_permit[uid] else "",
-            str((metagraph.block.item() - metagraph.last_update[uid].item())),
-            str(metagraph.active[uid].item()),
-            (ep.ip + ":" + str(ep.port) if ep.is_serving else "[yellow]none[/yellow]"),
-            ep.hotkey[:10],
-            ep.coldkey[:10],
-        ]
-        total_stake += metagraph.total_stake[uid]
-        total_rank += metagraph.ranks[uid]
-        total_validator_trust += metagraph.validator_trust[uid]
-        total_trust += metagraph.trust[uid]
-        total_consensus += metagraph.consensus[uid]
-        total_incentive += metagraph.incentive[uid]
-        total_dividends += metagraph.dividends[uid]
-        total_emission += int(metagraph.emission[uid] * 1000000000)
-        table_data.append(row)
-    total_neurons = len(metagraph.uids)
-    table = Table(show_footer=False)
-    table.title = (
-        f"[white]Metagraph: "
-        f"net: {subtensor.network}:{metagraph.netuid}, "
-        f"block: {metagraph.block.item()},"
-        f"N: {sum(metagraph.active.tolist())}/{metagraph.n.item()}, "
-        f"stake: {Balance.from_tao(total_stake)}, "
-        f"issuance: {total_issuance}, "
-        f"difficulty: {difficulty}"
-    )
-    table.add_column(
-        "[overline white]UID",
-        str(total_neurons),
-        footer_style="overline white",
-        style="yellow",
-    )
-    table.add_column(
-        "[overline white]STAKE(\u03c4)",
-        "\u03c4{:.5f}".format(total_stake),
-        footer_style="overline white",
-        justify="right",
-        style="green",
-        no_wrap=True,
-    )
-    table.add_column(
-        "[overline white]RANK",
-        "{:.5f}".format(total_rank),
-        footer_style="overline white",
-        justify="right",
-        style="green",
-        no_wrap=True,
-    )
-    table.add_column(
-        "[overline white]TRUST",
-        "{:.5f}".format(total_trust),
-        footer_style="overline white",
-        justify="right",
-        style="green",
-        no_wrap=True,
-    )
-    table.add_column(
-        "[overline white]CONSENSUS",
-        "{:.5f}".format(total_consensus),
-        footer_style="overline white",
-        justify="right",
-        style="green",
-        no_wrap=True,
-    )
-    table.add_column(
-        "[overline white]INCENTIVE",
-        "{:.5f}".format(total_incentive),
-        footer_style="overline white",
-        justify="right",
-        style="green",
-        no_wrap=True,
-    )
-    table.add_column(
-        "[overline white]DIVIDENDS",
-        "{:.5f}".format(total_dividends),
-        footer_style="overline white",
-        justify="right",
-        style="green",
-        no_wrap=True,
-    )
-    table.add_column(
-        "[overline white]EMISSION(\u03c1)",
-        "\u03c1{}".format(int(total_emission)),
-        footer_style="overline white",
-        justify="right",
-        style="green",
-        no_wrap=True,
-    )
-    table.add_column(
-        "[overline white]VTRUST",
-        "{:.5f}".format(total_validator_trust),
-        footer_style="overline white",
-        justify="right",
-        style="green",
-        no_wrap=True,
-    )
-    table.add_column(
-        "[overline white]VAL", justify="right", style="green", no_wrap=True
-    )
-    table.add_column("[overline white]UPDATED", justify="right", no_wrap=True)
-    table.add_column(
-        "[overline white]ACTIVE", justify="right", style="green", no_wrap=True
-    )
-    table.add_column(
-        "[overline white]AXON", justify="left", style="dim blue", no_wrap=True
-    )
-    table.add_column("[overline white]HOTKEY", style="dim blue", no_wrap=False)
-    table.add_column("[overline white]COLDKEY", style="dim purple", no_wrap=False)
-    table.show_footer = True
+        difficulty = int(difficulty_)
+        total_issuance = Balance.from_rao(total_issuance_.value)
+        metagraph = MiniGraph(
+            netuid=netuid, neurons=neurons, subtensor=subtensor, block=block
+        )
+        table_data = []
+        db_table = []
+        total_stake = 0.0
+        total_rank = 0.0
+        total_validator_trust = 0.0
+        total_trust = 0.0
+        total_consensus = 0.0
+        total_incentive = 0.0
+        total_dividends = 0.0
+        total_emission = 0
+        for uid in metagraph.uids:
+            neuron = metagraph.neurons[uid]
+            ep = metagraph.axons[uid]
+            row = [
+                str(neuron.uid),
+                "{:.5f}".format(metagraph.total_stake[uid]),
+                "{:.5f}".format(metagraph.ranks[uid]),
+                "{:.5f}".format(metagraph.trust[uid]),
+                "{:.5f}".format(metagraph.consensus[uid]),
+                "{:.5f}".format(metagraph.incentive[uid]),
+                "{:.5f}".format(metagraph.dividends[uid]),
+                "{}".format(int(metagraph.emission[uid] * 1000000000)),
+                "{:.5f}".format(metagraph.validator_trust[uid]),
+                "*" if metagraph.validator_permit[uid] else "",
+                str(metagraph.block.item() - metagraph.last_update[uid].item()),
+                str(metagraph.active[uid].item()),
+                (
+                    ep.ip + ":" + str(ep.port)
+                    if ep.is_serving
+                    else "[yellow]none[/yellow]"
+                ),
+                ep.hotkey[:10],
+                ep.coldkey[:10],
+            ]
+            db_row = [
+                neuron.uid,
+                float(metagraph.total_stake[uid]),
+                float(metagraph.ranks[uid]),
+                float(metagraph.trust[uid]),
+                float(metagraph.consensus[uid]),
+                float(metagraph.incentive[uid]),
+                float(metagraph.dividends[uid]),
+                int(metagraph.emission[uid] * 1000000000),
+                float(metagraph.validator_trust[uid]),
+                bool(metagraph.validator_permit[uid]),
+                metagraph.block.item() - metagraph.last_update[uid].item(),
+                metagraph.active[uid].item(),
+                (ep.ip + ":" + str(ep.port) if ep.is_serving else "ERROR"),
+                ep.hotkey[:10],
+                ep.coldkey[:10],
+            ]
+            db_table.append(db_row)
+            total_stake += metagraph.total_stake[uid]
+            total_rank += metagraph.ranks[uid]
+            total_validator_trust += metagraph.validator_trust[uid]
+            total_trust += metagraph.trust[uid]
+            total_consensus += metagraph.consensus[uid]
+            total_incentive += metagraph.incentive[uid]
+            total_dividends += metagraph.dividends[uid]
+            total_emission += int(metagraph.emission[uid] * 1000000000)
+            table_data.append(row)
+        metadata_info = {
+            "stake": str(Balance.from_tao(total_stake)),
+            "total_stake": "\u03c4{:.5f}".format(total_stake),
+            "rank": "{:.5f}".format(total_rank),
+            "validator_trust": "{:.5f}".format(total_validator_trust),
+            "trust": "{:.5f}".format(total_trust),
+            "consensus": "{:.5f}".format(total_consensus),
+            "incentive": "{:.5f}".format(total_incentive),
+            "dividends": "{:.5f}".format(total_dividends),
+            "emission": "\u03c1{}".format(int(total_emission)),
+            "net": f"{subtensor.network}:{metagraph.netuid}",
+            "block": str(metagraph.block.item()),
+            "N": f"{sum(metagraph.active.tolist())}/{metagraph.n.item()}",
+            "issuance": str(total_issuance),
+            "difficulty": str(difficulty),
+            "total_neurons": str(len(metagraph.uids)),
+            "table_data": json.dumps(table_data),
+        }
+        update_metadata_table("metagraph", metadata_info)
+        create_table(
+            "metagraph",
+            columns=[
+                ("UID", "INTEGER"),
+                ("STAKE", "REAL"),
+                ("RANK", "REAL"),
+                ("TRUST", "REAL"),
+                ("CONSENSUS", "REAL"),
+                ("INCENTIVE", "REAL"),
+                ("DIVIDENDS", "REAL"),
+                ("EMISSION", "INTEGER"),
+                ("VTRUST", "REAL"),
+                ("VAL", "INTEGER"),
+                ("UPDATED", "INTEGER"),
+                ("ACTIVE", "INTEGER"),
+                ("AXON", "TEXT"),
+                ("HOTKEY", "TEXT"),
+                ("COLDKEY", "TEXT"),
+            ],
+            rows=db_table,
+        )
+    else:
+        try:
+            metadata_info = get_metadata_table("metagraph")
+            table_data = json.loads(metadata_info["table_data"])
+        except sqlite3.OperationalError:
+            err_console.print(
+                "[red]Error[/red] Unable to retrieve table data. This is usually caused by attempting to use "
+                "`--reuse-last` before running the command a first time. In rare cases, this could also be due to "
+                "a corrupted database. Re-run the command (do not use `--reuse-last`) and see if that resolves your "
+                "issue."
+            )
+            return
 
-    for row in table_data:
-        table.add_row(*row)
-    table.box = None
-    table.pad_edge = False
-    table.width = None
-    console.print(table)
+    if html_output:
+        try:
+            render_table(
+                table_name="metagraph",
+                table_info=f"Metagraph | "
+                f"net: {metadata_info['net']}, "
+                f"block: {metadata_info['block']}, "
+                f"N: {metadata_info['N']}, "
+                f"stake: {metadata_info['stake']}, "
+                f"issuance: {metadata_info['issuance']}, "
+                f"difficulty: {metadata_info['difficulty']}",
+                columns=[
+                    {"title": "UID", "field": "UID"},
+                    {
+                        "title": "Stake",
+                        "field": "STAKE",
+                        "formatter": "money",
+                        "formatterParams": {"symbol": "τ", "precision": 5},
+                    },
+                    {
+                        "title": "Rank",
+                        "field": "RANK",
+                        "formatter": "money",
+                        "formatterParams": {"precision": 5},
+                    },
+                    {
+                        "title": "Trust",
+                        "field": "TRUST",
+                        "formatter": "money",
+                        "formatterParams": {"precision": 5},
+                    },
+                    {
+                        "title": "Consensus",
+                        "field": "CONSENSUS",
+                        "formatter": "money",
+                        "formatterParams": {"precision": 5},
+                    },
+                    {
+                        "title": "Incentive",
+                        "field": "INCENTIVE",
+                        "formatter": "money",
+                        "formatterParams": {"precision": 5},
+                    },
+                    {
+                        "title": "Dividends",
+                        "field": "DIVIDENDS",
+                        "formatter": "money",
+                        "formatterParams": {"precision": 5},
+                    },
+                    {"title": "Emission", "field": "EMISSION"},
+                    {
+                        "title": "VTrust",
+                        "field": "VTRUST",
+                        "formatter": "money",
+                        "formatterParams": {"precision": 5},
+                    },
+                    {"title": "Validated", "field": "VAL"},
+                    {"title": "Updated", "field": "UPDATED"},
+                    {"title": "Active", "field": "ACTIVE"},
+                    {"title": "Axon", "field": "AXON"},
+                    {"title": "Hotkey", "field": "HOTKEY"},
+                    {"title": "Coldkey", "field": "COLDKEY"},
+                ],
+            )
+        except sqlite3.OperationalError:
+            err_console.print(
+                "[red]Error[/red] Unable to retrieve table data. This may indicate that your database is corrupted, "
+                "or was not able to load with the most recent data."
+            )
+            return
+    else:
+        table = Table(show_footer=False, box=None, pad_edge=False, width=None)
+
+        table.title = (
+            f"[white]Metagraph: "
+            f"net: {metadata_info['net']}, "
+            f"block: {metadata_info['block']}, "
+            f"N: {metadata_info['N']}, "
+            f"stake: {metadata_info['stake']}, "
+            f"issuance: {metadata_info['issuance']}, "
+            f"difficulty: {metadata_info['difficulty']}"
+        )
+        table.add_column(
+            "[overline white]UID",
+            metadata_info["total_neurons"],
+            footer_style="overline white",
+            style="yellow",
+        )
+        table.add_column(
+            "[overline white]STAKE(\u03c4)",
+            metadata_info["total_stake"],
+            footer_style="overline white",
+            justify="right",
+            style="green",
+            no_wrap=True,
+        )
+        table.add_column(
+            "[overline white]RANK",
+            metadata_info["rank"],
+            footer_style="overline white",
+            justify="right",
+            style="green",
+            no_wrap=True,
+        )
+        table.add_column(
+            "[overline white]TRUST",
+            metadata_info["trust"],
+            footer_style="overline white",
+            justify="right",
+            style="green",
+            no_wrap=True,
+        )
+        table.add_column(
+            "[overline white]CONSENSUS",
+            metadata_info["consensus"],
+            footer_style="overline white",
+            justify="right",
+            style="green",
+            no_wrap=True,
+        )
+        table.add_column(
+            "[overline white]INCENTIVE",
+            metadata_info["incentive"],
+            footer_style="overline white",
+            justify="right",
+            style="green",
+            no_wrap=True,
+        )
+        table.add_column(
+            "[overline white]DIVIDENDS",
+            metadata_info["dividends"],
+            footer_style="overline white",
+            justify="right",
+            style="green",
+            no_wrap=True,
+        )
+        table.add_column(
+            "[overline white]EMISSION(\u03c1)",
+            metadata_info["emission"],
+            footer_style="overline white",
+            justify="right",
+            style="green",
+            no_wrap=True,
+        )
+        table.add_column(
+            "[overline white]VTRUST",
+            metadata_info["validator_trust"],
+            footer_style="overline white",
+            justify="right",
+            style="green",
+            no_wrap=True,
+        )
+        table.add_column(
+            "[overline white]VAL", justify="right", style="green", no_wrap=True
+        )
+        table.add_column("[overline white]UPDATED", justify="right", no_wrap=True)
+        table.add_column(
+            "[overline white]ACTIVE", justify="right", style="green", no_wrap=True
+        )
+        table.add_column(
+            "[overline white]AXON", justify="left", style="dim blue", no_wrap=True
+        )
+        table.add_column("[overline white]HOTKEY", style="dim blue", no_wrap=False)
+        table.add_column("[overline white]COLDKEY", style="dim purple", no_wrap=False)
+        table.show_footer = True
+
+        for row in table_data:
+            table.add_row(*row)
+
+        console.print(table)

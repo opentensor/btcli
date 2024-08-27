@@ -104,6 +104,16 @@ class Options:
         help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
         prompt=True,
     )
+    reuse_last = typer.Option(
+        False,
+        help="Reuse the metagraph data you last retrieved. Only use this if you have already retrieved metagraph"
+        "data",
+    )
+    html_output = typer.Option(
+        False,
+        "--html",
+        help="Display the table as HTML in the browser, rather than in the Terminal.",
+    )
 
 
 def list_prompt(init_var: list, list_type: type, help_text: str) -> list:
@@ -1167,9 +1177,9 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         n_words: Optional[int] = None,
-        use_password: Optional[bool] = Options.use_password,
-        overwrite_hotkey: Optional[bool] = Options.overwrite_hotkey,
-        overwrite_coldkey: Optional[bool] = Options.overwrite_coldkey,
+        use_password: bool = Options.use_password,
+        overwrite_hotkey: bool = Options.overwrite_hotkey,
+        overwrite_coldkey: bool = Options.overwrite_coldkey,
     ):
         """
         # wallet create
@@ -2884,7 +2894,13 @@ class CLIManager:
             sudo.get_hyperparameters(self.initialize_chain(network, chain), netuid)
         )
 
-    def subnets_list(self, network: str = Options.network, chain: str = Options.chain):
+    def subnets_list(
+        self,
+        network: str = Options.network,
+        chain: str = Options.chain,
+        reuse_last: bool = Options.reuse_last,
+        html_output: bool = Options.html_output,
+    ):
         """
         # subnets list
         Executes the `list` command to list all subnets and their detailed information on the Bittensor network.
@@ -2932,8 +2948,12 @@ class CLIManager:
         This command is particularly useful for users seeking an overview of the Bittensor network's structure and the
         distribution of its resources and ownership information for each subnet.
         """
+        if reuse_last:
+            subtensor = None
+        else:
+            subtensor = self.initialize_chain(network, chain)
         return self._run_command(
-            subnets.subnets_list(self.initialize_chain(network, chain))
+            subnets.subnets_list(subtensor, reuse_last, html_output)
         )
 
     def subnets_lock_cost(
@@ -3205,9 +3225,15 @@ class CLIManager:
 
     def subnets_metagraph(
         self,
-        netuid: int = Options.netuid,
+        netuid: Optional[int] = typer.Option(
+            None,
+            help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1). This does"
+            "is ignored when used with `--reuse-last`.",
+        ),
         network: str = Options.network,
         chain: str = Options.chain,
+        reuse_last: bool = Options.reuse_last,
+        html_output: bool = Options.html_output,
     ):
         """
         Executes the `metagraph` command to retrieve and display the entire metagraph for a specified network.
@@ -3269,8 +3295,19 @@ class CLIManager:
         It is useful for network analysis and diagnostics. It is intended to be used as part of the Bittensor CLI and
         not as a standalone function within user code.
         """
+        if reuse_last:
+            if netuid is not None:
+                console.print("Cannot specify netuid when using `--reuse-last`")
+                raise typer.Exit()
+            subtensor = None
+        else:
+            if netuid is None:
+                netuid = rich.prompt.IntPrompt.ask(
+                    "Enter the netuid (network unique identifier) of the subnet within the root network, (e.g. 1)."
+                )
+            subtensor = self.initialize_chain(network, chain)
         return self._run_command(
-            subnets.metagraph_cmd(self.initialize_chain(network, chain), netuid)
+            subnets.metagraph_cmd(subtensor, netuid, reuse_last, html_output)
         )
 
     def weights_reveal(
