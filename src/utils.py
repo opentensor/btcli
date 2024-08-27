@@ -556,9 +556,7 @@ def create_table(title: str, columns: list[tuple[str, str]], rows: list[list]) -
         cursor.execute(creation_query)
         cursor.execute(f"DELETE FROM {title};")
         query = f"INSERT INTO {title} ({', '.join([x[0] for x in columns])}) VALUES ({', '.join(['?'] * len(columns))})"
-        for row in rows:
-            cursor.execute(query, row)
-        # cursor.executemany(query, rows)
+        cursor.executemany(query, rows)
     return
 
 
