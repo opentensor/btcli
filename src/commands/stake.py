@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Union, Optional, Sequence, cast
 
 from ansible_collections.amazon.aws.plugins.modules.ec2_instance import module
 from bittensor_wallet import Wallet
-from rich.prompt import Confirm
+from rich.prompt import Confirm, Prompt
 from rich.table import Table, Column
 from rich.text import Text
 from substrateinterface.exceptions import SubstrateRequestException
@@ -927,13 +927,6 @@ async def set_childkey_take_extrinsic(
     :return: A tuple containing a success flag and an optional error message.
     """
 
-    # Decrypt coldkey.
-    wallet.coldkey
-
-    user_hotkey_ss58 = wallet.hotkey.ss58_address  # Default to wallet's own hotkey.
-    if hotkey != user_hotkey_ss58:
-        raise ValueError("You can only set childkey take for ss58 hotkey that you own.")
-
     # Ask before moving on.
     if prompt:
         if not Confirm.ask(
@@ -941,17 +934,21 @@ async def set_childkey_take_extrinsic(
         ):
             return False, "Operation Cancelled"
 
+
+    # Decrypt coldkey.
+    wallet.coldkey
+
     with console.status(
             f":satellite: Setting childkey take on [white]{subtensor.network}[/white] ..."
     ):
         try:
 
-            if 0 < take < 0.18:
+            if 0 < take <= 0.18:
                 take_u16 = float_to_u16(take)
             else:
                 return False, "Invalid take value"
 
-            call = subtensor.substrate.compose_call(
+            call = await subtensor.substrate.compose_call(
                 call_module="SubtensorModule",
                 call_function="set_childkey_take",
                 call_params={
@@ -1777,38 +1774,38 @@ async def childkey_take(
         wallet: Wallet,
         subtensor: "SubtensorInterface",
         netuid: int,
-        child_hotkey: str,
         take: Optional[float],
+        wait_for_inclusion: bool = True,
+        wait_for_finalization: bool = True,
 ):
     """Get or Set childkey take."""
-    # Validate child SS58 addresses
-    if not is_valid_ss58_address(child_hotkey):
-        err_console.print(f":cross_mark:[red] Invalid SS58 address: {child_hotkey}[/red]")
-        return
 
+    def validate_take_value(take_value: float) -> bool:
+        if not (0 <= take_value <= 0.18):
+            err_console.print(f":cross_mark:[red] Invalid take value: {take_value}[/red]")
+            return False
+        return True
+
+    # Validate child SS58 addresses
     if not take:
         # print current Take, ask if change
-        curr_take = get_childkey_take(subtensor=subtensor, netuid=netuid, hotkey=child_hotkey)
+        curr_take = await get_childkey_take(subtensor=subtensor, netuid=netuid, hotkey=wallet.hotkey.ss58_address)
         take = u16_to_float(curr_take)
         console.print(f"Current child take is: {take*100:.2f}%")
 
-        prompt = Confirm.ask("Would you like to change the child take?")
-        if not prompt:
+        if not Confirm.ask("Would you like to change the child take?"):
             return
-        new_take = console.prompt("Enter the new take value (between 0 and 0.18): ")
+        new_take_str = Prompt.ask("Enter the new take value (between 0 and 0.18): ")
         try:
-            new_take = float(new_take)
-            if not (0 <= new_take <= 0.18):
-                err_console.print(f":cross_mark:[red] Invalid take value: {new_take}[/red]")
+            new_take_value = float(new_take_str)
+            if not validate_take_value(new_take_value):
                 return
         except ValueError:
             err_console.print(":cross_mark:[red] Invalid input. Please enter a number between 0 and 0.18.[/red]")
             return
-        take = new_take
-
+        take = new_take_value
     else:
-        if not (0 <= take <= 0.18):
-            err_console.print(f":cross_mark:[red] Invalid take value: {take}[/red]")
+        if not validate_take_value(take):
             return
 
     success, message = await set_childkey_take_extrinsic(
@@ -1818,10 +1815,13 @@ async def childkey_take(
         hotkey=wallet.hotkey.ss58_address,
         take=take,
         prompt=False,
+        wait_for_inclusion=wait_for_inclusion,
+        wait_for_finalization=wait_for_finalization,
     )
     # Result
     if success:
         console.print(":white_heavy_check_mark: [green]Set childkey take.[/green]")
+        console.print(f"The childkey take for {wallet.hotkey.ss58_address} is now set to {take * 100:.3f}%.")
     else:
         console.print(
             f":cross_mark:[red] Unable to set childkey take.[/red] {message}"

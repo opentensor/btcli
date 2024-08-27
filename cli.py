@@ -2719,22 +2719,22 @@ class CLIManager:
         )
 
     def stake_childkey_take(
-        self,
-        wallet_name: Optional[str] = Options.wallet_name,
-        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
-        wallet_path: Optional[str] = Options.wallet_path,
-        network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
-        netuid: int = Options.netuid,
-        wait_for_inclusion: bool = True,
-        wait_for_finalization: bool = True,
-        take: float = typer.Option(
-            0,
-            "--take",
-            "-t",
-            help="Enter take for your child hotkey",
-            prompt=False,
-        ),
+            self,
+            wallet_name: Optional[str] = Options.wallet_name,
+            wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+            wallet_path: Optional[str] = Options.wallet_path,
+            network: Optional[str] = Options.network,
+            chain: Optional[str] = Options.chain,
+            netuid: int = Options.netuid,
+            wait_for_inclusion: bool = True,
+            wait_for_finalization: bool = True,
+            take: Optional[float] = typer.Option(
+                None,
+                "--take",
+                "-t",
+                help="Enter take for your child hotkey",
+                prompt=False,
+            ),
     ):
         """
         # stake childkey-take
@@ -2762,12 +2762,12 @@ class CLIManager:
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             stake.childkey_take(
-                wallet,
-                self.initialize_chain(network, chain),
-                netuid,
-                take,
-                wait_for_inclusion,
-                wait_for_finalization,
+                wallet=wallet,
+                subtensor=self.initialize_chain(network, chain),
+                netuid=netuid,
+                take=take,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
             )
         )
 
