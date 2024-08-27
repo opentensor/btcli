@@ -1301,7 +1301,7 @@ async def faucet(
     log_verbose: bool,
     max_successes: int = 3,
 ):
-    # TODO: - work out prompts to be passed through the cli 
+    # TODO: - work out prompts to be passed through the cli
     success = await run_faucet_extrinsic(
         subtensor,
         wallet,

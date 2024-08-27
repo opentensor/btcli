@@ -1,13 +1,17 @@
 import os
 import math
 from pathlib import Path
+import sqlite3
 from typing import Union, Any, Collection, Optional, TYPE_CHECKING
+import webbrowser
 
 import aiohttp
 import scalecodec
 from bittensor_wallet import Wallet
 from bittensor_wallet.keyfile import Keypair
 from bittensor_wallet.utils import SS58_FORMAT, ss58
+from jinja2 import Template
+from markupsafe import Markup
 import numpy as np
 from numpy.typing import NDArray
 from rich.console import Console
@@ -530,3 +534,220 @@ def normalize_hyperparameters(
         normalized_values.append((param, str(value), str(norm_value)))
 
     return normalized_values
+
+
+class DB:
+    """
+    For ease of interaction with the SQLite database used for --reuse-last and --html outputs of tables
+    """
+
+    def __init__(
+        self,
+        db_path: str = os.path.expanduser("~/.bittensor/bittensor.db"),
+        row_factory=None,
+    ):
+        self.db_path = db_path
+        self.conn: Optional[sqlite3.Connection] = None
+        self.row_factory = row_factory
+
+    def __enter__(self):
+        self.conn = sqlite3.connect(self.db_path)
+        self.conn.autocommit = True
+        self.conn.row_factory = self.row_factory
+        return self.conn, self.conn.cursor()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.conn:
+            self.conn.close()
+
+
+def create_table(title: str, columns: list[tuple[str, str]], rows: list[list]) -> None:
+    """
+    Creates and populates the rows of a table in the SQLite database.
+
+    :param title: title of the table
+    :param columns: [(column name, column type), ...]
+    :param rows: [[element, element, ...], ...]
+    :return: None
+    """
+    blob_cols = []
+    for idx, (_, col_type) in enumerate(columns):
+        if col_type == "BLOB":
+            blob_cols.append(idx)
+    if blob_cols:
+        for row in rows:
+            for idx in blob_cols:
+                row[idx] = row[idx].to_bytes(row[idx].bit_length() + 7, byteorder="big")
+    with DB() as (conn, cursor):
+        columns_ = ", ".join([" ".join(x) for x in columns])
+        creation_query = f"CREATE TABLE IF NOT EXISTS {title} ({columns_})"
+        cursor.execute(creation_query)
+        cursor.execute(f"DELETE FROM {title};")
+        query = f"INSERT INTO {title} ({', '.join([x[0] for x in columns])}) VALUES ({', '.join(['?'] * len(columns))})"
+        cursor.executemany(query, rows)
+    return
+
+
+def read_table(table_name: str, order_by: str = "") -> tuple[list, list]:
+    """
+    Reads a table from a SQLite database, returning back a column names and rows as a tuple
+    :param table_name: the table name in the database
+    :param order_by: the order of the columns in the table, optional
+    :return: ([column names], [rows])
+    """
+    with DB() as (conn, cursor):
+        cursor.execute(f"PRAGMA table_info({table_name})")
+        columns_info = cursor.fetchall()
+        column_names = [info[1] for info in columns_info]
+        column_types = [info[2] for info in columns_info]
+        cursor.execute(f"SELECT * FROM {table_name} {order_by}")
+        rows = cursor.fetchall()
+    blob_cols = []
+    for idx, col_type in enumerate(column_types):
+        if col_type == "BLOB":
+            blob_cols.append(idx)
+    if blob_cols:
+        rows = [list(row) for row in rows]
+        for row in rows:
+            for idx in blob_cols:
+                row[idx] = int.from_bytes(row[idx], byteorder="big")
+    return column_names, rows
+
+
+def update_metadata_table(table_name: str, values: dict[str, str]) -> None:
+    """
+    Used for updating the metadata for storing a table. This includes items like total_neurons, etc.
+    :param table_name: the name of the table you're referencing inside of the metadata table (this is generally
+                       going to be the same as the table for which you have rows.)
+    :param values: {key: value} dict for items you wish to insert
+    :return: None
+    """
+    with DB() as (conn, cursor):
+        cursor.execute(
+            "CREATE TABLE IF NOT EXISTS metadata ("
+            "TableName TEXT, "
+            "Key TEXT, "
+            "Value TEXT"
+            ")"
+        )
+        for key, value in values.items():
+            cursor.execute(
+                "UPDATE metadata SET Value = ? WHERE Key = ? AND TableName = ?",
+                (value, key, table_name),
+            )
+            if cursor.rowcount == 0:
+                cursor.execute(
+                    "INSERT INTO metadata (TableName, Key, Value) VALUES (?, ?, ?)",
+                    (table_name, key, value),
+                )
+    return
+
+
+def get_metadata_table(table_name: str) -> dict[str, str]:
+    """
+    Retrieves the metadata dict for the specified table.
+    :param table_name: Table name within the metadata table.
+    :return: {key: value} dict for metadata items.
+    """
+    with DB() as (conn, cursor):
+        cursor.execute(
+            "SELECT Key, Value FROM metadata WHERE TableName = ?", (table_name,)
+        )
+        data = cursor.fetchall()
+        return dict(data)
+
+
+def render_table(table_name: str, table_info: str, columns: list[dict], show=True):
+    """
+    Renders the table to HTML, and displays it in the browser
+    :param table_name: The table name in the database
+    :param table_info: Think of this like a subtitle
+    :param columns: list of dicts that conform to Tabulator's expected columns format
+    :param show: whether to open a browser window with the rendered table HTML
+    :return: None
+    """
+    db_cols, rows = read_table(table_name)
+    template_dir = os.path.join(os.path.dirname(__file__), "templates")
+    with open(os.path.join(template_dir, "table.j2"), "r") as f:
+        template = Template(f.read())
+    rendered = template.render(
+        title=table_name,
+        columns=Markup(columns),
+        rows=Markup([{c: v for (c, v) in zip(db_cols, r)} for r in rows]),
+        column_names=db_cols,
+        table_info=table_info,
+        tree=False,
+    )
+    output_file = "/tmp/bittensor_table.html"
+    with open(output_file, "w+") as f:
+        f.write(rendered)
+    if show:
+        webbrowser.open(f"file://{output_file}")
+
+
+def render_tree(
+    table_name: str,
+    table_info: str,
+    columns: list[dict],
+    parent_column: int = 0,
+    show=True,
+):
+    """
+    Largely the same as render_table, but this renders the table with nested data.
+    This is done by a table looking like: (FOO ANY, BAR ANY, BAZ ANY, CHILD INTEGER)
+    where CHILD is 0 or 1, determining if the row should be treated as a child of another row.
+    The parent and child rows should contain same value for the given parent_column
+
+    E.g. Let's say you have rows as such:
+    (COLDKEY TEXT, BALANCE REAL, STAKE REAL, CHILD INTEGER)
+    ("5GTjidas", 1.0, 0.0, 0)
+    ("5GTjidas", 0.0, 1.0, 1)
+    ("DJIDSkod", 1.0, 0.0, 0)
+
+    This will be rendered as:
+    Coldkey   |  Balance  | Stake
+    5GTjidas  |     1.0   |  0.0
+        └     |     0.0   |  1.0
+    DJIDSkod  |     1.0   |  0.0
+
+    :param table_name: The table name in the database
+    :param table_info: Think of this like a subtitle
+    :param columns: list of dicts that conform to Tabulator's expected columns format
+    :param parent_column: the index of the column to use as for parent reference
+    :param show: whether to open a browser window with the rendered table HTML
+    :return: None
+    """
+    db_cols, rows = read_table(table_name, "ORDER BY CHILD ASC")
+    template_dir = os.path.join(os.path.dirname(__file__), "templates")
+    result = []
+    parent_dicts = {}
+    for row in rows:
+        row_dict = {c: v for (c, v) in zip(db_cols, row)}
+        child = row_dict["CHILD"]
+        del row_dict["CHILD"]
+        if child == 0:
+            row_dict["_children"] = []
+            result.append(row_dict)
+            parent_dicts[row_dict[db_cols[parent_column]]] = (
+                row_dict  # Reference to row obj
+            )
+        elif child == 1:
+            parent_key = row[parent_column]
+            row_dict[db_cols[parent_column]] = None
+            if parent_key in parent_dicts:
+                parent_dicts[parent_key]["_children"].append(row_dict)
+    with open(os.path.join(template_dir, "table.j2"), "r") as f:
+        template = Template(f.read())
+    rendered = template.render(
+        title=table_name,
+        columns=Markup(columns),
+        rows=Markup(result),
+        column_names=db_cols,
+        table_info=table_info,
+        tree=True,
+    )
+    output_file = "/tmp/bittensor_table.html"
+    with open(output_file, "w+") as f:
+        f.write(rendered)
+    if show:
+        webbrowser.open(f"file://{output_file}")

@@ -1,5 +1,7 @@
 import asyncio
 import copy
+import json
+import sqlite3
 from contextlib import suppress
 from math import floor
 from typing import TYPE_CHECKING, Union, Optional, Sequence, cast
@@ -22,7 +24,15 @@ from src.utils import (
     err_console,
     is_valid_ss58_address,
     float_to_u64,
-    u16_normalized_float, float_to_u16, u16_to_float, u64_to_float,
+    get_metadata_table,
+    update_metadata_table,
+    create_table,
+    render_table,
+    render_tree,
+    u16_normalized_float,
+    float_to_u16,
+    u16_to_float,
+    u64_to_float,
 )
 
 if TYPE_CHECKING:
@@ -169,7 +179,7 @@ async def add_stake_extrinsic(
         # Stake it all.
         staking_balance = Balance.from_tao(old_balance.tao)
     else:
-        staking_balance = amount
+        staking_balance = Balance.from_tao(amount)
 
     # Leave existential balance to keep key alive.
     if staking_balance > old_balance - existential_deposit:
@@ -554,6 +564,7 @@ async def unstake_extrinsic(
     with console.status(
             f":satellite: Unstaking from chain: [white]{subtensor}[/white] ..."
     ):
+        unstaking_balance = Balance.from_tao(unstaking_balance)
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function="remove_stake",
@@ -581,7 +592,7 @@ async def unstake_extrinsic(
                     wallet.coldkeypub.ss58_address, block_hash=new_block_hash
                 ),
                 subtensor.get_stake_for_coldkey_and_hotkey(
-                    hotkey_ss58, wallet.coldkeypub.ss58_address, block_hash
+                    hotkey_ss58, wallet.coldkeypub.ss58_address, new_block_hash
                 ),
             )
             console.print(
@@ -1043,16 +1054,15 @@ def prepare_child_proportions(children_with_proportions):
 # Commands
 
 
-async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: bool):
+async def show(
+    wallet: Wallet,
+    subtensor: Optional["SubtensorInterface"],
+    all_wallets: bool,
+    reuse_last: bool,
+    html_output: bool,
+    no_cache: bool,
+):
     """Show all stake accounts."""
-    if all_wallets:
-        wallets = get_coldkey_wallets_for_path(wallet.path)
-    else:
-        wallets = [wallet]
-
-    registered_delegate_info = await get_delegates_details_from_github(
-        Constants.delegates_detail_url
-    )
 
     async def get_stake_accounts(
             wallet_, block_hash: str
@@ -1193,53 +1203,151 @@ async def show(wallet: Wallet, subtensor: "SubtensorInterface", all_wallets: boo
         )
         return accounts_
 
-    with console.status(":satellite:Retrieving account data..."):
-        block_hash_ = await subtensor.substrate.get_chain_head()
-        accounts = await get_all_wallet_accounts(block_hash=block_hash_)
+    if not reuse_last:
+        cast("SubtensorInterface", subtensor)
+        if all_wallets:
+            wallets = get_coldkey_wallets_for_path(wallet.path)
+        else:
+            wallets = [wallet]
 
-    total_stake: float = 0.0
-    total_balance: float = 0.0
-    total_rate: float = 0.0
-    for acc in accounts:
-        total_balance += cast(Balance, acc["balance"]).tao
-        for key, value in cast(dict, acc["accounts"]).items():
-            total_stake += cast(Balance, value["stake"]).tao
-            total_rate += float(value["rate"])
-    table = Table(
-        Column(
-            "[overline white]Coldkey", footer_style="overline white", style="bold white"
-        ),
-        Column(
-            "[overline white]Balance",
-            "\u03c4{:.5f}".format(total_balance),
-            footer_style="overline white",
-            style="green",
-        ),
-        Column("[overline white]Account", footer_style="overline white", style="blue"),
-        Column(
-            "[overline white]Stake",
-            "\u03c4{:.5f}".format(total_stake),
-            footer_style="overline white",
-            style="green",
-        ),
-        Column(
-            "[overline white]Rate",
-            "\u03c4{:.5f}/d".format(total_rate),
-            footer_style="overline white",
-            style="green",
-        ),
-        show_footer=True,
-        pad_edge=False,
-        box=None,
-        expand=False,
-    )
-    for acc in accounts:
-        table.add_row(cast(str, acc["name"]), cast(Balance, acc["balance"]), "", "")
-        for key, value in cast(dict, acc["accounts"]).items():
-            table.add_row(
-                "", "", value["name"], value["stake"], str(value["rate"]) + "/d"
+        registered_delegate_info = await get_delegates_details_from_github(
+            Constants.delegates_detail_url
+        )
+
+        with console.status(":satellite:Retrieving account data..."):
+            block_hash_ = await subtensor.substrate.get_chain_head()
+            accounts = await get_all_wallet_accounts(block_hash=block_hash_)
+
+        total_stake: float = 0.0
+        total_balance: float = 0.0
+        total_rate: float = 0.0
+        rows = []
+        db_rows = []
+        for acc in accounts:
+            cast(str, acc["name"])
+            cast(Balance, acc["balance"])
+            rows.append([acc["name"], str(acc["balance"]), "", "", ""])
+            db_rows.append([acc["name"], float(acc["balance"]), None, None, None, 0])
+            total_balance += cast(Balance, acc["balance"]).tao
+            for key, value in cast(dict, acc["accounts"]).items():
+                rows.append(
+                    [
+                        "",
+                        "",
+                        value["name"],
+                        str(value["stake"]),
+                        str(value["rate"]) + "/d",
+                    ]
+                )
+                db_rows.append(
+                    [
+                        acc["name"],
+                        None,
+                        value["name"],
+                        float(value["stake"]),
+                        float(value["rate"]),
+                        1,
+                    ]
+                )
+                total_stake += cast(Balance, value["stake"]).tao
+                total_rate += float(value["rate"])
+        metadata = {
+            "total_stake": "\u03c4{:.5f}".format(total_stake),
+            "total_balance": "\u03c4{:.5f}".format(total_balance),
+            "total_rate": "\u03c4{:.5f}/d".format(total_rate),
+            "rows": json.dumps(rows),
+        }
+        if not no_cache:
+            create_table(
+                "stakeshow",
+                [
+                    ("COLDKEY", "TEXT"),
+                    ("BALANCE", "REAL"),
+                    ("ACCOUNT", "TEXT"),
+                    ("STAKE", "REAL"),
+                    ("RATE", "REAL"),
+                    ("CHILD", "INTEGER"),
+                ],
+                db_rows,
             )
-    console.print(table)
+            update_metadata_table("stakeshow", metadata)
+    else:
+        try:
+            metadata = get_metadata_table("stakeshow")
+            rows = json.loads(metadata["rows"])
+        except sqlite3.OperationalError:
+            err_console.print(
+                "[red]Error[/red] Unable to retrieve table data. This is usually caused by attempting to use "
+                "`--reuse-last` before running the command a first time. In rare cases, this could also be due to "
+                "a corrupted database. Re-run the command (do not use `--reuse-last`) and see if that resolves your "
+                "issue."
+            )
+            return
+    if not html_output:
+        table = Table(
+            Column(
+                "[overline white]Coldkey",
+                footer_style="overline white",
+                style="bold white",
+            ),
+            Column(
+                "[overline white]Balance",
+                metadata["total_balance"],
+                footer_style="overline white",
+                style="green",
+            ),
+            Column(
+                "[overline white]Account", footer_style="overline white", style="blue"
+            ),
+            Column(
+                "[overline white]Stake",
+                metadata["total_stake"],
+                footer_style="overline white",
+                style="green",
+            ),
+            Column(
+                "[overline white]Rate",
+                metadata["total_rate"],
+                footer_style="overline white",
+                style="green",
+            ),
+            show_footer=True,
+            pad_edge=False,
+            box=None,
+            expand=False,
+        )
+        for row in rows:
+            table.add_row(*row)
+        console.print(table)
+    else:
+        render_tree(
+            "stakeshow",
+            f"Stakes | Total Balance: {metadata['total_balance']} - Total Stake: {metadata['total_stake']} "
+            f"Total Rate: {metadata['total_rate']}",
+            [
+                {"title": "Coldkey", "field": "COLDKEY"},
+                {
+                    "title": "Balance",
+                    "field": "BALANCE",
+                    "formatter": "money",
+                    "formatterParams": {"symbol": "τ", "precision": 5},
+                },
+                {"title": "Account", "field": "ACCOUNT"},
+                {
+                    "title": "Stake",
+                    "field": "STAKE",
+                    "formatter": "money",
+                    "formatterParams": {"symbol": "τ", "precision": 5},
+                },
+                {
+                    "title": "Daily Rate",
+                    "field": "RATE",
+                    "formatter": "money",
+                    "formatterParams": {"symbol": "τ", "precision": 5},
+                },
+            ],
+            0,
+        )
 
 
 async def stake_add(
@@ -1375,7 +1483,7 @@ async def stake_add(
             raise ValueError
 
         # Ask to stake
-        if not False:  # TODO no-prompt
+        if not True:  # TODO no-prompt
             if not Confirm.ask(
                     f"Do you want to stake to the following keys from {wallet.name}:\n"
                     + "".join(
@@ -1397,7 +1505,7 @@ async def stake_add(
                 hotkey_ss58=final_hotkeys[0][1],
                 amount=None if stake_all else final_amounts[0],
                 wait_for_inclusion=True,
-                prompt=True,
+                prompt=False,
             )
         else:
             await add_stake_multiple_extrinsic(
@@ -1508,16 +1616,16 @@ async def unstake(
             return None
 
         # Ask to unstake
-        if not False:  # TODO no prompt
+        if not True:  # TODO no prompt
             if not Confirm.ask(
-                    f"Do you want to unstake from the following keys to {wallet.name}:\n"
-                    + "".join(
-                        [
-                            f"    [bold white]- {hotkey[0] + ':' if hotkey[0] else ''}{hotkey[1]}: "
-                            f"{f'{amount} {Balance.unit}' if amount else 'All'}[/bold white]\n"
-                            for hotkey, amount in zip(final_hotkeys, final_amounts)
-                        ]
-                    )
+                f"Do you want to unstake from the following keys to {wallet.name}:\n"
+                + "".join(
+                    [
+                        f"    [bold white]- {hotkey[0] + ':' if hotkey[0] else ''}{hotkey[1]}: "
+                        f"{f'{amount} {Balance.unit}' if amount else 'All'}[/bold white]\n"
+                        for hotkey, amount in zip(final_hotkeys, final_amounts)
+                    ]
+                )
             ):
                 return None
 
@@ -1529,7 +1637,7 @@ async def unstake(
                 hotkey_ss58=final_hotkeys[0][1],
                 amount=None if unstake_all else final_amounts[0],
                 wait_for_inclusion=True,
-                prompt=True,
+                prompt=False,  # TODO: Add no prompt
             )
         else:
             await unstake_multiple_extrinsic(

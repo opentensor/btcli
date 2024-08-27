@@ -2,7 +2,7 @@
 import asyncio
 import os.path
 import re
-from typing import Optional, Coroutine
+from typing import Optional, Coroutine, cast
 
 from bittensor_wallet import Wallet
 from git import Repo
@@ -19,7 +19,6 @@ from src.commands import wallets, root, stake, sudo, subnets, weights as weights
 from src.subtensor_interface import SubtensorInterface
 from src.bittensor.async_substrate_interface import SubstrateRequestException
 from src.utils import console, err_console
-
 
 __version__ = "8.0.0"
 
@@ -103,6 +102,17 @@ class Options:
         None,
         help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
         prompt=True,
+    )
+    reuse_last = typer.Option(
+        False,
+        "--reuse-last",
+        help="Reuse the metagraph data you last retrieved. Only use this if you have already retrieved metagraph"
+        "data",
+    )
+    html_output = typer.Option(
+        False,
+        "--html",
+        help="Display the table as HTML in the browser, rather than in the Terminal.",
     )
 
 
@@ -197,6 +207,7 @@ class CLIManager:
             "wallet_hotkey": None,
             "network": None,
             "chain": None,
+            "no_cache": False,
         }
         self.not_subtensor = None
 
@@ -269,6 +280,7 @@ class CLIManager:
         # config commands
         self.config_app.command("set")(self.set_config)
         self.config_app.command("get")(self.get_config)
+        self.config_app.command("clear")(self.del_config)
 
         # wallet commands
         self.wallet_app.command("list")(self.wallet_list)
@@ -422,7 +434,11 @@ class CLIManager:
             help="Path to root of wallets",
         ),
         wallet_hotkey: Optional[str] = typer.Option(
-            None, "--wallet-hotkey", "--hotkey", "-k", help="Path to root of wallets"
+            None,
+            "--wallet-hotkey",
+            "--hotkey",
+            "-k",
+            help="name of the wallet hotkey file",
         ),
         network: Optional[str] = typer.Option(
             None,
@@ -434,22 +450,94 @@ class CLIManager:
             None,
             "--chain",
             "-c",
-            help="Chain name",
+            help="chain endpoint for the network (e.g. ws://127.0.0.1:9945, "
+            "wss://entrypoint-finney.opentensor.ai:443)",
+        ),
+        no_cache: Optional[bool] = typer.Option(
+            False,
+            "--no-cache",
+            help="Disable caching of certain commands. This will disable the `--reuse-last` and `html` flags on "
+            "commands such as `subnets metagraph`, `stake show` and `subnets list`.",
         ),
     ):
         """
         Sets values in config file
-        :param wallet_name: name of the wallet
-        :param wallet_path: root path of the wallets
-        :param wallet_hotkey: name of the wallet hotkey file
-        :param network: name of the network (e.g. finney, test, local)
-        :param chain: chain endpoint for the network (e.g. ws://127.0.0.1:9945,
-                      wss://entrypoint-finney.opentensor.ai:443)
         """
         args = locals()
-        for arg in ["wallet_name", "wallet_path", "wallet_hotkey", "network", "chain"]:
+        if network and network.startswith("ws"):
+            if not Confirm.ask(
+                "[yellow]Warning[/yellow] your 'network' appears to be a chain endpoint. "
+                "Verify this is intentional"
+            ):
+                raise typer.Exit()
+        for arg in [
+            "wallet_name",
+            "wallet_path",
+            "wallet_hotkey",
+            "network",
+            "chain",
+            "no_cache",
+        ]:
             if val := args.get(arg):
                 self.config[arg] = val
+        with open(os.path.expanduser("~/.bittensor/config.yml"), "w") as f:
+            safe_dump(self.config, f)
+
+    def del_config(
+        self,
+        wallet_name: bool = typer.Option(
+            False,
+            "--wallet-name",
+        ),
+        wallet_path: bool = typer.Option(
+            False,
+            "--wallet-path",
+        ),
+        wallet_hotkey: bool = typer.Option(
+            False,
+            "--wallet-hotkey",
+        ),
+        network: bool = typer.Option(
+            False,
+            "--network",
+        ),
+        chain: bool = typer.Option(False, "--chain"),
+        no_cache: bool = typer.Option(
+            False,
+            "--no-cache",
+        ),
+        all_items: bool = typer.Option(False, "--all"),
+    ):
+        """
+        # config clear
+        Setting the flags in this command will clear those items from your config file
+
+        ## Usage
+
+        - To clear the chain and network:
+        ```
+        btcli config clear --chain --network
+        ```
+
+        - To clear your config entirely:
+        ```
+        btcli config clear --all
+        ```
+        """
+        if all_items:
+            self.config = {}
+        else:
+            args = locals()
+            for arg in [
+                "wallet_name",
+                "wallet_path",
+                "wallet_hotkey",
+                "network",
+                "chain",
+                "no_cache",
+            ]:
+                if args.get(arg):
+                    self.config[arg] = None
         with open(os.path.expanduser("~/.bittensor/config.yml"), "w") as f:
             safe_dump(self.config, f)
 
@@ -459,7 +547,7 @@ class CLIManager:
         """
         table = Table(Column("Name"), Column("Value"))
         for k, v in self.config.items():
-            table.add_row(*[k, v])
+            table.add_row(*[k, str(v)])
         console.print(table)
 
     def wallet_ask(
@@ -1173,9 +1261,9 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         n_words: Optional[int] = None,
-        use_password: Optional[bool] = Options.use_password,
-        overwrite_hotkey: Optional[bool] = Options.overwrite_hotkey,
-        overwrite_coldkey: Optional[bool] = Options.overwrite_coldkey,
+        use_password: bool = Options.use_password,
+        overwrite_hotkey: bool = Options.overwrite_hotkey,
+        overwrite_coldkey: bool = Options.overwrite_coldkey,
     ):
         """
         # wallet create
@@ -1865,7 +1953,6 @@ class CLIManager:
         self,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
-        netuid: int = Options.netuid,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
@@ -1919,7 +2006,7 @@ class CLIManager:
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
-            root.register(wallet, self.initialize_chain(network, chain), netuid)
+            root.register(wallet, self.initialize_chain(network, chain))
         )
 
     def root_proposals(
@@ -1978,6 +2065,13 @@ class CLIManager:
         This function can be used to update the takes individually for every subnet
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        if not take:
+            max_value = typer.style("Max: 0.18", fg="red")
+            min_value = typer.style("Min: 0.08", fg="blue")
+            prompt_text = typer.style(
+                "Enter take value (0.18 for 18%)", fg="green", bold=True
+            )
+            take = FloatPrompt.ask(f"{prompt_text} {min_value} {max_value}")
         return self._run_command(
             root.set_take(wallet, self.initialize_chain(network, chain), take)
         )
@@ -2036,14 +2130,28 @@ class CLIManager:
                 "`--amount` and `--all` specified. Choose one or the other."
             )
         if not stake_all and not amount:
-            amount = typer.prompt(
-                "How much would you like to stake, in TAO?",
-                confirmation_prompt="Confirm you wish to stake: τ",
-            )
+            while True:
+                amount = FloatPrompt.ask(
+                    "[blue bold]Amount to stake (TAO τ)[/blue bold]", console=console
+                )
+                confirmation = FloatPrompt.ask(
+                    "[blue bold]Confirm the amount to stake (TAO τ)[/blue bold]",
+                    console=console,
+                )
+                if amount == confirmation:
+                    break
+                else:
+                    err_console.print(
+                        "[red]The amounts do not match. Please try again.[/red]"
+                    )
+
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             root.delegate_stake(
-                wallet, self.initialize_chain(network, chain), amount, delegate_ss58key
+                wallet,
+                self.initialize_chain(network, chain),
+                float(amount),
+                delegate_ss58key,
             )
         )
 
@@ -2105,14 +2213,28 @@ class CLIManager:
                 "`--amount` and `--all` specified. Choose one or the other."
             )
         if not unstake_all and not amount:
-            amount = typer.prompt(
-                "How much would you like to unstake, in TAO?",
-                confirmation_prompt="Confirm you wish to unstake: τ",
-            )
+            while True:
+                amount = FloatPrompt.ask(
+                    "[blue bold]Amount to stake (TAO τ)[/blue bold]", console=console
+                )
+                confirmation = FloatPrompt.ask(
+                    "[blue bold]Confirm the amount to stake (TAO τ)[/blue bold]",
+                    console=console,
+                )
+                if amount == confirmation:
+                    break
+                else:
+                    err_console.print(
+                        "[red]The amounts do not match. Please try again.[/red]"
+                    )
+
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         self._run_command(
             root.delegate_unstake(
-                wallet, self.initialize_chain(network, chain), amount, delegate_ss58key
+                wallet,
+                self.initialize_chain(network, chain),
+                float(amount),
+                delegate_ss58key,
             )
         )
 
@@ -2125,7 +2247,7 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         all_wallets: bool = typer.Option(
             False,
-            "all-wallets",
+            "--all-wallets",
             "--all",
             "-a",
             help="If specified, the command aggregates information across all wallets.",
@@ -2192,7 +2314,11 @@ class CLIManager:
             )
         )
 
-    def root_list_delegates(self):
+    def root_list_delegates(
+        self,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+    ):
         """
         # root list-delegates
         Displays a formatted table of Bittensor network delegates, providing a comprehensive overview of delegate
@@ -2246,7 +2372,13 @@ class CLIManager:
         This function is part of the Bittensor CLI tools and is intended for use within a console application. It prints
         directly to the console and does not return any value.
         """
-        sub = self.initialize_chain("archive", "wss://archive.chain.opentensor.ai:443")
+        if network not in ["local", "test"]:
+            sub = self.initialize_chain(
+                "archive", "wss://archive.chain.opentensor.ai:443"
+            )
+        else:
+            sub = self.initialize_chain(network, chain)
+
         return self._run_command(root.list_delegates(sub))
 
     def root_nominate(
@@ -2309,6 +2441,8 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         wallet_path: Optional[str] = Options.wallet_path,
+        reuse_last: bool = Options.reuse_last,
+        html_output: bool = Options.html_output,
     ):
         """
         # stake show
@@ -2345,9 +2479,26 @@ class CLIManager:
         This command is essential for users who wish to monitor their stake distribution and returns across various
         accounts on the Bittensor network. It provides a clear and detailed overview of the user's staking activities.
         """
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        if (reuse_last or html_output) and self.config.get("no_cache") is True:
+            err_console.print(
+                "Unable to use `--reuse-last` or `--html` when config no-cache is set."
+            )
+            raise typer.Exit()
+        if not reuse_last:
+            subtensor = self.initialize_chain(network, chain)
+            wallet = Wallet()
+        else:
+            subtensor = None
+            wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
-            stake.show(wallet, self.initialize_chain(network, chain), all_wallets)
+            stake.show(
+                wallet,
+                subtensor,
+                all_wallets,
+                reuse_last,
+                html_output,
+                self.config.get("no_cache", False),
+            )
         )
 
     def stake_add(
@@ -2424,7 +2575,7 @@ class CLIManager:
             )
             raise typer.Exit()
         if not stake_all and not amount:
-            amount = FloatPrompt.ask("Please enter an amount to stake.")
+            amount = FloatPrompt.ask("[blue bold]Amount to stake (TAO τ)[/blue bold]")
         if stake_all and not amount:
             if not Confirm.ask("Stake all available TAO tokens?", default=False):
                 raise typer.Exit()
@@ -2528,7 +2679,9 @@ class CLIManager:
             )
             raise typer.Exit()
         if not unstake_all and not amount:
-            amount = FloatPrompt.ask("Please enter an amount to unstake.")
+            amount = FloatPrompt.ask(
+                "[blue bold]Amount to unstakestake (TAO τ)[/blue bold]"
+            )
         if unstake_all and not amount:
             if not Confirm.ask("Unstake all staked TAO tokens?", default=False):
                 raise typer.Exit()
@@ -2901,7 +3054,13 @@ class CLIManager:
             sudo.get_hyperparameters(self.initialize_chain(network, chain), netuid)
         )
 
-    def subnets_list(self, network: str = Options.network, chain: str = Options.chain):
+    def subnets_list(
+        self,
+        network: str = Options.network,
+        chain: str = Options.chain,
+        reuse_last: bool = Options.reuse_last,
+        html_output: bool = Options.html_output,
+    ):
         """
         # subnets list
         Executes the `list` command to list all subnets and their detailed information on the Bittensor network.
@@ -2949,8 +3108,19 @@ class CLIManager:
         This command is particularly useful for users seeking an overview of the Bittensor network's structure and the
         distribution of its resources and ownership information for each subnet.
         """
+        if (reuse_last or html_output) and self.config.get("no_cache") is True:
+            err_console.print(
+                "Unable to use `--reuse-last` or `--html` when config no-cache is set."
+            )
+            raise typer.Exit()
+        if reuse_last:
+            subtensor = None
+        else:
+            subtensor = self.initialize_chain(network, chain)
         return self._run_command(
-            subnets.subnets_list(self.initialize_chain(network, chain))
+            subnets.subnets_list(
+                subtensor, reuse_last, html_output, self.config.get("no_cache", False)
+            )
         )
 
     def subnets_lock_cost(
@@ -3222,9 +3392,15 @@ class CLIManager:
 
     def subnets_metagraph(
         self,
-        netuid: int = Options.netuid,
+        netuid: Optional[int] = typer.Option(
+            None,
+            help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1). This does"
+            "is ignored when used with `--reuse-last`.",
+        ),
         network: str = Options.network,
         chain: str = Options.chain,
+        reuse_last: bool = Options.reuse_last,
+        html_output: bool = Options.html_output,
     ):
         """
         Executes the `metagraph` command to retrieve and display the entire metagraph for a specified network.
@@ -3286,8 +3462,30 @@ class CLIManager:
         It is useful for network analysis and diagnostics. It is intended to be used as part of the Bittensor CLI and
         not as a standalone function within user code.
         """
+        if (reuse_last or html_output) and self.config.get("no_cache") is True:
+            err_console.print(
+                "Unable to use `--reuse-last` or `--html` when config no-cache is set."
+            )
+            raise typer.Exit()
+        if reuse_last:
+            if netuid is not None:
+                console.print("Cannot specify netuid when using `--reuse-last`")
+                raise typer.Exit()
+            subtensor = None
+        else:
+            if netuid is None:
+                netuid = rich.prompt.IntPrompt.ask(
+                    "Enter the netuid (network unique identifier) of the subnet within the root network, (e.g. 1)."
+                )
+            subtensor = self.initialize_chain(network, chain)
         return self._run_command(
-            subnets.metagraph_cmd(self.initialize_chain(network, chain), netuid)
+            subnets.metagraph_cmd(
+                subtensor,
+                netuid,
+                reuse_last,
+                html_output,
+                self.config.get("no_cache", False),
+            )
         )
 
     def weights_reveal(

@@ -104,55 +104,55 @@ async def set_hyperparameter_extrinsic(
     with console.status(
         f":satellite: Setting hyperparameter {parameter} to {value} on subnet: {netuid} ..."
     ):
-        with subtensor.substrate as substrate:
-            extrinsic_params = await substrate.get_metadata_call_function(
-                "AdminUtils", extrinsic
-            )
-            call_params: dict[str, Union[str, bool, float]] = {"netuid": netuid}
+        substrate = subtensor.substrate
+        extrinsic_params = await substrate.get_metadata_call_function(
+            "AdminUtils", extrinsic
+        )
+        call_params: dict[str, Union[str, bool, float]] = {"netuid": netuid}
 
-            # if input value is a list, iterate through the list and assign values
-            if isinstance(value, list):
-                # Ensure that there are enough values for all non-netuid parameters
-                non_netuid_fields = [
-                    param["name"]
-                    for param in extrinsic_params["fields"]
-                    if "netuid" not in param["name"]
-                ]
+        # if input value is a list, iterate through the list and assign values
+        if isinstance(value, list):
+            # Ensure that there are enough values for all non-netuid parameters
+            non_netuid_fields = [
+                param["name"]
+                for param in extrinsic_params["fields"]
+                if "netuid" not in param["name"]
+            ]
 
-                if len(value) < len(non_netuid_fields):
-                    raise ValueError(
-                        "Not enough values provided in the list for all parameters"
-                    )
-
-                call_params.update(
-                    {str(name): val for name, val in zip(non_netuid_fields, value)}
+            if len(value) < len(non_netuid_fields):
+                raise ValueError(
+                    "Not enough values provided in the list for all parameters"
                 )
 
-            else:
-                value_argument = extrinsic_params["fields"][
-                    len(extrinsic_params["fields"]) - 1
-                ]
-                call_params[str(value_argument["name"])] = value
-
-            # create extrinsic call
-            call = await substrate.compose_call(
-                call_module="AdminUtils",
-                call_function=extrinsic,
-                call_params=call_params,
+            call_params.update(
+                {str(name): val for name, val in zip(non_netuid_fields, value)}
             )
-            success, err_msg = await subtensor.sign_and_send_extrinsic(
-                call, wallet, wait_for_inclusion, wait_for_finalization
-            )
-            if not success:
-                err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
-                await asyncio.sleep(0.5)
 
-            # Successful registration, final check for membership
-            else:
-                console.print(
-                    f":white_heavy_check_mark: [green]Hyper parameter {parameter} changed to {value}[/green]"
-                )
-                return True
+        else:
+            value_argument = extrinsic_params["fields"][
+                len(extrinsic_params["fields"]) - 1
+            ]
+            call_params[str(value_argument["name"])] = value
+
+        # create extrinsic call
+        call = await substrate.compose_call(
+            call_module="AdminUtils",
+            call_function=extrinsic,
+            call_params=call_params,
+        )
+        success, err_msg = await subtensor.sign_and_send_extrinsic(
+            call, wallet, wait_for_inclusion, wait_for_finalization
+        )
+        if not success:
+            err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+            await asyncio.sleep(0.5)
+
+        # Successful registration, final check for membership
+        else:
+            console.print(
+                f":white_heavy_check_mark: [green]Hyper parameter {parameter} changed to {value}[/green]"
+            )
+            return True
 
 
 # commands
