@@ -950,6 +950,7 @@ async def show(
     all_wallets: bool,
     reuse_last: bool,
     html_output: bool,
+    no_cache: bool,
 ):
     """Show all stake accounts."""
 
@@ -1093,7 +1094,7 @@ async def show(
         return accounts_
 
     if not reuse_last:
-        cast(subtensor, "SubtensorInterface")
+        cast("SubtensorInterface", subtensor)
         if all_wallets:
             wallets = get_coldkey_wallets_for_path(wallet.path)
         else:
@@ -1140,25 +1141,26 @@ async def show(
                 )
                 total_stake += cast(Balance, value["stake"]).tao
                 total_rate += float(value["rate"])
-        create_table(
-            "stakeshow",
-            [
-                ("COLDKEY", "TEXT"),
-                ("BALANCE", "REAL"),
-                ("ACCOUNT", "TEXT"),
-                ("STAKE", "REAL"),
-                ("RATE", "REAL"),
-                ("CHILD", "INTEGER"),
-            ],
-            db_rows,
-        )
         metadata = {
             "total_stake": "\u03c4{:.5f}".format(total_stake),
             "total_balance": "\u03c4{:.5f}".format(total_balance),
             "total_rate": "\u03c4{:.5f}/d".format(total_rate),
             "rows": json.dumps(rows),
         }
-        update_metadata_table("stakeshow", metadata)
+        if not no_cache:
+            create_table(
+                "stakeshow",
+                [
+                    ("COLDKEY", "TEXT"),
+                    ("BALANCE", "REAL"),
+                    ("ACCOUNT", "TEXT"),
+                    ("STAKE", "REAL"),
+                    ("RATE", "REAL"),
+                    ("CHILD", "INTEGER"),
+                ],
+                db_rows,
+            )
+            update_metadata_table("stakeshow", metadata)
     else:
         try:
             metadata = get_metadata_table("stakeshow")

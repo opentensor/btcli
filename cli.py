@@ -2,7 +2,7 @@
 import asyncio
 import os.path
 import re
-from typing import Optional, Coroutine
+from typing import Optional, Coroutine, cast
 
 from bittensor_wallet import Wallet
 from git import Repo
@@ -19,7 +19,6 @@ from src.commands import wallets, root, stake, sudo, subnets, weights as weights
 from src.subtensor_interface import SubtensorInterface
 from src.bittensor.async_substrate_interface import SubstrateRequestException
 from src.utils import console, err_console
-
 
 __version__ = "8.0.0"
 
@@ -208,6 +207,7 @@ class CLIManager:
             "wallet_hotkey": None,
             "network": None,
             "chain": None,
+            "no_cache": False,
         }
         self.not_subtensor = None
 
@@ -280,6 +280,7 @@ class CLIManager:
         # config commands
         self.config_app.command("set")(self.set_config)
         self.config_app.command("get")(self.get_config)
+        self.config_app.command("clear")(self.del_config)
 
         # wallet commands
         self.wallet_app.command("list")(self.wallet_list)
@@ -427,7 +428,11 @@ class CLIManager:
             help="Path to root of wallets",
         ),
         wallet_hotkey: Optional[str] = typer.Option(
-            None, "--wallet-hotkey", "--hotkey", "-k", help="Path to root of wallets"
+            None,
+            "--wallet-hotkey",
+            "--hotkey",
+            "-k",
+            help="name of the wallet hotkey file",
         ),
         network: Optional[str] = typer.Option(
             None,
@@ -439,22 +444,94 @@ class CLIManager:
             None,
             "--chain",
             "-c",
-            help="Chain name",
+            help="chain endpoint for the network (e.g. ws://127.0.0.1:9945, "
+            "wss://entrypoint-finney.opentensor.ai:443)",
+        ),
+        no_cache: Optional[bool] = typer.Option(
+            False,
+            "--no-cache",
+            help="Disable caching of certain commands. This will disable the `--reuse-last` and `html` flags on "
+            "commands such as `subnets metagraph`, `stake show` and `subnets list`.",
         ),
     ):
         """
         Sets values in config file
-        :param wallet_name: name of the wallet
-        :param wallet_path: root path of the wallets
-        :param wallet_hotkey: name of the wallet hotkey file
-        :param network: name of the network (e.g. finney, test, local)
-        :param chain: chain endpoint for the network (e.g. ws://127.0.0.1:9945,
-                      wss://entrypoint-finney.opentensor.ai:443)
         """
         args = locals()
-        for arg in ["wallet_name", "wallet_path", "wallet_hotkey", "network", "chain"]:
+        if network and network.startswith("ws"):
+            if not Confirm.ask(
+                "[yellow]Warning[/yellow] your 'network' appears to be a chain endpoint. "
+                "Verify this is intentional"
+            ):
+                raise typer.Exit()
+        for arg in [
+            "wallet_name",
+            "wallet_path",
+            "wallet_hotkey",
+            "network",
+            "chain",
+            "no_cache",
+        ]:
             if val := args.get(arg):
                 self.config[arg] = val
+        with open(os.path.expanduser("~/.bittensor/config.yml"), "w") as f:
+            safe_dump(self.config, f)
+
+    def del_config(
+        self,
+        wallet_name: bool = typer.Option(
+            False,
+            "--wallet-name",
+        ),
+        wallet_path: bool = typer.Option(
+            False,
+            "--wallet-path",
+        ),
+        wallet_hotkey: bool = typer.Option(
+            False,
+            "--wallet-hotkey",
+        ),
+        network: bool = typer.Option(
+            False,
+            "--network",
+        ),
+        chain: bool = typer.Option(False, "--chain"),
+        no_cache: bool = typer.Option(
+            False,
+            "--no-cache",
+        ),
+        all_items: bool = typer.Option(False, "--all"),
+    ):
+        """
+        # config clear
+        Setting the flags in this command will clear those items from your config file
+
+        ## Usage
+
+        - To clear the chain and network:
+        ```
+        btcli config clear --chain --network
+        ```
+
+        - To clear your config entirely:
+        ```
+        btcli config clear --all
+        ```
+        """
+        if all_items:
+            self.config = {}
+        else:
+            args = locals()
+            for arg in [
+                "wallet_name",
+                "wallet_path",
+                "wallet_hotkey",
+                "network",
+                "chain",
+                "no_cache",
+            ]:
+                if args.get(arg):
+                    self.config[arg] = None
         with open(os.path.expanduser("~/.bittensor/config.yml"), "w") as f:
             safe_dump(self.config, f)
 
@@ -464,7 +541,7 @@ class CLIManager:
         """
         table = Table(Column("Name"), Column("Value"))
         for k, v in self.config.items():
-            table.add_row(*[k, v])
+            table.add_row(*[k, str(v)])
         console.print(table)
 
     def wallet_ask(
@@ -2396,6 +2473,11 @@ class CLIManager:
         This command is essential for users who wish to monitor their stake distribution and returns across various
         accounts on the Bittensor network. It provides a clear and detailed overview of the user's staking activities.
         """
+        if (reuse_last or html_output) and self.config.get("no_cache") is True:
+            err_console.print(
+                "Unable to use `--reuse-last` or `--html` when config no-cache is set."
+            )
+            raise typer.Exit()
         if not reuse_last:
             subtensor = self.initialize_chain(network, chain)
             wallet = Wallet()
@@ -2403,7 +2485,14 @@ class CLIManager:
             subtensor = None
             wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
-            stake.show(wallet, subtensor, all_wallets, reuse_last, html_output)
+            stake.show(
+                wallet,
+                subtensor,
+                all_wallets,
+                reuse_last,
+                html_output,
+                self.config.get("no_cache", False),
+            )
         )
 
     def stake_add(
@@ -2956,12 +3045,19 @@ class CLIManager:
         This command is particularly useful for users seeking an overview of the Bittensor network's structure and the
         distribution of its resources and ownership information for each subnet.
         """
+        if (reuse_last or html_output) and self.config.get("no_cache") is True:
+            err_console.print(
+                "Unable to use `--reuse-last` or `--html` when config no-cache is set."
+            )
+            raise typer.Exit()
         if reuse_last:
             subtensor = None
         else:
             subtensor = self.initialize_chain(network, chain)
         return self._run_command(
-            subnets.subnets_list(subtensor, reuse_last, html_output)
+            subnets.subnets_list(
+                subtensor, reuse_last, html_output, self.config.get("no_cache", False)
+            )
         )
 
     def subnets_lock_cost(
@@ -3303,6 +3399,11 @@ class CLIManager:
         It is useful for network analysis and diagnostics. It is intended to be used as part of the Bittensor CLI and
         not as a standalone function within user code.
         """
+        if (reuse_last or html_output) and self.config.get("no_cache") is True:
+            err_console.print(
+                "Unable to use `--reuse-last` or `--html` when config no-cache is set."
+            )
+            raise typer.Exit()
         if reuse_last:
             if netuid is not None:
                 console.print("Cannot specify netuid when using `--reuse-last`")
@@ -3315,7 +3416,13 @@ class CLIManager:
                 )
             subtensor = self.initialize_chain(network, chain)
         return self._run_command(
-            subnets.metagraph_cmd(subtensor, netuid, reuse_last, html_output)
+            subnets.metagraph_cmd(
+                subtensor,
+                netuid,
+                reuse_last,
+                html_output,
+                self.config.get("no_cache", False),
+            )
         )
 
     def weights_reveal(
