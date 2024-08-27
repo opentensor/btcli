@@ -556,16 +556,15 @@ def create_table(title: str, columns: list[tuple[str, str]], rows: list[list]) -
         cursor.execute(creation_query)
         cursor.execute(f"DELETE FROM {title};")
         query = f"INSERT INTO {title} ({', '.join([x[0] for x in columns])}) VALUES ({', '.join(['?'] * len(columns))})"
-        for row in rows:
-            cursor.execute(query, row)
-        # cursor.executemany(query, rows)
+        cursor.executemany(query, rows)
     return
 
 
-def read_table(table_name: str) -> tuple[list, list]:
+def read_table(table_name: str, order_by: str = "") -> tuple[list, list]:
     """
     Reads a table from a SQLite database, returning back a column names and rows as a tuple
     :param table_name: the table name in the database
+    :param order_by: the order of the columns in the table, optional
     :return: ([column names], [rows])
     """
     with DB() as (conn, cursor):
@@ -573,7 +572,7 @@ def read_table(table_name: str) -> tuple[list, list]:
         columns_info = cursor.fetchall()
         column_names = [info[1] for info in columns_info]
         column_types = [info[2] for info in columns_info]
-        cursor.execute(f"SELECT * FROM {table_name}")
+        cursor.execute(f"SELECT * FROM {table_name} {order_by}")
         rows = cursor.fetchall()
     blob_cols = []
     for idx, col_type in enumerate(column_types):
@@ -649,6 +648,75 @@ def render_table(table_name: str, table_info: str, columns: list[dict], show=Tru
         rows=Markup([{c: v for (c, v) in zip(db_cols, r)} for r in rows]),
         column_names=db_cols,
         table_info=table_info,
+        tree=False,
+    )
+    output_file = "/tmp/bittensor_table.html"
+    with open(output_file, "w+") as f:
+        f.write(rendered)
+    if show:
+        webbrowser.open(f"file://{output_file}")
+
+
+def render_tree(
+    table_name: str,
+    table_info: str,
+    columns: list[dict],
+    parent_column: int = 0,
+    show=True,
+):
+    """
+    Largely the same as render_table, but this renders the table with nested data.
+    This is done by a table looking like: (FOO ANY, BAR ANY, BAZ ANY, CHILD INTEGER)
+    where CHILD is 0 or 1, determining if the row should be treated as a child of another row.
+    The parent and child rows should contain same value for the given parent_column
+
+    E.g. Let's say you have rows as such:
+    (COLDKEY TEXT, BALANCE REAL, STAKE REAL, CHILD INTEGER)
+    ("5GTjidas", 1.0, 0.0, 0)
+    ("5GTjidas", 0.0, 1.0, 1)
+    ("DJIDSkod", 1.0, 0.0, 0)
+
+    This will be rendered as:
+    Coldkey   |  Balance  | Stake
+    5GTjidas  |     1.0   |  0.0
+        └     |     0.0   |  1.0
+    DJIDSkod  |     1.0   |  0.0
+
+    :param table_name: The table name in the database
+    :param table_info: Think of this like a subtitle
+    :param columns: list of dicts that conform to Tabulator's expected columns format
+    :param parent_column: the index of the column to use as for parent reference
+    :param show: whether to open a browser window with the rendered table HTML
+    :return: None
+    """
+    db_cols, rows = read_table(table_name, "ORDER BY CHILD ASC")
+    template_dir = os.path.join(os.path.dirname(__file__), "templates")
+    result = []
+    parent_dicts = {}
+    for row in rows:
+        row_dict = {c: v for (c, v) in zip(db_cols, row)}
+        child = row_dict["CHILD"]
+        del row_dict["CHILD"]
+        if child == 0:
+            row_dict["_children"] = []
+            result.append(row_dict)
+            parent_dicts[row_dict[db_cols[parent_column]]] = (
+                row_dict  # Reference to row obj
+            )
+        elif child == 1:
+            parent_key = row[parent_column]
+            row_dict[db_cols[parent_column]] = None
+            if parent_key in parent_dicts:
+                parent_dicts[parent_key]["_children"].append(row_dict)
+    with open(os.path.join(template_dir, "table.j2"), "r") as f:
+        template = Template(f.read())
+    rendered = template.render(
+        title=table_name,
+        columns=Markup(columns),
+        rows=Markup(result),
+        column_names=db_cols,
+        table_info=table_info,
+        tree=True,
     )
     output_file = "/tmp/bittensor_table.html"
     with open(output_file, "w+") as f:

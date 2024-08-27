@@ -106,6 +106,7 @@ class Options:
     )
     reuse_last = typer.Option(
         False,
+        "--reuse-last",
         help="Reuse the metagraph data you last retrieved. Only use this if you have already retrieved metagraph"
         "data",
     )
@@ -2357,6 +2358,8 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         wallet_path: Optional[str] = Options.wallet_path,
+        reuse_last: bool = Options.reuse_last,
+        html_output: bool = Options.html_output,
     ):
         """
         # stake show
@@ -2393,9 +2396,14 @@ class CLIManager:
         This command is essential for users who wish to monitor their stake distribution and returns across various
         accounts on the Bittensor network. It provides a clear and detailed overview of the user's staking activities.
         """
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        if not reuse_last:
+            subtensor = self.initialize_chain(network, chain)
+            wallet = Wallet()
+        else:
+            subtensor = None
+            wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
-            stake.show(wallet, self.initialize_chain(network, chain), all_wallets)
+            stake.show(wallet, subtensor, all_wallets, reuse_last, html_output)
         )
 
     def stake_add(
