@@ -1,4 +1,4 @@
-aiohttp~=3.9.5
+aiohttp~=3.10.2
 backoff~=2.2.1
 git+ssh://git@github.com/opentensor/btwallet.git # bittensor_wallet
 GitPython>=3.0.0
