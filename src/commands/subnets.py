@@ -215,7 +215,6 @@ async def subnets_list(subtensor: "SubtensorInterface"):
     for row in rows:
         table.add_row(*row)
 
-    # Print the centered table
     console.print(table)
     console.print(
         """
