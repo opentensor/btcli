@@ -664,30 +664,48 @@ def render_tree(
     parent_column: int = 0,
     show=True,
 ):
+    """
+    Largely the same as render_table, but this renders the table with nested data.
+    This is done by a table looking like: (FOO ANY, BAR ANY, BAZ ANY, CHILD INTEGER)
+    where CHILD is 0 or 1, determining if the row should be treated as a child of another row.
+    The parent and child rows should contain same value for the given parent_column
+
+    E.g. Let's say you have rows as such:
+    (COLDKEY TEXT, BALANCE REAL, STAKE REAL, CHILD INTEGER)
+    ("5GTjidas", 1.0, 0.0, 0)
+    ("5GTjidas", 0.0, 1.0, 1)
+    ("DJIDSkod", 1.0, 0.0, 0)
+
+    This will be rendered as:
+    Coldkey   |  Balance  | Stake
+    5GTjidas  |     1.0   |  0.0
+        └     |     0.0   |  1.0
+    DJIDSkod  |     1.0   |  0.0
+
+    :param table_name: The table name in the database
+    :param table_info: Think of this like a subtitle
+    :param columns: list of dicts that conform to Tabulator's expected columns format
+    :param parent_column: the index of the column to use as for parent reference
+    :param show: whether to open a browser window with the rendered table HTML
+    :return: None
+    """
     db_cols, rows = read_table(table_name, "ORDER BY CHILD ASC")
     template_dir = os.path.join(os.path.dirname(__file__), "templates")
     result = []
     parent_dicts = {}
     for row in rows:
-        coldkey, balance, account, stake, rate, child = row
-
-        # Create a dictionary for the current row
-        row_dict = {
-            "COLDKEY": coldkey,
-            "BALANCE": balance,
-            "ACCOUNT": account,
-            "STAKE": stake,
-            "RATE": rate,
-        }
+        row_dict = {c: v for (c, v) in zip(db_cols, row)}
+        child = row_dict["CHILD"]
+        del row_dict["CHILD"]
         if child == 0:
-            # If this is a parent row (CHILD=0), add it to the result list
             row_dict["_children"] = []
             result.append(row_dict)
-            # Store a reference to this parent row in the dictionary for easy access
-            parent_dicts[coldkey] = row_dict
+            parent_dicts[row_dict[db_cols[parent_column]]] = (
+                row_dict  # Reference to row obj
+            )
         elif child == 1:
-            # If this is a child row (CHILD=1), add it to the corresponding parent's "children" list
             parent_key = row[parent_column]
+            row_dict[db_cols[parent_column]] = None
             if parent_key in parent_dicts:
                 parent_dicts[parent_key]["_children"].append(row_dict)
     with open(os.path.join(template_dir, "table.j2"), "r") as f:
