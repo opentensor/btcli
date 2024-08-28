@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING, Optional, cast
 
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm
-from rich.table import Table
+from rich.table import Table, Column
+
 from src import Constants, DelegatesDetails
 from src.bittensor.balances import Balance
 from src.bittensor.chain_data import SubnetInfo
@@ -453,6 +454,7 @@ async def metagraph_cmd(
     reuse_last: bool,
     html_output: bool,
     no_cache: bool,
+    display_cols: dict,
 ):
     """Prints an entire metagraph."""
     # TODO allow config to set certain columns
@@ -556,6 +558,8 @@ async def metagraph_cmd(
             "net": f"{subtensor.network}:{metagraph.netuid}",
             "block": str(metagraph.block.item()),
             "N": f"{sum(metagraph.active.tolist())}/{metagraph.n.item()}",
+            "N0": str(sum(metagraph.active.tolist())),
+            "N1": str(metagraph.n.item()),
             "issuance": str(total_issuance),
             "difficulty": str(difficulty),
             "total_neurons": str(len(metagraph.uids)),
@@ -668,9 +672,156 @@ async def metagraph_cmd(
             )
             return
     else:
-        total_neurons = len(metagraph.uids)
         table_width = console.width - 20
+        cols: dict[str, tuple[int, Column]] = {
+            "UID": (
+                0,
+                Column(
+                    "[bold white]UID",
+                    footer=f"[white]{metadata_info['total_neurons']}[/white]",
+                    style="white",
+                    justify="center",
+                ),
+            ),
+            "STAKE": (
+                1,
+                Column(
+                    "[bold white]STAKE(\u03c4)",
+                    footer=metadata_info["total_stake"],
+                    style="bright_cyan",
+                    justify="right",
+                    no_wrap=True,
+                ),
+            ),
+            "RANK": (
+                2,
+                Column(
+                    "[bold white]RANK",
+                    footer=metadata_info["rank"],
+                    style="medium_purple",
+                    justify="right",
+                    no_wrap=True,
+                ),
+            ),
+            "TRUST": (
+                3,
+                Column(
+                    "[bold white]TRUST",
+                    footer=metadata_info["trust"],
+                    style="dark_sea_green",
+                    justify="right",
+                    no_wrap=True,
+                ),
+            ),
+            "CONSENSUS": (
+                4,
+                Column(
+                    "[bold white]CONSENSUS",
+                    footer=metadata_info["consensus"],
+                    style="rgb(42,161,152)",
+                    justify="right",
+                    no_wrap=True,
+                ),
+            ),
+            "INCENTIVE": (
+                5,
+                Column(
+                    "[bold white]INCENTIVE",
+                    footer=metadata_info["incentive"],
+                    style="#5fd7ff",
+                    justify="right",
+                    no_wrap=True,
+                ),
+            ),
+            "DIVIDENDS": (
+                6,
+                Column(
+                    "[bold white]DIVIDENDS",
+                    footer=metadata_info["dividends"],
+                    style="#8787d7",
+                    justify="right",
+                    no_wrap=True,
+                ),
+            ),
+            "EMISSION": (
+                7,
+                Column(
+                    "[bold white]EMISSION(\u03c1)",
+                    footer=metadata_info["emission"],
+                    style="#d7d7ff",
+                    justify="right",
+                    no_wrap=True,
+                ),
+            ),
+            "VTRUST": (
+                8,
+                Column(
+                    "[bold white]VTRUST",
+                    footer=metadata_info["validator_trust"],
+                    style="magenta",
+                    justify="right",
+                    no_wrap=True,
+                ),
+            ),
+            "VAL": (
+                9,
+                Column(
+                    "[bold white]VAL",
+                    justify="center",
+                    style="bright_white",
+                    no_wrap=True,
+                ),
+            ),
+            "UPDATED": (
+                10,
+                Column("[bold white]UPDATED", justify="right", no_wrap=True),
+            ),
+            "ACTIVE": (
+                11,
+                Column(
+                    "[bold white]ACTIVE",
+                    justify="center",
+                    style="#8787ff",
+                    no_wrap=True,
+                ),
+            ),
+            "AXON": (
+                12,
+                Column(
+                    "[bold white]AXON",
+                    justify="left",
+                    style="dark_orange",
+                    no_wrap=True,
+                ),
+            ),
+            "HOTKEY": (
+                13,
+                Column(
+                    "[bold white]HOTKEY",
+                    justify="center",
+                    style="bright_magenta",
+                    no_wrap=False,
+                ),
+            ),
+            "COLDKEY": (
+                14,
+                Column(
+                    "[bold white]COLDKEY",
+                    justify="center",
+                    style="bright_magenta",
+                    no_wrap=False,
+                ),
+            ),
+        }
+        table_cols: list[Column] = []
+        table_cols_indices: list[int] = []
+        for k, (idx, v) in cols.items():
+            if display_cols[k] is True:
+                table_cols_indices.append(idx)
+                table_cols.append(v)
+
         table = Table(
+            *table_cols,
             show_footer=True,
             show_edge=False,
             header_style="bold white",
@@ -680,104 +831,32 @@ async def metagraph_cmd(
             title_justify="center",
             show_lines=False,
             expand=True,
+            title=(
+                f"[white]Metagraph - "
+                f"Net: [bright_cyan]{metadata_info['net']}[/bright_cyan], "
+                f"Block: [sea_green2]{metadata_info['block']}[/sea_green2], "
+                f"N: [bright_green]{metadata_info['N0']}[/bright_green]/[bright_red]{metadata_info['N1']}[/bright_red], "
+                f"Stake: [dark_orange]{metadata_info['stake']}[/dark_orange], "
+                f"Issuance: [bright_blue]{metadata_info['issuance']}[/bright_blue], "
+                f"Difficulty: [bright_cyan]{metadata_info['difficulty']}[/bright_cyan]\n"
+            ),
             width=table_width,
             pad_edge=True,
         )
-        table.title = (
-            f"[white]Metagraph - "
-            f"Net: [bright_cyan]{subtensor.network}: {metagraph.netuid}[/bright_cyan], "
-            f"Block: [sea_green2]{metagraph.block.item()}[/sea_green2], "
-            f"N: [bright_green]{sum(metagraph.active.tolist())}[/bright_green]/[bright_red]{metagraph.n.item()}[/bright_red], "
-            f"Stake: [dark_orange]{Balance.from_tao(total_stake)}[/dark_orange], "
-            f"Issuance: [bright_blue]{total_issuance}[/bright_blue], "
-            f"Difficulty: [bright_cyan]{difficulty}[/bright_cyan]\n"
-        )
-        table.add_column(
-            "[bold white]UID",
-            footer=f"[white]{total_neurons}[/white]",
-            style="white",
-            justify="center",
-        )
-        table.add_column(
-            "[bold white]STAKE(\u03c4)",
-            footer=f"\u03c4{total_stake:.5f}",
-            style="bright_cyan",
-            justify="right",
-            no_wrap=True,
-        )
-        table.add_column(
-            "[bold white]RANK",
-            footer=f"{total_rank:.5f}",
-            style="medium_purple",
-            justify="right",
-            no_wrap=True,
-        )
-        table.add_column(
-            "[bold white]TRUST",
-            footer=f"{total_trust:.5f}",
-            style="dark_sea_green",
-            justify="right",
-            no_wrap=True,
-        )
-        table.add_column(
-            "[bold white]CONSENSUS",
-            footer=f"{total_consensus:.5f}",
-            style="rgb(42,161,152)",
-            justify="right",
-            no_wrap=True,
-        )
-        table.add_column(
-            "[bold white]INCENTIVE",
-            footer=f"{total_incentive:.5f}",
-            style="#5fd7ff",
-            justify="right",
-            no_wrap=True,
-        )
-        table.add_column(
-            "[bold white]DIVIDENDS",
-            footer=f"{total_dividends:.5f}",
-            style="#8787d7",
-            justify="right",
-            no_wrap=True,
-        )
-        table.add_column(
-            "[bold white]EMISSION(\u03c1)",
-            footer=f"\u03c1{total_emission}",
-            style="#d7d7ff",
-            justify="right",
-            no_wrap=True,
-        )
-        table.add_column(
-            "[bold white]VTRUST",
-            footer=f"{total_validator_trust:.5f}",
-            style="magenta",
-            justify="right",
-            no_wrap=True,
-        )
-        table.add_column(
-            "[bold white]VAL", justify="center", style="bright_white", no_wrap=True
-        )
-        table.add_column("[bold white]UPDATED", justify="right", no_wrap=True)
-        table.add_column(
-            "[bold white]ACTIVE", justify="center", style="#8787ff", no_wrap=True
-        )
-        table.add_column(
-            "[bold white]AXON", justify="left", style="dark_orange", no_wrap=True
-        )
-        table.add_column(
-            "[bold white]HOTKEY",
-            justify="center",
-            style="bright_magenta",
-            no_wrap=False,
-        )
-        table.add_column(
-            "[bold white]COLDKEY",
-            justify="center",
-            style="bright_magenta",
-            no_wrap=False,
-        )
 
-        for row in table_data:
-            table.add_row(*row)
+        if all(x is False for x in display_cols.values()):
+            console.print("You have selected no columns to display in your config.")
+            table.add_row(" " * 256)  # allows title to be printed
+        elif any(x is False for x in display_cols.values()):
+            console.print(
+                "Limiting column display output based on your config settings. Hiding columns "
+                f"{', '.join([k for (k, v) in display_cols.items() if v is False])}"
+            )
+            for row in table_data:
+                new_row = [row[idx] for idx in table_cols_indices]
+                table.add_row(*new_row)
+        else:
+            for row in table_data:
+                table.add_row(*row)
 
         console.print(table)
