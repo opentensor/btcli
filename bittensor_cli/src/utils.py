@@ -1,25 +1,24 @@
-import os
 import math
-from pathlib import Path
+import os
 import sqlite3
-from typing import Union, Any, Collection, Optional, TYPE_CHECKING
 import webbrowser
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Collection, Optional, Union
 
 import aiohttp
+import numpy as np
 import scalecodec
 from bittensor_wallet import Wallet
 from bittensor_wallet.keyfile import Keypair
 from bittensor_wallet.utils import SS58_FORMAT, ss58
 from jinja2 import Template
 from markupsafe import Markup
-import numpy as np
 from numpy.typing import NDArray
 from rich.console import Console
 from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
-
-from bittensor_cli.src import DelegatesDetails
-from bittensor_cli.src.bittensor.balances import Balance
+from src import DelegatesDetails
+from src.bittensor.balances import Balance
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
@@ -579,6 +578,8 @@ def create_table(title: str, columns: list[tuple[str, str]], rows: list[list]) -
             for idx in blob_cols:
                 row[idx] = row[idx].to_bytes(row[idx].bit_length() + 7, byteorder="big")
     with DB() as (conn, cursor):
+        drop_query = f"DROP TABLE IF EXISTS {title}"
+        cursor.execute(drop_query)
         columns_ = ", ".join([" ".join(x) for x in columns])
         creation_query = f"CREATE TABLE IF NOT EXISTS {title} ({columns_})"
         cursor.execute(creation_query)

@@ -10,12 +10,6 @@ import pytest
 
 from bittensor_cli.src.bittensor.async_substrate_interface import AsyncSubstrateInterface
 
-from tests.e2e_tests.utils import (
-    clone_or_update_templates,
-    install_templates,
-    uninstall_templates,
-)
-
 
 # Fixture for setting up and tearing down a localnet.sh chain between tests
 @pytest.fixture(scope="function")
@@ -44,8 +38,6 @@ def local_chain(request):
 
     # Install neuron templates
     logging.info("Downloading and installing neuron templates from github")
-    templates_dir = clone_or_update_templates()
-    install_templates(templates_dir)
 
     timestamp = int(time.time())
 
@@ -76,7 +68,3 @@ def local_chain(request):
 
     # Ensure the process has terminated
     process.wait()
-
-    # Clean up neuron templates
-    logging.info("Uninstalling neuron templates")
-    uninstall_templates(templates_dir)

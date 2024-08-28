@@ -405,13 +405,15 @@ async def wallet_list(wallet_path: str):
         else:
             coldkeypub_str = "?"
 
-        wallet_tree = root.add(f"\n[bold white]{wallet.name} ({coldkeypub_str})")
+        wallet_tree = root.add(
+            f"[bold blue]Coldkey[/bold blue] [green]{wallet.name}[/green]  ss58_address [green]{coldkeypub_str}[/green]"
+        )
         hotkeys = utils.get_hotkey_wallets_for_wallet(wallet, show_nulls=True)
         for hkey in hotkeys:
-            data = f"[bold grey]{hkey.hotkey_str} (?)"
+            data = f"[bold red]Hotkey[/bold red][green]{hkey.hotkey_str}[/green] (?)"
             if hkey:
                 try:
-                    data = f"[bold grey]{hkey.hotkey_str} ({hkey.hotkey.ss58_address})"
+                    data = f"[bold red]Hotkey[/bold red] [green]{hkey.hotkey_str}[/green]  ss58_address [green]{hkey.hotkey.ss58_address}[/green]\n"
                 except UnicodeDecodeError:
                     pass
             wallet_tree.add(data)

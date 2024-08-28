@@ -442,41 +442,22 @@ async def set_root_weights_extrinsic(
         ):
             return False
 
-    with console.status(
-        ":satellite: Setting root weights on [white]{}[/white] ...".format(
-            subtensor.network
-        )
-    ):
-        try:
-            weight_uids, weight_vals = convert_weights_and_uids_for_emit(
-                netuids, weights
-            )
+    try:
+        weight_uids, weight_vals = convert_weights_and_uids_for_emit(netuids, weights)
 
-            success, error_message = await _do_set_weights()
-            console.print(success, error_message)
+        success, error_message = await _do_set_weights()
+        console.print(success, error_message)
 
-            if not wait_for_finalization and not wait_for_inclusion:
-                return True
+        if not wait_for_finalization and not wait_for_inclusion:
+            return True
 
-            if success is True:
-                console.print(":white_heavy_check_mark: [green]Finalized[/green]")
-                # bittensor.logging.success(
-                #     prefix="Set weights",
-                #     suffix="<green>Finalized: </green>" + str(success),
-                # )
-                return True
-            else:
-                err_console.print(f":cross_mark: [red]Failed[/red]: {error_message}")
-                # bittensor.logging.warning(
-                #     prefix="Set weights",
-                #     suffix="<red>Failed: </red>" + str(error_message),
-                # )
-                return False
-
-        except Exception as e:
-            # TODO( devs ): lets remove all of the bittensor.__console__ calls and replace with the bittensor logger.
-            err_console.print(":cross_mark: [red]Failed[/red]: error:{}".format(e))
-            # bittensor.logging.warning(
-            #     prefix="Set weights", suffix="<red>Failed: </red>" + str(e)
-            # )
+        if success is True:
+            console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+            return True
+        else:
+            err_console.print(f":cross_mark: [red]Failed[/red]: {error_message}")
             return False
+
+    except Exception as e:
+        err_console.print(":cross_mark: [red]Failed[/red]: error:{}".format(e))
+        return False
