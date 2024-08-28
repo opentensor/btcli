@@ -1,3 +1,4 @@
+wheel
 aiohttp~=3.10.2
 backoff~=2.2.1
 GitPython>=3.0.0
