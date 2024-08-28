@@ -578,8 +578,8 @@ def create_table(title: str, columns: list[tuple[str, str]], rows: list[list]) -
             for idx in blob_cols:
                 row[idx] = row[idx].to_bytes(row[idx].bit_length() + 7, byteorder="big")
     with DB() as (conn, cursor):
-        # drop_query = f"DROP TABLE IF EXISTS {title}"
-        # cursor.execute(drop_query)
+        drop_query = f"DROP TABLE IF EXISTS {title}"
+        cursor.execute(drop_query)
         columns_ = ", ".join([" ".join(x) for x in columns])
         creation_query = f"CREATE TABLE IF NOT EXISTS {title} ({columns_})"
         cursor.execute(creation_query)
