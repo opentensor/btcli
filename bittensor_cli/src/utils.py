@@ -551,7 +551,6 @@ class DB:
 
     def __enter__(self):
         self.conn = sqlite3.connect(self.db_path)
-        self.conn.autocommit = True
         self.conn.row_factory = self.row_factory
         return self.conn, self.conn.cursor()
 
@@ -580,12 +579,15 @@ def create_table(title: str, columns: list[tuple[str, str]], rows: list[list]) -
     with DB() as (conn, cursor):
         drop_query = f"DROP TABLE IF EXISTS {title}"
         cursor.execute(drop_query)
+        conn.commit()
         columns_ = ", ".join([" ".join(x) for x in columns])
         creation_query = f"CREATE TABLE IF NOT EXISTS {title} ({columns_})"
+        conn.commit()
         cursor.execute(creation_query)
-        cursor.execute(f"DELETE FROM {title};")
+        conn.commit()
         query = f"INSERT INTO {title} ({', '.join([x[0] for x in columns])}) VALUES ({', '.join(['?'] * len(columns))})"
         cursor.executemany(query, rows)
+        conn.commit()
     return
 
 
@@ -631,16 +633,19 @@ def update_metadata_table(table_name: str, values: dict[str, str]) -> None:
             "Value TEXT"
             ")"
         )
+        conn.commit()
         for key, value in values.items():
             cursor.execute(
                 "UPDATE metadata SET Value = ? WHERE Key = ? AND TableName = ?",
                 (value, key, table_name),
             )
+            conn.commit()
             if cursor.rowcount == 0:
                 cursor.execute(
                     "INSERT INTO metadata (TableName, Key, Value) VALUES (?, ?, ?)",
                     (table_name, key, value),
                 )
+                conn.commit()
     return
 
 
