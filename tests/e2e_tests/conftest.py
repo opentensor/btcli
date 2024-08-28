@@ -10,7 +10,7 @@ import pytest
 
 from bittensor_cli.src.bittensor.async_substrate_interface import AsyncSubstrateInterface
 
-from bittensor_cli.src.tests.e2e_tests.utils import (
+from tests.e2e_tests.utils import (
     clone_or_update_templates,
     install_templates,
     uninstall_templates,

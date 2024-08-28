@@ -2,7 +2,7 @@ import logging
 import time
 
 from bittensor_cli.src.bittensor.balances import Balance
-from bittensor_cli.src.tests.e2e_tests.utils import setup_wallet
+from tests.e2e_tests.utils import setup_wallet
 
 """
 Verify commands:
