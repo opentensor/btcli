@@ -3755,6 +3755,10 @@ class CLIManager:
         self.app()
 
 
-if __name__ == "__main__":
+def main():
     manager = CLIManager()
     manager.run()
+
+
+if __name__ == "__main__":
+    main()

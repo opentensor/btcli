@@ -66,7 +66,9 @@ setup(
     author="bittensor.com",
     packages=find_packages(exclude=["tests", "tests.*", "*/tests/*", "*/tests"]),
     include_package_data=True,
-    package_data={'': ['templates/*'], },
+    package_data={
+        "": ["templates/*"],
+    },
     author_email="",
     license="MIT",
     python_requires=">=3.9",
@@ -74,7 +76,11 @@ setup(
     extras_require={
         "cuda": cuda_requirements,
     },
-    scripts=["bin/btcli"],
+    entry_points={
+        "console_scripts": [
+            "btcli=bittensor_cli.cli:main",
+        ],
+    },
     classifiers=[
         "Development Status :: 1 - Alpha",
         "Intended Audience :: Developers",
