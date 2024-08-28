@@ -46,6 +46,23 @@ class Defaults:
             "wallet_name": None,
             "wallet_hotkey": None,
             "no_cache": False,
+            "metagraph_cols": {
+                "UID": True,
+                "STAKE": True,
+                "RANK": True,
+                "TRUST": True,
+                "CONSENSUS": True,
+                "INCENTIVE": True,
+                "DIVIDENDS": True,
+                "EMISSION": True,
+                "VTRUST": True,
+                "VAL": True,
+                "UPDATED": True,
+                "ACTIVE": True,
+                "AXON": True,
+                "HOTKEY": True,
+                "COLDKEY": True,
+            },
         }
 
     class subtensor:

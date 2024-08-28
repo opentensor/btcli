@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import asyncio
+import curses
 import os.path
 import re
 from typing import Coroutine, Optional, cast
@@ -176,6 +177,72 @@ def get_creation_data(
     return mnemonic, seed, json, json_password
 
 
+def config_selector(conf: dict, title: str):
+    def curses_selector(stdscr):
+        """
+        Enhanced Curses TUI to make selections.
+        """
+        # Load the current selections from the config
+        items = list(conf.keys())
+        selections = conf
+
+        # Track the current index for navigation
+        current_index = 0
+
+        # Hide cursor
+        curses.curs_set(0)
+
+        while True:
+            stdscr.clear()
+
+            # Calculate the window size
+            height, width = stdscr.getmaxyx()
+
+            # Create a window box around the content
+            stdscr.box()
+
+            # Title
+            stdscr.addstr(0, (width - len(title)) // 2, title, curses.A_BOLD)
+
+            # Instructions
+            instructions = "Use UP/DOWN to navigate, SPACE to toggle, ENTER to confirm."
+            stdscr.addstr(
+                2, (width - len(instructions)) // 2, instructions, curses.A_DIM
+            )
+
+            # Display the items and their selection status
+            for idx, item in enumerate(items):
+                indicator = "[x]" if selections[item] else "[ ]"
+                line_text = f"  {item} {indicator}"
+                x_pos = (width - len(line_text)) // 2
+
+                if idx == current_index:
+                    stdscr.addstr(
+                        4 + idx, x_pos, line_text, curses.A_REVERSE | curses.A_BOLD
+                    )
+                else:
+                    stdscr.addstr(4 + idx, x_pos, line_text)
+
+            # Refresh the screen to display updates
+            stdscr.refresh()
+
+            # Handle user input
+            key = stdscr.getch()
+            if key == curses.KEY_UP:
+                current_index = (current_index - 1) % len(items)
+            elif key == curses.KEY_DOWN:
+                current_index = (current_index + 1) % len(items)
+            elif key == ord(" "):  # Toggle selection with spacebar
+                selections[items[current_index]] = not selections[items[current_index]]
+            elif key == ord("\n"):  # Exit with Enter key
+                break
+
+        # Return the updated selections
+        return selections
+
+    return curses.wrapper(curses_selector)
+
+
 def version_callback(value: bool):
     """
     Prints the current version/branch-name
@@ -215,8 +282,26 @@ class CLIManager:
             "network": None,
             "chain": None,
             "no_cache": False,
+            "metagraph_cols": {
+                "UID": True,
+                "STAKE": True,
+                "RANK": True,
+                "TRUST": True,
+                "CONSENSUS": True,
+                "INCENTIVE": True,
+                "DIVIDENDS": True,
+                "EMISSION": True,
+                "VTRUST": True,
+                "VAL": True,
+                "UPDATED": True,
+                "ACTIVE": True,
+                "AXON": True,
+                "HOTKEY": True,
+                "COLDKEY": True,
+            },
         }
         self.not_subtensor = None
+        self.config_path = os.path.expanduser(defaults.config.path)
 
         self.app = typer.Typer(rich_markup_mode="markdown", callback=self.main_callback)
         self.config_app = typer.Typer()
@@ -288,6 +373,7 @@ class CLIManager:
         self.config_app.command("set")(self.set_config)
         self.config_app.command("get")(self.get_config)
         self.config_app.command("clear")(self.del_config)
+        self.config_app.command("metagraph")(self.metagraph_config)
 
         # wallet commands
         self.wallet_app.command("list")(self.wallet_list)
@@ -417,17 +503,37 @@ class CLIManager:
         Method called before all others when using any CLI command. Gives version if that flag is set, otherwise
         loads the config from the config file.
         """
-        fp = os.path.expanduser(defaults.config.path)
         # create config file if it does not exist
-        if not os.path.exists(fp):
-            with open(fp, "w") as f:
+        if not os.path.exists(self.config_path):
+            with open(self.config_path, "w") as f:
                 safe_dump(defaults.config.dictionary, f)
         # check config
-        with open(fp, "r") as f:
+        with open(self.config_path, "r") as f:
             config = safe_load(f)
         for k, v in config.items():
             if k in self.config.keys():
                 self.config[k] = v
+
+    def metagraph_config(
+        self,
+        reset: bool = typer.Option(
+            False,
+            "--reset",
+            help="Restore the config for metagraph columns to its default setting (all enabled).",
+        ),
+    ):
+        """
+        Interactive module to update the config for which columns to display in the metagraph output.
+        """
+        if reset:
+            selections_ = defaults.config.dictionary["metagraph_cols"]
+        else:
+            selections_ = config_selector(
+                self.config["metagraph_cols"], "Metagraph Display Columns"
+            )
+        self.config["metagraph_cols"] = selections_
+        with open(self.config_path, "w+") as f:
+            safe_dump(self.config, f)
 
     def set_config(
         self,
@@ -491,7 +597,7 @@ class CLIManager:
         ]:
             if val := args.get(arg):
                 self.config[arg] = val
-        with open(os.path.expanduser("~/.bittensor/config.yml"), "w") as f:
+        with open(self.config_path, "w") as f:
             safe_dump(self.config, f)
 
     def del_config(
@@ -549,7 +655,7 @@ class CLIManager:
             ]:
                 if args.get(arg):
                     self.config[arg] = None
-        with open(os.path.expanduser("~/.bittensor/config.yml"), "w") as f:
+        with open(self.config_path, "w") as f:
             safe_dump(self.config, f)
 
     def get_config(self):
