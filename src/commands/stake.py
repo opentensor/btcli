@@ -6,10 +6,12 @@ from contextlib import suppress
 from math import floor
 from typing import TYPE_CHECKING, Union, Optional, Sequence, cast
 
+from ansible_collections.amazon.aws.plugins.modules.ec2_instance import module
 from bittensor_wallet import Wallet
-from rich.prompt import Confirm
+from rich.prompt import Confirm, Prompt
 from rich.table import Table, Column
 from rich.text import Text
+from substrateinterface.exceptions import SubstrateRequestException
 
 from src import Constants
 from src.bittensor.balances import Balance
@@ -21,12 +23,14 @@ from src.utils import (
     err_console,
     is_valid_ss58_address,
     float_to_u64,
-    u16_normalized_float,
     get_metadata_table,
     update_metadata_table,
     create_table,
-    render_table,
     render_tree,
+    u16_normalized_float,
+    float_to_u16,
+    u16_to_float,
+    u64_to_float,
 )
 
 if TYPE_CHECKING:
@@ -838,9 +842,9 @@ async def set_children_extrinsic(
     :return: A tuple containing a success flag and an optional error message.
     """
     # Check if all children are being revoked
-    all_revoked = all(prop == 0.0 for prop, _ in children_with_proportions)
+    all_revoked = len(children_with_proportions) == 0
 
-    operation = "Revoke all children hotkeys" if all_revoked else "Set children hotkeys"
+    operation = "Revoking all child hotkeys" if all_revoked else "Setting child hotkeys"
 
     # Ask before moving on.
     if prompt:
@@ -860,14 +864,17 @@ async def set_children_extrinsic(
             ):
                 return False, "Operation Cancelled"
 
+    # Decrypt coldkey.
+    wallet.unlock_coldkey()
+
     with console.status(
         f":satellite: {operation} on [white]{subtensor.network}[/white] ..."
     ):
-        normalized_children = (
-            prepare_child_proportions(children_with_proportions)
-            if not all_revoked
-            else children_with_proportions
-        )
+        if not all_revoked:
+            normalized_children = prepare_child_proportions(children_with_proportions)
+        else:
+            normalized_children = []
+
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function="set_children",
@@ -903,42 +910,137 @@ async def set_children_extrinsic(
             return False, error_message
 
 
+async def set_childkey_take_extrinsic(
+    subtensor: "SubtensorInterface",
+    wallet: Wallet,
+    hotkey: str,
+    netuid: int,
+    take: float,
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = False,
+    prompt: bool = False,
+) -> tuple[bool, str]:
+    """
+    Sets childkey take.
+
+    :param: subtensor: Subtensor endpoint to use.
+    :param: wallet: Bittensor wallet object.
+    :param: hotkey: Child hotkey.
+    :param: take: Childkey Take value.
+    :param: netuid: Unique identifier of for the subnet.
+    :param: wait_for_inclusion: If set, waits for the extrinsic to enter a block before returning `True`, or returns
+                                `False` if the extrinsic fails to enter the block within the timeout.
+    :param: wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `
+                                   `True`, or returns `False` if the extrinsic fails to be finalized within the timeout.
+    :param: prompt: If `True`, the call waits for confirmation from the user before proceeding.
+
+    :return: A tuple containing a success flag and an optional error message.
+    """
+
+    # Ask before moving on.
+    if prompt:
+        if not Confirm.ask(
+            f"Do you want to set childkey take to: [bold white]{take * 100}%[/bold white]?"
+        ):
+            return False, "Operation Cancelled"
+
+    # Decrypt coldkey.
+    wallet.unlock_coldkey()
+
+    with console.status(
+        f":satellite: Setting childkey take on [white]{subtensor.network}[/white] ..."
+    ):
+        try:
+            if 0 < take <= 0.18:
+                take_u16 = float_to_u16(take)
+            else:
+                return False, "Invalid take value"
+
+            call = await subtensor.substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function="set_childkey_take",
+                call_params={
+                    "hotkey": hotkey,
+                    "take": take_u16,
+                    "netuid": netuid,
+                },
+            )
+            success, error_message = await subtensor.sign_and_send_extrinsic(
+                call, wallet, wait_for_inclusion, wait_for_finalization
+            )
+
+            if not wait_for_finalization and not wait_for_inclusion:
+                return (
+                    True,
+                    "Not waiting for finalization or inclusion. Set childkey take initiated.",
+                )
+
+            if success:
+                console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                # bittensor.logging.success(
+                #     prefix="Setting childkey take",
+                #     suffix="<green>Finalized: </green>" + str(success),
+                # )
+                return True, "Successfully set childkey take and Finalized."
+            else:
+                console.print(f":cross_mark: [red]Failed[/red]: {error_message}")
+                # bittensor.logging.warning(
+                #     prefix="Setting childkey take",
+                #     suffix="<red>Failed: </red>" + str(error_message),
+                # )
+                return False, error_message
+
+        except Exception as e:
+            return False, f"Exception occurred while setting childkey take: {str(e)}"
+
+
+async def get_childkey_take(subtensor, hotkey: str, netuid: int) -> Optional[int]:
+    """
+    Get the childkey take of a hotkey on a specific network.
+    Args:
+    - hotkey (str): The hotkey to search for.
+    - netuid (int): The netuid to search for.
+
+    Returns:
+    - Optional[float]: The value of the "ChildkeyTake" if found, or None if any error occurs.
+    """
+    try:
+        childkey_take_ = await subtensor.substrate.query(
+            module="SubtensorModule",
+            storage_function="ChildkeyTake",
+            params=[hotkey, netuid],
+        )
+        if childkey_take_:
+            return int(childkey_take_.value)
+
+    except SubstrateRequestException as e:
+        err_console.print(f"Error querying ChildKeys: {e}")
+        return None
+
+
 def prepare_child_proportions(children_with_proportions):
     """
-    Convert proportions to u64 and normalize
+    Convert proportions to u64 and normalize, ensuring total does not exceed u64 max.
     """
     children_u64 = [
-        (float_to_u64(prop), child) for prop, child in children_with_proportions
+        (float_to_u64(proportion), child)
+        for proportion, child in children_with_proportions
     ]
-    normalized_children = normalize_children_and_proportions(children_u64)
-    return normalized_children
+    total = sum(proportion for proportion, _ in children_u64)
 
-
-def normalize_children_and_proportions(
-    children: list[tuple[int, str]],
-) -> list[tuple[int, str]]:
-    """
-    Normalizes the proportions of children so that they sum to u64::MAX.
-    """
-    total = sum(prop for prop, _ in children)
-    u64_max = 2**64 - 1
-    normalized_children = [
-        (int(floor(prop * (u64_max - 1) / total)), child) for prop, child in children
-    ]
-    sum_norm = sum(prop for prop, _ in normalized_children)
-
-    # if the sum is more, subtract the excess from the first child
-    if sum_norm > u64_max:
-        if abs(sum_norm - u64_max) > 10:
-            raise ValueError(
-                "The sum of normalized proportions is out of the acceptable range."
-            )
-        normalized_children[0] = (
-            normalized_children[0][0] - (sum_norm - (u64_max - 1)),
-            normalized_children[0][1],
+    if total > (2**64 - 1):
+        excess = total - (2**64 - 1)
+        if excess > (2**64 * 0.01):  # Example threshold of 1% of u64 max
+            raise ValueError("Excess is too great to normalize proportions")
+        largest_child_index = max(
+            range(len(children_u64)), key=lambda i: children_u64[i][0]
+        )
+        children_u64[largest_child_index] = (
+            children_u64[largest_child_index][0] - excess,
+            children_u64[largest_child_index][1],
         )
 
-    return normalized_children
+    return children_u64
 
 
 # Commands
@@ -1541,12 +1643,11 @@ async def unstake(
 
 
 async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: int):
-    async def get_total_stake_for_child_hk(child: tuple):
-        child_hotkey = child[1]
+    async def get_total_stake_for_hk(hotkey: str):
         _result = await subtensor.substrate.query(
             module="SubtensorModule",
             storage_function="TotalHotkeyStake",
-            params=[child_hotkey],
+            params=[hotkey],
             reuse_block_hash=True,
         )
         return (
@@ -1555,82 +1656,136 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
             else Balance(0)
         )
 
-    async def render_table(
+    async def get_take(child: tuple) -> float:
+        """
+        Get the take value for a given subtensor, hotkey, and netuid.
+
+        @param child: The hotkey to retrieve the take value for.
+
+        @return: The take value as a float. If the take value is not available, it returns 0.
+
+        """
+        child_hotkey = child[1]
+        take_u16 = await get_childkey_take(
+            subtensor=subtensor, hotkey=child_hotkey, netuid=netuid
+        )
+        if take_u16:
+            return u16_to_float(take_u16)
+        else:
+            return 0
+
+    async def _render_table(
         hk: str, children_: list[tuple[int, str]], prompt: bool = True
     ):
         # Initialize Rich table for pretty printing
         table = Table(
-            Column("Index", style="cyan", no_wrap=True, justify="right"),
-            Column("ChildHotkey", style="cyan", no_wrap=True),
-            Column("Proportion", style="cyan", no_wrap=True, justify="right"),
-            Column("Total Stake", style="cyan", no_wrap=True, justify="right"),
             show_header=True,
             header_style="bold magenta",
-            border_style="green",
-            style="green",
+            border_style="blue",
+            style="dim",
+        )
+
+        # Add columns to the table with specific styles
+        table.add_column("Index", style="bold yellow", no_wrap=True, justify="center")
+        table.add_column("ChildHotkey", style="bold green")
+        table.add_column("Proportion", style="bold cyan", no_wrap=True, justify="right")
+        table.add_column(
+            "Childkey Take", style="bold blue", no_wrap=True, justify="right"
+        )
+        table.add_column(
+            "Current Stake Weight", style="bold red", no_wrap=True, justify="right"
         )
 
         if not children_:
             console.print(table)
             console.print(
-                f"There are currently no child hotkeys on subnet {netuid} with ParentHotKey {hk}."
+                f"[bold red]There are currently no child hotkeys on subnet {netuid} with Parent HotKey {hk}.[/bold red]"
             )
             if prompt:
                 command = (
-                    f"btcli stake set_children --children <child_hotkey> --hotkey <parent_hotkey> --netuid"
-                    f" {netuid} --proportion <float>"
+                    f"`btcli stake set_children --children <child_hotkey> --hotkey <parent_hotkey> "
+                    f"--netuid {netuid} --proportion <float>`"
                 )
                 console.print(
-                    f"To add a child hotkey you can run the command: [white]{command}[/white]"
+                    f"[bold cyan]To add a child hotkey you can run the command: [white]{command}[/white][/bold cyan]"
                 )
             return
-
-        console.print("ParentHotKey:", style="cyan", no_wrap=True)
-        console.print(hk)
 
         # calculate totals
         total_proportion = 0
         total_stake = 0
+        total_stake_weight = 0
+        avg_take = 0
+
+        hotkey_stake_dict = await subtensor.get_total_stake_for_hotkey(hk)
+        hotkey_stake = hotkey_stake_dict.get(hk, Balance(0))
 
         children_info = []
         child_stakes = await asyncio.gather(
-            *[get_total_stake_for_child_hk(c) for c in children_]
+            *[get_total_stake_for_hk(c[1]) for c in children_]
         )
-        for child, child_stake in zip(children_, child_stakes):
+        child_takes = await asyncio.gather(*[get_take(c) for c in children_])
+        for child, child_stake, child_take in zip(children_, child_stakes, child_takes):
             proportion = child[0]
             child_hotkey = child[1]
 
             # add to totals
-            total_proportion += proportion
+            avg_take += child_take
             total_stake += child_stake
 
-            children_info.append((proportion, child_hotkey, child_stake))
+            proportion = u64_to_float(proportion)
+
+            children_info.append((proportion, child_hotkey, child_stake, child_take))
 
         children_info.sort(
             key=lambda x: x[0], reverse=True
         )  # sorting by proportion (highest first)
 
+        console.print(f"Parent Hotkey: {hk}  |  ", style="cyan", end="", no_wrap=True)
+        console.print(f"Total Parent Stake: {hotkey_stake}τ")
+
         # add the children info to the table
-        for idx, (proportion, hotkey, stake) in enumerate(children_info, 1):
-            proportion_str = Text(
-                str(proportion), style="red" if proportion == 0 else ""
-            )
-            hotkey = Text(hotkey, style="red" if proportion == 0 else "")
+        for idx, (proportion, hotkey, stake, child_take) in enumerate(children_info, 1):
+            proportion_percent = proportion * 100  # Proportion in percent
+            proportion_tao = hotkey_stake.tao * proportion  # Proportion in TAO
+
+            total_proportion += proportion_percent
+
+            # Conditionally format text
+            proportion_str = f"{proportion_percent:.3f}% ({proportion_tao:.3f}τ)"
+            stake_weight = stake.tao + proportion_tao
+            total_stake_weight += stake_weight
+            take_str = f"{child_take * 100:.3f}%"
+
+            hotkey = Text(hotkey, style="italic red" if proportion == 0 else "")
             table.add_row(
                 str(idx),
                 hotkey,
                 proportion_str,
-                str(stake),
+                take_str,
+                str(f"{stake_weight:.3f}"),
             )
 
+        avg_take = avg_take / len(children_info)
+
         # add totals row
-        table.add_row("", "Total", str(total_proportion), str(total_stake), "")
+        table.add_row(
+            "",
+            "[dim]Total[/dim]",
+            f"[dim]{total_proportion:.3f}%[/dim]",
+            f"[dim](avg) {avg_take * 100:.3f}%[/dim]",
+            f"[dim]{total_stake_weight:.3f}τ[/dim]",
+            style="dim",
+        )
         console.print(table)
 
-    success, children, err_mg = await subtensor.get_children(wallet.hotkey, netuid)
+    # execute get_children
+    success, children, err_mg = await subtensor.get_children(
+        wallet.hotkey.ss58_address, netuid
+    )
     if not success:
         err_console.print(f"Failed to get children from subtensor: {err_mg}")
-    await render_table(wallet.hotkey, children, netuid)
+    await _render_table(wallet.hotkey.ss58_address, children, True)
 
     return children
 
@@ -1641,6 +1796,8 @@ async def set_children(
     netuid: int,
     children: list[str],
     proportions: list[float],
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = True,
 ):
     """Set children hotkeys."""
     # Validate children SS58 addresses
@@ -1664,9 +1821,14 @@ async def set_children(
         hotkey=wallet.hotkey.ss58_address,
         children_with_proportions=children_with_proportions,
         prompt=True,
+        wait_for_inclusion=wait_for_inclusion,
+        wait_for_finalization=wait_for_finalization,
     )
     # Result
     if success:
+        if wait_for_inclusion and wait_for_finalization:
+            console.print("New Status:")
+            await get_children(wallet, subtensor, netuid)
         console.print(":white_heavy_check_mark: [green]Set children hotkeys.[/green]")
     else:
         console.print(
@@ -1683,47 +1845,17 @@ async def revoke_children(
 ):
     """
     Revokes the children hotkeys associated with a given network identifier (netuid).
-
-    Parameters:
-    - wallet: An instance of the Wallet class representing the user's wallet.
-    - subtensor: An instance of the SubtensorInterface class.
-    - netuid: An integer representing the network identifier.
-    - wait_for_inclusion: A boolean indicating whether to wait for the transaction to be included in a block. Defaults
-      to True.
-    - wait_for_finalization: A boolean indicating whether to wait for the transaction to be finalized. Defaults to
-      False.
-
-    Returns:
-    None
-
-    Example:
-    >>> wallet = Wallet()
-    >>> subtensor = SubtensorInterface()
-    >>> revoke_children(wallet, subtensor, 12345, wait_for_inclusion=True)
     """
-    # print table with diff prompts
-    success, current_children, err_msg = await subtensor.get_children(
-        wallet.hotkey.ss58_address, netuid
-    )
-    if not success:
-        err_console.print(f"[red]Error retrieving children[/red]: {err_msg}")
-        return
-    # Validate children SS58 addresses
-    for child in current_children:
-        if not is_valid_ss58_address(child):
-            err_console.print(f":cross_mark:[red] Invalid SS58 address: {child}[/red]")
-            return
-
-    # Prepare children with zero proportions
-    children_with_zero_proportions = [(0.0, child[1]) for child in current_children]
 
     success, message = await set_children_extrinsic(
         subtensor=subtensor,
         wallet=wallet,
         netuid=netuid,
         hotkey=wallet.hotkey.ss58_address,
-        children_with_proportions=children_with_zero_proportions,
+        children_with_proportions=[],
         prompt=True,
+        wait_for_inclusion=wait_for_inclusion,
+        wait_for_finalization=wait_for_finalization,
     )
 
     # Result
@@ -1737,3 +1869,67 @@ async def revoke_children(
         console.print(
             f":cross_mark:[red] Unable to revoke children hotkeys.[/red] {message}"
         )
+
+
+async def childkey_take(
+    wallet: Wallet,
+    subtensor: "SubtensorInterface",
+    netuid: int,
+    take: Optional[float],
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = True,
+):
+    """Get or Set childkey take."""
+
+    def validate_take_value(take_value: float) -> bool:
+        if not (0 <= take_value <= 0.18):
+            err_console.print(
+                f":cross_mark:[red] Invalid take value: {take_value}[/red]"
+            )
+            return False
+        return True
+
+    # Validate child SS58 addresses
+    if not take:
+        # print current Take, ask if change
+        curr_take = await get_childkey_take(
+            subtensor=subtensor, netuid=netuid, hotkey=wallet.hotkey.ss58_address
+        )
+        take = u16_to_float(curr_take)
+        console.print(f"Current child take is: {take*100:.2f}%")
+
+        if not Confirm.ask("Would you like to change the child take?"):
+            return
+        new_take_str = Prompt.ask("Enter the new take value (between 0 and 0.18): ")
+        try:
+            new_take_value = float(new_take_str)
+            if not validate_take_value(new_take_value):
+                return
+        except ValueError:
+            err_console.print(
+                ":cross_mark:[red] Invalid input. Please enter a number between 0 and 0.18.[/red]"
+            )
+            return
+        take = new_take_value
+    else:
+        if not validate_take_value(take):
+            return
+
+    success, message = await set_childkey_take_extrinsic(
+        subtensor=subtensor,
+        wallet=wallet,
+        netuid=netuid,
+        hotkey=wallet.hotkey.ss58_address,
+        take=take,
+        prompt=False,
+        wait_for_inclusion=wait_for_inclusion,
+        wait_for_finalization=wait_for_finalization,
+    )
+    # Result
+    if success:
+        console.print(":white_heavy_check_mark: [green]Set childkey take.[/green]")
+        console.print(
+            f"The childkey take for {wallet.hotkey.ss58_address} is now set to {take * 100:.3f}%."
+        )
+    else:
+        console.print(f":cross_mark:[red] Unable to set childkey take.[/red] {message}")
