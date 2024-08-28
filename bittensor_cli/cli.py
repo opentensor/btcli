@@ -183,7 +183,7 @@ def version_callback(value: bool):
     """
     if value:
         typer.echo(
-            f"BTCLI Version: {__version__}/{Repo(os.path.dirname(__file__)).active_branch.name}"
+            f"BTCLI Version: {__version__}/{Repo(os.path.dirname(os.path.dirname(__file__))).active_branch.name}"
         )
         raise typer.Exit()
 
