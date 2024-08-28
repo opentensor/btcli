@@ -24,7 +24,12 @@ from bittensor_cli.src.bittensor.chain_data import (
 )
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src import Constants, defaults, TYPE_REGISTRY
-from bittensor_cli.src.utils import ss58_to_vec_u8, format_error_message, console, err_console
+from bittensor_cli.src.utils import (
+    ss58_to_vec_u8,
+    format_error_message,
+    console,
+    err_console,
+)
 
 
 class ParamWithTypes(TypedDict):

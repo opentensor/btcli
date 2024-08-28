@@ -1796,6 +1796,10 @@ class CLIManager:
         self,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
+        limit_min_col: int = typer.Option(0),
+        limit_max_col: int = typer.Option(-1),
+        reuse_last: bool = Options.reuse_last,
+        html_output: bool = Options.html_output,
     ):
         """
         # root get-weights
@@ -1844,8 +1848,24 @@ class CLIManager:
         network. It offers transparency into how network rewards and responsibilities are allocated across different
         subnets.
         """
+        if (reuse_last or html_output) and self.config.get("no_cache") is True:
+            err_console.print(
+                "Unable to use `--reuse-last` or `--html` when config no-cache is set."
+            )
+            raise typer.Exit()
+        if not reuse_last:
+            subtensor = self.initialize_chain(network, chain)
+        else:
+            subtensor = None
         return self._run_command(
-            root.get_weights(self.initialize_chain(network, chain))
+            root.get_weights(
+                subtensor,
+                limit_min_col,
+                limit_max_col,
+                reuse_last,
+                html_output,
+                self.config.get("no_cache", False),
+            )
         )
 
     def root_boost(
