@@ -15,7 +15,6 @@ from substrateinterface.exceptions import SubstrateRequestException
 
 from src import Constants
 from src.bittensor.balances import Balance
-from src.commands.root import set_take_extrinsic
 from src.utils import (
     get_delegates_details_from_github,
     get_hotkey_wallets_for_wallet,
@@ -27,7 +26,6 @@ from src.utils import (
     get_metadata_table,
     update_metadata_table,
     create_table,
-    render_table,
     render_tree,
     u16_normalized_float,
     float_to_u16,
@@ -867,7 +865,7 @@ async def set_children_extrinsic(
                 return False, "Operation Cancelled"
 
     # Decrypt coldkey.
-    wallet.coldkey
+    wallet.unlock_coldkey()
 
     with console.status(
         f":satellite: {operation} on [white]{subtensor.network}[/white] ..."
@@ -947,7 +945,7 @@ async def set_childkey_take_extrinsic(
             return False, "Operation Cancelled"
 
     # Decrypt coldkey.
-    wallet.coldkey
+    wallet.unlock_coldkey()
 
     with console.status(
         f":satellite: Setting childkey take on [white]{subtensor.network}[/white] ..."
@@ -996,36 +994,27 @@ async def set_childkey_take_extrinsic(
             return False, f"Exception occurred while setting childkey take: {str(e)}"
 
 
-async def get_childkey_take(
-    subtensor, hotkey: str, netuid: int, block: Optional[int] = None
-) -> Optional[int]:
+async def get_childkey_take(subtensor, hotkey: str, netuid: int) -> Optional[int]:
     """
     Get the childkey take of a hotkey on a specific network.
     Args:
     - hotkey (str): The hotkey to search for.
     - netuid (int): The netuid to search for.
-    - block (Optional[int]): Optional parameter specifying the block number. Defaults to None.
 
     Returns:
     - Optional[float]: The value of the "ChildkeyTake" if found, or None if any error occurs.
     """
     try:
-        childkey_take = await subtensor.substrate.query(
+        childkey_take_ = await subtensor.substrate.query(
             module="SubtensorModule",
             storage_function="ChildkeyTake",
-            block_hash=(
-                None if block is None else subtensor.substrate.get_block_hash(block)
-            ),
             params=[hotkey, netuid],
         )
-        if childkey_take:
-            return int(childkey_take.value)
+        if childkey_take_:
+            return int(childkey_take_.value)
 
     except SubstrateRequestException as e:
-        print(f"Error querying ChildKeys: {e}")
-        return None
-    except Exception as e:
-        print(f"Unexpected error in get_children: {e}")
+        err_console.print(f"Error querying ChildKeys: {e}")
         return None
 
 
@@ -1677,19 +1666,15 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
 
         """
         child_hotkey = child[1]
-        try:
-            take_u16 = await get_childkey_take(
-                subtensor=subtensor, hotkey=child_hotkey, netuid=netuid
-            )
-            if take_u16:
-                return u16_to_float(take_u16)
-            else:
-                return 0
-        except Exception as e:
-            print(f"Unexpected error in get_take: {e}")
+        take_u16 = await get_childkey_take(
+            subtensor=subtensor, hotkey=child_hotkey, netuid=netuid
+        )
+        if take_u16:
+            return u16_to_float(take_u16)
+        else:
             return 0
 
-    async def render_table(
+    async def _render_table(
         hk: str, children_: list[tuple[int, str]], prompt: bool = True
     ):
         # Initialize Rich table for pretty printing
@@ -1717,7 +1702,10 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
                 f"[bold red]There are currently no child hotkeys on subnet {netuid} with Parent HotKey {hk}.[/bold red]"
             )
             if prompt:
-                command = f"btcli stake set_children --children <child_hotkey> --hotkey <parent_hotkey> --netuid {netuid} --proportion <float>"
+                command = (
+                    f"`btcli stake set_children --children <child_hotkey> --hotkey <parent_hotkey> "
+                    f"--netuid {netuid} --proportion <float>`"
+                )
                 console.print(
                     f"[bold cyan]To add a child hotkey you can run the command: [white]{command}[/white][/bold cyan]"
                 )
@@ -1757,7 +1745,7 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
         console.print(f"Total Parent Stake: {hotkey_stake}τ")
 
         # add the children info to the table
-        for i, (proportion, hotkey, stake, child_take) in enumerate(children_info, 1):
+        for idx, (proportion, hotkey, stake, child_take) in enumerate(children_info, 1):
             proportion_percent = proportion * 100  # Proportion in percent
             proportion_tao = hotkey_stake.tao * proportion  # Proportion in TAO
 
@@ -1771,7 +1759,7 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
 
             hotkey = Text(hotkey, style="italic red" if proportion == 0 else "")
             table.add_row(
-                str(i),
+                str(idx),
                 hotkey,
                 proportion_str,
                 take_str,
@@ -1797,7 +1785,7 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
     )
     if not success:
         err_console.print(f"Failed to get children from subtensor: {err_mg}")
-    await render_table(wallet.hotkey.ss58_address, children, True)
+    await _render_table(wallet.hotkey.ss58_address, children, True)
 
     return children
 
