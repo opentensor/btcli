@@ -1,8 +1,8 @@
 import logging
 
-from btcli.src.bittensor.balances import Balance
+from bittensor_cli.src.bittensor.balances import Balance
 
-from .utils import (
+from bittensor_cli.src.tests.e2e_tests.utils import (
     extract_coldkey_balance,
     setup_wallet,
     validate_wallet_inspect,

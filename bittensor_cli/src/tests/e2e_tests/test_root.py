@@ -1,9 +1,9 @@
 import logging
 import time
 
-from btcli.src.bittensor.balances import Balance
+from bittensor_cli.src.bittensor.balances import Balance
 
-from .utils import setup_wallet
+from bittensor_cli.src.tests.e2e_tests.utils import setup_wallet
 
 """
 Verify commands:

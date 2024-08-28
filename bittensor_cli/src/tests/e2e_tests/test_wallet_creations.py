@@ -4,7 +4,7 @@ import re
 import time
 from typing import Dict, Optional, Tuple
 
-from .utils import setup_wallet
+from bittensor_cli.src.tests.e2e_tests.utils import setup_wallet
 
 """
 Verify commands:
