@@ -486,11 +486,7 @@ class CLIManager:
         self,
         version: Annotated[
             Optional[bool], typer.Option("--version", callback=version_callback)
-        ] = None,
-        no_prompt: bool = typer.Option(
-            False,
-            "--no-prompt",
-        ),
+        ] = None
     ):
         """
         Method called before all others when using any CLI command. Gives version if that flag is set, otherwise
@@ -506,7 +502,6 @@ class CLIManager:
         for k, v in config.items():
             if k in self.config.keys():
                 self.config[k] = v
-        self.config["no_prompt"] = no_prompt
 
     def metagraph_config(
         self,
