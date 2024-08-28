@@ -23,10 +23,8 @@ from src.bittensor.balances import Balance
 if TYPE_CHECKING:
     from src.bittensor.chain_data import SubnetHyperparameters
 
-
 console = Console()
 err_console = Console(stderr=True)
-
 
 RAO_PER_TAO = 1e9
 U16_MAX = 65535
@@ -51,6 +49,36 @@ def float_to_u64(value: float) -> int:
 
     # Convert the float to a u64 value
     return int(value * (2**64 - 1))
+
+
+def u64_to_float(value: int) -> float:
+    u64_max = 2**64 - 1
+    # Allow for a small margin of error (e.g., 1) to account for potential rounding issues
+    if not (0 <= value <= u64_max + 1):
+        raise ValueError(
+            f"Input value ({value}) must be between 0 and {u64_max} (2^64 - 1)"
+        )
+    return min(value / u64_max, 1.0)  # Ensure the result is never greater than 1.0
+
+
+def float_to_u16(value: float) -> int:
+    # Ensure the input is within the expected range
+    if not (0 <= value <= 1):
+        raise ValueError("Input value must be between 0 and 1")
+
+    # Calculate the u16 representation
+    u16_max = 65535
+    return int(value * u16_max)
+
+
+def u16_to_float(value: int) -> float:
+    # Ensure the input is within the expected range
+    if not (0 <= value <= 65535):
+        raise ValueError("Input value must be between 0 and 65535")
+
+    # Calculate the float representation
+    u16_max = 65535
+    return value / u16_max
 
 
 def convert_weight_uids_and_vals_to_tensor(

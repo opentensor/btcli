@@ -114,6 +114,13 @@ class Options:
         "--html",
         help="Display the table as HTML in the browser, rather than in the Terminal.",
     )
+    wait_for_inclusion = typer.Option(
+        True, help="If set, waits until the transaction is included in a block."
+    )
+    wait_for_finalization = typer.Option(
+        True,
+        help="If set, waits until the transaction is finalized " "on the blockchain.",
+    )
 
 
 def list_prompt(init_var: list, list_type: type, help_text: str) -> list:
@@ -321,9 +328,19 @@ class CLIManager:
         self.stake_app.command("show")(self.stake_show)
         self.stake_app.command("add")(self.stake_add)
         self.stake_app.command("remove")(self.stake_remove)
-        self.stake_app.command("get-children")(self.stake_get_children)
-        self.stake_app.command("set-children")(self.stake_set_children)
-        self.stake_app.command("revoke-children")(self.stake_revoke_children)
+
+        # stake-children commands
+        children_app = typer.Typer()
+        self.stake_app.add_typer(
+            children_app,
+            name="child",
+            short_help="Child Hotkey commands, alias: `children`",
+        )
+        self.stake_app.add_typer(children_app, name="children", hidden=True)
+        children_app.command("get")(self.stake_get_children)
+        children_app.command("set")(self.stake_set_children)
+        children_app.command("revoke")(self.stake_revoke_children)
+        children_app.command("take")(self.stake_childkey_take)
 
         # sudo commands
         self.sudo_app.command("set")(self.sudo_set)
@@ -2736,7 +2753,7 @@ class CLIManager:
         netuid: int = Options.netuid,
     ):
         """
-        # stake get-children
+        # stake child get
         Executes the `get_children_info` command to get all child hotkeys on a specified subnet on the Bittensor network.
 
         This command is used to view delegated authority to different hotkeys on the subnet.
@@ -2787,9 +2804,11 @@ class CLIManager:
             help="Enter proportions for children as (sum less than 1)",
             prompt=False,
         ),
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
     ):
         """
-        # stake set-children
+        # stake child set
         Executes the `set_children` command to add children hotkeys on a specified subnet on the Bittensor network.
 
         This command is used to delegate authority to different hotkeys, securing their position and influence on the
@@ -2833,6 +2852,8 @@ class CLIManager:
                 netuid,
                 children,
                 proportions,
+                wait_for_finalization,
+                wait_for_inclusion,
             )
         )
 
@@ -2844,11 +2865,11 @@ class CLIManager:
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
         netuid: int = Options.netuid,
-        wait_for_inclusion: bool = True,
-        wait_for_finalization: bool = True,
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
     ):
         """
-        # stake revoke-children
+        # stake child revoke
         Executes the `revoke_children` command to remove all children hotkeys on a specified subnet on the Bittensor
         network.
 
@@ -2879,6 +2900,59 @@ class CLIManager:
                 netuid,
                 wait_for_inclusion,
                 wait_for_finalization,
+            )
+        )
+
+    def stake_childkey_take(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        wallet_path: Optional[str] = Options.wallet_path,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        netuid: int = Options.netuid,
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        take: Optional[float] = typer.Option(
+            None,
+            "--take",
+            "-t",
+            help="Enter take for your child hotkey",
+            prompt=False,
+        ),
+    ):
+        """
+        # stake child take
+        Executes the `childkey-take` command to get and set your childkey take on a specified subnet on the Bittensor
+        network.
+
+        This command is used to set the take on your child hotkeys with limits between 0 - 18%.
+
+        ## Usage:
+        Users need to specify their child hotkey and the subnet ID (netuid).
+
+        The command prompts for confirmation before setting the childkey take.
+
+        ### Example usage:
+
+        ```
+        btcli stake child take --hotkey <child_hotkey> --netuid 1
+        or
+        btcli stake child take --hotkey <child_hotkey> --take 0.12 --netuid 1
+        ```
+
+        #### Note:
+        This command is critical for users who wish to modify their child hotkey take on the network.
+        """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        return self._run_command(
+            stake.childkey_take(
+                wallet=wallet,
+                subtensor=self.initialize_chain(network, chain),
+                netuid=netuid,
+                take=take,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
             )
         )
 
