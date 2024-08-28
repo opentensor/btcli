@@ -672,7 +672,7 @@ async def metagraph_cmd(
     else:
         total_neurons = len(metagraph.uids)
         table_width = console.width - 20
-        cols = {
+        cols: dict[str, tuple[int, Column]] = {
             "UID": (
                 0,
                 Column(
