@@ -817,7 +817,7 @@ async def set_weights(
             netuids=netuids_,
             weights=weights_,
             version_key=0,
-            prompt=True,
+            prompt=False,  # TODO: Add no prompt
             wait_for_finalization=True,
             wait_for_inclusion=True,
         )
