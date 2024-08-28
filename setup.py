@@ -26,7 +26,6 @@ import pathlib
 
 def read_requirements(path):
     requirements = []
-    git_requirements = []
 
     with pathlib.Path(path).open() as requirements_txt:
         for line in requirements_txt:
@@ -67,6 +66,7 @@ setup(
     author="bittensor.com",
     packages=find_packages(exclude=["tests", "tests.*", "*/tests/*", "*/tests"]),
     include_package_data=True,
+    package_data={'': ['templates/*'], },
     author_email="",
     license="MIT",
     python_requires=">=3.9",
