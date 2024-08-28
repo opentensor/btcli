@@ -834,10 +834,19 @@ async def metagraph_cmd(
             pad_edge=True,
         )
 
-        for row in table_data:
-            for idx, _ in enumerate(row):
-                if idx not in table_cols_indices:
-                    row[idx] = ""
-            table.add_row(*row)
+        if all(x is False for x in display_cols.values()):
+            console.print("You have selected no columns to display in your config.")
+            table.add_row(" " * 256)  # allows title to be printed
+        elif any(x is False for x in display_cols.values()):
+            console.print(
+                "Limiting column display output based on your config settings. Hiding columns "
+                f"{', '.join([k for (k, v) in display_cols.items() if v is False])}"
+            )
+            for row in table_data:
+                new_row = [row[idx] for idx in table_cols_indices]
+                table.add_row(*new_row)
+        else:
+            for row in table_data:
+                table.add_row(*row)
 
         console.print(table)
