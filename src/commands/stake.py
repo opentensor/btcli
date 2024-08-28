@@ -4,7 +4,7 @@ import json
 import sqlite3
 from contextlib import suppress
 from math import floor
-from typing import TYPE_CHECKING, Union, Optional, Sequence, cast
+from typing import TYPE_CHECKING, Optional, Sequence, Union, cast
 
 from ansible_collections.amazon.aws.plugins.modules.ec2_instance import module
 from bittensor_wallet import Wallet
@@ -16,16 +16,16 @@ from substrateinterface.exceptions import SubstrateRequestException
 from src import Constants
 from src.bittensor.balances import Balance
 from src.utils import (
+    console,
+    create_table,
+    err_console,
+    float_to_u64,
+    get_coldkey_wallets_for_path,
     get_delegates_details_from_github,
     get_hotkey_wallets_for_wallet,
-    get_coldkey_wallets_for_path,
-    console,
-    err_console,
     is_valid_ss58_address,
-    float_to_u64,
     get_metadata_table,
     update_metadata_table,
-    create_table,
     render_tree,
     u16_normalized_float,
     float_to_u16,
@@ -1219,7 +1219,9 @@ async def show(
             cast(str, acc["name"])
             cast(Balance, acc["balance"])
             rows.append([acc["name"], str(acc["balance"]), "", "", ""])
-            db_rows.append([acc["name"], float(acc["balance"]), None, None, None, 0])
+            db_rows.append(
+                [acc["name"], float(acc["balance"]), None, None, None, None, 0]
+            )
             total_balance += cast(Balance, acc["balance"]).tao
             for key, value in cast(dict, acc["accounts"]).items():
                 rows.append(
@@ -1228,7 +1230,8 @@ async def show(
                         "",
                         value["name"],
                         str(value["stake"]),
-                        str(value["rate"]) + "/d",
+                        str(value["rate"]),
+                        key,
                     ]
                 )
                 db_rows.append(
@@ -1238,6 +1241,7 @@ async def show(
                         value["name"],
                         float(value["stake"]),
                         float(value["rate"]),
+                        key,
                         1,
                     ]
                 )
@@ -1258,6 +1262,7 @@ async def show(
                     ("ACCOUNT", "TEXT"),
                     ("STAKE", "REAL"),
                     ("RATE", "REAL"),
+                    ("HOTKEY", "TEXT"),
                     ("CHILD", "INTEGER"),
                 ],
                 db_rows,
@@ -1276,37 +1281,37 @@ async def show(
             )
             return
     if not html_output:
+        table_width = console.width - 20
         table = Table(
             Column(
-                "[overline white]Coldkey",
-                footer_style="overline white",
-                style="bold white",
+                "[bold white]Coldkey",
+                style="dark_orange",
             ),
             Column(
-                "[overline white]Balance",
+                "[bold white]Balance",
                 metadata["total_balance"],
-                footer_style="overline white",
-                style="green",
+                style="dark_sea_green",
             ),
+            Column("[bold white]Account", style="bright_cyan"),
             Column(
-                "[overline white]Account", footer_style="overline white", style="blue"
-            ),
-            Column(
-                "[overline white]Stake",
+                "[bold white]Stake",
                 metadata["total_stake"],
-                footer_style="overline white",
-                style="green",
+                style="light_goldenrod2",
             ),
             Column(
-                "[overline white]Rate",
+                "[bold white]Rate /d",
                 metadata["total_rate"],
-                footer_style="overline white",
-                style="green",
+                style="rgb(42,161,152)",
+            ),
+            Column(
+                "[bold white]Hotkey",
+                style="bright_magenta",
             ),
             show_footer=True,
-            pad_edge=False,
-            box=None,
+            show_edge=False,
             expand=False,
+            width=table_width,
+            border_style="bright_black",
         )
         for row in rows:
             table.add_row(*row)
@@ -1324,7 +1329,11 @@ async def show(
                     "formatter": "money",
                     "formatterParams": {"symbol": "τ", "precision": 5},
                 },
-                {"title": "Account", "field": "ACCOUNT"},
+                {
+                    "title": "Account",
+                    "field": "ACCOUNT",
+                    "width": 425,
+                },
                 {
                     "title": "Stake",
                     "field": "STAKE",
@@ -1336,6 +1345,11 @@ async def show(
                     "field": "RATE",
                     "formatter": "money",
                     "formatterParams": {"symbol": "τ", "precision": 5},
+                },
+                {
+                    "title": "Hotkey",
+                    "field": "HOTKEY",
+                    "width": 425,
                 },
             ],
             0,

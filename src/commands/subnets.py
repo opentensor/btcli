@@ -7,25 +7,24 @@ from typing import TYPE_CHECKING, Optional, cast
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm
 from rich.table import Table
-
 from src import Constants, DelegatesDetails
 from src.bittensor.balances import Balance
 from src.bittensor.chain_data import SubnetInfo
-from src.bittensor.minigraph import MiniGraph
 from src.bittensor.extrinsics.registration import register_extrinsic
+from src.bittensor.minigraph import MiniGraph
 from src.commands.root import burned_register_extrinsic
-from src.commands.wallets import set_id_prompts, set_id
+from src.commands.wallets import set_id, set_id_prompts
 from src.utils import (
-    console,
-    err_console,
-    get_delegates_details_from_github,
-    millify,
     RAO_PER_TAO,
-    format_error_message,
-    render_table,
+    console,
     create_table,
-    update_metadata_table,
+    err_console,
+    format_error_message,
+    get_delegates_details_from_github,
     get_metadata_table,
+    millify,
+    render_table,
+    update_metadata_table,
 )
 
 if TYPE_CHECKING:
@@ -512,7 +511,7 @@ async def metagraph_cmd(
                 (
                     ep.ip + ":" + str(ep.port)
                     if ep.is_serving
-                    else "[yellow]none[/yellow]"
+                    else "[light_goldenrod2]none[/light_goldenrod2]"
                 ),
                 ep.hotkey[:10],
                 ep.coldkey[:10],
@@ -669,100 +668,114 @@ async def metagraph_cmd(
             )
             return
     else:
-        table = Table(show_footer=False, box=None, pad_edge=False, width=None)
-
+        total_neurons = len(metagraph.uids)
+        table_width = console.width - 20
+        table = Table(
+            show_footer=True,
+            show_edge=False,
+            header_style="bold white",
+            border_style="bright_black",
+            style="bold",
+            title_style="bold white",
+            title_justify="center",
+            show_lines=False,
+            expand=True,
+            width=table_width,
+            pad_edge=True,
+        )
         table.title = (
-            f"[white]Metagraph: "
-            f"net: {metadata_info['net']}, "
-            f"block: {metadata_info['block']}, "
-            f"N: {metadata_info['N']}, "
-            f"stake: {metadata_info['stake']}, "
-            f"issuance: {metadata_info['issuance']}, "
-            f"difficulty: {metadata_info['difficulty']}"
+            f"[white]Metagraph - "
+            f"Net: [bright_cyan]{subtensor.network}: {metagraph.netuid}[/bright_cyan], "
+            f"Block: [sea_green2]{metagraph.block.item()}[/sea_green2], "
+            f"N: [bright_green]{sum(metagraph.active.tolist())}[/bright_green]/[bright_red]{metagraph.n.item()}[/bright_red], "
+            f"Stake: [dark_orange]{Balance.from_tao(total_stake)}[/dark_orange], "
+            f"Issuance: [bright_blue]{total_issuance}[/bright_blue], "
+            f"Difficulty: [bright_cyan]{difficulty}[/bright_cyan]\n"
         )
         table.add_column(
-            "[overline white]UID",
-            metadata_info["total_neurons"],
-            footer_style="overline white",
-            style="yellow",
+            "[bold white]UID",
+            footer=f"[white]{total_neurons}[/white]",
+            style="white",
+            justify="center",
         )
         table.add_column(
-            "[overline white]STAKE(\u03c4)",
-            metadata_info["total_stake"],
-            footer_style="overline white",
+            "[bold white]STAKE(\u03c4)",
+            footer=f"\u03c4{total_stake:.5f}",
+            style="bright_cyan",
             justify="right",
-            style="green",
             no_wrap=True,
         )
         table.add_column(
-            "[overline white]RANK",
-            metadata_info["rank"],
-            footer_style="overline white",
+            "[bold white]RANK",
+            footer=f"{total_rank:.5f}",
+            style="medium_purple",
             justify="right",
-            style="green",
             no_wrap=True,
         )
         table.add_column(
-            "[overline white]TRUST",
-            metadata_info["trust"],
-            footer_style="overline white",
+            "[bold white]TRUST",
+            footer=f"{total_trust:.5f}",
+            style="dark_sea_green",
             justify="right",
-            style="green",
             no_wrap=True,
         )
         table.add_column(
-            "[overline white]CONSENSUS",
-            metadata_info["consensus"],
-            footer_style="overline white",
+            "[bold white]CONSENSUS",
+            footer=f"{total_consensus:.5f}",
+            style="rgb(42,161,152)",
             justify="right",
-            style="green",
             no_wrap=True,
         )
         table.add_column(
-            "[overline white]INCENTIVE",
-            metadata_info["incentive"],
-            footer_style="overline white",
+            "[bold white]INCENTIVE",
+            footer=f"{total_incentive:.5f}",
+            style="#5fd7ff",
             justify="right",
-            style="green",
             no_wrap=True,
         )
         table.add_column(
-            "[overline white]DIVIDENDS",
-            metadata_info["dividends"],
-            footer_style="overline white",
+            "[bold white]DIVIDENDS",
+            footer=f"{total_dividends:.5f}",
+            style="#8787d7",
             justify="right",
-            style="green",
             no_wrap=True,
         )
         table.add_column(
-            "[overline white]EMISSION(\u03c1)",
-            metadata_info["emission"],
-            footer_style="overline white",
+            "[bold white]EMISSION(\u03c1)",
+            footer=f"\u03c1{total_emission}",
+            style="#d7d7ff",
             justify="right",
-            style="green",
             no_wrap=True,
         )
         table.add_column(
-            "[overline white]VTRUST",
-            metadata_info["validator_trust"],
-            footer_style="overline white",
+            "[bold white]VTRUST",
+            footer=f"{total_validator_trust:.5f}",
+            style="magenta",
             justify="right",
-            style="green",
             no_wrap=True,
         )
         table.add_column(
-            "[overline white]VAL", justify="right", style="green", no_wrap=True
+            "[bold white]VAL", justify="center", style="bright_white", no_wrap=True
         )
-        table.add_column("[overline white]UPDATED", justify="right", no_wrap=True)
+        table.add_column("[bold white]UPDATED", justify="right", no_wrap=True)
         table.add_column(
-            "[overline white]ACTIVE", justify="right", style="green", no_wrap=True
+            "[bold white]ACTIVE", justify="center", style="#8787ff", no_wrap=True
         )
         table.add_column(
-            "[overline white]AXON", justify="left", style="dim blue", no_wrap=True
+            "[bold white]AXON", justify="left", style="dark_orange", no_wrap=True
         )
-        table.add_column("[overline white]HOTKEY", style="dim blue", no_wrap=False)
-        table.add_column("[overline white]COLDKEY", style="dim purple", no_wrap=False)
-        table.show_footer = True
+        table.add_column(
+            "[bold white]HOTKEY",
+            justify="center",
+            style="bright_magenta",
+            no_wrap=False,
+        )
+        table.add_column(
+            "[bold white]COLDKEY",
+            justify="center",
+            style="bright_magenta",
+            no_wrap=False,
+        )
 
         for row in table_data:
             table.add_row(*row)

@@ -2,23 +2,23 @@
 import asyncio
 import os.path
 import re
-from typing import Optional, Coroutine, cast
+from typing import Coroutine, Optional, cast
 
+import rich
+import typer
 from bittensor_wallet import Wallet
 from git import Repo
-import rich
-from rich.prompt import Confirm, Prompt, FloatPrompt
-from rich.table import Table, Column
-import typer
+from rich.prompt import Confirm, FloatPrompt, Prompt
+from rich.table import Column, Table
+from src import HYPERPARAMS, defaults, utils
+from src.bittensor.async_substrate_interface import SubstrateRequestException
+from src.commands import root, stake, subnets, sudo, wallets
+from src.commands import weights as weights_cmds
+from src.subtensor_interface import SubtensorInterface
+from src.utils import console, err_console, is_valid_ss58_address
 from typing_extensions import Annotated
 from websockets import ConnectionClosed
-from yaml import safe_load, safe_dump
-
-from src import defaults, utils, HYPERPARAMS
-from src.commands import wallets, root, stake, sudo, subnets, weights as weights_cmds
-from src.subtensor_interface import SubtensorInterface
-from src.bittensor.async_substrate_interface import SubstrateRequestException
-from src.utils import console, err_console
+from yaml import safe_dump, safe_load
 
 __version__ = "8.0.0"
 
@@ -581,7 +581,8 @@ class CLIManager:
         wallet_hotkey = wallet_hotkey or self.config.get("wallet_hotkey")
 
         if not any([wallet_name, wallet_path, wallet_hotkey]):
-            wallet_name = typer.prompt("Enter wallet name")
+            _wallet_str = typer.style("wallet", fg="blue")
+            wallet_name = typer.prompt(f"Enter {_wallet_str} name")
             wallet = Wallet(name=wallet_name)
         else:
             wallet = Wallet(name=wallet_name, hotkey=wallet_hotkey, path=wallet_path)
@@ -1678,6 +1679,8 @@ class CLIManager:
         """
         netuids = list_prompt(netuids, int, "Enter netuids")
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        if not weights:
+            weights = list_prompt([], float, "Weights: e.g. 0.02, 0.03, 0.01 ")
         self._run_command(
             root.set_weights(
                 wallet, self.initialize_chain(network, chain), netuids, weights
@@ -2497,7 +2500,7 @@ class CLIManager:
             raise typer.Exit()
         if not reuse_last:
             subtensor = self.initialize_chain(network, chain)
-            wallet = Wallet()
+            wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         else:
             subtensor = None
             wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
@@ -2684,18 +2687,7 @@ class CLIManager:
         This command is important for users who wish to reallocate their stakes or withdraw them from the network.
         It allows for flexible management of token stakes across different neurons (hotkeys) on the network.
         """
-        if unstake_all and amount:
-            err_console.print(
-                "Cannot specify an amount and 'unstake-all'. Choose one or the other."
-            )
-            raise typer.Exit()
-        if not unstake_all and not amount:
-            amount = FloatPrompt.ask(
-                "[blue bold]Amount to unstakestake (TAO τ)[/blue bold]"
-            )
-        if unstake_all and not amount:
-            if not Confirm.ask("Unstake all staked TAO tokens?", default=False):
-                raise typer.Exit()
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         if all_hotkeys and include_hotkeys:
             err_console.print(
                 "You have specified hotkeys to include and the `--all-hotkeys` flag. The flag"
@@ -2707,7 +2699,36 @@ class CLIManager:
                 "You have specified including and excluding hotkeys. Select one or the other."
             )
             raise typer.Exit()
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+
+        if (
+            not wallet_hotkey
+            and not hotkey_ss58_address
+            and not all_hotkeys
+            and not include_hotkeys
+        ):
+            _hotkey_str = typer.style("hotkey", fg="red")
+            hotkey = typer.prompt(
+                f"Enter {_hotkey_str} name to unstake or ss58_address"
+            )
+            if not is_valid_ss58_address(hotkey):
+                wallet_hotkey = hotkey
+                wallet = self.wallet_ask(
+                    wallet.name, wallet_path, wallet_hotkey, validate=True
+                )
+            else:
+                hotkey_ss58_address = hotkey
+
+        if unstake_all and amount:
+            err_console.print(
+                "Cannot specify an amount and 'unstake-all'. Choose one or the other."
+            )
+            raise typer.Exit()
+        if not unstake_all and not amount:
+            amount = FloatPrompt.ask("[blue bold]Amount to unstake (TAO τ)[/blue bold]")
+        if unstake_all and not amount:
+            if not Confirm.ask("Unstake all staked TAO tokens?", default=False):
+                raise typer.Exit()
+
         return self._run_command(
             stake.unstake(
                 wallet,
