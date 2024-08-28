@@ -815,10 +815,10 @@ async def metagraph_cmd(
         }
         table_cols: list[Column] = []
         table_cols_indices: list[int] = []
-        for k, v in display_cols.items():
-            if v is True:
-                table_cols_indices.append(cols[k][0])
-                table_cols.append(cols[k][1])
+        for k, (idx, v) in cols.items():
+            if display_cols[k] is True:
+                table_cols_indices.append(idx)
+                table_cols.append(v)
 
         table = Table(
             *table_cols,
