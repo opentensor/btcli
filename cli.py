@@ -3623,6 +3623,7 @@ class CLIManager:
                 reuse_last,
                 html_output,
                 self.config.get("no_cache", False),
+                self.config.get("metagraph_cols", {}),
             )
         )
 
