@@ -3,7 +3,7 @@ import asyncio
 import curses
 import os.path
 import re
-from typing import Coroutine, Optional, cast
+from typing import Coroutine, Optional
 
 import rich
 import typer
@@ -194,23 +194,15 @@ def config_selector(conf: dict, title: str):
 
         while True:
             stdscr.clear()
-
-            # Calculate the window size
             height, width = stdscr.getmaxyx()
-
-            # Create a window box around the content
             stdscr.box()
-
-            # Title
             stdscr.addstr(0, (width - len(title)) // 2, title, curses.A_BOLD)
 
-            # Instructions
             instructions = "Use UP/DOWN to navigate, SPACE to toggle, ENTER to confirm."
             stdscr.addstr(
                 2, (width - len(instructions)) // 2, instructions, curses.A_DIM
             )
 
-            # Display the items and their selection status
             for idx, item in enumerate(items):
                 indicator = "[x]" if selections[item] else "[ ]"
                 line_text = f"  {item} {indicator}"
@@ -223,10 +215,8 @@ def config_selector(conf: dict, title: str):
                 else:
                     stdscr.addstr(4 + idx, x_pos, line_text)
 
-            # Refresh the screen to display updates
             stdscr.refresh()
 
-            # Handle user input
             key = stdscr.getch()
             if key == curses.KEY_UP:
                 current_index = (current_index - 1) % len(items)
@@ -237,7 +227,6 @@ def config_selector(conf: dict, title: str):
             elif key == ord("\n"):  # Exit with Enter key
                 break
 
-        # Return the updated selections
         return selections
 
     return curses.wrapper(curses_selector)
