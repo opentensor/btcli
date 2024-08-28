@@ -324,7 +324,9 @@ class CLIManager:
 
         # stake-children commands
         children_app = typer.Typer()
-        self.stake_app.add_typer(children_app, name="child", short_help="Child Hotkey commands")
+        self.stake_app.add_typer(
+            children_app, name="child", short_help="Child Hotkey commands"
+        )
 
         children_app.command("get")(self.stake_get_children)
         children_app.command("set")(self.stake_set_children)
@@ -2821,7 +2823,7 @@ class CLIManager:
                 children,
                 proportions,
                 wait_for_finalization,
-                wait_for_inclusion
+                wait_for_inclusion,
             )
         )
 
@@ -2872,22 +2874,22 @@ class CLIManager:
         )
 
     def stake_childkey_take(
-            self,
-            wallet_name: Optional[str] = Options.wallet_name,
-            wallet_hotkey: Optional[str] = Options.wallet_hk_req,
-            wallet_path: Optional[str] = Options.wallet_path,
-            network: Optional[str] = Options.network,
-            chain: Optional[str] = Options.chain,
-            netuid: int = Options.netuid,
-            wait_for_inclusion: bool = True,
-            wait_for_finalization: bool = True,
-            take: Optional[float] = typer.Option(
-                None,
-                "--take",
-                "-t",
-                help="Enter take for your child hotkey",
-                prompt=False,
-            ),
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        wallet_path: Optional[str] = Options.wallet_path,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        netuid: int = Options.netuid,
+        wait_for_inclusion: bool = True,
+        wait_for_finalization: bool = True,
+        take: Optional[float] = typer.Option(
+            None,
+            "--take",
+            "-t",
+            help="Enter take for your child hotkey",
+            prompt=False,
+        ),
     ):
         """
         # stake childkey-take
