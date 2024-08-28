@@ -7,15 +7,14 @@ from typing import TYPE_CHECKING, Optional, cast
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm
 from rich.table import Table, Column
-
-from src import Constants, DelegatesDetails
-from src.bittensor.balances import Balance
-from src.bittensor.chain_data import SubnetInfo
-from src.bittensor.extrinsics.registration import register_extrinsic
-from src.bittensor.minigraph import MiniGraph
-from src.commands.root import burned_register_extrinsic
-from src.commands.wallets import set_id, set_id_prompts
-from src.utils import (
+from bittensor_cli.src import Constants, DelegatesDetails
+from bittensor_cli.src.bittensor.balances import Balance
+from bittensor_cli.src.bittensor.chain_data import SubnetInfo
+from bittensor_cli.src.bittensor.extrinsics.registration import register_extrinsic
+from bittensor_cli.src.bittensor.minigraph import MiniGraph
+from bittensor_cli.src.commands.root import burned_register_extrinsic
+from bittensor_cli.src.commands.wallets import set_id, set_id_prompts
+from bittensor_cli.src.utils import (
     RAO_PER_TAO,
     console,
     create_table,
@@ -29,7 +28,7 @@ from src.utils import (
 )
 
 if TYPE_CHECKING:
-    from src.subtensor_interface import SubtensorInterface
+    from bittensor_cli.src.subtensor_interface import SubtensorInterface
 
 
 # helpers and extrinsics

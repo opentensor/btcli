@@ -10,11 +10,11 @@ from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
 from substrateinterface.exceptions import SubstrateRequestException
 
-from src.bittensor.async_substrate_interface import (
+from bittensor_cli.src.bittensor.async_substrate_interface import (
     AsyncSubstrateInterface,
     TimeoutException,
 )
-from src.bittensor.chain_data import (
+from bittensor_cli.src.bittensor.chain_data import (
     DelegateInfo,
     custom_rpc_type_registry,
     StakeInfo,
@@ -22,9 +22,9 @@ from src.bittensor.chain_data import (
     NeuronInfo,
     SubnetHyperparameters,
 )
-from src.bittensor.balances import Balance
-from src import Constants, defaults, TYPE_REGISTRY
-from src.utils import ss58_to_vec_u8, format_error_message, console, err_console
+from bittensor_cli.src.bittensor.balances import Balance
+from bittensor_cli.src import Constants, defaults, TYPE_REGISTRY
+from bittensor_cli.src.utils import ss58_to_vec_u8, format_error_message, console, err_console
 
 
 class ParamWithTypes(TypedDict):

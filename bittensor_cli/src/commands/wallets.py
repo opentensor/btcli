@@ -19,15 +19,15 @@ import scalecodec
 import typer
 from scalecodec import ScaleBytes
 
-from src import utils, TYPE_REGISTRY, DelegatesDetails, Constants
-from src.bittensor.chain_data import (
+from bittensor_cli.src import utils, TYPE_REGISTRY, DelegatesDetails, Constants
+from bittensor_cli.src.bittensor.chain_data import (
     NeuronInfoLite,
     custom_rpc_type_registry,
     StakeInfo,
     DelegateInfo,
 )
-from src.bittensor.networking import int_to_ip
-from src.utils import (
+from bittensor_cli.src.bittensor.networking import int_to_ip
+from bittensor_cli.src.utils import (
     console,
     err_console,
     RAO_PER_TAO,
@@ -37,10 +37,10 @@ from src.utils import (
     get_delegates_details_from_github,
     convert_blocks_to_time,
 )
-from src.subtensor_interface import SubtensorInterface
-from src.bittensor.balances import Balance
-from src.bittensor.extrinsics.transfer import transfer_extrinsic
-from src.bittensor.extrinsics.registration import (
+from bittensor_cli.src.subtensor_interface import SubtensorInterface
+from bittensor_cli.src.bittensor.balances import Balance
+from bittensor_cli.src.bittensor.extrinsics.transfer import transfer_extrinsic
+from bittensor_cli.src.bittensor.extrinsics.registration import (
     run_faucet_extrinsic,
     swap_hotkey_extrinsic,
 )

@@ -17,11 +17,11 @@ from numpy.typing import NDArray
 from rich.console import Console
 from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
-from src import DelegatesDetails
-from src.bittensor.balances import Balance
+from bittensor_cli.src import DelegatesDetails
+from bittensor_cli.src.bittensor.balances import Balance
 
 if TYPE_CHECKING:
-    from src.bittensor.chain_data import SubnetHyperparameters
+    from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
 
 console = Console()
 err_console = Console(stderr=True)

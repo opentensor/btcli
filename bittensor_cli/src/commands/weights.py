@@ -8,14 +8,14 @@ import numpy as np
 from numpy.typing import NDArray
 from rich.prompt import Confirm
 
-from src.utils import err_console, console, format_error_message
-from src.bittensor.extrinsics.root import (
+from bittensor_cli.src.utils import err_console, console, format_error_message
+from bittensor_cli.src.bittensor.extrinsics.root import (
     convert_weights_and_uids_for_emit,
     generate_weight_hash,
 )
 
 if TYPE_CHECKING:
-    from src.subtensor_interface import SubtensorInterface
+    from bittensor_cli.src.subtensor_interface import SubtensorInterface
 
 
 # helpers and extrinsics

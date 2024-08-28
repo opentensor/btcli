@@ -11,12 +11,12 @@ from bittensor_wallet import Wallet
 from git import Repo
 from rich.prompt import Confirm, FloatPrompt, Prompt
 from rich.table import Column, Table
-from src import HYPERPARAMS, defaults, utils
-from src.bittensor.async_substrate_interface import SubstrateRequestException
-from src.commands import root, stake, subnets, sudo, wallets
-from src.commands import weights as weights_cmds
-from src.subtensor_interface import SubtensorInterface
-from src.utils import console, err_console, is_valid_ss58_address
+from .src import HYPERPARAMS, defaults, utils
+from .src.bittensor.async_substrate_interface import SubstrateRequestException
+from .src.commands import root, stake, subnets, sudo, wallets
+from .src.commands import weights as weights_cmds
+from .src.subtensor_interface import SubtensorInterface
+from .src.utils import console, err_console, is_valid_ss58_address
 from typing_extensions import Annotated
 from websockets import ConnectionClosed
 from yaml import safe_dump, safe_load
@@ -238,7 +238,7 @@ def version_callback(value: bool):
     """
     if value:
         typer.echo(
-            f"BTCLI Version: {__version__}/{Repo(os.path.dirname(__file__)).active_branch.name}"
+            f"BTCLI Version: {__version__}/{Repo(os.path.dirname(os.path.dirname(__file__))).active_branch.name}"
         )
         raise typer.Exit()
 

@@ -11,7 +11,7 @@ from bittensor_wallet import Wallet
 from substrateinterface import Keypair
 from typer.testing import CliRunner
 
-from btcli.cli import CLIManager
+from bittensor_cli.cli import CLIManager
 
 template_path = os.getcwd() + "/neurons/"
 templates_repo = "templates repository"

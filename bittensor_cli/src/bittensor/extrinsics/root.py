@@ -27,12 +27,12 @@ from rich.prompt import Confirm
 from scalecodec import ScaleBytes, U16, Vec
 from substrateinterface import Keypair
 
-from src.subtensor_interface import SubtensorInterface
-from src.bittensor.extrinsics.registration import is_hotkey_registered
-from src.utils import console, err_console, u16_normalized_float
+from bittensor_cli.src.subtensor_interface import SubtensorInterface
+from bittensor_cli.src.bittensor.extrinsics.registration import is_hotkey_registered
+from bittensor_cli.src.utils import console, err_console, u16_normalized_float
 
 if TYPE_CHECKING:
-    from src.bittensor.minigraph import MiniGraph
+    from bittensor_cli.src.bittensor.minigraph import MiniGraph
 
 U32_MAX = 4294967295
 U16_MAX = 65535
