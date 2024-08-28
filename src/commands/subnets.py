@@ -558,6 +558,8 @@ async def metagraph_cmd(
             "net": f"{subtensor.network}:{metagraph.netuid}",
             "block": str(metagraph.block.item()),
             "N": f"{sum(metagraph.active.tolist())}/{metagraph.n.item()}",
+            "N0": str(sum(metagraph.active.tolist())),
+            "N1": str(metagraph.n.item()),
             "issuance": str(total_issuance),
             "difficulty": str(difficulty),
             "total_neurons": str(len(metagraph.uids)),
@@ -670,137 +672,145 @@ async def metagraph_cmd(
             )
             return
     else:
-        total_neurons = len(metagraph.uids)
         table_width = console.width - 20
         cols: dict[str, tuple[int, Column]] = {
             "UID": (
                 0,
                 Column(
-            "[bold white]UID",
-            footer=f"[white]{total_neurons}[/white]",
-            style="white",
-            justify="center",
-        )
+                    "[bold white]UID",
+                    footer=f"[white]{metadata_info['total_neurons']}[/white]",
+                    style="white",
+                    justify="center",
+                ),
             ),
             "STAKE": (
                 1,
                 Column(
-            "[bold white]STAKE(\u03c4)",
-            footer=f"\u03c4{total_stake:.5f}",
-            style="bright_cyan",
-            justify="right",
-            no_wrap=True,
-        )
+                    "[bold white]STAKE(\u03c4)",
+                    footer=metadata_info["total_stake"],
+                    style="bright_cyan",
+                    justify="right",
+                    no_wrap=True,
+                ),
             ),
             "RANK": (
                 2,
                 Column(
-            "[bold white]RANK",
-            footer=f"{total_rank:.5f}",
-            style="medium_purple",
-            justify="right",
-            no_wrap=True,
-        )
+                    "[bold white]RANK",
+                    footer=metadata_info["rank"],
+                    style="medium_purple",
+                    justify="right",
+                    no_wrap=True,
+                ),
             ),
             "TRUST": (
                 3,
                 Column(
-            "[bold white]TRUST",
-            footer=f"{total_trust:.5f}",
-            style="dark_sea_green",
-            justify="right",
-            no_wrap=True,
-        )
+                    "[bold white]TRUST",
+                    footer=metadata_info["trust"],
+                    style="dark_sea_green",
+                    justify="right",
+                    no_wrap=True,
+                ),
             ),
             "CONSENSUS": (
                 4,
                 Column(
-            "[bold white]CONSENSUS",
-            footer=f"{total_consensus:.5f}",
-            style="rgb(42,161,152)",
-            justify="right",
-            no_wrap=True,
-        )
+                    "[bold white]CONSENSUS",
+                    footer=metadata_info["consensus"],
+                    style="rgb(42,161,152)",
+                    justify="right",
+                    no_wrap=True,
+                ),
             ),
             "INCENTIVE": (
                 5,
                 Column(
-            "[bold white]INCENTIVE",
-            footer=f"{total_incentive:.5f}",
-            style="#5fd7ff",
-            justify="right",
-            no_wrap=True,
-        )
+                    "[bold white]INCENTIVE",
+                    footer=metadata_info["incentive"],
+                    style="#5fd7ff",
+                    justify="right",
+                    no_wrap=True,
+                ),
             ),
             "DIVIDENDS": (
                 6,
                 Column(
-            "[bold white]DIVIDENDS",
-            footer=f"{total_dividends:.5f}",
-            style="#8787d7",
-            justify="right",
-            no_wrap=True,
-        )
+                    "[bold white]DIVIDENDS",
+                    footer=metadata_info["dividends"],
+                    style="#8787d7",
+                    justify="right",
+                    no_wrap=True,
+                ),
             ),
             "EMISSION": (
                 7,
                 Column(
-            "[bold white]EMISSION(\u03c1)",
-            footer=f"\u03c1{total_emission}",
-            style="#d7d7ff",
-            justify="right",
-            no_wrap=True,
-        ),
+                    "[bold white]EMISSION(\u03c1)",
+                    footer=metadata_info["emission"],
+                    style="#d7d7ff",
+                    justify="right",
+                    no_wrap=True,
+                ),
             ),
             "VTRUST": (
                 8,
                 Column(
-            "[bold white]VTRUST",
-            footer=f"{total_validator_trust:.5f}",
-            style="magenta",
-            justify="right",
-            no_wrap=True,
-        ),
+                    "[bold white]VTRUST",
+                    footer=metadata_info["validator_trust"],
+                    style="magenta",
+                    justify="right",
+                    no_wrap=True,
+                ),
             ),
             "VAL": (
                 9,
                 Column(
-            "[bold white]VAL", justify="center", style="bright_white", no_wrap=True
-        )
+                    "[bold white]VAL",
+                    justify="center",
+                    style="bright_white",
+                    no_wrap=True,
+                ),
             ),
             "UPDATED": (
                 10,
-                ("[bold white]UPDATED", justify="right", no_wrap=True)
+                Column("[bold white]UPDATED", justify="right", no_wrap=True),
             ),
             "ACTIVE": (
                 11,
                 Column(
-            "[bold white]ACTIVE", justify="center", style="#8787ff", no_wrap=True
-        )
+                    "[bold white]ACTIVE",
+                    justify="center",
+                    style="#8787ff",
+                    no_wrap=True,
+                ),
             ),
             "AXON": (
                 12,
                 Column(
-            "[bold white]AXON", justify="left", style="dark_orange", no_wrap=True
-        )
+                    "[bold white]AXON",
+                    justify="left",
+                    style="dark_orange",
+                    no_wrap=True,
+                ),
             ),
             "HOTKEY": (
                 13,
                 Column(
-            "[bold white]HOTKEY",
-            justify="center",
-            style="bright_magenta",
-            no_wrap=False,
-        )
+                    "[bold white]HOTKEY",
+                    justify="center",
+                    style="bright_magenta",
+                    no_wrap=False,
+                ),
             ),
             "COLDKEY": (
                 14,
                 Column(
-            "[bold white]COLDKEY",
-            justify="center",
-            style="bright_magenta",
-            no_wrap=False,
-        )
+                    "[bold white]COLDKEY",
+                    justify="center",
+                    style="bright_magenta",
+                    no_wrap=False,
+                ),
             ),
         }
         table_cols: list[Column] = []
@@ -821,14 +831,14 @@ async def metagraph_cmd(
             title_justify="center",
             show_lines=False,
             expand=True,
-            title = (
+            title=(
                 f"[white]Metagraph - "
-                f"Net: [bright_cyan]{subtensor.network}: {metagraph.netuid}[/bright_cyan], "
-                f"Block: [sea_green2]{metagraph.block.item()}[/sea_green2], "
-                f"N: [bright_green]{sum(metagraph.active.tolist())}[/bright_green]/[bright_red]{metagraph.n.item()}[/bright_red], "
-                f"Stake: [dark_orange]{Balance.from_tao(total_stake)}[/dark_orange], "
-                f"Issuance: [bright_blue]{total_issuance}[/bright_blue], "
-                f"Difficulty: [bright_cyan]{difficulty}[/bright_cyan]\n"
+                f"Net: [bright_cyan]{metadata_info['net']}[/bright_cyan], "
+                f"Block: [sea_green2]{metadata_info['block']}[/sea_green2], "
+                f"N: [bright_green]{metadata_info['N0']}[/bright_green]/[bright_red]{metadata_info['N1']}[/bright_red], "
+                f"Stake: [dark_orange]{metadata_info['stake']}[/dark_orange], "
+                f"Issuance: [bright_blue]{metadata_info['issuance']}[/bright_blue], "
+                f"Difficulty: [bright_cyan]{metadata_info['difficulty']}[/bright_cyan]\n"
             ),
             width=table_width,
             pad_edge=True,
