@@ -2,7 +2,7 @@
 import asyncio
 import os.path
 import re
-from typing import Optional, Coroutine, cast
+from typing import Optional, Coroutine
 
 from bittensor_wallet import Wallet
 from git import Repo
@@ -14,11 +14,12 @@ from typing_extensions import Annotated
 from websockets import ConnectionClosed
 from yaml import safe_load, safe_dump
 
-from src import defaults, utils, HYPERPARAMS
-from src.commands import wallets, root, stake, sudo, subnets, weights as weights_cmds
-from src.subtensor_interface import SubtensorInterface
-from src.bittensor.async_substrate_interface import SubstrateRequestException
-from src.utils import console, err_console
+from bittensor_cli.src import defaults, utils, HYPERPARAMS
+from bittensor_cli.src.commands import stake, subnets, weights as weights_cmds
+from bittensor_cli.src.commands import root, wallets, sudo
+from bittensor_cli.src.subtensor_interface import SubtensorInterface
+from bittensor_cli.src.bittensor.async_substrate_interface import SubstrateRequestException
+from bittensor_cli.src.utils import console, err_console
 
 __version__ = "8.0.0"
 

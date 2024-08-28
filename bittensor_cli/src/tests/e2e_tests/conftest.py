@@ -8,7 +8,7 @@ import time
 
 import pytest
 
-from src.bittensor.async_substrate_interface import AsyncSubstrateInterface
+from bittensor_cli.src.bittensor.async_substrate_interface import AsyncSubstrateInterface
 
 from .utils import (
     clone_or_update_templates,

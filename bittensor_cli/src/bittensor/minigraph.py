@@ -3,9 +3,9 @@ import asyncio
 import numpy as np
 from numpy.typing import NDArray
 
-from src.bittensor.chain_data import NeuronInfo
-from src.subtensor_interface import SubtensorInterface
-from src.utils import (
+from bittensor_cli.src.bittensor.chain_data import NeuronInfo
+from bittensor_cli.src.subtensor_interface import SubtensorInterface
+from bittensor_cli.src.utils import (
     convert_root_weight_uids_and_vals_to_tensor,
     convert_weight_uids_and_vals_to_tensor,
     convert_bond_uids_and_vals_to_tensor,

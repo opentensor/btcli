@@ -11,23 +11,23 @@ from rich.text import Text
 from scalecodec import ScaleType, GenericCall
 from substrateinterface.exceptions import SubstrateRequestException
 
-from src import DelegatesDetails
-from src.bittensor.balances import Balance
-from src.bittensor.chain_data import NeuronInfoLite, DelegateInfo
-from src.bittensor.extrinsics.root import (
+from bittensor_cli.src import DelegatesDetails
+from bittensor_cli.src.bittensor.balances import Balance
+from bittensor_cli.src.bittensor.chain_data import NeuronInfoLite, DelegateInfo
+from bittensor_cli.src.bittensor.extrinsics.root import (
     set_root_weights_extrinsic,
     root_register_extrinsic,
 )
-from src.commands.wallets import get_coldkey_wallets_for_path, set_id, set_id_prompts
-from src.subtensor_interface import SubtensorInterface
-from src.utils import (
+from bittensor_cli.src.commands.wallets import get_coldkey_wallets_for_path, set_id, set_id_prompts
+from bittensor_cli.src.subtensor_interface import SubtensorInterface
+from bittensor_cli.src.utils import (
     console,
     err_console,
     get_delegates_details_from_github,
     convert_weight_uids_and_vals_to_tensor,
     ss58_to_vec_u8,
 )
-from src import Constants
+from bittensor_cli.src import Constants
 
 
 # helpers

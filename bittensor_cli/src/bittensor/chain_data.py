@@ -7,10 +7,10 @@ from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
 from scalecodec.utils.ss58 import ss58_encode
 
-from src.bittensor.balances import Balance
-from src.bittensor.extrinsics.registration import use_torch, torch
-from src.bittensor.networking import int_to_ip
-from src.utils import SS58_FORMAT, u16_normalized_float, RAO_PER_TAO
+from bittensor_cli.src.bittensor.balances import Balance
+from bittensor_cli.src.bittensor.extrinsics.registration import use_torch, torch
+from bittensor_cli.src.bittensor.networking import int_to_ip
+from bittensor_cli.src.utils import SS58_FORMAT, u16_normalized_float, RAO_PER_TAO
 
 
 class ChainDataType(Enum):

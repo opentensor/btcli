@@ -3,19 +3,17 @@ import copy
 import json
 import sqlite3
 from contextlib import suppress
-from math import floor
 from typing import TYPE_CHECKING, Union, Optional, Sequence, cast
 
-from ansible_collections.amazon.aws.plugins.modules.ec2_instance import module
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm, Prompt
 from rich.table import Table, Column
 from rich.text import Text
 from substrateinterface.exceptions import SubstrateRequestException
 
-from src import Constants
-from src.bittensor.balances import Balance
-from src.utils import (
+from bittensor_cli.src import Constants
+from bittensor_cli.src.bittensor.balances import Balance
+from bittensor_cli.src.utils import (
     get_delegates_details_from_github,
     get_hotkey_wallets_for_wallet,
     get_coldkey_wallets_for_path,
@@ -34,7 +32,7 @@ from src.utils import (
 )
 
 if TYPE_CHECKING:
-    from src.subtensor_interface import SubtensorInterface
+    from bittensor_cli.src.subtensor_interface import SubtensorInterface
 
 
 # Helpers and Extrinsics

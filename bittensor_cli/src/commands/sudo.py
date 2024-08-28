@@ -4,11 +4,11 @@ from typing import TYPE_CHECKING, Union
 from bittensor_wallet import Wallet
 from rich.table import Table, Column
 
-from src import HYPERPARAMS
-from src.utils import console, err_console, normalize_hyperparameters
+from bittensor_cli.src import HYPERPARAMS
+from bittensor_cli.src.utils import console, err_console, normalize_hyperparameters
 
 if TYPE_CHECKING:
-    from src.subtensor_interface import SubtensorInterface
+    from bittensor_cli.src.subtensor_interface import SubtensorInterface
 
 
 # helpers and extrinsics

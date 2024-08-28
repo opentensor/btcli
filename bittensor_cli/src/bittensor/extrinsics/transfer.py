@@ -3,10 +3,10 @@ import asyncio
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm
 
-from src import NETWORK_EXPLORER_MAP
-from src.subtensor_interface import SubtensorInterface
-from src.bittensor.balances import Balance
-from src.utils import (
+from bittensor_cli.src import NETWORK_EXPLORER_MAP
+from bittensor_cli.src.subtensor_interface import SubtensorInterface
+from bittensor_cli.src.bittensor.balances import Balance
+from bittensor_cli.src.utils import (
     console,
     err_console,
     is_valid_bittensor_address_or_public_key,
