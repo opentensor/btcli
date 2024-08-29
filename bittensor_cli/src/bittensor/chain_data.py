@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Any, Union
+import warnings
 
 import bt_decode
 import netaddr
@@ -383,7 +384,11 @@ class NeuronInfo:
 
     @classmethod
     def from_vec_u8(cls, vec_u8: list[int]) -> "NeuronInfo":
-        """Returns a NeuronInfo object from a ``vec_u8``."""
+        """
+        DEPRECATED
+        Returns a NeuronInfo object from a ``vec_u8``.
+        """
+        warnings.warn("This is deprecated. Use the list_from_vec_u8_new method")
         if len(vec_u8) == 0:
             return NeuronInfo.get_null_neuron()
 
@@ -546,8 +551,11 @@ class NeuronInfoLite:
 
     @classmethod
     def list_from_vec_u8(cls, vec_u8: list[int]) -> list["NeuronInfoLite"]:
-        """Returns a list of NeuronInfoLite objects from a ``vec_u8``."""
-
+        """
+        DEPRECATED
+        Returns a list of NeuronInfoLite objects from a ``vec_u8``.
+        """
+        warnings.warn("This is deprecated. Use the list_from_vec_u8_new method")
         decoded_list = from_scale_encoding(
             vec_u8, ChainDataType.NeuronInfoLite, is_vec=True
         )
