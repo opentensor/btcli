@@ -1231,22 +1231,23 @@ async def inspect(
             console.print(
                 ":warning:[yellow]Could not get delegate info from chain.[/yellow]"
             )
-
+    table_width = console.width - 20
     table = Table(
-        Column("[overline white]Coldkey", style="bold white"),
-        Column("[overline white]Balance", style="green"),
-        Column("[overline white]Delegate", style="blue"),
-        Column("[overline white]Stake", style="green"),
-        Column("[overline white]Emission", style="green"),
-        Column("[overline white]Netuid", style="bold white"),
-        Column("[overline white]Hotkey", style="yellow"),
-        Column("[overline white]Stake", style="green"),
-        Column("[overline white]Emission", style="green"),
+        Column("[bold white]Coldkey", style="dark_orange"),
+        Column("[bold white]Balance", style="dark_sea_green"),
+        Column("[bold white]Delegate", style="bright_cyan"),
+        Column("[bold white]Stake", style="light_goldenrod2"),
+        Column("[bold white]Emission", style="rgb(42,161,152)"),
+        Column("[bold white]Netuid", style="dark_orange"),
+        Column("[bold white]Hotkey", style="bright_magenta"),
+        Column("[bold white]Stake", style="light_goldenrod2"),
+        Column("[bold white]Emission", style="rgb(42,161,152)"),
+        title="[dark_orange]Wallets\n",
         show_footer=True,
-        pad_edge=False,
-        box=None,
+        show_edge=False,
         expand=True,
-        footer_style="overline white",
+        width=table_width,
+        border_style="bright_black",
     )
     rows = []
     wallets_with_ckp_file = [

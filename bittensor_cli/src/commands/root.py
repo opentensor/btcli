@@ -1,6 +1,6 @@
 import asyncio
 from typing import TypedDict, Optional
-
+from rich import box
 import numpy as np
 from numpy.typing import NDArray
 import typer
@@ -18,7 +18,11 @@ from bittensor_cli.src.bittensor.extrinsics.root import (
     set_root_weights_extrinsic,
     root_register_extrinsic,
 )
-from bittensor_cli.src.commands.wallets import get_coldkey_wallets_for_path, set_id, set_id_prompts
+from bittensor_cli.src.commands.wallets import (
+    get_coldkey_wallets_for_path,
+    set_id,
+    set_id_prompts,
+)
 from bittensor_cli.src.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.utils import (
     console,
@@ -734,41 +738,36 @@ async def root_list(subtensor: SubtensorInterface):
 
     table = Table(
         Column(
-            "[overline white]UID",
-            footer_style="overline white",
-            style="rgb(50,163,219)",
+            "[bold white]UID",
+            style="dark_orange",
             no_wrap=True,
         ),
         Column(
-            "[overline white]NAME",
-            footer_style="overline white",
-            style="rgb(50,163,219)",
+            "[bold white]NAME",
+            style="bright_cyan",
             no_wrap=True,
         ),
         Column(
-            "[overline white]ADDRESS",
-            footer_style="overline white",
-            style="yellow",
+            "[bold white]ADDRESS",
+            style="bright_magenta",
             no_wrap=True,
         ),
         Column(
-            "[overline white]STAKE(\u03c4)",
-            footer_style="overline white",
+            "[bold white]STAKE(\u03c4)",
             justify="right",
-            style="green",
+            style="light_goldenrod2",
             no_wrap=True,
         ),
         Column(
-            "[overline white]SENATOR",
-            footer_style="overline white",
-            style="green",
+            "[bold white]SENATOR",
+            style="dark_sea_green",
             no_wrap=True,
         ),
-        title="[white]Root Network",
+        title="[dark_orange]Root Network",
         show_footer=True,
-        box=None,
-        pad_edge=False,
-        width=None,
+        show_edge=False,
+        expand=False,
+        border_style="bright_black",
     )
     with console.status(
         f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
@@ -1020,22 +1019,20 @@ async def get_senate(subtensor: SubtensorInterface):
 
     table = Table(
         Column(
-            "[overline white]NAME",
-            footer_style="overline white",
-            style="rgb(50,163,219)",
+            "[bold white]NAME",
+            style="bright_cyan",
             no_wrap=True,
         ),
         Column(
-            "[overline white]ADDRESS",
-            footer_style="overline white",
-            style="yellow",
+            "[bold white]ADDRESS",
+            style="bright_magenta",
             no_wrap=True,
         ),
-        title="[white]Senate",
+        title="[dark_orange]Senate",
         show_footer=True,
-        box=None,
-        pad_edge=False,
-        width=None,
+        show_edge=False,
+        expand=False,
+        border_style="bright_black",
     )
 
     for ss58_address in senate_members:
@@ -1268,44 +1265,45 @@ async def my_delegates(
     wallets = get_coldkey_wallets_for_path(wallet.path) if all_wallets else [wallet]
 
     table = Table(
+        Column("[white]Wallet", style="bright_magenta"),
         Column(
-            "[overline white]Wallet", footer_style="overline white", style="bold white"
-        ),
-        Column(
-            "[overline white]OWNER",
-            style="rgb(50,163,219)",
+            "[white]OWNER",
+            style="bold bright_cyan",
             no_wrap=True,
             justify="left",
         ),
+        Column("[white]SS58", style="#d7d7ff", justify="center"),
         Column(
-            "[overline white]SS58", footer_style="overline white", style="bold yellow"
+            "[white]Delegation",
+            style="dark_orange",
         ),
         Column(
-            "[overline green]Delegation",
-            footer_style="overline green",
+            "[white]\u03c4/24h",
             style="bold green",
         ),
+        Column("[white]NOMS", justify="center", style="rgb(42,161,152)", no_wrap=True),
         Column(
-            "[overline green]\u03c4/24h",
-            footer_style="overline green",
-            style="bold green",
-        ),
-        Column("[overline white]NOMS", justify="center", style="green", no_wrap=True),
-        Column("[overline white]OWNER STAKE(\u03c4)", justify="right", no_wrap=True),
-        Column(
-            "[overline white]TOTAL STAKE(\u03c4)",
+            "[white]OWNER STAKE(\u03c4)",
             justify="right",
-            style="green",
+            style="light_goldenrod2",
             no_wrap=True,
         ),
-        Column("[overline white]SUBNETS", justify="right", style="white", no_wrap=True),
-        Column("[overline white]VPERMIT", justify="right", no_wrap=True),
-        Column("[overline white]24h/k\u03c4", style="green", justify="center"),
-        Column("[overline white]Desc", style="rgb(50,163,219)"),
+        Column(
+            "[white]TOTAL STAKE(\u03c4)",
+            justify="right",
+            style="light_goldenrod2",
+            no_wrap=True,
+        ),
+        Column("[white]SUBNETS", justify="right", style="white", no_wrap=True),
+        Column("[white]VPERMIT", justify="right", no_wrap=True),
+        Column("[white]24h/k\u03c4", style="rgb(42,161,152)", justify="center"),
+        Column("[white]Desc", style="rgb(50,163,219)"),
+        title="[dark_orange]My Delegates\n",
         show_footer=True,
-        pad_edge=False,
-        box=None,
-        expand=True,
+        show_edge=False,
+        expand=False,
+        box=box.SIMPLE_HEAVY,
+        border_style="bright_black",
     )
 
     total_delegated = 0
@@ -1366,7 +1364,7 @@ async def my_delegates(
                 table.add_row(
                     wall.name,
                     Text(delegate_name, style=f"link {delegate_url}"),
-                    f"{delegate[0].hotkey_ss58:8.8}...",
+                    f"{delegate[0].hotkey_ss58}",
                     f"{my_delegates_[delegate[0].hotkey_ss58]!s:13.13}",
                     f"{twenty_four_hour!s:6.6}",
                     str(len(delegate[0].nominators)),
@@ -1399,14 +1397,15 @@ async def list_delegates(subtensor: SubtensorInterface):
         delegates: list[DelegateInfo] = await subtensor.get_delegates(
             block_hash=block_hash
         )
+        prev_delegates = None
 
-        try:
-            prev_block_hash = await subtensor.substrate.get_block_hash(
-                max(0, block_number - 1200)
-            )
-            prev_delegates = await subtensor.get_delegates(block_hash=prev_block_hash)
-        except SubstrateRequestException:
-            prev_delegates = None
+        # try:
+        #     prev_block_hash = await subtensor.substrate.get_block_hash(
+        #         max(0, block_number - 1200)
+        #     )
+        #     prev_delegates = await subtensor.get_delegates(block_hash=prev_block_hash)
+        # except SubstrateRequestException:
+        #     prev_delegates = None
 
     if prev_delegates is None:
         err_console.print(
@@ -1426,46 +1425,54 @@ async def list_delegates(subtensor: SubtensorInterface):
 
     table = Table(
         Column(
-            "[overline white]INDEX",
+            "[white]INDEX",
             str(len(delegates)),
             footer_style="overline white",
             style="bold white",
         ),
         Column(
-            "[overline white]DELEGATE",
-            style="rgb(50,163,219)",
+            "[white]DELEGATE",
+            style="bold bright_cyan",
             no_wrap=True,
             justify="left",
         ),
         Column(
-            "[overline white]SS58",
+            "[white]SS58",
             str(len(delegates)),
             footer_style="overline white",
-            style="bold yellow",
+            style="bright_magenta",
         ),
         Column(
-            "[overline white]NOMINATORS", justify="center", style="green", no_wrap=True
+            "[white]NOMINATORS", justify="center", style="dark_sea_green", no_wrap=True
         ),
-        Column("[overline white]DELEGATE STAKE(\u03c4)", justify="right", no_wrap=True),
         Column(
-            "[overline white]TOTAL STAKE(\u03c4)",
+            "[white]DELEGATE STAKE(\u03c4)",
             justify="right",
-            style="green",
+            style="orange1",
             no_wrap=True,
         ),
-        Column("[overline white]CHANGE/(4h)", style="grey0", justify="center"),
-        Column("[overline white]VPERMIT", justify="right", no_wrap=False),
-        Column("[overline white]TAKE", style="white", no_wrap=True),
         Column(
-            "[overline white]NOMINATOR/(24h)/k\u03c4", style="green", justify="center"
+            "[white]TOTAL STAKE(\u03c4)",
+            justify="right",
+            style="light_goldenrod2",
+            no_wrap=True,
         ),
-        Column("[overline white]DELEGATE/(24h)", style="green", justify="center"),
-        Column("[overline white]Desc", style="rgb(50,163,219)"),
+        Column("[white]CHANGE/(4h)", style="grey0", justify="center"),
+        Column("[white]VPERMIT", justify="right", no_wrap=False),
+        Column("[white]TAKE", style="white", no_wrap=True),
+        Column(
+            "[white]NOMINATOR/(24h)/k\u03c4", style="rgb(42,161,152)", justify="center"
+        ),
+        Column("[white]DELEGATE/(24h)", style="rgb(42,161,152)", justify="center"),
+        Column("[white]Desc", style="rgb(50,163,219)"),
+        title="[dark_orange]Root Delegates",
         show_footer=True,
         width=None,
         pad_edge=False,
-        box=None,
+        box=box.SIMPLE_HEAVY,
         expand=True,
+        show_edge=False,
+        border_style="bright_black",
     )
 
     for i, delegate in enumerate(delegates):
