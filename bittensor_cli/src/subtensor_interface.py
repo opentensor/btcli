@@ -599,7 +599,7 @@ class SubtensorInterface:
         except ValueError:
             bytes_result = bytes.fromhex(hex_bytes_result)
 
-        return NeuronInfoLite.list_from_vec_u8_new(bytes_result)  # type: ignore
+        return NeuronInfoLite.list_from_vec_u8_new(bytes_result)
 
     async def neuron_for_uid(
         self, uid: Optional[int], netuid: int, block_hash: Optional[str] = None
@@ -631,7 +631,8 @@ class SubtensorInterface:
         if not (result := json_body.get("result", None)):
             return NeuronInfo.get_null_neuron()
 
-        return NeuronInfo.from_vec_u8(result)
+        bytes_result = bytes(result)
+        return NeuronInfo.from_vec_u8_new(bytes_result)
 
     async def get_delegated(
         self,

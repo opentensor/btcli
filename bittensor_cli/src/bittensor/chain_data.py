@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Optional, Any, Union
 
 import bt_decode
+import netaddr
 from scalecodec import ScaleBytes
 from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
@@ -76,6 +77,19 @@ def from_scale_encoding_using_type_string(
     obj = rpc_runtime_config.create_scale_object(type_string, data=as_scale_bytes)
 
     return obj.decode()
+
+
+def decode_account_id(account_id_bytes):
+    # Convert the AccountId bytes to a Base64 string
+    return ss58_encode(bytes(account_id_bytes).hex(), SS58_FORMAT)
+
+
+def process_stake_data(stake_data):
+    decoded_stake_data = {}
+    for account_id_bytes, stake_ in stake_data:
+        account_id = decode_account_id(account_id_bytes)
+        decoded_stake_data.update({account_id: Balance.from_rao(stake_)})
+    return decoded_stake_data
 
 
 @dataclass
@@ -266,6 +280,24 @@ class StakeInfo:
 
 
 @dataclass
+class PrometheusInfo:
+    """Dataclass for prometheus info."""
+
+    block: int
+    version: int
+    ip: str
+    port: int
+    ip_type: int
+
+    @classmethod
+    def fix_decoded_values(cls, prometheus_info_decoded: dict) -> "PrometheusInfo":
+        """Returns a PrometheusInfo object from a prometheus_info_decoded dictionary."""
+        prometheus_info_decoded["ip"] = int_to_ip(int(prometheus_info_decoded["ip"]))
+
+        return cls(**prometheus_info_decoded)
+
+
+@dataclass
 class NeuronInfo:
     """Dataclass for neuron metadata."""
 
@@ -360,6 +392,56 @@ class NeuronInfo:
             return NeuronInfo.get_null_neuron()
 
         return NeuronInfo.fix_decoded_values(decoded)
+
+    @classmethod
+    def from_vec_u8_new(cls, vec_u8: bytes) -> "NeuronInfo":
+        n = bt_decode.NeuronInfo.decode(vec_u8)
+        stake_dict = process_stake_data(n.stake)
+        total_stake = sum(stake_dict.values())
+        axon_info = n.axon_info
+        coldkey = decode_account_id(n.coldkey)
+        hotkey = decode_account_id(n.hotkey)
+        return NeuronInfo(
+            hotkey=hotkey,
+            coldkey=coldkey,
+            uid=n.uid,
+            netuid=n.netuid,
+            active=n.active,
+            stake=total_stake,
+            stake_dict=stake_dict,
+            total_stake=total_stake,
+            rank=u16_normalized_float(n.rank),
+            emission=n.emission / 1e9,
+            incentive=u16_normalized_float(n.incentive),
+            consensus=u16_normalized_float(n.consensus),
+            trust=u16_normalized_float(n.trust),
+            validator_trust=u16_normalized_float(n.validator_trust),
+            dividends=u16_normalized_float(n.dividends),
+            last_update=n.last_update,
+            validator_permit=n.validator_permit,
+            weights=[[e[0], e[1]] for e in n.weights],
+            bonds=[[e[0], e[1]] for e in n.bonds],
+            pruning_score=n.pruning_score,
+            prometheus_info=PrometheusInfo(
+                block=n.prometheus_info.block,
+                version=n.prometheus_info.version,
+                ip=str(netaddr.IPAddress(n.prometheus_info.ip)),
+                port=n.prometheus_info.port,
+                ip_type=n.prometheus_info.ip_type,
+            ),
+            axon_info=AxonInfo(
+                version=axon_info.version,
+                ip=str(netaddr.IPAddress(axon_info.ip)),
+                port=axon_info.port,
+                ip_type=axon_info.ip_type,
+                placeholder1=axon_info.placeholder1,
+                placeholder2=axon_info.placeholder2,
+                protocol=axon_info.protocol,
+                hotkey=hotkey,
+                coldkey=coldkey,
+            ),
+            is_null=False,
+        )
 
 
 @dataclass
@@ -478,18 +560,7 @@ class NeuronInfoLite:
         return decoded_list
 
     @classmethod
-    def list_from_vec_u8_new(cls, vec_u8: list[int]) -> list["NeuronInfoLite"]:
-        def decode_account_id(account_id_bytes):
-            # Convert the AccountId bytes to a Base64 string
-            return ss58_encode(bytes(account_id_bytes).hex(), SS58_FORMAT)
-
-        def process_stake_data(stake_data):
-            decoded_stake_data = {}
-            for account_id_bytes, stake_ in stake_data:
-                account_id = decode_account_id(account_id_bytes)
-                decoded_stake_data.update({account_id: Balance.from_rao(stake_)})
-            return decoded_stake_data
-
+    def list_from_vec_u8_new(cls, vec_u8: bytes) -> list["NeuronInfoLite"]:
         decoded = bt_decode.NeuronInfoLite.decode_vec(vec_u8)
         results = []
         for item in decoded:
@@ -512,65 +583,47 @@ class NeuronInfoLite:
             uid = item.uid
             validator_permit = item.validator_permit
             validator_trust = item.validator_trust
-            results.append(NeuronInfoLite(
-                active=active,
-                axon_info=AxonInfo(
-                    version=axon_info.version,
-                    ip=str(axon_info.ip),
-                    port=axon_info.port,
-                    ip_type=axon_info.ip_type,
-                    placeholder1=axon_info.placeholder1,
-                    placeholder2=axon_info.placeholder2,
-                    protocol=axon_info.protocol,
+            results.append(
+                NeuronInfoLite(
+                    active=active,
+                    axon_info=AxonInfo(
+                        version=axon_info.version,
+                        ip=str(netaddr.IPAddress(axon_info.ip)),
+                        port=axon_info.port,
+                        ip_type=axon_info.ip_type,
+                        placeholder1=axon_info.placeholder1,
+                        placeholder2=axon_info.placeholder2,
+                        protocol=axon_info.protocol,
+                        hotkey=hotkey,
+                        coldkey=coldkey,
+                    ),
+                    coldkey=coldkey,
+                    consensus=u16_normalized_float(consensus),
+                    dividends=u16_normalized_float(dividends),
+                    emission=emission / 1e9,
                     hotkey=hotkey,
-                    coldkey=coldkey
-                ),
-                coldkey=coldkey,
-                consensus=consensus,
-                dividends=dividends,
-                emission=emission,
-                hotkey=hotkey,
-                incentive=incentive,
-                last_update=last_update,
-                netuid=netuid,
-                prometheus_info=PrometheusInfo(
-                    version=prometheus_info.version,
-                    ip=str(prometheus_info.ip),
-                    port=prometheus_info.port,
-                    ip_type=prometheus_info.ip_type,
-                    block=prometheus_info.block,
-                ),
-                pruning_score=pruning_score,
-                rank=rank,
-                stake_dict=stake_dict,
-                stake=stake,
-                total_stake=stake,
-                trust=trust,
-                uid=uid,
-                validator_permit=validator_permit,
-                validator_trust=validator_trust
-            ))
+                    incentive=u16_normalized_float(incentive),
+                    last_update=last_update,
+                    netuid=netuid,
+                    prometheus_info=PrometheusInfo(
+                        version=prometheus_info.version,
+                        ip=str(netaddr.IPAddress(prometheus_info.ip)),
+                        port=prometheus_info.port,
+                        ip_type=prometheus_info.ip_type,
+                        block=prometheus_info.block,
+                    ),
+                    pruning_score=pruning_score,
+                    rank=u16_normalized_float(rank),
+                    stake_dict=stake_dict,
+                    stake=stake,
+                    total_stake=stake,
+                    trust=u16_normalized_float(trust),
+                    uid=uid,
+                    validator_permit=validator_permit,
+                    validator_trust=validator_trust,
+                )
+            )
         return results
-
-
-
-
-@dataclass
-class PrometheusInfo:
-    """Dataclass for prometheus info."""
-
-    block: int
-    version: int
-    ip: str
-    port: int
-    ip_type: int
-
-    @classmethod
-    def fix_decoded_values(cls, prometheus_info_decoded: dict) -> "PrometheusInfo":
-        """Returns a PrometheusInfo object from a prometheus_info_decoded dictionary."""
-        prometheus_info_decoded["ip"] = int_to_ip(int(prometheus_info_decoded["ip"]))
-
-        return cls(**prometheus_info_decoded)
 
 
 @dataclass
