@@ -156,7 +156,7 @@ def get_n_words(n_words: Optional[int]) -> int:
     while n_words not in [12, 15, 18, 21, 24]:
         n_words = int(
             Prompt.ask(
-                "Choose number of words: 12, 15, 18, 21, 24",
+                "Choose number of words",
                 choices=["12", "15", "18", "21", "24"],
                 default=12,
             )
@@ -903,9 +903,9 @@ class CLIManager:
 
     def wallet_swap_hotkey(
         self,
-        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_name: Optional[str] = Options.wallet_name_req,
         wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
         destination_hotkey_name: Optional[str] = typer.Argument(
@@ -1099,7 +1099,7 @@ class CLIManager:
 
     def wallet_regen_coldkey(
         self,
-        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_name: Optional[str] = Options.wallet_name_req,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         mnemonic: Optional[str] = Options.mnemonic,
@@ -1107,7 +1107,6 @@ class CLIManager:
         json: Optional[str] = Options.json,
         json_password: Optional[str] = Options.json_password,
         use_password: Optional[bool] = Options.use_password,
-        overwrite_coldkey: Optional[bool] = Options.overwrite_coldkey,
     ):
         """
         [blue]Regenerate a coldkey[/blue] for a wallet on the Bittensor network.
@@ -1142,22 +1141,16 @@ class CLIManager:
                 json,
                 json_password,
                 use_password,
-                overwrite_coldkey,
             )
         )
 
     def wallet_regen_coldkey_pub(
         self,
-        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_name: Optional[str] = Options.wallet_name_req,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         public_key_hex: Optional[str] = Options.public_hex_key,
         ss58_address: Optional[str] = Options.ss58_address,
-        overwrite_coldkeypub: Optional[bool] = typer.Option(
-            False,
-            help="Overwrites the existing coldkeypub file with the new one.",
-            prompt=True,
-        ),
     ):
         """
         [red]Regenerate[/red] the public part of a coldkey [blue](coldkeypub)[/blue] for a wallet.
@@ -1194,14 +1187,12 @@ class CLIManager:
             rich.print("[red]Error: Invalid SS58 address or public key![/red]")
             raise typer.Exit()
         return self._run_command(
-            wallets.regen_coldkey_pub(
-                wallet, ss58_address, public_key_hex, overwrite_coldkeypub
-            )
+            wallets.regen_coldkey_pub(wallet, ss58_address, public_key_hex)
         )
 
     def wallet_regen_hotkey(
         self,
-        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_name: Optional[str] = Options.wallet_name_req,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         mnemonic: Optional[str] = Options.mnemonic,
@@ -1209,7 +1200,6 @@ class CLIManager:
         json: Optional[str] = Options.json,
         json_password: Optional[str] = Options.json_password,
         use_password: Optional[bool] = Options.use_password,
-        overwrite_hotkey: Optional[bool] = Options.overwrite_hotkey,
     ):
         """
         [red]Regenerates a hotkey[/red] for a wallet.
@@ -1241,7 +1231,6 @@ class CLIManager:
                 json,
                 json_password,
                 use_password,
-                overwrite_hotkey,
             )
         )
 
@@ -1252,7 +1241,6 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         n_words: Optional[int] = None,
         use_password: bool = Options.use_password,
-        overwrite_hotkey: bool = Options.overwrite_hotkey,
     ):
         """
         Create a [red]new hotkey[/red] under a wallet.
@@ -1274,9 +1262,7 @@ class CLIManager:
             wallet_name, wallet_path, wallet_hotkey, validate=False
         )
         n_words = get_n_words(n_words)
-        return self._run_command(
-            wallets.new_hotkey(wallet, n_words, use_password, overwrite_hotkey)
-        )
+        return self._run_command(wallets.new_hotkey(wallet, n_words, use_password))
 
     def wallet_new_coldkey(
         self,
@@ -1285,7 +1271,6 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         n_words: Optional[int] = None,
         use_password: Optional[bool] = Options.use_password,
-        overwrite_coldkey: Optional[bool] = typer.Option(),
     ):
         """
         [blue]Create a new coldkey[/blue] under a wallet. A coldkey, is essential for holding balances and performing high-value transactions.
@@ -1307,9 +1292,7 @@ class CLIManager:
             wallet_name, wallet_path, wallet_hotkey, validate=False
         )
         n_words = get_n_words(n_words)
-        return self._run_command(
-            wallets.new_coldkey(wallet, n_words, use_password, overwrite_coldkey)
-        )
+        return self._run_command(wallets.new_coldkey(wallet, n_words, use_password))
 
     def wallet_check_ck_swap(
         self,
@@ -1343,8 +1326,6 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         n_words: Optional[int] = None,
         use_password: bool = Options.use_password,
-        overwrite_hotkey: bool = Options.overwrite_hotkey,
-        overwrite_coldkey: bool = Options.overwrite_coldkey,
     ):
         """
         [red]Generate[/red] both a new [blue]coldkey[/blue] and [red]hotkey[/red] under a specified wallet.
@@ -1370,7 +1351,9 @@ class CLIManager:
         n_words = get_n_words(n_words)
         return self._run_command(
             wallets.wallet_create(
-                wallet, n_words, use_password, overwrite_coldkey, overwrite_hotkey
+                wallet,
+                n_words,
+                use_password,
             )
         )
 
@@ -1608,8 +1591,13 @@ class CLIManager:
     def wallet_sign(
         self,
         wallet_path: str = Options.wallet_path,
-        wallet_name: str = Options.wallet_name,
+        wallet_name: str = Options.wallet_name_req,
         wallet_hotkey: str = Options.wallet_hotkey,
+        use_hotkey: bool = typer.Option(
+            False,
+            "--use-hotkey",
+            help="If specified, the message will be signed by the hotkey",
+        ),
         message: str = typer.Option("", help="The message to encode and sign"),
     ):
         """
@@ -1630,10 +1618,20 @@ class CLIManager:
         on your preference for brevity or clarity. This command is essential for users to easily prove their ownership
         over a coldkey or a hotkey.
         """
-        if not message:
-            message = typer.prompt("Enter the message to encode and sign: ")
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        return self._run_command(wallets.sign(wallet, message))
+        if not use_hotkey:
+            use_hotkey = typer.confirm(
+                "Do you want to sign using the hotkey?", default=False
+            )
+
+        if use_hotkey and not wallet_hotkey:
+            wallet_hotkey = typer.prompt("Enter your hotkey name")
+            wallet = self.wallet_ask(wallet.name, wallet_path, wallet_hotkey)
+
+        if not message:
+            message = typer.prompt("Enter the message to encode and sign")
+
+        return self._run_command(wallets.sign(wallet, message, use_hotkey))
 
     def root_list(
         self,
@@ -2666,7 +2664,7 @@ class CLIManager:
 
     def stake_get_children(
         self,
-        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_name: Optional[str] = Options.wallet_name_req,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         wallet_path: Optional[str] = Options.wallet_path,
         network: Optional[str] = Options.network,
@@ -2708,7 +2706,7 @@ class CLIManager:
         children: list[str] = typer.Option(
             [], "--children", "-c", help="Enter children hotkeys (ss58)", prompt=False
         ),
-        wallet_name: str = Options.wallet_name,
+        wallet_name: str = Options.wallet_name_req,
         wallet_hotkey: str = Options.wallet_hk_req,
         wallet_path: str = Options.wallet_path,
         network: str = Options.network,
@@ -2725,7 +2723,7 @@ class CLIManager:
         wait_for_finalization: bool = Options.wait_for_finalization,
     ):
         """
-        [Red]Add children hotkeys[/red] on a specified subnet on the Bittensor network.
+        [red]Add children hotkeys[/red] on a specified subnet on the Bittensor network.
 
         This command is used to delegate authority to different hotkeys, securing their position and influence on the
         subnet.
@@ -2773,7 +2771,7 @@ class CLIManager:
 
     def stake_revoke_children(
         self,
-        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_name: Optional[str] = Options.wallet_name_req,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         wallet_path: Optional[str] = Options.wallet_path,
         network: Optional[str] = Options.network,
@@ -2783,8 +2781,7 @@ class CLIManager:
         wait_for_finalization: bool = Options.wait_for_finalization,
     ):
         """
-        [red]Remove all children hotkeys[/red] on a specified subnet on the Bittensor
-        network.
+        [red]Remove all children hotkeys[/red] on a specified subnet on the Bittensor network.
 
         This command is used to remove delegated authority from all child hotkeys, removing their position and influence
         on the subnet.
@@ -2816,7 +2813,7 @@ class CLIManager:
 
     def stake_childkey_take(
         self,
-        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_name: Optional[str] = Options.wallet_name_req,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         wallet_path: Optional[str] = Options.wallet_path,
         network: Optional[str] = Options.network,
@@ -2833,8 +2830,7 @@ class CLIManager:
         ),
     ):
         """
-        Get and set your [red]childkey take[/red] on a specified subnet on the Bittensor
-        network.
+        Get and set your [red]childkey take[/red] on a specified subnet on the Bittensor network.
 
         This command is used to set the take on your child hotkeys with limits between 0 - 18%.
 
