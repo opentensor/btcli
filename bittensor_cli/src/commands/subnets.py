@@ -349,12 +349,12 @@ async def lock_cost(subtensor: "SubtensorInterface") -> Optional[Balance]:
         return None
 
 
-async def create(wallet: Wallet, subtensor: "SubtensorInterface"):
+async def create(wallet: Wallet, subtensor: "SubtensorInterface", prompt: bool):
     """Register a subnetwork"""
 
     # Call register command.
-    success = await register_subnetwork_extrinsic(subtensor, wallet)
-    if success and not False:  # TODO no-prompt
+    success = await register_subnetwork_extrinsic(subtensor, wallet, prompt=prompt)
+    if success and prompt:
         # Prompt for user to set identity.
         do_set_identity = Confirm.ask(
             "Subnetwork registered successfully. Would you like to set your identity?"
@@ -399,7 +399,9 @@ async def pow_register(
     )
 
 
-async def register(wallet: Wallet, subtensor: "SubtensorInterface", netuid: int):
+async def register(
+    wallet: Wallet, subtensor: "SubtensorInterface", netuid: int, prompt: bool
+):
     """Register neuron by recycling some TAO."""
 
     # Verify subnet exists
@@ -427,7 +429,7 @@ async def register(wallet: Wallet, subtensor: "SubtensorInterface", netuid: int)
         )
         return
 
-    if not False:  # TODO no-prompt
+    if prompt:
         if not (
             Confirm.ask(
                 f"Your balance is: [bold green]{balance}[/bold green]\nThe cost to register by recycle is "

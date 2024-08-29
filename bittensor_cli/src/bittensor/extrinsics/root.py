@@ -443,20 +443,23 @@ async def set_root_weights_extrinsic(
             return False
 
     try:
-        weight_uids, weight_vals = convert_weights_and_uids_for_emit(netuids, weights)
+        with console.status("Setting root weights..."):
+            weight_uids, weight_vals = convert_weights_and_uids_for_emit(
+                netuids, weights
+            )
 
-        success, error_message = await _do_set_weights()
-        console.print(success, error_message)
+            success, error_message = await _do_set_weights()
+            console.print(success, error_message)
 
-        if not wait_for_finalization and not wait_for_inclusion:
-            return True
+            if not wait_for_finalization and not wait_for_inclusion:
+                return True
 
-        if success is True:
-            console.print(":white_heavy_check_mark: [green]Finalized[/green]")
-            return True
-        else:
-            err_console.print(f":cross_mark: [red]Failed[/red]: {error_message}")
-            return False
+            if success is True:
+                console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                return True
+            else:
+                err_console.print(f":cross_mark: [red]Failed[/red]: {error_message}")
+                return False
 
     except Exception as e:
         err_console.print(":cross_mark: [red]Failed[/red]: error:{}".format(e))

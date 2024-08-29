@@ -86,7 +86,7 @@ def verify_key_pattern(output: str, wallet_name: str) -> Optional[str]:
                         start with '5', or if the key is not exactly 48 characters long.
     """
     split_output = output.splitlines()
-    pattern = rf"{wallet_name}\s*\((5[A-Za-z0-9]{{47}})\)"
+    pattern = rf"{wallet_name}\s+ss58_address\s+(5[A-Za-z0-9]{{47}})"
     found = False
 
     # Traverse each line to find instance of the pattern
@@ -120,7 +120,7 @@ def extract_ss58_address(output: str, wallet_name: str) -> str:
     Returns:
         str: ss58 address.
     """
-    pattern = rf"{wallet_name}\s*\((5[A-Za-z0-9]{{47}})\)"
+    pattern = rf"{wallet_name}\s+ss58_address\s+(5[A-Za-z0-9]{{47}})"
     lines = output.splitlines()
     for line in lines:
         match = re.search(pattern, line)
@@ -183,8 +183,8 @@ def test_wallet_creations():
     )
 
     # Assert default keys are present before proceeding
-    assert "default" in result.stdout
-    assert "└── default" in result.stdout
+    f"default  ss58_address {wallet.coldkeypub.ss58_address}" in result.stdout
+    f"default  ss58_address {wallet.hotkey.ss58_address}" in result.stdout
     wallet_status, message = verify_wallet_dir(
         wallet_path, "default", hotkey_name="default"
     )

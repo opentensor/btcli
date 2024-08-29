@@ -18,7 +18,11 @@ from bittensor_cli.src.bittensor.extrinsics.root import (
     set_root_weights_extrinsic,
     root_register_extrinsic,
 )
-from bittensor_cli.src.commands.wallets import get_coldkey_wallets_for_path, set_id, set_id_prompts
+from bittensor_cli.src.commands.wallets import (
+    get_coldkey_wallets_for_path,
+    set_id,
+    set_id_prompts,
+)
 from bittensor_cli.src.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.utils import (
     console,
@@ -333,11 +337,6 @@ async def burned_register_extrinsic(
                 f"coldkey: [bold white]{neuron.coldkey}[/bold white]"
             )
             return True
-
-    if prompt:
-        # Prompt user for confirmation.
-        if not Confirm.ask(f"Recycle {recycle_amount} to register on subnet:{netuid}?"):
-            return False
 
     with console.status(":satellite: Recycling TAO for Registration..."):
         call = await subtensor.substrate.compose_call(
@@ -804,23 +803,24 @@ async def set_weights(
     subtensor: SubtensorInterface,
     netuids: list[int],
     weights: list[float],
+    prompt: bool,
 ):
     """Set weights for root network."""
     netuids_ = np.array(netuids, dtype=np.int64)
     weights_ = np.array(weights, dtype=np.float32)
 
     # Run the set weights operation.
-    with console.status("Setting root weights..."):
-        await set_root_weights_extrinsic(
-            subtensor=subtensor,
-            wallet=wallet,
-            netuids=netuids_,
-            weights=weights_,
-            version_key=0,
-            prompt=False,  # TODO: Add no prompt
-            wait_for_finalization=True,
-            wait_for_inclusion=True,
-        )
+
+    await set_root_weights_extrinsic(
+        subtensor=subtensor,
+        wallet=wallet,
+        netuids=netuids_,
+        weights=weights_,
+        version_key=0,
+        prompt=prompt,
+        wait_for_finalization=True,
+        wait_for_inclusion=True,
+    )
 
 
 async def get_weights(subtensor: SubtensorInterface):
@@ -888,12 +888,10 @@ async def get_weights(subtensor: SubtensorInterface):
 
 
 async def _get_my_weights(
-    subtensor: SubtensorInterface, ss58_address: str
+    subtensor: SubtensorInterface, ss58_address: str, my_uid: str
 ) -> NDArray[np.float32]:
     """Retrieves the weight array for a given hotkey SS58 address."""
-    my_uid = (
-        await subtensor.substrate.query("SubtensorModule", "Uids", [0, ss58_address])
-    ).value
+
     my_weights_, total_subnets_ = await asyncio.gather(
         subtensor.substrate.query(
             "SubtensorModule", "Weights", [0, my_uid], reuse_block_hash=True
@@ -914,10 +912,24 @@ async def _get_my_weights(
 
 
 async def set_boost(
-    wallet: Wallet, subtensor: SubtensorInterface, netuid: int, amount: float
+    wallet: Wallet,
+    subtensor: SubtensorInterface,
+    netuid: int,
+    amount: float,
+    prompt: bool,
 ):
     """Boosts weight of a given netuid for root network."""
-    my_weights = await _get_my_weights(subtensor, wallet.hotkey.ss58_address)
+
+    my_uid = (
+        await subtensor.substrate.query(
+            "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
+        )
+    ).value
+    if my_uid is None:
+        err_console.print("Your hotkey is not registered to the root network")
+        return False
+
+    my_weights = await _get_my_weights(subtensor, wallet.hotkey.ss58_address, my_uid)
     prev_weight = my_weights[netuid]
     new_weight = prev_weight + amount
 
@@ -928,24 +940,37 @@ async def set_boost(
     all_netuids = np.arange(len(my_weights))
 
     console.print("all netuids", all_netuids)
-    with console.status("Setting root weights..."):
-        await set_root_weights_extrinsic(
-            subtensor=subtensor,
-            wallet=wallet,
-            netuids=all_netuids,
-            weights=my_weights,
-            version_key=0,
-            wait_for_inclusion=True,
-            wait_for_finalization=True,
-            prompt=True,
-        )
+    await set_root_weights_extrinsic(
+        subtensor=subtensor,
+        wallet=wallet,
+        netuids=all_netuids,
+        weights=my_weights,
+        version_key=0,
+        wait_for_inclusion=True,
+        wait_for_finalization=True,
+        prompt=prompt,
+    )
 
 
 async def set_slash(
-    wallet: Wallet, subtensor: SubtensorInterface, netuid: int, amount: float
+    wallet: Wallet,
+    subtensor: SubtensorInterface,
+    netuid: int,
+    amount: float,
+    prompt: bool,
 ):
     """Slashes weight I think"""
-    my_weights = await _get_my_weights(subtensor, wallet.hotkey.ss58_address)
+
+    my_uid = (
+        await subtensor.substrate.query(
+            "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
+        )
+    ).value
+    if my_uid is None:
+        err_console.print("Your hotkey is not registered to the root network")
+        return False
+
+    my_weights = await _get_my_weights(subtensor, wallet.hotkey.ss58_address, my_uid)
     prev_weights = my_weights.copy()
     my_weights[netuid] -= amount
     my_weights[my_weights < 0] = 0  # Ensure weights don't go negative
@@ -962,12 +987,15 @@ async def set_slash(
             version_key=0,
             wait_for_inclusion=True,
             wait_for_finalization=True,
-            prompt=True,
+            prompt=prompt,
         )
 
 
 async def senate_vote(
-    wallet: Wallet, subtensor: SubtensorInterface, proposal_hash: str
+    wallet: Wallet,
+    subtensor: SubtensorInterface,
+    proposal_hash: str,
+    prompt: bool,
 ) -> bool:
     """Vote in Bittensor's governance protocol proposals"""
 
@@ -1001,7 +1029,7 @@ async def senate_vote(
         vote=vote,
         wait_for_inclusion=True,
         wait_for_finalization=False,
-        prompt=True,
+        prompt=prompt,
     )
 
     return success
@@ -1047,7 +1075,7 @@ async def get_senate(subtensor: SubtensorInterface):
     return console.print(table)
 
 
-async def register(wallet: Wallet, subtensor: SubtensorInterface):
+async def register(wallet: Wallet, subtensor: SubtensorInterface, prompt: bool):
     """Register neuron by recycling some TAO."""
 
     # Check current recycle amount
@@ -1073,14 +1101,12 @@ async def register(wallet: Wallet, subtensor: SubtensorInterface):
         )
         return False
 
-    if not True:  # TODO no-prompt
-        if not (
-            Confirm.ask(
-                f"Your balance is: [bold green]{balance}[/bold green]\n"
-                f"The cost to register by recycle is [bold red]{current_recycle}[/bold red]\n"
-                f"Do you want to continue?",
-                default=False,
-            )
+    if prompt:
+        if not Confirm.ask(
+            f"Your balance is: [bold green]{balance}[/bold green]\n"
+            f"The cost to register by recycle is [bold red]{current_recycle}[/bold red]\n"
+            f"Do you want to continue?",
+            default=False,
         ):
             return False
 
@@ -1089,7 +1115,7 @@ async def register(wallet: Wallet, subtensor: SubtensorInterface):
         wallet,
         wait_for_inclusion=True,
         wait_for_finalization=True,
-        prompt=False,
+        prompt=prompt,
     )
 
 
@@ -1214,6 +1240,7 @@ async def delegate_stake(
     subtensor: SubtensorInterface,
     amount: float,
     delegate_ss58key: str,
+    prompt: bool,
 ):
     """Delegates stake to a chain delegate."""
 
@@ -1223,7 +1250,7 @@ async def delegate_stake(
         delegate_ss58key,
         Balance.from_tao(amount),
         wait_for_inclusion=True,
-        prompt=False,
+        prompt=prompt,
         delegate=True,
     )
 
@@ -1233,16 +1260,16 @@ async def delegate_unstake(
     subtensor: SubtensorInterface,
     amount: float,
     delegate_ss58key: str,
+    prompt: bool,
 ):
     """Undelegates stake from a chain delegate."""
-    # TODO: Pass prompt thru cli
     await delegate_extrinsic(
         subtensor,
         wallet,
         delegate_ss58key,
         Balance.from_tao(amount),
         wait_for_inclusion=True,
-        prompt=False,
+        prompt=prompt,
         delegate=False,
     )
 
@@ -1541,7 +1568,7 @@ async def list_delegates(subtensor: SubtensorInterface):
     console.print(table)
 
 
-async def nominate(wallet: Wallet, subtensor: SubtensorInterface):
+async def nominate(wallet: Wallet, subtensor: SubtensorInterface, prompt: bool):
     """Nominate wallet."""
 
     # Unlock the wallet.
@@ -1576,7 +1603,7 @@ async def nominate(wallet: Wallet, subtensor: SubtensorInterface):
         )
 
         # Prompt use to set identity on chain.
-        if not False:  # TODO no-prompt here
+        if prompt:
             do_set_identity = Confirm.ask(
                 "Subnetwork registered successfully. Would you like to set your identity? [y/n]"
             )

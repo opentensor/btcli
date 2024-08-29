@@ -1,5 +1,3 @@
-import asyncio
-import logging
 import os
 import re
 import shutil
@@ -33,7 +31,7 @@ def setup_wallet(uri: str):
             command,
             sub_command,
         ] + extra_args
-        result = runner.invoke(cli_manager.app, args, env={"COLUMNS": "1000"})
+        result = runner.invoke(cli_manager.app, args, env={"COLUMNS": "700"})
         return result
 
     return keypair, wallet, wallet_path, exec_command
@@ -91,18 +89,22 @@ def verify_subnet_entry(output_text: str, netuid: str, ss58_address: str) -> boo
     bool: True if the entry is found, False otherwise.
     """
 
-    # Construct the regex pattern
-    pattern = rf"\s*{netuid}\s+"  # NETUID
-    pattern += r"\d+\s+"  # N (any number)
-    pattern += r"\d+(?:\.\d+)?\s*[KMB]?\s+"  # MAX_N (number with optional decimal and K/M/B suffix)
-    pattern += r"\d+\.\d+%\s+"  # EMISSION (percentage)
-    pattern += r"\d+\s+"  # TEMPO (any number)
-    pattern += r"τ\d+\.\d+\s+"  # RECYCLE (τ followed by a number)
-    pattern += r"\d+(?:\.\d+)?\s*[KMB]\s+"  # POW (number with optional decimal and K/M/B suffix)
-    pattern += rf"{re.escape(ss58_address)}\s*"  # SUDO (exact SS58 address)
+    pattern = (
+        rf"\b{re.escape(str(netuid))}\s*\│\s*"  # NETUID
+        r"\d+\s*\│\s*"  # N (any number)
+        r"\d+(?:\.\d+)?\s*[KMB]*\s*\│\s*"  # MAX_N (number with optional decimal and K/M/B suffix)
+        r"\d+\.\d+%\s*\│\s*"  # EMISSION (percentage)
+        r"\d+\s*\│\s*"  # TEMPO (any number)
+        r"τ\d+\.\d+\s*\│\s*"  # RECYCLE (τ followed by a number)
+        r"\d+(?:\.\d+)?\s*[KMB]*\s*\│\s*"  # POW (number with optional decimal and K/M/B suffix)
+        rf"{re.escape(ss58_address)}\b"  # SUDO (exact SS58 address)
+    )
+
+    # Normalize spaces in the output text
+    normalized_output = re.sub(r"\s+", " ", output_text)
 
     # Search for the pattern
-    match = re.search(pattern, output_text)
+    match = re.search(pattern, normalized_output)
 
     return bool(match)
 

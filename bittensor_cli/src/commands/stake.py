@@ -1364,6 +1364,7 @@ async def stake_add(
     include_hotkeys: list[str],
     exclude_hotkeys: list[str],
     all_hotkeys: bool,
+    prompt: bool,
 ) -> None:
     """Stake token of amount to hotkey(s)."""
 
@@ -1488,7 +1489,7 @@ async def stake_add(
             raise ValueError
 
         # Ask to stake
-        if not True:  # TODO no-prompt
+        if prompt:
             if not Confirm.ask(
                 f"Do you want to stake to the following keys from {wallet.name}:\n"
                 + "".join(
@@ -1536,6 +1537,7 @@ async def unstake(
     amount: float,
     max_stake: float,
     unstake_all: bool,
+    prompt: bool,
 ):
     """Unstake token of amount from hotkey(s)."""
 
@@ -1621,7 +1623,7 @@ async def unstake(
             return None
 
         # Ask to unstake
-        if not True:  # TODO no prompt
+        if prompt:
             if not Confirm.ask(
                 f"Do you want to unstake from the following keys to {wallet.name}:\n"
                 + "".join(
@@ -1642,7 +1644,7 @@ async def unstake(
                 hotkey_ss58=final_hotkeys[0][1],
                 amount=None if unstake_all else final_amounts[0],
                 wait_for_inclusion=True,
-                prompt=False,  # TODO: Add no prompt
+                prompt=prompt,
             )
         else:
             await unstake_multiple_extrinsic(
@@ -1651,7 +1653,7 @@ async def unstake(
                 hotkey_ss58s=[hotkey_ss58 for _, hotkey_ss58 in final_hotkeys],
                 amounts=None if unstake_all else final_amounts,
                 wait_for_inclusion=True,
-                prompt=False,
+                prompt=prompt,
             )
 
 

@@ -122,6 +122,11 @@ class Options:
         True,
         help="If set, waits until the transaction is finalized " "on the blockchain.",
     )
+    prompt = typer.Option(
+        True,
+        "--prompt/--no-prompt",
+        help="Enable or disable interactive prompts.",
+    )
 
 
 def list_prompt(init_var: list, list_type: type, help_text: str) -> list:
@@ -388,6 +393,7 @@ class CLIManager:
         self.root_app.command("set-weights")(self.root_set_weights)
         self.root_app.command("get-weights")(self.root_get_weights)
         self.root_app.command("boost")(self.root_boost)
+        self.root_app.command("slash")(self.root_slash)
         self.root_app.command("senate")(self.root_senate)
         self.root_app.command("senate-vote")(self.root_senate_vote)
         self.root_app.command("register")(self.root_register)
@@ -486,7 +492,7 @@ class CLIManager:
         self,
         version: Annotated[
             Optional[bool], typer.Option("--version", callback=version_callback)
-        ] = None
+        ] = None,
     ):
         """
         Method called before all others when using any CLI command. Gives version if that flag is set, otherwise
@@ -878,6 +884,7 @@ class CLIManager:
         wallet_hotkey: str = Options.wallet_hotkey,
         network: str = Options.network,
         chain: str = Options.chain,
+        prompt: bool = Options.prompt,
     ):
         """
         # wallet transfer
@@ -903,7 +910,7 @@ class CLIManager:
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         subtensor = self.initialize_chain(network, chain)
         return self._run_command(
-            wallets.transfer(wallet, subtensor, destination, amount)
+            wallets.transfer(wallet, subtensor, destination, amount, prompt)
         )
 
     def wallet_swap_hotkey(
@@ -1683,6 +1690,8 @@ class CLIManager:
         brevity or clarity. This command is essential for users to easily prove their ownership over a coldkey or a
         hotkey.
         """
+        if not message:
+            message = typer.prompt("Enter the message to encode and sign: ")
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(wallets.sign(wallet, message))
 
@@ -1741,7 +1750,7 @@ class CLIManager:
         self,
         network: str = Options.network,
         chain: str = Options.chain,
-        wallet_name: str = Options.wallet_name,
+        wallet_name: str = Options.wallet_name_req,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hk_req,
         netuids: list[int] = typer.Option(
@@ -1751,6 +1760,7 @@ class CLIManager:
             None,
             help="Weights: e.g. `0.02 0.03 0.01` ...",
         ),
+        prompt: bool = Options.prompt,
     ):
         """
         # root set-weights
@@ -1773,12 +1783,12 @@ class CLIManager:
         distribution.
         """
         netuids = list_prompt(netuids, int, "Enter netuids")
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey, validate=True)
         if not weights:
             weights = list_prompt([], float, "Weights: e.g. 0.02, 0.03, 0.01 ")
         self._run_command(
             root.set_weights(
-                wallet, self.initialize_chain(network, chain), netuids, weights
+                wallet, self.initialize_chain(network, chain), netuids, weights, prompt
             )
         )
 
@@ -1842,7 +1852,7 @@ class CLIManager:
         self,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
-        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_name: str = Options.wallet_name_req,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         netuid: int = Options.netuid,
@@ -1854,6 +1864,7 @@ class CLIManager:
             prompt=True,
             help="Amount (float) to boost, (e.g. 0.01)",
         ),
+        prompt: bool = Options.prompt,
     ):
         """
         # root boost
@@ -1913,7 +1924,7 @@ class CLIManager:
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             root.set_boost(
-                wallet, self.initialize_chain(network, chain), netuid, amount
+                wallet, self.initialize_chain(network, chain), netuid, amount, prompt
             )
         )
 
@@ -1921,7 +1932,7 @@ class CLIManager:
         self,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
-        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_name: str = Options.wallet_name_req,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         netuid: int = Options.netuid,
@@ -1933,6 +1944,7 @@ class CLIManager:
             prompt=True,
             help="Amount (float) to boost, (e.g. 0.01)",
         ),
+        prompt: bool = Options.prompt,
     ):
         """
         # root slash
@@ -1988,7 +2000,7 @@ class CLIManager:
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             root.set_slash(
-                wallet, self.initialize_chain(network, chain), netuid, amount
+                wallet, self.initialize_chain(network, chain), netuid, amount, prompt
             )
         )
 
@@ -1996,7 +2008,7 @@ class CLIManager:
         self,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
-        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_name: Optional[str] = Options.wallet_name_req,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         proposal: str = typer.Option(
@@ -2005,6 +2017,7 @@ class CLIManager:
             "--proposal-hash",
             help="The hash of the proposal to vote on.",
         ),
+        prompt: bool = Options.prompt,
     ):
         """
         # root senate-vote
@@ -2028,7 +2041,9 @@ class CLIManager:
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
-            root.senate_vote(wallet, self.initialize_chain(network, chain), proposal)
+            root.senate_vote(
+                wallet, self.initialize_chain(network, chain), proposal, prompt
+            )
         )
 
     def root_senate(
@@ -2062,9 +2077,10 @@ class CLIManager:
         self,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
-        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_name: Optional[str] = Options.wallet_name_req,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        prompt: bool = Options.prompt,
     ):
         """
         # root register
@@ -2115,7 +2131,7 @@ class CLIManager:
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
-            root.register(wallet, self.initialize_chain(network, chain))
+            root.register(wallet, self.initialize_chain(network, chain), prompt)
         )
 
     def root_proposals(
@@ -2150,7 +2166,7 @@ class CLIManager:
         self,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
-        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_name: Optional[str] = Options.wallet_name_req,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         take: float = typer.Option(None, help="The new take value."),
@@ -2205,6 +2221,7 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
+        prompt: bool = Options.prompt,
     ):
         """
         # root delegate-stake
@@ -2261,6 +2278,7 @@ class CLIManager:
                 self.initialize_chain(network, chain),
                 float(amount),
                 delegate_ss58key,
+                prompt,
             )
         )
 
@@ -2286,6 +2304,7 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
+        prompt: bool = Options.prompt,
     ):
         """
         # root undelegate-stake
@@ -2344,6 +2363,7 @@ class CLIManager:
                 self.initialize_chain(network, chain),
                 float(amount),
                 delegate_ss58key,
+                prompt,
             )
         )
 
@@ -2490,13 +2510,15 @@ class CLIManager:
 
         return self._run_command(root.list_delegates(sub))
 
+    # TODO: Confirm if we need a command for this - currently registering to root auto makes u delegate
     def root_nominate(
         self,
-        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_name: Optional[str] = Options.wallet_name_req,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
+        prompt: bool = Options.prompt,
     ):
         """
         # root nominate
@@ -2533,7 +2555,7 @@ class CLIManager:
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
-            root.nominate(wallet, self.initialize_chain(network, chain))
+            root.nominate(wallet, self.initialize_chain(network, chain), prompt)
         )
 
     def stake_show(
@@ -2651,6 +2673,7 @@ class CLIManager:
         wallet_hotkey: str = Options.wallet_hotkey,
         network: str = Options.network,
         chain: str = Options.chain,
+        prompt: bool = Options.prompt,
     ):
         """
         # stake add
@@ -2678,6 +2701,7 @@ class CLIManager:
         This command is critical for users who wish to distribute their stakes among different neurons (hotkeys) on the
         network. It allows for a strategic allocation of tokens to enhance network participation and influence.
         """
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         if stake_all and amount:
             err_console.print(
                 "Cannot specify an amount and 'stake-all'. Choose one or the other."
@@ -2699,7 +2723,10 @@ class CLIManager:
                 "You have specified including and excluding hotkeys. Select one or the other."
             )
             raise typer.Exit()
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        if not wallet_hotkey and not all_hotkeys and not include_hotkeys:
+            _hotkey_str = typer.style("hotkey", fg="red")
+            wallet_hotkey = typer.prompt(f"Enter {_hotkey_str} name: ")
+            wallet = self.wallet_ask(wallet.name, wallet_path, wallet_hotkey)
         return self._run_command(
             stake.stake_add(
                 wallet,
@@ -2710,6 +2737,7 @@ class CLIManager:
                 include_hotkeys,
                 exclude_hotkeys,
                 all_hotkeys,
+                prompt,
             )
         )
 
@@ -2757,6 +2785,7 @@ class CLIManager:
             help="When set, unstakes from all hotkeys associated with the wallet. Do not use if specifying "
             "hotkeys in `--include-hotkeys`.",
         ),
+        prompt: bool = Options.prompt,
     ):
         """
         # stake remove
@@ -2835,6 +2864,7 @@ class CLIManager:
                 amount,
                 max_stake,
                 unstake_all,
+                prompt,
             )
         )
 
@@ -3312,6 +3342,7 @@ class CLIManager:
         wallet_hotkey: str = Options.wallet_hotkey,
         network: str = Options.network,
         chain: str = Options.chain,
+        prompt: bool = Options.prompt,
     ):
         """
         # subnets create
@@ -3362,7 +3393,7 @@ class CLIManager:
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
-            subnets.create(wallet, self.initialize_chain(network, chain))
+            subnets.create(wallet, self.initialize_chain(network, chain), prompt)
         )
 
     def subnets_pow_register(
@@ -3461,12 +3492,13 @@ class CLIManager:
 
     def subnets_register(
         self,
-        wallet_name: str = Options.wallet_name,
+        wallet_name: str = Options.wallet_name_req,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hk_req,
         chain: str = Options.chain,
         network: str = Options.network,
         netuid: int = Options.netuid,
+        prompt: bool = Options.prompt,
     ):
         """
         # subnets register
@@ -3514,6 +3546,7 @@ class CLIManager:
                 self.wallet_ask(wallet_name, wallet_path, wallet_hotkey),
                 self.initialize_chain(network, chain),
                 netuid,
+                prompt,
             )
         )
 
