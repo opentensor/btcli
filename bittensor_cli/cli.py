@@ -1783,7 +1783,7 @@ class CLIManager:
         distribution.
         """
         netuids = list_prompt(netuids, int, "Enter netuids")
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey, validate=True)
+        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         if not weights:
             weights = list_prompt([], float, "Weights: e.g. 0.02, 0.03, 0.01 ")
         self._run_command(
