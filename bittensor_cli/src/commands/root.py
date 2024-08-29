@@ -426,7 +426,7 @@ async def set_take_extrinsic(
         if not (result := json_body.get("result", None)):
             return None
         else:
-            return DelegateInfo.from_vec_u8_new(bytes(result))
+            return DelegateInfo.from_vec_u8(bytes(result))
 
     # Calculate u16 representation of the take
     take_u16 = int(take * 0xFFFF)

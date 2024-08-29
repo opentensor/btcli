@@ -221,6 +221,10 @@ TYPE_REGISTRY = {
                     ],
                     "type": "Vec<u8>",
                 },
+                "get_subnets_info": {
+                    "params": [],
+                    "type": "Vec<u8>",
+                },
             }
         },
         "SubnetRegistrationRuntimeApi": {
