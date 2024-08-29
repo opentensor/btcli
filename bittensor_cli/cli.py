@@ -45,16 +45,17 @@ class Options:
 
     wallet_name = typer.Option(None, "--wallet-name", "-w", help="Name of wallet")
     wallet_name_req = typer.Option(
-        None, "--wallet-name", "-w", help="Name of wallet", prompt=True
+        None, "--wallet-name", "-w", "--wallet_name", help="Name of wallet", prompt=True
     )
     wallet_path = typer.Option(
-        None, "--wallet-path", "-p", help="Filepath of root of wallets"
+        None, "--wallet-path", "-p", "--wallet_path", help="Filepath of root of wallets"
     )
-    wallet_hotkey = typer.Option(None, "--hotkey", "-H", help="Hotkey of wallet")
+    wallet_hotkey = typer.Option(None, "--hotkey", "-H", "--wallet_hotkey", help="Hotkey of wallet")
     wallet_hk_req = typer.Option(
         None,
         "--hotkey",
         "-H",
+        "--wallet_hotkey",
         help="Hotkey name of wallet",
         prompt=True,
     )
@@ -93,11 +94,15 @@ class Options:
     )
     network = typer.Option(
         None,
+        "--network",
+        "--subtensor.network",
         help="The subtensor network to connect to. Default: finney.",
         show_default=False,
     )
     chain = typer.Option(
-        None, help="The subtensor chain endpoint to connect to.", show_default=False
+        None,
+        "--chain", "--subtensor.chain_endpoint",
+        help="The subtensor chain endpoint to connect to.", show_default=False
     )
     netuids = typer.Option(
         [], "--netuids", "-n", help="Set the netuid(s) to filter by (e.g. `0 1 2`)"
@@ -246,8 +251,10 @@ def version_callback(value: bool):
     """
     if value:
         try:
-            version = (f"BTCLI Version: {__version__}/"
-                       f"{Repo(os.path.dirname(os.path.dirname(__file__))).active_branch.name}")
+            version = (
+                f"BTCLI Version: {__version__}/"
+                f"{Repo(os.path.dirname(os.path.dirname(__file__))).active_branch.name}"
+            )
         except GitError:
             version = f"BTCLI Version: {__version__}"
         typer.echo(version)
@@ -546,6 +553,7 @@ class CLIManager:
             None,
             "--wallet-name",
             "--name",
+            "--wallet_name",
             help="Wallet name",
         ),
         wallet_path: Optional[str] = typer.Option(
@@ -553,6 +561,7 @@ class CLIManager:
             "--wallet-path",
             "--path",
             "-p",
+            "--wallet_path",
             help="Path to root of wallets",
         ),
         wallet_hotkey: Optional[str] = typer.Option(
@@ -560,18 +569,21 @@ class CLIManager:
             "--wallet-hotkey",
             "--hotkey",
             "-k",
+            "--wallet_hotkey",
             help="name of the wallet hotkey file",
         ),
         network: Optional[str] = typer.Option(
             None,
             "--network",
             "-n",
+            "--subtensor.network",
             help="Network name: [finney, test, local]",
         ),
         chain: Optional[str] = typer.Option(
             None,
             "--chain",
             "-c",
+            "--subtensor.chain_endpoint",
             help="chain endpoint for the network (e.g. ws://127.0.0.1:9945, "
             "wss://entrypoint-finney.opentensor.ai:443)",
         ),
@@ -586,20 +598,36 @@ class CLIManager:
         Sets values in config file
         """
         args = locals()
-        if network and network.startswith("ws"):
-            if not Confirm.ask(
-                "[yellow]Warning[/yellow] your 'network' appears to be a chain endpoint. "
-                "Verify this is intentional"
-            ):
-                raise typer.Exit()
-        for arg in [
+        args_list = [
             "wallet_name",
             "wallet_path",
             "wallet_hotkey",
             "network",
             "chain",
             "no_cache",
-        ]:
+        ]
+        bools = ["no_cache"]
+        if not any(args.get(arg) for arg in args_list):
+            arg = Prompt.ask("Which value would you like to update?", choices=args_list)
+            if arg in bools:
+                nc = Confirm.ask(
+                    f"What value would you like to assign to [red]{arg}[/red]?",
+                    default=False,
+                )
+                self.config[arg] = nc
+            else:
+                val = Prompt.ask(
+                    f"What value would you like to assign to [red]{arg}[/red]?"
+                )
+                self.config[arg] = val
+
+        if (n := args.get("network")) and n.startswith("ws"):
+            if not Confirm.ask(
+                "[yellow]Warning[/yellow] your 'network' appears to be a chain endpoint. "
+                "Verify this is intentional"
+            ):
+                raise typer.Exit()
+        for arg in args_list:
             if val := args.get(arg):
                 self.config[arg] = val
         with open(self.config_path, "w") as f:

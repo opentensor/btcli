@@ -9,6 +9,7 @@ Jinja2
 pycryptodome  # Crypto
 PyYAML~=6.0.1
 pytest
+python-Levenshtein
 rich~=13.7
 scalecodec==1.2.11
 substrate-interface~=1.7.9
