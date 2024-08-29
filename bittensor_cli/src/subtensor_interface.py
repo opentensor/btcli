@@ -1,4 +1,5 @@
 import asyncio
+import time
 from typing import Optional, Any, Union, TypedDict, Iterable
 
 import scalecodec
@@ -170,16 +171,15 @@ class SubtensorInterface:
 
         :return: List of DelegateInfo objects, or an empty list if there are no delegates.
         """
-        json_body = await self.substrate.rpc_request(
-            method="delegateInfo_getDelegates",  # custom rpc method
-            params=[block_hash] if block_hash else [],
-            reuse_block_hash=reuse_block,
+        hex_bytes_result = await self.query_runtime_api(
+            runtime_api="DelegateInfoRuntimeApi", method="get_delegates", params=[]
         )
+        try:
+            bytes_result = bytes.fromhex(hex_bytes_result[2:])
+        except ValueError:
+            bytes_result = bytes.fromhex(hex_bytes_result)
 
-        if not (result := json_body.get("result", None)):
-            return []
-
-        return DelegateInfo.list_from_vec_u8(result)
+        return DelegateInfo.list_from_vec_u8(bytes_result)
 
     async def get_stake_info_for_coldkey(
         self,
@@ -213,12 +213,12 @@ class SubtensorInterface:
         if hex_bytes_result is None:
             return []
 
-        if hex_bytes_result.startswith("0x"):
+        try:
             bytes_result = bytes.fromhex(hex_bytes_result[2:])
-        else:
+        except ValueError:
             bytes_result = bytes.fromhex(hex_bytes_result)
-        # TODO: review if this is the correct type / works
-        return StakeInfo.list_from_vec_u8(bytes_result)  # type: ignore
+
+        return StakeInfo.list_from_vec_u8(bytes_result)
 
     async def get_stake_for_coldkey_and_hotkey(
         self, hotkey_ss58: str, coldkey_ss58: str, block_hash: Optional[str]
@@ -594,12 +594,12 @@ class SubtensorInterface:
         if hex_bytes_result is None:
             return []
 
-        if hex_bytes_result.startswith("0x"):
+        try:
             bytes_result = bytes.fromhex(hex_bytes_result[2:])
-        else:
+        except ValueError:
             bytes_result = bytes.fromhex(hex_bytes_result)
 
-        return NeuronInfoLite.list_from_vec_u8(bytes_result)  # type: ignore
+        return NeuronInfoLite.list_from_vec_u8(bytes_result)
 
     async def neuron_for_uid(
         self, uid: Optional[int], netuid: int, block_hash: Optional[str] = None
@@ -631,7 +631,8 @@ class SubtensorInterface:
         if not (result := json_body.get("result", None)):
             return NeuronInfo.get_null_neuron()
 
-        return NeuronInfo.from_vec_u8(result)
+        bytes_result = bytes(result)
+        return NeuronInfo.from_vec_u8(bytes_result)
 
     async def get_delegated(
         self,
@@ -667,7 +668,7 @@ class SubtensorInterface:
         if not (result := json_body.get("result")):
             return []
 
-        return DelegateInfo.delegated_list_from_vec_u8(result)
+        return DelegateInfo.delegated_list_from_vec_u8(bytes(result))
 
     async def query_identity(
         self,
@@ -903,4 +904,4 @@ class SubtensorInterface:
         else:
             bytes_result = bytes.fromhex(hex_bytes_result)
 
-        return SubnetHyperparameters.from_vec_u8(bytes_result)  # type: ignore
+        return SubnetHyperparameters.from_vec_u8(bytes_result)

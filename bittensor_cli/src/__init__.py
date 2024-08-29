@@ -101,6 +101,23 @@ TYPE_REGISTRY = {
         "Balance": "u64",  # Need to override default u128
     },
     "runtime_api": {
+        "DelegateInfoRuntimeApi": {
+            "methods": {
+                "get_delegated": {
+                    "params": [
+                        {
+                            "name": "coldkey",
+                            "type": "Vec<u8>",
+                        },
+                    ],
+                    "type": "Vec<u8>",
+                },
+                "get_delegates": {
+                    "params": [],
+                    "type": "Vec<u8>",
+                },
+            }
+        },
         "NeuronInfoRuntimeApi": {
             "methods": {
                 "get_neuron_lite": {
@@ -117,6 +134,28 @@ TYPE_REGISTRY = {
                     "type": "Vec<u8>",
                 },
                 "get_neurons_lite": {
+                    "params": [
+                        {
+                            "name": "netuid",
+                            "type": "u16",
+                        },
+                    ],
+                    "type": "Vec<u8>",
+                },
+                "get_neuron": {
+                    "params": [
+                        {
+                            "name": "netuid",
+                            "type": "u16",
+                        },
+                        {
+                            "name": "uid",
+                            "type": "u16",
+                        },
+                    ],
+                    "type": "Vec<u8>",
+                },
+                "get_neurons": {
                     "params": [
                         {
                             "name": "netuid",
@@ -172,23 +211,54 @@ TYPE_REGISTRY = {
                         },
                     ],
                     "type": "Vec<u8>",
-                }
+                },
+                "get_subnet_info": {
+                    "params": [
+                        {
+                            "name": "netuid",
+                            "type": "u16",
+                        },
+                    ],
+                    "type": "Vec<u8>",
+                },
+                "get_subnets_info": {
+                    "params": [],
+                    "type": "Vec<u8>",
+                },
             }
         },
         "SubnetRegistrationRuntimeApi": {
             "methods": {"get_network_registration_cost": {"params": [], "type": "u64"}}
         },
-        "DelegateInfo": {
+        "ColdkeySwapRuntimeApi": {
             "methods": {
-                "get_delegated": {
+                "get_scheduled_coldkey_swap": {
                     "params": [
                         {
                             "name": "coldkey_account_vec",
                             "type": "Vec<u8>",
-                        }
+                        },
                     ],
                     "type": "Vec<u8>",
-                }
+                },
+                "get_remaining_arbitration_period": {
+                    "params": [
+                        {
+                            "name": "coldkey_account_vec",
+                            "type": "Vec<u8>",
+                        },
+                    ],
+                    "type": "Vec<u8>",
+                },
+                "get_coldkey_swap_destinations": {
+                    "params": [
+                        {
+                            "name": "coldkey_account_vec",
+                            "type": "Vec<u8>",
+                        },
+                    ],
+                    "type": "Vec<u8>",
+                },
             }
         },
     },
