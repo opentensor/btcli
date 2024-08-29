@@ -388,7 +388,7 @@ class NeuronInfo:
         DEPRECATED
         Returns a NeuronInfo object from a ``vec_u8``.
         """
-        warnings.warn("This is deprecated. Use the from_vec_u8_new method")
+        warnings.warn("This is deprecated. Use the from_vec_u8_new method", DeprecationWarning)
         if len(vec_u8) == 0:
             return NeuronInfo.get_null_neuron()
 
@@ -555,7 +555,7 @@ class NeuronInfoLite:
         DEPRECATED
         Returns a list of NeuronInfoLite objects from a ``vec_u8``.
         """
-        warnings.warn("This is deprecated. Use the list_from_vec_u8_new method")
+        warnings.warn("This is deprecated. Use the list_from_vec_u8_new method", DeprecationWarning)
         decoded_list = from_scale_encoding(
             vec_u8, ChainDataType.NeuronInfoLite, is_vec=True
         )
@@ -692,6 +692,7 @@ class DelegateInfo:
     @classmethod
     def from_vec_u8(cls, vec_u8: list[int]) -> Optional["DelegateInfo"]:
         """Returns a DelegateInfo object from a ``vec_u8``."""
+        warnings.warn("This is deprecated. Use from_vec_u8 instead.", DeprecationWarning)
         if len(vec_u8) == 0:
             return None
 
@@ -700,6 +701,23 @@ class DelegateInfo:
             return None
 
         return DelegateInfo.fix_decoded_values(decoded)
+
+    @classmethod
+    def from_vec_u8_new(cls, vec_u8: bytes) -> Optional["DelegateInfo"]:
+        decoded = bt_decode.DelegateInfo.decode(vec_u8)
+        hotkey = decode_account_id(decoded.delegate_ss58)
+        owner = decode_account_id(decoded.owner_ss58)
+        return DelegateInfo(
+            hotkey_ss58=hotkey,
+            total_stake=,
+            nominators=,
+            owner_ss58=owner,
+            take=,
+            validator_permits=,
+            registrations=,
+            return_per_1000=,
+            total_daily_return=,
+        )
 
     @classmethod
     def list_from_vec_u8(cls, vec_u8: list[int]) -> list["DelegateInfo"]:
