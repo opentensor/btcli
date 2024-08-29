@@ -388,7 +388,7 @@ class NeuronInfo:
         DEPRECATED
         Returns a NeuronInfo object from a ``vec_u8``.
         """
-        warnings.warn("This is deprecated. Use the list_from_vec_u8_new method")
+        warnings.warn("This is deprecated. Use the from_vec_u8_new method")
         if len(vec_u8) == 0:
             return NeuronInfo.get_null_neuron()
 
