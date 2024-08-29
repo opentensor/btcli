@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Any, Union
 
+import bt_decode
 from scalecodec import ScaleBytes
 from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
@@ -475,6 +476,83 @@ class NeuronInfoLite:
             NeuronInfoLite.fix_decoded_values(decoded) for decoded in decoded_list
         ]
         return decoded_list
+
+    @classmethod
+    def list_from_vec_u8_new(cls, vec_u8: list[int]) -> list["NeuronInfoLite"]:
+        def decode_account_id(account_id_bytes):
+            # Convert the AccountId bytes to a Base64 string
+            return ss58_encode(bytes(account_id_bytes).hex(), SS58_FORMAT)
+
+        def process_stake_data(stake_data):
+            decoded_stake_data = {}
+            for account_id_bytes, stake_ in stake_data:
+                account_id = decode_account_id(account_id_bytes)
+                decoded_stake_data.update({account_id: Balance.from_rao(stake_)})
+            return decoded_stake_data
+
+        decoded = bt_decode.NeuronInfoLite.decode_vec(vec_u8)
+        results = []
+        for item in decoded:
+            active = item.active
+            axon_info = item.axon_info
+            coldkey = decode_account_id(item.coldkey)
+            consensus = item.consensus
+            dividends = item.dividends
+            emission = item.emission
+            hotkey = decode_account_id(item.hotkey)
+            incentive = item.incentive
+            last_update = item.last_update
+            netuid = item.netuid
+            prometheus_info = item.prometheus_info
+            pruning_score = item.pruning_score
+            rank = item.rank
+            stake_dict = process_stake_data(item.stake)
+            stake = sum(stake_dict.values())
+            trust = item.trust
+            uid = item.uid
+            validator_permit = item.validator_permit
+            validator_trust = item.validator_trust
+            results.append(NeuronInfoLite(
+                active=active,
+                axon_info=AxonInfo(
+                    version=axon_info.version,
+                    ip=str(axon_info.ip),
+                    port=axon_info.port,
+                    ip_type=axon_info.ip_type,
+                    placeholder1=axon_info.placeholder1,
+                    placeholder2=axon_info.placeholder2,
+                    protocol=axon_info.protocol,
+                    hotkey=hotkey,
+                    coldkey=coldkey
+                ),
+                coldkey=coldkey,
+                consensus=consensus,
+                dividends=dividends,
+                emission=emission,
+                hotkey=hotkey,
+                incentive=incentive,
+                last_update=last_update,
+                netuid=netuid,
+                prometheus_info=PrometheusInfo(
+                    version=prometheus_info.version,
+                    ip=str(prometheus_info.ip),
+                    port=prometheus_info.port,
+                    ip_type=prometheus_info.ip_type,
+                    block=prometheus_info.block,
+                ),
+                pruning_score=pruning_score,
+                rank=rank,
+                stake_dict=stake_dict,
+                stake=stake,
+                total_stake=stake,
+                trust=trust,
+                uid=uid,
+                validator_permit=validator_permit,
+                validator_trust=validator_trust
+            ))
+        return results
+
+
 
 
 @dataclass

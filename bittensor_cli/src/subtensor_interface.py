@@ -594,12 +594,12 @@ class SubtensorInterface:
         if hex_bytes_result is None:
             return []
 
-        if hex_bytes_result.startswith("0x"):
+        try:
             bytes_result = bytes.fromhex(hex_bytes_result[2:])
-        else:
+        except ValueError:
             bytes_result = bytes.fromhex(hex_bytes_result)
 
-        return NeuronInfoLite.list_from_vec_u8(bytes_result)  # type: ignore
+        return NeuronInfoLite.list_from_vec_u8_new(bytes_result)  # type: ignore
 
     async def neuron_for_uid(
         self, uid: Optional[int], netuid: int, block_hash: Optional[str] = None
