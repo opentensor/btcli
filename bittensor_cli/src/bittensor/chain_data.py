@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Any, Union
-import warnings
+from typing import Optional, Union
 
 import bt_decode
 import netaddr
@@ -11,9 +10,8 @@ from scalecodec.type_registry import load_type_registry_preset
 from scalecodec.utils.ss58 import ss58_encode
 
 from bittensor_cli.src.bittensor.balances import Balance
-from bittensor_cli.src.bittensor.extrinsics.registration import use_torch, torch
 from bittensor_cli.src.bittensor.networking import int_to_ip
-from bittensor_cli.src.utils import SS58_FORMAT, u16_normalized_float, RAO_PER_TAO
+from bittensor_cli.src.utils import SS58_FORMAT, u16_normalized_float
 
 
 class ChainDataType(Enum):
