@@ -170,27 +170,15 @@ class SubtensorInterface:
 
         :return: List of DelegateInfo objects, or an empty list if there are no delegates.
         """
-        json_body = await self.substrate.rpc_request(
-            method="delegateInfo_getDelegates",  # custom rpc method
-            params=[block_hash] if block_hash else [],
-            reuse_block_hash=reuse_block,
+        hex_bytes_result = await self.query_runtime_api(
+            runtime_api="DelegateInfoRuntimeApi", method="get_delegates", params=[]
         )
+        try:
+            bytes_result = bytes.fromhex(hex_bytes_result[2:])
+        except ValueError:
+            bytes_result = bytes.fromhex(hex_bytes_result)
 
-        if not (result := json_body.get("result", None)):
-            return []
-
-        # TODO not yet working
-        # import time
-        # start = time.time()
-        # DelegateInfo.list_from_vec_u8(result)
-        # print("old time", time.time() - start)
-        # start = time.time()
-        # DelegateInfo.list_from_vec_u8_new(bytes(result))
-        # print("new time", time.time() - start)
-
-        # return DelegateInfo.list_from_vec_u8_new(bytes(result))
-        print(bytes(result).hex())
-        return DelegateInfo.list_from_vec_u8(result)
+        return DelegateInfo.list_from_vec_u8_new(bytes_result)
 
     async def get_stake_info_for_coldkey(
         self,
@@ -229,16 +217,7 @@ class SubtensorInterface:
         except ValueError:
             bytes_result = bytes.fromhex(hex_bytes_result)
 
-        # TODO not working yet
-        # import time
-        # start_time = time.time()
-        # StakeInfo.list_from_vec_u8(bytes_result)
-        # print("old time", time.time() - start_time)
-        # start_time = time.time()
-        # StakeInfo.list_from_vec_u8_new(bytes_result)
-        # print("new time", time.time() - start_time)
-
-        return StakeInfo.list_from_vec_u8(bytes_result)
+        return StakeInfo.list_from_vec_u8_new(bytes_result)
 
     async def get_stake_for_coldkey_and_hotkey(
         self, hotkey_ss58: str, coldkey_ss58: str, block_hash: Optional[str]

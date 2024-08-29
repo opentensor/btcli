@@ -169,7 +169,10 @@ class SubnetHyperparameters:
         DEPRECATED
         Returns a SubnetHyperparameters object from a `vec_u8`.
         """
-        warnings.warn("This method is deprecated. Please use `from_vec_u8_new` instead.", DeprecationWarning)
+        warnings.warn(
+            "This method is deprecated. Please use `from_vec_u8_new` instead.",
+            DeprecationWarning,
+        )
         if len(vec_u8) == 0:
             return None
 
@@ -309,7 +312,14 @@ class StakeInfo:
 
     @classmethod
     def list_from_vec_u8(cls, vec_u8: bytes) -> list["StakeInfo"]:
-        """Returns a list of StakeInfo objects from a ``vec_u8``."""
+        """
+        DEPRECATED
+        Returns a list of StakeInfo objects from a `vec_u8`.
+        """
+        warnings.warn(
+            "This method is deprecated, use list_from_vec_u8_new instead.",
+            DeprecationWarning,
+        )
         decoded = from_scale_encoding(vec_u8, ChainDataType.StakeInfo, is_vec=True)
         if decoded is None:
             return []
@@ -318,12 +328,12 @@ class StakeInfo:
 
     @classmethod
     def list_from_vec_u8_new(cls, vec_u8: bytes) -> list["StakeInfo"]:
-        # TODO not working yet
+        """
+        Returns a list of StakeInfo objects from a `vec_u8`.
+        """
         decoded = bt_decode.StakeInfo.decode_vec(vec_u8)
         results = []
         for d in decoded:
-            for attr in dir(d):
-                print(attr, getattr(d, attr))
             hotkey = decode_account_id(d.hotkey)
             coldkey = decode_account_id(d.coldkey)
             stake = Balance.from_rao(d.stake)
@@ -440,7 +450,9 @@ class NeuronInfo:
         DEPRECATED
         Returns a NeuronInfo object from a ``vec_u8``.
         """
-        warnings.warn("This is deprecated. Use the from_vec_u8_new method", DeprecationWarning)
+        warnings.warn(
+            "This is deprecated. Use the from_vec_u8_new method", DeprecationWarning
+        )
         if len(vec_u8) == 0:
             return NeuronInfo.get_null_neuron()
 
@@ -607,7 +619,10 @@ class NeuronInfoLite:
         DEPRECATED
         Returns a list of NeuronInfoLite objects from a ``vec_u8``.
         """
-        warnings.warn("This is deprecated. Use the list_from_vec_u8_new method", DeprecationWarning)
+        warnings.warn(
+            "This is deprecated. Use the list_from_vec_u8_new method",
+            DeprecationWarning,
+        )
         decoded_list = from_scale_encoding(
             vec_u8, ChainDataType.NeuronInfoLite, is_vec=True
         )
@@ -747,7 +762,9 @@ class DelegateInfo:
         DEPRECATED
         Returns a DelegateInfo object from a `vec_u8`.
         """
-        warnings.warn("This is deprecated. Use from_vec_u8 instead.", DeprecationWarning)
+        warnings.warn(
+            "This is deprecated. Use from_vec_u8 instead.", DeprecationWarning
+        )
         if len(vec_u8) == 0:
             return None
 
@@ -773,7 +790,7 @@ class DelegateInfo:
             validator_permits=decoded.validator_permits,
             registrations=decoded.registrations,
             return_per_1000=Balance.from_rao(decoded.return_per_1000),
-            total_daily_return=Balance.from_rao(decoded.total_daily_return)
+            total_daily_return=Balance.from_rao(decoded.total_daily_return),
         )
 
     @classmethod
@@ -782,7 +799,10 @@ class DelegateInfo:
         DEPRECATED
         Returns a list of DelegateInfo objects from a `vec_u8`.
         """
-        warnings.warn("This method is deprecated. Use list_from_vec_u8_new instead.", DeprecationWarning)
+        warnings.warn(
+            "This method is deprecated. Use list_from_vec_u8_new instead.",
+            DeprecationWarning,
+        )
         decoded = from_scale_encoding(vec_u8, ChainDataType.DelegateInfo, is_vec=True)
 
         if decoded is None:
@@ -795,23 +815,23 @@ class DelegateInfo:
         decoded = bt_decode.DelegateInfo.decode_vec(vec_u8)
         results = []
         for d in decoded:
-            # for attr in dir(d):
-            #     print(attr, getattr(d, attr))
             hotkey = decode_account_id(d.delegate_ss58)
             owner = decode_account_id(d.owner_ss58)
             nominators = process_stake_data(d.nominators)
             total_stake = sum(nominators.values())
-            results.append(DelegateInfo(
-                hotkey_ss58=hotkey,
-                total_stake=total_stake,
-                nominators=nominators,
-                owner_ss58=owner,
-                take=d.take,
-                validator_permits=d.validator_permits,
-                registrations=d.registrations,
-                return_per_1000=Balance.from_rao(d.return_per_1000),
-                total_daily_return=Balance.from_rao(d.total_daily_return)
-            ))
+            results.append(
+                DelegateInfo(
+                    hotkey_ss58=hotkey,
+                    total_stake=total_stake,
+                    nominators=nominators,
+                    owner_ss58=owner,
+                    take=d.take,
+                    validator_permits=d.validator_permits,
+                    registrations=d.registrations,
+                    return_per_1000=Balance.from_rao(d.return_per_1000),
+                    total_daily_return=Balance.from_rao(d.total_daily_return),
+                )
+            )
         return results
 
     @classmethod
