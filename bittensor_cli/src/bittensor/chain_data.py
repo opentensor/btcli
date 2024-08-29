@@ -164,8 +164,12 @@ class SubnetHyperparameters:
     liquid_alpha_enabled: bool
 
     @classmethod
-    def from_vec_u8(cls, vec_u8: list[int]) -> Optional["SubnetHyperparameters"]:
-        """Returns a SubnetHyperparameters object from a ``vec_u8``."""
+    def from_vec_u8(cls, vec_u8: bytes) -> Optional["SubnetHyperparameters"]:
+        """
+        DEPRECATED
+        Returns a SubnetHyperparameters object from a `vec_u8`.
+        """
+        warnings.warn("This method is deprecated. Please use `from_vec_u8_new` instead.", DeprecationWarning)
         if len(vec_u8) == 0:
             return None
 
@@ -174,6 +178,39 @@ class SubnetHyperparameters:
             return None
 
         return SubnetHyperparameters.fix_decoded_values(decoded)
+
+    @classmethod
+    def from_vec_u8_new(cls, vec_u8: bytes) -> Optional["SubnetHyperparameters"]:
+        decoded = bt_decode.SubnetHyperparameters.decode(vec_u8)
+        return SubnetHyperparameters(
+            rho=decoded.rho,
+            kappa=decoded.kappa,
+            immunity_period=decoded.immunity_period,
+            min_allowed_weights=decoded.min_allowed_weights,
+            max_weight_limit=decoded.max_weights_limit,
+            tempo=decoded.tempo,
+            min_difficulty=decoded.min_difficulty,
+            max_difficulty=decoded.max_difficulty,
+            weights_version=decoded.weights_version,
+            weights_rate_limit=decoded.weights_rate_limit,
+            adjustment_interval=decoded.adjustment_interval,
+            activity_cutoff=decoded.activity_cutoff,
+            registration_allowed=decoded.registration_allowed,
+            target_regs_per_interval=decoded.target_regs_per_interval,
+            min_burn=decoded.min_burn,
+            max_burn=decoded.max_burn,
+            bonds_moving_avg=decoded.bonds_moving_avg,
+            max_regs_per_block=decoded.max_regs_per_block,
+            serving_rate_limit=decoded.serving_rate_limit,
+            max_validators=decoded.max_validators,
+            adjustment_alpha=decoded.adjustment_alpha,
+            difficulty=decoded.difficulty,
+            commit_reveal_weights_interval=decoded.commit_reveal_weights_interval,
+            commit_reveal_weights_enabled=decoded.commit_reveal_weights_enabled,
+            alpha_high=decoded.alpha_high,
+            alpha_low=decoded.alpha_low,
+            liquid_alpha_enabled=decoded.liquid_alpha_enabled,
+        )
 
     @classmethod
     def list_from_vec_u8(cls, vec_u8: list[int]) -> list["SubnetHyperparameters"]:
@@ -271,13 +308,28 @@ class StakeInfo:
         }
 
     @classmethod
-    def list_from_vec_u8(cls, vec_u8: list[int]) -> list["StakeInfo"]:
+    def list_from_vec_u8(cls, vec_u8: bytes) -> list["StakeInfo"]:
         """Returns a list of StakeInfo objects from a ``vec_u8``."""
         decoded = from_scale_encoding(vec_u8, ChainDataType.StakeInfo, is_vec=True)
         if decoded is None:
             return []
 
         return [StakeInfo.fix_decoded_values(d) for d in decoded]
+
+    @classmethod
+    def list_from_vec_u8_new(cls, vec_u8: bytes) -> list["StakeInfo"]:
+        # TODO not working yet
+        decoded = bt_decode.StakeInfo.decode_vec(vec_u8)
+        results = []
+        for d in decoded:
+            for attr in dir(d):
+                print(attr, getattr(d, attr))
+            hotkey = decode_account_id(d.hotkey)
+            coldkey = decode_account_id(d.coldkey)
+            stake = Balance.from_rao(d.stake)
+            results.append(StakeInfo(hotkey, coldkey, stake))
+
+        return results
 
 
 @dataclass

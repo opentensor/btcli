@@ -189,7 +189,7 @@ class SubtensorInterface:
         # print("new time", time.time() - start)
 
         # return DelegateInfo.list_from_vec_u8_new(bytes(result))
-
+        print(bytes(result).hex())
         return DelegateInfo.list_from_vec_u8(result)
 
     async def get_stake_info_for_coldkey(
@@ -224,12 +224,21 @@ class SubtensorInterface:
         if hex_bytes_result is None:
             return []
 
-        if hex_bytes_result.startswith("0x"):
+        try:
             bytes_result = bytes.fromhex(hex_bytes_result[2:])
-        else:
+        except ValueError:
             bytes_result = bytes.fromhex(hex_bytes_result)
-        # TODO: review if this is the correct type / works
-        return StakeInfo.list_from_vec_u8(bytes_result)  # type: ignore
+
+        # TODO not working yet
+        # import time
+        # start_time = time.time()
+        # StakeInfo.list_from_vec_u8(bytes_result)
+        # print("old time", time.time() - start_time)
+        # start_time = time.time()
+        # StakeInfo.list_from_vec_u8_new(bytes_result)
+        # print("new time", time.time() - start_time)
+
+        return StakeInfo.list_from_vec_u8(bytes_result)
 
     async def get_stake_for_coldkey_and_hotkey(
         self, hotkey_ss58: str, coldkey_ss58: str, block_hash: Optional[str]
@@ -915,4 +924,4 @@ class SubtensorInterface:
         else:
             bytes_result = bytes.fromhex(hex_bytes_result)
 
-        return SubnetHyperparameters.from_vec_u8(bytes_result)  # type: ignore
+        return SubnetHyperparameters.from_vec_u8_new(bytes_result)
