@@ -1306,6 +1306,7 @@ async def show(
                 "[bold white]Hotkey",
                 style="bright_magenta",
             ),
+            title="[underline dark_orange]Stake Show",
             show_footer=True,
             show_edge=False,
             expand=False,

@@ -62,7 +62,7 @@ setup(
     description="Bittensor CLI",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/opentensor/bittensor",
+    url="https://github.com/opentensor/btcli",
     author="bittensor.com",
     packages=find_packages(exclude=["tests", "tests.*", "*/tests/*", "*/tests"]),
     include_package_data=True,
@@ -71,7 +71,7 @@ setup(
     },
     author_email="",
     license="MIT",
-    python_requires=">=3.9",
+    python_requires=">=3.10",
     install_requires=requirements,
     extras_require={
         "cuda": cuda_requirements,
