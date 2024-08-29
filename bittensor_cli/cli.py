@@ -3389,19 +3389,17 @@ class CLIManager:
         ),
     ):
         """
-        # weights reveal
-        Executes the `reveal` command to reveal weights for a specific subnet on the Bittensor network.
+        [red]Reveal weights[/red] for a specific subnet on the Bittensor network.
 
-        ## Usage:
+        # Usage:
+
         The command allows revealing weights for a specific subnet. Users need to specify the netuid (network unique
         identifier), corresponding UIDs, and weights they wish to reveal.
 
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-        $ btcli wt reveal --netuid 1 --uids 1,2,3,4 --weights 0.1,0.2,0.3,0.4 --salt 163,241,217,11,161,142,147,189
-        ```
+        [green]$[/green] btcli wt reveal --netuid 1 --uids 1,2,3,4 --weights 0.1,0.2,0.3,0.4 --salt 163,241,217,11,161,142,147,189
 
         [italic]Note[/italic]: This command is used to reveal weights for a specific subnet and requires the user to have the necessary permissions.
         """
