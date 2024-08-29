@@ -241,7 +241,7 @@ async def subnets_list(
         table_width = console.width - 20
 
         table = Table(
-            title=f"[dark_orange]Subnets - {metadata['network']}[/dark_orange]\n",
+            title=f"[underline dark_orange]Subnets - {metadata['network']}[/underline dark_orange]\n",
             show_footer=True,
             show_edge=False,
             header_style="bold white",
@@ -833,9 +833,9 @@ async def metagraph_cmd(
             show_lines=False,
             expand=True,
             title=(
-                f"[white]Metagraph - "
+                f"[underline dark_orange]Metagraph[/underline dark_orange]\n\n"
                 f"Net: [bright_cyan]{metadata_info['net']}[/bright_cyan], "
-                f"Block: [sea_green2]{metadata_info['block']}[/sea_green2], "
+                f"Block: [bright_cyan]{metadata_info['block']}[/bright_cyan], "
                 f"N: [bright_green]{metadata_info['N0']}[/bright_green]/[bright_red]{metadata_info['N1']}[/bright_red], "
                 f"Stake: [dark_orange]{metadata_info['stake']}[/dark_orange], "
                 f"Issuance: [bright_blue]{metadata_info['issuance']}[/bright_blue], "

@@ -1245,7 +1245,7 @@ async def inspect(
         Column("[bold white]Hotkey", style="bright_magenta"),
         Column("[bold white]Stake", style="light_goldenrod2"),
         Column("[bold white]Emission", style="rgb(42,161,152)"),
-        title="[dark_orange]Wallets\n",
+        title="[underline dark_orange]Wallets\n",
         show_footer=True,
         show_edge=False,
         expand=True,

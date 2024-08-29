@@ -763,7 +763,7 @@ async def root_list(subtensor: SubtensorInterface):
             style="dark_sea_green",
             no_wrap=True,
         ),
-        title="[dark_orange]Root Network",
+        title="[underline dark_orange]Root Network",
         show_footer=True,
         show_edge=False,
         expand=False,
@@ -1374,7 +1374,7 @@ async def my_delegates(
         Column("[white]VPERMIT", justify="right", no_wrap=True),
         Column("[white]24h/k\u03c4", style="rgb(42,161,152)", justify="center"),
         Column("[white]Desc", style="rgb(50,163,219)"),
-        title="[dark_orange]My Delegates\n",
+        title="[underline dark_orange]My Delegates\n",
         show_footer=True,
         show_edge=False,
         expand=False,
@@ -1474,13 +1474,13 @@ async def list_delegates(subtensor: SubtensorInterface):
             block_hash=block_hash
         )
 
-        try:
-            prev_block_hash = await subtensor.substrate.get_block_hash(
-                max(0, block_number - 1200)
-            )
-            prev_delegates = await subtensor.get_delegates(block_hash=prev_block_hash)
-        except SubstrateRequestException:
-            prev_delegates = None
+        # try:
+        #     prev_block_hash = await subtensor.substrate.get_block_hash(
+        #         max(0, block_number - 1200)
+        #     )
+        #     prev_delegates = await subtensor.get_delegates(block_hash=prev_block_hash)
+        # except SubstrateRequestException:
+        prev_delegates = None
 
     if prev_delegates is None:
         err_console.print(
@@ -1540,14 +1540,12 @@ async def list_delegates(subtensor: SubtensorInterface):
         ),
         Column("[white]DELEGATE/(24h)", style="rgb(42,161,152)", justify="center"),
         Column("[white]Desc", style="rgb(50,163,219)"),
-        title="[dark_orange]Root Delegates",
+        title="[underline dark_orange]Root Delegates\n",
         show_footer=True,
         width=None,
         pad_edge=False,
-        box=box.SIMPLE_HEAVY,
+        box=None,
         expand=True,
-        show_edge=False,
-        border_style="bright_black",
     )
 
     for i, delegate in enumerate(delegates):
