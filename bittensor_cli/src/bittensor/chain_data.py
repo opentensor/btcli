@@ -248,7 +248,7 @@ class NeuronInfo:
     def from_vec_u8(cls, vec_u8: bytes) -> "NeuronInfo":
         n = bt_decode.NeuronInfo.decode(vec_u8)
         stake_dict = process_stake_data(n.stake)
-        total_stake = sum(stake_dict.values())
+        total_stake = sum(stake_dict.values()) if stake_dict else Balance(0)
         axon_info = n.axon_info
         coldkey = decode_account_id(n.coldkey)
         hotkey = decode_account_id(n.hotkey)
@@ -368,7 +368,7 @@ class NeuronInfoLite:
             pruning_score = item.pruning_score
             rank = item.rank
             stake_dict = process_stake_data(item.stake)
-            stake = sum(stake_dict.values())
+            stake = sum(stake_dict.values()) if stake_dict else Balance(0)
             trust = item.trust
             uid = item.uid
             validator_permit = item.validator_permit
@@ -452,8 +452,10 @@ class DelegateInfo:
         decoded = bt_decode.DelegateInfo.decode(vec_u8)
         hotkey = decode_account_id(decoded.delegate_ss58)
         owner = decode_account_id(decoded.owner_ss58)
-        nominators = process_stake_data(decoded.nominators)
-        total_stake = sum(nominators.values())
+        nominators = [
+            (decode_account_id(x), Balance.from_rao(y)) for x, y in decoded.nominators
+        ]
+        total_stake = sum((x[1] for x in nominators)) if nominators else Balance(0)
         return DelegateInfo(
             hotkey_ss58=hotkey,
             total_stake=total_stake,
@@ -473,8 +475,10 @@ class DelegateInfo:
         for d in decoded:
             hotkey = decode_account_id(d.delegate_ss58)
             owner = decode_account_id(d.owner_ss58)
-            nominators = process_stake_data(d.nominators)
-            total_stake = sum(nominators.values())
+            nominators = [
+                (decode_account_id(x), Balance.from_rao(y)) for x, y in d.nominators
+            ]
+            total_stake = sum((x[1] for x in nominators)) if nominators else Balance(0)
             results.append(
                 DelegateInfo(
                     hotkey_ss58=hotkey,
@@ -497,10 +501,13 @@ class DelegateInfo:
         decoded = bt_decode.DelegateInfo.decode_delegated(vec_u8)
         results = []
         for d, b in decoded:
-            nominators = process_stake_data(d.nominators)
+            nominators = [
+                (decode_account_id(x), Balance.from_rao(y)) for x, y in d.nominators
+            ]
+            total_stake = sum((x[1] for x in nominators)) if nominators else Balance(0)
             delegate = DelegateInfo(
                 hotkey_ss58=decode_account_id(d.delegate_ss58),
-                total_stake=sum(nominators.values()),
+                total_stake=total_stake,
                 nominators=nominators,
                 owner_ss58=decode_account_id(d.owner_ss58),
                 take=d.take,
