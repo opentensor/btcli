@@ -1474,13 +1474,11 @@ async def list_delegates(subtensor: SubtensorInterface):
             block_hash=block_hash
         )
 
-        try:
-            prev_block_hash = await subtensor.substrate.get_block_hash(
-                max(0, block_number - 1200)
-            )
-            prev_delegates = await subtensor.get_delegates(block_hash=prev_block_hash)
-        except SubstrateRequestException:
-            prev_delegates = None
+        # TODO keep an eye on this, was not working at one point
+        prev_block_hash = await subtensor.substrate.get_block_hash(
+            max(0, block_number - 1200)
+        )
+        prev_delegates = await subtensor.get_delegates(block_hash=prev_block_hash)
 
     if prev_delegates is None:
         err_console.print(
@@ -1592,7 +1590,6 @@ async def list_delegates(subtensor: SubtensorInterface):
                     rate_change_in_stake_str = "[grey0]0%[/grey0]"
         else:
             rate_change_in_stake_str = "[grey0]NA[/grey0]"
-
         table.add_row(
             # INDEX
             str(i),

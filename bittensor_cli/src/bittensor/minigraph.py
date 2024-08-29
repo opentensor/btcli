@@ -186,17 +186,11 @@ class MiniGraph:
             return getattr(_result, "value", 0)
 
         async def get_subnets():
-            _result = await self.subtensor.substrate.query_map(
+            _result = await self.subtensor.substrate.query(
                 module="SubtensorModule",
-                storage_function="NetworksAdded",
-                params=[],
-                reuse_block_hash=True,
+                storage_function="TotalNetworks",
             )
-            return (
-                [network[0].value for network in _result.records]
-                if _result and hasattr(_result, "records")
-                else []
-            )
+            return [i for i in range(_result)]
 
         data_array = []
         n_subnets, subnets = await asyncio.gather(get_total_subnets(), get_subnets())
