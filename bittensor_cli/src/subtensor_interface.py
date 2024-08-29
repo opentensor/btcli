@@ -179,6 +179,17 @@ class SubtensorInterface:
         if not (result := json_body.get("result", None)):
             return []
 
+        # TODO not yet working
+        # import time
+        # start = time.time()
+        # DelegateInfo.list_from_vec_u8(result)
+        # print("old time", time.time() - start)
+        # start = time.time()
+        # DelegateInfo.list_from_vec_u8_new(bytes(result))
+        # print("new time", time.time() - start)
+
+        # return DelegateInfo.list_from_vec_u8_new(bytes(result))
+
         return DelegateInfo.list_from_vec_u8(result)
 
     async def get_stake_info_for_coldkey(

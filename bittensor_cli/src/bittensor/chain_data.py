@@ -691,7 +691,10 @@ class DelegateInfo:
 
     @classmethod
     def from_vec_u8(cls, vec_u8: list[int]) -> Optional["DelegateInfo"]:
-        """Returns a DelegateInfo object from a ``vec_u8``."""
+        """
+        DEPRECATED
+        Returns a DelegateInfo object from a `vec_u8`.
+        """
         warnings.warn("This is deprecated. Use from_vec_u8 instead.", DeprecationWarning)
         if len(vec_u8) == 0:
             return None
@@ -707,27 +710,57 @@ class DelegateInfo:
         decoded = bt_decode.DelegateInfo.decode(vec_u8)
         hotkey = decode_account_id(decoded.delegate_ss58)
         owner = decode_account_id(decoded.owner_ss58)
+        nominators = process_stake_data(decoded.nominators)
+        total_stake = sum(nominators.values())
         return DelegateInfo(
             hotkey_ss58=hotkey,
-            total_stake=,
-            nominators=,
+            total_stake=total_stake,
+            nominators=nominators,
             owner_ss58=owner,
-            take=,
-            validator_permits=,
-            registrations=,
-            return_per_1000=,
-            total_daily_return=,
+            take=decoded.take,
+            validator_permits=decoded.validator_permits,
+            registrations=decoded.registrations,
+            return_per_1000=Balance.from_rao(decoded.return_per_1000),
+            total_daily_return=Balance.from_rao(decoded.total_daily_return)
         )
 
     @classmethod
     def list_from_vec_u8(cls, vec_u8: list[int]) -> list["DelegateInfo"]:
-        """Returns a list of DelegateInfo objects from a ``vec_u8``."""
+        """
+        DEPRECATED
+        Returns a list of DelegateInfo objects from a `vec_u8`.
+        """
+        warnings.warn("This method is deprecated. Use list_from_vec_u8_new instead.", DeprecationWarning)
         decoded = from_scale_encoding(vec_u8, ChainDataType.DelegateInfo, is_vec=True)
 
         if decoded is None:
             return []
 
         return [DelegateInfo.fix_decoded_values(d) for d in decoded]
+
+    @classmethod
+    def list_from_vec_u8_new(cls, vec_u8: bytes) -> list["DelegateInfo"]:
+        decoded = bt_decode.DelegateInfo.decode_vec(vec_u8)
+        results = []
+        for d in decoded:
+            # for attr in dir(d):
+            #     print(attr, getattr(d, attr))
+            hotkey = decode_account_id(d.delegate_ss58)
+            owner = decode_account_id(d.owner_ss58)
+            nominators = process_stake_data(d.nominators)
+            total_stake = sum(nominators.values())
+            results.append(DelegateInfo(
+                hotkey_ss58=hotkey,
+                total_stake=total_stake,
+                nominators=nominators,
+                owner_ss58=owner,
+                take=d.take,
+                validator_permits=d.validator_permits,
+                registrations=d.registrations,
+                return_per_1000=Balance.from_rao(d.return_per_1000),
+                total_daily_return=Balance.from_rao(d.total_daily_return)
+            ))
+        return results
 
     @classmethod
     def delegated_list_from_vec_u8(
