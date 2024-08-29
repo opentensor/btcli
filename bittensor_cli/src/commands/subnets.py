@@ -241,7 +241,7 @@ async def subnets_list(
         table_width = console.width - 20
 
         table = Table(
-            title=f"[bold magenta]Subnets - {metadata['network']}[/bold magenta]",
+            title=f"[dark_orange]Subnets - {metadata['network']}[/dark_orange]\n",
             show_footer=True,
             show_edge=False,
             header_style="bold white",
@@ -267,9 +267,9 @@ async def subnets_list(
             style="bright_cyan",
             justify="center",
         )
-        table.add_column("[bold white]MAX_N", style="bright_yellow", justify="center")
+        table.add_column("[bold white]MAX_N", style="bright_cyan", justify="center")
         table.add_column(
-            "[bold white]EMISSION", style="bright_yellow", justify="center"
+            "[bold white]EMISSION", style="light_goldenrod2", justify="center"
         )
         table.add_column("[bold white]TEMPO", style="magenta", justify="center")
         table.add_column("[bold white]RECYCLE", style="bright_red", justify="center")

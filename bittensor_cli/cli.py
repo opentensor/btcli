@@ -3530,6 +3530,7 @@ class CLIManager:
         html_output: bool = Options.html_output,
     ):
         """
+        # subnets metagraph
         Executes the `metagraph` command to retrieve and display the entire metagraph for a specified network.
 
         This metagraph contains detailed information about
