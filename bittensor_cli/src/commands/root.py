@@ -1,5 +1,6 @@
 import asyncio
-from typing import TypedDict, Optional
+import json
+from typing import TypedDict, Optional, cast
 from rich import box
 import numpy as np
 from numpy.typing import NDArray
@@ -30,6 +31,10 @@ from bittensor_cli.src.utils import (
     get_delegates_details_from_github,
     convert_weight_uids_and_vals_to_tensor,
     ss58_to_vec_u8,
+    create_table,
+    render_table,
+    update_metadata_table,
+    get_metadata_table,
 )
 from bittensor_cli.src import Constants
 
@@ -818,68 +823,116 @@ async def set_weights(
     )
 
 
-async def get_weights(subtensor: SubtensorInterface):
+async def get_weights(
+    subtensor: SubtensorInterface,
+    limit_min_col: Optional[int],
+    limit_max_col: Optional[int],
+    reuse_last: bool,
+    html_output: bool,
+    no_cache: bool,
+):
     """Get weights for root network."""
-    with console.status(":satellite: Synchronizing with chain..."):
-        weights = await subtensor.weights(0)
+    if not reuse_last:
+        with console.status(":satellite: Synchronizing with chain..."):
+            weights = await subtensor.weights(0)
 
-    uid_to_weights: dict[int, dict] = {}
-    netuids = set()
-    for matrix in weights:
-        [uid, weights_data] = matrix
+        uid_to_weights: dict[int, dict] = {}
+        netuids = set()
+        for matrix in weights:
+            [uid, weights_data] = matrix
 
-        if not len(weights_data):
-            uid_to_weights[uid] = {}
-            normalized_weights = []
-        else:
-            normalized_weights = np.array(weights_data)[:, 1] / max(
-                np.sum(weights_data, axis=0)[1], 1
-            )
-
-        for weight_data, normalized_weight in zip(weights_data, normalized_weights):
-            [netuid, _] = weight_data
-            netuids.add(netuid)
-            if uid not in uid_to_weights:
+            if not len(weights_data):
                 uid_to_weights[uid] = {}
+                normalized_weights = []
+            else:
+                normalized_weights = np.array(weights_data)[:, 1] / max(
+                    np.sum(weights_data, axis=0)[1], 1
+                )
 
-            uid_to_weights[uid][netuid] = normalized_weight
+            for weight_data, normalized_weight in zip(weights_data, normalized_weights):
+                [netuid, _] = weight_data
+                netuids.add(netuid)
+                if uid not in uid_to_weights:
+                    uid_to_weights[uid] = {}
 
-    table = Table(
-        show_footer=True,
-        box=None,
-        pad_edge=False,
-        width=None,
-        title="[white]Root Network Weights",
-    )
-    table.add_column(
-        "[white]UID",
-        header_style="overline white",
-        footer_style="overline white",
-        style="rgb(50,163,219)",
-        no_wrap=True,
-    )
-    for netuid in netuids:
+                uid_to_weights[uid][netuid] = normalized_weight
+        rows: list[list[str]] = []
+        for uid in uid_to_weights:
+            row = [str(uid)]
+
+            uid_weights = uid_to_weights[uid]
+            for netuid in netuids:
+                if netuid in uid_weights:
+                    row.append("{:0.2f}%".format(uid_weights[netuid] * 100))
+                else:
+                    row.append("~")
+            rows.append(row)
+
+        if not no_cache:
+            db_cols = [("UID", "INTEGER")]
+            for netuid in netuids:
+                db_cols.append((f"_{netuid}", "TEXT"))
+            create_table("rootgetweights", db_cols, rows)
+            netuids = list(netuids)
+            update_metadata_table(
+                "rootgetweights",
+                {"rows": json.dumps(rows), "netuids": json.dumps(netuids)},
+            )
+    else:
+        metadata = get_metadata_table("rootgetweights")
+        rows = json.loads(metadata["rows"])
+        netuids = json.loads(metadata["netuids"])
+
+    _min_lim = limit_min_col if limit_min_col is not None else 0
+    _max_lim = limit_max_col + 1 if limit_max_col is not None else len(netuids)
+    _max_lim = min(_max_lim, len(netuids))
+
+    if _min_lim is not None and _min_lim > len(netuids):
+        err_console.print("Minimum limit greater than number of netuids")
+        return
+
+    if not html_output:
+        table = Table(
+            show_footer=True,
+            box=None,
+            pad_edge=False,
+            width=None,
+            title="[white]Root Network Weights",
+        )
         table.add_column(
-            f"[white]{netuid}",
+            "[white]UID",
             header_style="overline white",
             footer_style="overline white",
-            justify="right",
-            style="green",
+            style="rgb(50,163,219)",
             no_wrap=True,
         )
 
-    for uid in uid_to_weights:
-        row = [str(uid)]
+        for netuid in cast(list, netuids)[_min_lim:_max_lim]:
+            table.add_column(
+                f"[white]{netuid}",
+                header_style="overline white",
+                footer_style="overline white",
+                justify="right",
+                style="green",
+                no_wrap=True,
+            )
 
-        uid_weights = uid_to_weights[uid]
-        for netuid in netuids:
-            if netuid in uid_weights:
-                row.append("{:0.2f}%".format(uid_weights[netuid] * 100))
-            else:
-                row.append("~")
-        table.add_row(*row)
+        # Adding rows
+        for row in rows:
+            new_row = [row[0]] + row[_min_lim:_max_lim]
+            table.add_row(*new_row)
 
-    return console.print(table)
+        return console.print(table)
+
+    else:
+        html_cols = [{"title": "UID", "field": "UID"}]
+        for netuid in netuids[_min_lim:_max_lim]:
+            html_cols.append({"title": str(netuid), "field": f"_{netuid}"})
+        render_table(
+            "rootgetweights",
+            "Root Network Weights",
+            html_cols,
+        )
 
 
 async def _get_my_weights(

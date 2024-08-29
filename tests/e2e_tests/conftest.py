@@ -8,7 +8,9 @@ import time
 
 import pytest
 
-from bittensor_cli.src.bittensor.async_substrate_interface import AsyncSubstrateInterface
+from bittensor_cli.src.bittensor.async_substrate_interface import (
+    AsyncSubstrateInterface,
+)
 
 
 # Fixture for setting up and tearing down a localnet.sh chain between tests

@@ -1151,7 +1151,11 @@ async def _get_de_registered_stake_for_coldkey_wallet(
 
 
 async def transfer(
-    wallet: Wallet, subtensor: SubtensorInterface, destination: str, amount: float, prompt: bool
+    wallet: Wallet,
+    subtensor: SubtensorInterface,
+    destination: str,
+    amount: float,
+    prompt: bool,
 ):
     """Transfer token of amount to destination."""
     await transfer_extrinsic(
