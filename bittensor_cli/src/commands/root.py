@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import TypedDict, Optional
+from typing import TypedDict, Optional, cast
 from rich import box
 import numpy as np
 from numpy.typing import NDArray
@@ -825,8 +825,8 @@ async def set_weights(
 
 async def get_weights(
     subtensor: SubtensorInterface,
-    limit_min_col: int,
-    limit_max_col: int,
+    limit_min_col: Optional[int],
+    limit_max_col: Optional[int],
     reuse_last: bool,
     html_output: bool,
     no_cache: bool,
@@ -866,12 +866,14 @@ async def get_weights(
                     row.append("{:0.2f}%".format(uid_weights[netuid] * 100))
                 else:
                     row.append("~")
+            rows.append(row)
 
         if not no_cache:
             db_cols = [("UID", "INTEGER")]
             for netuid in netuids:
                 db_cols.append((f"_{netuid}", "TEXT"))
             create_table("rootgetweights", db_cols, rows)
+            netuids = list(netuids)
             update_metadata_table(
                 "rootgetweights",
                 {"rows": json.dumps(rows), "netuids": json.dumps(netuids)},
@@ -880,6 +882,14 @@ async def get_weights(
         metadata = get_metadata_table("rootgetweights")
         rows = json.loads(metadata["rows"])
         netuids = json.loads(metadata["netuids"])
+
+    _min_lim = limit_min_col if limit_min_col is not None else 0
+    _max_lim = limit_max_col + 1 if limit_max_col is not None else len(netuids)
+    _max_lim = min(_max_lim, len(netuids))
+
+    if _min_lim is not None and _min_lim > len(netuids):
+        err_console.print("Minimum limit greater than number of netuids")
+        return
 
     if not html_output:
         table = Table(
@@ -896,7 +906,8 @@ async def get_weights(
             style="rgb(50,163,219)",
             no_wrap=True,
         )
-        for netuid in netuids:
+
+        for netuid in cast(list, netuids)[_min_lim:_max_lim]:
             table.add_column(
                 f"[white]{netuid}",
                 header_style="overline white",
@@ -906,15 +917,17 @@ async def get_weights(
                 no_wrap=True,
             )
 
+        # Adding rows
         for row in rows:
-            table.add_row(*row)
+            new_row = [row[0]] + row[_min_lim:_max_lim]
+            table.add_row(*new_row)
 
         return console.print(table)
 
     else:
         html_cols = [{"title": "UID", "field": "UID"}]
-        for netuid in netuids:
-            html_cols.append({"title": str(netuid), "field": str(netuid)})
+        for netuid in netuids[_min_lim:_max_lim]:
+            html_cols.append({"title": str(netuid), "field": f"_{netuid}"})
         render_table(
             "rootgetweights",
             "Root Network Weights",

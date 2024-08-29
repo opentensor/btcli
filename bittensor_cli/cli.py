@@ -1796,8 +1796,18 @@ class CLIManager:
         self,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
-        limit_min_col: int = typer.Option(0),
-        limit_max_col: int = typer.Option(-1),
+        limit_min_col: Optional[int] = typer.Option(
+            None,
+            "--limit-min-col",
+            "--min",
+            help="Limit left display of the table to this column.",
+        ),
+        limit_max_col: Optional[int] = typer.Option(
+            None,
+            "--limit-max-col",
+            "--max",
+            help="Limit right display of the table to this column.",
+        ),
         reuse_last: bool = Options.reuse_last,
         html_output: bool = Options.html_output,
     ):
