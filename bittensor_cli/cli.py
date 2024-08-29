@@ -3,12 +3,13 @@ import asyncio
 import curses
 import os.path
 import re
+from pathlib import Path
 from typing import Coroutine, Optional
 
 import rich
 import typer
 from bittensor_wallet import Wallet
-from git import Repo
+from git import Repo, GitError
 from rich.prompt import Confirm, FloatPrompt, Prompt
 from rich.table import Column, Table
 from .src import HYPERPARAMS, defaults, utils
@@ -244,9 +245,12 @@ def version_callback(value: bool):
     Prints the current version/branch-name
     """
     if value:
-        typer.echo(
-            f"BTCLI Version: {__version__}/{Repo(os.path.dirname(os.path.dirname(__file__))).active_branch.name}"
-        )
+        try:
+            version = (f"BTCLI Version: {__version__}/"
+                       f"{Repo(os.path.dirname(os.path.dirname(__file__))).active_branch.name}")
+        except GitError:
+            version = f"BTCLI Version: {__version__}"
+        typer.echo(version)
         raise typer.Exit()
 
 
@@ -504,6 +508,8 @@ class CLIManager:
         """
         # create config file if it does not exist
         if not os.path.exists(self.config_path):
+            directory_path = Path(self.config_path)
+            directory_path.mkdir(exist_ok=True, parents=True)
             with open(self.config_path, "w") as f:
                 safe_dump(defaults.config.dictionary, f)
         # check config
