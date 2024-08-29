@@ -1,3 +1,4 @@
+import re
 import logging
 import time
 
@@ -54,6 +55,7 @@ def test_staking(local_chain):
             wallet_alice.name,
             "--network",
             "local",
+            "--no-prompt"
         ],
     )
     assert f"✅ Registered subnetwork with netuid: {netuid}" in result.stdout
@@ -75,6 +77,7 @@ def test_staking(local_chain):
             netuid,
             "--chain",
             "ws://127.0.0.1:9945",
+            "--no-prompt"
         ],
     )
     assert "✅ Registered" in register_subnet.stdout
@@ -96,6 +99,7 @@ def test_staking(local_chain):
             "ws://127.0.0.1:9945",
             "--amount",
             "100",
+            "--no-prompt"
         ],
     )
     assert "✅ Finalized" in add_stake.stdout
@@ -115,9 +119,9 @@ def test_staking(local_chain):
             "ws://127.0.0.1:9945",
         ],
     )
-
     # Assert correct stake is added
-    stake_added = show_stake.stdout.splitlines()[2].split()[1].strip("τ")
+    cleaned_stake = [re.sub(r'\s+', ' ', line) for line in show_stake.stdout.splitlines()]
+    stake_added = cleaned_stake[3].split()[4].strip("τ")
     assert Balance.from_tao(100) == Balance.from_tao(float(stake_added))
 
     # TODO: Ask nucleus the rate limit and wait epoch
@@ -142,6 +146,7 @@ def test_staking(local_chain):
             "ws://127.0.0.1:9945",
             "--amount",
             "100",
+            "--no-prompt"
         ],
     )
     assert "✅ Finalized" in remove_stake.stdout

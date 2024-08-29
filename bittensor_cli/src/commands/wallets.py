@@ -410,7 +410,7 @@ async def wallet_list(wallet_path: str):
         )
         hotkeys = utils.get_hotkey_wallets_for_wallet(wallet, show_nulls=True)
         for hkey in hotkeys:
-            data = f"[bold red]Hotkey[/bold red][green]{hkey.hotkey_str}[/green] (?)"
+            data = f"[bold red]Hotkey[/bold red][green] {hkey}[/green] (?)"
             if hkey:
                 try:
                     data = f"[bold red]Hotkey[/bold red] [green]{hkey.hotkey_str}[/green]  ss58_address [green]{hkey.hotkey.ss58_address}[/green]\n"
@@ -1151,12 +1151,11 @@ async def _get_de_registered_stake_for_coldkey_wallet(
 
 
 async def transfer(
-    wallet: Wallet, subtensor: SubtensorInterface, destination: str, amount: float
+    wallet: Wallet, subtensor: SubtensorInterface, destination: str, amount: float, prompt: bool
 ):
-    # TODO: - work out prompts to be passed through the cli
     """Transfer token of amount to destination."""
     await transfer_extrinsic(
-        subtensor, wallet, destination, Balance.from_tao(amount), prompt=False
+        subtensor, wallet, destination, Balance.from_tao(amount), prompt=prompt
     )
 
 

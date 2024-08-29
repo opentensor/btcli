@@ -54,6 +54,7 @@ def test_wallet_overview_inspect(local_chain):
             wallet.name,
             "--network",
             "local",
+            "--no-prompt"
         ],
     )
     assert f"✅ Registered subnetwork with netuid: {netuid}" in result.stdout
@@ -90,6 +91,7 @@ def test_wallet_overview_inspect(local_chain):
             "1",
             "--chain",
             "ws://127.0.0.1:9945",
+            "--no-prompt"
         ],
     )
     assert "✅ Registered" in register_subnet.stdout
@@ -261,6 +263,7 @@ def test_wallet_transfer(local_chain):
             "local",
             "--amount",
             "100",
+            "--no-prompt"
         ],
     )
 
@@ -347,6 +350,7 @@ def test_wallet_transfer(local_chain):
             "local",
             "--amount",
             "100",
+            "--no-prompt"
         ],
     )
 

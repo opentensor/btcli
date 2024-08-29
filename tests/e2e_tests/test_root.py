@@ -61,6 +61,7 @@ def test_root_commands(local_chain):
             wallet_bob.hotkey_str,
             "--network",
             "local",
+            "--no-prompt",
         ],
     )
     assert "✅ Registered" in root_register.stdout
@@ -188,6 +189,7 @@ def test_root_commands(local_chain):
             "local",
             "--amount",
             "10",
+            "--no-prompt",
         ],
     )
     assert "✅ Finalized" in stake_delegate.stdout
@@ -255,6 +257,7 @@ def test_root_commands(local_chain):
             "local",
             "--amount",
             "10",
+            "--no-prompt",
         ],
     )
     assert "✅ Finalized" in undelegate_alice.stdout
