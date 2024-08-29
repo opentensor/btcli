@@ -1397,15 +1397,14 @@ async def list_delegates(subtensor: SubtensorInterface):
         delegates: list[DelegateInfo] = await subtensor.get_delegates(
             block_hash=block_hash
         )
-        prev_delegates = None
 
-        # try:
-        #     prev_block_hash = await subtensor.substrate.get_block_hash(
-        #         max(0, block_number - 1200)
-        #     )
-        #     prev_delegates = await subtensor.get_delegates(block_hash=prev_block_hash)
-        # except SubstrateRequestException:
-        #     prev_delegates = None
+        try:
+            prev_block_hash = await subtensor.substrate.get_block_hash(
+                max(0, block_number - 1200)
+            )
+            prev_delegates = await subtensor.get_delegates(block_hash=prev_block_hash)
+        except SubstrateRequestException:
+            prev_delegates = None
 
     if prev_delegates is None:
         err_console.print(
