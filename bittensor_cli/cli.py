@@ -34,6 +34,8 @@ __version_as_int__: int = sum(
 assert __version_as_int__ < 2**31  # fits in int32
 __new_signature_version__ = 360
 
+_epilog = "Made with [bold red]:heart:[/bold red] by Openτensor Foundaτion"
+
 
 class Options:
     """
@@ -297,14 +299,16 @@ class CLIManager:
         self.not_subtensor = None
         self.config_path = os.path.expanduser(defaults.config.path)
 
-        self.app = typer.Typer(rich_markup_mode="markdown", callback=self.main_callback)
-        self.config_app = typer.Typer()
-        self.wallet_app = typer.Typer()
-        self.root_app = typer.Typer()
-        self.stake_app = typer.Typer()
-        self.sudo_app = typer.Typer()
-        self.subnets_app = typer.Typer()
-        self.weights_app = typer.Typer()
+        self.app = typer.Typer(
+            rich_markup_mode="rich", callback=self.main_callback, epilog=_epilog
+        )
+        self.config_app = typer.Typer(epilog=_epilog)
+        self.wallet_app = typer.Typer(epilog=_epilog)
+        self.root_app = typer.Typer(epilog=_epilog)
+        self.stake_app = typer.Typer(epilog=_epilog)
+        self.sudo_app = typer.Typer(epilog=_epilog)
+        self.subnets_app = typer.Typer(epilog=_epilog)
+        self.weights_app = typer.Typer(epilog=_epilog)
 
         # config alias
         self.app.add_typer(
@@ -621,20 +625,17 @@ class CLIManager:
         all_items: bool = typer.Option(False, "--all"),
     ):
         """
-        # config clear
-        Setting the flags in this command will clear those items from your config file
+        Setting the flags in this command will [red]clear those items[/red] from your [red]config file[/red]
 
-        ## Usage
+        # Usage
 
         - To clear the chain and network:
-        ```
-        btcli config clear --chain --network
-        ```
+
+        [green]$[/green] btcli config clear --chain --network
 
         - To clear your config entirely:
-        ```
-        btcli config clear --all
-        ```
+
+        [green]$[/green] btcli config clear --all
         """
         if all_items:
             self.config = {}
@@ -712,9 +713,7 @@ class CLIManager:
         ),
     ):
         """
-        # wallet list
-        Executes the `list` command which enumerates all wallets and their respective hotkeys present in the user's
-        Bittensor configuration directory.
+        Displays [red]all wallets[/red] and their respective [red]hotkeys[/red] present in the user's Bittensor configuration directory.
 
         The command organizes the information in a tree structure, displaying each
         wallet along with the `ss58` addresses for the coldkey public key and any hotkeys associated with it.
@@ -722,18 +721,17 @@ class CLIManager:
         and any associated hotkeys as child nodes. The ``ss58`` address is displayed for each
         coldkey and hotkey that is not encrypted and exists on the device.
 
-        ## Usage:
+        # Usage:
+
         Upon invocation, the command scans the wallet directory and prints a list of all wallets, indicating whether the
         public keys are available (`?` denotes unavailable or encrypted keys).
 
-        ### Example usage:
-        ```
-        btcli wallet list --path ~/.bittensor
-        ```
+        # Example usage:
 
-        #### Note:
-        This command is read-only and does not modify the filesystem or the network state. It is intended for use within
-         the Bittensor CLI to provide a quick overview of the user's wallets.
+        [green]$[/green] btcli wallet list --path ~/.bittensor
+
+        [italic]Note[/italic]: This command is read-only and does not modify the filesystem or the network state.
+        It is intended for use within the Bittensor CLI to provide a quick overview of the user's wallets.
         """
         return self._run_command(wallets.wallet_list(wallet_path))
 
@@ -772,15 +770,14 @@ class CLIManager:
         chain: str = Options.chain,
     ):
         """
-        # wallet overview
-        Executes the `overview` command to present a detailed overview of the user's registered accounts on the
-        Bittensor network.
+        Presents a detailed [red]overview[/red] of the [red]user's registered accounts[/red] on the Bittensor network.
 
         This command compiles and displays comprehensive information about each neuron associated with the user's
         wallets, including both hotkeys and coldkeys. It is especially useful for users managing multiple accounts or
         seeking a summary of their network activities and stake distributions.
 
-        ## Usage:
+        # Usage:
+
         The command offers various options to customize the output. Users can filter the displayed data by specific
         netuids, sort by different criteria, and choose to include all wallets in the user's configuration directory.
         The output is presented in a tabular format with the following columns:
@@ -818,24 +815,17 @@ class CLIManager:
         - HOTKEY_SS58: Human-readable representation of the hotkey.
 
 
-        ### Example usage:
+        # Example usage:
 
-        - ```
-        btcli wallet overview
-        ```
+        [green]$[/green] btcli wallet overview
 
-        - ```
-        btcli wallet overview --all --sort-by stake --sort-order descending
-        ```
+        [green]$[/green] btcli wallet overview --all --sort-by stake --sort-order descending
 
-        - ```
-        btcli wallet overview -in hk1 -in hk2 --sort-by stake
-        ```
+        [green]$[/green] btcli wallet overview -in hk1 -in hk2 --sort-by stake
 
-        #### Note:
-        This command is read-only and does not modify the network state or account configurations. It provides a quick
-        and comprehensive view of the user's network presence, making it ideal for monitoring account status, stake
-        distribution, and overall contribution to the Bittensor network.
+        [italic]Note[/italic]: This command is read-only and does not modify the network state or account configurations.
+        It provides a quick and comprehensive view of the user's network presence, making it ideal for monitoring account status,
+        stake distribution, and overall contribution to the Bittensor network.
         """
         if include_hotkeys and exclude_hotkeys:
             utils.err_console.print(
@@ -887,25 +877,23 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        # wallet transfer
-        Executes the ``transfer`` command to transfer TAO tokens from one account to another on the Bittensor network.
+        [red]Transfer TAO tokens[/red] from one account to another on the Bittensor network.
 
         This command is used for transactions between different accounts, enabling users to send tokens to other
         participants on the network. The command displays the user's current balance before prompting for the amount
         to transfer, ensuring transparency and accuracy in the transaction.
 
-        ## Usage:
+        # Usage:
+
         The command requires specifying the destination address (public key) and the amount of TAO to be transferred.
         It checks for sufficient balance and prompts for confirmation before proceeding with the transaction.
 
-        ### Example usage:
-        ```
-        btcli wallet transfer --dest 5Dp8... --amount 100
-        ```
+        # Example usage:
 
-        #### Note:
-        This command is crucial for executing token transfers within the Bittensor network. Users should verify the
-        destination address and amount before confirming the transaction to avoid errors or loss of funds.
+        [green]$[/green] btcli wallet transfer --dest 5Dp8... --amount 100
+
+        [italic]Note[/italic]: This command is crucial for executing token transfers within the Bittensor network.
+        Users should verify the destination address and amount before confirming the transaction to avoid errors or loss of funds.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         subtensor = self.initialize_chain(network, chain)
@@ -925,16 +913,15 @@ class CLIManager:
         ),
     ):
         """
-        # wallet swap-hotkey
-        Executes the `swap_hotkey` command to swap the hotkeys for a neuron on the network.
+        [red]Swap hotkeys[/red] for a neuron on the network.
 
-        ## Usage:
+        # Usage:
+
         The command is used to swap the hotkey of a wallet for another hotkey on that same wallet.
 
-        ### Example usage:
-        ```
-        btcli wallet swap_hotkey new_hotkey --wallet-name your_wallet_name --wallet-hotkey original_hotkey
-        ```
+        # Example usage:
+
+        [green]$[/green] btcli wallet swap_hotkey new_hotkey --wallet-name your_wallet_name --wallet-hotkey original_hotkey
         """
         original_wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         new_wallet = self.wallet_ask(wallet_name, wallet_path, destination_hotkey_name)
@@ -960,9 +947,7 @@ class CLIManager:
         netuids: list[int] = Options.netuids,
     ):
         """
-        # wallet inspect
-        Executes the ``inspect`` command, which compiles and displays a detailed report of a user's wallet pairs
-        (coldkey, hotkey) on the Bittensor network.
+        [red]Detailed report of a user's wallet pairs[/red] (coldkey, hotkey) on the Bittensor network.
 
         This report includes balance and staking information for both the coldkey and hotkey associated with the wallet.
 
@@ -974,36 +959,33 @@ class CLIManager:
 
         The resulting table includes columns for:
 
-        - **Coldkey**: The coldkey associated with the user's wallet.
+        - *Coldkey*: The coldkey associated with the user's wallet.
 
-        - **Balance**: The balance of the coldkey.
+        - *Balance*: The balance of the coldkey.
 
-        - **Delegate**: The name of the delegate to which the coldkey has staked funds.
+        - *Delegate*: The name of the delegate to which the coldkey has staked funds.
 
-        - **Stake**: The amount of stake held by both the coldkey and hotkey.
+        - *Stake*: The amount of stake held by both the coldkey and hotkey.
 
-        - **Emission**: The emission or rewards earned from staking.
+        - *Emission*: The emission or rewards earned from staking.
 
-        - **Netuid**: The network unique identifier of the subnet where the hotkey is active.
+        - *Netuid*: The network unique identifier of the subnet where the hotkey is active.
 
-        - **Hotkey**: The hotkey associated with the neuron on the network.
+        - *Hotkey*: The hotkey associated with the neuron on the network.
 
-        ## Usage:
+        # Usage:
+
         This command can be used to inspect a single wallet or all wallets located within a
         specified path. It is useful for a comprehensive overview of a user's participation
         and performance in the Bittensor network.
 
-        #### Example usage::
-        ```
-        btcli wallet inspect
-        ```
+        # Example usage::
 
-        ```
-        btcli wallet inspect --all -n 1 -n 2 -n 3
-        ```
+        [green]$[/green] btcli wallet inspect
 
-        #### Note:
-        The `inspect` command is for displaying information only and does not perform any
+        [green]$[/green] btcli wallet inspect --all -n 1 -n 2 -n 3
+
+        [italic]Note[/italic]: The `inspect` command is for displaying information only and does not perform any
         transactions or state changes on the Bittensor network. It is intended to be used as
         part of the Bittensor CLI and not as a standalone function within user code.
         """
@@ -1079,26 +1061,24 @@ class CLIManager:
         ),
     ):
         """
-        # wallet faucet
-        Executes the `faucet` command to obtain test TAO tokens by performing Proof of Work (PoW).
+        Obtain [red]test TAO tokens[/red] by performing [red]Proof of Work[/red] (PoW).
 
         This command is particularly useful for users who need test tokens for operations on a local chain.
 
-        ## IMPORTANT:
-            **THIS COMMAND IS DISABLED ON FINNEY AND TESTNET.**
+        # IMPORTANT:
+            *THIS COMMAND IS DISABLED ON FINNEY AND TESTNET.*
 
-        ## Usage:
+        # Usage:
+
         The command uses the PoW mechanism to validate the user's effort and rewards them with test TAO tokens. It is
         typically used in local chain environments where real value transactions are not necessary.
 
-        ### Example usage:
-        ```
-        btcli wallet faucet --faucet.num_processes 4 --faucet.cuda.use_cuda
-        ```
+        # Example usage:
 
-        #### Note:
-        This command is meant for use in local environments where users can experiment with the network without using
-        real TAO tokens. It's important for users to have the necessary hardware setup, especially when opting for
+        [green]$[/green] btcli wallet faucet --faucet.num_processes 4 --faucet.cuda.use_cuda
+
+        [italic]Note[/italic]: This command is meant for use in local environments where users can experiment with the network
+        without using real TAO tokens. It's important for users to have the necessary hardware setup, especially when opting for
         CUDA-based GPU calculations. It is currently disabled on testnet and finney. You must use this on a local chain.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
@@ -1130,21 +1110,21 @@ class CLIManager:
         overwrite_coldkey: Optional[bool] = Options.overwrite_coldkey,
     ):
         """
-        # wallet regen-coldkey
-        Executes the `regen-coldkey` command to regenerate a coldkey for a wallet on the Bittensor network.
+        [blue]Regenerate a coldkey[/blue] for a wallet on the Bittensor network.
 
         This command is used to create a new coldkey from an existing mnemonic, seed, or JSON file.
 
-        ## Usage:
+        # Usage:
+
         Users can specify a mnemonic, a seed string, or a JSON file path to regenerate a coldkey.
         The command supports optional password protection for the generated key and can overwrite an existing coldkey.
 
-        ### Example usage:
-        ```
-        btcli wallet regen-coldkey --mnemonic "word1 word2 ... word12"
-        ```
+        # Example usage:
 
-        ### Note: This command is critical for users who need to regenerate their coldkey, possibly for recovery or
+        [green]$[/green] btcli wallet regen-coldkey --mnemonic "word1 word2 ... word12"
+
+
+        [italic]Note[/italic]: This command is critical for users who need to regenerate their coldkey, possibly for recovery or
         security reasons. It should be used with caution to avoid overwriting existing keys unintentionally.
         """
 
@@ -1180,25 +1160,22 @@ class CLIManager:
         ),
     ):
         """
-        # wallet regen-coldkeypub
-        Executes the `regen-coldkeypub` command to regenerate the public part of a coldkey (coldkeypub) for a wallet
-        on the Bittensor network.
+        [red]Regenerate[/red] the public part of a coldkey [blue](coldkeypub)[/blue] for a wallet.
 
         This command is used when a user needs to recreate their coldkeypub from an existing public key or SS58 address.
 
-        ## Usage:
+        # Usage:
+
         The command requires either a public key in hexadecimal format or an ``SS58`` address to regenerate the
         coldkeypub. It optionally allows overwriting an existing coldkeypub file.
 
-        ### Example usage:
-        ```
-        btcli wallet regen_coldkeypub --ss58_address 5DkQ4...
-        ```
+        # Example usage:
 
-        ### Note:
-            This command is particularly useful for users who need to regenerate their coldkeypub, perhaps due to file
-            corruption or loss. It is a recovery-focused utility that ensures continued access to wallet
-            functionalities.
+        [green]$[/green] btcli wallet regen_coldkeypub --ss58_address 5DkQ4...
+
+        [italic]Note[/italic]: This command is particularly useful for users who need to regenerate their coldkeypub,
+        perhaps due to file corruption or loss. It is a recovery-focused utility that ensures continued access to wallet
+        functionalities.
         """
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, validate=False
@@ -1235,23 +1212,21 @@ class CLIManager:
         overwrite_hotkey: Optional[bool] = Options.overwrite_hotkey,
     ):
         """
-        # wallet regen-hotkey
-        Executes the `regen-hotkey` command to regenerate a hotkey for a wallet on the Bittensor network.
+        [red]Regenerates a hotkey[/red] for a wallet.
 
         Similar to regenerating a coldkey, this command creates a new hotkey from a mnemonic, seed, or JSON file.
 
-        ## Usage:
+        # Usage:
+
         Users can provide a mnemonic, seed string, or a JSON file to regenerate the hotkey.
         The command supports optional password protection and can overwrite an existing hotkey.
 
-        ### Example usage:
-        ```
-        btcli wallet regen_hotkey --seed 0x1234...
-        ```
+        # Example usage:
 
-        ### Note:
-        This command is essential for users who need to regenerate their hotkey, possibly for security upgrades or
-        key recovery.
+        [green]$[/green] btcli wallet regen_hotkey --seed 0x1234...
+
+        [italic]Note[/italic]: This command is essential for users who need to regenerate their hotkey,
+        possibly for security upgrades or key recovery.
         It should be used cautiously to avoid accidental overwrites of existing keys.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
@@ -1280,23 +1255,20 @@ class CLIManager:
         overwrite_hotkey: bool = Options.overwrite_hotkey,
     ):
         """
-        # wallet new-hotkey
-        Executes the `new-hotkey` command to create a new hotkey under a wallet on the Bittensor network.
+        Create a [red]new hotkey[/red] under a wallet.
 
-        ## Usage
+        # Usage:
+
         This command is used to generate a new hotkey for managing a neuron or participating in the network,
         with an optional word count for the mnemonic and supports password protection. It also allows overwriting an
         existing hotkey.
 
+        # Example usage:
 
-        ### Example usage:
-        ```
-            btcli wallet new-hotkey --n_words 24
-        ```
+        [green]$[/green] btcli wallet new-hotkey --n_words 24
 
-        ### Note:
-        This command is useful for users who wish to create additional hotkeys for different purposes, such as
-        running multiple miners or separating operational roles within the network.
+        [italic]Note[/italic]: This command is useful for users who wish to create additional hotkeys
+        for different purposes, such as running multiple miners or separating operational roles within the network.
         """
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, validate=False
@@ -1316,23 +1288,20 @@ class CLIManager:
         overwrite_coldkey: Optional[bool] = typer.Option(),
     ):
         """
-        # wallet new-coldkey
-        Executes the `new-coldkey` command to create a new coldkey under a wallet on the Bittensor network. This
-        command generates a coldkey, which is essential for holding balances and performing high-value transactions.
+        [blue]Create a new coldkey[/blue] under a wallet. A coldkey, is essential for holding balances and performing high-value transactions.
 
-        ## Usage:
+        # Usage:
+
         The command creates a new coldkey with an optional word count for the mnemonic and supports password
         protection. It also allows overwriting an existing coldkey.
 
-        ### Example usage::
-        ```
-        btcli wallet new_coldkey --n_words 15
-        ```
+        # Example usage:
 
-        ### Note:
-        This command is crucial for users who need to create a new coldkey for enhanced security or as part of
-        setting up a new wallet. It's a foundational step in establishing a secure presence on the Bittensor
-        network.
+        [green]$[/green] btcli wallet new_coldkey --n_words 15
+
+        [italic]Note[/italic]: This command is crucial for users who need to create a new coldkey for
+        enhanced security or as part of setting up a new wallet. It's a foundational step in establishing
+        a secure presence on the Bittensor network.
         """
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, validate=False
@@ -1351,19 +1320,17 @@ class CLIManager:
         chain: Optional[str] = Options.chain,
     ):
         """
-        # wallet check-swap
-        Executes the `check-swap` command to check swap status of a coldkey in the Bittensor network.
+        Check the scheduled [red]swap status[/red] of a [blue]coldkey[/blue].
 
-        ## Usage:
+        # Usage:
+
         Users need to specify the wallet they want to check the swap status of.
 
-        ### Example usage:
-        ```
-        btcli wallet check_coldkey_swap
-        ```
+        # Example usage:
 
-        #### Note:
-        This command is important for users who wish check if swap requests were made against their coldkey.
+        [green]$[/green] btcli wallet check_coldkey_swap
+
+        [italic]Note[/italic]: This command is important for users who wish check if swap requests were made against their coldkey.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         self.initialize_chain(network, chain)
@@ -1380,27 +1347,22 @@ class CLIManager:
         overwrite_coldkey: bool = Options.overwrite_coldkey,
     ):
         """
-        # wallet create
-        Executes the `create` command to generate both a new coldkey and hotkey under a specified wallet on the
-        Bittensor network.
+        [red]Generate[/red] both a new [blue]coldkey[/blue] and [red]hotkey[/red] under a specified wallet.
 
         This command is a comprehensive utility for creating a complete wallet setup with both cold
         and hotkeys.
 
-
-        ## Usage:
+        # Usage:
         The command facilitates the creation of a new coldkey and hotkey with an optional word count for the
         mnemonics. It supports password protection for the coldkey and allows overwriting of existing keys.
 
-        ### Example usage:
-        ```
-        btcli wallet create --n_words 21
-        ```
+        # Example usage:
 
-        ### Note:
-        This command is ideal for new users setting up their wallet for the first time or for those who wish to
-        completely renew their wallet keys. It ensures a fresh start with new keys for secure and effective
-        participation in the network.
+        [green]$[/green] btcli wallet create --n_words 21
+
+        [italic]Note[/italic]: This command is ideal for new users setting up their wallet for the first time
+        or for those who wish to completely renew their wallet keys. It ensures a fresh start with new keys
+        for secure and effective participation in the network.
         """
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, validate=False
@@ -1427,32 +1389,26 @@ class CLIManager:
         chain: str = Options.chain,
     ):
         """
-        # wallet balance
-        Executes the `balance` command to check the balance of the wallet on the Bittensor network.
-        This command provides a detailed view of the wallet's coldkey balances, including free and staked balances.
+        [red]Check the balance[/red] of the wallet on the Bittensor network.
+        This provides a detailed view of the wallet's coldkey balances, including free and staked balances.
 
-        ## Usage:
+        # Usage:
+
         The command lists the balances of all wallets in the user's configuration directory, showing the
         wallet name, coldkey address, and the respective free and staked balances.
 
-        ### Example usages:
+        # Example usages:
 
         - To display the balance of a single wallet, use the command with the `--wallet.name` argument to specify
         the wallet name:
 
-        ```
-        btcli w balance --wallet.name WALLET
-        ```
+        [green]$[/green] btcli w balance --wallet.name WALLET
 
-        ```
-        btcli w balance
-        ```
+        [green]$[/green] btcli w balance
 
         - To display the balances of all wallets, use the `--all` argument:
 
-        ```
-        btcli w balance --all
-        ```
+        [green]$[/green] btcli w balance --all
         """
         subtensor = self.initialize_chain(network, chain)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
@@ -1467,21 +1423,19 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
     ):
         """
-        # wallet history
-        Executes the `history` command to fetch the latest transfers of the provided wallet on the Bittensor network.
-        This command provides a detailed view of the transfers carried out on the wallet.
+        Fetch the [red]latest transfers[/red] of the provided wallet on the Bittensor network.
+        This provides a detailed view of the transfers carried out on the wallet.
 
-        ## Usage:
+        # Usage:
+
         The command lists the latest transfers of the provided wallet, showing the 'From', 'To', 'Amount',
         'Extrinsic ID' and 'Block Number'.
 
-        ### Example usage:
-        ```
-        btcli wallet history
-        ```
+        # Example usage:
 
-        #### Note:
-        This command is essential for users to monitor their financial status on the Bittensor network.
+        [green]$[/green] btcli wallet history
+
+        [italic]Note[/italic]: This command is essential for users to monitor their financial status on the Bittensor network.
         It helps in fetching info on all the transfers so that user can easily tally and cross-check the transactions.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
@@ -1554,9 +1508,7 @@ class CLIManager:
         ),
     ):
         """
-        # wallet set-identity
-        Executes the `set-identity` command within the Bittensor network, which allows for the creation or update of a
-        delegate's on-chain identity.
+        Allows for the [red]creation or update[/red] of a [red]delegate's on-chain identity[/red] on the Bittensor network.
 
         This identity includes various attributes such as display name, legal name, web URL, PGP fingerprint, and
         contact information, among others.
@@ -1575,19 +1527,18 @@ class CLIManager:
         If setting a validator identity, the hotkey will be used by default. If the user is
         setting an identity for a subnet, the coldkey will be used by default.
 
-        ## Usage:
+        # Usage:
+
         The user should call this command from the command line and follow the interactive
         prompts to enter or update the identity information. The command will display the
         updated identity details in a table format upon successful execution.
 
-        ### Example usage:
-        ```
-        btcli wallet set_identity
-        ```
+        # Example usage:
 
-        #### Note:
-        This command should only be used if the user is willing to incur the 1 TAO transaction
-        fee associated with setting an identity on the blockchain. It is a high-level command
+        [green]$[/green] btcli wallet set_identity
+
+        [italic]Note[/italic]: This command should only be used if the user is willing to incur the 1 TAO
+        transaction fee associated with setting an identity on the blockchain. It is a high-level command
         that makes changes to the blockchain state and should not be used programmatically as
         part of other scripts or applications.
         """
@@ -1623,10 +1574,9 @@ class CLIManager:
         chain: Optional[str] = Options.chain,
     ):
         """
-        # wallet get-id
-        Executes the `get-identity` command, which retrieves and displays the identity details of a user's coldkey or
-        hotkey associated with the Bittensor network. This function queries the subtensor chain for information such as
-        the stake, rank, and trust associated with the provided key.
+        Retrieves and [red]displays the identity details[/red] of a user's coldkey or
+        hotkey associated with the Bittensor network. This function queries the subtensor chain
+        for information such as the stake, rank, and trust associated with the provided key.
 
         The command performs the following actions:
 
@@ -1636,24 +1586,23 @@ class CLIManager:
 
         The displayed table includes:
 
-        - **Address**: The ``ss58`` address of the queried key.
+        - *Address*: The ``ss58`` address of the queried key.
 
-        - **Item**: Various attributes of the identity such as stake, rank, and trust.
+        - *Item*: Various attributes of the identity such as stake, rank, and trust.
 
-        - **Value**: The corresponding values of the attributes.
+        - *Value*: The corresponding values of the attributes.
 
-        ## Usage:
+        # Usage:
+
         The user must provide an ss58 address as input to the command. If the address is not
         provided in the configuration, the user is prompted to enter one.
 
-        ### Example usage:
-        ```
-        btcli wallet get_identity --key <s58_address>
-        ```
+        # Example usage:
 
-        #### Note:
-        This function is designed for CLI use and should be executed in a terminal. It is
-        primarily used for informational purposes and has no side effects on the network state.
+        [green]$[/green] btcli wallet get_identity --key <s58_address>
+
+        [italic]Note[/italic]: This function is designed for CLI use and should be executed in a terminal.
+        It is primarily used for informational purposes and has no side effects on the network state.
         """
 
     def wallet_sign(
@@ -1664,31 +1613,22 @@ class CLIManager:
         message: str = typer.Option("", help="The message to encode and sign"),
     ):
         """
-        # wallet sign
-        Executes the `sign` command to sign a message with the provided wallet or wallet hotkey.
+        Allows users to [red]sign a message[/red] with the provided [red]wallet or wallet hotkey[/red].
 
-        This command signs a message using the provided wallet.
+        # Usage:
 
-        ## Usage:
         The command generates a signature for a given message using the provided wallet
 
+        # Example usage:
 
-        ### Example usage:
+        [green]$[/green] btcli wallet sign --wallet-name default --message '{"something": "here", "timestamp": 1719908486}'
 
-        ```
-        btcli wallet sign --wallet-name default --message '{"something": "here", "timestamp": 1719908486}'
-
-        ```
-
-        ```
-        btcli wallet sign --wallet.name default --wallet-hotkey hotkey --message
+        [green]$[/green] btcli wallet sign --wallet.name default --wallet-hotkey hotkey --message
         '{"something": "here", "timestamp": 1719908486}'
-        ```
 
-        #### Note:
-        When using `btcli`, `w` is used interchangeably with `wallet`. You may use either based on your preference for
-        brevity or clarity. This command is essential for users to easily prove their ownership over a coldkey or a
-        hotkey.
+        [italic]Note[/italic]: When using `btcli`, `w` is used interchangeably with `wallet`. You may use either based
+        on your preference for brevity or clarity. This command is essential for users to easily prove their ownership
+        over a coldkey or a hotkey.
         """
         if not message:
             message = typer.prompt("Enter the message to encode and sign: ")
@@ -1701,46 +1641,21 @@ class CLIManager:
         chain: Optional[str] = Options.chain,
     ):
         """
-        # root list
-        Executes the `list` command to display the members of the root network on the Bittensor network.
+        Display the [red]members of the root network[/red] on the Bittensor network.
 
         This command provides an overview of the neurons that constitute the network's foundational layer.
 
-        ## Usage:
+        # Usage:
         Upon execution, the command fetches and lists the neurons in the root network, showing their unique identifiers
         (UIDs), names, addresses, stakes, and whether they are part of the senate (network governance body).
 
-        ### Example usage:
+        # Example usage:
 
-        ```
+        [green]$[/green] btcli root list
 
-        $ btcli root list
-
-        UID  NAME                             ADDRESS                                                STAKE(τ)  SENATOR
-
-        0                                     5CaCUPsSSdKWcMJbmdmJdnWVa15fJQuz5HsSGgVdZffpHAUa    27086.37070  Yes
-
-        1    RaoK9                            5GmaAk7frPXnAxjbQvXcoEzMGZfkrDee76eGmKoB3wxUburE      520.24199  No
-
-        2    Openτensor Foundaτion            5F4tQyWrhfGVcNhoqeiNsR6KjD4wMZ2kfhLj4oHYuyHbZAc3  1275437.45895  Yes
-
-        3    RoundTable21                     5FFApaS75bv5pJHfAp2FVLBj9ZaXuFDjEypsaBNc1wCfe52v    84718.42095  Yes
-
-        4                                     5HK5tp6t2S59DywmHRWPBVJeJ86T61KjurYqeooqj8sREpeN   168897.40859  Yes
-
-        5    Rizzo                            5CXRfP2ekFhe62r7q3vppRajJmGhTi7vwvb2yr79jveZ282w    53383.34400  No
-
-        6    τaosτaτs and BitAPAI             5Hddm3iBFD2GLT5ik7LZnT3XJUnRnN8PoeCFgGQgawUVKNm8   646944.73569  Yes
-
-        ...
-
-        ```
-
-
-        #### Note:
-        This command is useful for users interested in understanding the composition and governance structure of the
-        Bittensor network's root layer. It provides insights into which neurons hold significant influence and
-        responsibility within the network.
+        [italic]Note[/italic]: This command is useful for users interested in understanding the composition and
+        governance structure of the Bittensor network's root layer. It provides insights into which neurons hold
+        significant influence and responsibility within the network.
         """
         return self._run_command(
             root.root_list(subtensor=self.initialize_chain(network, chain))
@@ -1763,22 +1678,21 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        # root set-weights
-        Executes the `set-weights` command to set the weights for the root network on the Bittensor network.
+        [red]Set the weights[/red] for the [red]root network[/red] on the Bittensor network.
 
         This command is used by network senators to influence the distribution of network rewards and responsibilities.
 
-        ## Usage:
+        # Usage:
+
         The command allows setting weights for different subnets within the root network. Users need to specify the
         netuids (network unique identifiers) and corresponding weights they wish to assign.
 
-        ### Example usage::
-        ```
-        btcli root set-weights 0.3 0.3 0.4 -n 1 -n 2 -n 3 --chain ws://127.0.0.1:9945
-        ```
+        # Example usage:
 
-        #### Note:
-        This command is particularly important for network senators and requires a comprehensive understanding of the
+        [green]$[/green]  btcli root set-weights 0.3 0.3 0.4 -n 1 -n 2 -n 3 --chain ws://127.0.0.1:9945
+
+
+        [green]$[/green] This command is particularly important for network senators and requires a comprehensive understanding of the
         network's dynamics. It is a powerful tool that directly impacts the network's operational mechanics and reward
         distribution.
         """
@@ -1812,51 +1726,22 @@ class CLIManager:
         html_output: bool = Options.html_output,
     ):
         """
-        # root get-weights
-        Executes the `get-weights` command to retrieve the weights set for the root network on the Bittensor network.
+        [red]Retrieve the weights[/red] set for the [red]root network[/red] on the Bittensor network.
 
         This command provides visibility into how network responsibilities and rewards are distributed among various
         subnets.
 
-        ## Usage:
+        # Usage:
         The command outputs a table listing the weights assigned to each subnet within the root network. This
         information is crucial for understanding the current influence and reward distribution among the subnets.
 
-        ### Example usage:
+        # Example usage:
 
-        ```
+        [green]$[/green] btcli root get_weights
 
-        $ btcli root get_weights
-
-                                                Root Network Weights
-
-        UID        0        1        2       3        4        5       8        9       11     13      18       19
-
-        1    100.00%        -        -       -        -        -       -        -        -      -       -        -
-
-        2          -   40.00%    5.00%  10.00%   10.00%   10.00%  10.00%    5.00%        -      -  10.00%        -
-
-        3          -        -   25.00%       -   25.00%        -  25.00%        -        -      -  25.00%        -
-
-        4          -        -    7.00%   7.00%   20.00%   20.00%  20.00%        -    6.00%      -  20.00%        -
-
-        5          -   20.00%        -  10.00%   15.00%   15.00%  15.00%    5.00%        -      -  10.00%   10.00%
-
-        6          -        -        -       -   10.00%   10.00%  25.00%   25.00%        -      -  30.00%        -
-
-        7          -   60.00%        -       -   20.00%        -       -        -   20.00%      -       -        -
-
-        8          -   49.35%        -   7.18%   13.59%   21.14%   1.53%    0.12%    7.06%  0.03%       -        -
-
-        9    100.00%        -        -       -        -        -       -        -        -      -       -        -
-
-
-        ```
-
-        #### Note:
-        This command is essential for users interested in the governance and operational dynamics of the Bittensor
-        network. It offers transparency into how network rewards and responsibilities are allocated across different
-        subnets.
+        [italic]Note[/italic]: This command is essential for users interested in the governance and operational
+        dynamics of the Bittensor network. It offers transparency into how network rewards and responsibilities
+        are allocated across different subnets.
         """
         if (reuse_last or html_output) and self.config.get("no_cache") is True:
             err_console.print(
@@ -1897,59 +1782,18 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        # root boost
         Not currently working with new implementation
 
-        Executes the `boost` command to boost the weights for a specific subnet within the root network on the Bittensor
+        [red]Boost the weights[/red] for a specific [red]subnet[/red] within the root network on the Bittensor
         network.
 
-        ## Usage:
+        # Usage:
+
         The command allows boosting the weights for different subnets within the root network.
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-
-        $ btcli root boost --netuid 1 --increase 0.01
-
-        Boosting weight for subnet: 1 by amount: 0.1
-
-        Normalized weights:
-
-        tensor([
-        0.0000, 0.5455, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
-        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
-        0.0000, 0.0000, 0.0000, 0.0000, 0.4545, 0.0000, 0.0000, 0.0000, 0.0000,
-        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
-        0.0000, 0.0000, 0.0000, 0.0000, 0.0000]) ->
-        tensor([0.0000, 0.5455, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
-        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
-        0.0000, 0.0000, 0.0000, 0.0000, 0.4545, 0.0000, 0.0000, 0.0000, 0.0000,
-        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
-        0.0000, 0.0000, 0.0000, 0.0000, 0.0000]
-        )
-
-
-        Do you want to set the following root weights?:
-
-        weights: tensor([
-        0.0000, 0.5455, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
-        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
-        0.0000, 0.0000, 0.0000, 0.0000, 0.4545, 0.0000, 0.0000, 0.0000, 0.0000,
-        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
-        0.0000, 0.0000, 0.0000, 0.0000, 0.0000])
-
-        uids: tensor([ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17,
-        18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
-        36, 37, 38, 39, 40])? [y/n]: y
-
-        ✅ Finalized
-
-        ⠙ 📡 Setting root weights on test ...2023-11-28 22:09:14.001 |     SUCCESS      | Set weights
-                           Finalized: True
-
-
-        ```
+        [green]$[/green] btcli root boost --netuid 1 --increase 0.01
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
@@ -1977,55 +1821,21 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        # root slash
-        Executes the `slash` command to decrease the weights for a specific subnet within the root network on the
+        [red]Decrease the weights[/red] for a specific [red]subnet[/red] within the root network on the
         Bittensor network.
 
-        ## Usage:
+        # Usage:
+
         The command allows slashing (decreasing) the weights for different subnets within the root network.
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-        $ btcli root slash --netuid 1 --decrease 0.01
+        [green]$[/green] btcli root slash --netuid 1 --decrease 0.01
 
         Enter netuid (e.g. 1): 1
         Enter decrease amount (e.g. 0.01): 0.2
         Slashing weight for subnet: 1 by amount: 0.2
 
-        Normalized weights:
-
-        tensor([
-        0.0000, 0.4318, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
-        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
-        0.0000, 0.0000, 0.0000, 0.0000, 0.5682, 0.0000, 0.0000, 0.0000, 0.0000,
-        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
-        0.0000, 0.0000, 0.0000, 0.0000, 0.0000]) -> tensor([
-        0.0000, 0.4318, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
-        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
-        0.0000, 0.0000, 0.0000, 0.0000, 0.5682, 0.0000, 0.0000, 0.0000, 0.0000,
-        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
-        0.0000, 0.0000, 0.0000, 0.0000, 0.0000]
-        )
-
-        Do you want to set the following root weights?:
-
-        weights: tensor([
-                0.0000, 0.4318, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
-                0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
-                0.0000, 0.0000, 0.0000, 0.0000, 0.5682, 0.0000, 0.0000, 0.0000, 0.0000,
-                0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
-                0.0000, 0.0000, 0.0000, 0.0000, 0.0000])
-
-        uids: tensor([ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17,
-                18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
-                36, 37, 38, 39, 40])? [y/n]: y
-
-        ⠙ 📡 Setting root weights on test ...2023-11-28 22:09:14.001 |     SUCCESS      | Set weights
-                           Finalized: True
-
-
-        ```
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
@@ -2050,24 +1860,21 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        # root senate-vote
-        Executes the `senate-vote` command to cast a vote on an active proposal in Bittensor's governance protocol.
+        [red]Cast a vote on an active proposal[/red] in Bittensor's governance protocol.
 
         This command is used by Senate members to vote on various proposals that shape the network's future.
 
-        ## Usage:
+        # Usage:
+
         The user needs to specify the hash of the proposal they want to vote on. The command then allows the Senate
         member to cast an 'Aye' or 'Nay' vote, contributing to the decision-making process.
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-        btcli root senate_vote --proposal <proposal_hash>
-        ```
+        [green]$[/green] btcli root senate_vote --proposal <proposal_hash>
 
-        #### Note:
-        This command is crucial for Senate members to exercise their voting rights on key proposals. It plays a vital
-        role in the governance and evolution of the Bittensor network.
+        [italic]Note[/italic]: This command is crucial for Senate members to exercise their voting rights on key proposals.
+        It plays a vital role in the governance and evolution of the Bittensor network.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
@@ -2082,24 +1889,21 @@ class CLIManager:
         chain: Optional[str] = Options.chain,
     ):
         """
-        # root senate
-        Executes the `senate` command to view the members of Bittensor's governance protocol, known as the Senate.
+        View the [red]members[/red] of Bittensor's [red]governance protocol[/red], known as the Senate.
 
         This command lists the delegates involved in the decision-making process of the Bittensor network.
 
-        ## Usage:
+        # Usage:
+
         The command retrieves and displays a list of Senate members, showing their names and wallet addresses.
         This information is crucial for understanding who holds governance roles within the network.
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-        btcli root senate
-        ```
+        [green]$[/green] btcli root senate
 
-        #### Note:
-        This command is particularly useful for users interested in the governance structure and participants of the
-        Bittensor network. It provides transparency into the network's decision-making body.
+        [italic]Note[/italic]: This command is particularly useful for users interested in the governance structure
+        and participants of the Bittensor network. It provides transparency into the network's decision-making body.
         """
         return self._run_command(root.get_senate(self.initialize_chain(network, chain)))
 
@@ -2113,14 +1917,13 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        # root register
-        Executes the `register` command to register a neuron on the Bittensor network by recycling some TAO (the
-         network's native token).
+        [red]Register a neuron[/red] on the Bittensor network by [red]recycling some TAO[/red] (thenetwork's native token).
 
         This command is used to add a new neuron to a specified subnet within the network, contributing to the
         decentralization and robustness of Bittensor.
 
-        ## Usage:
+        # Usage:
+
         Before registering, the command checks if the specified subnet exists and whether the user's balance is
         sufficient to cover the registration cost.
 
@@ -2148,16 +1951,13 @@ class CLIManager:
         - Cost to Register: The required amount of TAO needed to register on the specified subnet.
 
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-        btcli subnets register --netuid 1
-        ```
+        [green]$[/green] btcli subnets register --netuid 1
 
-        #### Note:
-        This command is critical for users who wish to contribute a new neuron to the network. It requires careful
-        consideration of the subnet selection and an understanding of the registration costs. Users should ensure their
-        wallet is sufficiently funded before attempting to register a neuron.
+        [italic]Note[/italic]: This command is critical for users who wish to contribute a new neuron to the network.
+        It requires careful consideration of the subnet selection and an understanding of the registration costs.
+        Users should ensure their wallet is sufficiently funded before attempting to register a neuron.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
@@ -2170,25 +1970,22 @@ class CLIManager:
         chain: Optional[str] = Options.chain,
     ):
         """
-        # root proposals
-        Executes the `proposals` command to view active proposals within Bittensor's governance protocol.
+        [red]View active proposals[/red] for the senate within Bittensor's governance protocol.
 
         This command displays the details of ongoing proposals, including votes, thresholds, and proposal data.
 
-        ## Usage:
+        # Usage:
+
         The command lists all active proposals, showing their hash, voting threshold, number of ayes and nays, detailed
         votes by address, end block number, and call data associated with each proposal.
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-        btcli root proposals
-        ```
+        [green]$[/green] btcli root proposals
 
-        #### Note:
-        This command is essential for users who are actively participating in or monitoring the governance of the
-        Bittensor network. It provides a detailed view of the proposals being considered, along with the community's
-        response to each.
+        [italic]Note[/italic]: This command is essential for users who are actively participating in or monitoring the
+        governance of the Bittensor network. It provides a detailed view of the proposals being considered, along with
+        the community's response to each.
         """
         return self._run_command(root.proposals(self.initialize_chain(network, chain)))
 
@@ -2202,22 +1999,22 @@ class CLIManager:
         take: float = typer.Option(None, help="The new take value."),
     ):
         """
-        # root set-take
-        Executes the `set-take` command, which sets the delegate take.
+        Allows users to [red]change[/red] their [red]delegate take[/red].
 
         The command performs several checks:
 
         1. Hotkey is already a delegate
         2. New take value is within 0-18% range
 
-        ## Usage:
+        # Usage:
+
         To run the command, the user must have a configured wallet with both hotkey and coldkey. Also, the hotkey should already be a delegate.
 
-        ### Example usage:
-        btcli root set_take --wallet.name my_wallet --wallet.hotkey my_hotkey
+        # Example usage:
 
-        #### Note:
-        This function can be used to update the takes individually for every subnet
+        [green]$[/green] btcli root set_take --wallet.name my_wallet --wallet.hotkey my_hotkey
+
+        [italic]Note[/italic]: This function can be used to update the takes individually for every subnet
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         if not take:
@@ -2254,32 +2051,29 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        # root delegate-stake
-        Executes the `delegate-stake` command, which stakes Tao to a specified delegate on the Bittensor network.
+        [red]Stakes Tao[/red] to a specified [red]delegate[/red] on the Bittensor network.
 
         This action allocates the user's Tao to support a delegate, potentially earning staking rewards in return.
 
         The command interacts with the user to determine the delegate and the amount of Tao to be staked. If the
         `--all` flag is used, it delegates the entire available balance.
 
-        ## Usage:
+        # Usage:
+
         The user must specify the delegate's SS58 address and the amount of Tao to stake. The function sends a
         transaction to the subtensor network to delegate the specified amount to the chosen delegate. These values are
         prompted if not provided. You can list all delegates with `btcli root list-delegates`.
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-        btcli delegate-stake --delegate_ss58key <SS58_ADDRESS> --amount <AMOUNT>
+        [green]$[/green] btcli delegate-stake --delegate_ss58key <SS58_ADDRESS> --amount <AMOUNT>
 
-        btcli delegate-stake --delegate_ss58key <SS58_ADDRESS> --all
-        ```
+        [green]$[/green] btcli delegate-stake --delegate_ss58key <SS58_ADDRESS> --all
 
 
-        #### Note:
-        This command modifies the blockchain state and may incur transaction fees. It requires user confirmation and
-        interaction, and is designed to be used within the Bittensor CLI environment. The user should ensure the
-        delegate's address and the amount to be staked are correct before executing the command.
+        [italic]Note[/italic]: This command modifies the blockchain state and may incur transaction fees. It requires user confirmation
+        and interaction, and is designed to be used within the Bittensor CLI environment. The user should ensure the delegate's address
+        and the amount to be staked are correct before executing the command.
         """
         if amount and stake_all:
             err_console.print(
@@ -2337,9 +2131,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        # root undelegate-stake
-        Executes the ``undelegate`` command, allowing users to withdraw their staked Tao from a delegate on the Bittensor
-        network.
+        Allows users to [red]withdraw[/red] their [red]staked Tao[/red] from a delegate on the Bittensor network.
 
         This process is known as "undelegating" and it reverses the delegation process, freeing up the staked tokens.
 
@@ -2347,24 +2139,21 @@ class CLIManager:
         which to undelegate. If the ``--all`` flag is used, it will attempt to undelegate the entire staked amount from
         the specified delegate.
 
-        ## Usage:
+        # Usage:
+
         The user must provide the delegate's SS58 address and the amount of Tao to undelegate. The function will then
         send a transaction to the Bittensor network to process the undelegation.
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-        btcli undelegate --delegate_ss58key <SS58_ADDRESS> --amount <AMOUNT>
+        [green]$[/green] btcli undelegate --delegate_ss58key <SS58_ADDRESS> --amount <AMOUNT>
 
-        btcli undelegate --delegate_ss58key <SS58_ADDRESS> --all
+        [green]$[/green]  btcli undelegate --delegate_ss58key <SS58_ADDRESS> --all
 
-        ```
 
-        #### Note:
-        This command can result in a change to the blockchain state and may incur transaction fees. It is interactive
-        and requires confirmation from the user before proceeding. It should be used with care as undelegating can
-        affect the delegate's total stake and
-        potentially the user's staking rewards.
+        [italic]Note[/italic]: This command can result in a change to the blockchain state and may incur transaction fees.
+        It is interactive and requires confirmation from the user before proceeding. It should be used with care as undelegating can
+        affect the delegate's total stake and potentially the user's staking rewards.
         """
         if amount and unstake_all:
             err_console.print(
@@ -2413,9 +2202,7 @@ class CLIManager:
         ),
     ):
         """
-        # root my-delegates
-        Executes the `my-delegates` command within the Bittensor CLI, which retrieves and displays a table of delegated
-        stakes from a user's wallet(s) to various delegates on the Bittensor network.
+        Retrieves and displays a table of [red]delegated stakes[/red] from a user's wallet(s) to various delegates on the Bittensor network.
 
         The command provides detailed insights into the user's
         staking activities and the performance of their chosen delegates.
@@ -2449,22 +2236,19 @@ class CLIManager:
 
         The command also sums and prints the total amount of Tao delegated across all wallets.
 
-        ## Usage:
+        # Usage:
+
         The command can be run as part of the Bittensor CLI suite of tools and requires no parameters if a single wallet
         is used. If multiple wallets are present, the `--all` flag can be specified to aggregate information across
         all wallets.
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-        btcli root my-delegates
-        btcli root my-delegates --all
-        btcli root my-delegates --wallet-name my_wallet
+        [green]$[/green] btcli root my-delegates
+        [green]$[/green] btcli root my-delegates --all
+        [green]$[/green] btcli root my-delegates --wallet-name my_wallet
 
-        ```
-
-        #### Note:
-        This function is typically called by the CLI parser and is not intended to be used directly in user code.
+        [italic]Note[/italic]: This function is typically called by the CLI parser and is not intended to be used directly in user code.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         self._run_command(
@@ -2479,8 +2263,7 @@ class CLIManager:
         chain: Optional[str] = Options.chain,
     ):
         """
-        # root list-delegates
-        Displays a formatted table of Bittensor network delegates, providing a comprehensive overview of delegate
+        Displays a table of [red]Bittensor network delegates[/red], providing a comprehensive overview of delegate
         statistics and information.
 
         This table helps users make informed decisions on which delegates to allocate their TAO stake.
@@ -2516,20 +2299,16 @@ class CLIManager:
         increases in green and decreases in red. Entries with no previous data are marked with ``NA``. Each delegate's
         name is a hyperlink to their respective URL, if available.
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-        btcli root list_delegates
+        [green]$[/green] btcli root list_delegates
 
-        btcli root list_delegates --wallet.name my_wallet
+        [green]$[/green] btcli root list_delegates --wallet.name my_wallet
 
-        btcli root list_delegates --subtensor.network finney # can also be `test` or `local`
+        [green]$[/green] btcli root list_delegates --subtensor.network finney # can also be `test` or `local`
 
-        ```
-
-        #### Note:
-        This function is part of the Bittensor CLI tools and is intended for use within a console application. It prints
-        directly to the console and does not return any value.
+        [italic]Note[/italic]: This function is part of the Bittensor CLI tools and is intended for use within a
+        console application. It prints directly to the console and does not return any value.
         """
         if network not in ["local", "test"]:
             sub = self.initialize_chain(
@@ -2551,8 +2330,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        # root nominate
-        Executes the `nominate` command, which facilitates a wallet to become a delegate on the Bittensor network.
+        Facilitates a wallet to [red]become a delegate[/red] on the Bittensor network.
 
         This command handles the nomination process, including wallet unlocking and verification of the hotkey's current
         delegate status.
@@ -2565,22 +2343,19 @@ class CLIManager:
 
         Upon success, the wallet's hotkey is registered as a delegate on the network.
 
-        ## Usage:
+        # Usage:
+
         To run the command, the user must have a configured wallet with both hotkey and coldkey. If the wallet is not
         already nominated, this command will initiate the process.
 
-        ### Example usage:
-        ```
+        # Example usage:
 
-        btcli root nominate
+        [green]$[/green] btcli root nominate
 
-        btcli root nominate --wallet.name my_wallet --wallet.hotkey my_hotkey
+        [green]$[/green] btcli root nominate --wallet.name my_wallet --wallet.hotkey my_hotkey
 
-        ```
-
-        #### Note:
-        This function is intended to be used as a CLI command. It prints the outcome directly to the console and does
-        not return any value. It should not be called programmatically in user code due to its interactive nature and
+        [italic]Note[/italic]: This function is intended to be used as a CLI command. It prints the outcome directly to the console
+        and does not return any value. It should not be called programmatically in user code due to its interactive nature and
         side effects on the network state.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
@@ -2606,13 +2381,13 @@ class CLIManager:
         html_output: bool = Options.html_output,
     ):
         """
-        # stake show
-        Executes the `show` command to list all stake accounts associated with a user's wallet on the Bittensor network.
+        [red]List all stake accounts[/red] associated with a user's wallet on the Bittensor network.
 
         This command provides a comprehensive view of the stakes associated with both hotkeys and delegates linked to
         the user's coldkey.
 
-        ## Usage:
+        # Usage:
+
         The command lists all stake accounts for a specified wallet or all wallets in the user's configuration
         directory. It displays the coldkey, balance, account details (hotkey/delegate name), stake amount, and the rate
         of return.
@@ -2630,14 +2405,11 @@ class CLIManager:
         - Rate: The rate of return on the stake, typically shown in TAO per day.
 
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-        btcli stake show --all
-        ```
+        [green]$[/green] btcli stake show --all
 
-        #### Note:
-        This command is essential for users who wish to monitor their stake distribution and returns across various
+        [italic]Note[/italic]: This command is essential for users who wish to monitor their stake distribution and returns across various
         accounts on the Bittensor network. It provides a clear and detailed overview of the user's staking activities.
         """
         if (reuse_last or html_output) and self.config.get("no_cache") is True:
@@ -2706,14 +2478,14 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        # stake add
-        Executes the `stake_add` command to stake tokens to one or more hotkeys from a user's coldkey on the Bittensor
+        [red]Stake TAO[/red] tokens to one or more [red]hotkeys[/red] from a user's coldkey on the Bittensor
         network.
 
         This command is used to allocate tokens to different hotkeys, securing their position and influence on the
          network.
 
-        ## Usage:
+        # Usage:
+
         Users can specify the amount to stake, the hotkeys to stake to (either by name or ``SS58`` address), and whether
         to stake to all hotkeys. The command checks for sufficient balance and hotkey registration before proceeding
         with the staking process.
@@ -2721,14 +2493,11 @@ class CLIManager:
 
         The command prompts for confirmation before executing the staking operation.
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-        btcli stake add --amount 100 --wallet-name <my_wallet> --wallet-hotkey <my_hotkey>
-        ```
+        [green]$[/green] btcli stake add --amount 100 --wallet-name <my_wallet> --wallet-hotkey <my_hotkey>
 
-        #### Note:
-        This command is critical for users who wish to distribute their stakes among different neurons (hotkeys) on the
+        [italic]Note[/italic]: This command is critical for users who wish to distribute their stakes among different neurons (hotkeys) on the
         network. It allows for a strategic allocation of tokens to enhance network participation and influence.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
@@ -2818,28 +2587,25 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        # stake remove
-        Executes the `remove` command to unstake TAO tokens from one or more hotkeys and transfer them back to the
+        [red]Unstake TAO[/red] tokens from one or more [red]hotkeys[/red] and transfer them back to the
         user's coldkey on the Bittensor network.
 
         This command is used to withdraw tokens previously staked to different hotkeys.
 
-        ## Usage:
+        # Usage:
+
         Users can specify the amount to unstake, the hotkeys to unstake from (either by name or `SS58` address), and
         whether to unstake from all hotkeys. The command checks for sufficient stake and prompts for confirmation before
         proceeding with the unstaking process.
 
         The command prompts for confirmation before executing the unstaking operation.
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-        btcli stake remove --amount 100 -in hk1 -in hk2
-        ```
+        [green]$[/green] btcli stake remove --amount 100 -in hk1 -in hk2
 
-        #### Note:
-        This command is important for users who wish to reallocate their stakes or withdraw them from the network.
-        It allows for flexible management of token stakes across different neurons (hotkeys) on the network.
+        [italic]Note[/italic]: This command is important for users who wish to reallocate their stakes or withdraw
+        them from the network. It allows for flexible management of token stakes across different neurons (hotkeys) on the network.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         if all_hotkeys and include_hotkeys:
@@ -2908,12 +2674,11 @@ class CLIManager:
         netuid: int = Options.netuid,
     ):
         """
-        # stake child get
-        Executes the `get_children_info` command to get all child hotkeys on a specified subnet on the Bittensor network.
+        [red]Get all child hotkeys[/red] on a specified subnet on the Bittensor network.
 
         This command is used to view delegated authority to different hotkeys on the subnet.
 
-        ## Usage:
+        # Usage:
         Users can specify the subnet and see the children and the proportion that is given to them.
 
         The command compiles a table showing:
@@ -2927,14 +2692,11 @@ class CLIManager:
         - Expiration: The expiration of the hotkey.
 
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-            btcli stake get_children --netuid 1
-        ```
+        [green]$[/green]btcli stake get_children --netuid 1
 
-        #### Note:
-        This command is for users who wish to see child hotkeys among different neurons (hotkeys) on the network.
+        [italic]]Note[/italic]: This command is for users who wish to see child hotkeys among different neurons (hotkeys) on the network.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
@@ -2963,29 +2725,26 @@ class CLIManager:
         wait_for_finalization: bool = Options.wait_for_finalization,
     ):
         """
-        # stake child set
-        Executes the `set_children` command to add children hotkeys on a specified subnet on the Bittensor network.
+        [Red]Add children hotkeys[/red] on a specified subnet on the Bittensor network.
 
         This command is used to delegate authority to different hotkeys, securing their position and influence on the
         subnet.
 
-        ## Usage:
+        # Usage:
+
         Users can specify the amount or 'proportion' to delegate to child hotkeys (``SS58`` address),
         the user needs to have sufficient authority to make this call, and the sum of proportions cannot be greater
         than 1.
 
         The command prompts for confirmation before executing the set_children operation.
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-        btcli stake set_children - <child_hotkey> -c <child_hotkey> --hotkey <parent_hotkey> --netuid 1
+        [green]$[/green] btcli stake set_children - <child_hotkey> -c <child_hotkey> --hotkey <parent_hotkey> --netuid 1
         -p 0.3 -p 0.3
-        ```
 
-        #### Note:
-        This command is critical for users who wish to delegate children hotkeys among different neurons (hotkeys) on
-        the network. It allows for a strategic allocation of authority to enhance network participation and influence.
+        [italic]]Note[/italic]: This command is critical for users who wish to delegate children hotkeys among different
+        neurons (hotkeys) on the network. It allows for a strategic allocation of authority to enhance network participation and influence.
         """
         children = list_prompt(children, str, "Enter the child hotkeys (ss58)")
         proportions = list_prompt(
@@ -3024,27 +2783,24 @@ class CLIManager:
         wait_for_finalization: bool = Options.wait_for_finalization,
     ):
         """
-        # stake child revoke
-        Executes the `revoke_children` command to remove all children hotkeys on a specified subnet on the Bittensor
+        [red]Remove all children hotkeys[/red] on a specified subnet on the Bittensor
         network.
 
         This command is used to remove delegated authority from all child hotkeys, removing their position and influence
         on the subnet.
 
-        ## Usage:
+        # Usage:
+
         Users need to specify the parent hotkey and the subnet ID (netuid).
         The user needs to have sufficient authority to make this call.
 
         The command prompts for confirmation before executing the revoke_children operation.
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-        btcli stake revoke_children --hotkey <parent_hotkey> --netuid 1
-        ```
+        [green]$[/green] btcli stake revoke_children --hotkey <parent_hotkey> --netuid 1
 
-        #### Note:
-        This command is critical for users who wish to remove children hotkeys on the network.
+        [italic]Note[/italic]:This command is critical for users who wish to remove children hotkeys on the network.
         It allows for a complete removal of delegated authority to enhance network participation and influence.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
@@ -3077,27 +2833,25 @@ class CLIManager:
         ),
     ):
         """
-        # stake child take
-        Executes the `childkey-take` command to get and set your childkey take on a specified subnet on the Bittensor
+        Get and set your [red]childkey take[/red] on a specified subnet on the Bittensor
         network.
 
         This command is used to set the take on your child hotkeys with limits between 0 - 18%.
 
-        ## Usage:
+        # Usage:
+
         Users need to specify their child hotkey and the subnet ID (netuid).
 
         The command prompts for confirmation before setting the childkey take.
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-        btcli stake child take --hotkey <child_hotkey> --netuid 1
-        or
-        btcli stake child take --hotkey <child_hotkey> --take 0.12 --netuid 1
+        [green]$[/green] btcli stake child take --hotkey <child_hotkey> --netuid 1
+
+        [green]$[/green] btcli stake child take --hotkey <child_hotkey> --take 0.12 --netuid 1
         ```
 
-        #### Note:
-        This command is critical for users who wish to modify their child hotkey take on the network.
+        [italic]]Note[/italic]: This command is critical for users who wish to modify their child hotkey take on the network.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
@@ -3127,27 +2881,24 @@ class CLIManager:
         ),
     ):
         """
-        # sudo set
-        Executes the `set` command to set hyperparameters for a specific subnet on the Bittensor network.
+        Executes the [red]set[/red] command to set [red]hyperparameters[/red] for a specific subnet on the Bittensor network.
 
         This command allows subnet owners to modify various hyperparameters of theirs subnet, such as its tempo,
         emission rates, and other network-specific settings.
 
-        ## Usage:
+        # Usage:
+
         The command first prompts the user to enter the hyperparameter they wish to change and its new value.
         It then uses the user's wallet and configuration settings to authenticate and send the hyperparameter update
         to the specified subnet.
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-        btcli sudo set --netuid 1 --param 'tempo' --value '0.5'
-        ```
+        [green]$[/green] btcli sudo set --netuid 1 --param 'tempo' --value '0.5'
 
-        #### Note:
-        This command requires the user to specify the subnet identifier (``netuid``) and both the hyperparameter
-        and its new value. It is intended for advanced users who are familiar with the network's functioning
-        and the impact of changing these parameters.
+        [italic]Note[/italic]: This command requires the user to specify the subnet identifier (``netuid``) and both
+        the hyperparameter and its new value. It is intended for advanced users who are familiar with the network's
+        functioning and the impact of changing these parameters.
         """
         if not param_name:
             param_name = Prompt.ask(
@@ -3173,69 +2924,23 @@ class CLIManager:
         netuid: int = Options.netuid,
     ):
         """
-        # sudo get
-        Executes the `get` command to retrieve the hyperparameters of a specific subnet on the Bittensor network.
+        [red]Retrieve hyperparameters[/red] of a specific subnet on the Bittensor network.
 
         This command is used for both `sudo get` and `subnets hyperparameters`.
 
-        ## Usage:
+        # Usage:
+
         The command connects to the Bittensor network, queries the specified subnet, and returns a detailed list
         of all its hyperparameters. This includes crucial operational parameters that determine the subnet's
         performance and interaction within the network.
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-
-        $ btcli sudo get --netuid 1
+        [green]$[/green] btcli sudo get --netuid 1
 
 
-
-        Subnet Hyperparameters - NETUID: 1 - finney
-
-        HYPERPARAMETER            VALUE
-
-        rho                       10
-
-        kappa                     32767
-
-        immunity_period           7200
-
-        min_allowed_weights       8
-
-        max_weight_limit          455
-
-        tempo                     99
-
-        min_difficulty            1000000000000000000
-
-        max_difficulty            1000000000000000000
-
-        weights_version           2013
-
-        weights_rate_limit        100
-
-        adjustment_interval       112
-
-        activity_cutoff           5000
-
-        registration_allowed      True
-
-        target_regs_per_interval  2
-
-        min_burn                  1000000000
-
-        max_burn                  100000000000
-
-        bonds_moving_avg          900000
-
-        max_regs_per_block        1
-
-        ```
-
-        #### Note:
-        Users need to provide the `netuid` of the subnet whose hyperparameters they wish to view. This command is
-        designed for informational purposes and does not alter any network settings or configurations.
+        [italic]Note[/italic]: Users need to provide the `netuid` of the subnet whose hyperparameters they wish to view.
+        This command is designed for informational purposes and does not alter any network settings or configurations.
         """
         return self._run_command(
             sudo.get_hyperparameters(self.initialize_chain(network, chain), netuid)
@@ -3249,15 +2954,14 @@ class CLIManager:
         html_output: bool = Options.html_output,
     ):
         """
-        # subnets list
-        Executes the `list` command to list all subnets and their detailed information on the Bittensor network.
+        [red]List all subnets[/red] and their detailed information on the Bittensor network.
 
         This command is designed to provide users with comprehensive information about each subnet within the
         network, including its unique identifier (netuid), the number of neurons, maximum neuron capacity,
         emission rate, tempo, recycle register cost (burn), proof of work (PoW) difficulty, and the name or
         SS58 address of the subnet owner.
 
-        ## Usage:
+        # Usage:
 
         Upon invocation, the command performs the following actions:
 
@@ -3285,15 +2989,12 @@ class CLIManager:
         - Displaying the table with a footer that summarizes the total number of subnets and neurons.
 
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-        btcli subnets list
-        ```
+        [green]$[/green] btcli subnets list
 
-        #### Note:
-        This command is particularly useful for users seeking an overview of the Bittensor network's structure and the
-        distribution of its resources and ownership information for each subnet.
+        [italic]Note[/italic]: This command is particularly useful for users seeking an overview of the Bittensor network's
+        structure and the distribution of its resources and ownership information for each subnet.
         """
         if (reuse_last or html_output) and self.config.get("no_cache") is True:
             err_console.print(
@@ -3314,8 +3015,7 @@ class CLIManager:
         self, network: str = Options.network, chain: str = Options.chain
     ):
         """
-        # subnets lock-cost
-        Executes the `lock_cost` command to view the locking cost required for creating a new subnetwork on the
+        View the [red]locking cost[/red] required for creating a [red]new subnetwork[/red] on the
         Bittensor network.
 
         This command is designed to provide users with the current cost of registering a new subnetwork, which is a
@@ -3324,7 +3024,7 @@ class CLIManager:
         The current implementation anneals the cost of creating a subnet over a period of two days. If the cost is
         unappealing currently, check back in a day or two to see if it has reached a more amenable level.
 
-        ## Usage:
+        # Usage:
 
         Upon invocation, the command performs the following operations:
 
@@ -3350,16 +3050,13 @@ class CLIManager:
         - Displaying the cost in a user-friendly manner.
 
 
-        Example usage:
+        # Example usage:
 
-        ```
-        btcli subnets lock_cost
-        ```
+        [green]$[/green] btcli subnets lock_cost
 
-        #### Note:
-        This command is particularly useful for users who are planning to contribute to the Bittensor network by adding
-        new subnetworks. Understanding the lock cost is essential for these users to make informed decisions about their
-         potential contributions and investments in the network.
+        [italic]Note[/italic]: This command is particularly useful for users who are planning to contribute to the Bittensor network
+        by adding new subnetworks. Understanding the lock cost is essential for these users to make informed decisions about their
+        potential contributions and investments in the network.
         """
         return self._run_command(
             subnets.lock_cost(self.initialize_chain(network, chain))
@@ -3375,14 +3072,13 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        # subnets create
-        Executes the `create` command to register a new subnetwork on the Bittensor network.
+        [red]Register[/red] a new [red]subnetwork[/red] on the Bittensor network :sparkles:.
 
         This command facilitates the creation and registration of a subnetwork, which involves interaction with the
         user's wallet and the Bittensor subtensor. It ensures that the user has the necessary credentials and
         configurations to successfully register a new subnetwork.
 
-        ## Usage:
+        # Usage:
         Upon invocation, the command performs several key steps to register a subnetwork:
 
         1. It copies the user's current configuration settings.
@@ -3409,14 +3105,11 @@ class CLIManager:
         - Registering the subnetwork with the necessary credentials.
 
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-        btcli subnets create
-        ```
+        [green]$[/green] btcli subnets create
 
-        #### Note:
-        This command is intended for advanced users of the Bittensor network who wish to contribute by adding new
+        [italic]Note[/italic]: This command is intended for advanced users of the Bittensor network who wish to contribute by adding new
         subnetworks. It requires a clear understanding of the network's functioning and the roles of subnetworks. Users
         should ensure that they have secured their wallet and are aware of the implications of adding a new subnetwork
         to the Bittensor ecosystem.
@@ -3477,13 +3170,13 @@ class CLIManager:
         ),
     ):
         """
-        # subnets pow-register
-        Executes the `pow_register` command to register a neuron on the Bittensor network using Proof of Work (PoW).
+        [red]Register a neuron[/red] on the Bittensor network [red]using Proof of Work[/red] (PoW).
 
         This method is an alternative registration process that leverages computational work for securing a neuron's
         place on the network.
 
-        ## Usage:
+        # Usage:
+
         The command starts by verifying the existence of the specified subnet. If the subnet does not exist, it
         terminates with an error message. On successful verification, the PoW registration process is initiated, which
         requires solving computational puzzles.
@@ -3491,15 +3184,12 @@ class CLIManager:
         The command also supports additional wallet and subtensor arguments, enabling further customization of the
         registration process.
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-        btcli pow_register --netuid 1 --num_processes 4 --cuda
-        ```
+        [green]$[/green] btcli pow_register --netuid 1 --num_processes 4 --cuda
 
-        #### Note:
-        This command is suited for users with adequate computational resources to participate in PoW registration. It
-        requires a sound understanding of the network's operations and PoW mechanics. Users should ensure their systems
+        [italic]Note[/italic]: This command is suited for users with adequate computational resources to participate in PoW registration.
+        It requires a sound understanding of the network's operations and PoW mechanics. Users should ensure their systems
         meet the necessary hardware and software requirements, particularly when opting for CUDA-based GPU acceleration.
 
         This command may be disabled according to the subnet owner's directive. For example, on netuid 1 this is
@@ -3531,14 +3221,14 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        # subnets register
-        Executes the `register` command to register a neuron on the Bittensor network by recycling some TAO (the
-        network's native token).
+        [red]Register a neuron[/red] on the Bittensor network by [red]recycling some TAO[/red] (the
+        network's native token) :open_book:.
 
         This command is used to add a new neuron to a specified subnet within the network, contributing to the
         decentralization and robustness of Bittensor.
 
-        ## Usage:
+        # Usage:
+
         Before registering, the command checks if the specified subnet exists and whether the user's balance is
         sufficient to cover the registration cost.
 
@@ -3560,14 +3250,11 @@ class CLIManager:
         - Balance: The current balance of the user's wallet in TAO.
         - Cost to Register: The required amount of TAO needed to register on the specified subnet.
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-        btcli subnets register --netuid 1
-        ```
+        [green]$[/green] btcli subnets register --netuid 1
 
-        #### Note:
-        This command is critical for users who wish to contribute a new neuron to the network. It requires careful
+        [italic]Note[/italic]:This command is critical for users who wish to contribute a new neuron to the network. It requires careful
         consideration of the subnet selection and an understanding of the registration costs. Users should ensure their
         wallet is sufficiently funded before attempting to register a neuron.
         """
@@ -3584,7 +3271,7 @@ class CLIManager:
         self,
         netuid: Optional[int] = typer.Option(
             None,
-            help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1). This does"
+            help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1). This "
             "is ignored when used with `--reuse-last`.",
         ),
         network: str = Options.network,
@@ -3593,63 +3280,57 @@ class CLIManager:
         html_output: bool = Options.html_output,
     ):
         """
-        # subnets metagraph
-        Executes the `metagraph` command to retrieve and display the entire metagraph for a specified network.
+        Retrieve and display the [red]metagraph of a network[/red].
 
-        This metagraph contains detailed information about
-        all the neurons (nodes) participating in the network, including their stakes,
-        trust scores, and more.
+        This metagraph contains detailed information about all the neurons (nodes)
+        participating in the network, including their stakes, trust scores, and more.
 
         The table displayed includes the following columns for each neuron:
 
-        - UID: Unique identifier of the neuron.
+        - [bold]UID[/bold]: Unique identifier of the neuron.
 
-        - STAKE(τ): Total stake of the neuron in Tau (τ).
+        - [bold]STAKE(τ)[/bold]: Total stake of the neuron in Tao (τ).
 
-        - RANK: Rank score of the neuron.
+        - [bold]RANK[/bold]: Rank score of the neuron.
 
-        - TRUST: Trust score assigned to the neuron by other neurons.
+        - [bold]TRUST[/bold]: Trust score assigned to the neuron by other neurons.
 
-        - CONSENSUS: Consensus score of the neuron.
+        - [bold]CONSENSUS[/bold]: Consensus score of the neuron.
 
-        - INCENTIVE: Incentive score representing the neuron's incentive alignment.
+        - [bold]INCENTIVE[/bold]: Incentive score representing the neuron's incentive alignment.
 
-        - DIVIDENDS: Dividends earned by the neuron.
+        - [bold]DIVIDENDS[/bold]: Dividends earned by the neuron.
 
-        - EMISSION(p): Emission in Rho (p) received by the neuron.
+        - [bold]EMISSION(p)[/bold]: Emission in Rho (p) received by the neuron.
 
-        - VTRUST: Validator trust score indicating the network's trust in the neuron as a validator.
+        - [bold]VTRUST[/bold]: Validator trust score indicating the network's trust in the neuron as a validator.
 
-        - VAL: Validator status of the neuron.
+        - [bold]VAL[/bold]: Validator status of the neuron.
 
-        - UPDATED: Number of blocks since the neuron's last update.
+        - [bold]UPDATED[/bold]: Number of blocks since the neuron's last update.
 
-        - ACTIVE: Activity status of the neuron.
+        - [bold]ACTIVE[/bold]: Activity status of the neuron.
 
-        - AXON: Network endpoint information of the neuron.
+        - [bold]AXON[/bold]: Network endpoint information of the neuron.
 
-        - HOTKEY: Partial hotkey (public key) of the neuron.
+        - [bold]HOTKEY[/bold]: Partial hotkey (public key) of the neuron.
 
-        - COLDKEY: Partial coldkey (public key) of the neuron.
+        - [bold]COLDKEY[/bold]: Partial coldkey (public key) of the neuron.
 
 
         The command also prints network-wide statistics such as total stake, issuance, and difficulty.
 
-        ## Usage:
+        # Usage:
+
         The user must specify the network UID to query the metagraph. If not specified, the default network UID is used.
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-        btcli subnet metagraph --netuid 0  # Root network
-        ```
+        [green]$[/green] btcli subnet metagraph --netuid 0  # Root network
 
-        ```
-        btcli subnet metagraph --netuid 1 --network test
-        ```
+        [green]$[/green] btcli subnet metagraph --netuid 1 --network test
 
-        #### Note:
-        This command provides a snapshot of the network's state at the time of calling.
+        [italic]Note[/italic]: This command provides a snapshot of the network's state at the time of calling.
         It is useful for network analysis and diagnostics. It is intended to be used as part of the Bittensor CLI and
         not as a standalone function within user code.
         """
@@ -3708,22 +3389,19 @@ class CLIManager:
         ),
     ):
         """
-        # weights reveal
-        Executes the `reveal` command to reveal weights for a specific subnet on the Bittensor network.
+        [red]Reveal weights[/red] for a specific subnet on the Bittensor network.
 
-        ## Usage:
+        # Usage:
+
         The command allows revealing weights for a specific subnet. Users need to specify the netuid (network unique
         identifier), corresponding UIDs, and weights they wish to reveal.
 
 
-        ### Example usage:
+        # Example usage:
 
-        ```
-        $ btcli wt reveal --netuid 1 --uids 1,2,3,4 --weights 0.1,0.2,0.3,0.4 --salt 163,241,217,11,161,142,147,189
-        ```
+        [green]$[/green] btcli wt reveal --netuid 1 --uids 1,2,3,4 --weights 0.1,0.2,0.3,0.4 --salt 163,241,217,11,161,142,147,189
 
-        #### Note:
-        This command is used to reveal weights for a specific subnet and requires the user to have the necessary permissions.
+        [italic]Note[/italic]: This command is used to reveal weights for a specific subnet and requires the user to have the necessary permissions.
         """
         uids = list_prompt(uids, int, "Corresponding UIDs for the specified netuid")
         weights = list_prompt(
@@ -3775,22 +3453,20 @@ class CLIManager:
         ),
     ):
         """
-        # weights commit
-        Executes the `commit` command to commit weights for specific subnet on the Bittensor network.
 
-        ## Usage:
+        [red]Commit weights[/red] for specific subnet on the Bittensor network.
+
+        # Usage:
+
         The command allows committing weights for a specific subnet. Users need to specify the netuid (network unique
         identifier), corresponding UIDs, and weights they wish to commit.
 
 
         ### Example usage:
 
-        ```
-        $ btcli wt commit --netuid 1 --uids 1,2,3,4 --w 0.1 -w 0.2 -w 0.3 -w 0.4
-        ```
+        [green]$[/green] btcli wt commit --netuid 1 --uids 1,2,3,4 --w 0.1 -w 0.2 -w 0.3 -w 0.4
 
-        #### Note:
-        This command is used to commit weights for a specific subnet and requires the user to have the necessary
+        [italic]Note[/italic]: This command is used to commit weights for a specific subnet and requires the user to have the necessary
         permissions.
         """
         uids = list_prompt(uids, int, "Corresponding UIDs for the specified netuid")
