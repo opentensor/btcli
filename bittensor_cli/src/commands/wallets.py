@@ -53,7 +53,6 @@ async def regen_coldkey(
     json_path: Optional[str] = None,
     json_password: Optional[str] = "",
     use_password: Optional[bool] = True,
-    overwrite_coldkey: Optional[bool] = False,
 ):
     """Creates a new coldkey under this wallet"""
     json_str: Optional[str] = None
@@ -67,18 +66,18 @@ async def regen_coldkey(
         seed=seed,
         json=(json_str, json_password),
         use_password=use_password,
-        overwrite=overwrite_coldkey,
+        overwrite=False,
     )
 
 
 async def regen_coldkey_pub(
-    wallet: Wallet, ss58_address: str, public_key_hex: str, overwrite_coldkeypub: bool
+    wallet: Wallet, ss58_address: str, public_key_hex: str,
 ):
     """Creates a new coldkeypub under this wallet."""
     wallet.regenerate_coldkeypub(
         ss58_address=ss58_address,
         public_key=public_key_hex,
-        overwrite=overwrite_coldkeypub,
+        overwrite=False,
     )
 
 
@@ -89,7 +88,6 @@ async def regen_hotkey(
     json_path: Optional[str],
     json_password: Optional[str] = "",
     use_password: Optional[bool] = True,
-    overwrite_hotkey: Optional[bool] = False,
 ):
     """Creates a new hotkey under this wallet."""
     json_str: Optional[str] = None
@@ -105,29 +103,29 @@ async def regen_hotkey(
         seed=seed,
         json=(json_str, json_password),
         use_password=use_password,
-        overwrite=overwrite_hotkey,
+        overwrite=False,
     )
 
 
 async def new_hotkey(
-    wallet: Wallet, n_words: int, use_password: bool, overwrite_hotkey: bool
+    wallet: Wallet, n_words: int, use_password: bool,
 ):
     """Creates a new hotkey under this wallet."""
     wallet.create_new_hotkey(
         n_words=n_words,
         use_password=use_password,
-        overwrite=overwrite_hotkey,
+        overwrite=False,
     )
 
 
 async def new_coldkey(
-    wallet: Wallet, n_words: int, use_password: bool, overwrite_coldkey: bool
+    wallet: Wallet, n_words: int, use_password: bool,
 ):
     """Creates a new coldkey under this wallet."""
     wallet.create_new_coldkey(
         n_words=n_words,
         use_password=use_password,
-        overwrite=overwrite_coldkey,
+        overwrite=False,
     )
 
 
@@ -135,19 +133,17 @@ async def wallet_create(
     wallet: Wallet,
     n_words: int = 12,
     use_password: bool = True,
-    overwrite_coldkey: bool = False,
-    overwrite_hotkey: bool = False,
 ):
     """Creates a new wallet."""
     wallet.create_new_coldkey(
         n_words=n_words,
         use_password=use_password,
-        overwrite=overwrite_coldkey,
+        overwrite=False,
     )
     wallet.create_new_hotkey(
         n_words=n_words,
         use_password=False,
-        overwrite=overwrite_hotkey,
+        overwrite=False,
     )
 
 
@@ -1503,7 +1499,7 @@ async def check_coldkey_swap(wallet: Wallet, subtensor: SubtensorInterface):
         )
 
 
-async def sign(wallet: Wallet, message: str):
+async def sign(wallet: Wallet, message: str, use_hotkey: str):
     """Sign a message using the provided wallet or hotkey."""
 
     try:
@@ -1513,11 +1509,9 @@ async def sign(wallet: Wallet, message: str):
             ":cross_mark: [red]Keyfile is corrupt, non-writable, non-readable or the password used to decrypt is "
             "invalid[/red]:[bold white]\n  [/bold white]"
         )
-
-    keypair = wallet.coldkey
-
-    # Use a hotkey if the user specified it
-    if wallet.hotkey:
+    if not use_hotkey:
+        keypair = wallet.coldkey
+    else:
         keypair = wallet.hotkey
 
     signed_message = keypair.sign(message.encode("utf-8")).hex()
