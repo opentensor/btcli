@@ -1,23 +1,23 @@
 import asyncio
 import json
-from typing import TypedDict, Optional, cast
-from rich import box
+from typing import Optional, TypedDict, cast
+
+from bittensor_wallet import Wallet
 import numpy as np
 from numpy.typing import NDArray
-import typer
-from bittensor_wallet import Wallet
+from rich import box
 from rich.prompt import Confirm
-from rich.table import Table, Column
+from rich.table import Column, Table
 from rich.text import Text
-from scalecodec import ScaleType, GenericCall
-from substrateinterface.exceptions import SubstrateRequestException
+from scalecodec import GenericCall, ScaleType
+import typer
 
-from bittensor_cli.src import DelegatesDetails
+from bittensor_cli.src import Constants, DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance
-from bittensor_cli.src.bittensor.chain_data import NeuronInfoLite, DelegateInfo
+from bittensor_cli.src.bittensor.chain_data import DelegateInfo, NeuronInfoLite
 from bittensor_cli.src.bittensor.extrinsics.root import (
-    set_root_weights_extrinsic,
     root_register_extrinsic,
+    set_root_weights_extrinsic,
 )
 from bittensor_cli.src.commands.wallets import (
     get_coldkey_wallets_for_path,
@@ -27,17 +27,15 @@ from bittensor_cli.src.commands.wallets import (
 from bittensor_cli.src.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.utils import (
     console,
+    convert_weight_uids_and_vals_to_tensor,
+    create_table,
     err_console,
     get_delegates_details_from_github,
-    convert_weight_uids_and_vals_to_tensor,
-    ss58_to_vec_u8,
-    create_table,
-    render_table,
-    update_metadata_table,
     get_metadata_table,
+    render_table,
+    ss58_to_vec_u8,
+    update_metadata_table,
 )
-from bittensor_cli.src import Constants
-
 
 # helpers
 
@@ -906,8 +904,8 @@ async def get_weights(
             style="rgb(50,163,219)",
             no_wrap=True,
         )
-
-        for netuid in cast(list, netuids)[_min_lim:_max_lim]:
+        netuids = list(netuids)
+        for netuid in netuids[_min_lim:_max_lim]:
             table.add_column(
                 f"[white]{netuid}",
                 header_style="overline white",
@@ -968,11 +966,9 @@ async def set_boost(
 ):
     """Boosts weight of a given netuid for root network."""
 
-    my_uid = (
-        await subtensor.substrate.query(
-            "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
-        )
-    ).value
+    my_uid = await subtensor.substrate.query(
+        "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
+    )
     if my_uid is None:
         err_console.print("Your hotkey is not registered to the root network")
         return False
@@ -1341,14 +1337,14 @@ async def my_delegates(
     wallets = get_coldkey_wallets_for_path(wallet.path) if all_wallets else [wallet]
 
     table = Table(
-        Column("[white]Wallet", style="bright_magenta"),
+        Column("[white]Wallet", style="bright_cyan"),
         Column(
             "[white]OWNER",
             style="bold bright_cyan",
             no_wrap=True,
             justify="left",
         ),
-        Column("[white]SS58", style="#d7d7ff", justify="center"),
+        Column("[white]SS58", style="bright_magenta", justify="center"),
         Column(
             "[white]Delegation",
             style="dark_orange",

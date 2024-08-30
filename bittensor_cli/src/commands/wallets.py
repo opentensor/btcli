@@ -1,48 +1,49 @@
 import asyncio
-from collections import defaultdict
-from concurrent.futures import ProcessPoolExecutor
 import itertools
 import os
+from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor
 from sys import getsizeof
-from typing import Optional, Any, Collection, Generator
+from typing import Any, Collection, Generator, Optional
 
 import aiohttp
 from bittensor_wallet import Wallet
 from bittensor_wallet.errors import KeyFileError
 from bittensor_wallet.keyfile import Keyfile
 from fuzzywuzzy import fuzz
+from rich import box
 from rich.align import Align
 from rich.prompt import Confirm, Prompt
-from rich.table import Table, Column
+from rich.table import Column, Table
 from rich.tree import Tree
+from scalecodec import ScaleBytes
 import scalecodec
 import typer
-from scalecodec import ScaleBytes
 
-from bittensor_cli.src import utils, TYPE_REGISTRY, DelegatesDetails, Constants
-from bittensor_cli.src.bittensor.chain_data import (
-    NeuronInfoLite,
-    custom_rpc_type_registry,
-    StakeInfo,
-    DelegateInfo,
-)
-from bittensor_cli.src.bittensor.networking import int_to_ip
-from bittensor_cli.src.utils import (
-    console,
-    err_console,
-    RAO_PER_TAO,
-    decode_scale_bytes,
-    get_all_wallets_for_path,
-    get_hotkey_wallets_for_wallet,
-    get_delegates_details_from_github,
-    convert_blocks_to_time,
-)
-from bittensor_cli.src.subtensor_interface import SubtensorInterface
+from bittensor_cli.src import TYPE_REGISTRY, Constants, DelegatesDetails, utils
 from bittensor_cli.src.bittensor.balances import Balance
-from bittensor_cli.src.bittensor.extrinsics.transfer import transfer_extrinsic
+from bittensor_cli.src.bittensor.chain_data import (
+    DelegateInfo,
+    NeuronInfoLite,
+    StakeInfo,
+    custom_rpc_type_registry,
+)
 from bittensor_cli.src.bittensor.extrinsics.registration import (
     run_faucet_extrinsic,
     swap_hotkey_extrinsic,
+)
+from bittensor_cli.src.bittensor.extrinsics.transfer import transfer_extrinsic
+from bittensor_cli.src.bittensor.networking import int_to_ip
+from bittensor_cli.src.subtensor_interface import SubtensorInterface
+from bittensor_cli.src.utils import (
+    RAO_PER_TAO,
+    console,
+    convert_blocks_to_time,
+    decode_scale_bytes,
+    err_console,
+    get_all_wallets_for_path,
+    get_delegates_details_from_github,
+    get_hotkey_wallets_for_wallet,
 )
 
 
@@ -71,7 +72,9 @@ async def regen_coldkey(
 
 
 async def regen_coldkey_pub(
-    wallet: Wallet, ss58_address: str, public_key_hex: str,
+    wallet: Wallet,
+    ss58_address: str,
+    public_key_hex: str,
 ):
     """Creates a new coldkeypub under this wallet."""
     wallet.regenerate_coldkeypub(
@@ -108,7 +111,9 @@ async def regen_hotkey(
 
 
 async def new_hotkey(
-    wallet: Wallet, n_words: int, use_password: bool,
+    wallet: Wallet,
+    n_words: int,
+    use_password: bool,
 ):
     """Creates a new hotkey under this wallet."""
     wallet.create_new_hotkey(
@@ -119,7 +124,9 @@ async def new_hotkey(
 
 
 async def new_coldkey(
-    wallet: Wallet, n_words: int, use_password: bool,
+    wallet: Wallet,
+    n_words: int,
+    use_password: bool,
 ):
     """Creates a new coldkey under this wallet."""
     wallet.create_new_coldkey(
@@ -183,9 +190,10 @@ async def wallet_balance(
     wallet: Wallet, subtensor: SubtensorInterface, all_balances: bool
 ):
     """Retrieves the current balance of the specified wallet"""
-    if not wallet.coldkeypub_file.exists_on_device():
-        err_console.print("[bold red]No wallets found.[/bold red]")
-        return
+    if not all_balances:
+        if not wallet.coldkeypub_file.exists_on_device():
+            err_console.print("[bold red]No wallets found.[/bold red]")
+            return
 
     with console.status("Retrieving balances", spinner="aesthetic"):
         if all_balances:
@@ -211,45 +219,37 @@ async def wallet_balance(
     table = Table(
         Column(
             "[white]Wallet Name",
-            header_style="overline white",
-            footer_style="overline white",
-            style="rgb(50,163,219)",
+            style="bold bright_cyan",
             no_wrap=True,
         ),
         Column(
             "[white]Coldkey Address",
-            header_style="overline white",
-            footer_style="overline white",
-            style="rgb(50,163,219)",
+            style="bright_magenta",
             no_wrap=True,
         ),
         Column(
             "[white]Free Balance",
-            header_style="overline white",
-            footer_style="overline white",
             justify="right",
-            style="green",
+            style="light_goldenrod2",
             no_wrap=True,
         ),
         Column(
             "[white]Staked Balance",
-            header_style="overline white",
-            footer_style="overline white",
             justify="right",
-            style="green",
+            style="orange1",
             no_wrap=True,
         ),
         Column(
             "[white]Total Balance",
-            header_style="overline white",
-            footer_style="overline white",
             justify="right",
             style="green",
             no_wrap=True,
         ),
+        title="[underline dark_orange]Wallet Coldkey Balances",
         show_footer=True,
-        title="[white]Wallet Coldkey Balances",
-        box=None,
+        show_edge=False,
+        border_style="bright_black",
+        box=box.SIMPLE_HEAVY,
         pad_edge=False,
         width=None,
     )
@@ -325,39 +325,59 @@ async def get_wallet_transfers(wallet_address: str) -> list[dict]:
 def create_transfer_history_table(transfers: list[dict]) -> Table:
     """Get output transfer table"""
 
-    # Define the column names
-    column_names = [
-        "Id",
-        "From",
-        "To",
-        "Amount (Tao)",
-        "Extrinsic Id",
-        "Block Number",
-        "URL (taostats)",
-    ]
     taostats_url_base = "https://x.taostats.io/extrinsic"
 
     # Create a table
     table = Table(
         show_footer=True,
-        box=None,
+        box=box.SIMPLE,
         pad_edge=False,
         width=None,
-        title="[white]Wallet Transfers",
-        header_style="overline white",
-        footer_style="overline white",
+        title="[underline dark_orange]Wallet Transfers\n",
     )
 
-    column_style = "rgb(50,163,219)"
-    no_wrap = True
-
-    for column_name in column_names:
-        table.add_column(
-            f"[white]{column_name}",
-            style=column_style,
-            no_wrap=no_wrap,
-            justify="left" if column_name == "Id" else "right",
-        )
+    table.add_column(
+        "[white]ID",
+        style="dark_orange",
+        no_wrap=True,
+        justify="left",
+    )
+    table.add_column(
+        "[white]From",
+        style="bright_magenta",
+        no_wrap=True,
+        justify="right",
+    )
+    table.add_column(
+        "[white]To",
+        style="bright_magenta",
+        no_wrap=True,
+        justify="right",
+    )
+    table.add_column(
+        "[white]Amount (Tao)",
+        style="light_goldenrod2",
+        no_wrap=True,
+        justify="right",
+    )
+    table.add_column(
+        "[white]Extrinsic Id",
+        style="rgb(42,161,152)",
+        no_wrap=True,
+        justify="right",
+    )
+    table.add_column(
+        "[white]Block Number",
+        style="dark_sea_green",
+        no_wrap=True,
+        justify="right",
+    )
+    table.add_column(
+        "[white]URL (taostats)",
+        style="bright_cyan",
+        no_wrap=True,
+        justify="right",
+    )
 
     for item in transfers:
         try:
@@ -569,7 +589,7 @@ async def overview(
 
                 coldkeys_to_check.append(coldkey_wallet)
                 alerts_table.add_row(
-                    "Found {} stake with coldkey {} that is not registered.".format(
+                    "Found [light_goldenrod2]{}[/light_goldenrod2] stake with coldkey [bright_magenta]{}[/bright_magenta] that is not registered.".format(
                         difference, coldkey_wallet.coldkeypub.ss58_address
                     )
                 )
@@ -622,19 +642,21 @@ async def overview(
             neurons["-1"].extend(de_registered_neurons)
 
         # Setup outer table.
-        grid = Table.grid(pad_edge=False)
+        grid = Table.grid(pad_edge=True)
 
         # If there are any alerts, add them to the grid
         if len(alerts_table.rows) > 0:
             grid.add_row(alerts_table)
 
-        if not all_wallets:
-            title = f"[bold white italic]Wallet - {wallet.name}:{wallet.coldkeypub.ss58_address}"
-        else:
-            title = "[bold whit italic]All Wallets:"
-
         # Add title
-        grid.add_row(Align(title, vertical="middle", align="center"))
+        if not all_wallets:
+            title = "[underline dark_orange]Wallet[/underline dark_orange]\n"
+            details = f"[bright_cyan]{wallet.name}[/bright_cyan] : [bright_magenta]{wallet.coldkeypub.ss58_address}[/bright_magenta]"
+            grid.add_row(Align(title, vertical="middle", align="center"))
+            grid.add_row(Align(details, vertical="middle", align="center"))
+        else:
+            title = "[underline dark_orange]All Wallets:[/underline dark_orange]"
+            grid.add_row(Align(title, vertical="middle", align="center"))
 
         # Generate rows per netuid
         hotkeys_seen = set()
@@ -726,119 +748,111 @@ async def overview(
         if netuid == "-1":
             grid.add_row("Deregistered Neurons")
         else:
-            grid.add_row(f"Subnet: [bold white]{netuid}[/bold white]")
+            grid.add_row(f"Subnet: [dark_orange]{netuid}[/dark_orange]")
 
+        table_width = console.width - 20
         table = Table(
             show_footer=False,
-            width=None,
-            pad_edge=False,
-            box=None,
+            # width=None,
+            pad_edge=True,
+            box=box.SIMPLE,
+            width=table_width,
         )
         if last_subnet:
             table.add_column(
-                "[overline white]COLDKEY",
+                "[white]COLDKEY",
                 str(total_neurons),
-                footer_style="overline white",
-                style="bold white",
+                style="bold bright_cyan",
             )
             table.add_column(
-                "[overline white]HOTKEY",
+                "[white]HOTKEY",
                 str(total_neurons),
-                footer_style="overline white",
-                style="white",
+                style="bright_cyan",
             )
         else:
             # No footer for non-last subnet.
-            table.add_column("[overline white]COLDKEY", style="bold white")
-            table.add_column("[overline white]HOTKEY", style="white")
+            table.add_column("[white]COLDKEY", style="bold bright_cyan")
+            table.add_column("[white]HOTKEY", style="bright_cyan")
         table.add_column(
-            "[overline white]UID",
+            "[white]UID",
             str(total_neurons),
-            footer_style="overline white",
-            style="yellow",
+            style="rgb(42,161,152)",
         )
         table.add_column(
-            "[overline white]ACTIVE", justify="right", style="green", no_wrap=True
+            "[white]ACTIVE", justify="right", style="#8787ff", no_wrap=True
         )
         if last_subnet:
             table.add_column(
-                "[overline white]STAKE(\u03c4)",
+                "[white]STAKE(\u03c4)",
                 "\u03c4{:.5f}".format(total_stake),
-                footer_style="overline white",
+                footer_style="bold white",
                 justify="right",
-                style="green",
+                style="dark_orange",
                 no_wrap=True,
             )
         else:
             # No footer for non-last subnet.
             table.add_column(
-                "[overline white]STAKE(\u03c4)",
+                "[white]STAKE(\u03c4)",
                 justify="right",
-                style="green",
+                style="dark_orange",
                 no_wrap=True,
             )
         table.add_column(
-            "[overline white]RANK",
+            "[white]RANK",
             "{:.5f}".format(total_rank),
-            footer_style="overline white",
             justify="right",
-            style="green",
+            style="medium_purple",
             no_wrap=True,
         )
         table.add_column(
-            "[overline white]TRUST",
+            "[white]TRUST",
             "{:.5f}".format(total_trust),
-            footer_style="overline white",
             justify="right",
             style="green",
             no_wrap=True,
         )
         table.add_column(
-            "[overline white]CONSENSUS",
+            "[white]CONSENSUS",
             "{:.5f}".format(total_consensus),
-            footer_style="overline white",
             justify="right",
-            style="green",
+            style="rgb(42,161,152)",
             no_wrap=True,
         )
         table.add_column(
-            "[overline white]INCENTIVE",
+            "[white]INCENTIVE",
             "{:.5f}".format(total_incentive),
-            footer_style="overline white",
             justify="right",
-            style="green",
+            style="#5fd7ff",
             no_wrap=True,
         )
         table.add_column(
-            "[overline white]DIVIDENDS",
+            "[white]DIVIDENDS",
             "{:.5f}".format(total_dividends),
-            footer_style="overline white",
             justify="right",
-            style="green",
+            style="#8787d7",
             no_wrap=True,
         )
         table.add_column(
-            "[overline white]EMISSION(\u03c1)",
+            "[white]EMISSION(\u03c1)",
             "\u03c1{:_}".format(total_emission),
-            footer_style="overline white",
             justify="right",
-            style="green",
+            style="#d7d7ff",
             no_wrap=True,
         )
         table.add_column(
-            "[overline white]VTRUST",
+            "[white]VTRUST",
             "{:.5f}".format(total_validator_trust),
-            footer_style="overline white",
             justify="right",
-            style="green",
+            style="magenta",
             no_wrap=True,
         )
-        table.add_column("[overline white]VPERMIT", justify="right", no_wrap=True)
-        table.add_column("[overline white]UPDATED", justify="right", no_wrap=True)
+        table.add_column("[white]VPERMIT", justify="center", no_wrap=True)
+        table.add_column("[white]UPDATED", justify="right", no_wrap=True)
         table.add_column(
-            "[overline white]AXON", justify="left", style="dim blue", no_wrap=True
+            "[white]AXON", justify="left", style="light_goldenrod2", no_wrap=True
         )
-        table.add_column("[overline white]HOTKEY_SS58", style="dim blue", no_wrap=False)
+        table.add_column("[white]HOTKEY_SS58", style="bright_magenta", no_wrap=False)
         table.show_footer = True
 
         if sort_by:
@@ -848,7 +862,7 @@ async def overview(
 
             for index, column in zip(range(len(table.columns)), table.columns):
                 # Fuzzy match the column name. Default to the first column.
-                column_name = column.header.lower().replace("[overline white]", "")
+                column_name = column.header.lower().replace("[white]", "")
                 match_ratio = fuzz.ratio(sort_by.lower(), column_name)
                 # Finds the best matching column
                 if match_ratio > highest_matching_ratio:
@@ -875,9 +889,7 @@ async def overview(
 
         grid.add_row(table)
 
-    console.clear()
-
-    caption = "[italic][dim][white]Wallet balance: [green]\u03c4" + str(
+    caption = "\n[italic][dim][bright_cyan]Wallet balance: [dark_orange]\u03c4" + str(
         total_balance.tao
     )
     grid.add_row(Align(caption, vertical="middle", align="center"))
@@ -1388,21 +1400,26 @@ async def set_id(
 ):
     """Create a new or update existing identity on-chain."""
 
-    identified = wallet.hotkey.ss58_address if validator_id else None
+    identified = (
+        wallet.hotkey.ss58_address if validator_id else wallet.coldkey.ss58_address
+    )
     id_dict = {
-        "display": display_name,
-        "legal": legal_name,
-        "web": web_url,
-        "pgp_fingerprint": pgp_fingerprint,
-        "riot": riot_handle,
-        "email": email,
-        "image": image,
-        "twitter": twitter,
-        "info": info_,
+        "info": {
+            "additional": [[]],
+            "display": display_name,
+            "legal": legal_name,
+            "web": web_url,
+            "pgp_fingerprint": pgp_fingerprint,
+            "riot": riot_handle,
+            "email": email,
+            "image": image,
+            "twitter": twitter,
+            "info": info_,
+        },
         "identified": identified,
     }
 
-    for field, string in id_dict.items():
+    for field, string in id_dict["info"].items():
         if getsizeof(string) > 113:  # 64 + 49 overhead bytes for string
             raise ValueError(f"Identity value `{field}` must be <= 64 raw bytes")
 

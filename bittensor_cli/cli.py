@@ -389,45 +389,111 @@ class CLIManager:
         self.config_app.command("metagraph")(self.metagraph_config)
 
         # wallet commands
-        self.wallet_app.command("list", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"])(self.wallet_list)
-        self.wallet_app.command("regen-coldkey", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"])(self.wallet_regen_coldkey)
-        self.wallet_app.command("regen-coldkeypub", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"])(self.wallet_regen_coldkey_pub)
-        self.wallet_app.command("regen-hotkey", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"])(self.wallet_regen_hotkey)
-        self.wallet_app.command("new-hotkey", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"])(self.wallet_new_hotkey)
-        self.wallet_app.command("new-coldkey", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"])(self.wallet_new_coldkey)
-        self.wallet_app.command("create", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"])(self.wallet_create_wallet)
-        self.wallet_app.command("balance", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"])(self.wallet_balance)
-        self.wallet_app.command("history", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"])(self.wallet_history)
-        self.wallet_app.command("overview", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"])(self.wallet_overview)
-        self.wallet_app.command("transfer", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"])(self.wallet_transfer)
-        self.wallet_app.command("inspect", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"])(self.wallet_inspect)
-        self.wallet_app.command("faucet", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"])(self.wallet_faucet)
-        self.wallet_app.command("set-identity", rich_help_panel=HELP_PANELS["WALLET"]["IDENTITY"])(self.wallet_set_id)
-        self.wallet_app.command("get-identity", rich_help_panel=HELP_PANELS["WALLET"]["IDENTITY"])(self.wallet_get_id)
-        self.wallet_app.command("check-swap", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"])(self.wallet_check_ck_swap)
-        self.wallet_app.command("sign", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"])(self.wallet_sign)
+        self.wallet_app.command(
+            "list", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"]
+        )(self.wallet_list)
+        self.wallet_app.command(
+            "regen-coldkey", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
+        )(self.wallet_regen_coldkey)
+        self.wallet_app.command(
+            "regen-coldkeypub", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
+        )(self.wallet_regen_coldkey_pub)
+        self.wallet_app.command(
+            "regen-hotkey", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
+        )(self.wallet_regen_hotkey)
+        self.wallet_app.command(
+            "new-hotkey", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"]
+        )(self.wallet_new_hotkey)
+        self.wallet_app.command(
+            "new-coldkey", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"]
+        )(self.wallet_new_coldkey)
+        self.wallet_app.command(
+            "create", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"]
+        )(self.wallet_create_wallet)
+        self.wallet_app.command(
+            "balance", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"]
+        )(self.wallet_balance)
+        self.wallet_app.command(
+            "history", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"]
+        )(self.wallet_history)
+        self.wallet_app.command(
+            "overview", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"]
+        )(self.wallet_overview)
+        self.wallet_app.command(
+            "transfer", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"]
+        )(self.wallet_transfer)
+        self.wallet_app.command(
+            "inspect", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"]
+        )(self.wallet_inspect)
+        self.wallet_app.command(
+            "faucet", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"]
+        )(self.wallet_faucet)
+        self.wallet_app.command(
+            "set-identity", rich_help_panel=HELP_PANELS["WALLET"]["IDENTITY"]
+        )(self.wallet_set_id)
+        self.wallet_app.command(
+            "get-identity", rich_help_panel=HELP_PANELS["WALLET"]["IDENTITY"]
+        )(self.wallet_get_id)
+        self.wallet_app.command(
+            "check-swap", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
+        )(self.wallet_check_ck_swap)
+        self.wallet_app.command(
+            "sign", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"]
+        )(self.wallet_sign)
 
         # root commands
         self.root_app.command("list")(self.root_list)
-        self.root_app.command("set-weights", rich_help_panel=HELP_PANELS["ROOT"]["WEIGHT_MGMT"])(self.root_set_weights)
-        self.root_app.command("get-weights", rich_help_panel=HELP_PANELS["ROOT"]["WEIGHT_MGMT"])(self.root_get_weights)
-        self.root_app.command("boost", rich_help_panel=HELP_PANELS["ROOT"]["WEIGHT_MGMT"])(self.root_boost)
-        self.root_app.command("slash", rich_help_panel=HELP_PANELS["ROOT"]["WEIGHT_MGMT"])(self.root_slash)
-        self.root_app.command("senate", rich_help_panel=HELP_PANELS["ROOT"]["GOVERNANCE"])(self.root_senate)
-        self.root_app.command("senate-vote", rich_help_panel=HELP_PANELS["ROOT"]["GOVERNANCE"])(self.root_senate_vote)
+        self.root_app.command(
+            "set-weights", rich_help_panel=HELP_PANELS["ROOT"]["WEIGHT_MGMT"]
+        )(self.root_set_weights)
+        self.root_app.command(
+            "get-weights", rich_help_panel=HELP_PANELS["ROOT"]["WEIGHT_MGMT"]
+        )(self.root_get_weights)
+        self.root_app.command(
+            "boost", rich_help_panel=HELP_PANELS["ROOT"]["WEIGHT_MGMT"]
+        )(self.root_boost)
+        self.root_app.command(
+            "slash", rich_help_panel=HELP_PANELS["ROOT"]["WEIGHT_MGMT"]
+        )(self.root_slash)
+        self.root_app.command(
+            "senate", rich_help_panel=HELP_PANELS["ROOT"]["GOVERNANCE"]
+        )(self.root_senate)
+        self.root_app.command(
+            "senate-vote", rich_help_panel=HELP_PANELS["ROOT"]["GOVERNANCE"]
+        )(self.root_senate_vote)
         self.root_app.command("register")(self.root_register)
-        self.root_app.command("proposals", rich_help_panel=HELP_PANELS["ROOT"]["GOVERNANCE"])(self.root_proposals)
-        self.root_app.command("set-take", rich_help_panel=HELP_PANELS["ROOT"]["DELEGATION"])(self.root_set_take)
-        self.root_app.command("delegate-stake", rich_help_panel=HELP_PANELS["ROOT"]["DELEGATION"])(self.root_delegate_stake)
-        self.root_app.command("undelegate-stake", rich_help_panel=HELP_PANELS["ROOT"]["DELEGATION"])(self.root_undelegate_stake)
-        self.root_app.command("my-delegates", rich_help_panel=HELP_PANELS["ROOT"]["DELEGATION"])(self.root_my_delegates)
-        self.root_app.command("list-delegates", rich_help_panel=HELP_PANELS["ROOT"]["DELEGATION"])(self.root_list_delegates)
-        self.root_app.command("nominate", rich_help_panel=HELP_PANELS["ROOT"]["GOVERNANCE"])(self.root_nominate)
+        self.root_app.command(
+            "proposals", rich_help_panel=HELP_PANELS["ROOT"]["GOVERNANCE"]
+        )(self.root_proposals)
+        self.root_app.command(
+            "set-take", rich_help_panel=HELP_PANELS["ROOT"]["DELEGATION"]
+        )(self.root_set_take)
+        self.root_app.command(
+            "delegate-stake", rich_help_panel=HELP_PANELS["ROOT"]["DELEGATION"]
+        )(self.root_delegate_stake)
+        self.root_app.command(
+            "undelegate-stake", rich_help_panel=HELP_PANELS["ROOT"]["DELEGATION"]
+        )(self.root_undelegate_stake)
+        self.root_app.command(
+            "my-delegates", rich_help_panel=HELP_PANELS["ROOT"]["DELEGATION"]
+        )(self.root_my_delegates)
+        self.root_app.command(
+            "list-delegates", rich_help_panel=HELP_PANELS["ROOT"]["DELEGATION"]
+        )(self.root_list_delegates)
+        self.root_app.command(
+            "nominate", rich_help_panel=HELP_PANELS["ROOT"]["GOVERNANCE"]
+        )(self.root_nominate)
 
         # stake commands
-        self.stake_app.command("show", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"])(self.stake_show)
-        self.stake_app.command("add", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"])(self.stake_add)
-        self.stake_app.command("remove", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"])(self.stake_remove)
+        self.stake_app.command(
+            "show", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
+        )(self.stake_show)
+        self.stake_app.command(
+            "add", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
+        )(self.stake_add)
+        self.stake_app.command(
+            "remove", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
+        )(self.stake_remove)
 
         # stake-children commands
         children_app = typer.Typer()
@@ -435,8 +501,7 @@ class CLIManager:
             children_app,
             name="child",
             short_help="Child Hotkey commands, alias: `children`",
-            rich_help_panel=HELP_PANELS["STAKE"]["CHILD"]
-            
+            rich_help_panel=HELP_PANELS["STAKE"]["CHILD"],
         )
         self.stake_app.add_typer(children_app, name="children", hidden=True)
         children_app.command("get")(self.stake_get_children)
@@ -445,21 +510,43 @@ class CLIManager:
         children_app.command("take")(self.stake_childkey_take)
 
         # sudo commands
-        self.sudo_app.command("set", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(self.sudo_set)
-        self.sudo_app.command("get", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(self.sudo_get)
+        self.sudo_app.command("set", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(
+            self.sudo_set
+        )
+        self.sudo_app.command("get", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(
+            self.sudo_get
+        )
 
         # subnets commands
-        self.subnets_app.command("hyperparameters", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"])(self.sudo_get)
-        self.subnets_app.command("list", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"])(self.subnets_list)
-        self.subnets_app.command("lock-cost", rich_help_panel=HELP_PANELS["SUBNETS"]["CREATION"])(self.subnets_lock_cost)
-        self.subnets_app.command("create", rich_help_panel=HELP_PANELS["SUBNETS"]["CREATION"])(self.subnets_create)
-        self.subnets_app.command("pow-register", rich_help_panel=HELP_PANELS["SUBNETS"]["REGISTER"])(self.subnets_pow_register)
-        self.subnets_app.command("register", rich_help_panel=HELP_PANELS["SUBNETS"]["REGISTER"])(self.subnets_register)
-        self.subnets_app.command("metagraph", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"])(self.subnets_metagraph)
+        self.subnets_app.command(
+            "hyperparameters", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
+        )(self.sudo_get)
+        self.subnets_app.command(
+            "list", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
+        )(self.subnets_list)
+        self.subnets_app.command(
+            "lock-cost", rich_help_panel=HELP_PANELS["SUBNETS"]["CREATION"]
+        )(self.subnets_lock_cost)
+        self.subnets_app.command(
+            "create", rich_help_panel=HELP_PANELS["SUBNETS"]["CREATION"]
+        )(self.subnets_create)
+        self.subnets_app.command(
+            "pow-register", rich_help_panel=HELP_PANELS["SUBNETS"]["REGISTER"]
+        )(self.subnets_pow_register)
+        self.subnets_app.command(
+            "register", rich_help_panel=HELP_PANELS["SUBNETS"]["REGISTER"]
+        )(self.subnets_register)
+        self.subnets_app.command(
+            "metagraph", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
+        )(self.subnets_metagraph)
 
         # weights commands
-        self.weights_app.command("reveal", rich_help_panel=HELP_PANELS["WEIGHTS"]["COMMIT_REVEAL"])(self.weights_reveal)
-        self.weights_app.command("commit", rich_help_panel=HELP_PANELS["WEIGHTS"]["COMMIT_REVEAL"])(self.weights_commit)
+        self.weights_app.command(
+            "reveal", rich_help_panel=HELP_PANELS["WEIGHTS"]["COMMIT_REVEAL"]
+        )(self.weights_reveal)
+        self.weights_app.command(
+            "commit", rich_help_panel=HELP_PANELS["WEIGHTS"]["COMMIT_REVEAL"]
+        )(self.weights_commit)
 
     def initialize_chain(
         self,
@@ -1433,6 +1520,11 @@ class CLIManager:
 
         [green]$[/green] btcli w balance --all
         """
+        if all_balances:
+            if not wallet_path:
+                wallet_path = Prompt.ask(
+                    "Enter the path of the wallets", default=defaults.wallet.path
+                )
         subtensor = self.initialize_chain(network, chain)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(

@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING, Optional, cast
 
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm
-from rich.table import Table, Column
+from rich.table import Column, Table
+
 from bittensor_cli.src import Constants, DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import SubnetInfo
@@ -264,15 +265,15 @@ async def subnets_list(
             "[bold white]N",
             footer=f"[white]{metadata['N']}[/white]",
             style="bright_cyan",
-            justify="center",
+            justify="right",
         )
-        table.add_column("[bold white]MAX_N", style="bright_cyan", justify="center")
+        table.add_column("[bold white]MAX_N", style="bright_cyan", justify="right")
         table.add_column(
-            "[bold white]EMISSION", style="light_goldenrod2", justify="center"
+            "[bold white]EMISSION", style="light_goldenrod2", justify="right"
         )
-        table.add_column("[bold white]TEMPO", style="magenta", justify="center")
-        table.add_column("[bold white]RECYCLE", style="bright_red", justify="center")
-        table.add_column("[bold white]POW", style="medium_purple", justify="center")
+        table.add_column("[bold white]TEMPO", style="magenta", justify="right")
+        table.add_column("[bold white]RECYCLE", style="bright_red", justify="right")
+        table.add_column("[bold white]POW", style="medium_purple", justify="right")
         table.add_column("[bold white]SUDO", style="bright_magenta", justify="center")
 
         for row in rows:
