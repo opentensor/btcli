@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400&display=swap" rel="stylesheet">
+    <link href="https://unpkg.com/tabulator-tables@6.2.5/dist/css/tabulator.min.css" rel="stylesheet">
+    <script type="text/javascript" src="https://oss.sheetjs.com/sheetjs/xlsx.full.min.js"></script>
+    <script type="text/javascript" src="https://unpkg.com/tabulator-tables@6.2.5/dist/js/tabulator.min.js"></script>
+</head>
+<style>
+    .tabulator {
+        font-family: 'DM Mono', monospace !important;
+    }
+
+    .tabulator .tabulator-header .tabulator-col {
+        font-family: 'DM Mono', monospace !important;
+    }
+
+    .tabulator .tabulator-tableHolder .tabulator-row .tabulator-cell {
+        font-family: 'DM Mono', monospace !important;
+    }
+
+    .tabulator .tabulator-header {
+        background-color: #282A2D !important;
+        color: white !important;
+    }
+
+    .tabulator .tabulator-header .tabulator-col {
+        background-color: #282A2D !important;
+        color: white !important;
+        padding: 16px 12px;
+    }
+
+    .tabulator .tabulator-tableHolder .tabulator-row .tabulator-cell {
+        padding: 16px 12px;
+    }
+
+    .tabulator .tabulator-tableHolder .tabulator-row:nth-child(even) {
+        background-color: #f2f2f2;
+    }
+
+    .tabulator .tabulator-tableHolder .tabulator-row:hover {
+        background-color: #ddd;
+    }
+
+    /* Apply styles only to the filter section selects */
+    .filter-section select {
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        padding: 8px;
+        border: 1px solid #DBDDE1;
+        border-radius: 4px;
+        font-family: 'DM Mono', monospace;
+        font-size: 12px;
+        color: #0E1013;
+        background-repeat: no-repeat;
+        background-position: right 10px center;
+        background-size: 10px;
+        background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 5"><path fill="%230E1013" d="M2 0L0 2h4z"/></svg>');
+    }
+
+    /* Specific styles for each select element */
+    .filter-section #filter-field {
+        background-color: #F0F0F0;
+    }
+
+    .filter-section #filter-type {
+        background-color: #E8E8E8;
+        border: 1px solid #C0C0C0;
+    }
+
+    .filter-section #filter-value {
+        background-color: #FFFFFF;
+        border: 1px solid #DBDDE1;
+    }
+
+</style>
+<body style="margin: 0; padding: 0;">
+<!-- Header Bar -->
+<div style="position: relative; width: 1648px; height: 48px; margin: 32px auto 0 auto; background-color: white; color: #282A2D;">
+    <!-- Tao Symbol on the Left -->
+    <div style="position: absolute; width: 48px; height: 48px; left: 16px; top: 0; text-align: center;
+            font-family: 'GFS Neohellenic', serif; font-weight: 400; font-size: 48px; line-height: 48px; color: #282A2D;">
+        <?xml version="1.0" encoding="UTF-8"?>
+        <svg id="a" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 34.44 36.91">
+            <path d="M20.88,28.32V13.19c0-3.78-3.12-6.86-6.9-6.86V30.51c0,4.81,4.08,6.4,6.6,6.4,2.09,0,3.27-.36,4.69-1.36-3.98-.42-4.39-2.82-4.39-7.23Z"/>
+            <path d="M6.29,0C2.82,0,0,2.87,0,6.34H28.15c3.47,0,6.29-2.87,6.29-6.34H6.29Z"/>
+        </svg>
+
+    </div>
+    <!-- Table Info slightly off-center and constrained to one line -->
+    <div style="position: absolute; left: 25%; transform: translateX(-25%); top: 12px; width: 60%;
+            font-family: 'DM Mono', monospace; font-weight: 400; font-size: 12px; letter-spacing: 0.05em;
+            text-transform: uppercase; color: #282A2D; white-space: nowrap;">
+        {{ table_info }}
+    </div>
+</div>
+
+<!-- Filter Section -->
+<div class="filter-section"
+     style="display: flex; flex-direction: row; align-items: center; gap: 16px; padding: 16px; border: 1px dashed #0E1013; border-radius: 5px; width: fit-content; margin: 20px auto; box-sizing: border-box;">
+
+    <!-- Filter Field -->
+    <div style="display: flex; flex-direction: column; gap: 4px; flex-grow: 0;">
+        <label for="filter-field"
+               style="font-family: 'DM Mono'; font-size: 12px; text-transform: uppercase; color: #0E1013;">
+            Filter Field
+        </label>
+        <select id="filter-field">
+            <option></option>
+            {% for col in column_names %}
+                <option value="{{ col }}">{{ col }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <!-- Filter Type -->
+    <div style="display: flex; flex-direction: column; gap: 4px; flex-grow: 0;">
+        <label for="filter-type"
+               style="font-family: 'DM Mono'; font-size: 12px; text-transform: uppercase; color: #0E1013;">
+            Filter Type
+        </label>
+        <select id="filter-type">
+            <option value="=">=</option>
+            <option value="<"><</option>
+            <option value="<="><=</option>
+            <option value=">">></option>
+            <option value=">=">>=</option>
+            <option value="!=">!=</option>
+            <option value="like">like</option>
+        </select>
+    </div>
+
+    <!-- Filter Value -->
+    <div style="display: flex; flex-direction: column; gap: 4px; flex-grow: 0;">
+        <label for="filter-value"
+               style="font-family: 'DM Mono'; font-size: 12px; text-transform: uppercase; color: #0E1013;">
+            Filter Value
+        </label>
+        <input id="filter-value" type="text" placeholder="value to filter"
+               style="padding: 8px; border: 1px solid #DBDDE1; border-radius: 4px; background: #FFFFFF; font-family: 'DM Mono'; font-size: 12px; color: #0E1013;">
+    </div>
+
+    <!-- Clear Button -->
+    <div style="display: flex; align-items: flex-end; flex-grow: 0;">
+        <button id="filter-clear"
+                style="padding: 8px 16px; border: 1px solid #DBDDE1; border-radius: 4px; background: #FFFFFF; font-family: 'DM Mono'; font-size: 12px; text-transform: uppercase; color: #0E1013;">
+            Clear Filter
+        </button>
+    </div>
+
+</div>
+
+<!-- Table Placeholder (for reference) -->
+<div id="my-table" style="width: 1648px; margin: 20px auto;">
+    <!-- Table content will go here -->
+</div>
+
+<div style="margin: 20px auto; text-align: center;">
+    <button id="download-csv" style="padding: 8px 16px; border: 1px solid #DBDDE1; border-radius: 4px; background: #FFFFFF; font-family: 'DM Mono'; font-size: 12px; text-transform: uppercase; color: #0E1013;">Download CSV</button>
+    <button id="download-json" style="padding: 8px 16px; border: 1px solid #DBDDE1; border-radius: 4px; background: #FFFFFF; font-family: 'DM Mono'; font-size: 12px; text-transform: uppercase; color: #0E1013;">Download JSON</button>
+    <button id="download-xlsx" style="padding: 8px 16px; border: 1px solid #DBDDE1; border-radius: 4px; background: #FFFFFF; font-family: 'DM Mono'; font-size: 12px; text-transform: uppercase; color: #0E1013;">Download XLSX</button>
+    <button id="download-html" style="padding: 8px 16px; border: 1px solid #DBDDE1; border-radius: 4px; background: #FFFFFF; font-family: 'DM Mono'; font-size: 12px; text-transform: uppercase; color: #0E1013;">Download HTML</button>
+</div>
+
+</body>
+
+<script>
+    const columns = {{ columns|safe }};
+    columns.forEach(column => {
+        if (column.customFormatter === "millify") {
+            column.formatter = millify;
+            delete column.customFormatter;
+        }
+    });
+    const None = null;
+    const table = new Tabulator("#my-table",
+        {
+            columns: columns,
+            data: {{ rows|safe }},
+            pagination: "local",
+            paginationSize: 50,
+            paginationSizeSelector: [50, 100, 150, 200],
+            movableColumns: true,
+            paginationCounter: "rows",
+            layout: "fitColumns",
+            {% if tree %} dataTree: true, {% endif %}
+        }
+    )
+    //Define variables for input elements
+    const fieldEl = document.getElementById("filter-field");
+    const typeEl = document.getElementById("filter-type");
+    const valueEl = document.getElementById("filter-value");
+
+    //Custom filter example
+    function customFilter(data) {
+        return data.car && data.rating < 3;
+    }
+
+    //Trigger setFilter function with correct parameters
+    function updateFilter() {
+        var filterVal = fieldEl.options[fieldEl.selectedIndex].value;
+        var typeVal = typeEl.options[typeEl.selectedIndex].value;
+
+        var filter = filterVal == "function" ? customFilter : filterVal;
+
+        if (filterVal == "function") {
+            typeEl.disabled = true;
+            valueEl.disabled = true;
+        } else {
+            typeEl.disabled = false;
+            valueEl.disabled = false;
+        }
+
+        if (filterVal) {
+            table.setFilter(filter, typeVal, valueEl.value);
+        }
+    }
+
+    function millify(cell, formatterParams, onRendered) {
+        const millNames = ["", "K", "M", "B", "T"];
+        const n = cell.getValue();
+        const nAbs = Math.abs(n);
+        const millIdx = Math.max(0, Math.min(millNames.length - 1, Math.floor(nAbs === 0 ? 0 : Math.log10(nAbs) / 3)));
+
+        return (n / Math.pow(10, 3 * millIdx)).toFixed(2) + millNames[millIdx];
+    }
+
+    //Update filters on value change
+    document.getElementById("filter-field").addEventListener("change", updateFilter);
+    document.getElementById("filter-type").addEventListener("change", updateFilter);
+    document.getElementById("filter-value").addEventListener("keyup", updateFilter);
+
+    //Clear filters on "Clear Filters" button click
+    document.getElementById("filter-clear").addEventListener("click", function () {
+        fieldEl.value = "";
+        typeEl.value = "=";
+        valueEl.value = "";
+
+        table.clearFilter();
+    });
+
+    //trigger download of data.csv file
+    document.getElementById("download-csv").addEventListener("click", function () {
+        table.download("csv", "{{ title }}.csv");
+    });
+
+    //trigger download of data.json file
+    document.getElementById("download-json").addEventListener("click", function () {
+        table.download("json", "{{ title }}.json");
+    });
+
+    //trigger download of data.xlsx file
+    document.getElementById("download-xlsx").addEventListener("click", function () {
+        table.download("xlsx", "{{ title }}.xlsx", {sheetName: "My Data"});
+    });
+
+    //trigger download of data.html file
+    document.getElementById("download-html").addEventListener("click", function () {
+        table.download("html", "{{ title }}.html", {style: true});
+    });
+
+</script>
+
+</html>
