@@ -1400,30 +1400,47 @@ async def set_id(
 ):
     """Create a new or update existing identity on-chain."""
 
+    id_dict = {
+        "additional": [[]],
+        "display": display_name,
+        "legal": legal_name,
+        "web": web_url,
+        "pgp_fingerprint": pgp_fingerprint,
+        "riot": riot_handle,
+        "email": email,
+        "image": image,
+        "twitter": twitter,
+        "info": info_,
+    }
+
+    for field, string in id_dict.items():
+        if (size := getsizeof(string)) > 113:  # 64 + 49 overhead bytes for string
+            err_console.print(
+                f"[red]Error:[/red] Identity field [white]{field}[/white] must be <= 64 raw bytes.\n"
+                f"Value: '{string}' currently [white]{size} bytes[/white]."
+            )
+            return False
+
     identified = (
         wallet.hotkey.ss58_address if validator_id else wallet.coldkey.ss58_address
     )
-    id_dict = {
+    encoded_id_dict = {
         "info": {
             "additional": [[]],
-            "display": display_name,
-            "legal": legal_name,
-            "web": web_url,
-            "pgp_fingerprint": pgp_fingerprint,
-            "riot": riot_handle,
-            "email": email,
-            "image": image,
-            "twitter": twitter,
-            "info": info_,
+            "display": {f"Raw{len(display_name.encode())}": display_name.encode()},
+            "legal": {f"Raw{len(legal_name.encode())}": legal_name.encode()},
+            "web": {f"Raw{len(web_url.encode())}": web_url.encode()},
+            "riot": {f"Raw{len(riot_handle.encode())}": riot_handle.encode()},
+            "email": {f"Raw{len(email.encode())}": email.encode()},
+            "pgp_fingerprint": pgp_fingerprint.encode() if pgp_fingerprint else None,
+            "image": {f"Raw{len(image.encode())}": image.encode()},
+            "info": {f"Raw{len(info_.encode())}": info_.encode()},
+            "twitter": {f"Raw{len(twitter.encode())}": twitter.encode()},
         },
         "identified": identified,
     }
 
-    for field, string in id_dict["info"].items():
-        if getsizeof(string) > 113:  # 64 + 49 overhead bytes for string
-            raise ValueError(f"Identity value `{field}` must be <= 64 raw bytes")
-
-    if not Confirm(
+    if not Confirm.ask(
         "Cost to register an Identity is [bold white italic]0.1 Tao[/bold white italic],"
         " are you sure you wish to continue?"
     ):
@@ -1436,7 +1453,7 @@ async def set_id(
         call = await subtensor.substrate.compose_call(
             call_module="Registry",
             call_function="set_identity",
-            call_params=id_dict,
+            call_params=encoded_id_dict,
         )
         success, err_msg = await subtensor.sign_and_send_extrinsic(call, wallet)
 
