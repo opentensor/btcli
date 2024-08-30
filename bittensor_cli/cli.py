@@ -563,7 +563,7 @@ class CLIManager:
         if not self.not_subtensor:
             if network or chain:
                 self.not_subtensor = SubtensorInterface(network, chain)
-            elif self.config["chain"] or self.config["chain"]:
+            elif self.config["network"] or self.config["chain"]:
                 self.not_subtensor = SubtensorInterface(
                     self.config["network"], self.config["chain"]
                 )
