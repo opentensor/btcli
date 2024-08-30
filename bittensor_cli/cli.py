@@ -810,7 +810,7 @@ class CLIManager:
         chain: str = Options.chain,
     ):
         """
-        Presents a detailed overviewof the user's registered accounts on the Bittensor network.
+        Presents a detailed overview of the user's registered accounts on the Bittensor network.
 
         This command compiles and displays comprehensive information about each neuron associated with the user's
         wallets, including both hotkeys and coldkeys. It is especially useful for users managing multiple accounts or
