@@ -12,12 +12,17 @@ from bittensor_wallet import Wallet
 from git import Repo, GitError
 from rich.prompt import Confirm, FloatPrompt, Prompt
 from rich.table import Column, Table
-from .src import HYPERPARAMS, defaults, utils, HELP_PANELS
+from .src import HYPERPARAMS, defaults, HELP_PANELS
+from bittensor_cli.src.bittensor import utils
 from .src.bittensor.async_substrate_interface import SubstrateRequestException
 from .src.commands import root, stake, subnets, sudo, wallets
 from .src.commands import weights as weights_cmds
-from .src.subtensor_interface import SubtensorInterface
-from .src.utils import console, err_console, is_valid_ss58_address
+from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
+from bittensor_cli.src.bittensor.utils import (
+    console,
+    err_console,
+    is_valid_ss58_address,
+)
 from typing_extensions import Annotated
 from websockets import ConnectionClosed
 from yaml import safe_dump, safe_load

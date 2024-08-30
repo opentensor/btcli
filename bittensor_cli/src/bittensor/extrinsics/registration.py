@@ -26,7 +26,7 @@ from rich.console import Console
 from rich.status import Status
 from substrateinterface.exceptions import SubstrateRequestException
 
-from bittensor_cli.src.utils import (
+from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
     format_error_message,
@@ -35,7 +35,7 @@ from bittensor_cli.src.utils import (
 )
 
 if typing.TYPE_CHECKING:
-    from bittensor_cli.src.subtensor_interface import SubtensorInterface
+    from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 
 
 def use_torch() -> bool:

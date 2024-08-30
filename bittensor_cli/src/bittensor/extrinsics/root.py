@@ -27,9 +27,9 @@ from rich.prompt import Confirm
 from scalecodec import ScaleBytes, U16, Vec
 from substrateinterface import Keypair
 
-from bittensor_cli.src.subtensor_interface import SubtensorInterface
+from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.extrinsics.registration import is_hotkey_registered
-from bittensor_cli.src.utils import console, err_console, u16_normalized_float
+from bittensor_cli.src.bittensor.utils import console, err_console, u16_normalized_float
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.minigraph import MiniGraph

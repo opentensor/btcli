@@ -20,7 +20,8 @@ from scalecodec import ScaleBytes
 import scalecodec
 import typer
 
-from bittensor_cli.src import TYPE_REGISTRY, Constants, DelegatesDetails, utils
+from bittensor_cli.src import TYPE_REGISTRY, Constants, DelegatesDetails
+from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import (
     DelegateInfo,
@@ -34,8 +35,8 @@ from bittensor_cli.src.bittensor.extrinsics.registration import (
 )
 from bittensor_cli.src.bittensor.extrinsics.transfer import transfer_extrinsic
 from bittensor_cli.src.bittensor.networking import int_to_ip
-from bittensor_cli.src.subtensor_interface import SubtensorInterface
-from bittensor_cli.src.utils import (
+from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
+from bittensor_cli.src.bittensor.utils import (
     RAO_PER_TAO,
     console,
     convert_blocks_to_time,

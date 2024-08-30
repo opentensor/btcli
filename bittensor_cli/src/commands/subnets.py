@@ -15,7 +15,7 @@ from bittensor_cli.src.bittensor.extrinsics.registration import register_extrins
 from bittensor_cli.src.bittensor.minigraph import MiniGraph
 from bittensor_cli.src.commands.root import burned_register_extrinsic
 from bittensor_cli.src.commands.wallets import set_id, set_id_prompts
-from bittensor_cli.src.utils import (
+from bittensor_cli.src.bittensor.utils import (
     RAO_PER_TAO,
     console,
     create_table,
@@ -29,7 +29,7 @@ from bittensor_cli.src.utils import (
 )
 
 if TYPE_CHECKING:
-    from bittensor_cli.src.subtensor_interface import SubtensorInterface
+    from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 
 
 # helpers and extrinsics
