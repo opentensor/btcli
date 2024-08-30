@@ -966,9 +966,11 @@ async def set_boost(
 ):
     """Boosts weight of a given netuid for root network."""
 
-    my_uid = (await subtensor.substrate.query(
-        "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
-    )).value
+    my_uid = (
+        await subtensor.substrate.query(
+            "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
+        )
+    ).value
 
     if my_uid is None:
         err_console.print("Your hotkey is not registered to the root network")

@@ -1717,6 +1717,9 @@ class CLIManager:
         [italic]Note[/italic]: This function is designed for CLI use and should be executed in a terminal.
         It is primarily used for informational purposes and has no side effects on the network state.
         """
+        return self._run_command(
+            wallets.get_id(self.initialize_chain(network, chain), key)
+        )
 
     def wallet_sign(
         self,
@@ -2438,7 +2441,9 @@ class CLIManager:
         """
         network_to_use = network or self.config["network"]
         if network_to_use not in ["local", "test"]:
-            sub = self.initialize_chain("archive", "wss://archive.chain.opentensor.ai:443")
+            sub = self.initialize_chain(
+                "archive", "wss://archive.chain.opentensor.ai:443"
+            )
         else:
             sub = self.initialize_chain(network_to_use, chain)
 

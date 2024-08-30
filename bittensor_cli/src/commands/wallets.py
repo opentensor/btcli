@@ -1466,6 +1466,13 @@ async def get_id(subtensor: SubtensorInterface, ss58_address: str):
     with console.status(":satellite: [bold green]Querying chain identity..."):
         identity = await subtensor.query_identity(ss58_address)
 
+    if not identity:
+        err_console.print(
+            f"[red]Identity not found[/red]"
+            f" for [light_goldenrod3]{ss58_address}[/light_goldenrod3]"
+            f" on [white]{subtensor}[/white]"
+        )
+        return
     table = Table(
         Column("Item", justify="right", style="cyan", no_wrap=True),
         Column("Value", style="magenta"),
