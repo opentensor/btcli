@@ -5,8 +5,8 @@ from rich.prompt import Confirm
 
 from bittensor_cli.src import NETWORK_EXPLORER_MAP
 from bittensor_cli.src.bittensor.balances import Balance
-from bittensor_cli.src.subtensor_interface import SubtensorInterface
-from bittensor_cli.src.utils import (
+from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
+from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
     format_error_message,

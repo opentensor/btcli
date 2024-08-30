@@ -1,17 +1,13 @@
 from dataclasses import dataclass
-from enum import Enum
-from typing import Optional, Union
+from typing import Optional
 
 import bt_decode
 import netaddr
-from scalecodec import ScaleBytes
-from scalecodec.base import RuntimeConfiguration
-from scalecodec.type_registry import load_type_registry_preset
 from scalecodec.utils.ss58 import ss58_encode
 
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.networking import int_to_ip
-from bittensor_cli.src.utils import SS58_FORMAT, u16_normalized_float
+from bittensor_cli.src.bittensor.utils import SS58_FORMAT, u16_normalized_float
 
 
 def decode_account_id(account_id_bytes):

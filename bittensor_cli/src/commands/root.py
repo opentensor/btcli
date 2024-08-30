@@ -24,8 +24,8 @@ from bittensor_cli.src.commands.wallets import (
     set_id,
     set_id_prompts,
 )
-from bittensor_cli.src.subtensor_interface import SubtensorInterface
-from bittensor_cli.src.utils import (
+from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
+from bittensor_cli.src.bittensor.utils import (
     console,
     convert_weight_uids_and_vals_to_tensor,
     create_table,
