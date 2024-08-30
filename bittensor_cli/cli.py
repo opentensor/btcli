@@ -12,7 +12,7 @@ from bittensor_wallet import Wallet
 from git import Repo, GitError
 from rich.prompt import Confirm, FloatPrompt, Prompt
 from rich.table import Column, Table
-from .src import HYPERPARAMS, defaults, utils
+from .src import HYPERPARAMS, defaults, utils, HELP_PANELS
 from .src.bittensor.async_substrate_interface import SubstrateRequestException
 from .src.commands import root, stake, subnets, sudo, wallets
 from .src.commands import weights as weights_cmds
@@ -50,7 +50,9 @@ class Options:
     wallet_path = typer.Option(
         None, "--wallet-path", "-p", "--wallet_path", help="Filepath of root of wallets"
     )
-    wallet_hotkey = typer.Option(None, "--hotkey", "-H", "--wallet_hotkey", help="Hotkey of wallet")
+    wallet_hotkey = typer.Option(
+        None, "--hotkey", "-H", "--wallet_hotkey", help="Hotkey of wallet"
+    )
     wallet_hk_req = typer.Option(
         None,
         "--hotkey",
@@ -101,8 +103,10 @@ class Options:
     )
     chain = typer.Option(
         None,
-        "--chain", "--subtensor.chain_endpoint",
-        help="The subtensor chain endpoint to connect to.", show_default=False
+        "--chain",
+        "--subtensor.chain_endpoint",
+        help="The subtensor chain endpoint to connect to.",
+        show_default=False,
     )
     netuids = typer.Option(
         [], "--netuids", "-n", help="Set the netuid(s) to filter by (e.g. `0 1 2`)"
@@ -385,45 +389,45 @@ class CLIManager:
         self.config_app.command("metagraph")(self.metagraph_config)
 
         # wallet commands
-        self.wallet_app.command("list")(self.wallet_list)
-        self.wallet_app.command("regen-coldkey")(self.wallet_regen_coldkey)
-        self.wallet_app.command("regen-coldkeypub")(self.wallet_regen_coldkey_pub)
-        self.wallet_app.command("regen-hotkey")(self.wallet_regen_hotkey)
-        self.wallet_app.command("new-hotkey")(self.wallet_new_hotkey)
-        self.wallet_app.command("new-coldkey")(self.wallet_new_coldkey)
-        self.wallet_app.command("create")(self.wallet_create_wallet)
-        self.wallet_app.command("balance")(self.wallet_balance)
-        self.wallet_app.command("history")(self.wallet_history)
-        self.wallet_app.command("overview")(self.wallet_overview)
-        self.wallet_app.command("transfer")(self.wallet_transfer)
-        self.wallet_app.command("inspect")(self.wallet_inspect)
-        self.wallet_app.command("faucet")(self.wallet_faucet)
-        self.wallet_app.command("set-identity")(self.wallet_set_id)
-        self.wallet_app.command("get-identity")(self.wallet_get_id)
-        self.wallet_app.command("check-swap")(self.wallet_check_ck_swap)
-        self.wallet_app.command("sign")(self.wallet_sign)
+        self.wallet_app.command("list", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"])(self.wallet_list)
+        self.wallet_app.command("regen-coldkey", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"])(self.wallet_regen_coldkey)
+        self.wallet_app.command("regen-coldkeypub", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"])(self.wallet_regen_coldkey_pub)
+        self.wallet_app.command("regen-hotkey", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"])(self.wallet_regen_hotkey)
+        self.wallet_app.command("new-hotkey", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"])(self.wallet_new_hotkey)
+        self.wallet_app.command("new-coldkey", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"])(self.wallet_new_coldkey)
+        self.wallet_app.command("create", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"])(self.wallet_create_wallet)
+        self.wallet_app.command("balance", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"])(self.wallet_balance)
+        self.wallet_app.command("history", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"])(self.wallet_history)
+        self.wallet_app.command("overview", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"])(self.wallet_overview)
+        self.wallet_app.command("transfer", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"])(self.wallet_transfer)
+        self.wallet_app.command("inspect", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"])(self.wallet_inspect)
+        self.wallet_app.command("faucet", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"])(self.wallet_faucet)
+        self.wallet_app.command("set-identity", rich_help_panel=HELP_PANELS["WALLET"]["IDENTITY"])(self.wallet_set_id)
+        self.wallet_app.command("get-identity", rich_help_panel=HELP_PANELS["WALLET"]["IDENTITY"])(self.wallet_get_id)
+        self.wallet_app.command("check-swap", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"])(self.wallet_check_ck_swap)
+        self.wallet_app.command("sign", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"])(self.wallet_sign)
 
         # root commands
         self.root_app.command("list")(self.root_list)
-        self.root_app.command("set-weights")(self.root_set_weights)
-        self.root_app.command("get-weights")(self.root_get_weights)
-        self.root_app.command("boost")(self.root_boost)
-        self.root_app.command("slash")(self.root_slash)
-        self.root_app.command("senate")(self.root_senate)
-        self.root_app.command("senate-vote")(self.root_senate_vote)
+        self.root_app.command("set-weights", rich_help_panel=HELP_PANELS["ROOT"]["WEIGHT_MGMT"])(self.root_set_weights)
+        self.root_app.command("get-weights", rich_help_panel=HELP_PANELS["ROOT"]["WEIGHT_MGMT"])(self.root_get_weights)
+        self.root_app.command("boost", rich_help_panel=HELP_PANELS["ROOT"]["WEIGHT_MGMT"])(self.root_boost)
+        self.root_app.command("slash", rich_help_panel=HELP_PANELS["ROOT"]["WEIGHT_MGMT"])(self.root_slash)
+        self.root_app.command("senate", rich_help_panel=HELP_PANELS["ROOT"]["GOVERNANCE"])(self.root_senate)
+        self.root_app.command("senate-vote", rich_help_panel=HELP_PANELS["ROOT"]["GOVERNANCE"])(self.root_senate_vote)
         self.root_app.command("register")(self.root_register)
-        self.root_app.command("proposals")(self.root_proposals)
-        self.root_app.command("set-take")(self.root_set_take)
-        self.root_app.command("delegate-stake")(self.root_delegate_stake)
-        self.root_app.command("undelegate-stake")(self.root_undelegate_stake)
-        self.root_app.command("my-delegates")(self.root_my_delegates)
-        self.root_app.command("list-delegates")(self.root_list_delegates)
-        self.root_app.command("nominate")(self.root_nominate)
+        self.root_app.command("proposals", rich_help_panel=HELP_PANELS["ROOT"]["GOVERNANCE"])(self.root_proposals)
+        self.root_app.command("set-take", rich_help_panel=HELP_PANELS["ROOT"]["DELEGATION"])(self.root_set_take)
+        self.root_app.command("delegate-stake", rich_help_panel=HELP_PANELS["ROOT"]["DELEGATION"])(self.root_delegate_stake)
+        self.root_app.command("undelegate-stake", rich_help_panel=HELP_PANELS["ROOT"]["DELEGATION"])(self.root_undelegate_stake)
+        self.root_app.command("my-delegates", rich_help_panel=HELP_PANELS["ROOT"]["DELEGATION"])(self.root_my_delegates)
+        self.root_app.command("list-delegates", rich_help_panel=HELP_PANELS["ROOT"]["DELEGATION"])(self.root_list_delegates)
+        self.root_app.command("nominate", rich_help_panel=HELP_PANELS["ROOT"]["GOVERNANCE"])(self.root_nominate)
 
         # stake commands
-        self.stake_app.command("show")(self.stake_show)
-        self.stake_app.command("add")(self.stake_add)
-        self.stake_app.command("remove")(self.stake_remove)
+        self.stake_app.command("show", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"])(self.stake_show)
+        self.stake_app.command("add", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"])(self.stake_add)
+        self.stake_app.command("remove", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"])(self.stake_remove)
 
         # stake-children commands
         children_app = typer.Typer()
@@ -431,6 +435,8 @@ class CLIManager:
             children_app,
             name="child",
             short_help="Child Hotkey commands, alias: `children`",
+            rich_help_panel=HELP_PANELS["STAKE"]["CHILD"]
+            
         )
         self.stake_app.add_typer(children_app, name="children", hidden=True)
         children_app.command("get")(self.stake_get_children)
@@ -439,21 +445,21 @@ class CLIManager:
         children_app.command("take")(self.stake_childkey_take)
 
         # sudo commands
-        self.sudo_app.command("set")(self.sudo_set)
-        self.sudo_app.command("get")(self.sudo_get)
+        self.sudo_app.command("set", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(self.sudo_set)
+        self.sudo_app.command("get", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(self.sudo_get)
 
         # subnets commands
-        self.subnets_app.command("hyperparameters")(self.sudo_get)
-        self.subnets_app.command("list")(self.subnets_list)
-        self.subnets_app.command("lock-cost")(self.subnets_lock_cost)
-        self.subnets_app.command("create")(self.subnets_create)
-        self.subnets_app.command("pow-register")(self.subnets_pow_register)
-        self.subnets_app.command("register")(self.subnets_register)
-        self.subnets_app.command("metagraph")(self.subnets_metagraph)
+        self.subnets_app.command("hyperparameters", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"])(self.sudo_get)
+        self.subnets_app.command("list", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"])(self.subnets_list)
+        self.subnets_app.command("lock-cost", rich_help_panel=HELP_PANELS["SUBNETS"]["CREATION"])(self.subnets_lock_cost)
+        self.subnets_app.command("create", rich_help_panel=HELP_PANELS["SUBNETS"]["CREATION"])(self.subnets_create)
+        self.subnets_app.command("pow-register", rich_help_panel=HELP_PANELS["SUBNETS"]["REGISTER"])(self.subnets_pow_register)
+        self.subnets_app.command("register", rich_help_panel=HELP_PANELS["SUBNETS"]["REGISTER"])(self.subnets_register)
+        self.subnets_app.command("metagraph", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"])(self.subnets_metagraph)
 
         # weights commands
-        self.weights_app.command("reveal")(self.weights_reveal)
-        self.weights_app.command("commit")(self.weights_commit)
+        self.weights_app.command("reveal", rich_help_panel=HELP_PANELS["WEIGHTS"]["COMMIT_REVEAL"])(self.weights_reveal)
+        self.weights_app.command("commit", rich_help_panel=HELP_PANELS["WEIGHTS"]["COMMIT_REVEAL"])(self.weights_commit)
 
     def initialize_chain(
         self,
@@ -659,7 +665,7 @@ class CLIManager:
         all_items: bool = typer.Option(False, "--all"),
     ):
         """
-        Setting the flags in this command will [red]clear those items[/red] from your [red]config file[/red]
+        Setting the flags in this command will clear those items from your config file.
 
         # Usage
 
@@ -747,7 +753,7 @@ class CLIManager:
         ),
     ):
         """
-        Displays [red]all wallets[/red] and their respective [red]hotkeys[/red] present in the user's Bittensor configuration directory.
+        Displays all wallets and their respective hotkeys present in the user's Bittensor configuration directory.
 
         The command organizes the information in a tree structure, displaying each
         wallet along with the `ss58` addresses for the coldkey public key and any hotkeys associated with it.
@@ -804,7 +810,7 @@ class CLIManager:
         chain: str = Options.chain,
     ):
         """
-        Presents a detailed [red]overview[/red] of the [red]user's registered accounts[/red] on the Bittensor network.
+        Presents a detailed overviewof the user's registered accounts on the Bittensor network.
 
         This command compiles and displays comprehensive information about each neuron associated with the user's
         wallets, including both hotkeys and coldkeys. It is especially useful for users managing multiple accounts or
@@ -911,7 +917,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        [red]Transfer TAO tokens[/red] from one account to another on the Bittensor network.
+        Transfer TAO tokens from one account to another on the Bittensor network.
 
         This command is used for transactions between different accounts, enabling users to send tokens to other
         participants on the network. The command displays the user's current balance before prompting for the amount
@@ -981,7 +987,7 @@ class CLIManager:
         netuids: list[int] = Options.netuids,
     ):
         """
-        [red]Detailed report of a user's wallet pairs[/red] (coldkey, hotkey) on the Bittensor network.
+        Detailed report of a user's wallet pairs (coldkey, hotkey) on the Bittensor network.
 
         This report includes balance and staking information for both the coldkey and hotkey associated with the wallet.
 
@@ -1095,7 +1101,7 @@ class CLIManager:
         ),
     ):
         """
-        Obtain [red]test TAO tokens[/red] by performing [red]Proof of Work[/red] (PoW).
+        Obtain test TAO tokens by performing Proof of Work (PoW).
 
         This command is particularly useful for users who need test tokens for operations on a local chain.
 
@@ -1143,7 +1149,7 @@ class CLIManager:
         use_password: Optional[bool] = Options.use_password,
     ):
         """
-        [blue]Regenerate a coldkey[/blue] for a wallet on the Bittensor network.
+        Regenerate a coldkey for a wallet on the Bittensor network.
 
         This command is used to create a new coldkey from an existing mnemonic, seed, or JSON file.
 
@@ -1187,7 +1193,7 @@ class CLIManager:
         ss58_address: Optional[str] = Options.ss58_address,
     ):
         """
-        [red]Regenerate[/red] the public part of a coldkey [blue](coldkeypub)[/blue] for a wallet.
+        Regenerate the public part of a coldkey (coldkeypub) for a wallet.
 
         This command is used when a user needs to recreate their coldkeypub from an existing public key or SS58 address.
 
@@ -1236,7 +1242,7 @@ class CLIManager:
         use_password: Optional[bool] = Options.use_password,
     ):
         """
-        [red]Regenerates a hotkey[/red] for a wallet.
+        Regenerates a hotkey for a wallet.
 
         Similar to regenerating a coldkey, this command creates a new hotkey from a mnemonic, seed, or JSON file.
 
@@ -1277,7 +1283,7 @@ class CLIManager:
         use_password: bool = Options.use_password,
     ):
         """
-        Create a [red]new hotkey[/red] under a wallet.
+        Create a new hotkey under a wallet.
 
         # Usage:
 
@@ -1307,7 +1313,7 @@ class CLIManager:
         use_password: Optional[bool] = Options.use_password,
     ):
         """
-        [blue]Create a new coldkey[/blue] under a wallet. A coldkey, is essential for holding balances and performing high-value transactions.
+        Create a new coldkey under a wallet. A coldkey, is essential for holding balances and performing high-value transactions.
 
         # Usage:
 
@@ -1337,7 +1343,7 @@ class CLIManager:
         chain: Optional[str] = Options.chain,
     ):
         """
-        Check the scheduled [red]swap status[/red] of a [blue]coldkey[/blue].
+        Check the scheduled swap status of a coldkey.
 
         # Usage:
 
@@ -1362,7 +1368,7 @@ class CLIManager:
         use_password: bool = Options.use_password,
     ):
         """
-        [red]Generate[/red] both a new [blue]coldkey[/blue] and [red]hotkey[/red] under a specified wallet.
+        Generate both a new coldkey and hotkey under a specified wallet.
 
         This command is a comprehensive utility for creating a complete wallet setup with both cold
         and hotkeys.
@@ -1406,7 +1412,7 @@ class CLIManager:
         chain: str = Options.chain,
     ):
         """
-        [red]Check the balance[/red] of the wallet on the Bittensor network.
+        Check the balance of the wallet on the Bittensor network.
         This provides a detailed view of the wallet's coldkey balances, including free and staked balances.
 
         # Usage:
@@ -1440,7 +1446,7 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
     ):
         """
-        Fetch the [red]latest transfers[/red] of the provided wallet on the Bittensor network.
+        Fetch the latest transfers of the provided wallet on the Bittensor network.
         This provides a detailed view of the transfers carried out on the wallet.
 
         # Usage:
@@ -1525,7 +1531,7 @@ class CLIManager:
         ),
     ):
         """
-        Allows for the [red]creation or update[/red] of a [red]delegate's on-chain identity[/red] on the Bittensor network.
+        Allows for the creation or update of a delegate's on-chain identity on the Bittensor network.
 
         This identity includes various attributes such as display name, legal name, web URL, PGP fingerprint, and
         contact information, among others.
@@ -1591,9 +1597,7 @@ class CLIManager:
         chain: Optional[str] = Options.chain,
     ):
         """
-        Retrieves and [red]displays the identity details[/red] of a user's coldkey or
-        hotkey associated with the Bittensor network. This function queries the subtensor chain
-        for information such as the stake, rank, and trust associated with the provided key.
+        Retrieves and displays the identity details of a user's coldkey or hotkey.
 
         The command performs the following actions:
 
@@ -1635,7 +1639,7 @@ class CLIManager:
         message: str = typer.Option("", help="The message to encode and sign"),
     ):
         """
-        Allows users to [red]sign a message[/red] with the provided [red]wallet or wallet hotkey[/red].
+        Allows users to sign a message with the provided wallet or wallet hotkey.
 
         # Usage:
 
@@ -1673,7 +1677,7 @@ class CLIManager:
         chain: Optional[str] = Options.chain,
     ):
         """
-        Display the [red]members of the root network[/red] on the Bittensor network.
+        Display the members of the root network (Netuid = 0) on the Bittensor network.
 
         This command provides an overview of the neurons that constitute the network's foundational layer.
 
@@ -1710,7 +1714,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        [red]Set the weights[/red] for the [red]root network[/red] on the Bittensor network.
+        Set the weights for the oot network on the Bittensor network.
 
         This command is used by network senators to influence the distribution of network rewards and responsibilities.
 
@@ -1758,7 +1762,7 @@ class CLIManager:
         html_output: bool = Options.html_output,
     ):
         """
-        [red]Retrieve the weights[/red] set for the [red]root network[/red] on the Bittensor network.
+        Retrieve the weights set for the root network on the Bittensor network.
 
         This command provides visibility into how network responsibilities and rewards are distributed among various
         subnets.
@@ -1853,8 +1857,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        [red]Decrease the weights[/red] for a specific [red]subnet[/red] within the root network on the
-        Bittensor network.
+        Decrease the weights for a specific subnet within the root network on the Bittensor network.
 
         # Usage:
 
@@ -1892,7 +1895,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        [red]Cast a vote on an active proposal[/red] in Bittensor's governance protocol.
+        Cast a vote on an active proposal in Bittensor's governance protocol.
 
         This command is used by Senate members to vote on various proposals that shape the network's future.
 
@@ -1921,7 +1924,7 @@ class CLIManager:
         chain: Optional[str] = Options.chain,
     ):
         """
-        View the [red]members[/red] of Bittensor's [red]governance protocol[/red], known as the Senate.
+        View the members of Bittensor's governance protocol, known as the Senate.
 
         This command lists the delegates involved in the decision-making process of the Bittensor network.
 
@@ -1949,7 +1952,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        [red]Register a neuron[/red] on the Bittensor network by [red]recycling some TAO[/red] (thenetwork's native token).
+        Register a neuron on the Bittensor network by recycling some TAO (the network's native token).
 
         This command is used to add a new neuron to a specified subnet within the network, contributing to the
         decentralization and robustness of Bittensor.
@@ -2002,7 +2005,7 @@ class CLIManager:
         chain: Optional[str] = Options.chain,
     ):
         """
-        [red]View active proposals[/red] for the senate within Bittensor's governance protocol.
+        View active proposals for the senate within Bittensor's governance protocol.
 
         This command displays the details of ongoing proposals, including votes, thresholds, and proposal data.
 
@@ -2031,7 +2034,7 @@ class CLIManager:
         take: float = typer.Option(None, help="The new take value."),
     ):
         """
-        Allows users to [red]change[/red] their [red]delegate take[/red].
+        Allows users to change their delegate take.
 
         The command performs several checks:
 
@@ -2083,7 +2086,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        [red]Stakes Tao[/red] to a specified [red]delegate[/red] on the Bittensor network.
+        Stakes Tao to a specified delegate on the Bittensor network.
 
         This action allocates the user's Tao to support a delegate, potentially earning staking rewards in return.
 
@@ -2163,7 +2166,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        Allows users to [red]withdraw[/red] their [red]staked Tao[/red] from a delegate on the Bittensor network.
+        Allows users to withdraw their staked Tao from a delegate on the Bittensor network.
 
         This process is known as "undelegating" and it reverses the delegation process, freeing up the staked tokens.
 
@@ -2234,7 +2237,7 @@ class CLIManager:
         ),
     ):
         """
-        Retrieves and displays a table of [red]delegated stakes[/red] from a user's wallet(s) to various delegates on the Bittensor network.
+        Retrieves and displays a table of delegated stakes from a user's wallet(s) to various delegates.
 
         The command provides detailed insights into the user's
         staking activities and the performance of their chosen delegates.
@@ -2295,8 +2298,7 @@ class CLIManager:
         chain: Optional[str] = Options.chain,
     ):
         """
-        Displays a table of [red]Bittensor network delegates[/red], providing a comprehensive overview of delegate
-        statistics and information.
+        Displays a table of Bittensor network delegates, providing a comprehensive overview of delegate statistics and information.
 
         This table helps users make informed decisions on which delegates to allocate their TAO stake.
 
@@ -2362,7 +2364,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        Facilitates a wallet to [red]become a delegate[/red] on the Bittensor network.
+        Facilitates a wallet to become a delegate on the Bittensor network.
 
         This command handles the nomination process, including wallet unlocking and verification of the hotkey's current
         delegate status.
@@ -2413,7 +2415,7 @@ class CLIManager:
         html_output: bool = Options.html_output,
     ):
         """
-        [red]List all stake accounts[/red] associated with a user's wallet on the Bittensor network.
+        List all stake accounts associated with a user's wallet on the Bittensor network.
 
         This command provides a comprehensive view of the stakes associated with both hotkeys and delegates linked to
         the user's coldkey.
@@ -2510,8 +2512,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        [red]Stake TAO[/red] tokens to one or more [red]hotkeys[/red] from a user's coldkey on the Bittensor
-        network.
+        Stake TAO tokens to one or more hotkeys from a user's coldkey on the Bittensor network.
 
         This command is used to allocate tokens to different hotkeys, securing their position and influence on the
          network.
@@ -2619,8 +2620,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        [red]Unstake TAO[/red] tokens from one or more [red]hotkeys[/red] and transfer them back to the
-        user's coldkey on the Bittensor network.
+        Unstake TAO tokens from one or more hotkeys and transfer them back to the user's coldkey.
 
         This command is used to withdraw tokens previously staked to different hotkeys.
 
@@ -2706,7 +2706,7 @@ class CLIManager:
         netuid: int = Options.netuid,
     ):
         """
-        [red]Get all child hotkeys[/red] on a specified subnet on the Bittensor network.
+        Get all child hotkeys on a specified subnet on the Bittensor network.
 
         This command is used to view delegated authority to different hotkeys on the subnet.
 
@@ -2757,7 +2757,7 @@ class CLIManager:
         wait_for_finalization: bool = Options.wait_for_finalization,
     ):
         """
-        [red]Add children hotkeys[/red] on a specified subnet on the Bittensor network.
+        Add children hotkeys on a specified subnet on the Bittensor network.
 
         This command is used to delegate authority to different hotkeys, securing their position and influence on the
         subnet.
@@ -2815,7 +2815,7 @@ class CLIManager:
         wait_for_finalization: bool = Options.wait_for_finalization,
     ):
         """
-        [red]Remove all children hotkeys[/red] on a specified subnet on the Bittensor network.
+        Remove all children hotkeys on a specified subnet on the Bittensor network.
 
         This command is used to remove delegated authority from all child hotkeys, removing their position and influence
         on the subnet.
@@ -2864,7 +2864,7 @@ class CLIManager:
         ),
     ):
         """
-        Get and set your [red]childkey take[/red] on a specified subnet on the Bittensor network.
+        Get and set your childkey take on a specified subnet on the Bittensor network.
 
         This command is used to set the take on your child hotkeys with limits between 0 - 18%.
 
@@ -2911,7 +2911,7 @@ class CLIManager:
         ),
     ):
         """
-        Executes the [red]set[/red] command to set [red]hyperparameters[/red] for a specific subnet on the Bittensor network.
+        Used to set hyperparameters for a specific subnet on the Bittensor network.
 
         This command allows subnet owners to modify various hyperparameters of theirs subnet, such as its tempo,
         emission rates, and other network-specific settings.
@@ -2954,7 +2954,7 @@ class CLIManager:
         netuid: int = Options.netuid,
     ):
         """
-        [red]Retrieve hyperparameters[/red] of a specific subnet on the Bittensor network.
+        Retrieve hyperparameters of a specific subnet.
 
         This command is used for both `sudo get` and `subnets hyperparameters`.
 
@@ -2984,7 +2984,7 @@ class CLIManager:
         html_output: bool = Options.html_output,
     ):
         """
-        [red]List all subnets[/red] and their detailed information on the Bittensor network.
+        List all subnets and their detailed information.
 
         This command is designed to provide users with comprehensive information about each subnet within the
         network, including its unique identifier (netuid), the number of neurons, maximum neuron capacity,
@@ -3045,8 +3045,7 @@ class CLIManager:
         self, network: str = Options.network, chain: str = Options.chain
     ):
         """
-        View the [red]locking cost[/red] required for creating a [red]new subnetwork[/red] on the
-        Bittensor network.
+        View the locking cost required for creating a new subnetwork.
 
         This command is designed to provide users with the current cost of registering a new subnetwork, which is a
         critical piece of information for anyone considering expanding the network's infrastructure.
@@ -3102,7 +3101,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        [red]Register[/red] a new [red]subnetwork[/red] on the Bittensor network :sparkles:.
+        Register a new subnetwork on the Bittensor network :sparkles:.
 
         This command facilitates the creation and registration of a subnetwork, which involves interaction with the
         user's wallet and the Bittensor subtensor. It ensures that the user has the necessary credentials and
@@ -3200,7 +3199,7 @@ class CLIManager:
         ),
     ):
         """
-        [red]Register a neuron[/red] on the Bittensor network [red]using Proof of Work[/red] (PoW).
+        Register a neuron on the Bittensor network using Proof of Work (PoW).
 
         This method is an alternative registration process that leverages computational work for securing a neuron's
         place on the network.
@@ -3251,8 +3250,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        [red]Register a neuron[/red] on the Bittensor network by [red]recycling some TAO[/red] (the
-        network's native token) :open_book:.
+        Register a neuron on the Bittensor network by recycling some TAO (the network's native token) :open_book:.
 
         This command is used to add a new neuron to a specified subnet within the network, contributing to the
         decentralization and robustness of Bittensor.
@@ -3310,7 +3308,7 @@ class CLIManager:
         html_output: bool = Options.html_output,
     ):
         """
-        Retrieve and display the [red]metagraph of a network[/red].
+        Retrieve and display the metagraph of a subnetwork.
 
         This metagraph contains detailed information about all the neurons (nodes)
         participating in the network, including their stakes, trust scores, and more.
@@ -3419,7 +3417,7 @@ class CLIManager:
         ),
     ):
         """
-        [red]Reveal weights[/red] for a specific subnet on the Bittensor network.
+        Reveal weights for a specific subnet on the Bittensor network.
 
         # Usage:
 
@@ -3484,7 +3482,7 @@ class CLIManager:
     ):
         """
 
-        [red]Commit weights[/red] for specific subnet on the Bittensor network.
+        Commit weights for specific subnet on the Bittensor network.
 
         # Usage:
 
