@@ -302,3 +302,35 @@ HYPERPARAMS = {
     "alpha_values": "sudo_set_alpha_values",
     "liquid_alpha_enabled": "sudo_set_liquid_alpha_enabled",
 }
+
+# Help Panels for cli help
+HELP_PANELS = {
+    "WALLET": {
+        "MANAGEMENT": "Wallet Management",
+        "TRANSACTIONS": "Wallet Transactions",
+        "IDENTITY": "Identity Management",
+        "INFORMATION": "Wallet Information",
+        "OPERATIONS": "Wallet Operations",
+        "SECURITY": "Security & Recovery",
+    },
+    "ROOT": {
+        "NETWORK": "Network Information",
+        "WEIGHT_MGMT": "Weights Management",
+        "GOVERNANCE": "Governance",
+        "REGISTRATION": "Registration",
+        "DELEGATION": "Delegation",
+    },
+    "STAKE": {
+        "STAKE_MGMT": "Stake Management",
+        "CHILD": "Child Hotkeys",
+    },
+    "SUDO": {
+        "CONFIG": "Subnet Configuration",
+    },
+    "SUBNETS": {
+        "INFO": "Subnet Information",
+        "CREATION": "Subnet Creation & Management",
+        "REGISTER": "Neuron Registration",
+    },
+    "WEIGHTS": {"COMMIT_REVEAL": "Commit / Reveal"},
+}
