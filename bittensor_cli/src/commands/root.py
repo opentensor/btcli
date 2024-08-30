@@ -2,8 +2,16 @@ import asyncio
 import json
 from typing import Optional, TypedDict, cast
 
+from bittensor_wallet import Wallet
 import numpy as np
+from numpy.typing import NDArray
+from rich import box
+from rich.prompt import Confirm
+from rich.table import Column, Table
+from rich.text import Text
+from scalecodec import GenericCall, ScaleType
 import typer
+
 from bittensor_cli.src import Constants, DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import DelegateInfo, NeuronInfoLite
@@ -28,14 +36,6 @@ from bittensor_cli.src.utils import (
     ss58_to_vec_u8,
     update_metadata_table,
 )
-from bittensor_wallet import Wallet
-from numpy.typing import NDArray
-from rich import box
-from rich.prompt import Confirm
-from rich.table import Column, Table
-from rich.text import Text
-from scalecodec import GenericCall, ScaleType
-from substrateinterface.exceptions import SubstrateRequestException
 
 # helpers
 
@@ -966,10 +966,8 @@ async def set_boost(
 ):
     """Boosts weight of a given netuid for root network."""
 
-    my_uid = (
-        await subtensor.substrate.query(
-            "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
-        )
+    my_uid = await subtensor.substrate.query(
+        "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
     )
     if my_uid is None:
         err_console.print("Your hotkey is not registered to the root network")

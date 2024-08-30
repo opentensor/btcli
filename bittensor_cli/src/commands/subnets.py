@@ -4,6 +4,10 @@ import sqlite3
 from textwrap import dedent
 from typing import TYPE_CHECKING, Optional, cast
 
+from bittensor_wallet import Wallet
+from rich.prompt import Confirm
+from rich.table import Column, Table
+
 from bittensor_cli.src import Constants, DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import SubnetInfo
@@ -23,9 +27,6 @@ from bittensor_cli.src.utils import (
     render_table,
     update_metadata_table,
 )
-from bittensor_wallet import Wallet
-from rich.prompt import Confirm
-from rich.table import Column, Table
 
 if TYPE_CHECKING:
     from bittensor_cli.src.subtensor_interface import SubtensorInterface

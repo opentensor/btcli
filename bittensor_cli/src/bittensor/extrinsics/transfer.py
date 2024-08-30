@@ -1,5 +1,8 @@
 import asyncio
 
+from bittensor_wallet import Wallet
+from rich.prompt import Confirm
+
 from bittensor_cli.src import NETWORK_EXPLORER_MAP
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.subtensor_interface import SubtensorInterface
@@ -10,8 +13,6 @@ from bittensor_cli.src.utils import (
     get_explorer_url_for_network,
     is_valid_bittensor_address_or_public_key,
 )
-from bittensor_wallet import Wallet
-from rich.prompt import Confirm
 
 
 async def transfer_extrinsic(

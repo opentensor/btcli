@@ -7,8 +7,19 @@ from sys import getsizeof
 from typing import Any, Collection, Generator, Optional
 
 import aiohttp
+from bittensor_wallet import Wallet
+from bittensor_wallet.errors import KeyFileError
+from bittensor_wallet.keyfile import Keyfile
+from fuzzywuzzy import fuzz
+from rich import box
+from rich.align import Align
+from rich.prompt import Confirm, Prompt
+from rich.table import Column, Table
+from rich.tree import Tree
+from scalecodec import ScaleBytes
 import scalecodec
 import typer
+
 from bittensor_cli.src import TYPE_REGISTRY, Constants, DelegatesDetails, utils
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import (
@@ -34,16 +45,6 @@ from bittensor_cli.src.utils import (
     get_delegates_details_from_github,
     get_hotkey_wallets_for_wallet,
 )
-from bittensor_wallet import Wallet
-from bittensor_wallet.errors import KeyFileError
-from bittensor_wallet.keyfile import Keyfile
-from fuzzywuzzy import fuzz
-from rich import box
-from rich.align import Align
-from rich.prompt import Confirm, Prompt
-from rich.table import Column, Table
-from rich.tree import Tree
-from scalecodec import ScaleBytes
 
 
 async def regen_coldkey(
@@ -71,7 +72,9 @@ async def regen_coldkey(
 
 
 async def regen_coldkey_pub(
-    wallet: Wallet, ss58_address: str, public_key_hex: str,
+    wallet: Wallet,
+    ss58_address: str,
+    public_key_hex: str,
 ):
     """Creates a new coldkeypub under this wallet."""
     wallet.regenerate_coldkeypub(
@@ -108,7 +111,9 @@ async def regen_hotkey(
 
 
 async def new_hotkey(
-    wallet: Wallet, n_words: int, use_password: bool,
+    wallet: Wallet,
+    n_words: int,
+    use_password: bool,
 ):
     """Creates a new hotkey under this wallet."""
     wallet.create_new_hotkey(
@@ -119,7 +124,9 @@ async def new_hotkey(
 
 
 async def new_coldkey(
-    wallet: Wallet, n_words: int, use_password: bool,
+    wallet: Wallet,
+    n_words: int,
+    use_password: bool,
 ):
     """Creates a new coldkey under this wallet."""
     wallet.create_new_coldkey(

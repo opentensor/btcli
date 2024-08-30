@@ -1,11 +1,12 @@
 import asyncio
 from typing import TYPE_CHECKING, Union
 
-from bittensor_cli.src import HYPERPARAMS
-from bittensor_cli.src.utils import console, err_console, normalize_hyperparameters
 from bittensor_wallet import Wallet
 from rich import box
 from rich.table import Column, Table
+
+from bittensor_cli.src import HYPERPARAMS
+from bittensor_cli.src.utils import console, err_console, normalize_hyperparameters
 
 if TYPE_CHECKING:
     from bittensor_cli.src.subtensor_interface import SubtensorInterface
