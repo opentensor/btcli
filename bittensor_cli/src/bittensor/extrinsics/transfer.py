@@ -1,18 +1,17 @@
 import asyncio
 
-from bittensor_wallet import Wallet
-from rich.prompt import Confirm
-
 from bittensor_cli.src import NETWORK_EXPLORER_MAP
-from bittensor_cli.src.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.balances import Balance
+from bittensor_cli.src.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.utils import (
     console,
     err_console,
-    is_valid_bittensor_address_or_public_key,
-    get_explorer_url_for_network,
     format_error_message,
+    get_explorer_url_for_network,
+    is_valid_bittensor_address_or_public_key,
 )
+from bittensor_wallet import Wallet
+from rich.prompt import Confirm
 
 
 async def transfer_extrinsic(
@@ -125,10 +124,10 @@ async def transfer_extrinsic(
     # Check if we have enough balance.
     if account_balance < (amount + fee + existential_deposit):
         err_console.print(
-            ":cross_mark: [red]Not enough balance[/red]:[bold white]\n"
-            f"  balance: {account_balance}\n"
-            f"  amount: {amount}\n"
-            f"  for fee: {fee}[/bold white]"
+            ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
+            f"  balance: [bright_cyan]{account_balance}[/bright_cyan]\n"
+            f"  amount: [bright_cyan]{amount}[/bright_cyan]\n"
+            f"  for fee: [bright_cyan]{fee}[/bright_cyan]"
         )
         return False
 
@@ -136,9 +135,9 @@ async def transfer_extrinsic(
     if prompt:
         if not Confirm.ask(
             "Do you want to transfer:[bold white]\n"
-            f"  amount: {amount}\n"
-            f"  from: {wallet.name}:{wallet.coldkey.ss58_address}\n"
-            f"  to: {destination}\n  for fee: {fee}[/bold white]"
+            f"  amount: [bright_cyan]{amount}[/bright_cyan]\n"
+            f"  from: [light_goldenrod2]{wallet.name}[/light_goldenrod2] : [bright_magenta]{wallet.coldkey.ss58_address}\n[/bright_magenta]"
+            f"  to: [bright_magenta]{destination}[/bright_magenta]\n  for fee: [bright_cyan]{fee}[/bright_cyan]"
         ):
             return False
 

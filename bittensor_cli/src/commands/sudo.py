@@ -1,11 +1,11 @@
 import asyncio
 from typing import TYPE_CHECKING, Union
 
-from bittensor_wallet import Wallet
-from rich.table import Table, Column
-
 from bittensor_cli.src import HYPERPARAMS
 from bittensor_cli.src.utils import console, err_console, normalize_hyperparameters
+from bittensor_wallet import Wallet
+from rich import box
+from rich.table import Column, Table
 
 if TYPE_CHECKING:
     from bittensor_cli.src.subtensor_interface import SubtensorInterface
@@ -195,14 +195,14 @@ async def get_hyperparameters(subtensor: "SubtensorInterface", netuid: int):
     subnet = await subtensor.get_subnet_hyperparameters(netuid)
 
     table = Table(
-        Column("[overline white]HYPERPARAMETER", style="white"),
-        Column("[overline white]VALUE", style="green"),
-        Column("[overline white]NORMALIZED", style="cyan"),
-        title=f"[white]Subnet Hyperparameters - NETUID: {netuid} - {subtensor}",
+        Column("[white]HYPERPARAMETER", style="bright_cyan"),
+        Column("[white]VALUE", style="bold spring_green4"),
+        Column("[white]NORMALIZED", style="dark_sea_green"),
+        title=f"[underline dark_orange]\nSubnet Hyperparameters[/underline dark_orange]\n\n NETUID: [light_goldenrod2]{netuid}[/light_goldenrod2] - {subtensor}\n",
         show_footer=True,
         width=None,
-        pad_edge=True,
-        box=None,
+        pad_edge=False,
+        box=box.SIMPLE,
         show_edge=True,
     )
 

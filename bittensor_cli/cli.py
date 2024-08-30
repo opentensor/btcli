@@ -400,7 +400,6 @@ class CLIManager:
         self.wallet_app.command("faucet")(self.wallet_faucet)
         self.wallet_app.command("set-identity")(self.wallet_set_id)
         self.wallet_app.command("get-identity")(self.wallet_get_id)
-        self.wallet_app.command("check-swap")(self.wallet_check_ck_swap)
         self.wallet_app.command("sign")(self.wallet_sign)
 
         # root commands
@@ -1444,6 +1443,11 @@ class CLIManager:
 
         [green]$[/green] btcli w balance --all
         """
+        if all_balances:
+            if not wallet_path:
+                wallet_path = Prompt.ask(
+                    "Enter the path of the wallets", default=defaults.wallet.path
+                )
         subtensor = self.initialize_chain(network, chain)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
