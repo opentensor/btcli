@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import Optional, TypedDict, cast
+from typing import Optional, TypedDict
 
 from bittensor_wallet import Wallet
 import numpy as np
@@ -966,9 +966,10 @@ async def set_boost(
 ):
     """Boosts weight of a given netuid for root network."""
 
-    my_uid = await subtensor.substrate.query(
+    my_uid = (await subtensor.substrate.query(
         "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
-    )
+    )).value
+
     if my_uid is None:
         err_console.print("Your hotkey is not registered to the root network")
         return False
@@ -1003,7 +1004,7 @@ async def set_slash(
     amount: float,
     prompt: bool,
 ):
-    """Slashes weight I think"""
+    """Slashes weight"""
 
     my_uid = (
         await subtensor.substrate.query(
