@@ -563,7 +563,7 @@ class CLIManager:
         if not self.not_subtensor:
             if network or chain:
                 self.not_subtensor = SubtensorInterface(network, chain)
-            elif self.config["chain"] or self.config["chain"]:
+            elif self.config["network"] or self.config["chain"]:
                 self.not_subtensor = SubtensorInterface(
                     self.config["network"], self.config["chain"]
                 )
@@ -1717,6 +1717,9 @@ class CLIManager:
         [italic]Note[/italic]: This function is designed for CLI use and should be executed in a terminal.
         It is primarily used for informational purposes and has no side effects on the network state.
         """
+        return self._run_command(
+            wallets.get_id(self.initialize_chain(network, chain), key)
+        )
 
     def wallet_sign(
         self,
@@ -2436,12 +2439,13 @@ class CLIManager:
         [italic]Note[/italic]: This function is part of the Bittensor CLI tools and is intended for use within a
         console application. It prints directly to the console and does not return any value.
         """
-        if network not in ["local", "test"]:
+        network_to_use = network or self.config["network"]
+        if network_to_use not in ["local", "test"]:
             sub = self.initialize_chain(
                 "archive", "wss://archive.chain.opentensor.ai:443"
             )
         else:
-            sub = self.initialize_chain(network, chain)
+            sub = self.initialize_chain(network_to_use, chain)
 
         return self._run_command(root.list_delegates(sub))
 

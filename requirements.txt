@@ -15,5 +15,5 @@ scalecodec==1.2.11
 substrate-interface~=1.7.9
 typer~=0.12
 websockets>=12.0
-git+ssh://git@github.com/opentensor/btwallet.git@main#egg=bittensor-wallet
+git+https://github.com/opentensor/btwallet.git#egg=bittensor-wallet
 bt-decode

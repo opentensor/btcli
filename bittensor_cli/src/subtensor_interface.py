@@ -715,7 +715,10 @@ class SubtensorInterface:
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
-        return decode_hex_identity_dict(identity_info.value["info"])
+        try:
+            return decode_hex_identity_dict(identity_info.value["info"])
+        except TypeError:
+            return {}
 
     async def weights(
         self, netuid: int, block_hash: Optional[str] = None
