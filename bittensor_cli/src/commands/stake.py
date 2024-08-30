@@ -1719,8 +1719,8 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
             )
             if prompt:
                 command = (
-                    f"`btcli stake set_children --children <child_hotkey> --hotkey <parent_hotkey> "
-                    f"--netuid {netuid} --proportion <float>`"
+                    f"`btcli stake child set --children <child_hotkey> --hotkey <parent_hotkey> "
+                    f"--netuid {netuid} --proportions <float>`"
                 )
                 console.print(
                     f"[bold cyan]To add a child hotkey you can run the command: [white]{command}[/white][/bold cyan]"

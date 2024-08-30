@@ -349,7 +349,7 @@ class CLIManager:
             name="root",
             short_help="Root commands, alias: `r`",
         )
-        self.app.add_typer(self.root_app, name="d", hidden=True)
+        self.app.add_typer(self.root_app, name="r", hidden=True)
 
         # stake aliases
         self.app.add_typer(
@@ -2868,7 +2868,7 @@ class CLIManager:
 
         # Example usage:
 
-        [green]$[/green] btcli stake set_children - <child_hotkey> -c <child_hotkey> --hotkey <parent_hotkey> --netuid 1
+        [green]$[/green] btcli stake child set - <child_hotkey> -c <child_hotkey> --hotkey <parent_hotkey> --netuid 1
         -p 0.3 -p 0.3
 
         [italic]]Note[/italic]: This command is critical for users who wish to delegate children hotkeys among different
@@ -2925,7 +2925,7 @@ class CLIManager:
 
         # Example usage:
 
-        [green]$[/green] btcli stake revoke_children --hotkey <parent_hotkey> --netuid 1
+        [green]$[/green] btcli stake child revoke --hotkey <parent_hotkey> --netuid 1
 
         [italic]Note[/italic]:This command is critical for users who wish to remove children hotkeys on the network.
         It allows for a complete removal of delegated authority to enhance network participation and influence.

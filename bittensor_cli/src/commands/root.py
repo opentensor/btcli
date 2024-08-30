@@ -1104,7 +1104,7 @@ async def get_senate(subtensor: SubtensorInterface):
             style="bright_magenta",
             no_wrap=True,
         ),
-        title="[dark_orange]Senate",
+        title="[underline dark_orange]Senate",
         show_footer=True,
         show_edge=False,
         expand=False,
