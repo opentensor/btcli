@@ -1566,7 +1566,10 @@ async def list_delegates(subtensor: SubtensorInterface):
         if delegate.hotkey_ss58 in prev_delegates_dict:
             prev_stake = prev_delegates_dict[delegate.hotkey_ss58].total_stake
             if prev_stake == 0:
-                rate_change_in_stake_str = "[green]100%[/green]"
+                if delegate.total_stake > 0:
+                    rate_change_in_stake_str = "[green]100%[/green]"
+                else:
+                    rate_change_in_stake_str = "[grey0]0%[/grey0]"
             else:
                 rate_change_in_stake = (
                     100

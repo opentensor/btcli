@@ -2436,12 +2436,11 @@ class CLIManager:
         [italic]Note[/italic]: This function is part of the Bittensor CLI tools and is intended for use within a
         console application. It prints directly to the console and does not return any value.
         """
-        if network not in ["local", "test"]:
-            sub = self.initialize_chain(
-                "archive", "wss://archive.chain.opentensor.ai:443"
-            )
+        network_to_use = network or self.config["network"]
+        if network_to_use not in ["local", "test"]:
+            sub = self.initialize_chain("archive", "wss://archive.chain.opentensor.ai:443")
         else:
-            sub = self.initialize_chain(network, chain)
+            sub = self.initialize_chain(network_to_use, chain)
 
         return self._run_command(root.list_delegates(sub))
 
