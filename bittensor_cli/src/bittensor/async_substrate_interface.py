@@ -2339,11 +2339,14 @@ class AsyncSubstrateInterface:
         Example:
 
         ```
-        result = substrate.query_map('System', 'Account', max_results=100)
+        result = await substrate.query_map('System', 'Account', max_results=100)
 
-        for account, account_info in result:
+        async for account, account_info in result:
             print(f"Free balance of account '{account.value}': {account_info.value['data']['free']}")
         ```
+
+        Note: it is important that you do not use `for x in result.records`, as this will sidestep possible
+        pagination. You must do `async for x in result`.
 
         :param module: The module name in the metadata, e.g. System or Balances.
         :param storage_function: The storage function name, e.g. Account or Locks.
