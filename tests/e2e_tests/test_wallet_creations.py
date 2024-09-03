@@ -313,7 +313,6 @@ def test_wallet_regen():
         AssertionError: If any of the checks or verifications fail
     """
     wallet_path_name = "//Bob"
-    remove_wallets(get_path_from_uri(wallet_path_name))
     keypair, wallet, wallet_path, exec_command = setup_wallet(wallet_path_name)
 
     # Create a new wallet (coldkey + hotkey)
