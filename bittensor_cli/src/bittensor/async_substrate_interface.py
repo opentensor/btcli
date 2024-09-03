@@ -1,8 +1,8 @@
 import asyncio
 import json
-import signal
 from collections import defaultdict
 from dataclasses import dataclass
+from hashlib import blake2b
 from typing import Optional, Any, Union, Callable, Awaitable
 
 import websockets
@@ -222,7 +222,7 @@ class Websocket:
         max_subscriptions=1024,
         max_connections=100,
         shutdown_timer=5,
-        options: dict = None,
+        options: Optional[dict] = None,
     ):
         """
         Websocket manager object. Allows for the use of a single websocket connection by multiple
@@ -799,7 +799,7 @@ class AsyncSubstrateInterface:
         self,
         response: dict,
         subscription_id: Union[int, str],
-        value_scale_type: str,
+        value_scale_type: Optional[str],
         storage_item: Optional[ScaleType] = None,
         runtime: Optional[Runtime] = None,
         result_handler: Optional[ResultHandler] = None,
@@ -1010,14 +1010,24 @@ class AsyncSubstrateInterface:
 
         :return: A composed call
         """
-        return await asyncio.get_event_loop().run_in_executor(
-            None,
-            self.substrate.compose_call,
-            call_module,
-            call_function,
-            call_params,
-            block_hash,
+        if call_params is None:
+            call_params = {}
+
+        await self.init_runtime(block_hash=block_hash)
+
+        call = self.runtime_config.create_scale_object(
+            type_string="Call", metadata=self.metadata
         )
+
+        call.encode(
+            {
+                "call_module": call_module,
+                "call_function": call_function,
+                "call_args": call_params,
+            }
+        )
+
+        return call
 
     async def query_multiple(
         self,
@@ -1084,6 +1094,154 @@ class AsyncSubstrateInterface:
             type_string, data=data, **kwargs
         )
 
+    async def generate_signature_payload(
+        self,
+        call: GenericCall,
+        era=None,
+        nonce: int = 0,
+        tip: int = 0,
+        tip_asset_id: int = None,
+        include_call_length: bool = False,
+    ) -> ScaleBytes:
+        # Retrieve genesis hash
+        genesis_hash = await self.get_block_hash(0)
+
+        if not era:
+            era = "00"
+
+        if era == "00":
+            # Immortal extrinsic
+            block_hash = genesis_hash
+        else:
+            # Determine mortality of extrinsic
+            era_obj = self.runtime_config.create_scale_object("Era")
+
+            if isinstance(era, dict) and "current" not in era and "phase" not in era:
+                raise ValueError(
+                    'The era dict must contain either "current" or "phase" element to encode a valid era'
+                )
+
+            era_obj.encode(era)
+            block_hash = self.get_block_hash(block_id=era_obj.birth(era.get("current")))
+
+        # Create signature payload
+        signature_payload = self.runtime_config.create_scale_object(
+            "ExtrinsicPayloadValue"
+        )
+
+        # Process signed extensions in metadata
+        if "signed_extensions" in self.metadata[1][1]["extrinsic"]:
+            # Base signature payload
+            signature_payload.type_mapping = [["call", "CallBytes"]]
+
+            # Add signed extensions to payload
+            signed_extensions = self.metadata.get_signed_extensions()
+
+            if "CheckMortality" in signed_extensions:
+                signature_payload.type_mapping.append(
+                    ["era", signed_extensions["CheckMortality"]["extrinsic"]]
+                )
+
+            if "CheckEra" in signed_extensions:
+                signature_payload.type_mapping.append(
+                    ["era", signed_extensions["CheckEra"]["extrinsic"]]
+                )
+
+            if "CheckNonce" in signed_extensions:
+                signature_payload.type_mapping.append(
+                    ["nonce", signed_extensions["CheckNonce"]["extrinsic"]]
+                )
+
+            if "ChargeTransactionPayment" in signed_extensions:
+                signature_payload.type_mapping.append(
+                    ["tip", signed_extensions["ChargeTransactionPayment"]["extrinsic"]]
+                )
+
+            if "ChargeAssetTxPayment" in signed_extensions:
+                signature_payload.type_mapping.append(
+                    ["asset_id", signed_extensions["ChargeAssetTxPayment"]["extrinsic"]]
+                )
+
+            if "CheckMetadataHash" in signed_extensions:
+                signature_payload.type_mapping.append(
+                    ["mode", signed_extensions["CheckMetadataHash"]["extrinsic"]]
+                )
+
+            if "CheckSpecVersion" in signed_extensions:
+                signature_payload.type_mapping.append(
+                    [
+                        "spec_version",
+                        signed_extensions["CheckSpecVersion"]["additional_signed"],
+                    ]
+                )
+
+            if "CheckTxVersion" in signed_extensions:
+                signature_payload.type_mapping.append(
+                    [
+                        "transaction_version",
+                        signed_extensions["CheckTxVersion"]["additional_signed"],
+                    ]
+                )
+
+            if "CheckGenesis" in signed_extensions:
+                signature_payload.type_mapping.append(
+                    [
+                        "genesis_hash",
+                        signed_extensions["CheckGenesis"]["additional_signed"],
+                    ]
+                )
+
+            if "CheckMortality" in signed_extensions:
+                signature_payload.type_mapping.append(
+                    [
+                        "block_hash",
+                        signed_extensions["CheckMortality"]["additional_signed"],
+                    ]
+                )
+
+            if "CheckEra" in signed_extensions:
+                signature_payload.type_mapping.append(
+                    ["block_hash", signed_extensions["CheckEra"]["additional_signed"]]
+                )
+
+            if "CheckMetadataHash" in signed_extensions:
+                signature_payload.type_mapping.append(
+                    [
+                        "metadata_hash",
+                        signed_extensions["CheckMetadataHash"]["additional_signed"],
+                    ]
+                )
+
+        if include_call_length:
+            length_obj = self.runtime_config.create_scale_object("Bytes")
+            call_data = str(length_obj.encode(str(call.data)))
+
+        else:
+            call_data = str(call.data)
+
+        payload_dict = {
+            "call": call_data,
+            "era": era,
+            "nonce": nonce,
+            "tip": tip,
+            "spec_version": self.runtime_version,
+            "genesis_hash": genesis_hash,
+            "block_hash": block_hash,
+            "transaction_version": self.transaction_version,
+            "asset_id": {"tip": tip, "asset_id": tip_asset_id},
+            "metadata_hash": None,
+            "mode": "Disabled",
+        }
+
+        signature_payload.encode(payload_dict)
+
+        if signature_payload.data.length > 256:
+            return ScaleBytes(
+                data=blake2b(signature_payload.data.data, digest_size=32).digest()
+            )
+
+        return signature_payload.data
+
     async def create_signed_extrinsic(
         self,
         call: GenericCall,
@@ -1108,18 +1266,97 @@ class AsyncSubstrateInterface:
 
         :return: The signed Extrinsic
         """
-        return await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: self.substrate.create_signed_extrinsic(
-                call=call,
-                keypair=keypair,
-                era=era,
-                nonce=nonce,
-                tip=tip,
-                tip_asset_id=tip_asset_id,
-                signature=signature,
-            ),
+        await self.init_runtime()
+
+        # Check requirements
+        if not isinstance(call, GenericCall):
+            raise TypeError("'call' must be of type Call")
+
+        # Check if extrinsic version is supported
+        if self.metadata[1][1]["extrinsic"]["version"] != 4:
+            raise NotImplementedError(
+                f"Extrinsic version {self.metadata[1][1]['extrinsic']['version']} not supported"
+            )
+
+        # Retrieve nonce
+        if nonce is None:
+            nonce = await self.get_account_nonce(keypair.ss58_address) or 0
+
+        # Process era
+        if era is None:
+            era = "00"
+        else:
+            if isinstance(era, dict) and "current" not in era and "phase" not in era:
+                # Retrieve current block id
+                era["current"] = self.get_block_number(
+                    await self.get_chain_finalised_head()
+                )
+
+        if signature is not None:
+            if type(signature) is str and signature[0:2] == "0x":
+                signature = bytes.fromhex(signature[2:])
+
+            # Check if signature is a MultiSignature and contains signature version
+            if len(signature) == 65:
+                signature_version = signature[0]
+                signature = signature[1:]
+            else:
+                signature_version = keypair.crypto_type
+
+        else:
+            # Create signature payload
+            signature_payload = await self.generate_signature_payload(
+                call=call, era=era, nonce=nonce, tip=tip, tip_asset_id=tip_asset_id
+            )
+
+            # Set Signature version to crypto type of keypair
+            signature_version = keypair.crypto_type
+
+            # Sign payload
+            signature = keypair.sign(signature_payload)
+
+        # Create extrinsic
+        extrinsic = self.runtime_config.create_scale_object(
+            type_string="Extrinsic", metadata=self.metadata
         )
+
+        value = {
+            "account_id": f"0x{keypair.public_key.hex()}",
+            "signature": f"0x{signature.hex()}",
+            "call_function": call.value["call_function"],
+            "call_module": call.value["call_module"],
+            "call_args": call.value["call_args"],
+            "nonce": nonce,
+            "era": era,
+            "tip": tip,
+            "asset_id": {"tip": tip, "asset_id": tip_asset_id},
+            "mode": "Disabled",
+        }
+
+        # Check if ExtrinsicSignature is MultiSignature, otherwise omit signature_version
+        signature_cls = self.runtime_config.get_decoder_class("ExtrinsicSignature")
+        if issubclass(signature_cls, self.runtime_config.get_decoder_class("Enum")):
+            value["signature_version"] = signature_version
+
+        extrinsic.encode(value)
+
+        return extrinsic
+
+    async def get_chain_finalised_head(self):
+        """
+        A pass-though to existing JSONRPC method `chain_getFinalizedHead`
+
+        Returns
+        -------
+
+        """
+        response = await self.rpc_request("chain_getFinalizedHead", [])
+
+        if response is not None:
+            if "error" in response:
+                raise SubstrateRequestException(response["error"]["message"])
+
+            return response.get("result")
 
     async def runtime_call(
         self,
@@ -1215,6 +1452,30 @@ class AsyncSubstrateInterface:
         )
         return nonce_obj.value
 
+    async def get_metadata_constant(self, module_name, constant_name, block_hash=None):
+        """
+        Retrieves the details of a constant for given module name, call function name and block_hash
+        (or chaintip if block_hash is omitted)
+
+        Parameters
+        ----------
+        module_name
+        constant_name
+        block_hash
+
+        Returns
+        -------
+        MetadataModuleConstants
+        """
+
+        await self.init_runtime(block_hash=block_hash)
+
+        for module_idx, module in enumerate(self.metadata.pallets):
+            if module_name == module.name and module.constants:
+                for constant in module.constants:
+                    if constant_name == constant.value["name"]:
+                        return constant
+
     async def get_constant(
         self,
         module_name: str,
@@ -1236,12 +1497,16 @@ class AsyncSubstrateInterface:
         :return: ScaleType from the runtime call
         """
         block_hash = await self._get_current_block_hash(block_hash, reuse_block_hash)
-        async with self._lock:
-            return await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: self.substrate.get_constant(
-                    module_name, constant_name, block_hash
-                ),
+        constant = await self.get_metadata_constant(
+            module_name, constant_name, block_hash=block_hash
+        )
+        if constant:
+            # Decode to ScaleType
+            return self.decode_scale(
+                constant.type,
+                ScaleBytes(constant.constant_value),
+                block_hash=block_hash,
+                return_scale_obj=True,
             )
 
     async def get_payment_info(
