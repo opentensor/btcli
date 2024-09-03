@@ -37,8 +37,10 @@ def setup_wallet(uri: str):
             sub_command,
         ] + extra_args
 
-        full_command = ["btcli"] + args
-        print("Executing command:", " ".join(full_command))
+        command_for_printing = ["btcli"] + [
+            str(arg) if arg is not None else "None" for arg in args
+        ]
+        print("Executing command:", " ".join(command_for_printing))
 
         input_text = "\n".join(inputs) + "\n" if inputs else None
         result = runner.invoke(
@@ -183,7 +185,9 @@ def validate_wallet_inspect(
     Returns:
     bool: True if all checks pass, False otherwise.
     """
-    lines = text.splitlines()
+    # Preprocess lines to remove the | character
+    cleaned_text = text.replace("│", "")
+    lines = [re.sub(r"\s+", " ", line) for line in cleaned_text.splitlines()]
 
     def parse_value(value):
         return float(value.replace("τ", "").replace(",", ""))
