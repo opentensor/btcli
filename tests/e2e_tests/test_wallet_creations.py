@@ -331,6 +331,7 @@ def test_wallet_regen():
             "--n-words",
             "12",
         ],
+        inputs=["y", "y"]
     )
 
     mnemonics = extract_mnemonics_from_commands(result.stdout)
@@ -443,7 +444,7 @@ def test_wallet_regen():
     )
 
     # Wait a bit to ensure file system updates modification time
-    time.sleep(1)
+    time.sleep(2)
 
     new_hotkey_mod_time = os.path.getmtime(hotkey_path)
 
