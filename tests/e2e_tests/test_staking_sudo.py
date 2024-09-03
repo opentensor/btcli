@@ -3,7 +3,7 @@ import logging
 import time
 
 from bittensor_cli.src.bittensor.balances import Balance
-from tests.e2e_tests.utils import setup_wallet
+from tests.e2e_tests.utils import setup_wallet, remove_wallets
 
 """
 Verify commands:
@@ -224,3 +224,4 @@ def test_staking(local_chain):
     assert Balance.from_tao(float(updated_max_burn_tao.strip("τ"))) == Balance.from_tao(
         10
     )
+    remove_wallets(wallet_path_alice)

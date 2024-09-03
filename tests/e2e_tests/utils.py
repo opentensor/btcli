@@ -23,7 +23,12 @@ def setup_wallet(uri: str):
     wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=True)
     wallet.set_hotkey(keypair=keypair, encrypt=False, overwrite=True)
 
-    def exec_command(command: str, sub_command: str, extra_args: List[str] = []):
+    def exec_command(
+        command: str,
+        sub_command: str,
+        extra_args: List[str] = [],
+        inputs: List[str] = None,
+    ):
         cli_manager = CLIManager()
         runner = CliRunner()
         # Prepare the command arguments
@@ -31,7 +36,11 @@ def setup_wallet(uri: str):
             command,
             sub_command,
         ] + extra_args
-        result = runner.invoke(cli_manager.app, args, env={"COLUMNS": "700"})
+
+        input_text = "\n".join(inputs) + "\n" if inputs else None
+        result = runner.invoke(
+            cli_manager.app, args, input=input_text, env={"COLUMNS": "700"}
+        )
         return result
 
     return keypair, wallet, wallet_path, exec_command
@@ -267,3 +276,7 @@ def uninstall_templates(install_dir):
     )
     # Delete everything in directory
     shutil.rmtree(install_dir)
+
+
+def remove_wallets(wallets_dir):
+    shutil.rmtree(wallets_dir)

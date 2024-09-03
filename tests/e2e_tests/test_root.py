@@ -3,7 +3,7 @@ import time
 
 from bittensor_cli.src.bittensor.balances import Balance
 
-from tests.e2e_tests.utils import setup_wallet
+from tests.e2e_tests.utils import setup_wallet, remove_wallets
 
 """
 Verify commands:
@@ -261,3 +261,6 @@ def test_root_commands(local_chain):
         ],
     )
     assert "✅ Finalized" in undelegate_alice.stdout
+
+    remove_wallets(wallet_path_alice)
+    remove_wallets(wallet_path_bob)

@@ -8,6 +8,7 @@ from tests.e2e_tests.utils import (
     validate_wallet_inspect,
     validate_wallet_overview,
     verify_subnet_entry,
+    remove_wallets,
 )
 
 """
@@ -175,6 +176,7 @@ def test_wallet_overview_inspect(local_chain):
         ],  # (netuid, hotkey-display, stake, check_emissions)
     )
     logging.info("Passed wallet overview, inspect command ✅")
+    remove_wallets(wallet_path)
 
 
 """
@@ -357,3 +359,7 @@ def test_wallet_transfer(local_chain):
     # This transfer is expected to fail due to low balance
     assert "❌ Not enough balance" in result.stdout
     logging.info("Testing wallet transfer, balance command ✅")
+
+    remove_wallets(wallet_path_alice)
+    remove_wallets(wallet_path_bob)
+    remove_wallets(wallet_path_anakin)

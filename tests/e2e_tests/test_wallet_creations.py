@@ -4,7 +4,7 @@ import re
 import time
 from typing import Dict, Optional, Tuple
 
-from tests.e2e_tests.utils import setup_wallet
+from tests.e2e_tests.utils import setup_wallet, remove_wallets
 
 """
 Verify commands:
@@ -207,8 +207,6 @@ def test_wallet_creations():
             "--hotkey",
             "new_hotkey",
             "--no-use-password",
-            "--overwrite-coldkey",
-            "--overwrite-hotkey",
             "--n-words",
             "12",
         ],
@@ -242,7 +240,6 @@ def test_wallet_creations():
         "wallet",
         sub_command="new-coldkey",
         extra_args=[
-            "--overwrite-coldkey",
             "--wallet-name",
             "new_coldkey",
             "--wallet-path",
@@ -279,7 +276,6 @@ def test_wallet_creations():
             "new_coldkey",
             "--hotkey",
             "new_hotkey",
-            "--overwrite-hotkey",
             "--wallet-path",
             wallet_path,
             "--n-words",
@@ -301,6 +297,7 @@ def test_wallet_creations():
         wallet_path, "new_coldkey", hotkey_name="new_hotkey"
     )
     assert wallet_status, message
+    remove_wallets(wallet_path)
 
 
 def test_wallet_regen():
@@ -331,8 +328,6 @@ def test_wallet_regen():
             "--hotkey",
             "new_hotkey",
             "--no-use-password",
-            "--overwrite-coldkey",
-            "--overwrite-hotkey",
             "--n-words",
             "12",
         ],
@@ -365,11 +360,11 @@ def test_wallet_regen():
             "new_hotkey",
             "--wallet-path",
             wallet_path,
-            "--overwrite-coldkey",
             "--mnemonic",
             mnemonics["coldkey"],
             "--no-use-password",
         ],
+        inputs=["y", "y"]
     )
 
     # Wait a bit to ensure file system updates modification time
@@ -408,8 +403,8 @@ def test_wallet_regen():
             wallet_path,
             "--ss58-address",
             ss58_address,
-            "--overwrite-coldkeypub",
         ],
+        inputs=["y"]
     )
 
     # Wait a bit to ensure file system updates modification time
@@ -430,7 +425,7 @@ def test_wallet_regen():
     hotkey_path = os.path.join(wallet_path, "new_wallet", "hotkeys", "new_hotkey")
     initial_hotkey_mod_time = os.path.getmtime(hotkey_path)
 
-    exec_command(
+    result = exec_command(
         command="wallet",
         sub_command="regen-hotkey",
         extra_args=[
@@ -442,9 +437,9 @@ def test_wallet_regen():
             wallet_path,
             "--mnemonic",
             mnemonics["hotkey"],
-            "--overwrite-hotkey",
             "--no-use-password",
         ],
+        inputs=["y"]
     )
 
     # Wait a bit to ensure file system updates modification time
@@ -456,3 +451,4 @@ def test_wallet_regen():
         initial_hotkey_mod_time != new_hotkey_mod_time
     ), "Hotkey file was not regenerated as expected"
     logging.info("Passed wallet regen_hotkey command ✅")
+    remove_wallets(wallet_path)
