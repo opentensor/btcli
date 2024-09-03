@@ -3,7 +3,7 @@ import re
 import time
 from typing import Dict, Optional, Tuple
 
-from tests.e2e_tests.utils import setup_wallet, remove_wallets
+from tests.e2e_tests.utils import setup_wallet, remove_wallets, get_path_from_uri
 
 """
 Verify commands:
@@ -313,6 +313,7 @@ def test_wallet_regen():
         AssertionError: If any of the checks or verifications fail
     """
     wallet_path_name = "//Bob"
+    remove_wallets(get_path_from_uri(wallet_path_name))
     keypair, wallet, wallet_path, exec_command = setup_wallet(wallet_path_name)
 
     # Create a new wallet (coldkey + hotkey)
@@ -330,7 +331,6 @@ def test_wallet_regen():
             "--n-words",
             "12",
         ],
-        inputs=["y", "y"]
     )
 
     mnemonics = extract_mnemonics_from_commands(result.stdout)
@@ -364,7 +364,7 @@ def test_wallet_regen():
             mnemonics["coldkey"],
             "--no-use-password",
         ],
-        inputs=["y", "y"]
+        inputs=["y", "y"],
     )
 
     # Wait a bit to ensure file system updates modification time
@@ -404,7 +404,7 @@ def test_wallet_regen():
             "--ss58-address",
             ss58_address,
         ],
-        inputs=["y"]
+        inputs=["y"],
     )
 
     # Wait a bit to ensure file system updates modification time
@@ -439,7 +439,7 @@ def test_wallet_regen():
             mnemonics["hotkey"],
             "--no-use-password",
         ],
-        inputs=["y"]
+        inputs=["y"],
     )
 
     # Wait a bit to ensure file system updates modification time

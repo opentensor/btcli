@@ -15,9 +15,13 @@ template_path = os.getcwd() + "/neurons/"
 templates_repo = "templates repository"
 
 
+def get_path_from_uri(uri: str):
+    return f"/tmp/btcli-e2e-wallet-{uri.strip('/')}"
+
+
 def setup_wallet(uri: str):
     keypair = Keypair.create_from_uri(uri)
-    wallet_path = f"/tmp/btcli-e2e-wallet-{uri.strip('/')}"
+    wallet_path = get_path_from_uri(uri)
     wallet = Wallet(path=wallet_path)
     wallet.set_coldkey(keypair=keypair, encrypt=False, overwrite=True)
     wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=True)
