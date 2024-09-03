@@ -130,7 +130,7 @@ class SubtensorInterface:
         return (
             []
             if result is None or not hasattr(result, "records")
-            else [netuid.value for netuid, exists in result if exists]
+            else [netuid.value async for netuid, exists in result if exists]
         )
 
     async def is_hotkey_delegate(
@@ -396,7 +396,7 @@ class SubtensorInterface:
             reuse_block_hash=reuse_block,
         )
         return (
-            [record[0].value for record in result.records if record[1]]
+            [record[0].value async for record in result if record[1]]
             if result and hasattr(result, "records")
             else []
         )
@@ -747,7 +747,7 @@ class SubtensorInterface:
         )
 
         if w_map_encoded.records:
-            for uid, w in w_map_encoded:
+            async for uid, w in w_map_encoded:
                 w_map.append((uid.serialize(), w.serialize()))
 
         return w_map
@@ -778,7 +778,7 @@ class SubtensorInterface:
             block_hash=block_hash,
         )
         if b_map_encoded.records:
-            for uid, b in b_map_encoded:
+            async for uid, b in b_map_encoded:
                 b_map.append((uid.serialize(), b.serialize()))
 
         return b_map

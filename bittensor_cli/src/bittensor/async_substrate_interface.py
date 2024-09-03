@@ -10,9 +10,12 @@ from scalecodec import GenericExtrinsic
 from scalecodec.base import ScaleBytes, ScaleType, RuntimeConfigurationObject
 from scalecodec.type_registry import load_type_registry_preset
 from scalecodec.types import GenericCall
-from substrateinterface import Keypair, ExtrinsicReceipt
-from substrateinterface.base import SubstrateInterface, QueryMapResult
-from substrateinterface.exceptions import SubstrateRequestException
+from substrateinterface import Keypair
+from substrateinterface.exceptions import (
+    SubstrateRequestException,
+    ExtrinsicNotFound,
+    BlockNotFound,
+)
 from substrateinterface.storage import StorageKey
 
 ResultHandler = Callable[[dict, Any], Awaitable[tuple[dict, bool]]]
@@ -24,6 +27,493 @@ class TimeoutException(Exception):
 
 def timeout_handler(signum, frame):
     raise TimeoutException("Operation timed out")
+
+
+class ExtrinsicReceipt:
+    """
+    Object containing information of submitted extrinsic. Block hash where extrinsic is included is required
+        when retrieving triggered events or determine if extrinsic was succesfull
+    """
+
+    def __init__(
+        self,
+        substrate: "AsyncSubstrateInterface",
+        extrinsic_hash: str = None,
+        block_hash: str = None,
+        block_number: int = None,
+        extrinsic_idx: int = None,
+        finalized=None,
+    ):
+        """
+        Object containing information of submitted extrinsic. Block hash where extrinsic is included is required
+        when retrieving triggered events or determine if extrinsic was succesful
+
+        Parameters
+        ----------
+        substrate
+        extrinsic_hash
+        block_hash
+        finalized
+        """
+        self.substrate = substrate
+        self.extrinsic_hash = extrinsic_hash
+        self.block_hash = block_hash
+        self.block_number = block_number
+        self.finalized = finalized
+
+        self.__extrinsic_idx = extrinsic_idx
+        self.__extrinsic = None
+
+        self.__triggered_events = None
+        self.__is_success = None
+        self.__error_message = None
+        self.__weight = None
+        self.__total_fee_amount = None
+
+    async def get_extrinsic_identifier(self) -> str:
+        """
+        Returns the on-chain identifier for this extrinsic in format "[block_number]-[extrinsic_idx]" e.g. 134324-2
+        Returns
+        -------
+        str
+        """
+        if self.block_number is None:
+            if self.block_hash is None:
+                raise ValueError(
+                    "Cannot create extrinsic identifier: block_hash is not set"
+                )
+
+            self.block_number = await self.substrate.get_block_number(self.block_hash)
+
+            if self.block_number is None:
+                raise ValueError(
+                    "Cannot create extrinsic identifier: unknown block_hash"
+                )
+
+        return f"{self.block_number}-{self.extrinsic_idx}"
+
+    async def retrieve_extrinsic(self):
+        if not self.block_hash:
+            raise ValueError(
+                "ExtrinsicReceipt can't retrieve events because it's unknown which block_hash it is "
+                "included, manually set block_hash or use `wait_for_inclusion` when sending extrinsic"
+            )
+        # Determine extrinsic idx
+
+        block = await self.substrate.get_block(block_hash=self.block_hash)
+
+        extrinsics = block["extrinsics"]
+
+        if len(extrinsics) > 0:
+            if self.__extrinsic_idx is None:
+                self.__extrinsic_idx = self.__get_extrinsic_index(
+                    block_extrinsics=extrinsics, extrinsic_hash=self.extrinsic_hash
+                )
+
+            if self.__extrinsic_idx >= len(extrinsics):
+                raise ExtrinsicNotFound()
+
+            self.__extrinsic = extrinsics[self.__extrinsic_idx]
+
+    @property
+    def extrinsic_idx(self) -> int:
+        """
+        Retrieves the index of this extrinsic in containing block
+
+        Returns
+        -------
+        int
+        """
+        if self.__extrinsic_idx is None:
+            self.retrieve_extrinsic()
+        return self.__extrinsic_idx
+
+    @property
+    def extrinsic(self) -> GenericExtrinsic:
+        """
+        Retrieves the `Extrinsic` subject of this receipt
+
+        Returns
+        -------
+        Extrinsic
+        """
+        if self.__extrinsic is None:
+            self.retrieve_extrinsic()
+        return self.__extrinsic
+
+    @property
+    def triggered_events(self) -> list:
+        """
+        Gets triggered events for submitted extrinsic. block_hash where extrinsic is included is required, manually
+        set block_hash or use `wait_for_inclusion` when submitting extrinsic
+
+        Returns
+        -------
+        list
+        """
+        if self.__triggered_events is None:
+            if not self.block_hash:
+                raise ValueError(
+                    "ExtrinsicReceipt can't retrieve events because it's unknown which block_hash it is "
+                    "included, manually set block_hash or use `wait_for_inclusion` when sending extrinsic"
+                )
+
+            if self.extrinsic_idx is None:
+                self.retrieve_extrinsic()
+
+            self.__triggered_events = []
+
+            for event in self.substrate.get_events(block_hash=self.block_hash):
+                if event.extrinsic_idx == self.extrinsic_idx:
+                    self.__triggered_events.append(event)
+
+        return self.__triggered_events
+
+    def process_events(self):
+        if self.triggered_events:
+            self.__total_fee_amount = 0
+
+            # Process fees
+            has_transaction_fee_paid_event = False
+
+            for event in self.triggered_events:
+                if (
+                    event.value["module_id"] == "TransactionPayment"
+                    and event.value["event_id"] == "TransactionFeePaid"
+                ):
+                    self.__total_fee_amount = event.value["attributes"]["actual_fee"]
+                    has_transaction_fee_paid_event = True
+
+            # Process other events
+            for event in self.triggered_events:
+                # Check events
+                if self.substrate.implements_scaleinfo():
+                    if (
+                        event.value["module_id"] == "System"
+                        and event.value["event_id"] == "ExtrinsicSuccess"
+                    ):
+                        self.__is_success = True
+                        self.__error_message = None
+
+                        if "dispatch_info" in event.value["attributes"]:
+                            self.__weight = event.value["attributes"]["dispatch_info"][
+                                "weight"
+                            ]
+                        else:
+                            # Backwards compatibility
+                            self.__weight = event.value["attributes"]["weight"]
+
+                    elif (
+                        event.value["module_id"] == "System"
+                        and event.value["event_id"] == "ExtrinsicFailed"
+                    ):
+                        self.__is_success = False
+
+                        if type(event.value["attributes"]) is dict:
+                            dispatch_info = event.value["attributes"]["dispatch_info"]
+                            dispatch_error = event.value["attributes"]["dispatch_error"]
+                        else:
+                            # Backwards compatibility
+                            dispatch_info = event.value["attributes"][1]
+                            dispatch_error = event.value["attributes"][0]
+
+                        self.__weight = dispatch_info["weight"]
+
+                        if "Module" in dispatch_error:
+                            if type(dispatch_error["Module"]) is tuple:
+                                module_index = dispatch_error["Module"][0]
+                                error_index = dispatch_error["Module"][1]
+                            else:
+                                module_index = dispatch_error["Module"]["index"]
+                                error_index = dispatch_error["Module"]["error"]
+
+                            if type(error_index) is str:
+                                # Actual error index is first u8 in new [u8; 4] format
+                                error_index = int(error_index[2:4], 16)
+
+                            module_error = self.substrate.metadata.get_module_error(
+                                module_index=module_index, error_index=error_index
+                            )
+                            self.__error_message = {
+                                "type": "Module",
+                                "name": module_error.name,
+                                "docs": module_error.docs,
+                            }
+                        elif "BadOrigin" in dispatch_error:
+                            self.__error_message = {
+                                "type": "System",
+                                "name": "BadOrigin",
+                                "docs": "Bad origin",
+                            }
+                        elif "CannotLookup" in dispatch_error:
+                            self.__error_message = {
+                                "type": "System",
+                                "name": "CannotLookup",
+                                "docs": "Cannot lookup",
+                            }
+                        elif "Other" in dispatch_error:
+                            self.__error_message = {
+                                "type": "System",
+                                "name": "Other",
+                                "docs": "Unspecified error occurred",
+                            }
+
+                    elif not has_transaction_fee_paid_event:
+                        if (
+                            event.value["module_id"] == "Treasury"
+                            and event.value["event_id"] == "Deposit"
+                        ):
+                            if type(event.value["attributes"]) is dict:
+                                self.__total_fee_amount += event.value["attributes"][
+                                    "value"
+                                ]
+                            else:
+                                # Backwards compatibility
+                                self.__total_fee_amount += event.value["attributes"]
+
+                        elif (
+                            event.value["module_id"] == "Balances"
+                            and event.value["event_id"] == "Deposit"
+                        ):
+                            if type(event.value["attributes"]) is dict:
+                                self.__total_fee_amount += event.value["attributes"][
+                                    "amount"
+                                ]
+                            else:
+                                # Backwards compatibility
+                                self.__total_fee_amount += event.value["attributes"][1]
+
+                else:
+                    if (
+                        event.event_module.name == "System"
+                        and event.event.name == "ExtrinsicSuccess"
+                    ):
+                        self.__is_success = True
+                        self.__error_message = None
+
+                        for param in event.params:
+                            if param["type"] == "DispatchInfo":
+                                self.__weight = param["value"]["weight"]
+
+                    elif (
+                        event.event_module.name == "System"
+                        and event.event.name == "ExtrinsicFailed"
+                    ):
+                        self.__is_success = False
+
+                        for param in event.params:
+                            if param["type"] == "DispatchError":
+                                if "Module" in param["value"]:
+                                    if type(param["value"]["Module"]["error"]) is str:
+                                        # Actual error index is first u8 in new [u8; 4] format (e.g. 0x01000000)
+                                        error_index = int(
+                                            param["value"]["Module"]["error"][2:4], 16
+                                        )
+                                    else:
+                                        error_index = param["value"]["Module"]["error"]
+
+                                    module_error = (
+                                        self.substrate.metadata.get_module_error(
+                                            module_index=param["value"]["Module"][
+                                                "index"
+                                            ],
+                                            error_index=error_index,
+                                        )
+                                    )
+                                    self.__error_message = {
+                                        "type": "Module",
+                                        "name": module_error.name,
+                                        "docs": module_error.docs,
+                                    }
+                                elif "BadOrigin" in param["value"]:
+                                    self.__error_message = {
+                                        "type": "System",
+                                        "name": "BadOrigin",
+                                        "docs": "Bad origin",
+                                    }
+                                elif "CannotLookup" in param["value"]:
+                                    self.__error_message = {
+                                        "type": "System",
+                                        "name": "CannotLookup",
+                                        "docs": "Cannot lookup",
+                                    }
+                                elif "Other" in param["value"]:
+                                    self.__error_message = {
+                                        "type": "System",
+                                        "name": "Other",
+                                        "docs": "Unspecified error occurred",
+                                    }
+
+                            if param["type"] == "DispatchInfo":
+                                self.__weight = param["value"]["weight"]
+
+                    elif (
+                        event.event_module.name == "Treasury"
+                        and event.event.name == "Deposit"
+                    ):
+                        self.__total_fee_amount += event.params[0]["value"]
+
+                    elif (
+                        event.event_module.name == "Balances"
+                        and event.event.name == "Deposit"
+                    ):
+                        self.__total_fee_amount += event.params[1]["value"]
+
+    @property
+    def is_success(self) -> bool:
+        """
+        Returns `True` if `ExtrinsicSuccess` event is triggered, `False` in case of `ExtrinsicFailed`
+        In case of False `error_message` will contain more details about the error
+
+
+        Returns
+        -------
+        bool
+        """
+        if self.__is_success is None:
+            self.process_events()
+
+        return self.__is_success
+
+    @property
+    def error_message(self) -> Optional[dict]:
+        """
+        Returns the error message if the extrinsic failed in format e.g.:
+
+        `{'type': 'System', 'name': 'BadOrigin', 'docs': 'Bad origin'}`
+
+        Returns
+        -------
+        dict
+        """
+        if self.__error_message is None:
+            if self.is_success:
+                return None
+            self.process_events()
+        return self.__error_message
+
+    @property
+    def weight(self) -> Union[int, dict]:
+        """
+        Contains the actual weight when executing this extrinsic
+
+        Returns
+        -------
+        int (WeightV1) or dict (WeightV2)
+        """
+        if self.__weight is None:
+            self.process_events()
+        return self.__weight
+
+    @property
+    def total_fee_amount(self) -> int:
+        """
+        Contains the total fee costs deducted when executing this extrinsic. This includes fee for the validator (
+        (`Balances.Deposit` event) and the fee deposited for the treasury (`Treasury.Deposit` event)
+
+        Returns
+        -------
+        int
+        """
+        if self.__total_fee_amount is None:
+            self.process_events()
+        return self.__total_fee_amount
+
+    # Helper functions
+    @staticmethod
+    def __get_extrinsic_index(block_extrinsics: list, extrinsic_hash: str) -> int:
+        """
+        Returns the index of a provided extrinsic
+        """
+        for idx, extrinsic in enumerate(block_extrinsics):
+            if (
+                extrinsic.extrinsic_hash
+                and f"0x{extrinsic.extrinsic_hash.hex()}" == extrinsic_hash
+            ):
+                return idx
+        raise ExtrinsicNotFound()
+
+    # Backwards compatibility methods
+    def __getitem__(self, item):
+        return getattr(self, item)
+
+    def __iter__(self):
+        for item in self.__dict__.items():
+            yield item
+
+    def get(self, name):
+        return self[name]
+
+
+class QueryMapResult:
+    def __init__(
+        self,
+        records: list,
+        page_size: int,
+        module: str = None,
+        storage_function: str = None,
+        params: list = None,
+        block_hash: str = None,
+        substrate: "AsyncSubstrateInterface" = None,
+        last_key: str = None,
+        max_results: int = None,
+        ignore_decoding_errors: bool = False,
+    ):
+        self.records = records
+        self.page_size = page_size
+        self.module = module
+        self.storage_function = storage_function
+        self.block_hash = block_hash
+        self.substrate = substrate
+        self.last_key = last_key
+        self.max_results = max_results
+        self.params = params
+        self.ignore_decoding_errors = ignore_decoding_errors
+        self.loading_complete = False
+        self._buffer = iter(self.records)  # Initialize the buffer with initial records
+
+    async def retrieve_next_page(self, start_key) -> list:
+        if not self.substrate:
+            return []
+
+        result = await self.substrate.query_map(
+            module=self.module,
+            storage_function=self.storage_function,
+            params=self.params,
+            page_size=self.page_size,
+            block_hash=self.block_hash,
+            start_key=start_key,
+            max_results=self.max_results,
+            ignore_decoding_errors=self.ignore_decoding_errors,
+        )
+
+        # Update last key from new result set to use as offset for next page
+        self.last_key = result.last_key
+        return result.records
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            # Try to get the next record from the buffer
+            return next(self._buffer)
+        except StopIteration:
+            # If no more records in the buffer, try to fetch the next page
+            if self.loading_complete:
+                raise StopAsyncIteration
+
+            next_page = await self.retrieve_next_page(self.last_key)
+            if not next_page:
+                self.loading_complete = True
+                raise StopAsyncIteration
+
+            # Update the buffer with the newly fetched records
+            self._buffer = iter(next_page)
+            return next(self._buffer)
+
+    def __getitem__(self, item):
+        return self.records[item]
 
 
 @dataclass
@@ -700,6 +1190,246 @@ class AsyncSubstrateInterface:
             return self.metadata.portable_registry is not None
         else:
             return None
+
+    async def _get_block_handler(
+        self,
+        block_hash: str,
+        ignore_decoding_errors: bool = False,
+        include_author: bool = False,
+        header_only: bool = False,
+        finalized_only: bool = False,
+        subscription_handler: callable = None,
+    ):
+        try:
+            await self.init_runtime(block_hash=block_hash)
+        except BlockNotFound:
+            return None
+
+        async def decode_block(block_data, block_data_hash=None):
+            if block_data:
+                if block_data_hash:
+                    block_data["header"]["hash"] = block_data_hash
+
+                if type(block_data["header"]["number"]) is str:
+                    # Convert block number from hex (backwards compatibility)
+                    block_data["header"]["number"] = int(
+                        block_data["header"]["number"], 16
+                    )
+
+                extrinsic_cls = self.runtime_config.get_decoder_class("Extrinsic")
+
+                if "extrinsics" in block_data:
+                    for idx, extrinsic_data in enumerate(block_data["extrinsics"]):
+                        extrinsic_decoder = extrinsic_cls(
+                            data=ScaleBytes(extrinsic_data),
+                            metadata=self.metadata,
+                            runtime_config=self.runtime_config,
+                        )
+                        try:
+                            extrinsic_decoder.decode(check_remaining=True)
+                            block_data["extrinsics"][idx] = extrinsic_decoder
+
+                        except Exception as e:
+                            if not ignore_decoding_errors:
+                                raise
+                            block_data["extrinsics"][idx] = None
+
+                for idx, log_data in enumerate(block_data["header"]["digest"]["logs"]):
+                    if type(log_data) is str:
+                        # Convert digest log from hex (backwards compatibility)
+                        try:
+                            log_digest_cls = self.runtime_config.get_decoder_class(
+                                "sp_runtime::generic::digest::DigestItem"
+                            )
+
+                            if log_digest_cls is None:
+                                raise NotImplementedError(
+                                    "No decoding class found for 'DigestItem'"
+                                )
+
+                            log_digest = log_digest_cls(data=ScaleBytes(log_data))
+                            log_digest.decode(
+                                check_remaining=self.config.get("strict_scale_decode")
+                            )
+
+                            block_data["header"]["digest"]["logs"][idx] = log_digest
+
+                            if include_author and "PreRuntime" in log_digest.value:
+                                if self.implements_scaleinfo:
+                                    engine = bytes(log_digest[1][0])
+                                    # Retrieve validator set
+                                    parent_hash = block_data["header"]["parentHash"]
+                                    validator_set = await self.query(
+                                        "Session", "Validators", block_hash=parent_hash
+                                    )
+
+                                    if engine == b"BABE":
+                                        babe_predigest = (
+                                            self.runtime_config.create_scale_object(
+                                                type_string="RawBabePreDigest",
+                                                data=ScaleBytes(
+                                                    bytes(log_digest[1][1])
+                                                ),
+                                            )
+                                        )
+
+                                        babe_predigest.decode(
+                                            check_remaining=self.config.get(
+                                                "strict_scale_decode"
+                                            )
+                                        )
+
+                                        rank_validator = babe_predigest[1].value[
+                                            "authority_index"
+                                        ]
+
+                                        block_author = validator_set[rank_validator]
+                                        block_data["author"] = block_author.value
+
+                                    elif engine == b"aura":
+                                        aura_predigest = (
+                                            self.runtime_config.create_scale_object(
+                                                type_string="RawAuraPreDigest",
+                                                data=ScaleBytes(
+                                                    bytes(log_digest[1][1])
+                                                ),
+                                            )
+                                        )
+
+                                        aura_predigest.decode(check_remaining=True)
+
+                                        rank_validator = aura_predigest.value[
+                                            "slot_number"
+                                        ] % len(validator_set)
+
+                                        block_author = validator_set[rank_validator]
+                                        block_data["author"] = block_author.value
+                                    else:
+                                        raise NotImplementedError(
+                                            f"Cannot extract author for engine {log_digest.value['PreRuntime'][0]}"
+                                        )
+                                else:
+                                    if (
+                                        log_digest.value["PreRuntime"]["engine"]
+                                        == "BABE"
+                                    ):
+                                        validator_set = await self.query(
+                                            "Session",
+                                            "Validators",
+                                            block_hash=block_hash,
+                                        )
+                                        rank_validator = log_digest.value["PreRuntime"][
+                                            "data"
+                                        ]["authority_index"]
+
+                                        block_author = validator_set.elements[
+                                            rank_validator
+                                        ]
+                                        block_data["author"] = block_author.value
+                                    else:
+                                        raise NotImplementedError(
+                                            f"Cannot extract author for engine {log_digest.value['PreRuntime']['engine']}"
+                                        )
+
+                        except Exception:
+                            if not ignore_decoding_errors:
+                                raise
+                            block_data["header"]["digest"]["logs"][idx] = None
+
+            return block_data
+
+        if callable(subscription_handler):
+            rpc_method_prefix = "Finalized" if finalized_only else "New"
+
+            async def result_handler(message, update_nr, subscription_id):
+                new_block = decode_block({"header": message["params"]["result"]})
+
+                subscription_result = subscription_handler(
+                    new_block, update_nr, subscription_id
+                )
+
+                if subscription_result is not None:
+                    # Handler returned end result: unsubscribe from further updates
+                    await self.rpc_request(
+                        f"chain_unsubscribe{rpc_method_prefix}Heads", [subscription_id]
+                    )
+
+                return subscription_result
+
+            result = await self.rpc_request(
+                f"chain_subscribe{rpc_method_prefix}Heads",
+                [],
+                result_handler=result_handler,
+            )
+
+            return result
+
+        else:
+            if header_only:
+                response = await self.rpc_request("chain_getHeader", [block_hash])
+                return decode_block(
+                    {"header": response["result"]}, block_data_hash=block_hash
+                )
+
+            else:
+                response = await self.rpc_request("chain_getBlock", [block_hash])
+                return decode_block(
+                    response["result"]["block"], block_data_hash=block_hash
+                )
+
+    async def get_block(
+        self,
+        block_hash: str = None,
+        block_number: int = None,
+        ignore_decoding_errors: bool = False,
+        include_author: bool = False,
+        finalized_only: bool = False,
+    ) -> Optional[dict]:
+        """
+        Retrieves a block and decodes its containing extrinsics and log digest items. If `block_hash` and `block_number`
+        is omitted the chain tip will be retrieve, or the finalized head if `finalized_only` is set to true.
+
+        Either `block_hash` or `block_number` should be set, or both omitted.
+
+        Parameters
+        ----------
+        block_hash: the hash of the block to be retrieved
+        block_number: the block number to retrieved
+        ignore_decoding_errors: When set this will catch all decoding errors, set the item to None and continue decoding
+        include_author: This will retrieve the block author from the validator set and add to the result
+        finalized_only: when no `block_hash` or `block_number` is set, this will retrieve the finalized head
+
+        Returns
+        -------
+        A dict containing the extrinsic and digest logs data
+        """
+        if block_hash and block_number:
+            raise ValueError("Either block_hash or block_number should be be set")
+
+        if block_number is not None:
+            block_hash = await self.get_block_hash(block_number)
+
+            if block_hash is None:
+                return
+
+        if block_hash and finalized_only:
+            raise ValueError(
+                "finalized_only cannot be True when block_hash is provided"
+            )
+
+        if block_hash is None:
+            # Retrieve block hash
+            if finalized_only:
+                block_hash = await self.get_chain_finalised_head()
+            else:
+                block_hash = await self.get_chain_head()
+
+        return self.__get_block_handler(
+            block_hash=block_hash,
+            ignore_decoding_errors=ignore_decoding_errors,
+            header_only=False,
+            include_author=include_author,
+        )
 
     async def get_block_runtime_version(self, block_hash: str) -> dict:
         """
