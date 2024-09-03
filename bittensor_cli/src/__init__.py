@@ -38,6 +38,7 @@ class Defaults:
     netuid = 1
 
     class config:
+        base_path = "~/.bittensor"
         path = "~/.bittensor/config.yml"
         dictionary = {
             "network": None,

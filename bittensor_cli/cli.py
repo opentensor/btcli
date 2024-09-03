@@ -317,6 +317,7 @@ class CLIManager:
             },
         }
         self.not_subtensor = None
+        self.config_base_path = os.path.expanduser(defaults.config.base_path)
         self.config_path = os.path.expanduser(defaults.config.path)
 
         self.app = typer.Typer(
@@ -613,9 +614,9 @@ class CLIManager:
         """
         # create config file if it does not exist
         if not os.path.exists(self.config_path):
-            directory_path = Path(self.config_path)
+            directory_path = Path(self.config_base_path)
             directory_path.mkdir(exist_ok=True, parents=True)
-            with open(self.config_path, "w") as f:
+            with open(self.config_path, "w+") as f:
                 safe_dump(defaults.config.dictionary, f)
         # check config
         with open(self.config_path, "r") as f:
