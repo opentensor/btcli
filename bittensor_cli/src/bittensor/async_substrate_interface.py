@@ -15,7 +15,6 @@ from substrateinterface.base import SubstrateInterface, QueryMapResult
 from substrateinterface.exceptions import SubstrateRequestException
 from substrateinterface.storage import StorageKey
 
-
 ResultHandler = Callable[[dict, Any], Awaitable[tuple[dict, bool]]]
 
 
@@ -390,7 +389,7 @@ class AsyncSubstrateInterface:
             },
         )
         self._lock = asyncio.Lock()
-        self.last_block_hash = None
+        self.last_block_hash: Optional[str] = None
         self.config = {
             "use_remote_preset": use_remote_preset,
             "auto_discover": auto_discover,
@@ -403,6 +402,13 @@ class AsyncSubstrateInterface:
         self.ss58_format = ss58_format
         self.type_registry = type_registry
         self.runtime_cache = RuntimeCache()
+        self.block_id: Optional[int] = None
+        self.runtime_version = None
+        self.runtime_config = RuntimeConfigurationObject()
+        self.__metadata_cache = {}
+        self.type_registry_preset = None
+        self.transaction_version = None
+        self.metadata = None
 
     async def __aenter__(self):
         await self.initialize()
@@ -412,25 +418,10 @@ class AsyncSubstrateInterface:
         Initialize the attached substrate object
         """
         async with self._lock:
-            if not self.substrate:
-                # This is low-level timeout handling
-                # We set a timeout for 10 seconds.
-                # NOTE: this will not work on Windows, but it's not supported anyway
-                signal.signal(signal.SIGALRM, timeout_handler)
-                signal.alarm(10)  # Set timeout to 10 seconds
-                try:
-                    self.substrate = SubstrateInterface(
-                        ss58_format=self.ss58_format,
-                        use_remote_preset=True,
-                        url=self.chain_endpoint,
-                        type_registry=self.type_registry,
-                    )
-                finally:
-                    # Cancel the alarm if the function completes before timeout
-                    signal.alarm(0)
-
+            if not self.initialized:
                 chain = await self.rpc_request("system_chain", [])
                 self.__chain = chain.get("result")
+                self.reload_type_registry()
             self.initialized = True
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -444,9 +435,9 @@ class AsyncSubstrateInterface:
         return self.__chain
 
     async def get_storage_item(self, module: str, storage_function: str):
-        if not self.substrate.metadata:
+        if not self.metadata:
             await self.init_runtime()
-        metadata_pallet = self.substrate.metadata.get_metadata_pallet(module)
+        metadata_pallet = self.metadata.get_metadata_pallet(module)
         storage_item = metadata_pallet.get_storage_function(storage_function)
         return storage_item
 
@@ -461,9 +452,44 @@ class AsyncSubstrateInterface:
                 return self.last_block_hash
         return block_hash
 
+    def decode_scale(
+        self, type_string, scale_bytes, block_hash=None, return_scale_obj=False
+    ):
+        """
+        Helper function to decode arbitrary SCALE-bytes (e.g. 0x02000000) according to given RUST type_string
+        (e.g. BlockNumber). The relevant versioning information of the type (if defined) will be applied if block_hash
+        is set
+
+        Parameters
+        ----------
+        type_string
+        scale_bytes
+        block_hash
+        return_scale_obj: if True the SCALE object itself is returned, otherwise the serialized dict value of the object
+
+        Returns
+        -------
+
+        """
+        self.init_runtime(block_hash=block_hash)
+
+        if isinstance(scale_bytes, str):
+            scale_bytes = ScaleBytes(scale_bytes)
+
+        obj = self.runtime_config.create_scale_object(
+            type_string=type_string, data=scale_bytes, metadata=self.metadata
+        )
+
+        obj.decode(check_remaining=True)
+
+        if return_scale_obj:
+            return obj
+        else:
+            return obj.value
+
     async def init_runtime(
         self, block_hash: Optional[str] = None, block_id: Optional[int] = None
-    ) -> Runtime:
+    ):
         """
         This method is used by all other methods that deals with metadata and types defined in the type registry.
         It optionally retrieves the block_hash when block_id is given and sets the applicable metadata for that
@@ -477,19 +503,203 @@ class AsyncSubstrateInterface:
 
         :returns: Runtime object
         """
+        if block_id and block_hash:
+            raise ValueError("Cannot provide block_hash and block_id at the same time")
+
         async with self._lock:
             if not (runtime := self.runtime_cache.retrieve(block_id, block_hash)):
-                await asyncio.get_event_loop().run_in_executor(
-                    None, self.substrate.init_runtime, block_hash, block_id
+                # Check if runtime state already set to current block
+                if (block_hash and block_hash == self.last_block_hash) or (
+                    block_id and block_id == self.block_id
+                ):
+                    return
+
+                if block_id is not None:
+                    block_hash = await self.get_block_hash(block_id)
+
+                if not block_hash:
+                    block_hash = await self.get_chain_head()
+
+                self.last_block_hash = block_hash
+                self.block_id = block_id
+
+                # In fact calls and storage functions are decoded against runtime of previous block, therefor retrieve
+                # metadata and apply type registry of runtime of parent block
+                block_header = await self.rpc_request(
+                    "chain_getHeader", [self.last_block_hash]
                 )
+
+                if block_header["result"] is None:
+                    raise SubstrateRequestException(
+                        f'Block not found for "{self.last_block_hash}"'
+                    )
+
+                parent_block_hash: str = block_header["result"]["parentHash"]
+
+                if (
+                    parent_block_hash
+                    == "0x0000000000000000000000000000000000000000000000000000000000000000"
+                ):
+                    runtime_block_hash = self.last_block_hash
+                else:
+                    runtime_block_hash = parent_block_hash
+
+                runtime_info = await self.get_block_runtime_version(
+                    block_hash=runtime_block_hash
+                )
+
+                if runtime_info is None:
+                    raise SubstrateRequestException(
+                        f"No runtime information for block '{block_hash}'"
+                    )
+
+                # Check if runtime state already set to current block
+                if runtime_info.get("specVersion") == self.runtime_version:
+                    return
+
+                self.runtime_version = runtime_info.get("specVersion")
+                self.transaction_version = runtime_info.get("transactionVersion")
+
+                if self.runtime_version in self.__metadata_cache:
+                    # Get metadata from cache
+                    # self.debug_message('Retrieved metadata for {} from memory'.format(self.runtime_version))
+                    self.metadata = self.__metadata_cache[self.runtime_version]
+                else:
+                    self.metadata = await self.get_block_metadata(
+                        block_hash=runtime_block_hash, decode=True
+                    )
+                    # self.debug_message('Retrieved metadata for {} from Substrate node'.format(self.runtime_version))
+
+                    # Update metadata cache
+                    self.__metadata_cache[self.runtime_version] = self.metadata
+
+                # Update type registry
+                self.reload_type_registry(use_remote_preset=False, auto_discover=True)
+
+                # Check if PortableRegistry is present in metadata (V14+), otherwise fall back on legacy type registry (<V14)
+                if self.implements_scaleinfo:
+                    # self.debug_message('Add PortableRegistry from metadata to type registry')
+                    self.runtime_config.add_portable_registry(self.metadata)
+
+                # Set active runtime version
+                self.runtime_config.set_active_spec_version_id(self.runtime_version)
+
+                # Check and apply runtime constants
+                ss58_prefix_constant = await self.get_constant(
+                    "System", "SS58Prefix", block_hash=block_hash
+                )
+
+                if ss58_prefix_constant:
+                    self.ss58_format = ss58_prefix_constant.value
+
+                # Set runtime compatibility flags
+                try:
+                    _ = self.runtime_config.create_scale_object(
+                        "sp_weights::weight_v2::Weight"
+                    )
+                    self.config["is_weight_v2"] = True
+                    self.runtime_config.update_type_registry_types(
+                        {"Weight": "sp_weights::weight_v2::Weight"}
+                    )
+                except NotImplementedError:
+                    self.config["is_weight_v2"] = False
+                    self.runtime_config.update_type_registry_types(
+                        {"Weight": "WeightV1"}
+                    )
                 runtime = Runtime(
                     self.chain,
-                    self.substrate.runtime_config,
-                    self.substrate.metadata,
+                    self.runtime_config,
+                    self.metadata,
                     self.type_registry,
                 )
                 self.runtime_cache.add_item(block_id, block_hash, runtime)
         return runtime
+
+    def reload_type_registry(
+        self, use_remote_preset: bool = True, auto_discover: bool = True
+    ):
+        """
+        Reload type registry and preset used to instantiate the SubtrateInterface object. Useful to periodically apply
+        changes in type definitions when a runtime upgrade occurred
+
+        Parameters
+        ----------
+        use_remote_preset: When True preset is downloaded from Github master, otherwise use files from local installed scalecodec package
+        auto_discover
+
+        Returns
+        -------
+
+        """
+        self.runtime_config.clear_type_registry()
+
+        self.runtime_config.implements_scale_info = self.implements_scaleinfo
+
+        # Load metadata types in runtime configuration
+        self.runtime_config.update_type_registry(load_type_registry_preset(name="core"))
+        self.apply_type_registry_presets(
+            use_remote_preset=use_remote_preset, auto_discover=auto_discover
+        )
+
+    def apply_type_registry_presets(
+        self, use_remote_preset: bool = True, auto_discover: bool = True
+    ):
+        if self.type_registry_preset is not None:
+            # Load type registry according to preset
+            type_registry_preset_dict = load_type_registry_preset(
+                name=self.type_registry_preset, use_remote_preset=use_remote_preset
+            )
+
+            if not type_registry_preset_dict:
+                raise ValueError(
+                    f"Type registry preset '{self.type_registry_preset}' not found"
+                )
+
+        elif auto_discover:
+            # Try to auto discover type registry preset by chain name
+            type_registry_name = self.chain.lower().replace(" ", "-")
+            try:
+                type_registry_preset_dict = load_type_registry_preset(
+                    type_registry_name
+                )
+                # self.debug_message(f"Auto set type_registry_preset to {type_registry_name} ...")
+                self.type_registry_preset = type_registry_name
+            except ValueError:
+                type_registry_preset_dict = None
+
+        else:
+            type_registry_preset_dict = None
+
+        if type_registry_preset_dict:
+            # Load type registries in runtime configuration
+            if self.implements_scaleinfo is False:
+                # Only runtime with no embedded types in metadata need the default set of explicit defined types
+                self.runtime_config.update_type_registry(
+                    load_type_registry_preset(
+                        "legacy", use_remote_preset=use_remote_preset
+                    )
+                )
+
+            if self.type_registry_preset != "legacy":
+                self.runtime_config.update_type_registry(type_registry_preset_dict)
+
+        if self.type_registry:
+            # Load type registries in runtime configuration
+            self.runtime_config.update_type_registry(self.type_registry)
+
+    @property
+    def implements_scaleinfo(self) -> Optional[bool]:
+        """
+        Returns True if current runtime implementation a `PortableRegistry` (`MetadataV14` and higher)
+
+        Returns
+        -------
+        bool
+        """
+        if self.metadata:
+            return self.metadata.portable_registry is not None
+        else:
+            return None
 
     async def get_block_runtime_version(self, block_hash: str) -> dict:
         """
@@ -514,7 +724,7 @@ class AsyncSubstrateInterface:
 
         """
         params = None
-        if decode and not self.substrate.runtime_config:
+        if decode and not self.runtime_config:
             raise ValueError(
                 "Cannot decode runtime configuration without a supplied runtime_config"
             )
@@ -527,7 +737,7 @@ class AsyncSubstrateInterface:
             raise SubstrateRequestException(response["error"]["message"])
 
         if response.get("result") and decode:
-            metadata_decoder = self.substrate.runtime_config.create_scale_object(
+            metadata_decoder = self.runtime_config.create_scale_object(
                 "MetadataVersioned", data=ScaleBytes(response.get("result"))
             )
             metadata_decoder.decode()
@@ -548,7 +758,7 @@ class AsyncSubstrateInterface:
         """
         params = query_for if query_for else []
         # Search storage call in metadata
-        metadata_pallet = self.substrate.metadata.get_metadata_pallet(module)
+        metadata_pallet = self.metadata.get_metadata_pallet(module)
 
         if not metadata_pallet:
             raise SubstrateRequestException(f'Pallet "{module}" not found')
@@ -573,14 +783,10 @@ class AsyncSubstrateInterface:
             module,
             storage_item.value["name"],
             params,
-            runtime_config=self.substrate.runtime_config,
-            metadata=self.substrate.metadata,
+            runtime_config=self.runtime_config,
+            metadata=self.metadata,
         )
-        method = (
-            "state_getStorageAt"
-            if self.substrate.supports_rpc_method("state_getStorageAt")
-            else "state_getStorage"
-        )
+        method = "state_getStorageAt"
         return Preprocessed(
             str(query_for),
             method,
@@ -618,8 +824,8 @@ class AsyncSubstrateInterface:
                 async with self._lock:
                     runtime = Runtime(
                         self.chain,
-                        self.substrate.runtime_config,
-                        self.substrate.metadata,
+                        self.runtime_config,
+                        self.metadata,
                         self.type_registry,
                     )
             if response.get("result") is not None:
@@ -750,8 +956,8 @@ class AsyncSubstrateInterface:
         ]
         runtime = Runtime(
             self.chain,
-            self.substrate.runtime_config,
-            self.substrate.metadata,
+            self.runtime_config,
+            self.metadata,
             self.type_registry,
         )
         result = await self._make_rpc_request(payloads, runtime=runtime)
@@ -778,8 +984,8 @@ class AsyncSubstrateInterface:
             ],
             runtime=Runtime(
                 self.chain,
-                self.substrate.runtime_config,
-                self.substrate.metadata,
+                self.runtime_config,
+                self.metadata,
                 self.type_registry,
             ),
         )
@@ -939,12 +1145,13 @@ class AsyncSubstrateInterface:
 
         async with self._lock:
             try:
-                runtime_call_def = self.substrate.runtime_config.type_registry[
-                    "runtime_api"
-                ][api]["methods"][method]
-                runtime_api_types = self.substrate.runtime_config.type_registry[
-                    "runtime_api"
-                ][api].get("types", {})
+                runtime_call_def = self.runtime_config.type_registry["runtime_api"][
+                    api
+                ]["methods"][method]
+                runtime_api_types = self.runtime_config.type_registry["runtime_api"][
+                    api
+                ].get("types", {})
+                print(self.runtime_config.type_registry)
             except KeyError:
                 raise ValueError(
                     f"Runtime API Call '{api}.{method}' not found in registry"
@@ -959,11 +1166,11 @@ class AsyncSubstrateInterface:
                 )
 
             # Add runtime API types to registry
-            self.substrate.runtime_config.update_type_registry_types(runtime_api_types)
+            self.runtime_config.update_type_registry_types(runtime_api_types)
             runtime = Runtime(
                 self.chain,
-                self.substrate.runtime_config,
-                self.substrate.metadata,
+                self.runtime_config,
+                self.metadata,
                 self.type_registry,
             )
 
@@ -1071,7 +1278,7 @@ class AsyncSubstrateInterface:
             call=call, keypair=keypair, signature=signature
         )
         async with self._lock:
-            extrinsic_len = self.substrate.runtime_config.create_scale_object("u32")
+            extrinsic_len = self.runtime_config.create_scale_object("u32")
         extrinsic_len.encode(len(extrinsic.data))
 
         result = await self.runtime_call(
@@ -1252,7 +1459,7 @@ class AsyncSubstrateInterface:
                             )
                             key_type_string.append(param_types[n])
 
-                        item_key_obj = self.substrate.decode_scale(
+                        item_key_obj = self.decode_scale(
                             type_string=f"({', '.join(key_type_string)})",
                             scale_bytes="0x" + item[0][len(prefix) :],
                             return_scale_obj=True,
@@ -1274,7 +1481,7 @@ class AsyncSubstrateInterface:
                         item_key = None
 
                     try:
-                        item_value = self.substrate.decode_scale(
+                        item_value = self.decode_scale(
                             type_string=value_type,
                             scale_bytes=item[1],
                             return_scale_obj=True,
@@ -1452,7 +1659,6 @@ class AsyncSubstrateInterface:
         """
         Closes the substrate connection, and the websocket connection.
         """
-        self.substrate.close()
         try:
             await self.ws.shutdown()
         except AttributeError:
