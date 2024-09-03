@@ -4,7 +4,7 @@ import curses
 import os.path
 import re
 from pathlib import Path
-from typing import Coroutine, Optional
+from typing import Coroutine, Optional, Union
 
 import rich
 import typer
@@ -2798,13 +2798,13 @@ class CLIManager:
         )
 
     def stake_get_children(
-        self,
-        wallet_name: Optional[str] = Options.wallet_name_req,
-        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
-        wallet_path: Optional[str] = Options.wallet_path,
-        network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
-        netuid: int = Options.netuid,
+            self,
+            wallet_name: Optional[str] = Options.wallet_name_req,
+            wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+            wallet_path: Optional[str] = Options.wallet_path,
+            network: Optional[str] = Options.network,
+            chain: Optional[str] = Options.chain,
+            netuid: Optional[str] = Options.netuid,
     ):
         """
         Get all child hotkeys on a specified subnet on the Bittensor network.
@@ -2817,21 +2817,20 @@ class CLIManager:
         The command compiles a table showing:
 
         - ChildHotkey: The hotkey associated with the child.
-
         - ParentHotKey: The hotkey associated with the parent.
-
         - Proportion: The proportion that is assigned to them.
-
         - Expiration: The expiration of the hotkey.
-
 
         # Example usage:
 
         [green]$[/green]btcli stake get_children --netuid 1
+        [green]$[/green]btcli stake get_children --netuid all
 
         [italic]]Note[/italic]: This command is for users who wish to see child hotkeys among different neurons (hotkeys) on the network.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        if netuid == 'all':
+            netuid = None
         return self._run_command(
             stake.get_children(wallet, self.initialize_chain(network, chain), netuid)
         )
@@ -2956,6 +2955,7 @@ class CLIManager:
         netuid: int = Options.netuid,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
+        prompt: bool = Options.prompt,
         take: Optional[float] = typer.Option(
             None,
             "--take",
@@ -2993,6 +2993,7 @@ class CLIManager:
                 take=take,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
+                prompt=prompt
             )
         )
 
