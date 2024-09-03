@@ -37,6 +37,9 @@ def setup_wallet(uri: str):
             sub_command,
         ] + extra_args
 
+        full_command = ["btcli"] + args
+        print("Executing command:", " ".join(full_command))
+
         input_text = "\n".join(inputs) + "\n" if inputs else None
         result = runner.invoke(
             cli_manager.app, args, input=input_text, env={"COLUMNS": "700"}
