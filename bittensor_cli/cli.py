@@ -4,7 +4,7 @@ import curses
 import os.path
 import re
 from pathlib import Path
-from typing import Coroutine, Optional, Union
+from typing import Coroutine, Optional
 
 import rich
 import typer
@@ -2798,13 +2798,13 @@ class CLIManager:
         )
 
     def stake_get_children(
-            self,
-            wallet_name: Optional[str] = Options.wallet_name_req,
-            wallet_hotkey: Optional[str] = Options.wallet_hk_req,
-            wallet_path: Optional[str] = Options.wallet_path,
-            network: Optional[str] = Options.network,
-            chain: Optional[str] = Options.chain,
-            netuid: Optional[str] = Options.netuid,
+        self,
+        wallet_name: Optional[str] = Options.wallet_name_req,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        wallet_path: Optional[str] = Options.wallet_path,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        netuid: Optional[str] = Options.netuid,
     ):
         """
         Get all child hotkeys on a specified subnet on the Bittensor network.
