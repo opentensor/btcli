@@ -146,7 +146,7 @@ async def add_stake_extrinsic(
         if not own_hotkey:
             # This is not the wallet's own hotkey, so we are delegating.
             if not await subtensor.is_hotkey_delegate(
-                    hotkey_ss58, block_hash=block_hash
+                hotkey_ss58, block_hash=block_hash
             ):
                 err_console.print(
                     f"Hotkey {hotkey_ss58} is not a delegate on the chain."
@@ -1175,7 +1175,7 @@ async def show(
                         "name": delegate_name,
                         "stake": nom[1],
                         "rate": dele.total_daily_return.tao
-                            * (nom[1] / dele.total_stake.tao),
+                        * (nom[1] / dele.total_stake.tao),
                     }
         return stakes
 
@@ -1694,7 +1694,7 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
             return 0
 
     async def _render_table(
-            hk: str, children_: list[tuple[int, str]], prompt: bool = True, netuid: int = None,
+        hk: str, children_: list[tuple[int, str]], prompt: bool = True, netuid: int = None,
     ):
         # Initialize Rich table for pretty printing
         table = Table(
