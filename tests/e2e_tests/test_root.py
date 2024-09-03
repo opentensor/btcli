@@ -1,4 +1,3 @@
-import logging
 import time
 
 from bittensor_cli.src.bittensor.balances import Balance
@@ -33,7 +32,7 @@ def test_root_commands(local_chain):
     Raises:
         AssertionError: If any of the checks or verifications fail
     """
-    logging.info("Testing Root commands 🧪")
+    print("Testing Root commands 🧪")
 
     wallet_path_alice = "//Alice"
     wallet_path_bob = "//Bob"
@@ -80,16 +79,16 @@ def test_root_commands(local_chain):
 
     # Capture root information and assert correct values
     # First two rows are labels, entries start from the third row
-    bob_root_info = check_root_list.stdout.splitlines()[2].split()
+    bob_root_info = check_root_list.stdout.splitlines()[3].split()
 
     # UID: First uid is always 0
     assert bob_root_info[0] == "0"
 
     # ADDRESS: Assert correct hotkey is registered
-    assert bob_root_info[1] == wallet_bob.hotkey.ss58_address
+    assert bob_root_info[3] == wallet_bob.hotkey.ss58_address
 
     # SENATOR: Since there are senator slots empty, Bob is assigned senator status
-    assert bob_root_info[3] == "Yes"
+    assert bob_root_info[7] == "Yes"
 
     # List all root delegates in the network
     check_delegates = exec_command_alice(
@@ -105,7 +104,7 @@ def test_root_commands(local_chain):
 
     # Capture delegate information and assert correct values
     # First row are labels, entries start from the second row
-    bob_delegate_info = check_delegates.stdout.splitlines()[1].split()
+    bob_delegate_info = check_delegates.stdout.splitlines()[3].split()
 
     # INDEX: First uid is always 0
     assert bob_delegate_info[0] == "0"
@@ -166,7 +165,7 @@ def test_root_commands(local_chain):
         ],
     )
     # Capture delegate information after setting take
-    bob_delegate_info = check_delegates.stdout.splitlines()[1].split()
+    bob_delegate_info = check_delegates.stdout.splitlines()[3].split()
 
     # Take percentage: This should be 18% by default
     take_percentage = float(bob_delegate_info[7].strip("%")) / 100
@@ -210,15 +209,13 @@ def test_root_commands(local_chain):
         ],
     )
     # First row are headers, records start from second row
-    alice_delegates_info = alice_delegates.stdout.splitlines()[1].split()
+    alice_delegates_info = alice_delegates.stdout.splitlines()[4].split()
 
     # WALLET: Wallet name of Alice
     assert alice_delegates_info[0] == wallet_alice.name
 
     # SS58: address of the Bob's hotkey (Alice has staked to Bob)
-    assert wallet_bob.hotkey.ss58_address.startswith(
-        alice_delegates_info[1].replace("...", "")
-    )
+    assert wallet_bob.hotkey.ss58_address == alice_delegates_info[1]
 
     # Delegation: This should be 10 as Alice delegated 10 TAO to Bob
     delegate_stake = Balance.from_tao(float(alice_delegates_info[2].strip("τ")))
@@ -231,7 +228,7 @@ def test_root_commands(local_chain):
     # Total delegated Tao: This is listed at the bottom of the information
     # Since Alice has only delegated to Bob, total should be 10 TAO
     total_delegated_tao = Balance.from_tao(
-        float(alice_delegates.stdout.splitlines()[3].split()[3].strip("τ"))
+        float(alice_delegates.stdout.splitlines()[7].split()[3].strip("τ"))
     )
     assert total_delegated_tao == Balance.from_tao(10)
 
@@ -261,6 +258,7 @@ def test_root_commands(local_chain):
         ],
     )
     assert "✅ Finalized" in undelegate_alice.stdout
-
+    
+    print("✅ Passed Root commands")
     remove_wallets(wallet_path_alice)
     remove_wallets(wallet_path_bob)
