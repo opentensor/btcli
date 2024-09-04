@@ -216,16 +216,17 @@ async def add_stake_extrinsic(
             if not Confirm.ask(
                 f"Do you want to delegate:[bold white]\n"
                 f"\tamount: {staking_balance}\n"
-                f"\tto: {wallet.hotkey_str}\n"
-                f"\ttake: {hotkey_take}\n"
-                f"\towner: {hotkey_owner}[/bold white]"
+                f"\tto: {hotkey_ss58}\n"
+                f"\ttake: {hotkey_take}\n[/bold white]"
+                f"\towner: {hotkey_owner}\n"
             ):
                 return False
         else:
             if not Confirm.ask(
                 f"Do you want to stake:[bold white]\n"
                 f"\tamount: {staking_balance}\n"
-                f"\tto: {wallet.hotkey_str}[/bold white]"
+                f"\tto: {wallet.hotkey_str}\n"
+                f"\taddress: {hotkey_ss58}[/bold white]\n"
             ):
                 return False
 
@@ -1366,6 +1367,7 @@ async def stake_add(
     exclude_hotkeys: list[str],
     all_hotkeys: bool,
     prompt: bool,
+    hotkey_ss58: Optional[str] = None,
 ) -> None:
     """Stake token of amount to hotkey(s)."""
 
@@ -1374,7 +1376,10 @@ async def stake_add(
 
     # Get the hotkey_names (if any) and the hotkey_ss58s.
     hotkeys_to_stake_to: list[tuple[Optional[str], str]] = []
-    if all_hotkeys:
+    if hotkey_ss58:
+        # Stake to specific hotkey.
+        hotkeys_to_stake_to = [(None, hotkey_ss58)]
+    elif all_hotkeys:
         # Stake to all hotkeys.
         all_hotkeys_: list[Wallet] = get_hotkey_wallets_for_wallet(wallet=wallet)
         # Get the hotkeys to exclude. (d)efault to no exclusions.
@@ -1489,20 +1494,6 @@ async def stake_add(
             )
             raise ValueError
 
-        # Ask to stake
-        if prompt:
-            if not Confirm.ask(
-                f"Do you want to stake to the following keys from {wallet.name}:\n"
-                + "".join(
-                    [
-                        f"    [bold white]- {hotkey[0] + ':' if hotkey[0] else ''}{hotkey[1]}: "
-                        f"{f'{amount} {Balance.unit}' if amount else 'All'}[/bold white]\n"
-                        for hotkey, amount in zip(final_hotkeys, final_amounts)
-                    ]
-                )
-            ):
-                raise ValueError
-
         if len(final_hotkeys) == 1:
             # do regular stake
             await add_stake_extrinsic(
@@ -1512,7 +1503,7 @@ async def stake_add(
                 hotkey_ss58=final_hotkeys[0][1],
                 amount=None if stake_all else final_amounts[0],
                 wait_for_inclusion=True,
-                prompt=False,
+                prompt=prompt,
             )
         else:
             await add_stake_multiple_extrinsic(
@@ -1522,7 +1513,7 @@ async def stake_add(
                 hotkey_ss58s=[hotkey_ss58 for _, hotkey_ss58 in final_hotkeys],
                 amounts=None if stake_all else final_amounts,
                 wait_for_inclusion=True,
-                prompt=False,
+                prompt=prompt,
             )
     except ValueError:
         pass
