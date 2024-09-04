@@ -986,113 +986,112 @@ class AsyncSubstrateInterface:
         if block_id and block_hash:
             raise ValueError("Cannot provide block_hash and block_id at the same time")
 
-        async with self._lock:
-            if not (runtime := self.runtime_cache.retrieve(block_id, block_hash)):
-                # Check if runtime state already set to current block
-                if (block_hash and block_hash == self.last_block_hash) or (
-                    block_id and block_id == self.block_id
-                ):
-                    return
+        if not (runtime := self.runtime_cache.retrieve(block_id, block_hash)):
+            # Check if runtime state already set to current block
+            if (block_hash and block_hash == self.last_block_hash) or (
+                block_id and block_id == self.block_id
+            ):
+                return
 
-                if block_id is not None:
-                    block_hash = await self.get_block_hash(block_id)
+            if block_id is not None:
+                block_hash = await self.get_block_hash(block_id)
 
-                if not block_hash:
-                    block_hash = await self.get_chain_head()
+            if not block_hash:
+                block_hash = await self.get_chain_head()
 
-                self.last_block_hash = block_hash
-                self.block_id = block_id
+            self.last_block_hash = block_hash
+            self.block_id = block_id
 
-                # In fact calls and storage functions are decoded against runtime of previous block, therefor retrieve
-                # metadata and apply type registry of runtime of parent block
-                block_header = await self.rpc_request(
-                    "chain_getHeader", [self.last_block_hash]
+            # In fact calls and storage functions are decoded against runtime of previous block, therefor retrieve
+            # metadata and apply type registry of runtime of parent block
+            block_header = await self.rpc_request(
+                "chain_getHeader", [self.last_block_hash]
+            )
+
+            if block_header["result"] is None:
+                raise SubstrateRequestException(
+                    f'Block not found for "{self.last_block_hash}"'
                 )
 
-                if block_header["result"] is None:
-                    raise SubstrateRequestException(
-                        f'Block not found for "{self.last_block_hash}"'
-                    )
+            parent_block_hash: str = block_header["result"]["parentHash"]
 
-                parent_block_hash: str = block_header["result"]["parentHash"]
+            if (
+                parent_block_hash
+                == "0x0000000000000000000000000000000000000000000000000000000000000000"
+            ):
+                runtime_block_hash = self.last_block_hash
+            else:
+                runtime_block_hash = parent_block_hash
 
-                if (
-                    parent_block_hash
-                    == "0x0000000000000000000000000000000000000000000000000000000000000000"
-                ):
-                    runtime_block_hash = self.last_block_hash
-                else:
-                    runtime_block_hash = parent_block_hash
+            runtime_info = await self.get_block_runtime_version(
+                block_hash=runtime_block_hash
+            )
 
-                runtime_info = await self.get_block_runtime_version(
-                    block_hash=runtime_block_hash
+            if runtime_info is None:
+                raise SubstrateRequestException(
+                    f"No runtime information for block '{block_hash}'"
                 )
 
-                if runtime_info is None:
-                    raise SubstrateRequestException(
-                        f"No runtime information for block '{block_hash}'"
-                    )
+            # Check if runtime state already set to current block
+            if runtime_info.get("specVersion") == self.runtime_version:
+                return
 
-                # Check if runtime state already set to current block
-                if runtime_info.get("specVersion") == self.runtime_version:
-                    return
+            self.runtime_version = runtime_info.get("specVersion")
+            self.transaction_version = runtime_info.get("transactionVersion")
 
-                self.runtime_version = runtime_info.get("specVersion")
-                self.transaction_version = runtime_info.get("transactionVersion")
-
-                if self.runtime_version in self.__metadata_cache:
-                    # Get metadata from cache
-                    # self.debug_message('Retrieved metadata for {} from memory'.format(self.runtime_version))
-                    self.metadata = self.__metadata_cache[self.runtime_version]
-                else:
-                    self.metadata = await self.get_block_metadata(
-                        block_hash=runtime_block_hash, decode=True
-                    )
-                    # self.debug_message('Retrieved metadata for {} from Substrate node'.format(self.runtime_version))
-
-                    # Update metadata cache
-                    self.__metadata_cache[self.runtime_version] = self.metadata
-
-                # Update type registry
-                self.reload_type_registry(use_remote_preset=False, auto_discover=True)
-
-                # Check if PortableRegistry is present in metadata (V14+), otherwise fall back on legacy type registry (<V14)
-                if self.implements_scaleinfo:
-                    # self.debug_message('Add PortableRegistry from metadata to type registry')
-                    self.runtime_config.add_portable_registry(self.metadata)
-
-                # Set active runtime version
-                self.runtime_config.set_active_spec_version_id(self.runtime_version)
-
-                # Check and apply runtime constants
-                ss58_prefix_constant = await self.get_constant(
-                    "System", "SS58Prefix", block_hash=block_hash
+            if self.runtime_version in self.__metadata_cache:
+                # Get metadata from cache
+                # self.debug_message('Retrieved metadata for {} from memory'.format(self.runtime_version))
+                self.metadata = self.__metadata_cache[self.runtime_version]
+            else:
+                self.metadata = await self.get_block_metadata(
+                    block_hash=runtime_block_hash, decode=True
                 )
+                # self.debug_message('Retrieved metadata for {} from Substrate node'.format(self.runtime_version))
 
-                if ss58_prefix_constant:
-                    self.ss58_format = ss58_prefix_constant.value
+                # Update metadata cache
+                self.__metadata_cache[self.runtime_version] = self.metadata
 
-                # Set runtime compatibility flags
-                try:
-                    _ = self.runtime_config.create_scale_object(
-                        "sp_weights::weight_v2::Weight"
-                    )
-                    self.config["is_weight_v2"] = True
-                    self.runtime_config.update_type_registry_types(
-                        {"Weight": "sp_weights::weight_v2::Weight"}
-                    )
-                except NotImplementedError:
-                    self.config["is_weight_v2"] = False
-                    self.runtime_config.update_type_registry_types(
-                        {"Weight": "WeightV1"}
-                    )
-                runtime = Runtime(
-                    self.chain,
-                    self.runtime_config,
-                    self.metadata,
-                    self.type_registry,
+            # Update type registry
+            self.reload_type_registry(use_remote_preset=False, auto_discover=True)
+
+            # Check if PortableRegistry is present in metadata (V14+), otherwise fall back on legacy type registry (<V14)
+            if self.implements_scaleinfo:
+                # self.debug_message('Add PortableRegistry from metadata to type registry')
+                self.runtime_config.add_portable_registry(self.metadata)
+
+            # Set active runtime version
+            self.runtime_config.set_active_spec_version_id(self.runtime_version)
+
+            # Check and apply runtime constants
+            ss58_prefix_constant = await self.get_constant(
+                "System", "SS58Prefix", block_hash=block_hash
+            )
+
+            if ss58_prefix_constant:
+                self.ss58_format = ss58_prefix_constant.value
+
+            # Set runtime compatibility flags
+            try:
+                _ = self.runtime_config.create_scale_object(
+                    "sp_weights::weight_v2::Weight"
                 )
-                self.runtime_cache.add_item(block_id, block_hash, runtime)
+                self.config["is_weight_v2"] = True
+                self.runtime_config.update_type_registry_types(
+                    {"Weight": "sp_weights::weight_v2::Weight"}
+                )
+            except NotImplementedError:
+                self.config["is_weight_v2"] = False
+                self.runtime_config.update_type_registry_types(
+                    {"Weight": "WeightV1"}
+                )
+            runtime = Runtime(
+                self.chain,
+                self.runtime_config,
+                self.metadata,
+                self.type_registry,
+            )
+            self.runtime_cache.add_item(block_id, block_hash, runtime)
         return runtime
 
     def reload_type_registry(
