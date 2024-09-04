@@ -308,10 +308,6 @@ async def root_register_extrinsic(
             ":white_heavy_check_mark: [green]Already registered on root network.[/green]"
         )
         return True
-    if prompt:
-        # Prompt user for confirmation.
-        if not Confirm.ask("Register to root network?"):
-            return False
 
     with console.status(":satellite: Registering to root network..."):
         call = await subtensor.substrate.compose_call(

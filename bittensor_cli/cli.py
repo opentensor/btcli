@@ -2588,6 +2588,10 @@ class CLIManager:
             "-m",
             help="Sets the maximum amount of TAO to have staked in each hotkey.",
         ),
+        hotkey_ss58_address: str = typer.Option(
+            "",
+            help="The SS58 address of the hotkey to unstake from.",
+        ),
         include_hotkeys: list[str] = typer.Option(
             [],
             "--include-hotkeys",
@@ -2641,26 +2645,40 @@ class CLIManager:
                 "Cannot specify an amount and 'stake-all'. Choose one or the other."
             )
             raise typer.Exit()
+
         if not stake_all and not amount:
             amount = FloatPrompt.ask("[blue bold]Amount to stake (TAO τ)[/blue bold]")
+
         if stake_all and not amount:
             if not Confirm.ask("Stake all available TAO tokens?", default=False):
                 raise typer.Exit()
+
         if all_hotkeys and include_hotkeys:
             err_console.print(
                 "You have specified hotkeys to include and the `--all-hotkeys` flag. The flag"
                 "should only be used standalone (to use all hotkeys) or with `--exclude-hotkeys`."
             )
             raise typer.Exit()
+
         if include_hotkeys and exclude_hotkeys:
             err_console.print(
                 "You have specified including and excluding hotkeys. Select one or the other."
             )
             raise typer.Exit()
+
         if not wallet_hotkey and not all_hotkeys and not include_hotkeys:
             _hotkey_str = typer.style("hotkey", fg="red")
-            wallet_hotkey = typer.prompt(f"Enter {_hotkey_str} name: ")
-            wallet = self.wallet_ask(wallet.name, wallet_path, wallet_hotkey)
+            hotkey = typer.prompt(
+                f"Enter {_hotkey_str} name to stake or ss58_address"
+            )
+            if not is_valid_ss58_address(hotkey):
+                wallet_hotkey = hotkey
+                wallet = self.wallet_ask(
+                    wallet.name, wallet_path, wallet_hotkey, validate=True
+                )
+            else:
+                hotkey_ss58_address = hotkey
+
         return self._run_command(
             stake.stake_add(
                 wallet,
@@ -2672,6 +2690,7 @@ class CLIManager:
                 exclude_hotkeys,
                 all_hotkeys,
                 prompt,
+                hotkey_ss58_address,
             )
         )
 
