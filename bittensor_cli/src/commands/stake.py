@@ -1027,9 +1027,9 @@ def prepare_child_proportions(children_with_proportions):
     ]
     total = sum(proportion for proportion, _ in children_u64)
 
-    if total > (2 ** 64 - 1):
-        excess = total - (2 ** 64 - 1)
-        if excess > (2 ** 64 * 0.01):  # Example threshold of 1% of u64 max
+    if total > (2**64 - 1):
+        excess = total - (2**64 - 1)
+        if excess > (2**64 * 0.01):  # Example threshold of 1% of u64 max
             raise ValueError("Excess is too great to normalize proportions")
         largest_child_index = max(
             range(len(children_u64)), key=lambda i: children_u64[i][0]
@@ -1658,7 +1658,9 @@ async def unstake(
             )
 
 
-async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: Optional[int] = None):
+async def get_children(
+    wallet: Wallet, subtensor: "SubtensorInterface", netuid: Optional[int] = None
+):
     async def get_total_stake_for_hk(hotkey: str, parent: bool = False):
         _result = await subtensor.substrate.query(
             module="SubtensorModule",
@@ -1666,7 +1668,11 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
             params=[hotkey],
             reuse_block_hash=True,
         )
-        stake = Balance.from_rao(_result.value) if getattr(_result, "value", None) else Balance(0)
+        stake = (
+            Balance.from_rao(_result.value)
+            if getattr(_result, "value", None)
+            else Balance(0)
+        )
         if parent:
             console.print(
                 f"\nYour Hotkey: {hotkey}  |  ", style="cyan", end="", no_wrap=True
@@ -1694,7 +1700,10 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
             return 0
 
     async def _render_table(
-        hk: str, children_: list[tuple[int, str]], prompt: bool = True, netuid: int = None,
+        hk: str,
+        children_: list[tuple[int, str]],
+        prompt: bool = True,
+        netuid: int = None,
     ):
         # Initialize Rich table for pretty printing
         table = Table(
@@ -1808,7 +1817,9 @@ async def get_children(wallet: Wallet, subtensor: "SubtensorInterface", netuid: 
             if children:
                 await _render_table(wallet.hotkey.ss58_address, children, False, netuid)
             if not success:
-                err_console.print(f"Failed to get children from subtensor {netuid}: {err_mg}")
+                err_console.print(
+                    f"Failed to get children from subtensor {netuid}: {err_mg}"
+                )
 
     else:
         success, children, err_mg = await subtensor.get_children(
