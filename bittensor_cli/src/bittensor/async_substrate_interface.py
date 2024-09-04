@@ -6,6 +6,7 @@ from hashlib import blake2b
 from typing import Optional, Any, Union, Callable, Awaitable, cast
 
 import websockets
+from async_property import async_property
 from scalecodec import GenericExtrinsic
 from scalecodec.base import ScaleBytes, ScaleType, RuntimeConfigurationObject
 from scalecodec.type_registry import load_type_registry_preset
@@ -115,7 +116,7 @@ class ExtrinsicReceipt:
 
             self.__extrinsic = extrinsics[self.__extrinsic_idx]
 
-    @property
+    @async_property
     async def extrinsic_idx(self) -> int:
         """
         Retrieves the index of this extrinsic in containing block
@@ -126,9 +127,9 @@ class ExtrinsicReceipt:
         """
         if self.__extrinsic_idx is None:
             await self.retrieve_extrinsic()
-        return cast(int, self.__extrinsic_idx)
+        return self.__extrinsic_idx
 
-    @property
+    @async_property
     async def triggered_events(self) -> list:
         """
         Gets triggered events for submitted extrinsic. block_hash where extrinsic is included is required, manually
@@ -151,7 +152,7 @@ class ExtrinsicReceipt:
             self.__triggered_events = []
 
             for event in await self.substrate.get_events(block_hash=self.block_hash):
-                if await event.extrinsic_idx == self.extrinsic_idx:
+                if event.extrinsic_idx == await self.extrinsic_idx:  # TODO figure out where tf this is being set. I should not have to await it here.
                     self.__triggered_events.append(event)
 
         return cast(list, self.__triggered_events)
@@ -346,7 +347,7 @@ class ExtrinsicReceipt:
                     ):
                         self.__total_fee_amount += event.params[1]["value"]
 
-    @property
+    @async_property
     async def is_success(self) -> bool:
         """
         Returns `True` if `ExtrinsicSuccess` event is triggered, `False` in case of `ExtrinsicFailed`
@@ -362,7 +363,7 @@ class ExtrinsicReceipt:
 
         return cast(bool, self.__is_success)
 
-    @property
+    @async_property
     async def error_message(self) -> Optional[dict]:
         """
         Returns the error message if the extrinsic failed in format e.g.:
@@ -379,7 +380,7 @@ class ExtrinsicReceipt:
             await self.process_events()
         return self.__error_message
 
-    @property
+    @async_property
     async def weight(self) -> Union[int, dict]:
         """
         Contains the actual weight when executing this extrinsic
@@ -392,7 +393,7 @@ class ExtrinsicReceipt:
             await self.process_events()
         return self.__weight
 
-    @property
+    @async_property
     async def total_fee_amount(self) -> int:
         """
         Contains the total fee costs deducted when executing this extrinsic. This includes fee for the validator (
@@ -902,6 +903,7 @@ class AsyncSubstrateInterface:
                 chain = await self.rpc_request("system_chain", [])
                 self.__chain = chain.get("result")
                 self.reload_type_registry()
+                await self.init_runtime(None)
             self.initialized = True
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -932,7 +934,7 @@ class AsyncSubstrateInterface:
                 return self.last_block_hash
         return block_hash
 
-    def decode_scale(
+    async def decode_scale(
         self, type_string, scale_bytes, block_hash=None, return_scale_obj=False
     ):
         """
@@ -951,7 +953,7 @@ class AsyncSubstrateInterface:
         -------
 
         """
-        self.init_runtime(block_hash=block_hash)
+        await self.init_runtime(block_hash=block_hash)
 
         if isinstance(scale_bytes, str):
             scale_bytes = ScaleBytes(scale_bytes)
@@ -1329,7 +1331,7 @@ class AsyncSubstrateInterface:
             rpc_method_prefix = "Finalized" if finalized_only else "New"
 
             async def result_handler(message, update_nr, subscription_id):
-                new_block = decode_block({"header": message["params"]["result"]})
+                new_block = await decode_block({"header": message["params"]["result"]})
 
                 subscription_result = subscription_handler(
                     new_block, update_nr, subscription_id
@@ -1362,13 +1364,13 @@ class AsyncSubstrateInterface:
         else:
             if header_only:
                 response = await self.rpc_request("chain_getHeader", [block_hash])
-                return decode_block(
+                return await decode_block(
                     {"header": response["result"]}, block_data_hash=block_hash
                 )
 
             else:
                 response = await self.rpc_request("chain_getBlock", [block_hash])
-                return decode_block(
+                return await decode_block(
                     response["result"]["block"], block_data_hash=block_hash
                 )
 
@@ -2142,7 +2144,6 @@ class AsyncSubstrateInterface:
                 runtime_api_types = self.runtime_config.type_registry["runtime_api"][
                     api
                 ].get("types", {})
-                print(self.runtime_config.type_registry)
             except KeyError:
                 raise ValueError(
                     f"Runtime API Call '{api}.{method}' not found in registry"
@@ -2256,7 +2257,7 @@ class AsyncSubstrateInterface:
         )
         if constant:
             # Decode to ScaleType
-            return self.decode_scale(
+            return await self.decode_scale(
                 constant.type,
                 ScaleBytes(constant.constant_value),
                 block_hash=block_hash,
@@ -2483,7 +2484,7 @@ class AsyncSubstrateInterface:
                             )
                             key_type_string.append(param_types[n])
 
-                        item_key_obj = self.decode_scale(
+                        item_key_obj = await self.decode_scale(
                             type_string=f"({', '.join(key_type_string)})",
                             scale_bytes="0x" + item[0][len(prefix) :],
                             return_scale_obj=True,
@@ -2505,7 +2506,7 @@ class AsyncSubstrateInterface:
                         item_key = None
 
                     try:
-                        item_value = self.decode_scale(
+                        item_value = await self.decode_scale(
                             type_string=value_type,
                             scale_bytes=item[1],
                             return_scale_obj=True,
@@ -2627,7 +2628,7 @@ class AsyncSubstrateInterface:
             # Also, this will be a multipart response, so maybe should change to everything after the first response?
             # The following code implies this will be a single response after the initial subscription id.
             result = ExtrinsicReceipt(
-                substrate=cast("AsyncSubstrateInterface", self.substrate),
+                substrate=self,
                 extrinsic_hash=response["extrinsic_hash"],
                 block_hash=response["block_hash"],
                 finalized=response["finalized"],
@@ -2642,7 +2643,7 @@ class AsyncSubstrateInterface:
                 raise SubstrateRequestException(response.get("error"))
 
             result = ExtrinsicReceipt(
-                substrate=self.substrate, extrinsic_hash=response["result"]
+                substrate=self, extrinsic_hash=response["result"]
             )
 
         return result
