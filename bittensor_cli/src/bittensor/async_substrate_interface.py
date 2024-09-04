@@ -3,7 +3,7 @@ import json
 from collections import defaultdict
 from dataclasses import dataclass
 from hashlib import blake2b
-from typing import Optional, Any, Union, Callable, Awaitable
+from typing import Optional, Any, Union, Callable, Awaitable, cast
 
 import websockets
 from scalecodec import GenericExtrinsic
@@ -38,10 +38,10 @@ class ExtrinsicReceipt:
     def __init__(
         self,
         substrate: "AsyncSubstrateInterface",
-        extrinsic_hash: str = None,
-        block_hash: str = None,
-        block_number: int = None,
-        extrinsic_idx: int = None,
+        extrinsic_hash: Optional[str]  = None,
+        block_hash: Optional[str]  = None,
+        block_number: Optional[int] = None,
+        extrinsic_idx: Optional[int] = None,
         finalized=None,
     ):
         """
@@ -64,8 +64,8 @@ class ExtrinsicReceipt:
         self.__extrinsic_idx = extrinsic_idx
         self.__extrinsic = None
 
-        self.__triggered_events = None
-        self.__is_success = None
+        self.__triggered_events: Optional[list] = None
+        self.__is_success: Optional[bool] = None
         self.__error_message = None
         self.__weight = None
         self.__total_fee_amount = None
@@ -126,7 +126,7 @@ class ExtrinsicReceipt:
         """
         if self.__extrinsic_idx is None:
             self.retrieve_extrinsic()
-        return self.__extrinsic_idx
+        return cast(int, self.__extrinsic_idx)
 
     @property
     def extrinsic(self) -> GenericExtrinsic:
@@ -142,7 +142,7 @@ class ExtrinsicReceipt:
         return self.__extrinsic
 
     @property
-    def triggered_events(self) -> list:
+    async def triggered_events(self) -> list:
         """
         Gets triggered events for submitted extrinsic. block_hash where extrinsic is included is required, manually
         set block_hash or use `wait_for_inclusion` when submitting extrinsic
@@ -159,18 +159,18 @@ class ExtrinsicReceipt:
                 )
 
             if self.extrinsic_idx is None:
-                self.retrieve_extrinsic()
+                await self.retrieve_extrinsic()
 
             self.__triggered_events = []
 
-            for event in self.substrate.get_events(block_hash=self.block_hash):
+            for event in await self.substrate.get_events(block_hash=self.block_hash):
                 if event.extrinsic_idx == self.extrinsic_idx:
                     self.__triggered_events.append(event)
 
-        return self.__triggered_events
+        return cast(list, self.__triggered_events)
 
-    def process_events(self):
-        if self.triggered_events:
+    async def process_events(self):
+        if await self.triggered_events:
             self.__total_fee_amount = 0
 
             # Process fees
@@ -185,9 +185,9 @@ class ExtrinsicReceipt:
                     has_transaction_fee_paid_event = True
 
             # Process other events
-            for event in self.triggered_events:
+            for event in await self.triggered_events:
                 # Check events
-                if self.substrate.implements_scaleinfo():
+                if self.substrate.implements_scaleinfo:
                     if (
                         event.value["module_id"] == "System"
                         and event.value["event_id"] == "ExtrinsicSuccess"
@@ -373,7 +373,7 @@ class ExtrinsicReceipt:
         if self.__is_success is None:
             self.process_events()
 
-        return self.__is_success
+        return cast(bool, self.__is_success)
 
     @property
     def error_message(self) -> Optional[dict]:
@@ -403,7 +403,7 @@ class ExtrinsicReceipt:
         """
         if self.__weight is None:
             self.process_events()
-        return self.__weight
+        return self.__weight, bool
 
     @property
     def total_fee_amount(self) -> int:
@@ -417,7 +417,7 @@ class ExtrinsicReceipt:
         """
         if self.__total_fee_amount is None:
             self.process_events()
-        return self.__total_fee_amount
+        return cast(int, self.__total_fee_amount)
 
     # Helper functions
     @staticmethod
@@ -450,11 +450,11 @@ class QueryMapResult:
         self,
         records: list,
         page_size: int,
+        substrate: "AsyncSubstrateInterface",
         module: str = None,
-        storage_function: str = None,
-        params: list = None,
-        block_hash: str = None,
-        substrate: "AsyncSubstrateInterface" = None,
+        storage_function: Optional[str] = None,
+        params: Optional[list] = None,
+        block_hash: Optional[str] = None,
         last_key: str = None,
         max_results: int = None,
         ignore_decoding_errors: bool = False,
@@ -473,9 +473,6 @@ class QueryMapResult:
         self._buffer = iter(self.records)  # Initialize the buffer with initial records
 
     async def retrieve_next_page(self, start_key) -> list:
-        if not self.substrate:
-            return []
-
         result = await self.substrate.query_map(
             module=self.module,
             storage_function=self.storage_function,
@@ -533,16 +530,16 @@ class RuntimeCache:
         self.blocks = {}
         self.block_hashes = {}
 
-    def add_item(self, block: int, block_hash: str, runtime: "Runtime"):
-        if block:
+    def add_item(self, block: Optional[int], block_hash: Optional[str], runtime: "Runtime"):
+        if block is not None:
             self.blocks[block] = runtime
-        if block_hash:
-            self.block_hashes[block] = runtime
+        if block_hash is not None:
+            self.block_hashes[block_hash] = runtime
 
-    def retrieve(self, block: int, block_hash: str):
-        if block:
+    def retrieve(self, block: Optional[int], block_hash: Optional[str]) -> Optional["Runtime"]:
+        if block is not None:
             return self.blocks.get(block)
-        elif block_hash:
+        elif block_hash is not None:
             return self.block_hashes.get(block_hash)
         else:
             return None
@@ -726,7 +723,7 @@ class Websocket:
         # TODO allow setting max concurrent connections and rpc subscriptions per connection
         # TODO reconnection logic
         self.ws_url = ws_url
-        self.ws = None
+        self.ws: Optional[websockets.WebSocketClientProtocol] = None
         self.id = 0
         self.max_subscriptions = max_subscriptions
         self.max_connections = max_connections
@@ -797,7 +794,7 @@ class Websocket:
 
     async def _recv(self) -> None:
         try:
-            response = json.loads(await self.ws.recv())
+            response = json.loads(await cast(websockets.WebSocketClientProtocol, self.ws).recv())
             async with self._lock:
                 self._open_subscriptions -= 1
             if "id" in response:
@@ -1198,7 +1195,7 @@ class AsyncSubstrateInterface:
         include_author: bool = False,
         header_only: bool = False,
         finalized_only: bool = False,
-        subscription_handler: callable = None,
+        subscription_handler: Optional[Callable] = None,
     ):
         try:
             await self.init_runtime(block_hash=block_hash)
@@ -1350,15 +1347,18 @@ class AsyncSubstrateInterface:
 
                 if subscription_result is not None:
                     # Handler returned end result: unsubscribe from further updates
-                    await self.rpc_request(
+                    self._forgettable_task = asyncio.create_task(self.rpc_request(
                         f"chain_unsubscribe{rpc_method_prefix}Heads", [subscription_id]
-                    )
+                    ))
 
                 return subscription_result
 
-            result = await self.rpc_request(
-                f"chain_subscribe{rpc_method_prefix}Heads",
-                [],
+            result = await self._make_rpc_request(
+                [self.make_payload(
+                    "_get_block_handler",
+                    f"chain_subscribe{rpc_method_prefix}Heads",
+                    []
+                )],
                 result_handler=result_handler,
             )
 
@@ -1430,6 +1430,28 @@ class AsyncSubstrateInterface:
             header_only=False,
             include_author=include_author,
         )
+
+    async def get_events(self, block_hash: Optional[str] = None) -> list:
+        """
+        Convenience method to get events for a certain block (storage call for module 'System' and function 'Events')
+
+        Parameters
+        ----------
+        block_hash
+
+        Returns
+        -------
+        list
+        """
+        events = []
+
+        if not block_hash:
+            block_hash = await self.get_chain_head()
+
+        storage_obj = await self.query(module="System", storage_function="Events", block_hash=block_hash)
+        if storage_obj:
+            events += storage_obj.elements
+        return events
 
     async def get_block_runtime_version(self, block_hash: str) -> dict:
         """
@@ -1547,9 +1569,9 @@ class AsyncSubstrateInterface:
 
         :return: (decoded response, completion)
         """
-        obj = response
+        result: Union[dict, ScaleType] = response
 
-        if value_scale_type:
+        if value_scale_type and isinstance(storage_item, ScaleType):
             if not runtime:
                 async with self._lock:
                     runtime = Runtime(
@@ -1575,11 +1597,13 @@ class AsyncSubstrateInterface:
             )
             obj.decode(check_remaining=True)
             obj.meta_info = {"result_found": response.get("result") is not None}
+            result = obj
         if asyncio.iscoroutinefunction(result_handler):
             # For multipart responses as a result of subscriptions.
-            message, bool_result = await result_handler(obj, subscription_id)
+            message, bool_result = await result_handler(response, subscription_id)
             return message, bool_result
-        return obj, True
+
+        return result, True
 
     async def _make_rpc_request(
         self,
@@ -1726,8 +1750,8 @@ class AsyncSubstrateInterface:
         self,
         call_module: str,
         call_function: str,
-        call_params: dict = None,
-        block_hash: str = None,
+        call_params: Optional[dict] = None,
+        block_hash: Optional[str] = None,
     ) -> GenericCall:
         """
         Composes a call payload which can be used in an extrinsic.
@@ -1801,8 +1825,8 @@ class AsyncSubstrateInterface:
     async def create_scale_object(
         self,
         type_string: str,
-        data: ScaleBytes = None,
-        block_hash: str = None,
+        data: Optional[ScaleBytes] = None,
+        block_hash: Optional[str] = None,
         **kwargs,
     ) -> "ScaleType":
         """
@@ -1830,7 +1854,7 @@ class AsyncSubstrateInterface:
         era=None,
         nonce: int = 0,
         tip: int = 0,
-        tip_asset_id: int = None,
+        tip_asset_id: Optional[int] = None,
         include_call_length: bool = False,
     ) -> ScaleBytes:
         # Retrieve genesis hash
@@ -1852,7 +1876,7 @@ class AsyncSubstrateInterface:
                 )
 
             era_obj.encode(era)
-            block_hash = self.get_block_hash(block_id=era_obj.birth(era.get("current")))
+            block_hash = await self.get_block_hash(block_id=era_obj.birth(era.get("current")))
 
         # Create signature payload
         signature_payload = self.runtime_config.create_scale_object(
@@ -1976,11 +2000,11 @@ class AsyncSubstrateInterface:
         self,
         call: GenericCall,
         keypair: Keypair,
-        era: dict = None,
-        nonce: int = None,
+        era: Optional[dict] = None,
+        nonce: Optional[int] = None,
         tip: int = 0,
-        tip_asset_id: int = None,
-        signature: Union[bytes, str] = None,
+        tip_asset_id: Optional[int] = None,
+        signature: Optional[Union[bytes, str]] = None,
     ) -> "GenericExtrinsic":
         """
         Creates an extrinsic signed by given account details
@@ -2499,7 +2523,7 @@ class AsyncSubstrateInterface:
             storage_function=storage_function,
             params=params,
             block_hash=block_hash,
-            substrate=self.substrate,
+            substrate=cast("AsyncSubstrateInterface", self.substrate),
             last_key=last_key,
             max_results=max_results,
             ignore_decoding_errors=ignore_decoding_errors,
