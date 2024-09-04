@@ -2,7 +2,6 @@ import re
 import time
 
 from bittensor_cli.src.bittensor.balances import Balance
-from tests.e2e_tests.utils import setup_wallet, remove_wallets
 
 """
 Verify commands:
@@ -17,7 +16,7 @@ Verify commands:
 """
 
 
-def test_staking(local_chain):
+def test_staking(local_chain, wallet_setup):
     """
     Test staking & sudo commands and inspect their output
 
@@ -37,7 +36,7 @@ def test_staking(local_chain):
     wallet_path_alice = "//Alice"
 
     # Create wallet for Alice
-    keypair_alice, wallet_alice, wallet_path_alice, exec_command_alice = setup_wallet(
+    keypair_alice, wallet_alice, wallet_path_alice, exec_command_alice = wallet_setup(
         wallet_path_alice
     )
 
@@ -224,4 +223,3 @@ def test_staking(local_chain):
         10
     )
     print("✅ Passed staking and sudo commands")
-    remove_wallets(wallet_path_alice)  

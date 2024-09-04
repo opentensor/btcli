@@ -3,8 +3,6 @@ import re
 import time
 from typing import Dict, Optional, Tuple
 
-from tests.e2e_tests.utils import setup_wallet, remove_wallets, get_path_from_uri
-
 """
 Verify commands:
 
@@ -158,7 +156,7 @@ def extract_mnemonics_from_commands(output: str) -> Dict[str, Optional[str]]:
     return mnemonics
 
 
-def test_wallet_creations():
+def test_wallet_creations(wallet_setup):
     """
     Test the creation and verification of wallet keys and directories in the Bittensor network.
 
@@ -175,7 +173,7 @@ def test_wallet_creations():
     """
 
     wallet_path_name = "//Alice"
-    keypair, wallet, wallet_path, exec_command = setup_wallet(wallet_path_name)
+    keypair, wallet, wallet_path, exec_command = wallet_setup(wallet_path_name)
 
     result = exec_command(
         command="wallet", sub_command="list", extra_args=["--wallet-path", wallet_path]
@@ -296,10 +294,9 @@ def test_wallet_creations():
         wallet_path, "new_coldkey", hotkey_name="new_hotkey"
     )
     assert wallet_status, message
-    remove_wallets(wallet_path)
 
 
-def test_wallet_regen():
+def test_wallet_regen(wallet_setup):
     """
     Test the regeneration of coldkeys, hotkeys, and coldkeypub files using mnemonics or ss58 address.
 
@@ -313,7 +310,7 @@ def test_wallet_regen():
         AssertionError: If any of the checks or verifications fail
     """
     wallet_path_name = "//Bob"
-    keypair, wallet, wallet_path, exec_command = setup_wallet(wallet_path_name)
+    keypair, wallet, wallet_path, exec_command = wallet_setup(wallet_path_name)
 
     # Create a new wallet (coldkey + hotkey)
     result = exec_command(
@@ -450,4 +447,3 @@ def test_wallet_regen():
         initial_hotkey_mod_time != new_hotkey_mod_time
     ), "Hotkey file was not regenerated as expected"
     print("Passed wallet regen_hotkey command ✅")
-    remove_wallets(wallet_path)

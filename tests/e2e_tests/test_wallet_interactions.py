@@ -1,14 +1,9 @@
-import logging
-
 from bittensor_cli.src.bittensor.balances import Balance
-
 from tests.e2e_tests.utils import (
     extract_coldkey_balance,
-    setup_wallet,
     validate_wallet_inspect,
     validate_wallet_overview,
     verify_subnet_entry,
-    remove_wallets,
 )
 
 """
@@ -22,7 +17,7 @@ Verify commands:
 """
 
 
-def test_wallet_overview_inspect(local_chain):
+def test_wallet_overview_inspect(local_chain, wallet_setup):
     """
     Test the overview and inspect commands of the wallet by interaction with subnets
 
@@ -40,7 +35,7 @@ def test_wallet_overview_inspect(local_chain):
     wallet_path_name = "//Alice"
 
     # Create wallet for Alice
-    keypair, wallet, wallet_path, exec_command = setup_wallet(wallet_path_name)
+    keypair, wallet, wallet_path, exec_command = wallet_setup(wallet_path_name)
 
     # Register a subnet with sudo as Alice
     result = exec_command(
@@ -176,7 +171,6 @@ def test_wallet_overview_inspect(local_chain):
         ],  # (netuid, hotkey-display, stake, check_emissions)
     )
     print("Passed wallet overview, inspect command ✅")
-    remove_wallets(wallet_path)
 
 
 """
@@ -187,7 +181,7 @@ Verify commands:
 """
 
 
-def test_wallet_transfer(local_chain):
+def test_wallet_transfer(local_chain, wallet_setup):
     """
     Test the transfer and balance functionality in the Bittensor network.
 
@@ -206,10 +200,10 @@ def test_wallet_transfer(local_chain):
     wallet_path_bob = "//Bob"
 
     # Create wallets for Alice and Bob
-    keypair_alice, wallet_alice, wallet_path_alice, exec_command_alice = setup_wallet(
+    keypair_alice, wallet_alice, wallet_path_alice, exec_command_alice = wallet_setup(
         wallet_path_alice
     )
-    keypair_bob, wallet_bob, wallet_path_bob, exec_command_bob = setup_wallet(
+    keypair_bob, wallet_bob, wallet_path_bob, exec_command_bob = wallet_setup(
         wallet_path_bob
     )
 
@@ -332,7 +326,7 @@ def test_wallet_transfer(local_chain):
 
     wallet_path_anakin = "//Anakin"
     keypair_anakin, wallet_anakin, wallet_path_anakin, exec_command_anakin = (
-        setup_wallet(wallet_path_anakin)
+        wallet_setup(wallet_path_anakin)
     )
 
     # Attempt transferring to Alice
@@ -358,8 +352,4 @@ def test_wallet_transfer(local_chain):
 
     # This transfer is expected to fail due to low balance
     assert "❌ Not enough balance" in result.stdout
-    print("Testing wallet transfer, balance command ✅")
-
-    remove_wallets(wallet_path_alice)
-    remove_wallets(wallet_path_bob)
-    remove_wallets(wallet_path_anakin)
+    print("✅Passed wallet transfer, balance command ")

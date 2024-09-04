@@ -2,8 +2,6 @@ import time
 
 from bittensor_cli.src.bittensor.balances import Balance
 
-from tests.e2e_tests.utils import setup_wallet, remove_wallets
-
 """
 Verify commands:
 
@@ -17,7 +15,7 @@ Verify commands:
 """
 
 
-def test_root_commands(local_chain):
+def test_root_commands(local_chain, wallet_setup):
     """
     Test the root commands and inspects their output
 
@@ -38,10 +36,10 @@ def test_root_commands(local_chain):
     wallet_path_bob = "//Bob"
 
     # Create wallet for Alice
-    keypair_alice, wallet_alice, wallet_path_alice, exec_command_alice = setup_wallet(
+    keypair_alice, wallet_alice, wallet_path_alice, exec_command_alice = wallet_setup(
         wallet_path_alice
     )
-    keypair_bob, wallet_bob, wallet_path_bob, exec_command_bob = setup_wallet(
+    keypair_bob, wallet_bob, wallet_path_bob, exec_command_bob = wallet_setup(
         wallet_path_bob
     )
 
@@ -260,5 +258,3 @@ def test_root_commands(local_chain):
     assert "✅ Finalized" in undelegate_alice.stdout
     
     print("✅ Passed Root commands")
-    remove_wallets(wallet_path_alice)
-    remove_wallets(wallet_path_bob)
