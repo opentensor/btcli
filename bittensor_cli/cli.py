@@ -2804,7 +2804,7 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
-        netuid=typer.Option(
+        netuid: Optional[str] = typer.Option(
             None,
             help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
             prompt=False,
@@ -2843,6 +2843,8 @@ class CLIManager:
             netuid = None
         elif not netuid:
             netuid = Prompt.ask("Netuid")
+        if netuid and netuid.lower() == "all":
+            netuid = None
         return self._run_command(
             stake.get_children(wallet, self.initialize_chain(network, chain), netuid)
         )
