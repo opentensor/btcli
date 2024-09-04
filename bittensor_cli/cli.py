@@ -10,7 +10,7 @@ import rich
 import typer
 from bittensor_wallet import Wallet
 from git import Repo, GitError
-from rich.prompt import Confirm, FloatPrompt, Prompt
+from rich.prompt import Confirm, FloatPrompt, Prompt, IntPrompt
 from rich.table import Column, Table
 from .src import HYPERPARAMS, defaults, HELP_PANELS
 from bittensor_cli.src.bittensor import utils
@@ -2805,7 +2805,17 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
-        netuid: int = Options.netuid,
+        netuid: Optional[int] = typer.Option(
+            None,
+            help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
+            prompt=False,
+        ),
+        all_netuids: bool = typer.Option(
+            False,
+            "--all-netuids",
+            "--all",
+            help="When set, gets children from all subnets on the bittensor network.",
+        ),
     ):
         """
         Get all child hotkeys on a specified subnet on the Bittensor network.
@@ -2818,21 +2828,27 @@ class CLIManager:
         The command compiles a table showing:
 
         - ChildHotkey: The hotkey associated with the child.
-
         - ParentHotKey: The hotkey associated with the parent.
-
         - Proportion: The proportion that is assigned to them.
-
         - Expiration: The expiration of the hotkey.
-
 
         # Example usage:
 
         [green]$[/green]btcli stake get_children --netuid 1
+        [green]$[/green]btcli stake get_children --all-netuids
 
-        [italic]]Note[/italic]: This command is for users who wish to see child hotkeys among different neurons (hotkeys) on the network.
+        [italic]Note[/italic]: This command is for users who wish to see child hotkeys among different neurons (hotkeys) on the network.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        if all_netuids and netuid:
+            err_console.print("Specify either netuid or all, not both.")
+            raise typer.Exit()
+        if all_netuids:
+            netuid = None
+        elif not netuid:
+            netuid = IntPrompt.ask(
+                "Enter netuid (leave blank for all)", default=None, show_default=True
+            )
         return self._run_command(
             stake.get_children(wallet, self.initialize_chain(network, chain), netuid)
         )
@@ -2957,6 +2973,7 @@ class CLIManager:
         netuid: int = Options.netuid,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
+        prompt: bool = Options.prompt,
         take: Optional[float] = typer.Option(
             None,
             "--take",
@@ -2994,6 +3011,7 @@ class CLIManager:
                 take=take,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
+                prompt=prompt,
             )
         )
 
