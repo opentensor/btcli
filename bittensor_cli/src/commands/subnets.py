@@ -61,7 +61,9 @@ async def register_subnetwork_extrinsic(
             If we did not wait for finalization / inclusion, the response is ``true``.
     """
 
-    def _find_event_attributes_in_extrinsic_receipt(response_, event_name: str) -> list:
+    async def _find_event_attributes_in_extrinsic_receipt(
+        response_, event_name: str
+    ) -> list:
         """
         Searches for the attributes of a specified event within an extrinsic receipt.
 
@@ -70,7 +72,7 @@ async def register_subnetwork_extrinsic(
 
         :return: A list of attributes for the specified event. Returns [-1] if the event is not found.
         """
-        for event in response_.triggered_events:
+        for event in await response_.triggered_events:
             # Access the event details
             event_details = event.value["event"]
             # Check if the event_id is 'NetworkAdded'
@@ -135,7 +137,7 @@ async def register_subnetwork_extrinsic(
 
         # Successful registration, final check for membership
         else:
-            attributes = _find_event_attributes_in_extrinsic_receipt(
+            attributes = await _find_event_attributes_in_extrinsic_receipt(
                 response, "NetworkAdded"
             )
             console.print(

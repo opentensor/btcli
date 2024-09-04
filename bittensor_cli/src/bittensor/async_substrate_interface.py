@@ -7,7 +7,12 @@ from typing import Optional, Any, Union, Callable, Awaitable, cast
 
 import websockets
 from scalecodec import GenericExtrinsic
-from scalecodec.base import ScaleBytes, ScaleType, RuntimeConfigurationObject
+from scalecodec.base import (
+    ScaleBytes,
+    ScaleType,
+    RuntimeConfigurationObject,
+    ScaleDecoder,
+)
 from scalecodec.type_registry import load_type_registry_preset
 from scalecodec.types import GenericCall
 from substrateinterface import Keypair
@@ -32,21 +37,21 @@ def timeout_handler(signum, frame):
 class ExtrinsicReceipt:
     """
     Object containing information of submitted extrinsic. Block hash where extrinsic is included is required
-        when retrieving triggered events or determine if extrinsic was succesfull
+        when retrieving triggered events or determine if extrinsic was successful
     """
 
     def __init__(
         self,
         substrate: "AsyncSubstrateInterface",
-        extrinsic_hash: Optional[str]  = None,
-        block_hash: Optional[str]  = None,
+        extrinsic_hash: Optional[str] = None,
+        block_hash: Optional[str] = None,
         block_number: Optional[int] = None,
         extrinsic_idx: Optional[int] = None,
         finalized=None,
     ):
         """
         Object containing information of submitted extrinsic. Block hash where extrinsic is included is required
-        when retrieving triggered events or determine if extrinsic was succesful
+        when retrieving triggered events or determine if extrinsic was successful
 
         Parameters
         ----------
@@ -176,7 +181,7 @@ class ExtrinsicReceipt:
             # Process fees
             has_transaction_fee_paid_event = False
 
-            for event in self.triggered_events:
+            for event in await self.triggered_events:
                 if (
                     event.value["module_id"] == "TransactionPayment"
                     and event.value["event_id"] == "TransactionFeePaid"
@@ -360,7 +365,7 @@ class ExtrinsicReceipt:
                         self.__total_fee_amount += event.params[1]["value"]
 
     @property
-    def is_success(self) -> bool:
+    async def is_success(self) -> bool:
         """
         Returns `True` if `ExtrinsicSuccess` event is triggered, `False` in case of `ExtrinsicFailed`
         In case of False `error_message` will contain more details about the error
@@ -371,12 +376,12 @@ class ExtrinsicReceipt:
         bool
         """
         if self.__is_success is None:
-            self.process_events()
+            await self.process_events()
 
         return cast(bool, self.__is_success)
 
     @property
-    def error_message(self) -> Optional[dict]:
+    async def error_message(self) -> Optional[dict]:
         """
         Returns the error message if the extrinsic failed in format e.g.:
 
@@ -387,9 +392,9 @@ class ExtrinsicReceipt:
         dict
         """
         if self.__error_message is None:
-            if self.is_success:
+            if await self.is_success:
                 return None
-            self.process_events()
+            await self.process_events()
         return self.__error_message
 
     @property
@@ -451,12 +456,12 @@ class QueryMapResult:
         records: list,
         page_size: int,
         substrate: "AsyncSubstrateInterface",
-        module: str = None,
+        module: Optional[str] = None,
         storage_function: Optional[str] = None,
         params: Optional[list] = None,
         block_hash: Optional[str] = None,
-        last_key: str = None,
-        max_results: int = None,
+        last_key: Optional[str] = None,
+        max_results: Optional[int] = None,
         ignore_decoding_errors: bool = False,
     ):
         self.records = records
@@ -530,13 +535,17 @@ class RuntimeCache:
         self.blocks = {}
         self.block_hashes = {}
 
-    def add_item(self, block: Optional[int], block_hash: Optional[str], runtime: "Runtime"):
+    def add_item(
+        self, block: Optional[int], block_hash: Optional[str], runtime: "Runtime"
+    ):
         if block is not None:
             self.blocks[block] = runtime
         if block_hash is not None:
             self.block_hashes[block_hash] = runtime
 
-    def retrieve(self, block: Optional[int], block_hash: Optional[str]) -> Optional["Runtime"]:
+    def retrieve(
+        self, block: Optional[int], block_hash: Optional[str]
+    ) -> Optional["Runtime"]:
         if block is not None:
             return self.blocks.get(block)
         elif block_hash is not None:
@@ -794,7 +803,9 @@ class Websocket:
 
     async def _recv(self) -> None:
         try:
-            response = json.loads(await cast(websockets.WebSocketClientProtocol, self.ws).recv())
+            response = json.loads(
+                await cast(websockets.WebSocketClientProtocol, self.ws).recv()
+            )
             async with self._lock:
                 self._open_subscriptions -= 1
             if "id" in response:
@@ -1347,18 +1358,23 @@ class AsyncSubstrateInterface:
 
                 if subscription_result is not None:
                     # Handler returned end result: unsubscribe from further updates
-                    self._forgettable_task = asyncio.create_task(self.rpc_request(
-                        f"chain_unsubscribe{rpc_method_prefix}Heads", [subscription_id]
-                    ))
+                    self._forgettable_task = asyncio.create_task(
+                        self.rpc_request(
+                            f"chain_unsubscribe{rpc_method_prefix}Heads",
+                            [subscription_id],
+                        )
+                    )
 
                 return subscription_result
 
             result = await self._make_rpc_request(
-                [self.make_payload(
-                    "_get_block_handler",
-                    f"chain_subscribe{rpc_method_prefix}Heads",
-                    []
-                )],
+                [
+                    self.make_payload(
+                        "_get_block_handler",
+                        f"chain_subscribe{rpc_method_prefix}Heads",
+                        [],
+                    )
+                ],
                 result_handler=result_handler,
             )
 
@@ -1379,8 +1395,8 @@ class AsyncSubstrateInterface:
 
     async def get_block(
         self,
-        block_hash: str = None,
-        block_number: int = None,
+        block_hash: Optional[str] = None,
+        block_number: Optional[int] = None,
         ignore_decoding_errors: bool = False,
         include_author: bool = False,
         finalized_only: bool = False,
@@ -1448,7 +1464,9 @@ class AsyncSubstrateInterface:
         if not block_hash:
             block_hash = await self.get_chain_head()
 
-        storage_obj = await self.query(module="System", storage_function="Events", block_hash=block_hash)
+        storage_obj = await self.query(
+            module="System", storage_function="Events", block_hash=block_hash
+        )
         if storage_obj:
             events += storage_obj.elements
         return events
@@ -1501,12 +1519,12 @@ class AsyncSubstrateInterface:
     async def _preprocess(
         self,
         query_for: Optional[list],
-        block_hash: str,
+        block_hash: Optional[str],
         storage_function: str,
         module: str,
     ) -> Preprocessed:
         """
-        Creates a Preprocessed data object for passing to ``_make_rpc_request``
+        Creates a Preprocessed data object for passing to `_make_rpc_request`
         """
         params = query_for if query_for else []
         # Search storage call in metadata
@@ -1683,7 +1701,7 @@ class AsyncSubstrateInterface:
     async def rpc_request(
         self,
         method: str,
-        params: list,
+        params: Optional[list],
         block_hash: Optional[str] = None,
         reuse_block_hash: bool = False,
     ) -> Any:
@@ -1701,6 +1719,7 @@ class AsyncSubstrateInterface:
         :return: the response from the RPC request
         """
         block_hash = await self._get_current_block_hash(block_hash, reuse_block_hash)
+        params = params or []
         payloads = [
             self.make_payload(
                 "rpc_request",
@@ -1876,7 +1895,9 @@ class AsyncSubstrateInterface:
                 )
 
             era_obj.encode(era)
-            block_hash = await self.get_block_hash(block_id=era_obj.birth(era.get("current")))
+            block_hash = await self.get_block_hash(
+                block_id=era_obj.birth(era.get("current"))
+            )
 
         # Create signature payload
         signature_payload = self.runtime_config.create_scale_object(
@@ -2027,9 +2048,9 @@ class AsyncSubstrateInterface:
             raise TypeError("'call' must be of type Call")
 
         # Check if extrinsic version is supported
-        if self.metadata[1][1]["extrinsic"]["version"] != 4:
+        if self.metadata[1][1]["extrinsic"]["version"] != 4:  # type: ignore
             raise NotImplementedError(
-                f"Extrinsic version {self.metadata[1][1]['extrinsic']['version']} not supported"
+                f"Extrinsic version {self.metadata[1][1]['extrinsic']['version']} not supported"  # type: ignore
             )
 
         # Retrieve nonce
@@ -2047,7 +2068,7 @@ class AsyncSubstrateInterface:
                 )
 
         if signature is not None:
-            if type(signature) is str and signature[0:2] == "0x":
+            if isinstance(signature, str) and signature[0:2] == "0x":
                 signature = bytes.fromhex(signature[2:])
 
             # Check if signature is a MultiSignature and contains signature version
@@ -2116,8 +2137,8 @@ class AsyncSubstrateInterface:
         self,
         api: str,
         method: str,
-        params: Union[list, dict] = None,
-        block_hash: str = None,
+        params: Optional[Union[list, dict]] = None,
+        block_hash: Optional[str] = None,
     ) -> ScaleType:
         """
         Calls a runtime API method
@@ -2262,6 +2283,8 @@ class AsyncSubstrateInterface:
                 block_hash=block_hash,
                 return_scale_obj=True,
             )
+        else:
+            return None
 
     async def get_payment_info(
         self, call: GenericCall, keypair: Keypair
@@ -2312,7 +2335,7 @@ class AsyncSubstrateInterface:
         storage_function: str,
         params: Optional[list] = None,
         block_hash: Optional[str] = None,
-        raw_storage_key: bytes = None,
+        raw_storage_key: Optional[bytes] = None,
         subscription_handler=None,
         reuse_block_hash: bool = False,
     ) -> "ScaleType":
@@ -2625,7 +2648,7 @@ class AsyncSubstrateInterface:
             # Also, this will be a multipart response, so maybe should change to everything after the first response?
             # The following code implies this will be a single response after the initial subscription id.
             result = ExtrinsicReceipt(
-                substrate=self.substrate,
+                substrate=cast("AsyncSubstrateInterface", self.substrate),
                 extrinsic_hash=response["extrinsic_hash"],
                 block_hash=response["block_hash"],
                 finalized=response["finalized"],
@@ -2646,8 +2669,11 @@ class AsyncSubstrateInterface:
         return result
 
     async def get_metadata_call_function(
-        self, module_name: str, call_function_name: str, block_hash: str = None
-    ) -> list:
+        self,
+        module_name: str,
+        call_function_name: str,
+        block_hash: Optional[str] = None,
+    ) -> Optional[list]:
         """
         Retrieves a list of all call functions in metadata active for given block_hash (or chaintip if block_hash
         is omitted)
@@ -2665,6 +2691,7 @@ class AsyncSubstrateInterface:
                 for call in pallet.calls:
                     if call.name == call_function_name:
                         return call
+        return None
 
     async def get_block_number(self, block_hash: Optional[str]) -> int:
         """Async version of `substrateinterface.base.get_block_number` method."""

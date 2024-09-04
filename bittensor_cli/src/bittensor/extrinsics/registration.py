@@ -613,11 +613,11 @@ async def register_extrinsic(
                     if not wait_for_finalization and not wait_for_inclusion:
                         success, err_msg = True, ""
                     else:
-                        response.process_events()
-                        if not response.is_success:
+                        await response.process_events()
+                        if not await response.is_success:
                             success, err_msg = (
                                 False,
-                                format_error_message(response.error_message),
+                                format_error_message(await response.error_message),
                             )
 
                     if not success:
@@ -785,10 +785,10 @@ async def run_faucet_extrinsic(
             )
 
             # process if registration successful, try again if pow is still valid
-            response.process_events()
-            if not response.is_success:
+            await response.process_events()
+            if not await response.is_success:
                 err_console.print(
-                    f":cross_mark: [red]Failed[/red]: {format_error_message(response.error_message)}"
+                    f":cross_mark: [red]Failed[/red]: {format_error_message(await response.error_message)}"
                 )
                 if attempts == max_allowed_attempts:
                     raise MaxAttemptsException

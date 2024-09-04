@@ -839,11 +839,11 @@ class SubtensorInterface:
         # We only wait here if we expect finalization.
         if not wait_for_finalization and not wait_for_inclusion:
             return True, ""
-        response.process_events()
-        if response.is_success:
+        await response.process_events()
+        if await response.is_success:
             return True, ""
         else:
-            return False, format_error_message(response.error_message)
+            return False, format_error_message(await response.error_message)
 
     async def get_children(self, hotkey, netuid) -> tuple[bool, list, str]:
         """
