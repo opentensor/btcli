@@ -757,3 +757,28 @@ def render_tree(
         f.write(rendered)
     if show:
         webbrowser.open(f"file://{output_file}")
+
+
+def group_vpermits(registrations):
+    if not registrations:
+        return ""
+
+    ranges = []
+    start = registrations[0]
+
+    for i in range(1, len(registrations)):
+        if registrations[i] != registrations[i - 1] + 1:
+            # Append the current range or single number
+            if start == registrations[i - 1]:
+                ranges.append(str(start))
+            else:
+                ranges.append(f"{start}-{registrations[i - 1]}")
+            start = registrations[i]
+
+    # Append the final range or single number
+    if start == registrations[-1]:
+        ranges.append(str(start))
+    else:
+        ranges.append(f"{start}-{registrations[-1]}")
+
+    return ", ".join(ranges)
