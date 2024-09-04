@@ -10,7 +10,7 @@ import rich
 import typer
 from bittensor_wallet import Wallet
 from git import Repo, GitError
-from rich.prompt import Confirm, FloatPrompt, Prompt
+from rich.prompt import Confirm, FloatPrompt, Prompt, IntPrompt
 from rich.table import Column, Table
 from .src import HYPERPARAMS, defaults, HELP_PANELS
 from bittensor_cli.src.bittensor import utils
@@ -2839,12 +2839,13 @@ class CLIManager:
         [italic]Note[/italic]: This command is for users who wish to see child hotkeys among different neurons (hotkeys) on the network.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        if all_netuids and netuid:
+            err_console.print("Specify either netuid or all, not both.")
+            raise typer.Exit()
         if all_netuids:
             netuid = None
         elif not netuid:
-            netuid = Prompt.ask("Netuid")
-        if netuid and netuid.lower() == "all":
-            netuid = None
+            netuid = IntPrompt.ask("Enter netuid (leave blank for all)", default=None, show_default=True)
         return self._run_command(
             stake.get_children(wallet, self.initialize_chain(network, chain), netuid)
         )
