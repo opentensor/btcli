@@ -2798,23 +2798,23 @@ class CLIManager:
         )
 
     def stake_get_children(
-            self,
-            wallet_name: Optional[str] = Options.wallet_name_req,
-            wallet_hotkey: Optional[str] = Options.wallet_hk_req,
-            wallet_path: Optional[str] = Options.wallet_path,
-            network: Optional[str] = Options.network,
-            chain: Optional[str] = Options.chain,
-            netuid=typer.Option(
-                None,
-                help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
-                prompt=False,
-            ),
-            all_netuids: bool = typer.Option(
-                False,
-                "--all-netuids",
-                "--all",
-                help="When set, gets children from all subnets on the bittensor network.",
-            ),
+        self,
+        wallet_name: Optional[str] = Options.wallet_name_req,
+        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        wallet_path: Optional[str] = Options.wallet_path,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
+        netuid=typer.Option(
+            None,
+            help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
+            prompt=False,
+        ),
+        all_netuids: bool = typer.Option(
+            False,
+            "--all-netuids",
+            "--all",
+            help="When set, gets children from all subnets on the bittensor network.",
+        ),
     ):
         """
         Get all child hotkeys on a specified subnet on the Bittensor network.
