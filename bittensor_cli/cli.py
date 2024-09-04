@@ -21,6 +21,7 @@ from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
+    verbose_console,
     is_valid_ss58_address,
 )
 from typing_extensions import Annotated
@@ -144,6 +145,16 @@ class Options:
         "--prompt/--no-prompt",
         help="Enable or disable interactive prompts.",
     )
+    verbose = typer.Option(
+        False,
+        "--verbose",
+        help="Enable verbose output.",
+    )
+    quiet = typer.Option(
+        False,
+        "--quiet",
+        help="Do not output to the console besides critical information.",
+    )
 
 
 def list_prompt(init_var: list, list_type: type, help_text: str) -> list:
@@ -161,6 +172,27 @@ def list_prompt(init_var: list, list_type: type, help_text: str) -> list:
         prompt = Prompt.ask(help_text)
         init_var = [list_type(x) for x in re.split(r"[ ,]+", prompt) if x]
     return init_var
+
+
+def verbosity_console_handler(verbosity_level: int = 1) -> None:
+    """
+    Sets verbosity level of console output
+    :param verbosity_level: int corresponding to verbosity level of console output (0 is quiet, 1 is normal, 2 is verbose)
+    """
+    if verbosity_level not in range(3):
+        raise ValueError(f"Invalid verbosity level: {verbosity_level}")
+    if verbosity_level == 0:
+        console.quiet = True
+        err_console.quiet = True
+        verbose_console.quiet = True
+    elif verbosity_level == 1:
+        console.quiet = False
+        err_console.quiet = False
+        verbose_console.quiet = True
+    elif verbosity_level == 2:
+        console.quiet = False
+        err_console.quiet = False
+        verbose_console.quiet = False
 
 
 def get_n_words(n_words: Optional[int]) -> int:
@@ -625,6 +657,28 @@ class CLIManager:
             if k in self.config.keys():
                 self.config[k] = v
 
+    def verbosity_handler(self, quiet: bool, verbose: bool):
+        if quiet and verbose:
+            err_console.print("Cannot specify both `--quiet` and `--verbose`")
+            raise typer.Exit()
+
+        if quiet:
+            verbosity_console_handler(0)
+        elif verbose:
+            verbosity_console_handler(2)
+        else:
+            # Default to configuration if no flags provided
+            quiet = self.config.get("quiet", False)
+            verbose = self.config.get("verbose", False)
+
+            if quiet:
+                verbosity_console_handler(0)
+            elif verbose:
+                verbosity_console_handler(2)
+            else:
+                # Default verbosity level
+                verbosity_console_handler(1)
+
     def metagraph_config(
         self,
         reset: bool = typer.Option(
@@ -844,6 +898,8 @@ class CLIManager:
             help="Filepath of root of wallets",
             prompt=True,
         ),
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Displays all wallets and their respective hotkeys present in the user's Bittensor configuration directory.
@@ -866,6 +922,7 @@ class CLIManager:
         [italic]Note[/italic]: This command is read-only and does not modify the filesystem or the network state.
         It is intended for use within the Bittensor CLI to provide a quick overview of the user's wallets.
         """
+        self.verbosity_handler(quiet, verbose)
         return self._run_command(wallets.wallet_list(wallet_path))
 
     def wallet_overview(
@@ -901,6 +958,8 @@ class CLIManager:
         netuids: list[int] = Options.netuids,
         network: str = Options.network,
         chain: str = Options.chain,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Presents a detailed overview of the user's registered accounts on the Bittensor network.
@@ -960,6 +1019,7 @@ class CLIManager:
         It provides a quick and comprehensive view of the user's network presence, making it ideal for monitoring account status,
         stake distribution, and overall contribution to the Bittensor network.
         """
+        self.verbosity_handler(quiet, verbose)
         if include_hotkeys and exclude_hotkeys:
             utils.err_console.print(
                 "[red]You have specified hotkeys for inclusion and exclusion. Pick only one or neither."
@@ -1008,6 +1068,8 @@ class CLIManager:
         network: str = Options.network,
         chain: str = Options.chain,
         prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Transfer TAO tokens from one account to another on the Bittensor network.
@@ -1028,6 +1090,7 @@ class CLIManager:
         [italic]Note[/italic]: This command is crucial for executing token transfers within the Bittensor network.
         Users should verify the destination address and amount before confirming the transaction to avoid errors or loss of funds.
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         subtensor = self.initialize_chain(network, chain)
         return self._run_command(
@@ -1044,6 +1107,8 @@ class CLIManager:
         destination_hotkey_name: Optional[str] = typer.Argument(
             help="Destination hotkey name."
         ),
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         [red]Swap hotkeys[/red] for a neuron on the network.
@@ -1056,6 +1121,7 @@ class CLIManager:
 
         [green]$[/green] btcli wallet swap_hotkey new_hotkey --wallet-name your_wallet_name --wallet-hotkey original_hotkey
         """
+        self.verbosity_handler(quiet, verbose)
         original_wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         new_wallet = self.wallet_ask(wallet_name, wallet_path, destination_hotkey_name)
         self.initialize_chain(network, chain)
@@ -1078,6 +1144,8 @@ class CLIManager:
         network: str = Options.network,
         chain: str = Options.chain,
         netuids: list[int] = Options.netuids,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Detailed report of a user's wallet pairs (coldkey, hotkey) on the Bittensor network.
@@ -1122,6 +1190,7 @@ class CLIManager:
         transactions or state changes on the Bittensor network. It is intended to be used as
         part of the Bittensor CLI and not as a standalone function within user code.
         """
+        self.verbosity_handler(quiet, verbose)
         # if all-wallets is entered, ask for path
         if all_wallets:
             if not wallet_path:
@@ -1163,7 +1232,7 @@ class CLIManager:
             defaults.pow_register.output_in_place,
             help="Whether to output the registration statistics in-place.",
         ),
-        verbose: Optional[bool] = typer.Option(
+        verbose: Optional[bool] = typer.Option(  # TODO verbosity handler
             defaults.pow_register.verbose,
             "--verbose",
             "-v",
@@ -1240,6 +1309,8 @@ class CLIManager:
         json: Optional[str] = Options.json,
         json_password: Optional[str] = Options.json_password,
         use_password: Optional[bool] = Options.use_password,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Regenerate a coldkey for a wallet on the Bittensor network.
@@ -1259,7 +1330,7 @@ class CLIManager:
         [italic]Note[/italic]: This command is critical for users who need to regenerate their coldkey, possibly for recovery or
         security reasons. It should be used with caution to avoid overwriting existing keys unintentionally.
         """
-
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, validate=False
         )
@@ -1284,6 +1355,8 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         public_key_hex: Optional[str] = Options.public_hex_key,
         ss58_address: Optional[str] = Options.ss58_address,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Regenerate the public part of a coldkey (coldkeypub) for a wallet.
@@ -1303,6 +1376,7 @@ class CLIManager:
         perhaps due to file corruption or loss. It is a recovery-focused utility that ensures continued access to wallet
         functionalities.
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, validate=False
         )
@@ -1333,6 +1407,8 @@ class CLIManager:
         json: Optional[str] = Options.json,
         json_password: Optional[str] = Options.json_password,
         use_password: Optional[bool] = Options.use_password,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Regenerates a hotkey for a wallet.
@@ -1352,6 +1428,7 @@ class CLIManager:
         possibly for security upgrades or key recovery.
         It should be used cautiously to avoid accidental overwrites of existing keys.
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         mnemonic, seed, json, json_password = get_creation_data(
             mnemonic, seed, json, json_password
@@ -1374,6 +1451,8 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         n_words: Optional[int] = None,
         use_password: bool = Options.use_password,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Create a new hotkey under a wallet.
@@ -1391,6 +1470,7 @@ class CLIManager:
         [italic]Note[/italic]: This command is useful for users who wish to create additional hotkeys
         for different purposes, such as running multiple miners or separating operational roles within the network.
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, validate=False
         )
@@ -1404,6 +1484,8 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         n_words: Optional[int] = None,
         use_password: Optional[bool] = Options.use_password,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Create a new coldkey under a wallet. A coldkey, is essential for holding balances and performing high-value transactions.
@@ -1421,6 +1503,7 @@ class CLIManager:
         enhanced security or as part of setting up a new wallet. It's a foundational step in establishing
         a secure presence on the Bittensor network.
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, validate=False
         )
@@ -1434,6 +1517,8 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Check the scheduled swap status of a coldkey.
@@ -1448,6 +1533,7 @@ class CLIManager:
 
         [italic]Note[/italic]: This command is important for users who wish check if swap requests were made against their coldkey.
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         self.initialize_chain(network, chain)
         return self._run_command(wallets.check_coldkey_swap(wallet, self.not_subtensor))
@@ -1459,6 +1545,8 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         n_words: Optional[int] = None,
         use_password: bool = Options.use_password,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Generate both a new coldkey and hotkey under a specified wallet.
@@ -1478,6 +1566,7 @@ class CLIManager:
         or for those who wish to completely renew their wallet keys. It ensures a fresh start with new keys
         for secure and effective participation in the network.
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, validate=False
         )
@@ -1503,6 +1592,8 @@ class CLIManager:
         ),
         network: str = Options.network,
         chain: str = Options.chain,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Check the balance of the wallet on the Bittensor network.
@@ -1526,6 +1617,7 @@ class CLIManager:
 
         [green]$[/green] btcli w balance --all
         """
+        self.verbosity_handler(quiet, verbose)
         if all_balances:
             if not wallet_path:
                 wallet_path = Prompt.ask(
@@ -1542,6 +1634,8 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Fetch the latest transfers of the provided wallet on the Bittensor network.
@@ -1559,6 +1653,7 @@ class CLIManager:
         [italic]Note[/italic]: This command is essential for users to monitor their financial status on the Bittensor network.
         It helps in fetching info on all the transfers so that user can easily tally and cross-check the transactions.
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(wallets.wallet_history(wallet))
 
@@ -1627,6 +1722,8 @@ class CLIManager:
             help="Are you updating a validator hotkey identity?",
             prompt=True,
         ),
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Allows for the creation or update of a delegate's on-chain identity on the Bittensor network.
@@ -1663,6 +1760,7 @@ class CLIManager:
         that makes changes to the blockchain state and should not be used programmatically as
         part of other scripts or applications.
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             wallets.set_id(
@@ -1693,6 +1791,8 @@ class CLIManager:
         ),
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Retrieves and displays the identity details of a user's coldkey or hotkey.
@@ -1723,6 +1823,7 @@ class CLIManager:
         [italic]Note[/italic]: This function is designed for CLI use and should be executed in a terminal.
         It is primarily used for informational purposes and has no side effects on the network state.
         """
+        self.verbosity_handler(quiet, verbose)
         return self._run_command(
             wallets.get_id(self.initialize_chain(network, chain), key)
         )
@@ -1738,6 +1839,8 @@ class CLIManager:
             help="If specified, the message will be signed by the hotkey",
         ),
         message: str = typer.Option("", help="The message to encode and sign"),
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Allows users to sign a message with the provided wallet or wallet hotkey.
@@ -1757,6 +1860,7 @@ class CLIManager:
         on your preference for brevity or clarity. This command is essential for users to easily prove their ownership
         over a coldkey or a hotkey.
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         if not use_hotkey:
             use_hotkey = typer.confirm(
@@ -1776,6 +1880,8 @@ class CLIManager:
         self,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Display the members of the root network (Netuid = 0) on the Bittensor network.
@@ -1794,6 +1900,7 @@ class CLIManager:
         governance structure of the Bittensor network's root layer. It provides insights into which neurons hold
         significant influence and responsibility within the network.
         """
+        self.verbosity_handler(quiet, verbose)
         return self._run_command(
             root.root_list(subtensor=self.initialize_chain(network, chain))
         )
@@ -1813,6 +1920,8 @@ class CLIManager:
             help="Weights: e.g. `0.02 0.03 0.01` ...",
         ),
         prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Set the weights for the oot network on the Bittensor network.
@@ -1833,6 +1942,7 @@ class CLIManager:
         network's dynamics. It is a powerful tool that directly impacts the network's operational mechanics and reward
         distribution.
         """
+        self.verbosity_handler(quiet, verbose)
         netuids = list_prompt(netuids, int, "Enter netuids")
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         if not weights:
@@ -1861,6 +1971,8 @@ class CLIManager:
         ),
         reuse_last: bool = Options.reuse_last,
         html_output: bool = Options.html_output,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Retrieve the weights set for the root network on the Bittensor network.
@@ -1880,6 +1992,7 @@ class CLIManager:
         dynamics of the Bittensor network. It offers transparency into how network rewards and responsibilities
         are allocated across different subnets.
         """
+        self.verbosity_handler(quiet, verbose)
         if (reuse_last or html_output) and self.config.get("no_cache") is True:
             err_console.print(
                 "Unable to use `--reuse-last` or `--html` when config no-cache is set."
@@ -1917,6 +2030,8 @@ class CLIManager:
             help="Amount (float) to boost, (e.g. 0.01)",
         ),
         prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Not currently working with new implementation
@@ -1932,6 +2047,7 @@ class CLIManager:
 
         [green]$[/green] btcli root boost --netuid 1 --increase 0.01
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             root.set_boost(
@@ -1956,6 +2072,8 @@ class CLIManager:
             help="Amount (float) to boost, (e.g. 0.01)",
         ),
         prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Decrease the weights for a specific subnet within the root network on the Bittensor network.
@@ -1973,6 +2091,7 @@ class CLIManager:
         Slashing weight for subnet: 1 by amount: 0.2
 
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             root.set_slash(
@@ -1994,6 +2113,8 @@ class CLIManager:
             help="The hash of the proposal to vote on.",
         ),
         prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Cast a vote on an active proposal in Bittensor's governance protocol.
@@ -2012,6 +2133,7 @@ class CLIManager:
         [italic]Note[/italic]: This command is crucial for Senate members to exercise their voting rights on key proposals.
         It plays a vital role in the governance and evolution of the Bittensor network.
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             root.senate_vote(
@@ -2023,6 +2145,8 @@ class CLIManager:
         self,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         View the members of Bittensor's governance protocol, known as the Senate.
@@ -2041,6 +2165,7 @@ class CLIManager:
         [italic]Note[/italic]: This command is particularly useful for users interested in the governance structure
         and participants of the Bittensor network. It provides transparency into the network's decision-making body.
         """
+        self.verbosity_handler(quiet, verbose)
         return self._run_command(root.get_senate(self.initialize_chain(network, chain)))
 
     def root_register(
@@ -2051,6 +2176,8 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Register a neuron on the Bittensor network by recycling some TAO (the network's native token).
@@ -2095,6 +2222,7 @@ class CLIManager:
         It requires careful consideration of the subnet selection and an understanding of the registration costs.
         Users should ensure their wallet is sufficiently funded before attempting to register a neuron.
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             root.register(wallet, self.initialize_chain(network, chain), prompt)
@@ -2104,6 +2232,8 @@ class CLIManager:
         self,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         View active proposals for the senate within Bittensor's governance protocol.
@@ -2123,6 +2253,7 @@ class CLIManager:
         governance of the Bittensor network. It provides a detailed view of the proposals being considered, along with
         the community's response to each.
         """
+        self.verbosity_handler(quiet, verbose)
         return self._run_command(root.proposals(self.initialize_chain(network, chain)))
 
     def root_set_take(
@@ -2133,6 +2264,8 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         take: float = typer.Option(None, help="The new take value."),
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Allows users to change their delegate take.
@@ -2152,6 +2285,7 @@ class CLIManager:
 
         [italic]Note[/italic]: This function can be used to update the takes individually for every subnet
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         if not take:
             max_value = typer.style("Max: 0.18", fg="red")
@@ -2185,6 +2319,8 @@ class CLIManager:
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
         prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Stakes Tao to a specified delegate on the Bittensor network.
@@ -2211,6 +2347,7 @@ class CLIManager:
         and interaction, and is designed to be used within the Bittensor CLI environment. The user should ensure the delegate's address
         and the amount to be staked are correct before executing the command.
         """
+        self.verbosity_handler(quiet, verbose)
         if amount and stake_all:
             err_console.print(
                 "`--amount` and `--all` specified. Choose one or the other."
@@ -2265,6 +2402,8 @@ class CLIManager:
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
         prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Allows users to withdraw their staked Tao from a delegate on the Bittensor network.
@@ -2291,6 +2430,7 @@ class CLIManager:
         It is interactive and requires confirmation from the user before proceeding. It should be used with care as undelegating can
         affect the delegate's total stake and potentially the user's staking rewards.
         """
+        self.verbosity_handler(quiet, verbose)
         if amount and unstake_all:
             err_console.print(
                 "`--amount` and `--all` specified. Choose one or the other."
@@ -2336,6 +2476,8 @@ class CLIManager:
             "-a",
             help="If specified, the command aggregates information across all wallets.",
         ),
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Retrieves and displays a table of delegated stakes from a user's wallet(s) to various delegates.
@@ -2386,6 +2528,7 @@ class CLIManager:
 
         [italic]Note[/italic]: This function is typically called by the CLI parser and is not intended to be used directly in user code.
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         self._run_command(
             root.my_delegates(
@@ -2397,6 +2540,8 @@ class CLIManager:
         self,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Displays a table of Bittensor network delegates, providing a comprehensive overview of delegate statistics and information.
@@ -2445,6 +2590,7 @@ class CLIManager:
         [italic]Note[/italic]: This function is part of the Bittensor CLI tools and is intended for use within a
         console application. It prints directly to the console and does not return any value.
         """
+        self.verbosity_handler(quiet, verbose)
         network_to_use = network or self.config["network"]
         if network_to_use not in ["local", "test"]:
             sub = self.initialize_chain(
@@ -2464,6 +2610,8 @@ class CLIManager:
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
         prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Facilitates a wallet to become a delegate on the Bittensor network.
@@ -2494,6 +2642,7 @@ class CLIManager:
         and does not return any value. It should not be called programmatically in user code due to its interactive nature and
         side effects on the network state.
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             root.nominate(wallet, self.initialize_chain(network, chain), prompt)
@@ -2515,6 +2664,8 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         reuse_last: bool = Options.reuse_last,
         html_output: bool = Options.html_output,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         List all stake accounts associated with a user's wallet on the Bittensor network.
@@ -2548,6 +2699,7 @@ class CLIManager:
         [italic]Note[/italic]: This command is essential for users who wish to monitor their stake distribution and returns across various
         accounts on the Bittensor network. It provides a clear and detailed overview of the user's staking activities.
         """
+        self.verbosity_handler(quiet, verbose)
         if (reuse_last or html_output) and self.config.get("no_cache") is True:
             err_console.print(
                 "Unable to use `--reuse-last` or `--html` when config no-cache is set."
@@ -2612,6 +2764,8 @@ class CLIManager:
         network: str = Options.network,
         chain: str = Options.chain,
         prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Stake TAO tokens to one or more hotkeys from a user's coldkey on the Bittensor network.
@@ -2635,6 +2789,7 @@ class CLIManager:
         [italic]Note[/italic]: This command is critical for users who wish to distribute their stakes among different neurons (hotkeys) on the
         network. It allows for a strategic allocation of tokens to enhance network participation and influence.
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         if stake_all and amount:
             err_console.print(
@@ -2720,6 +2875,8 @@ class CLIManager:
             "hotkeys in `--include-hotkeys`.",
         ),
         prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Unstake TAO tokens from one or more hotkeys and transfer them back to the user's coldkey.
@@ -2741,6 +2898,7 @@ class CLIManager:
         [italic]Note[/italic]: This command is important for users who wish to reallocate their stakes or withdraw
         them from the network. It allows for flexible management of token stakes across different neurons (hotkeys) on the network.
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         if all_hotkeys and include_hotkeys:
             err_console.print(
@@ -2806,6 +2964,8 @@ class CLIManager:
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
         netuid: int = Options.netuid,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Get all child hotkeys on a specified subnet on the Bittensor network.
@@ -2832,6 +2992,7 @@ class CLIManager:
 
         [italic]]Note[/italic]: This command is for users who wish to see child hotkeys among different neurons (hotkeys) on the network.
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             stake.get_children(wallet, self.initialize_chain(network, chain), netuid)
@@ -2857,6 +3018,8 @@ class CLIManager:
         ),
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Add children hotkeys on a specified subnet on the Bittensor network.
@@ -2880,6 +3043,7 @@ class CLIManager:
         [italic]]Note[/italic]: This command is critical for users who wish to delegate children hotkeys among different
         neurons (hotkeys) on the network. It allows for a strategic allocation of authority to enhance network participation and influence.
         """
+        self.verbosity_handler(quiet, verbose)
         children = list_prompt(children, str, "Enter the child hotkeys (ss58)")
         proportions = list_prompt(
             proportions,
@@ -2915,6 +3079,8 @@ class CLIManager:
         netuid: int = Options.netuid,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Remove all children hotkeys on a specified subnet on the Bittensor network.
@@ -2936,6 +3102,7 @@ class CLIManager:
         [italic]Note[/italic]:This command is critical for users who wish to remove children hotkeys on the network.
         It allows for a complete removal of delegated authority to enhance network participation and influence.
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             stake.revoke_children(
@@ -2964,6 +3131,8 @@ class CLIManager:
             help="Enter take for your child hotkey",
             prompt=False,
         ),
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Get and set your childkey take on a specified subnet on the Bittensor network.
@@ -2985,6 +3154,7 @@ class CLIManager:
 
         [italic]]Note[/italic]: This command is critical for users who wish to modify their child hotkey take on the network.
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             stake.childkey_take(
@@ -3011,6 +3181,8 @@ class CLIManager:
         param_value: str = typer.Option(
             "", "--value", help="The subnet hyperparameter value to set."
         ),
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Used to set hyperparameters for a specific subnet on the Bittensor network.
@@ -3032,6 +3204,7 @@ class CLIManager:
         the hyperparameter and its new value. It is intended for advanced users who are familiar with the network's
         functioning and the impact of changing these parameters.
         """
+        self.verbosity_handler(quiet, verbose)
         if not param_name:
             param_name = Prompt.ask(
                 "Enter hyperparameter", choices=list(HYPERPARAMS.keys())
@@ -3054,6 +3227,8 @@ class CLIManager:
         network: str = Options.network,
         chain: str = Options.chain,
         netuid: int = Options.netuid,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Retrieve hyperparameters of a specific subnet.
@@ -3074,6 +3249,7 @@ class CLIManager:
         [italic]Note[/italic]: Users need to provide the `netuid` of the subnet whose hyperparameters they wish to view.
         This command is designed for informational purposes and does not alter any network settings or configurations.
         """
+        self.verbosity_handler(quiet, verbose)
         return self._run_command(
             sudo.get_hyperparameters(self.initialize_chain(network, chain), netuid)
         )
@@ -3084,6 +3260,8 @@ class CLIManager:
         chain: str = Options.chain,
         reuse_last: bool = Options.reuse_last,
         html_output: bool = Options.html_output,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         List all subnets and their detailed information.
@@ -3128,6 +3306,7 @@ class CLIManager:
         [italic]Note[/italic]: This command is particularly useful for users seeking an overview of the Bittensor network's
         structure and the distribution of its resources and ownership information for each subnet.
         """
+        self.verbosity_handler(quiet, verbose)
         if (reuse_last or html_output) and self.config.get("no_cache") is True:
             err_console.print(
                 "Unable to use `--reuse-last` or `--html` when config no-cache is set."
@@ -3144,7 +3323,11 @@ class CLIManager:
         )
 
     def subnets_lock_cost(
-        self, network: str = Options.network, chain: str = Options.chain
+        self,
+        network: str = Options.network,
+        chain: str = Options.chain,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         View the locking cost required for creating a new subnetwork.
@@ -3189,6 +3372,7 @@ class CLIManager:
         by adding new subnetworks. Understanding the lock cost is essential for these users to make informed decisions about their
         potential contributions and investments in the network.
         """
+        self.verbosity_handler(quiet, verbose)
         return self._run_command(
             subnets.lock_cost(self.initialize_chain(network, chain))
         )
@@ -3201,6 +3385,8 @@ class CLIManager:
         network: str = Options.network,
         chain: str = Options.chain,
         prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Register a new subnetwork on the Bittensor network :sparkles:.
@@ -3245,6 +3431,7 @@ class CLIManager:
         should ensure that they have secured their wallet and are aware of the implications of adding a new subnetwork
         to the Bittensor ecosystem.
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             subnets.create(wallet, self.initialize_chain(network, chain), prompt)
@@ -3275,7 +3462,7 @@ class CLIManager:
             defaults.pow_register.output_in_place,
             help="Whether to output the registration statistics in-place.",
         ),
-        verbose: Optional[bool] = typer.Option(
+        verbose: Optional[bool] = typer.Option(  # TODO verbosity here
             defaults.pow_register.verbose,
             "--verbose",
             "-v",
@@ -3350,6 +3537,8 @@ class CLIManager:
         network: str = Options.network,
         netuid: int = Options.netuid,
         prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Register a neuron on the Bittensor network by recycling some TAO (the network's native token) :open_book:.
@@ -3388,6 +3577,7 @@ class CLIManager:
         consideration of the subnet selection and an understanding of the registration costs. Users should ensure their
         wallet is sufficiently funded before attempting to register a neuron.
         """
+        self.verbosity_handler(quiet, verbose)
         return self._run_command(
             subnets.register(
                 self.wallet_ask(wallet_name, wallet_path, wallet_hotkey),
@@ -3408,6 +3598,8 @@ class CLIManager:
         chain: str = Options.chain,
         reuse_last: bool = Options.reuse_last,
         html_output: bool = Options.html_output,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Retrieve and display the metagraph of a subnetwork.
@@ -3464,6 +3656,7 @@ class CLIManager:
         It is useful for network analysis and diagnostics. It is intended to be used as part of the Bittensor CLI and
         not as a standalone function within user code.
         """
+        self.verbosity_handler(quiet, verbose)
         if (reuse_last or html_output) and self.config.get("no_cache") is True:
             err_console.print(
                 "Unable to use `--reuse-last` or `--html` when config no-cache is set."
@@ -3517,6 +3710,8 @@ class CLIManager:
             "-s",
             help="Corresponding salt for the hash function, e.g. -s 163 -s 241 -s 217 ...",
         ),
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Reveal weights for a specific subnet on the Bittensor network.
@@ -3533,6 +3728,7 @@ class CLIManager:
 
         [italic]Note[/italic]: This command is used to reveal weights for a specific subnet and requires the user to have the necessary permissions.
         """
+        self.verbosity_handler(quiet, verbose)
         uids = list_prompt(uids, int, "Corresponding UIDs for the specified netuid")
         weights = list_prompt(
             weights, float, "Corresponding weights for the specified UIDs"
@@ -3581,6 +3777,8 @@ class CLIManager:
             "-s",
             help="Corresponding salt for the hash function, e.g. -s 163 -s 241 -s 217 ...",
         ),
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
 
@@ -3599,6 +3797,7 @@ class CLIManager:
         [italic]Note[/italic]: This command is used to commit weights for a specific subnet and requires the user to have the necessary
         permissions.
         """
+        self.verbosity_handler(quiet, verbose)
         uids = list_prompt(uids, int, "Corresponding UIDs for the specified netuid")
         weights = list_prompt(
             weights, float, "Corresponding weights for the specified UIDs"

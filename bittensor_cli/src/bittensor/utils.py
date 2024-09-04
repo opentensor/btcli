@@ -25,6 +25,9 @@ if TYPE_CHECKING:
 
 console = Console()
 err_console = Console(stderr=True)
+verbose_console = Console(quiet=True)
+critical_console = Console(quiet=False)
+
 
 RAO_PER_TAO = 1e9
 U16_MAX = 65535
