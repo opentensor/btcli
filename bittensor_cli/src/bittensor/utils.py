@@ -764,23 +764,21 @@ def group_vpermits(registrations):
         return ""
 
     ranges = []
+    start = registrations[0]
 
-    # Seting both start and end to the first number in the list
-    start = end = registrations[0]
-
-    # Iterate the list, adding None at the end to handle the last range
-    for num in registrations[1:] + [None]:
-        # If the current number is not consecutive with the previous one
-        if num != end + 1:
-            # If start and end are the same, it's a single number
-            if start == end:
+    for i in range(1, len(registrations)):
+        if registrations[i] != registrations[i - 1] + 1:
+            # Append the current range or single number
+            if start == registrations[i - 1]:
                 ranges.append(str(start))
-
-            # If start and end are different, it's a range
             else:
-                ranges.append(f"{start}-{end}")
+                ranges.append(f"{start}-{registrations[i - 1]}")
+            start = registrations[i]
 
-            start = num  # Set the start of the new range to the current number
-        end = num  # Update the end to the current number
+    # Append the final range or single number
+    if start == registrations[-1]:
+        ranges.append(str(start))
+    else:
+        ranges.append(f"{start}-{registrations[-1]}")
 
     return ", ".join(ranges)

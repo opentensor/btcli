@@ -1495,7 +1495,7 @@ async def list_delegates(subtensor: SubtensorInterface):
         console.print(
             ":warning:[yellow]Could not get delegate info from chain.[/yellow]"
         )
-    table_width = console.width - 10
+    table_width = console.width - 5
     table = Table(
         Column(
             "[white]INDEX",
@@ -1545,7 +1545,7 @@ async def list_delegates(subtensor: SubtensorInterface):
         show_footer=True,
         width=table_width,
         pad_edge=False,
-        box=box.SIMPLE,
+        box=None,
         expand=True,
     )
 
