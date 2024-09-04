@@ -1422,7 +1422,7 @@ class AsyncSubstrateInterface:
             else:
                 block_hash = await self.get_chain_head()
 
-        return self.__get_block_handler(
+        return await self._get_block_handler(
             block_hash=block_hash,
             ignore_decoding_errors=ignore_decoding_errors,
             header_only=False,
