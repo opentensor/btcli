@@ -262,11 +262,11 @@ class SetWeightsExtrinsic:
             if not self.wait_for_finalization and not self.wait_for_inclusion:
                 return True, "Not waiting for finalization or inclusion."
 
-            response.process_events()
-            if response.is_success:
+            await response.process_events()
+            if await response.is_success:
                 return True, "Successfully set weights."
             else:
-                return False, format_error_message(response.error_message)
+                return False, format_error_message(await response.error_message)
 
         with console.status(
             f":satellite: Setting weights on [white]{self.subtensor.network}[/white] ..."
@@ -321,13 +321,13 @@ class SetWeightsExtrinsic:
             success, error_message = True, ""
 
         else:
-            response.process_events()
-            if response.is_success:
+            await response.process_events()
+            if await response.is_success:
                 success, error_message = True, ""
             else:
                 success, error_message = (
                     False,
-                    format_error_message(response.error_message),
+                    format_error_message(await response.error_message),
                 )
 
         if success:
@@ -359,11 +359,11 @@ class SetWeightsExtrinsic:
         if not self.wait_for_finalization and not self.wait_for_inclusion:
             return True, None
 
-        response.process_events()
-        if response.is_success:
+        await response.process_events()
+        if await response.is_success:
             return True, None
         else:
-            return False, response.error_message
+            return False, await response.error_message
 
 
 # commands

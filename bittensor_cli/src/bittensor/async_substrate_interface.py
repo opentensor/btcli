@@ -7,12 +7,7 @@ from typing import Optional, Any, Union, Callable, Awaitable, cast
 
 import websockets
 from scalecodec import GenericExtrinsic
-from scalecodec.base import (
-    ScaleBytes,
-    ScaleType,
-    RuntimeConfigurationObject,
-    ScaleDecoder,
-)
+from scalecodec.base import ScaleBytes, ScaleType, RuntimeConfigurationObject
 from scalecodec.type_registry import load_type_registry_preset
 from scalecodec.types import GenericCall
 from substrateinterface import Keypair
@@ -37,7 +32,7 @@ def timeout_handler(signum, frame):
 class ExtrinsicReceipt:
     """
     Object containing information of submitted extrinsic. Block hash where extrinsic is included is required
-        when retrieving triggered events or determine if extrinsic was successful
+    when retrieving triggered events or determine if extrinsic was successful
     """
 
     def __init__(
@@ -95,7 +90,7 @@ class ExtrinsicReceipt:
                     "Cannot create extrinsic identifier: unknown block_hash"
                 )
 
-        return f"{self.block_number}-{self.extrinsic_idx}"
+        return f"{self.block_number}-{await self.extrinsic_idx}"
 
     async def retrieve_extrinsic(self):
         if not self.block_hash:
@@ -121,7 +116,7 @@ class ExtrinsicReceipt:
             self.__extrinsic = extrinsics[self.__extrinsic_idx]
 
     @property
-    def extrinsic_idx(self) -> int:
+    async def extrinsic_idx(self) -> int:
         """
         Retrieves the index of this extrinsic in containing block
 
@@ -130,21 +125,8 @@ class ExtrinsicReceipt:
         int
         """
         if self.__extrinsic_idx is None:
-            self.retrieve_extrinsic()
+            await self.retrieve_extrinsic()
         return cast(int, self.__extrinsic_idx)
-
-    @property
-    def extrinsic(self) -> GenericExtrinsic:
-        """
-        Retrieves the `Extrinsic` subject of this receipt
-
-        Returns
-        -------
-        Extrinsic
-        """
-        if self.__extrinsic is None:
-            self.retrieve_extrinsic()
-        return self.__extrinsic
 
     @property
     async def triggered_events(self) -> list:
@@ -163,13 +145,13 @@ class ExtrinsicReceipt:
                     "included, manually set block_hash or use `wait_for_inclusion` when sending extrinsic"
                 )
 
-            if self.extrinsic_idx is None:
+            if await self.extrinsic_idx is None:
                 await self.retrieve_extrinsic()
 
             self.__triggered_events = []
 
             for event in await self.substrate.get_events(block_hash=self.block_hash):
-                if event.extrinsic_idx == self.extrinsic_idx:
+                if await event.extrinsic_idx == self.extrinsic_idx:
                     self.__triggered_events.append(event)
 
         return cast(list, self.__triggered_events)
@@ -398,7 +380,7 @@ class ExtrinsicReceipt:
         return self.__error_message
 
     @property
-    def weight(self) -> Union[int, dict]:
+    async def weight(self) -> Union[int, dict]:
         """
         Contains the actual weight when executing this extrinsic
 
@@ -407,11 +389,11 @@ class ExtrinsicReceipt:
         int (WeightV1) or dict (WeightV2)
         """
         if self.__weight is None:
-            self.process_events()
-        return self.__weight, bool
+            await self.process_events()
+        return self.__weight
 
     @property
-    def total_fee_amount(self) -> int:
+    async def total_fee_amount(self) -> int:
         """
         Contains the total fee costs deducted when executing this extrinsic. This includes fee for the validator (
         (`Balances.Deposit` event) and the fee deposited for the treasury (`Treasury.Deposit` event)
@@ -421,7 +403,7 @@ class ExtrinsicReceipt:
         int
         """
         if self.__total_fee_amount is None:
-            self.process_events()
+            await self.process_events()
         return cast(int, self.__total_fee_amount)
 
     # Helper functions
