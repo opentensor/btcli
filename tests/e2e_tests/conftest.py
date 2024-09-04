@@ -2,15 +2,17 @@ import logging
 import os
 import re
 import shlex
+import shutil
 import signal
 import subprocess
 import time
 
 import pytest
-
 from bittensor_cli.src.bittensor.async_substrate_interface import (
     AsyncSubstrateInterface,
 )
+
+from .utils import setup_wallet
 
 
 # Fixture for setting up and tearing down a localnet.sh chain between tests
@@ -70,3 +72,19 @@ def local_chain(request):
 
     # Ensure the process has terminated
     process.wait()
+
+
+@pytest.fixture(scope="function")
+def wallet_setup():
+    wallet_paths = []
+
+    def _setup_wallet(uri: str):
+        keypair, wallet, wallet_path, exec_command = setup_wallet(uri)
+        wallet_paths.append(wallet_path)
+        return keypair, wallet, wallet_path, exec_command
+
+    yield _setup_wallet
+
+    # Cleanup after the test
+    for path in wallet_paths:
+        shutil.rmtree(path, ignore_errors=True)

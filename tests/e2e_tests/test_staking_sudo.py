@@ -1,9 +1,7 @@
 import re
-import logging
 import time
 
 from bittensor_cli.src.bittensor.balances import Balance
-from tests.e2e_tests.utils import setup_wallet
 
 """
 Verify commands:
@@ -18,7 +16,7 @@ Verify commands:
 """
 
 
-def test_staking(local_chain):
+def test_staking(local_chain, wallet_setup):
     """
     Test staking & sudo commands and inspect their output
 
@@ -33,12 +31,12 @@ def test_staking(local_chain):
     Raises:
         AssertionError: If any of the checks or verifications fail
     """
-    logging.info("Testing staking and sudo commands🧪")
+    print("Testing staking and sudo commands🧪")
     netuid = 1
     wallet_path_alice = "//Alice"
 
     # Create wallet for Alice
-    keypair_alice, wallet_alice, wallet_path_alice, exec_command_alice = setup_wallet(
+    keypair_alice, wallet_alice, wallet_path_alice, exec_command_alice = wallet_setup(
         wallet_path_alice
     )
 
@@ -123,7 +121,7 @@ def test_staking(local_chain):
     cleaned_stake = [
         re.sub(r"\s+", " ", line) for line in show_stake.stdout.splitlines()
     ]
-    stake_added = cleaned_stake[3].split()[4].strip("τ")
+    stake_added = cleaned_stake[4].split()[4].strip("τ")
     assert Balance.from_tao(100) == Balance.from_tao(float(stake_added))
 
     # TODO: Ask nucleus the rate limit and wait epoch
@@ -169,7 +167,7 @@ def test_staking(local_chain):
 
     # Parse all hyperparameters and single out max_burn in TAO
     all_hyperparams = hyperparams.stdout.splitlines()
-    max_burn_tao = all_hyperparams[18].split()[2]
+    max_burn_tao = all_hyperparams[23].split()[2]
 
     # Assert max_burn is 100 TAO from default
     assert Balance.from_tao(float(max_burn_tao.strip("τ"))) == Balance.from_tao(100)
@@ -218,9 +216,10 @@ def test_staking(local_chain):
 
     # Parse updated hyperparameters
     all_updated_hyperparams = updated_hyperparams.stdout.splitlines()
-    updated_max_burn_tao = all_updated_hyperparams[18].split()[2]
+    updated_max_burn_tao = all_updated_hyperparams[23].split()[2]
 
     # Assert max_burn is now 10 TAO
     assert Balance.from_tao(float(updated_max_burn_tao.strip("τ"))) == Balance.from_tao(
         10
     )
+    print("✅ Passed staking and sudo commands")

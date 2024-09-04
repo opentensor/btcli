@@ -1,10 +1,7 @@
-import logging
 import os
 import re
 import time
 from typing import Dict, Optional, Tuple
-
-from tests.e2e_tests.utils import setup_wallet
 
 """
 Verify commands:
@@ -159,7 +156,7 @@ def extract_mnemonics_from_commands(output: str) -> Dict[str, Optional[str]]:
     return mnemonics
 
 
-def test_wallet_creations():
+def test_wallet_creations(wallet_setup):
     """
     Test the creation and verification of wallet keys and directories in the Bittensor network.
 
@@ -176,7 +173,7 @@ def test_wallet_creations():
     """
 
     wallet_path_name = "//Alice"
-    keypair, wallet, wallet_path, exec_command = setup_wallet(wallet_path_name)
+    keypair, wallet, wallet_path, exec_command = wallet_setup(wallet_path_name)
 
     result = exec_command(
         command="wallet", sub_command="list", extra_args=["--wallet-path", wallet_path]
@@ -194,7 +191,7 @@ def test_wallet_creations():
     # Command 1: <btcli w create>
     # -----------------------------
 
-    logging.info("Testing wallet create command 🧪")
+    print("Testing wallet create command 🧪")
     # Create a new wallet (coldkey + hotkey)
     exec_command(
         command="wallet",
@@ -207,8 +204,6 @@ def test_wallet_creations():
             "--hotkey",
             "new_hotkey",
             "--no-use-password",
-            "--overwrite-coldkey",
-            "--overwrite-hotkey",
             "--n-words",
             "12",
         ],
@@ -235,14 +230,13 @@ def test_wallet_creations():
     # Command 2: <btcli w new_coldkey>
     # -----------------------------
 
-    logging.info("Testing wallet new_coldkey command 🧪")
+    print("Testing wallet new_coldkey command 🧪")
 
     # Create a new wallet (coldkey)
     exec_command(
         "wallet",
         sub_command="new-coldkey",
         extra_args=[
-            "--overwrite-coldkey",
             "--wallet-name",
             "new_coldkey",
             "--wallet-path",
@@ -269,7 +263,7 @@ def test_wallet_creations():
     # Command 3: <btcli w new_hotkey>
     # -----------------------------
 
-    logging.info("Testing wallet new_hotkey command 🧪")
+    print("Testing wallet new_hotkey command 🧪")
     # Create a new hotkey for new_coldkey wallet
     result = exec_command(
         "wallet",
@@ -279,7 +273,6 @@ def test_wallet_creations():
             "new_coldkey",
             "--hotkey",
             "new_hotkey",
-            "--overwrite-hotkey",
             "--wallet-path",
             wallet_path,
             "--n-words",
@@ -303,7 +296,7 @@ def test_wallet_creations():
     assert wallet_status, message
 
 
-def test_wallet_regen():
+def test_wallet_regen(wallet_setup):
     """
     Test the regeneration of coldkeys, hotkeys, and coldkeypub files using mnemonics or ss58 address.
 
@@ -317,7 +310,7 @@ def test_wallet_regen():
         AssertionError: If any of the checks or verifications fail
     """
     wallet_path_name = "//Bob"
-    keypair, wallet, wallet_path, exec_command = setup_wallet(wallet_path_name)
+    keypair, wallet, wallet_path, exec_command = wallet_setup(wallet_path_name)
 
     # Create a new wallet (coldkey + hotkey)
     result = exec_command(
@@ -331,8 +324,6 @@ def test_wallet_regen():
             "--hotkey",
             "new_hotkey",
             "--no-use-password",
-            "--overwrite-coldkey",
-            "--overwrite-hotkey",
             "--n-words",
             "12",
         ],
@@ -351,7 +342,7 @@ def test_wallet_regen():
     # -----------------------------
     # Command 1: <btcli w regen_coldkey>
     # -----------------------------
-    logging.info("Testing wallet regen_coldkey command 🧪")
+    print("Testing wallet regen_coldkey command 🧪")
     coldkey_path = os.path.join(wallet_path, "new_wallet", "coldkey")
     initial_coldkey_mod_time = os.path.getmtime(coldkey_path)
 
@@ -365,11 +356,11 @@ def test_wallet_regen():
             "new_hotkey",
             "--wallet-path",
             wallet_path,
-            "--overwrite-coldkey",
             "--mnemonic",
             mnemonics["coldkey"],
             "--no-use-password",
         ],
+        inputs=["y", "y"],
     )
 
     # Wait a bit to ensure file system updates modification time
@@ -380,13 +371,13 @@ def test_wallet_regen():
     assert (
         initial_coldkey_mod_time != new_coldkey_mod_time
     ), "Coldkey file was not regenerated as expected"
-    logging.info("Passed wallet regen_coldkey command ✅")
+    print("Passed wallet regen_coldkey command ✅")
 
     # -----------------------------
     # Command 2: <btcli w regen_coldkeypub>
     # -----------------------------
 
-    logging.info("Testing wallet regen_coldkeypub command 🧪")
+    print("Testing wallet regen_coldkeypub command 🧪")
     coldkeypub_path = os.path.join(wallet_path, "new_wallet", "coldkeypub.txt")
     initial_coldkeypub_mod_time = os.path.getmtime(coldkeypub_path)
 
@@ -408,8 +399,8 @@ def test_wallet_regen():
             wallet_path,
             "--ss58-address",
             ss58_address,
-            "--overwrite-coldkeypub",
         ],
+        inputs=["y"],
     )
 
     # Wait a bit to ensure file system updates modification time
@@ -420,17 +411,17 @@ def test_wallet_regen():
     assert (
         initial_coldkeypub_mod_time != new_coldkeypub_mod_time
     ), "Coldkeypub file was not regenerated as expected"
-    logging.info("Passed wallet regen_coldkeypub command ✅")
+    print("Passed wallet regen_coldkeypub command ✅")
 
     # -----------------------------
     # Command 3: <btcli w regen_hotkey>
     # -----------------------------
 
-    logging.info("Testing wallet regen_hotkey command 🧪")
+    print("Testing wallet regen_hotkey command 🧪")
     hotkey_path = os.path.join(wallet_path, "new_wallet", "hotkeys", "new_hotkey")
     initial_hotkey_mod_time = os.path.getmtime(hotkey_path)
 
-    exec_command(
+    result = exec_command(
         command="wallet",
         sub_command="regen-hotkey",
         extra_args=[
@@ -442,17 +433,17 @@ def test_wallet_regen():
             wallet_path,
             "--mnemonic",
             mnemonics["hotkey"],
-            "--overwrite-hotkey",
             "--no-use-password",
         ],
+        inputs=["y"],
     )
 
     # Wait a bit to ensure file system updates modification time
-    time.sleep(1)
+    time.sleep(2)
 
     new_hotkey_mod_time = os.path.getmtime(hotkey_path)
 
     assert (
         initial_hotkey_mod_time != new_hotkey_mod_time
     ), "Hotkey file was not regenerated as expected"
-    logging.info("Passed wallet regen_hotkey command ✅")
+    print("Passed wallet regen_hotkey command ✅")
