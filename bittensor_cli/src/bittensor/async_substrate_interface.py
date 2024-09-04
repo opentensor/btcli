@@ -1082,9 +1082,7 @@ class AsyncSubstrateInterface:
                 )
             except NotImplementedError:
                 self.config["is_weight_v2"] = False
-                self.runtime_config.update_type_registry_types(
-                    {"Weight": "WeightV1"}
-                )
+                self.runtime_config.update_type_registry_types({"Weight": "WeightV1"})
             runtime = Runtime(
                 self.chain,
                 self.runtime_config,
