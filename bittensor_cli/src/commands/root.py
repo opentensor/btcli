@@ -35,6 +35,7 @@ from bittensor_cli.src.bittensor.utils import (
     render_table,
     ss58_to_vec_u8,
     update_metadata_table,
+    group_vpermits,
 )
 
 # helpers
@@ -1494,12 +1495,11 @@ async def list_delegates(subtensor: SubtensorInterface):
         console.print(
             ":warning:[yellow]Could not get delegate info from chain.[/yellow]"
         )
-
+    table_width = console.width - 10
     table = Table(
         Column(
             "[white]INDEX",
             str(len(delegates)),
-            footer_style="overline white",
             style="bold white",
         ),
         Column(
@@ -1507,16 +1507,12 @@ async def list_delegates(subtensor: SubtensorInterface):
             style="bold bright_cyan",
             no_wrap=True,
             justify="left",
+            max_width=20,
         ),
         Column(
-            "[white]SS58",
-            str(len(delegates)),
-            footer_style="overline white",
-            style="bright_magenta",
+            "[white]SS58", str(len(delegates)), style="bright_magenta", max_width=48
         ),
-        Column(
-            "[white]NOMINATORS", justify="center", style="dark_sea_green", no_wrap=True
-        ),
+        Column("[white]NOMINATORS", justify="center", style="gold1", no_wrap=True),
         Column(
             "[white]DELEGATE STAKE(\u03c4)",
             justify="right",
@@ -1530,18 +1526,26 @@ async def list_delegates(subtensor: SubtensorInterface):
             no_wrap=True,
         ),
         Column("[white]CHANGE/(4h)", style="grey0", justify="center"),
-        Column("[white]VPERMIT", justify="right", no_wrap=False),
         Column("[white]TAKE", style="white", no_wrap=True),
         Column(
-            "[white]NOMINATOR/(24h)/k\u03c4", style="rgb(42,161,152)", justify="center"
+            "[white]NOMINATOR/(24h)/k\u03c4",
+            style="dark_olive_green3",
+            justify="center",
         ),
-        Column("[white]DELEGATE/(24h)", style="rgb(42,161,152)", justify="center"),
-        Column("[white]Desc", style="rgb(50,163,219)"),
+        Column("[white]DELEGATE/(24h)", style="dark_olive_green3", justify="center"),
+        Column(
+            "[white]VPERMIT",
+            justify="center",
+            no_wrap=False,
+            max_width=20,
+            style="dark_sea_green",
+        ),
+        Column("[white]Desc", style="rgb(50,163,219)", max_width=30),
         title="[underline dark_orange]Root Delegates\n",
         show_footer=True,
-        width=None,
+        width=table_width,
         pad_edge=False,
-        box=None,
+        box=box.SIMPLE,
         expand=True,
     )
 
@@ -1596,7 +1600,7 @@ async def list_delegates(subtensor: SubtensorInterface):
             # DELEGATE
             Text(delegate_name, style=f"link {delegate_url}"),
             # SS58
-            f"{delegate.hotkey_ss58:8.8}...",
+            f"{delegate.hotkey_ss58}",
             # NOMINATORS
             str(len([nom for nom in delegate.nominators if nom[1].rao > 0])),
             # DELEGATE STAKE
@@ -1605,14 +1609,14 @@ async def list_delegates(subtensor: SubtensorInterface):
             f"{delegate.total_stake!s:13.13}",
             # CHANGE/(4h)
             rate_change_in_stake_str,
-            # VPERMIT
-            str(delegate.registrations),
             # TAKE
             f"{delegate.take * 100:.1f}%",
             # NOMINATOR/(24h)/k
             f"{Balance.from_tao(delegate.total_daily_return.tao * (1000 / (0.001 + delegate.total_stake.tao)))!s:6.6}",
             # DELEGATE/(24h)
             f"{Balance.from_tao(delegate.total_daily_return.tao * 0.18) !s:6.6}",
+            # VPERMIT
+            str(group_vpermits(delegate.registrations)),
             # Desc
             str(delegate_description),
             end_section=True,

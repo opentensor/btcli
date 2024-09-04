@@ -757,3 +757,30 @@ def render_tree(
         f.write(rendered)
     if show:
         webbrowser.open(f"file://{output_file}")
+
+
+def group_vpermits(registrations):
+    if not registrations:
+        return ""
+
+    ranges = []
+
+    # Seting both start and end to the first number in the list
+    start = end = registrations[0]
+
+    # Iterate the list, adding None at the end to handle the last range
+    for num in registrations[1:] + [None]:
+        # If the current number is not consecutive with the previous one
+        if num != end + 1:
+            # If start and end are the same, it's a single number
+            if start == end:
+                ranges.append(str(start))
+
+            # If start and end are different, it's a range
+            else:
+                ranges.append(f"{start}-{end}")
+
+            start = num  # Set the start of the new range to the current number
+        end = num  # Update the end to the current number
+
+    return ", ".join(ranges)
