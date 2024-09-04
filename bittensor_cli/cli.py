@@ -2798,13 +2798,23 @@ class CLIManager:
         )
 
     def stake_get_children(
-        self,
-        wallet_name: Optional[str] = Options.wallet_name_req,
-        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
-        wallet_path: Optional[str] = Options.wallet_path,
-        network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
-        netuid: Optional[str] = Options.netuid,
+            self,
+            wallet_name: Optional[str] = Options.wallet_name_req,
+            wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+            wallet_path: Optional[str] = Options.wallet_path,
+            network: Optional[str] = Options.network,
+            chain: Optional[str] = Options.chain,
+            netuid=typer.Option(
+                None,
+                help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
+                prompt=False,
+            ),
+            all_netuids: bool = typer.Option(
+                False,
+                "--all-netuids",
+                "--all",
+                help="When set, gets children from all subnets on the bittensor network.",
+            ),
     ):
         """
         Get all child hotkeys on a specified subnet on the Bittensor network.
@@ -2824,13 +2834,15 @@ class CLIManager:
         # Example usage:
 
         [green]$[/green]btcli stake get_children --netuid 1
-        [green]$[/green]btcli stake get_children --netuid all
+        [green]$[/green]btcli stake get_children --all-netuids
 
-        [italic]]Note[/italic]: This command is for users who wish to see child hotkeys among different neurons (hotkeys) on the network.
+        [italic]Note[/italic]: This command is for users who wish to see child hotkeys among different neurons (hotkeys) on the network.
         """
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        if netuid == 'all':
+        if all_netuids:
             netuid = None
+        elif not netuid:
+            netuid = Prompt.ask("Netuid")
         return self._run_command(
             stake.get_children(wallet, self.initialize_chain(network, chain), netuid)
         )
