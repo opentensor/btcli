@@ -953,7 +953,7 @@ class AsyncSubstrateInterface:
         -------
 
         """
-        await self.init_runtime(block_hash=block_hash)
+        # await self.init_runtime(block_hash=block_hash)
 
         if isinstance(scale_bytes, str):
             scale_bytes = ScaleBytes(scale_bytes)
@@ -971,7 +971,7 @@ class AsyncSubstrateInterface:
 
     async def init_runtime(
         self, block_hash: Optional[str] = None, block_id: Optional[int] = None
-    ):
+    ) -> Runtime:
         """
         This method is used by all other methods that deals with metadata and types defined in the type registry.
         It optionally retrieves the block_hash when block_id is given and sets the applicable metadata for that
@@ -990,10 +990,10 @@ class AsyncSubstrateInterface:
 
         if not (runtime := self.runtime_cache.retrieve(block_id, block_hash)):
             # Check if runtime state already set to current block
-            if (block_hash and block_hash == self.last_block_hash) or (
-                block_id and block_id == self.block_id
-            ):
-                return
+            # if (block_hash and block_hash == self.last_block_hash) or (
+            #     block_id and block_id == self.block_id
+            # ):
+            #     return
 
             if block_id is not None:
                 block_hash = await self.get_block_hash(block_id)
@@ -1035,8 +1035,8 @@ class AsyncSubstrateInterface:
                 )
 
             # Check if runtime state already set to current block
-            if runtime_info.get("specVersion") == self.runtime_version:
-                return
+            # if runtime_info.get("specVersion") == self.runtime_version:
+            #     return
 
             self.runtime_version = runtime_info.get("specVersion")
             self.transaction_version = runtime_info.get("transactionVersion")
@@ -2223,13 +2223,14 @@ class AsyncSubstrateInterface:
         MetadataModuleConstants
         """
 
-        await self.init_runtime(block_hash=block_hash)
+        # await self.init_runtime(block_hash=block_hash)
 
         for module_idx, module in enumerate(self.metadata.pallets):
             if module_name == module.name and module.constants:
                 for constant in module.constants:
                     if constant_name == constant.value["name"]:
                         return constant
+        print("not found")
 
     async def get_constant(
         self,
