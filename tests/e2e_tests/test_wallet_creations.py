@@ -329,6 +329,9 @@ def test_wallet_regen(wallet_setup):
         ],
     )
 
+    # Temp for debugging
+    print(result.stdout)
+
     mnemonics = extract_mnemonics_from_commands(result.stdout)
 
     wallet_status, message = verify_wallet_dir(
