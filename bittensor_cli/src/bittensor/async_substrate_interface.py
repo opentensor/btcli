@@ -479,9 +479,7 @@ class AsyncSubstrateInterface:
         """
         async with self._lock:
             if not (runtime := self.runtime_cache.retrieve(block_id, block_hash)):
-                await asyncio.get_event_loop().run_in_executor(
-                    None, self.substrate.init_runtime, block_hash, block_id
-                )
+                self.substrate.init_runtime(block_hash, block_id)
                 runtime = Runtime(
                     self.chain,
                     self.substrate.runtime_config,
