@@ -971,7 +971,9 @@ class CLIManager:
                 wallet_path = Prompt.ask(
                     "Enter the path of the wallets", default=defaults.wallet.path
                 )
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name, wallet_path, wallet_hotkey, validate=False
+        )
         return self._run_command(
             wallets.overview(
                 wallet,
@@ -1128,7 +1130,9 @@ class CLIManager:
                 wallet_path = Prompt.ask(
                     "Enter the path of the wallets", default=defaults.wallet.path
                 )
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name, wallet_path, wallet_hotkey, validate=False
+        )
         self.initialize_chain(network, chain)
         return self._run_command(
             wallets.inspect(
@@ -1515,10 +1519,10 @@ class CLIManager:
 
         # Example usages:
 
-        - To display the balance of a single wallet, use the command with the `--wallet.name` argument to specify
+        - To display the balance of a single wallet, use the command with the `--wallet-name` argument to specify
         the wallet name:
 
-        [green]$[/green] btcli w balance --wallet.name WALLET
+        [green]$[/green] btcli w balance --wallet-name WALLET
 
         [green]$[/green] btcli w balance
 
@@ -1532,7 +1536,9 @@ class CLIManager:
                     "Enter the path of the wallets", default=defaults.wallet.path
                 )
         subtensor = self.initialize_chain(network, chain)
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name, wallet_path, wallet_hotkey, validate=False
+        )
         return self._run_command(
             wallets.wallet_balance(wallet, subtensor, all_balances)
         )
@@ -1750,7 +1756,7 @@ class CLIManager:
 
         [green]$[/green] btcli wallet sign --wallet-name default --message '{"something": "here", "timestamp": 1719908486}'
 
-        [green]$[/green] btcli wallet sign --wallet.name default --wallet-hotkey hotkey --message
+        [green]$[/green] btcli wallet sign --wallet-name default --wallet-hotkey hotkey --message
         '{"something": "here", "timestamp": 1719908486}'
 
         [italic]Note[/italic]: When using `btcli`, `w` is used interchangeably with `wallet`. You may use either based
@@ -2148,7 +2154,7 @@ class CLIManager:
 
         # Example usage:
 
-        [green]$[/green] btcli root set_take --wallet.name my_wallet --wallet.hotkey my_hotkey
+        [green]$[/green] btcli root set_take --wallet-name my_wallet --wallet-hotkey my_hotkey
 
         [italic]Note[/italic]: This function can be used to update the takes individually for every subnet
         """
@@ -2438,7 +2444,7 @@ class CLIManager:
 
         [green]$[/green] btcli root list_delegates
 
-        [green]$[/green] btcli root list_delegates --wallet.name my_wallet
+        [green]$[/green] btcli root list_delegates --wallet-name my_wallet
 
         [green]$[/green] btcli root list_delegates --subtensor.network finney # can also be `test` or `local`
 
@@ -2488,7 +2494,7 @@ class CLIManager:
 
         [green]$[/green] btcli root nominate
 
-        [green]$[/green] btcli root nominate --wallet.name my_wallet --wallet.hotkey my_hotkey
+        [green]$[/green] btcli root nominate --wallet-name my_wallet --wallet-hotkey my_hotkey
 
         [italic]Note[/italic]: This function is intended to be used as a CLI command. It prints the outcome directly to the console
         and does not return any value. It should not be called programmatically in user code due to its interactive nature and
@@ -2668,9 +2674,7 @@ class CLIManager:
 
         if not wallet_hotkey and not all_hotkeys and not include_hotkeys:
             _hotkey_str = typer.style("hotkey", fg="red")
-            hotkey = typer.prompt(
-                f"Enter {_hotkey_str} name to stake or ss58_address"
-            )
+            hotkey = typer.prompt(f"Enter {_hotkey_str} name to stake or ss58_address")
             if not is_valid_ss58_address(hotkey):
                 wallet_hotkey = hotkey
                 wallet = self.wallet_ask(
