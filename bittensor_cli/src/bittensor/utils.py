@@ -26,7 +26,19 @@ if TYPE_CHECKING:
 console = Console()
 err_console = Console(stderr=True)
 verbose_console = Console(quiet=True)
-critical_console = Console(quiet=False)
+
+
+def print_verbose(message: str, status=None):
+    """Print verbose messages while temporarily pausing the status spinner."""
+    if status:
+        # Pause the spinner to avoid overlapping
+        status.stop()
+    verbose_console.print(
+        f"[bold green][Verbose]:[/bold green] [green]{message}[/green]\n"
+    )
+    if status:
+        # Resume the spinner after the message is printed
+        status.start()
 
 
 RAO_PER_TAO = 1e9

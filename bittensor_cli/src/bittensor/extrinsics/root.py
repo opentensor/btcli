@@ -29,7 +29,12 @@ from substrateinterface import Keypair
 
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.extrinsics.registration import is_hotkey_registered
-from bittensor_cli.src.bittensor.utils import console, err_console, u16_normalized_float
+from bittensor_cli.src.bittensor.utils import (
+    console,
+    err_console,
+    u16_normalized_float,
+    print_verbose,
+)
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.minigraph import MiniGraph
@@ -300,6 +305,7 @@ async def root_register_extrinsic(
 
     wallet.unlock_coldkey()
 
+    print_verbose(f"Checking if hotkey ({wallet.hotkey_str}) is registered on root")
     is_registered = await is_hotkey_registered(
         subtensor, netuid=0, hotkey_ss58=wallet.hotkey.ss58_address
     )
@@ -313,7 +319,7 @@ async def root_register_extrinsic(
         if not Confirm.ask("Register to root network?"):
             return False
 
-    with console.status(":satellite: Registering to root network..."):
+    with console.status(":satellite: Registering to root network...", spinner="earth"):
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function="root_register",
@@ -413,6 +419,7 @@ async def set_root_weights_extrinsic(
     if isinstance(weights, list):
         weights = np.array(weights, dtype=np.float32)
 
+    print_verbose("Fetching weight limits")
     min_allowed_weights, max_weight_limit = await get_limits(subtensor)
 
     # Get non zero values.
@@ -426,6 +433,7 @@ async def set_root_weights_extrinsic(
         )
 
     # Normalize the weights to max value.
+    print_verbose("Normalizing weights")
     formatted_weights = normalize_max_weight(x=weights, limit=max_weight_limit)
     console.print(
         f"\nRaw Weights -> Normalized weights: \n\t{weights} -> \n\t{formatted_weights}\n"
@@ -443,7 +451,7 @@ async def set_root_weights_extrinsic(
             return False
 
     try:
-        with console.status("Setting root weights..."):
+        with console.status("Setting root weights...", spinner="earth"):
             weight_uids, weight_vals = convert_weights_and_uids_for_emit(
                 netuids, weights
             )

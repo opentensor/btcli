@@ -9,6 +9,7 @@ from bittensor_cli.src import HYPERPARAMS
 from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
+    print_verbose,
     normalize_hyperparameters,
 )
 
@@ -84,6 +85,7 @@ async def set_hyperparameter_extrinsic(
     :return: success: `True` if extrinsic was finalized or included in the block. If we did not wait for
                       finalization/inclusion, the response is `True`.
     """
+    print_verbose("Confirming subnet owner")
     subnet_owner = getattr(
         await subtensor.substrate.query(
             module="SubtensorModule",
@@ -107,7 +109,8 @@ async def set_hyperparameter_extrinsic(
         return False
 
     with console.status(
-        f":satellite: Setting hyperparameter {parameter} to {value} on subnet: {netuid} ..."
+        f":satellite: Setting hyperparameter {parameter} to {value} on subnet: {netuid} ...",
+        spinner="earth",
     ):
         substrate = subtensor.substrate
         extrinsic_params = await substrate.get_metadata_call_function(
@@ -172,6 +175,7 @@ async def sudo_set_hyperparameter(
 ):
     """Set subnet hyperparameters."""
     console.print("\n")
+    print_verbose("Fetching hyperparameters")
     await get_hyperparameters(subtensor, netuid=netuid)
 
     normalized_value: Union[str, bool]
@@ -197,6 +201,7 @@ async def sudo_set_hyperparameter(
 
 async def get_hyperparameters(subtensor: "SubtensorInterface", netuid: int):
     """View hyperparameters of a subnetwork."""
+    print_verbose("Fetching hyperparameters")
     subnet = await subtensor.get_subnet_hyperparameters(netuid)
 
     table = Table(
