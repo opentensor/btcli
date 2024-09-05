@@ -149,7 +149,7 @@ def extract_mnemonics_from_commands(output: str) -> Dict[str, Optional[str]]:
         if line.startswith(command_prefix):
             for key_type in key_types:
                 if line.startswith(f"{command_prefix}{key_type} --mnemonic "):
-                    mnemonic_phrase = line.split("--mnemonic ")[1].strip()
+                    mnemonic_phrase = line.split("--mnemonic ")[1].strip().strip('"')
                     mnemonics[key_type] = mnemonic_phrase
                     break
 
