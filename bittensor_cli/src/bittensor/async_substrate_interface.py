@@ -2527,7 +2527,7 @@ class AsyncSubstrateInterface:
             storage_function=storage_function,
             params=params,
             block_hash=block_hash,
-            substrate=cast("AsyncSubstrateInterface", self.substrate),
+            substrate=self,
             last_key=last_key,
             max_results=max_results,
             ignore_decoding_errors=ignore_decoding_errors,
