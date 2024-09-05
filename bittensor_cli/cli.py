@@ -1457,7 +1457,7 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         n_words: Optional[int] = None,
         use_password: bool = typer.Option(
-            False,  # Overridento False
+            False,  # Overriden to False
             "--use-password",
             help="Encrypt with a password",
             show_default=True,
