@@ -1225,7 +1225,7 @@ async def inspect(
     else:
         wallets = [wallet]
         all_hotkeys = get_hotkey_wallets_for_wallet(wallet)
-    with console.status("synchronising with chain"):
+    with console.status("Synchronising with chain...", spinner="aesthetic"):
         block_hash = await subtensor.substrate.get_chain_head()
         await subtensor.substrate.init_runtime(block_hash=block_hash)
         all_netuids = await subtensor.filter_netuids_by_registered_hotkeys(
