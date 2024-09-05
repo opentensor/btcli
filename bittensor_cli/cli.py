@@ -1462,9 +1462,9 @@ class CLIManager:
         n_words: Optional[int] = None,
         use_password: bool = typer.Option(
             False,  # Overriden to False
-            "--use-password",
-            help="Encrypt with a password",
-            show_default=True,
+            help="Set true to protect the generated bittensor key with a password.",
+            is_flag=True,
+            flag_value=True,
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
