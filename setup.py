@@ -71,7 +71,7 @@ setup(
     },
     author_email="",
     license="MIT",
-    python_requires=">=3.10",
+    python_requires=">=3.9",
     install_requires=requirements,
     extras_require={
         "cuda": cuda_requirements,
