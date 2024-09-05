@@ -1481,6 +1481,7 @@ class CLIManager:
         [italic]Note[/italic]: This command is useful for users who wish to create additional hotkeys
         for different purposes, such as running multiple miners or separating operational roles within the network.
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, validate=False
         )
@@ -1513,6 +1514,7 @@ class CLIManager:
         enhanced security or as part of setting up a new wallet. It's a foundational step in establishing
         a secure presence on the Bittensor network.
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, validate=False
         )
@@ -1575,6 +1577,7 @@ class CLIManager:
         or for those who wish to completely renew their wallet keys. It ensures a fresh start with new keys
         for secure and effective participation in the network.
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, validate=False
         )
@@ -1769,6 +1772,7 @@ class CLIManager:
         that makes changes to the blockchain state and should not be used programmatically as
         part of other scripts or applications.
         """
+        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         return self._run_command(
             wallets.set_id(
@@ -1832,6 +1836,7 @@ class CLIManager:
         [italic]Note[/italic]: This function is designed for CLI use and should be executed in a terminal.
         It is primarily used for informational purposes and has no side effects on the network state.
         """
+        self.verbosity_handler(quiet, verbose)
         return self._run_command(
             wallets.get_id(self.initialize_chain(network, chain), key)
         )
@@ -1908,6 +1913,7 @@ class CLIManager:
         governance structure of the Bittensor network's root layer. It provides insights into which neurons hold
         significant influence and responsibility within the network.
         """
+        self.verbosity_handler(quiet, verbose)
         return self._run_command(
             root.root_list(subtensor=self.initialize_chain(network, chain))
         )
