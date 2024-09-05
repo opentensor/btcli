@@ -141,7 +141,7 @@ def extract_mnemonics_from_commands(output: str) -> Dict[str, Optional[str]]:
     lines = output.splitlines()
 
     key_types = ["coldkey", "hotkey"]
-    command_prefix = "btcli w regen_"
+    command_prefix = "btcli w regen-"
 
     for line in lines:
         line = line.strip().lower()
