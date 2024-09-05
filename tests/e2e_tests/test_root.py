@@ -108,15 +108,13 @@ def test_root_commands(local_chain, wallet_setup):
     assert bob_delegate_info[0] == "0"
 
     # SS58: Assert correct hotkey for Bob
-    assert wallet_bob.hotkey.ss58_address.startswith(
-        bob_delegate_info[1].replace("...", "")
-    )
+    assert wallet_bob.hotkey.ss58_address == bob_delegate_info[1]
 
     # NOMINATORS: This should be 0
     assert bob_delegate_info[2] == "0"
 
     # TAKE: (percentage) This should be 18% by default
-    take_percentage = float(bob_delegate_info[7].strip("%")) / 100
+    take_percentage = float(bob_delegate_info[6].strip("%")) / 100
     assert take_percentage == 0.18
 
     # DELEGATE STAKE(τ): This should be 0 as no delegation yet
@@ -166,7 +164,7 @@ def test_root_commands(local_chain, wallet_setup):
     bob_delegate_info = check_delegates.stdout.splitlines()[3].split()
 
     # Take percentage: This should be 18% by default
-    take_percentage = float(bob_delegate_info[7].strip("%")) / 100
+    take_percentage = float(bob_delegate_info[6].strip("%")) / 100
     assert take_percentage == float(new_take)
 
     # Stake to delegate Bob from Alice

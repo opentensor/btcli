@@ -541,7 +541,7 @@ def normalize_hyperparameters(
                     norm_value = f"{norm_value:.{10}g}"
             else:
                 norm_value = value
-        except Exception as e:
+        except Exception:
             # bittensor.logging.warning(f"Error normalizing parameter '{param}': {e}")
             norm_value = "-"
 

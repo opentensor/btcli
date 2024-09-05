@@ -10,7 +10,7 @@ import rich
 import typer
 from bittensor_wallet import Wallet
 from git import Repo, GitError
-from rich.prompt import Confirm, FloatPrompt, Prompt
+from rich.prompt import Confirm, FloatPrompt, Prompt, IntPrompt
 from rich.table import Column, Table
 from .src import HYPERPARAMS, defaults, HELP_PANELS
 from bittensor_cli.src.bittensor import utils
@@ -1034,7 +1034,9 @@ class CLIManager:
                 wallet_path = Prompt.ask(
                     "Enter the path of the wallets", default=defaults.wallet.path
                 )
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name, wallet_path, wallet_hotkey, validate=False
+        )
         return self._run_command(
             wallets.overview(
                 wallet,
@@ -1203,7 +1205,9 @@ class CLIManager:
                 wallet_path = Prompt.ask(
                     "Enter the path of the wallets", default=defaults.wallet.path
                 )
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name, wallet_path, wallet_hotkey, validate=False
+        )
         self.initialize_chain(network, chain)
         return self._run_command(
             wallets.inspect(
@@ -1617,10 +1621,10 @@ class CLIManager:
 
         # Example usages:
 
-        - To display the balance of a single wallet, use the command with the `--wallet.name` argument to specify
+        - To display the balance of a single wallet, use the command with the `--wallet-name` argument to specify
         the wallet name:
 
-        [green]$[/green] btcli w balance --wallet.name WALLET
+        [green]$[/green] btcli w balance --wallet-name WALLET
 
         [green]$[/green] btcli w balance
 
@@ -1635,7 +1639,9 @@ class CLIManager:
                     "Enter the path of the wallets", default=defaults.wallet.path
                 )
         subtensor = self.initialize_chain(network, chain)
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name, wallet_path, wallet_hotkey, validate=False
+        )
         return self._run_command(
             wallets.wallet_balance(wallet, subtensor, all_balances)
         )
@@ -1866,7 +1872,7 @@ class CLIManager:
 
         [green]$[/green] btcli wallet sign --wallet-name default --message '{"something": "here", "timestamp": 1719908486}'
 
-        [green]$[/green] btcli wallet sign --wallet.name default --wallet-hotkey hotkey --message
+        [green]$[/green] btcli wallet sign --wallet-name default --wallet-hotkey hotkey --message
         '{"something": "here", "timestamp": 1719908486}'
 
         [italic]Note[/italic]: When using `btcli`, `w` is used interchangeably with `wallet`. You may use either based
@@ -2294,7 +2300,7 @@ class CLIManager:
 
         # Example usage:
 
-        [green]$[/green] btcli root set_take --wallet.name my_wallet --wallet.hotkey my_hotkey
+        [green]$[/green] btcli root set_take --wallet-name my_wallet --wallet-hotkey my_hotkey
 
         [italic]Note[/italic]: This function can be used to update the takes individually for every subnet
         """
@@ -2596,7 +2602,7 @@ class CLIManager:
 
         [green]$[/green] btcli root list_delegates
 
-        [green]$[/green] btcli root list_delegates --wallet.name my_wallet
+        [green]$[/green] btcli root list_delegates --wallet-name my_wallet
 
         [green]$[/green] btcli root list_delegates --subtensor.network finney # can also be `test` or `local`
 
@@ -2649,7 +2655,7 @@ class CLIManager:
 
         [green]$[/green] btcli root nominate
 
-        [green]$[/green] btcli root nominate --wallet.name my_wallet --wallet.hotkey my_hotkey
+        [green]$[/green] btcli root nominate --wallet-name my_wallet --wallet-hotkey my_hotkey
 
         [italic]Note[/italic]: This function is intended to be used as a CLI command. It prints the outcome directly to the console
         and does not return any value. It should not be called programmatically in user code due to its interactive nature and
@@ -2753,6 +2759,10 @@ class CLIManager:
             "-m",
             help="Sets the maximum amount of TAO to have staked in each hotkey.",
         ),
+        hotkey_ss58_address: str = typer.Option(
+            "",
+            help="The SS58 address of the hotkey to unstake from.",
+        ),
         include_hotkeys: list[str] = typer.Option(
             [],
             "--include-hotkeys",
@@ -2833,8 +2843,14 @@ class CLIManager:
 
         if not wallet_hotkey and not all_hotkeys and not include_hotkeys:
             _hotkey_str = typer.style("hotkey", fg="red")
-            wallet_hotkey = typer.prompt(f"Enter {_hotkey_str} name: ")
-            wallet = self.wallet_ask(wallet.name, wallet_path, wallet_hotkey)
+            hotkey = typer.prompt(f"Enter {_hotkey_str} name to stake or ss58_address")
+            if not is_valid_ss58_address(hotkey):
+                wallet_hotkey = hotkey
+                wallet = self.wallet_ask(
+                    wallet.name, wallet_path, wallet_hotkey, validate=True
+                )
+            else:
+                hotkey_ss58_address = hotkey
 
         return self._run_command(
             stake.stake_add(
@@ -2847,6 +2863,7 @@ class CLIManager:
                 exclude_hotkeys,
                 all_hotkeys,
                 prompt,
+                hotkey_ss58_address,
             )
         )
 
@@ -2986,7 +3003,17 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
-        netuid: int = Options.netuid,
+        netuid: Optional[int] = typer.Option(
+            None,
+            help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
+            prompt=False,
+        ),
+        all_netuids: bool = typer.Option(
+            False,
+            "--all-netuids",
+            "--all",
+            help="When set, gets children from all subnets on the bittensor network.",
+        ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -3001,22 +3028,28 @@ class CLIManager:
         The command compiles a table showing:
 
         - ChildHotkey: The hotkey associated with the child.
-
         - ParentHotKey: The hotkey associated with the parent.
-
         - Proportion: The proportion that is assigned to them.
-
         - Expiration: The expiration of the hotkey.
-
 
         # Example usage:
 
         [green]$[/green]btcli stake get_children --netuid 1
+        [green]$[/green]btcli stake get_children --all-netuids
 
-        [italic]]Note[/italic]: This command is for users who wish to see child hotkeys among different neurons (hotkeys) on the network.
+        [italic]Note[/italic]: This command is for users who wish to see child hotkeys among different neurons (hotkeys) on the network.
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        if all_netuids and netuid:
+            err_console.print("Specify either netuid or all, not both.")
+            raise typer.Exit()
+        if all_netuids:
+            netuid = None
+        elif not netuid:
+            netuid = IntPrompt.ask(
+                "Enter netuid (leave blank for all)", default=None, show_default=True
+            )
         return self._run_command(
             stake.get_children(wallet, self.initialize_chain(network, chain), netuid)
         )
@@ -3147,6 +3180,7 @@ class CLIManager:
         netuid: int = Options.netuid,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
+        prompt: bool = Options.prompt,
         take: Optional[float] = typer.Option(
             None,
             "--take",
@@ -3187,6 +3221,7 @@ class CLIManager:
                 take=take,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
+                prompt=prompt,
             )
         )
 
