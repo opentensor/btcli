@@ -42,6 +42,7 @@ from bittensor_cli.src.bittensor.utils import (
     convert_blocks_to_time,
     decode_scale_bytes,
     err_console,
+    print_verbose,
     get_all_wallets_for_path,
     get_delegates_details_from_github,
     get_hotkey_wallets_for_wallet,
@@ -196,10 +197,12 @@ async def wallet_balance(
             err_console.print("[bold red]No wallets found.[/bold red]")
             return
 
-    with console.status("Retrieving balances", spinner="aesthetic"):
+    with console.status("Retrieving balances", spinner="aesthetic") as status:
         if all_balances:
+            print_verbose("Fetching data for all wallets", status)
             coldkeys, wallet_names = _get_coldkey_ss58_addresses_for_path(wallet.path)
         else:
+            print_verbose(f"Fetching data for wallet: {wallet.name}", status)
             coldkeys = [wallet.coldkeypub.ss58_address]
             wallet_names = [wallet.name]
 
@@ -400,6 +403,7 @@ def create_transfer_history_table(transfers: list[dict]) -> Table:
 
 async def wallet_history(wallet: Wallet):
     """Check the transfer history of the provided wallet."""
+    print_verbose(f"Fetching history for wallet: {wallet.name}")
     wallet_address = wallet.get_coldkeypub().ss58_address
     transfers = await get_wallet_transfers(wallet_address)
     table = create_transfer_history_table(transfers)
@@ -409,6 +413,7 @@ async def wallet_history(wallet: Wallet):
 async def wallet_list(wallet_path: str):
     """Lists wallets."""
     wallets = utils.get_coldkey_wallets_for_path(wallet_path)
+    print_verbose(f"Using wallets path: {wallet_path}")
     if not wallets:
         err_console.print(f"[red]No wallets found in dir: {wallet_path}[/red]")
 
@@ -436,6 +441,7 @@ async def wallet_list(wallet_path: str):
             wallet_tree.add(data)
 
     if not wallets:
+        print_verbose(f"No wallets found in path: {wallet_path}")
         root.add("[bold red]No wallets found.")
 
     console.print(root)
@@ -491,7 +497,6 @@ async def _get_total_balance(
                 ).values()
             )
         if not coldkey_wallet.coldkeypub_file.exists_on_device():
-            console.print("[bold red]No wallets found.")
             return [], None
         all_hotkeys = utils.get_hotkey_wallets_for_wallet(coldkey_wallet)
 
@@ -514,8 +519,9 @@ async def overview(
     with console.status(
         f":satellite: Synchronizing with chain [white]{subtensor.network}[/white]",
         spinner="aesthetic",
-    ):
+    ) as status:
         # We are printing for every coldkey.
+        print_verbose("Fetching total balance for hotkeys", status)
         block_hash = await subtensor.substrate.get_chain_head()
         all_hotkeys, total_balance = await _get_total_balance(
             total_balance, subtensor, wallet, all_wallets
@@ -523,6 +529,9 @@ async def overview(
 
         # We are printing for a select number of hotkeys from all_hotkeys.
         if include_hotkeys:
+            print_verbose(
+                "Fetching for select hotkeys passed in 'include_hotkeys'", status
+            )
             all_hotkeys = _get_hotkeys(include_hotkeys, exclude_hotkeys, all_hotkeys)
 
         # Check we have keys to display.
@@ -532,11 +541,13 @@ async def overview(
 
         # Pull neuron info for all keys.
         neurons: dict[str, list[NeuronInfoLite]] = {}
+        print_verbose("Fetching subnet netuids", status)
         block, all_netuids = await asyncio.gather(
             subtensor.substrate.get_block_number(None),
             subtensor.get_all_subnet_netuids(),
         )
 
+        print_verbose("Filtering netuids by registered hotkeys", status)
         netuids = await subtensor.filter_netuids_by_registered_hotkeys(
             all_netuids, netuids_filter, all_hotkeys, reuse_block=True
         )
@@ -550,12 +561,12 @@ async def overview(
             Wallet(name=wallet_name) for wallet_name in all_wallet_names
         ]
 
+        print_verbose("Fetching key addresses", status)
         all_hotkey_addresses, hotkey_coldkey_to_hotkey_wallet = _get_key_address(
             all_hotkeys
         )
 
-        # Pull neuron info for all keys.:
-
+        print_verbose("Pulling and processing neuron information for all keys", status)
         results = await _get_neurons_for_netuids(
             subtensor, netuids, all_hotkey_addresses
         )
@@ -600,8 +611,7 @@ async def overview(
             if "-1" not in neurons:
                 neurons["-1"] = []
 
-        # Check each coldkey wallet for de-registered stake.
-
+        print_verbose("Checking coldkeys for de-registered stake", status)
         results = await asyncio.gather(
             *[
                 _get_de_registered_stake_for_coldkey_wallet(
@@ -1218,16 +1228,20 @@ async def inspect(
                     ]
 
     if all_wallets:
+        print_verbose("Fetching data for all wallets")
         wallets = get_coldkey_wallets_for_path(wallet.path)
         all_hotkeys = get_all_wallets_for_path(
             wallet.path
         )  # TODO verify this is correct
     else:
+        print_verbose(f"Fetching data for wallet: {wallet.name}")
         wallets = [wallet]
         all_hotkeys = get_hotkey_wallets_for_wallet(wallet)
-    with console.status("synchronising with chain"):
+    with console.status("Synchronising with chain...", spinner="aesthetic") as status:
         block_hash = await subtensor.substrate.get_chain_head()
         await subtensor.substrate.init_runtime(block_hash=block_hash)
+
+        print_verbose("Fetching netuids of registered hotkeys", status)
         all_netuids = await subtensor.filter_netuids_by_registered_hotkeys(
             (await subtensor.get_all_subnet_netuids(block_hash)),
             netuids_filter,
@@ -1235,7 +1249,7 @@ async def inspect(
             block_hash=block_hash,
         )
     # bittensor.logging.debug(f"Netuids to check: {all_netuids}")
-    with console.status("Pulling delegates info"):
+    with console.status("Pulling delegates info...", spinner="aesthetic"):
         registered_delegate_info: dict[
             str, DelegatesDetails
         ] = await get_delegates_details_from_github(url=Constants.delegates_detail_url)
@@ -1266,7 +1280,7 @@ async def inspect(
         wallet for wallet in wallets if wallet.coldkeypub_file.exists_on_device()
     ]
     all_delegates: list[list[tuple[DelegateInfo, Balance]]]
-    with console.status("Pulling balance data"):
+    with console.status("Pulling balance data...", spinner="aesthetic"):
         balances, all_neurons, all_delegates = await asyncio.gather(
             subtensor.get_balance(
                 *[w.coldkeypub.ss58_address for w in wallets_with_ckp_file],
@@ -1335,16 +1349,17 @@ async def faucet(
 
 
 async def swap_hotkey(
-    original_wallet: Wallet, new_wallet: Wallet, subtensor: SubtensorInterface
+    original_wallet: Wallet,
+    new_wallet: Wallet,
+    subtensor: SubtensorInterface,
+    prompt: bool,
 ):
     """Swap your hotkey for all registered axons on the network."""
     return await swap_hotkey_extrinsic(
         subtensor,
         original_wallet,
         new_wallet,
-        wait_for_finalization=False,
-        wait_for_inclusion=True,
-        prompt=True,
+        prompt=prompt,
     )
 
 
@@ -1398,6 +1413,7 @@ async def set_id(
     twitter: str,
     info_: str,
     validator_id: bool,
+    prompt: bool,
 ):
     """Create a new or update existing identity on-chain."""
 
@@ -1441,16 +1457,19 @@ async def set_id(
         "identified": identified,
     }
 
-    if not Confirm.ask(
-        "Cost to register an Identity is [bold white italic]0.1 Tao[/bold white italic],"
-        " are you sure you wish to continue?"
-    ):
-        console.print(":cross_mark: Aborted!")
-        raise typer.Exit()
+    if prompt:
+        if not Confirm.ask(
+            "Cost to register an Identity is [bold white italic]0.1 Tao[/bold white italic],"
+            " are you sure you wish to continue?"
+        ):
+            console.print(":cross_mark: Aborted!")
+            raise typer.Exit()
 
     wallet.unlock_coldkey()
 
-    with console.status(":satellite: [bold green]Updating identity on-chain..."):
+    with console.status(
+        ":satellite: [bold green]Updating identity on-chain...", spinner="earth"
+    ):
         call = await subtensor.substrate.compose_call(
             call_module="Registry",
             call_function="set_identity",
@@ -1481,7 +1500,9 @@ async def set_id(
 
 
 async def get_id(subtensor: SubtensorInterface, ss58_address: str):
-    with console.status(":satellite: [bold green]Querying chain identity..."):
+    with console.status(
+        ":satellite: [bold green]Querying chain identity...", spinner="earth"
+    ):
         identity = await subtensor.query_identity(ss58_address)
 
     if not identity:
@@ -1553,8 +1574,10 @@ async def sign(wallet: Wallet, message: str, use_hotkey: str):
         )
     if not use_hotkey:
         keypair = wallet.coldkey
+        print_verbose(f"Signing using coldkey: {wallet.name}")
     else:
         keypair = wallet.hotkey
+        print_verbose(f"Signing using hotkey: {wallet.hotkey_str}")
 
     signed_message = keypair.sign(message.encode("utf-8")).hex()
     console.print("[bold green]Message signed successfully:")

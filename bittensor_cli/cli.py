@@ -431,6 +431,9 @@ class CLIManager:
             "list", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"]
         )(self.wallet_list)
         self.wallet_app.command(
+            "swap-hotkey", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
+        )(self.wallet_swap_hotkey)
+        self.wallet_app.command(
             "regen-coldkey", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
         )(self.wallet_regen_coldkey)
         self.wallet_app.command(
@@ -1105,10 +1108,11 @@ class CLIManager:
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
         destination_hotkey_name: Optional[str] = typer.Argument(
-            help="Destination hotkey name."
+            None, help="Destination hotkey name."
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        prompt: bool = Options.prompt,
     ):
         """
         [red]Swap hotkeys[/red] for a neuron on the network.
@@ -1123,10 +1127,12 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
         original_wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        if not destination_hotkey_name:
+            destination_hotkey_name = typer.prompt("Enter the destination hotkey name")
         new_wallet = self.wallet_ask(wallet_name, wallet_path, destination_hotkey_name)
         self.initialize_chain(network, chain)
         return self._run_command(
-            wallets.swap_hotkey(original_wallet, new_wallet, self.not_subtensor)
+            wallets.swap_hotkey(original_wallet, new_wallet, self.not_subtensor, prompt)
         )
 
     def wallet_inspect(
@@ -1450,7 +1456,12 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         n_words: Optional[int] = None,
-        use_password: bool = Options.use_password,
+        use_password: bool = typer.Option(
+            False,  # Overriden to False
+            "--use-password",
+            help="Encrypt with a password",
+            show_default=True,
+        ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -1724,6 +1735,7 @@ class CLIManager:
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        prompt: bool = Options.prompt,
     ):
         """
         Allows for the creation or update of a delegate's on-chain identity on the Bittensor network.
@@ -1776,6 +1788,7 @@ class CLIManager:
                 twitter_url,
                 info_,
                 validator_id,
+                prompt,
             )
         )
 
@@ -2438,10 +2451,10 @@ class CLIManager:
         if not unstake_all and not amount:
             while True:
                 amount = FloatPrompt.ask(
-                    "[blue bold]Amount to stake (TAO τ)[/blue bold]", console=console
+                    "[blue bold]Amount to unstake (TAO τ)[/blue bold]", console=console
                 )
                 confirmation = FloatPrompt.ask(
-                    "[blue bold]Confirm the amount to stake (TAO τ)[/blue bold]",
+                    "[blue bold]Confirm the amount to unstake (TAO τ)[/blue bold]",
                     console=console,
                 )
                 if amount == confirmation:
@@ -2791,31 +2804,38 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+
         if stake_all and amount:
             err_console.print(
                 "Cannot specify an amount and 'stake-all'. Choose one or the other."
             )
             raise typer.Exit()
+
         if not stake_all and not amount:
             amount = FloatPrompt.ask("[blue bold]Amount to stake (TAO τ)[/blue bold]")
+
         if stake_all and not amount:
             if not Confirm.ask("Stake all available TAO tokens?", default=False):
                 raise typer.Exit()
+
         if all_hotkeys and include_hotkeys:
             err_console.print(
                 "You have specified hotkeys to include and the `--all-hotkeys` flag. The flag"
                 "should only be used standalone (to use all hotkeys) or with `--exclude-hotkeys`."
             )
             raise typer.Exit()
+
         if include_hotkeys and exclude_hotkeys:
             err_console.print(
                 "You have specified including and excluding hotkeys. Select one or the other."
             )
             raise typer.Exit()
+
         if not wallet_hotkey and not all_hotkeys and not include_hotkeys:
             _hotkey_str = typer.style("hotkey", fg="red")
             wallet_hotkey = typer.prompt(f"Enter {_hotkey_str} name: ")
             wallet = self.wallet_ask(wallet.name, wallet_path, wallet_hotkey)
+
         return self._run_command(
             stake.stake_add(
                 wallet,
@@ -2906,6 +2926,7 @@ class CLIManager:
                 "should only be used standalone (to use all hotkeys) or with `--exclude-hotkeys`."
             )
             raise typer.Exit()
+
         if include_hotkeys and exclude_hotkeys:
             err_console.print(
                 "You have specified including and excluding hotkeys. Select one or the other."
@@ -2935,8 +2956,10 @@ class CLIManager:
                 "Cannot specify an amount and 'unstake-all'. Choose one or the other."
             )
             raise typer.Exit()
+
         if not unstake_all and not amount:
             amount = FloatPrompt.ask("[blue bold]Amount to unstake (TAO τ)[/blue bold]")
+
         if unstake_all and not amount:
             if not Confirm.ask("Unstake all staked TAO tokens?", default=False):
                 raise typer.Exit()
@@ -3662,6 +3685,7 @@ class CLIManager:
                 "Unable to use `--reuse-last` or `--html` when config no-cache is set."
             )
             raise typer.Exit()
+
         if reuse_last:
             if netuid is not None:
                 console.print("Cannot specify netuid when using `--reuse-last`")
@@ -3673,6 +3697,7 @@ class CLIManager:
                     "Enter the netuid (network unique identifier) of the subnet within the root network, (e.g. 1)."
                 )
             subtensor = self.initialize_chain(network, chain)
+
         return self._run_command(
             subnets.metagraph_cmd(
                 subtensor,

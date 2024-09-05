@@ -9,6 +9,7 @@ from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
+    print_verbose,
     format_error_message,
     get_explorer_url_for_network,
     is_valid_bittensor_address_or_public_key,
@@ -108,8 +109,12 @@ async def transfer_extrinsic(
     wallet.unlock_coldkey()
 
     # Check balance.
-    with console.status(":satellite: Checking balance and fees..."):
+    with console.status(
+        f":satellite: Checking balance and fees on chain [white]{subtensor.network}[/white]",
+        spinner="aesthetic",
+    ) as status:
         # check existential deposit and fee
+        print_verbose("Fetching existential and fee", status)
         block_hash = await subtensor.substrate.get_chain_head()
         account_balance_, existential_deposit = await asyncio.gather(
             subtensor.get_balance(wallet.coldkey.ss58_address, block_hash=block_hash),
@@ -142,13 +147,14 @@ async def transfer_extrinsic(
         ):
             return False
 
-    with console.status(":satellite: Transferring..."):
+    with console.status(":satellite: Transferring...", spinner="earth") as status:
         success, block_hash, err_msg = await do_transfer()
 
         if success:
             console.print(":white_heavy_check_mark: [green]Finalized[/green]")
             console.print(f"[green]Block Hash: {block_hash}[/green]")
 
+            print_verbose("Fetching explorer URLs", status)
             explorer_urls = get_explorer_url_for_network(
                 subtensor.network, block_hash, NETWORK_EXPLORER_MAP
             )
@@ -163,7 +169,7 @@ async def transfer_extrinsic(
             console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
 
     if success:
-        with console.status(":satellite: Checking Balance..."):
+        with console.status(":satellite: Checking Balance...", spinner="aesthetic"):
             new_balance = await subtensor.get_balance(
                 wallet.coldkey.ss58_address, reuse_block=False
             )
