@@ -104,7 +104,7 @@ async def transfer_extrinsic(
             f":cross_mark: [red]Invalid destination address[/red]:[bold white]\n  {destination}[/bold white]"
         )
         return False
-
+    console.print(f"[dark_orange]Initiating transfer on network: {subtensor.network}")
     # Unlock wallet coldkey.
     wallet.unlock_coldkey()
 
