@@ -173,14 +173,15 @@ class SubtensorInterface:
         hex_bytes_result = await self.query_runtime_api(
             runtime_api="DelegateInfoRuntimeApi", method="get_delegates", params=[]
         )
-        try:
-            bytes_result = bytes.fromhex(hex_bytes_result[2:])
-        except ValueError:
-            bytes_result = bytes.fromhex(hex_bytes_result)
-        except TypeError:
-            return []
+        if hex_bytes_result is not None:
+            try:
+                bytes_result = bytes.fromhex(hex_bytes_result[2:])
+            except ValueError:
+                bytes_result = bytes.fromhex(hex_bytes_result)
 
-        return DelegateInfo.list_from_vec_u8(bytes_result)
+            return DelegateInfo.list_from_vec_u8(bytes_result)
+        else:
+            return []
 
     async def get_stake_info_for_coldkey(
         self,

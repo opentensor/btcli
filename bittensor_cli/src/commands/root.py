@@ -292,7 +292,7 @@ async def burned_register_extrinsic(
     netuid: int,
     recycle_amount: Balance,
     old_balance: Balance,
-    wait_for_inclusion: bool = False,
+    wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
     prompt: bool = False,
 ) -> bool:
