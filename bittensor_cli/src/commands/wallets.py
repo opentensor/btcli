@@ -42,6 +42,7 @@ from bittensor_cli.src.bittensor.utils import (
     convert_blocks_to_time,
     decode_scale_bytes,
     err_console,
+    print_error,
     print_verbose,
     get_all_wallets_for_path,
     get_delegates_details_from_github,
@@ -249,7 +250,7 @@ async def wallet_balance(
             style="green",
             no_wrap=True,
         ),
-        title="[underline dark_orange]Wallet Coldkey Balances",
+        title=f"[underline dark_orange]Wallet Coldkey Balance[/underline dark_orange]\n\n[dark_orange]Network: {subtensor.network}",
         show_footer=True,
         show_edge=False,
         border_style="bright_black",
@@ -268,7 +269,7 @@ async def wallet_balance(
         )
     table.add_row()
     table.add_row(
-        "Total Balance Across All Coldkeys",
+        "Total Balance",
         "",
         str(total_free_balance),
         str(total_staked_balance),
@@ -337,7 +338,7 @@ def create_transfer_history_table(transfers: list[dict]) -> Table:
         box=box.SIMPLE,
         pad_edge=False,
         width=None,
-        title="[underline dark_orange]Wallet Transfers\n",
+        title="[underline dark_orange]Wallet Transfers[/underline dark_orange]\n\n[dark_orange]Network: finney",
     )
 
     table.add_column(
@@ -479,9 +480,13 @@ async def _get_total_balance(
                 )
             ).values()
         )
-        all_hotkeys = [
-            hk for w in cold_wallets for hk in utils.get_hotkey_wallets_for_wallet(w)
-        ]
+        all_hotkeys = []
+        for w in cold_wallets:
+            hotkeys_for_wallet = utils.get_hotkey_wallets_for_wallet(w)
+            if hotkeys_for_wallet:
+                all_hotkeys.extend(hotkeys_for_wallet)
+            else:
+                print_error(f"[red]No hotkeys found for wallet: ({w.name})")
     else:
         # We are only printing keys for a single coldkey
         coldkey_wallet = wallet
@@ -500,6 +505,9 @@ async def _get_total_balance(
             return [], None
         all_hotkeys = utils.get_hotkey_wallets_for_wallet(coldkey_wallet)
 
+        if not all_hotkeys:
+            print_error(f"No hotkeys found for wallet ({coldkey_wallet.name})")
+
     return all_hotkeys, total_balance
 
 
@@ -516,17 +524,18 @@ async def overview(
     """Prints an overview for the wallet's coldkey."""
 
     total_balance = Balance(0)
+
+    # We are printing for every coldkey.
+    print_verbose("Fetching total balance for coldkey/s")
+    block_hash = await subtensor.substrate.get_chain_head()
+    all_hotkeys, total_balance = await _get_total_balance(
+        total_balance, subtensor, wallet, all_wallets
+    )
+
     with console.status(
         f":satellite: Synchronizing with chain [white]{subtensor.network}[/white]",
         spinner="aesthetic",
     ) as status:
-        # We are printing for every coldkey.
-        print_verbose("Fetching total balance for hotkeys", status)
-        block_hash = await subtensor.substrate.get_chain_head()
-        all_hotkeys, total_balance = await _get_total_balance(
-            total_balance, subtensor, wallet, all_wallets
-        )
-
         # We are printing for a select number of hotkeys from all_hotkeys.
         if include_hotkeys:
             print_verbose(
@@ -536,7 +545,7 @@ async def overview(
 
         # Check we have keys to display.
         if not all_hotkeys:
-            err_console.print("[red]No wallets found.[/red]")
+            print_error("Aborting as no hotkeys found to process", status)
             return
 
         # Pull neuron info for all keys.
@@ -669,6 +678,13 @@ async def overview(
             title = "[underline dark_orange]All Wallets:[/underline dark_orange]"
             grid.add_row(Align(title, vertical="middle", align="center"))
 
+        grid.add_row(
+            Align(
+                f"[dark_orange]Network: {subtensor.network}",
+                vertical="middle",
+                align="center",
+            )
+        )
         # Generate rows per netuid
         hotkeys_seen = set()
         total_neurons = 0
@@ -1233,10 +1249,12 @@ async def inspect(
         all_hotkeys = get_all_wallets_for_path(
             wallet.path
         )  # TODO verify this is correct
+
     else:
         print_verbose(f"Fetching data for wallet: {wallet.name}")
         wallets = [wallet]
         all_hotkeys = get_hotkey_wallets_for_wallet(wallet)
+
     with console.status("Synchronising with chain...", spinner="aesthetic") as status:
         block_hash = await subtensor.substrate.get_chain_head()
         await subtensor.substrate.init_runtime(block_hash=block_hash)
@@ -1268,7 +1286,7 @@ async def inspect(
         Column("[bold white]Hotkey", style="bright_magenta"),
         Column("[bold white]Stake", style="light_goldenrod2"),
         Column("[bold white]Emission", style="rgb(42,161,152)"),
-        title="[underline dark_orange]Wallets\n",
+        title=f"[underline dark_orange]Wallets[/underline dark_orange]\n\n[dark_orange]Network: {subtensor.network}",
         show_footer=True,
         show_edge=False,
         expand=True,

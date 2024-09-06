@@ -28,17 +28,30 @@ err_console = Console(stderr=True)
 verbose_console = Console(quiet=True)
 
 
+def print_console(message: str, colour: str, title: str, console: Console):
+    console.print(
+        f"[bold {colour}][{title}]:[/bold {colour}] [{colour}]{message}[/{colour}]\n"
+    )
+
+
 def print_verbose(message: str, status=None):
     """Print verbose messages while temporarily pausing the status spinner."""
     if status:
-        # Pause the spinner to avoid overlapping
         status.stop()
-    verbose_console.print(
-        f"[bold green][Verbose]:[/bold green] [green]{message}[/green]\n"
-    )
-    if status:
-        # Resume the spinner after the message is printed
+        print_console(message, "green", "Verbose", verbose_console)
         status.start()
+    else:
+        print_console(message, "green", "Verbose", verbose_console)
+
+
+def print_error(message: str, status=None):
+    """Print error messages while temporarily pausing the status spinner."""
+    if status:
+        status.stop()
+        print_console(message, "red", "Error", err_console)
+        status.start()
+    else:
+        print_console(message, "red", "Error", err_console)
 
 
 RAO_PER_TAO = 1e9

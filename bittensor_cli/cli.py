@@ -49,21 +49,45 @@ class Options:
     Re-usable typer args
     """
 
-    wallet_name = typer.Option(None, "--wallet-name", "-w", help="Name of wallet")
+    wallet_name = typer.Option(
+        None,
+        "--wallet-name",
+        "-w",
+        "--wallet_name",
+        "--wallet.name",
+        help="Name of wallet",
+    )
     wallet_name_req = typer.Option(
-        None, "--wallet-name", "-w", "--wallet_name", help="Name of wallet", prompt=True
+        None,
+        "--wallet-name",
+        "-w",
+        "--wallet_name",
+        "--wallet.name",
+        help="Name of wallet",
+        prompt=True,
     )
     wallet_path = typer.Option(
-        None, "--wallet-path", "-p", "--wallet_path", help="Filepath of root of wallets"
+        None,
+        "--wallet-path",
+        "-p",
+        "--wallet_path",
+        "--wallet.path",
+        help="Filepath of root of wallets",
     )
     wallet_hotkey = typer.Option(
-        None, "--hotkey", "-H", "--wallet_hotkey", help="Hotkey of wallet"
+        None,
+        "--hotkey",
+        "-H",
+        "--wallet_hotkey",
+        "--wallet.hotkey",
+        help="Hotkey of wallet",
     )
     wallet_hk_req = typer.Option(
         None,
         "--hotkey",
         "-H",
         "--wallet_hotkey",
+        "--wallet.hotkey",
         help="Hotkey name of wallet",
         prompt=True,
     )
@@ -1028,7 +1052,7 @@ class CLIManager:
                 "[red]You have specified hotkeys for inclusion and exclusion. Pick only one or neither."
             )
             raise typer.Exit()
-        # if all-wallets is entered, ask for path
+
         if all_wallets:
             if not wallet_path:
                 wallet_path = Prompt.ask(
@@ -1228,13 +1252,13 @@ class CLIManager:
         # TODO add the following to config
         processors: Optional[int] = typer.Option(
             defaults.pow_register.num_processes,
-            "-processors",
+            "--processors",
             "-p",
             help="Number of processors to use for POW registration.",
         ),
         update_interval: Optional[int] = typer.Option(
             defaults.pow_register.update_interval,
-            "-update-interval",
+            "--update-interval",
             "-u",
             help="The number of nonces to process before checking for next block during registration",
         ),
@@ -1671,7 +1695,9 @@ class CLIManager:
         It helps in fetching info on all the transfers so that user can easily tally and cross-check the transactions.
         """
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name, wallet_path, wallet_hotkey, validate=False
+        )
         return self._run_command(wallets.wallet_history(wallet))
 
     def wallet_set_id(
