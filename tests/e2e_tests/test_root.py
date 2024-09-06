@@ -254,5 +254,5 @@ def test_root_commands(local_chain, wallet_setup):
         ],
     )
     assert "✅ Finalized" in undelegate_alice.stdout
-    
+
     print("✅ Passed Root commands")

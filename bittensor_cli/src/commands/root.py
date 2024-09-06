@@ -30,6 +30,7 @@ from bittensor_cli.src.bittensor.utils import (
     convert_weight_uids_and_vals_to_tensor,
     create_table,
     err_console,
+    print_verbose,
     get_delegates_details_from_github,
     get_metadata_table,
     render_table,
@@ -246,7 +247,7 @@ async def vote_senate_extrinsic(
         if not Confirm.ask(f"Cast a vote of {vote}?"):
             return False
 
-    with console.status(":satellite: Casting vote.."):
+    with console.status(":satellite: Casting vote..", spinner="aesthetic"):
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function="vote",
@@ -311,21 +312,17 @@ async def burned_register_extrinsic(
              finalization/inclusion, the response is `True`.
     """
 
-    if not await subtensor.subnet_exists(netuid):
-        err_console.print(
-            f":cross_mark: [red]Failed[/red]: error: [bold white]subnet:{netuid}[/bold white] does not exist."
-        )
-        return False
-
     wallet.unlock_coldkey()
 
     with console.status(
-        f":satellite: Checking Account on [bold]subnet:{netuid}[/bold]..."
-    ):
+        f":satellite: Checking Account on [bold]subnet:{netuid}[/bold]...",
+        spinner="aesthetic",
+    ) as status:
         my_uid = await subtensor.substrate.query(
             "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
         )
 
+        print_verbose("Checking if already registered", status)
         neuron = await subtensor.neuron_for_uid(
             uid=my_uid.value,
             netuid=netuid,
@@ -342,7 +339,9 @@ async def burned_register_extrinsic(
             )
             return True
 
-    with console.status(":satellite: Recycling TAO for Registration..."):
+    with console.status(
+        ":satellite: Recycling TAO for Registration...", spinner="aesthetic"
+    ):
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function="burned_register",
@@ -361,7 +360,7 @@ async def burned_register_extrinsic(
         return False
     # Successful registration, final check for neuron and pubkey
     else:
-        with console.status(":satellite: Checking Balance..."):
+        with console.status(":satellite: Checking Balance...", spinner="aesthetic"):
             block_hash = await subtensor.substrate.get_chain_head()
             new_balance, netuids_for_hotkey = await asyncio.gather(
                 subtensor.get_balance(
@@ -430,6 +429,7 @@ async def set_take_extrinsic(
     # Calculate u16 representation of the take
     take_u16 = int(take * 0xFFFF)
 
+    print_verbose("Checking current take")
     # Check if the new take is greater or lower than existing take or if existing is set
     delegate = await _get_delegate_by_hotkey(delegate_ss58)
     current_take = None
@@ -555,14 +555,17 @@ async def delegate_extrinsic(
 
     # Decrypt key
     wallet.unlock_coldkey()
+    print_verbose("Checking if hotkey is a delegate")
     if not await subtensor.is_hotkey_delegate(delegate_ss58):
         err_console.print(f"Hotkey: {delegate_ss58} is not a delegate.")
         return False
 
     # Get state.
     with console.status(
-        f":satellite: Syncing with [bold white]{subtensor}[/bold white] ..."
-    ):
+        f":satellite: Syncing with [bold white]{subtensor}[/bold white] ...",
+        spinner="aesthetic",
+    ) as status:
+        print_verbose("Fetching balance, stake, and ownership", status)
         initial_block_hash = await subtensor.substrate.get_chain_head()
         (
             my_prev_coldkey_balance_,
@@ -629,8 +632,10 @@ async def delegate_extrinsic(
             return False
 
     with console.status(
-        f":satellite: Staking to: [bold white]{subtensor}[/bold white] ..."
-    ):
+        f":satellite: Staking to: [bold white]{subtensor}[/bold white] ...",
+        spinner="aesthetic",
+    ) as status:
+        print_verbose("Transmitting delegate operation call")
         staking_response, err_msg = await _do_delegation()
 
     if staking_response is True:  # If we successfully staked.
@@ -640,8 +645,10 @@ async def delegate_extrinsic(
 
         console.print(":white_heavy_check_mark: [green]Finalized[/green]\n")
         with console.status(
-            f":satellite: Checking Balance on: [white]{subtensor}[/white] ..."
-        ):
+            f":satellite: Checking Balance on: [white]{subtensor}[/white] ...",
+            spinner="aesthetic",
+        ) as status:
+            print_verbose("Fetching balance and stakes", status)
             block_hash = await subtensor.substrate.get_chain_head()
             new_balance, new_delegate_stake = await asyncio.gather(
                 subtensor.get_balance(
@@ -769,7 +776,8 @@ async def root_list(subtensor: SubtensorInterface):
         border_style="bright_black",
     )
     with console.status(
-        f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
+        f":satellite: Syncing with chain: [white]{subtensor}[/white] ...",
+        spinner="aesthetic",
     ):
         senate_members, root_neurons, delegate_info, total_stakes = await _get_list()
 
@@ -832,7 +840,9 @@ async def get_weights(
 ):
     """Get weights for root network."""
     if not reuse_last:
-        with console.status(":satellite: Synchronizing with chain..."):
+        with console.status(
+            ":satellite: Fetching weights from chain...", spinner="aesthetic"
+        ):
             weights = await subtensor.weights(0)
 
         uid_to_weights: dict[int, dict] = {}
@@ -966,7 +976,7 @@ async def set_boost(
     prompt: bool,
 ):
     """Boosts weight of a given netuid for root network."""
-
+    print_verbose(f"Fetching uid of hotkey on root: {wallet.hotkey_str}")
     my_uid = (
         await subtensor.substrate.query(
             "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
@@ -977,6 +987,7 @@ async def set_boost(
         err_console.print("Your hotkey is not registered to the root network")
         return False
 
+    print_verbose("Fetching current weights")
     my_weights = await _get_my_weights(subtensor, wallet.hotkey.ss58_address, my_uid)
     prev_weight = my_weights[netuid]
     new_weight = prev_weight + amount
@@ -1008,7 +1019,7 @@ async def set_slash(
     prompt: bool,
 ):
     """Slashes weight"""
-
+    print_verbose(f"Fetching uid of hotkey on root: {wallet.hotkey_str}")
     my_uid = (
         await subtensor.substrate.query(
             "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
@@ -1018,6 +1029,7 @@ async def set_slash(
         err_console.print("Your hotkey is not registered to the root network")
         return False
 
+    print_verbose("Fetching current weights")
     my_weights = await _get_my_weights(subtensor, wallet.hotkey.ss58_address, my_uid)
     prev_weights = my_weights.copy()
     my_weights[netuid] -= amount
@@ -1053,6 +1065,7 @@ async def senate_vote(
         )
         return False
 
+    print_verbose(f"Fetching senate status of {wallet.hotkey_str}")
     if not await _is_senate_member(subtensor, hotkey_ss58=wallet.hotkey.ss58_address):
         err_console.print(
             f"Aborting: Hotkey {wallet.hotkey.ss58_address} isn't a senate member."
@@ -1063,6 +1076,7 @@ async def senate_vote(
     wallet.unlock_hotkey()
     wallet.unlock_coldkey()
 
+    print_verbose("Fetching vote data")
     vote_data = await _get_vote_data(subtensor, proposal_hash, reuse_block=True)
     if not vote_data:
         err_console.print(":cross_mark: [red]Failed[/red]: Proposal not found.")
@@ -1086,10 +1100,13 @@ async def senate_vote(
 async def get_senate(subtensor: SubtensorInterface):
     """View Bittensor's governance protocol proposals"""
     with console.status(
-        f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
-    ):
+        f":satellite: Syncing with chain: [white]{subtensor}[/white] ...",
+        spinner="aesthetic",
+    ) as status:
+        print_verbose("Fetching senate members", status)
         senate_members = await _get_senate_members(subtensor)
 
+    print_verbose("Fetching member details from Github")
     delegate_info: dict[
         str, DelegatesDetails
     ] = await get_delegates_details_from_github(Constants.delegates_detail_url)
@@ -1125,6 +1142,7 @@ async def register(wallet: Wallet, subtensor: SubtensorInterface, prompt: bool):
     """Register neuron by recycling some TAO."""
 
     # Check current recycle amount
+    print_verbose("Fetching recycle amount & balance")
     recycle_call, balance_ = await asyncio.gather(
         subtensor.get_hyperparameter(param_name="Burn", netuid=0, reuse_block=True),
         subtensor.get_balance(wallet.coldkeypub.ss58_address, reuse_block=True),
@@ -1171,42 +1189,39 @@ async def proposals(subtensor: SubtensorInterface):
             subtensor.network
         )
     )
+    print_verbose("Fetching senate members & proposals")
     block_hash = await subtensor.substrate.get_chain_head()
     senate_members, all_proposals = await asyncio.gather(
         _get_senate_members(subtensor, block_hash),
         _get_proposals(subtensor, block_hash),
     )
 
+    print_verbose("Fetching member information from Github")
     registered_delegate_info: dict[
         str, DelegatesDetails
     ] = await get_delegates_details_from_github(Constants.delegates_detail_url)
 
     table = Table(
         Column(
-            "[overline white]HASH",
-            footer_style="overline white",
-            style="yellow",
+            "[white]HASH",
+            style="light_goldenrod2",
             no_wrap=True,
         ),
+        Column("[white]THRESHOLD", style="rgb(42,161,152)"),
+        Column("[white]AYES", style="green"),
+        Column("[white]NAYS", style="red"),
         Column(
-            "[overline white]THRESHOLD", footer_style="overline white", style="white"
-        ),
-        Column("[overline white]AYES", footer_style="overline white", style="green"),
-        Column("[overline white]NAYS", footer_style="overline white", style="red"),
-        Column(
-            "[overline white]VOTES",
-            footer_style="overline white",
+            "[white]VOTES",
             style="rgb(50,163,219)",
         ),
-        Column("[overline white]END", footer_style="overline white", style="blue"),
-        Column(
-            "[overline white]CALLDATA", footer_style="overline white", style="white"
-        ),
-        title=f"[white]Proposals\t\tActive Proposals: {len(all_proposals)}\t\tSenate Size: {len(senate_members)}",
+        Column("[white]END", style="bright_cyan"),
+        Column("[white]CALLDATA", style="dark_sea_green"),
+        title=f"\n[dark_orange]Proposals\t\t\nActive Proposals: {len(all_proposals)}\t\tSenate Size: {len(senate_members)}",
         show_footer=True,
-        box=None,
+        box=box.SIMPLE_HEAVY,
         pad_edge=False,
         width=None,
+        border_style="bright_black",
     )
 
     for hash_ in all_proposals:
@@ -1232,7 +1247,7 @@ async def set_take(wallet: Wallet, subtensor: SubtensorInterface, take: float) -
         """
         Just more easily allows an early return and to close the substrate interface after the logic
         """
-
+        print_verbose("Checking if hotkey is a delegate")
         # Check if the hotkey is not a delegate.
         if not await subtensor.is_hotkey_delegate(wallet.hotkey.ss58_address):
             err_console.print(
@@ -1391,6 +1406,8 @@ async def my_delegates(
     wallets_with_delegates: tuple[
         tuple[Optional[Wallet], Optional[list[tuple[DelegateInfo, Balance]]]]
     ]
+
+    print_verbose("Fetching delegate information")
     wallets_with_delegates, registered_delegate_info = await asyncio.gather(
         asyncio.gather(*[wallet_to_delegates(wallet_, None) for wallet_ in wallets]),
         get_delegates_details_from_github(Constants.delegates_detail_url),
@@ -1400,6 +1417,7 @@ async def my_delegates(
             ":warning:[yellow]Could not get delegate info from chain.[/yellow]"
         )
 
+    print_verbose("Processing delegate information")
     for wall, delegates in wallets_with_delegates:
         if not wall or not delegates:
             continue
@@ -1464,17 +1482,22 @@ async def my_delegates(
 async def list_delegates(subtensor: SubtensorInterface):
     """List all delegates on the network."""
 
-    with console.status(":satellite: Loading delegates..."):
+    with console.status(
+        ":satellite: Loading delegates...", spinner="aesthetic"
+    ) as status:
+        print_verbose("Fetching delegate info from Github", status)
         block_hash, registered_delegate_info = await asyncio.gather(
             subtensor.substrate.get_chain_head(),
             get_delegates_details_from_github(Constants.delegates_detail_url),
         )
+        print_verbose("Fetching delegates info from chain", status)
         block_number = await subtensor.substrate.get_block_number(block_hash)
         delegates: list[DelegateInfo] = await subtensor.get_delegates(
             block_hash=block_hash
         )
 
         # TODO keep an eye on this, was not working at one point
+        print_verbose("Fetching previous delegates info from chain", status)
         prev_block_hash = await subtensor.substrate.get_block_hash(
             max(0, block_number - 1200)
         )
@@ -1631,6 +1654,7 @@ async def nominate(wallet: Wallet, subtensor: SubtensorInterface, prompt: bool):
     wallet.unlock_hotkey()
     wallet.unlock_coldkey()
 
+    print_verbose(f"Checking hotkey ({wallet.hotkey_str}) is a delegate")
     # Check if the hotkey is already a delegate.
     if await subtensor.is_hotkey_delegate(wallet.hotkey.ss58_address):
         err_console.print(
@@ -1638,6 +1662,7 @@ async def nominate(wallet: Wallet, subtensor: SubtensorInterface, prompt: bool):
         )
         return
 
+    print_verbose("Nominating hotkey as a delegate")
     result: bool = await nominate_extrinsic(subtensor, wallet)
     if not result:
         err_console.print(
@@ -1646,6 +1671,7 @@ async def nominate(wallet: Wallet, subtensor: SubtensorInterface, prompt: bool):
         return
     else:
         # Check if we are a delegate.
+        print_verbose("Confirming delegate status")
         is_delegate: bool = await subtensor.is_hotkey_delegate(
             wallet.hotkey.ss58_address
         )

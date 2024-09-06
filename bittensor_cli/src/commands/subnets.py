@@ -20,6 +20,7 @@ from bittensor_cli.src.bittensor.utils import (
     console,
     create_table,
     err_console,
+    print_verbose,
     format_error_message,
     get_delegates_details_from_github,
     get_metadata_table,
@@ -76,8 +77,11 @@ async def register_subnetwork_extrinsic(
                 return event_details["attributes"]
         return [-1]
 
+    print_verbose("Fetching balance")
     your_balance_ = await subtensor.get_balance(wallet.coldkeypub.ss58_address)
     your_balance = your_balance_[wallet.coldkeypub.ss58_address]
+    
+    print_verbose("Fetching lock_cost")
     burn_cost = await lock_cost(subtensor)
     if burn_cost > your_balance:
         err_console.print(
@@ -95,7 +99,7 @@ async def register_subnetwork_extrinsic(
 
     wallet.unlock_coldkey()
 
-    with console.status(":satellite: Registering subnet..."):
+    with console.status(":satellite: Registering subnet...", spinner="earth"):
         substrate = subtensor.substrate
         # create extrinsic call
         call = await substrate.compose_call(
@@ -158,6 +162,7 @@ async def subnets_list(
         subnets: list[SubnetInfo]
         delegate_info: dict[str, DelegatesDetails]
 
+        print_verbose("Fetching subnet and delegate information")
         subnets, delegate_info = await asyncio.gather(
             _get_all_subnets_info(),
             get_delegates_details_from_github(url=Constants.delegates_detail_url),
@@ -334,7 +339,7 @@ async def subnets_list(
 
 async def lock_cost(subtensor: "SubtensorInterface") -> Optional[Balance]:
     """View locking cost of creating a new subnetwork"""
-    with console.status(f":satellite:Retrieving lock cost from {subtensor.network}..."):
+    with console.status(f":satellite:Retrieving lock cost from {subtensor.network}...", spinner="aesthetic"):
         lc = await subtensor.query_runtime_api(
             runtime_api="SubnetRegistrationRuntimeApi",
             method="get_network_registration_cost",
@@ -379,11 +384,6 @@ async def pow_register(
 ):
     """Register neuron."""
 
-    # Verify subnet exists
-    if not await subtensor.subnet_exists(netuid=netuid):
-        err_console.print(f"[red]Subnet {netuid} does not exist[/red]")
-        return
-
     await register_extrinsic(
         subtensor,
         wallet=wallet,
@@ -405,12 +405,14 @@ async def register(
     """Register neuron by recycling some TAO."""
 
     # Verify subnet exists
+    print_verbose("Checking subnet status")
     block_hash = await subtensor.substrate.get_chain_head()
     if not await subtensor.subnet_exists(netuid=netuid, block_hash=block_hash):
         err_console.print(f"[red]Subnet {netuid} does not exist[/red]")
         return
 
     # Check current recycle amount
+    print_verbose("Fetching recycle amount")
     current_recycle_, balance_ = await asyncio.gather(
         subtensor.get_hyperparameter(
             param_name="Burn", netuid=netuid, block_hash=block_hash
@@ -463,7 +465,7 @@ async def metagraph_cmd(
         cast("SubtensorInterface", subtensor)
         cast(int, netuid)
         with console.status(
-            f":satellite: Syncing with chain: [white]{subtensor.network}[/white] ..."
+            f":satellite: Syncing with chain: [white]{subtensor.network}[/white] ...", spinner="aesthetic"
         ):
             block_hash = await subtensor.substrate.get_chain_head()
             neurons, difficulty_, total_issuance_, block = await asyncio.gather(

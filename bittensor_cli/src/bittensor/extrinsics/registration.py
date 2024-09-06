@@ -32,6 +32,7 @@ from bittensor_cli.src.bittensor.utils import (
     format_error_message,
     millify,
     get_human_readable,
+    print_verbose,
 )
 
 if typing.TYPE_CHECKING:
@@ -481,6 +482,7 @@ async def register_extrinsic(
     :return: `True` if extrinsic was finalized or included in the block. If we did not wait for finalization/inclusion,
              the response is `True`.
     """
+    print_verbose("Checking subnet status")
     if not subtensor.subnet_exists(netuid):
         err_console.print(
             f":cross_mark: [red]Failed[/red]: error: [bold white]subnet:{netuid}[/bold white] does not exist."
@@ -488,7 +490,8 @@ async def register_extrinsic(
         return False
 
     with console.status(
-        f":satellite: Checking Account on [bold]subnet:{netuid}[/bold]..."
+        f":satellite: Checking Account on [bold]subnet:{netuid}[/bold]...",
+        spinner="aesthetic",
     ):
         neuron = subtensor.get_neuron_for_pubkey_and_subnet(
             wallet.hotkey.ss58_address, netuid=netuid
@@ -1599,8 +1602,10 @@ async def swap_hotkey_extrinsic(
             f"Swap {wallet.hotkey} for new hotkey: {new_wallet.hotkey}?"
         ):
             return False
-
-    with console.status(":satellite: Swapping hotkeys..."):
+    print_verbose(
+        f"Swapping {wallet.name}'s hotkey ({wallet.hotkey.ss58_address}) with {new_wallet.name}s hotkey ({new_wallet.hotkey.ss58_address})"
+    )
+    with console.status(":satellite: Swapping hotkeys...", spinner="aesthetic"):
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function="swap_hotkey",

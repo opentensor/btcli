@@ -18,6 +18,7 @@ from bittensor_cli.src.bittensor.utils import (
     console,
     create_table,
     err_console,
+    print_verbose,
     float_to_u64,
     get_coldkey_wallets_for_path,
     get_delegates_details_from_github,
@@ -135,10 +136,12 @@ async def add_stake_extrinsic(
     own_hotkey: bool
 
     with console.status(
-        f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
-    ):
+        f":satellite: Syncing with chain: [white]{subtensor}[/white] ...",
+        spinner="aesthetic",
+    ) as status:
         block_hash = await subtensor.substrate.get_chain_head()
         # Get hotkey owner
+        print_verbose("Confirming hotkey owner", status)
         hotkey_owner = await _get_hotkey_owner(
             subtensor, hotkey_ss58=hotkey_ss58, block_hash=block_hash
         )
@@ -163,12 +166,14 @@ async def add_stake_extrinsic(
             hotkey_take = u16_normalized_float(getattr(hk_result, "value", 0))
 
         # Get current stake
+        print_verbose("Fetching current stake", status)
         old_stake = await subtensor.get_stake_for_coldkey_and_hotkey(
             coldkey_ss58=wallet.coldkeypub.ss58_address,
             hotkey_ss58=hotkey_ss58,
             block_hash=block_hash,
         )
 
+        print_verbose("Fetching existential deposit", status)
         # Grab the existential deposit.
         existential_deposit = await subtensor.get_existential_deposit()
 
@@ -199,6 +204,7 @@ async def add_stake_extrinsic(
     # If nominating, we need to check if the new stake balance will be above the minimum required stake threshold.
     if not own_hotkey:
         new_stake_balance = old_stake + staking_balance
+        print_verbose("Fetching threshold amount")
         is_above_threshold, threshold = await _check_threshold_amount(
             subtensor, new_stake_balance, block_hash
         )
@@ -231,7 +237,8 @@ async def add_stake_extrinsic(
                 return False
 
     with console.status(
-        f":satellite: Staking to: [bold white]{subtensor}[/bold white] ..."
+        f":satellite: Staking to: [bold white]{subtensor}[/bold white] ...",
+        spinner="earth",
     ):
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
@@ -505,8 +512,10 @@ async def unstake_extrinsic(
         hotkey_ss58 = wallet.hotkey.ss58_address  # Default to wallet's own hotkey.
 
     with console.status(
-        f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
-    ):
+        f":satellite: Syncing with chain: [white]{subtensor}[/white] ...",
+        spinner="aesthetic",
+    ) as status:
+        print_verbose("Fetching balance and stake", status)
         block_hash = await subtensor.substrate.get_chain_head()
         old_balance, old_stake, hotkey_owner = await asyncio.gather(
             subtensor.get_balance(
@@ -540,6 +549,7 @@ async def unstake_extrinsic(
         )
         return False
 
+    print_verbose("Fetching threshold amount")
     # If nomination stake, check threshold.
     if not own_hotkey and not await _check_threshold_amount(
         subtensor=subtensor,
@@ -561,7 +571,8 @@ async def unstake_extrinsic(
             return False
 
     with console.status(
-        f":satellite: Unstaking from chain: [white]{subtensor}[/white] ..."
+        f":satellite: Unstaking from chain: [white]{subtensor}[/white] ...",
+        spinner="earth",
     ):
         unstaking_balance = Balance.from_tao(unstaking_balance)
         call = await subtensor.substrate.compose_call(
@@ -1202,11 +1213,14 @@ async def show(
         else:
             wallets = [wallet]
 
+        print_verbose("Fetching delegate details from Github")
         registered_delegate_info = await get_delegates_details_from_github(
             Constants.delegates_detail_url
         )
 
-        with console.status(":satellite:Retrieving account data..."):
+        with console.status(
+            ":satellite: Retrieving account data...", spinner="aesthetic"
+        ):
             block_hash_ = await subtensor.substrate.get_chain_head()
             accounts = await get_all_wallet_accounts(block_hash=block_hash_)
 
@@ -1391,6 +1405,7 @@ async def stake_add(
         ]  # definitely wallets
 
     elif include_hotkeys:
+        print_verbose("Staking to only included hotkeys")
         # Stake to specific hotkeys.
         for hotkey_ss58_or_hotkey_name in include_hotkeys:
             if is_valid_ss58_address(hotkey_ss58_or_hotkey_name):
@@ -1410,12 +1425,16 @@ async def stake_add(
     else:
         # Only config.wallet.hotkey is specified.
         #  so we stake to that single hotkey.
+        print_verbose(
+            f"Staking to hotkey: ({wallet.hotkey_str}) in wallet: ({wallet.name})"
+        )
         assert wallet.hotkey is not None
         hotkey_ss58_or_name = wallet.hotkey.ss58_address
         hotkeys_to_stake_to = [(None, hotkey_ss58_or_name)]
 
     try:
         # Get coldkey balance
+        print_verbose("Fetching coldkey balance")
         wallet_balance_: dict[str, Balance] = await subtensor.get_balance(
             wallet.coldkeypub.ss58_address
         )
@@ -1425,6 +1444,8 @@ async def stake_add(
         final_hotkeys: list[tuple[Optional[str], str]] = []
         final_amounts: list[Union[float, Balance]] = []
         hotkey: tuple[Optional[str], str]  # (hotkey_name (or None), hotkey_ss58)
+
+        print_verbose("Checking if hotkeys are registered")
         registered_ = asyncio.gather(
             *[is_hotkey_registered_any(h[1], block_hash) for h in hotkeys_to_stake_to]
         )
@@ -1536,10 +1557,12 @@ async def unstake(
     # Get the hotkey_names (if any) and the hotkey_ss58s.
     hotkeys_to_unstake_from: list[tuple[Optional[str], str]] = []
     if hotkey_ss58_address:
-        # Stake to specific hotkey.
+        print_verbose(f"Unstaking from ss58 ({hotkey_ss58_address})")
+        # Unstake to specific hotkey.
         hotkeys_to_unstake_from = [(None, hotkey_ss58_address)]
     elif all_hotkeys:
-        # Stake to all hotkeys.
+        print_verbose("Unstaking from all hotkeys")
+        # Unstake to all hotkeys.
         all_hotkeys_: list[Wallet] = get_hotkey_wallets_for_wallet(wallet=wallet)
         # Exclude hotkeys that are specified.
         hotkeys_to_unstake_from = [
@@ -1549,7 +1572,8 @@ async def unstake(
         ]  # definitely wallets
 
     elif include_hotkeys:
-        # Stake to specific hotkeys.
+        print_verbose("Unstaking from included hotkeys")
+        # Unstake to specific hotkeys.
         for hotkey_ss58_or_hotkey_name in include_hotkeys:
             if is_valid_ss58_address(hotkey_ss58_or_hotkey_name):
                 # If the hotkey is a valid ss58 address, we add it to the list.
@@ -1568,6 +1592,9 @@ async def unstake(
     else:
         # Only cli.config.wallet.hotkey is specified.
         #  so we stake to that single hotkey.
+        print_verbose(
+            f"Unstaking from wallet: ({wallet.name}) from hotkey: ({wallet.hotkey_str})"
+        )
         assert wallet.hotkey is not None
         hotkeys_to_unstake_from = [(None, wallet.hotkey.ss58_address)]
 
@@ -1575,7 +1602,10 @@ async def unstake(
     final_amounts: list[Union[float, Balance]] = []
     hotkey: tuple[Optional[str], str]  # (hotkey_name (or None), hotkey_ss58)
     with suppress(ValueError):
-        with console.status(f":satellite:Syncing with chain {subtensor}"):
+        with console.status(
+            f":satellite:Syncing with chain {subtensor}", spinner="earth"
+        ) as status:
+            print_verbose("Fetching stake", status)
             block_hash = await subtensor.substrate.get_chain_head()
             hotkey_stakes = await asyncio.gather(
                 *[
@@ -1627,7 +1657,6 @@ async def unstake(
                 )
             ):
                 return None
-
         if len(final_hotkeys) == 1:
             # do regular unstake
             await unstake_extrinsic(
