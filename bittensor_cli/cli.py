@@ -1253,7 +1253,6 @@ class CLIManager:
         processors: Optional[int] = typer.Option(
             defaults.pow_register.num_processes,
             "--processors",
-            "-p",
             help="Number of processors to use for POW registration.",
         ),
         update_interval: Optional[int] = typer.Option(
@@ -3094,7 +3093,6 @@ class CLIManager:
         proportions: list[float] = typer.Option(
             [],
             "--proportions",
-            "-p",
             help="Enter proportions for children as (sum less than 1)",
             prompt=False,
         ),
@@ -3532,13 +3530,12 @@ class CLIManager:
         # TODO add the following to config
         processors: Optional[int] = typer.Option(
             defaults.pow_register.num_processes,
-            "-processors",
-            "-p",
+            "--processors",
             help="Number of processors to use for POW registration.",
         ),
         update_interval: Optional[int] = typer.Option(
             defaults.pow_register.update_interval,
-            "-update-interval",
+            "--update-interval",
             "-u",
             help="The number of nonces to process before checking for next block during registration",
         ),
