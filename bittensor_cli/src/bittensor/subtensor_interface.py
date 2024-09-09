@@ -130,7 +130,7 @@ class SubtensorInterface:
         return (
             []
             if result is None or not hasattr(result, "records")
-            else [netuid.value async for netuid, exists in result if exists]
+            else [netuid async for netuid, exists in result if exists]
         )
 
     async def is_hotkey_delegate(
@@ -397,7 +397,7 @@ class SubtensorInterface:
             reuse_block_hash=reuse_block,
         )
         return (
-            [record[0].value async for record in result if record[1]]
+            [record[0] async for record in result if record[1]]
             if result and hasattr(result, "records")
             else []
         )
@@ -739,17 +739,13 @@ class SubtensorInterface:
         The weight distribution is a key factor in the network's consensus algorithm and the ranking of neurons,
         influencing their influence and reward allocation within the subnet.
         """
-        w_map = []
         w_map_encoded = await self.substrate.query_map(
             module="SubtensorModule",
             storage_function="Weights",
             params=[netuid],
             block_hash=block_hash,
         )
-
-        if w_map_encoded.records:
-            async for uid, w in w_map_encoded:
-                w_map.append((uid.serialize(), w.serialize()))
+        w_map = [(uid, w) async for uid, w in w_map_encoded]
 
         return w_map
 
@@ -771,16 +767,13 @@ class SubtensorInterface:
         within the subnet. It reflects how neurons recognize and invest in each other's intelligence and
         contributions, supporting diverse and niche systems within the Bittensor ecosystem.
         """
-        b_map = []
         b_map_encoded = await self.substrate.query_map(
             module="SubtensorModule",
             storage_function="Bonds",
             params=[netuid],
             block_hash=block_hash,
         )
-        if b_map_encoded.records:
-            async for uid, b in b_map_encoded:
-                b_map.append((uid.serialize(), b.serialize()))
+        b_map = [(uid, b) async for uid, b in b_map_encoded]
 
         return b_map
 

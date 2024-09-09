@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from hashlib import blake2b
 from typing import Optional, Any, Union, Callable, Awaitable, cast
 
-import websockets
+from bt_decode import PortableRegistry, decode as decode_by_type_string, MetadataV15
 from async_property import async_property
 from scalecodec import GenericExtrinsic
 from scalecodec.base import ScaleBytes, ScaleType, RuntimeConfigurationObject
@@ -18,6 +18,7 @@ from substrateinterface.exceptions import (
     BlockNotFound,
 )
 from substrateinterface.storage import StorageKey
+import websockets
 
 ResultHandler = Callable[[dict, Any], Awaitable[tuple[dict, bool]]]
 
@@ -152,7 +153,9 @@ class ExtrinsicReceipt:
             self.__triggered_events = []
 
             for event in await self.substrate.get_events(block_hash=self.block_hash):
-                if event.extrinsic_idx == await self.extrinsic_idx:  # TODO figure out where tf this is being set. I should not have to await it here.
+                if (
+                    event.extrinsic_idx == await self.extrinsic_idx
+                ):  # TODO figure out where tf this is being set. I should not have to await it here.
                     self.__triggered_events.append(event)
 
         return cast(list, self.__triggered_events)
@@ -845,7 +848,7 @@ class Websocket:
 
 class AsyncSubstrateInterface:
     runtime = None
-    substrate = None
+    registry: Optional[PortableRegistry] = None
 
     def __init__(
         self,
@@ -890,6 +893,7 @@ class AsyncSubstrateInterface:
         self.type_registry_preset = None
         self.transaction_version = None
         self.metadata = None
+        self.metadata_version_hex = "0x0f000000"  # v15
 
     async def __aenter__(self):
         await self.initialize()
@@ -902,6 +906,7 @@ class AsyncSubstrateInterface:
             if not self.initialized:
                 chain = await self.rpc_request("system_chain", [])
                 self.__chain = chain.get("result")
+                await self.load_registry()
                 self.reload_type_registry()
                 await self.init_runtime(None)
             self.initialized = True
@@ -934,8 +939,22 @@ class AsyncSubstrateInterface:
                 return self.last_block_hash
         return block_hash
 
+    async def load_registry(self):
+        metadata_rpc_result = await self.rpc_request(
+            "state_call",
+            [
+                "Metadata_metadata_at_version",
+                self.metadata_version_hex,
+                await self.get_chain_finalised_head(),
+            ],
+        )
+        metadata_option_hex_str = metadata_rpc_result["result"]
+        metadata_option_bytes = bytes.fromhex(metadata_option_hex_str[2:])
+        metadata_v15 = MetadataV15.decode_from_metadata_option(metadata_option_bytes)
+        self.registry = PortableRegistry.from_metadata_v15(metadata_v15)
+
     async def decode_scale(
-        self, type_string, scale_bytes, block_hash=None, return_scale_obj=False
+        self, type_string, scale_bytes: bytes, block_hash=None, return_scale_obj=False
     ):
         """
         Helper function to decode arbitrary SCALE-bytes (e.g. 0x02000000) according to given RUST type_string
@@ -955,19 +974,22 @@ class AsyncSubstrateInterface:
         """
         # await self.init_runtime(block_hash=block_hash)
 
-        if isinstance(scale_bytes, str):
-            scale_bytes = ScaleBytes(scale_bytes)
-
-        obj = self.runtime_config.create_scale_object(
-            type_string=type_string, data=scale_bytes, metadata=self.metadata
-        )
-
-        obj.decode(check_remaining=True)
-
+        obj = decode_by_type_string(type_string, self.registry, scale_bytes)
         if return_scale_obj:
             return obj
         else:
             return obj.value
+
+        # obj = self.runtime_config.create_scale_object(
+        #     type_string=type_string, data=scale_bytes, metadata=self.metadata
+        # )
+        #
+        # obj.decode(check_remaining=True)
+        #
+        # if return_scale_obj:
+        #     return obj
+        # else:
+        #     return obj.value
 
     async def init_runtime(
         self, block_hash: Optional[str] = None, block_id: Optional[int] = None
@@ -1071,7 +1093,7 @@ class AsyncSubstrateInterface:
             )
 
             if ss58_prefix_constant:
-                self.ss58_format = ss58_prefix_constant.value
+                self.ss58_format = ss58_prefix_constant
 
             # Set runtime compatibility flags
             try:
@@ -2260,7 +2282,7 @@ class AsyncSubstrateInterface:
             # Decode to ScaleType
             return await self.decode_scale(
                 constant.type,
-                ScaleBytes(constant.constant_value),
+                bytes(constant.constant_value),
                 block_hash=block_hash,
                 return_scale_obj=True,
             )
@@ -2357,7 +2379,7 @@ class AsyncSubstrateInterface:
         max_results: Optional[int] = None,
         start_key: Optional[str] = None,
         page_size: int = 100,
-        ignore_decoding_errors: bool = True,
+        ignore_decoding_errors: bool = False,
         reuse_block_hash: bool = False,
     ) -> "QueryMapResult":
         """
@@ -2487,17 +2509,17 @@ class AsyncSubstrateInterface:
 
                         item_key_obj = await self.decode_scale(
                             type_string=f"({', '.join(key_type_string)})",
-                            scale_bytes="0x" + item[0][len(prefix) :],
+                            scale_bytes=bytes.fromhex(item[0][len(prefix) :]),
                             return_scale_obj=True,
                             block_hash=block_hash,
                         )
 
                         # strip key_hashers to use as item key
                         if len(param_types) - len(params) == 1:
-                            item_key = item_key_obj.value_object[1]
+                            item_key = item_key_obj[1]
                         else:
                             item_key = tuple(
-                                item_key_obj.value_object[key + 1]
+                                item_key_obj[key + 1]
                                 for key in range(len(params), len(param_types) + 1, 2)
                             )
 
@@ -2507,9 +2529,14 @@ class AsyncSubstrateInterface:
                         item_key = None
 
                     try:
+                        try:
+                            item_bytes = bytes.fromhex(item[1][2:])
+                        except ValueError:
+                            item_bytes = bytes.fromhex(item[1])
+
                         item_value = await self.decode_scale(
                             type_string=value_type,
-                            scale_bytes=item[1],
+                            scale_bytes=item_bytes,
                             return_scale_obj=True,
                             block_hash=block_hash,
                         )
@@ -2643,9 +2670,7 @@ class AsyncSubstrateInterface:
             if "result" not in response:
                 raise SubstrateRequestException(response.get("error"))
 
-            result = ExtrinsicReceipt(
-                substrate=self, extrinsic_hash=response["result"]
-            )
+            result = ExtrinsicReceipt(substrate=self, extrinsic_hash=response["result"])
 
         return result
 
