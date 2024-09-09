@@ -8,11 +8,16 @@ from typing import TYPE_CHECKING, Optional, Sequence, Union, cast
 
 from bittensor_wallet import Wallet
 from bittensor_wallet.errors import KeyFileError
-from rich.prompt import Confirm
+from bittensor_wallet.utils import SS58_FORMAT
+from rich.prompt import Confirm, Prompt
 from rich.table import Table, Column
+from rich.text import Text
+from scalecodec import ss58_encode
+from substrateinterface.exceptions import SubstrateRequestException
 
 from bittensor_cli.src import Constants
 from bittensor_cli.src.bittensor.balances import Balance
+from bittensor_cli.src.bittensor.chain_data import decode_account_id
 from bittensor_cli.src.bittensor.utils import (
     console,
     create_table,
@@ -82,7 +87,7 @@ async def _get_hotkey_owner(
         block_hash=block_hash,
     )
     hotkey_owner = (
-        val
+        ss58_encode(val, SS58_FORMAT)
         if (
             (val := getattr(hk_owner_query, "value", None))
             and await subtensor.does_hotkey_exist(val, block_hash=block_hash)
