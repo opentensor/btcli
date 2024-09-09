@@ -80,7 +80,7 @@ async def register_subnetwork_extrinsic(
     print_verbose("Fetching balance")
     your_balance_ = await subtensor.get_balance(wallet.coldkeypub.ss58_address)
     your_balance = your_balance_[wallet.coldkeypub.ss58_address]
-    
+
     print_verbose("Fetching lock_cost")
     burn_cost = await lock_cost(subtensor)
     if burn_cost > your_balance:
@@ -339,7 +339,10 @@ async def subnets_list(
 
 async def lock_cost(subtensor: "SubtensorInterface") -> Optional[Balance]:
     """View locking cost of creating a new subnetwork"""
-    with console.status(f":satellite:Retrieving lock cost from {subtensor.network}...", spinner="aesthetic"):
+    with console.status(
+        f":satellite:Retrieving lock cost from {subtensor.network}...",
+        spinner="aesthetic",
+    ):
         lc = await subtensor.query_runtime_api(
             runtime_api="SubnetRegistrationRuntimeApi",
             method="get_network_registration_cost",
@@ -465,7 +468,8 @@ async def metagraph_cmd(
         cast("SubtensorInterface", subtensor)
         cast(int, netuid)
         with console.status(
-            f":satellite: Syncing with chain: [white]{subtensor.network}[/white] ...", spinner="aesthetic"
+            f":satellite: Syncing with chain: [white]{subtensor.network}[/white] ...",
+            spinner="aesthetic",
         ):
             block_hash = await subtensor.substrate.get_chain_head()
             neurons, difficulty_, total_issuance_, block = await asyncio.gather(
