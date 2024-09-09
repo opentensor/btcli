@@ -406,7 +406,7 @@ class NeuronInfoLite:
                     trust=u16_normalized_float(trust),
                     uid=uid,
                     validator_permit=validator_permit,
-                    validator_trust=validator_trust,
+                    validator_trust=u16_normalized_float(validator_trust),
                 )
             )
         return results
