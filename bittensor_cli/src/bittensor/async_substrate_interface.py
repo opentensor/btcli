@@ -976,12 +976,11 @@ class AsyncSubstrateInterface:
         -------
 
         """
-
-        obj = decode_by_type_string(type_string, self.registry, scale_bytes)
-        if return_scale_obj:
-            return obj
+        if scale_bytes == b'\x00':
+            obj = None
         else:
-            return obj.value
+            obj = decode_by_type_string(type_string, self.registry, scale_bytes)
+        return obj
 
     async def init_runtime(
         self, block_hash: Optional[str] = None, block_id: Optional[int] = None
