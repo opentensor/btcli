@@ -328,7 +328,7 @@ async def burned_register_extrinsic(
 
         print_verbose("Checking if already registered", status)
         neuron = await subtensor.neuron_for_uid(
-            uid=my_uid.value,
+            uid=my_uid,
             netuid=netuid,
             block_hash=subtensor.substrate.last_block_hash,
         )
@@ -552,7 +552,7 @@ async def delegate_extrinsic(
             block_hash=block_hash_,
         )
         return (
-            Balance.from_rao(_result.value) if getattr(_result, "value", None) else None
+            Balance.from_rao(_result)  # TODO maybe or None
         )
 
     delegate_string = "delegate" if delegate else "undelegate"
@@ -805,7 +805,7 @@ async def root_list(subtensor: SubtensorInterface):
             ),
             neuron_data.hotkey,
             "{:.5f}".format(
-                float(Balance.from_rao(total_stakes[neuron_data.hotkey].value))
+                float(Balance.from_rao(total_stakes[neuron_data.hotkey]))
             ),
             "Yes" if neuron_data.hotkey in senate_members else "No",
         )
@@ -970,13 +970,13 @@ async def _get_my_weights(
             "SubtensorModule", "TotalNetworks", reuse_block_hash=True
         ),
     )
-    my_weights: list[tuple[int, int]] = my_weights_.value
+    my_weights: list[tuple[int, int]] = my_weights_
 
     print_verbose("Fetching current weights")
     for _, w in enumerate(my_weights):
         if w:
             print_verbose(f"{w}")
-    total_subnets: int = total_subnets_.value
+    total_subnets: int = total_subnets_
 
     # If setting weights for the first time, pass 0 root weights
     if not my_weights:
@@ -1001,7 +1001,7 @@ async def set_boost(
         await subtensor.substrate.query(
             "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
         )
-    ).value
+    )
 
     if my_uid is None:
         err_console.print("Your hotkey is not registered to the root network")
@@ -1047,7 +1047,7 @@ async def set_slash(
         await subtensor.substrate.query(
             "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
         )
-    ).value
+    )
     if my_uid is None:
         err_console.print("Your hotkey is not registered to the root network")
         return False
@@ -1181,11 +1181,12 @@ async def register(wallet: Wallet, subtensor: SubtensorInterface, prompt: bool):
         subtensor.get_hyperparameter(param_name="Burn", netuid=0, reuse_block=True),
         subtensor.get_balance(wallet.coldkeypub.ss58_address, reuse_block=True),
     )
+    current_recycle = Balance.from_rao(int(recycle_call))
     try:
-        current_recycle = Balance.from_rao(int(recycle_call))
+
         balance: Balance = balance_[wallet.coldkeypub.ss58_address]
-    except TypeError:
-        err_console.print("Unable to retrieve current recycle.")
+    except TypeError as e:
+        err_console.print(f"Unable to retrieve current recycle. {e}")
         return False
     except KeyError:
         err_console.print("Unable to retrieve current balance.")

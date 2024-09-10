@@ -153,6 +153,7 @@ class ExtrinsicReceipt:
             self.__triggered_events = []
 
             for event in await self.substrate.get_events(block_hash=self.block_hash):
+                print("event", (await self.extrinsic_idx), event)
                 if (
                     event.extrinsic_idx == await self.extrinsic_idx
                 ):  # TODO figure out where tf this is being set. I should not have to await it here.
@@ -957,7 +958,7 @@ class AsyncSubstrateInterface:
         self.registry = PortableRegistry.from_metadata_v15(metadata_v15)
 
     async def decode_scale(
-        self, type_string, scale_bytes: bytes, block_hash=None, return_scale_obj=False
+        self, type_string, scale_bytes: bytes, return_scale_obj=False
     ):
         """
         Helper function to decode arbitrary SCALE-bytes (e.g. 0x02000000) according to given RUST type_string
@@ -1462,7 +1463,7 @@ class AsyncSubstrateInterface:
             module="System", storage_function="Events", block_hash=block_hash
         )
         if storage_obj:
-            events += storage_obj.elements
+            events += list(storage_obj)
         return events
 
     async def get_block_runtime_version(self, block_hash: str) -> dict:
@@ -1601,14 +1602,22 @@ class AsyncSubstrateInterface:
                 # No result is interpreted as an Option<...> result
                 value_scale_type = f"Option<{value_scale_type}>"
                 query_value = storage_item.value_object["default"].value_object
+            if isinstance(query_value, str):
+                q = bytes.fromhex(query_value[2:])
+            elif isinstance(query_value, bytearray):
+                q = bytes(query_value)
+            else:
+                q = query_value
+            print(query_value)
+            obj = await self.decode_scale(value_scale_type, q, True)
 
-            obj = runtime.runtime_config.create_scale_object(
-                type_string=value_scale_type,
-                data=ScaleBytes(query_value),
-                metadata=runtime.metadata,
-            )
-            obj.decode(check_remaining=True)
-            obj.meta_info = {"result_found": response.get("result") is not None}
+            # obj = runtime.runtime_config.create_scale_object(
+            #     type_string=value_scale_type,
+            #     data=ScaleBytes(query_value),
+            #     metadata=runtime.metadata,
+            # )
+            # obj.decode(check_remaining=True)
+            # obj.meta_info = {"result_found": response.get("result") is not None}
             result = obj
         if asyncio.iscoroutinefunction(result_handler):
             # For multipart responses as a result of subscriptions.
@@ -2274,7 +2283,6 @@ class AsyncSubstrateInterface:
             return await self.decode_scale(
                 constant.type,
                 bytes(constant.constant_value),
-                block_hash=block_hash,
                 return_scale_obj=True,
             )
         else:

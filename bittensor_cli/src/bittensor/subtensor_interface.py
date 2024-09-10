@@ -238,7 +238,7 @@ class SubtensorInterface:
             params=[hotkey_ss58, coldkey_ss58],
             block_hash=block_hash,
         )
-        return Balance.from_rao(getattr(_result, "value", 0))
+        return Balance.from_rao(_result or 0)
 
     async def query_runtime_api(
         self,
@@ -317,7 +317,8 @@ class SubtensorInterface:
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
-        return {k: Balance(v.value["data"]["free"]) for (k, v) in results.items()}
+        print("balance results", results)
+        return {k: Balance(v["data"]["free"]) for (k, v) in results.items()}
 
     async def get_total_stake_for_coldkey(
         self,
@@ -342,7 +343,7 @@ class SubtensorInterface:
             reuse_block_hash=reuse_block,
         )
         return {
-            k: Balance.from_rao(getattr(r, "value", 0)) for (k, r) in results.items()
+            k: Balance.from_rao(r or 0) for (k, r) in results.items()
         }
 
     async def get_total_stake_for_hotkey(
@@ -368,7 +369,7 @@ class SubtensorInterface:
             reuse_block_hash=reuse_block,
         )
         return {
-            k: Balance.from_rao(getattr(r, "value", 0)) for (k, r) in results.items()
+            k: Balance.from_rao(r or 0) for (k, r) in results.items()
         }
 
     async def get_netuids_for_hotkey(
@@ -424,7 +425,7 @@ class SubtensorInterface:
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
-        return getattr(result, "value", False)
+        return result
 
     async def get_hyperparameter(
         self,
@@ -444,6 +445,7 @@ class SubtensorInterface:
         :return: The value of the specified hyperparameter if the subnet exists, or None
         """
         if not await self.subnet_exists(netuid, block_hash):
+            print("subnet does not exist")
             return None
 
         result = await self.substrate.query(
@@ -454,10 +456,10 @@ class SubtensorInterface:
             reuse_block_hash=reuse_block,
         )
 
-        if result is None or not hasattr(result, "value"):
+        if result is None:
             return None
 
-        return result.value
+        return result
 
     async def filter_netuids_by_registered_hotkeys(
         self,
@@ -718,7 +720,7 @@ class SubtensorInterface:
             reuse_block_hash=reuse_block,
         )
         try:
-            return decode_hex_identity_dict(identity_info.value["info"])
+            return decode_hex_identity_dict(identity_info["info"])
         except TypeError:
             return {}
 
@@ -801,8 +803,8 @@ class SubtensorInterface:
         )
         return (
             False
-            if getattr(result, "value", None) is None
-            else result.value != "5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM"
+            if result is None
+            else result != "5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM"
         )
 
     async def sign_and_send_extrinsic(
@@ -861,11 +863,9 @@ class SubtensorInterface:
                 for proportion, child in children:
                     # Convert U64 to int
                     int_proportion = (
-                        proportion.value
-                        if hasattr(proportion, "value")
-                        else int(proportion)
+                        int(proportion)
                     )
-                    formatted_children.append((int_proportion, child.value))
+                    formatted_children.append((int_proportion, child))
                 return True, formatted_children, ""
             else:
                 return True, [], ""
