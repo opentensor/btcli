@@ -527,10 +527,10 @@ class SubtensorInterface:
             reuse_block_hash=reuse_block,
         )
 
-        if result is None or not hasattr(result, "value"):
+        if result is None:
             raise Exception("Unable to retrieve existential deposit amount.")
 
-        return Balance.from_rao(result.value)
+        return Balance.from_rao(result)
 
     async def neurons(
         self, netuid: int, block_hash: Optional[str] = None

@@ -906,9 +906,12 @@ class AsyncSubstrateInterface:
             if not self.initialized:
                 chain = await self.rpc_request("system_chain", [])
                 self.__chain = chain.get("result")
-                await self.load_registry()
+                # await self.load_registry()
                 self.reload_type_registry()
-                await self.init_runtime(None)
+                await asyncio.gather(
+                    self.load_registry(),
+                    self.init_runtime(None)
+                )
             self.initialized = True
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -972,24 +975,12 @@ class AsyncSubstrateInterface:
         -------
 
         """
-        # await self.init_runtime(block_hash=block_hash)
 
         obj = decode_by_type_string(type_string, self.registry, scale_bytes)
         if return_scale_obj:
             return obj
         else:
             return obj.value
-
-        # obj = self.runtime_config.create_scale_object(
-        #     type_string=type_string, data=scale_bytes, metadata=self.metadata
-        # )
-        #
-        # obj.decode(check_remaining=True)
-        #
-        # if return_scale_obj:
-        #     return obj
-        # else:
-        #     return obj.value
 
     async def init_runtime(
         self, block_hash: Optional[str] = None, block_id: Optional[int] = None
@@ -2247,7 +2238,7 @@ class AsyncSubstrateInterface:
 
         # await self.init_runtime(block_hash=block_hash)
 
-        for module_idx, module in enumerate(self.metadata.pallets):
+        for module in self.metadata.pallets:
             if module_name == module.name and module.constants:
                 for constant in module.constants:
                     if constant_name == constant.value["name"]:

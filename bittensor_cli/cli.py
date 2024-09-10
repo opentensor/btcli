@@ -653,22 +653,26 @@ class CLIManager:
         """
 
         async def _run():
-            if self.not_subtensor:
-                async with self.not_subtensor:
+            try:
+                if self.not_subtensor:
+                    async with self.not_subtensor:
+                        await cmd
+                else:
                     await cmd
-            else:
-                await cmd
+            except ConnectionRefusedError:
+                err_console.print(
+                    f"Unable to connect to chain: {self.not_subtensor}"
+                )
+                asyncio.create_task(cmd).cancel()
+                raise typer.Exit()
+            except ConnectionClosed:
+                raise typer.Exit()
+            except SubstrateRequestException as e:
+                err_console.print(str(e))
+                raise typer.Exit()
 
-        try:
-            return asyncio.run(_run())
-        except ConnectionRefusedError:
-            err_console.print(
-                f"Connection refused when connecting to chain: {self.not_subtensor}"
-            )
-        except ConnectionClosed:
-            pass
-        except SubstrateRequestException as e:
-            err_console.print(str(e))
+        return asyncio.run(_run())
+
 
     def main_callback(
         self,
