@@ -1483,7 +1483,10 @@ async def set_id(
             console.print(":cross_mark: Aborted!")
             raise typer.Exit()
 
-    wallet.unlock_coldkey()
+    try:
+        wallet.unlock_coldkey()
+    except KeyFileError:
+        return False
 
     with console.status(
         ":satellite: [bold green]Updating identity on-chain...", spinner="earth"

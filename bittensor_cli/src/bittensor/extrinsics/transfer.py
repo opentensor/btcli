@@ -1,6 +1,7 @@
 import asyncio
 
 from bittensor_wallet import Wallet
+from bittensor_wallet.errors import KeyFileError
 from rich.prompt import Confirm
 
 from bittensor_cli.src import NETWORK_EXPLORER_MAP
@@ -106,7 +107,10 @@ async def transfer_extrinsic(
         return False
     console.print(f"[dark_orange]Initiating transfer on network: {subtensor.network}")
     # Unlock wallet coldkey.
-    wallet.unlock_coldkey()
+    try:
+        wallet.unlock_coldkey()
+    except KeyFileError:
+        return False
 
     # Check balance.
     with console.status(
