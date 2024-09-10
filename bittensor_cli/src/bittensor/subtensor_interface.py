@@ -177,6 +177,8 @@ class SubtensorInterface:
             bytes_result = bytes.fromhex(hex_bytes_result[2:])
         except ValueError:
             bytes_result = bytes.fromhex(hex_bytes_result)
+        except TypeError:
+            return []
 
         return DelegateInfo.list_from_vec_u8(bytes_result)
 

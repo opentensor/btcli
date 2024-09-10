@@ -27,6 +27,7 @@ from rich.console import Console
 from rich.status import Status
 from substrateinterface.exceptions import SubstrateRequestException
 
+from bittensor_cli.src.bittensor.chain_data import NeuronInfo
 from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
@@ -87,8 +88,8 @@ def _get_real_torch():
 
 def log_no_torch_error():
     err_console.print(
-        "This command requires torch. You can install torch for bittensor"
-        ' with `pip install bittensor[torch]` or `pip install ".[torch]"`'
+        "This command requires torch. You can install torch for btcli"
+        ' with `pip install btcli[cuda]` or `pip install ".[cuda]"`'  # TODO extension
         " if installing from source, and then run the command with USE_TORCH=1 {command}"
     )
 
@@ -483,8 +484,25 @@ async def register_extrinsic(
     :return: `True` if extrinsic was finalized or included in the block. If we did not wait for finalization/inclusion,
              the response is `True`.
     """
+    async def get_neuron_for_pubkey_and_subnet():
+        uid = (await subtensor.substrate.query(
+            "SubtensorModule",
+            "Uids",
+            [netuid, wallet.hotkey.ss58_address]
+        )).value
+        params = [netuid, uid]
+        json_body = await subtensor.substrate.rpc_request(
+            method="neuronInfo_getNeuron",
+            params=params,
+        )
+
+        if not (result := json_body.get("result", None)):
+            return NeuronInfo.get_null_neuron()
+
+        return NeuronInfo.from_vec_u8(result)
+
     print_verbose("Checking subnet status")
-    if not subtensor.subnet_exists(netuid):
+    if not await subtensor.subnet_exists(netuid):
         err_console.print(
             f":cross_mark: [red]Failed[/red]: error: [bold white]subnet:{netuid}[/bold white] does not exist."
         )
@@ -494,9 +512,7 @@ async def register_extrinsic(
         f":satellite: Checking Account on [bold]subnet:{netuid}[/bold]...",
         spinner="aesthetic",
     ):
-        neuron = subtensor.get_neuron_for_pubkey_and_subnet(
-            wallet.hotkey.ss58_address, netuid=netuid
-        )
+        neuron = await get_neuron_for_pubkey_and_subnet()
         if not neuron.is_null:
             # bittensor.logging.debug(
             #     f"Wallet {wallet} is already registered on {neuron.netuid} with {neuron.uid}"
