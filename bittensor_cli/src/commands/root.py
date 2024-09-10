@@ -769,7 +769,7 @@ async def root_list(subtensor: SubtensorInterface):
             style="dark_sea_green",
             no_wrap=True,
         ),
-        title="[underline dark_orange]Root Network",
+        title=f"[underline dark_orange]Root Network[/underline dark_orange]\n[dark_orange]Network {subtensor.network}",
         show_footer=True,
         show_edge=False,
         expand=False,
@@ -815,6 +815,7 @@ async def set_weights(
     """Set weights for root network."""
     netuids_ = np.array(netuids, dtype=np.int64)
     weights_ = np.array(weights, dtype=np.float32)
+    console.print(f"Setting weights in [dark_orange]network: {subtensor.network}")
 
     # Run the set weights operation.
 
@@ -958,10 +959,16 @@ async def _get_my_weights(
         ),
     )
     my_weights: list[tuple[int, int]] = my_weights_.value
-    for i, w in enumerate(my_weights):
+
+    print_verbose("Fetching current weights")
+    for _, w in enumerate(my_weights):
         if w:
-            print(i, w)
+            print_verbose(f"{w}")
     total_subnets: int = total_subnets_.value
+
+    # If setting weights for the first time, pass 0 root weights
+    if not my_weights:
+        my_weights = [(0, 0)]
 
     uids, values = zip(*my_weights)
     weight_array = convert_weight_uids_and_vals_to_tensor(total_subnets, uids, values)
@@ -976,6 +983,7 @@ async def set_boost(
     prompt: bool,
 ):
     """Boosts weight of a given netuid for root network."""
+    console.print(f"Boosting weights in [dark_orange]network: {subtensor.network}")
     print_verbose(f"Fetching uid of hotkey on root: {wallet.hotkey_str}")
     my_uid = (
         await subtensor.substrate.query(
@@ -989,16 +997,18 @@ async def set_boost(
 
     print_verbose("Fetching current weights")
     my_weights = await _get_my_weights(subtensor, wallet.hotkey.ss58_address, my_uid)
-    prev_weight = my_weights[netuid]
-    new_weight = prev_weight + amount
-
-    console.print(
-        f"Boosting weight for netuid {netuid} from {prev_weight} -> {new_weight}"
-    )
-    my_weights[netuid] = new_weight
+    prev_weights = my_weights.copy()
+    my_weights[netuid] += amount
     all_netuids = np.arange(len(my_weights))
 
-    console.print("all netuids", all_netuids)
+    console.print(
+        f"Boosting weight for netuid {netuid}\n\tfrom {prev_weights[netuid]} to {my_weights[netuid]}\n"
+    )
+    console.print(
+        f"Previous weights -> Raw weights: \n\t{prev_weights} -> \n\t{my_weights}"
+    )
+
+    print_verbose(f"All netuids: {all_netuids}")
     await set_root_weights_extrinsic(
         subtensor=subtensor,
         wallet=wallet,
@@ -1019,6 +1029,7 @@ async def set_slash(
     prompt: bool,
 ):
     """Slashes weight"""
+    console.print(f"Slashing weights in [dark_orange]network: {subtensor.network}")
     print_verbose(f"Fetching uid of hotkey on root: {wallet.hotkey_str}")
     my_uid = (
         await subtensor.substrate.query(
@@ -1036,19 +1047,23 @@ async def set_slash(
     my_weights[my_weights < 0] = 0  # Ensure weights don't go negative
     all_netuids = np.arange(len(my_weights))
 
-    console.print(f"Slash weights from {prev_weights} -> {my_weights}")
+    console.print(
+        f"Slashing weight for netuid {netuid}\n\tfrom {prev_weights[netuid]} to {my_weights[netuid]}\n"
+    )
+    console.print(
+        f"Previous weights -> Raw weights: \n\t{prev_weights} -> \n\t{my_weights}"
+    )
 
-    with console.status("Setting root weights..."):
-        await set_root_weights_extrinsic(
-            subtensor=subtensor,
-            wallet=wallet,
-            netuids=all_netuids,
-            weights=my_weights,
-            version_key=0,
-            wait_for_inclusion=True,
-            wait_for_finalization=True,
-            prompt=prompt,
-        )
+    await set_root_weights_extrinsic(
+        subtensor=subtensor,
+        wallet=wallet,
+        netuids=all_netuids,
+        weights=my_weights,
+        version_key=0,
+        wait_for_inclusion=True,
+        wait_for_finalization=True,
+        prompt=prompt,
+    )
 
 
 async def senate_vote(
@@ -1076,7 +1091,7 @@ async def senate_vote(
     wallet.unlock_hotkey()
     wallet.unlock_coldkey()
 
-    print_verbose("Fetching vote data")
+    console.print(f"Fetching proposals in [dark_orange]network: {subtensor.network}")
     vote_data = await _get_vote_data(subtensor, proposal_hash, reuse_block=True)
     if not vote_data:
         err_console.print(":cross_mark: [red]Failed[/red]: Proposal not found.")
@@ -1122,7 +1137,7 @@ async def get_senate(subtensor: SubtensorInterface):
             style="bright_magenta",
             no_wrap=True,
         ),
-        title="[underline dark_orange]Senate",
+        title=f"[underline dark_orange]Senate[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}\n",
         show_footer=True,
         show_edge=False,
         expand=False,
@@ -1140,6 +1155,8 @@ async def get_senate(subtensor: SubtensorInterface):
 
 async def register(wallet: Wallet, subtensor: SubtensorInterface, prompt: bool):
     """Register neuron by recycling some TAO."""
+
+    console.print(f"Registering on [dark_orange]network: {subtensor.network}")
 
     # Check current recycle amount
     print_verbose("Fetching recycle amount & balance")
@@ -1216,7 +1233,7 @@ async def proposals(subtensor: SubtensorInterface):
         ),
         Column("[white]END", style="bright_cyan"),
         Column("[white]CALLDATA", style="dark_sea_green"),
-        title=f"\n[dark_orange]Proposals\t\t\nActive Proposals: {len(all_proposals)}\t\tSenate Size: {len(senate_members)}",
+        title=f"\n[dark_orange]Proposals\t\t\nActive Proposals: {len(all_proposals)}\t\tSenate Size: {len(senate_members)}\nNetwork: {subtensor.network}",
         show_footer=True,
         box=box.SIMPLE_HEAVY,
         pad_edge=False,
@@ -1287,6 +1304,7 @@ async def set_take(wallet: Wallet, subtensor: SubtensorInterface, take: float) -
                 )
                 return True
 
+    console.print(f"Setting take on [dark_orange]network: {subtensor.network}")
     # Unlock the wallet.
     wallet.unlock_hotkey()
     wallet.unlock_coldkey()
@@ -1304,7 +1322,7 @@ async def delegate_stake(
     prompt: bool,
 ):
     """Delegates stake to a chain delegate."""
-
+    console.print(f"Delegating stake on [dark_orange]network: {subtensor.network}")
     await delegate_extrinsic(
         subtensor,
         wallet,
@@ -1324,6 +1342,7 @@ async def delegate_unstake(
     prompt: bool,
 ):
     """Undelegates stake from a chain delegate."""
+    console.print(f"Undelegating stake on [dark_orange]network: {subtensor.network}")
     await delegate_extrinsic(
         subtensor,
         wallet,
@@ -1385,11 +1404,11 @@ async def my_delegates(
             style="light_goldenrod2",
             no_wrap=True,
         ),
-        Column("[white]SUBNETS", justify="right", style="white", no_wrap=True),
-        Column("[white]VPERMIT", justify="right", no_wrap=True),
+        Column("[white]SUBNETS", justify="right", style="white"),
+        Column("[white]VPERMIT", justify="right"),
         Column("[white]24h/k\u03c4", style="rgb(42,161,152)", justify="center"),
         Column("[white]Desc", style="rgb(50,163,219)"),
-        title="[underline dark_orange]My Delegates\n",
+        title=f"[underline dark_orange]My Delegates[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}\n",
         show_footer=True,
         show_edge=False,
         expand=False,
@@ -1564,7 +1583,7 @@ async def list_delegates(subtensor: SubtensorInterface):
             style="dark_sea_green",
         ),
         Column("[white]Desc", style="rgb(50,163,219)", max_width=30),
-        title="[underline dark_orange]Root Delegates\n",
+        title=f"[underline dark_orange]Root Delegates[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}\n",
         show_footer=True,
         width=table_width,
         pad_edge=False,
@@ -1650,6 +1669,7 @@ async def list_delegates(subtensor: SubtensorInterface):
 async def nominate(wallet: Wallet, subtensor: SubtensorInterface, prompt: bool):
     """Nominate wallet."""
 
+    console.print(f"Nominating on [dark_orange]network: {subtensor.network}")
     # Unlock the wallet.
     wallet.unlock_hotkey()
     wallet.unlock_coldkey()

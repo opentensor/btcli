@@ -8,6 +8,7 @@ from typing import Coroutine, Optional
 
 import rich
 import typer
+import numpy as np
 from bittensor_wallet import Wallet
 from git import Repo, GitError
 from rich.prompt import Confirm, FloatPrompt, Prompt, IntPrompt
@@ -42,6 +43,8 @@ assert __version_as_int__ < 2**31  # fits in int32
 __new_signature_version__ = 360
 
 _epilog = "Made with [bold red]:heart:[/bold red] by Openτensor Foundaτion"
+
+np.set_printoptions(precision=8, suppress=True, floatmode="fixed")
 
 
 class Options:
@@ -3059,8 +3062,8 @@ class CLIManager:
 
         # Example usage:
 
-        [green]$[/green]btcli stake get_children --netuid 1
-        [green]$[/green]btcli stake get_children --all-netuids
+        [green]$[/green] btcli stake get_children --netuid 1
+        [green]$[/green] btcli stake get_children --all-netuids
 
         [italic]Note[/italic]: This command is for users who wish to see child hotkeys among different neurons (hotkeys) on the network.
         """
@@ -3093,6 +3096,7 @@ class CLIManager:
         proportions: list[float] = typer.Option(
             [],
             "--proportions",
+            "-prop",
             help="Enter proportions for children as (sum less than 1)",
             prompt=False,
         ),
@@ -3117,10 +3121,9 @@ class CLIManager:
 
         # Example usage:
 
-        [green]$[/green] btcli stake child set - <child_hotkey> -c <child_hotkey> --hotkey <parent_hotkey> --netuid 1
-        -p 0.3 -p 0.3
+        [green]$[/green] btcli stake child set - <child_hotkey> -c <child_hotkey> --hotkey <parent_hotkey> --netuid 1 -prop 0.3 -prop 0.3
 
-        [italic]]Note[/italic]: This command is critical for users who wish to delegate children hotkeys among different
+        [italic]Note[/italic]: This command is critical for users who wish to delegate children hotkeys among different
         neurons (hotkeys) on the network. It allows for a strategic allocation of authority to enhance network participation and influence.
         """
         self.verbosity_handler(quiet, verbose)

@@ -1695,9 +1695,10 @@ async def get_children(
         )
         if parent:
             console.print(
-                f"\nYour Hotkey: {hotkey}  |  ", style="cyan", end="", no_wrap=True
+                f"\nYour Hotkey: [bright_magenta]{hotkey}[/bright_magenta]  |  Total Stake: [dark_orange]{stake}t[/dark_orange]\n",
+                end="",
+                no_wrap=True,
             )
-            console.print(f"Total Stake: {stake}τ")
 
         return stake
 
@@ -1727,18 +1728,17 @@ async def get_children(
     ):
         # Initialize Rich table for pretty printing
         table = Table(
-            show_header=True,
-            header_style="bold magenta",
-            border_style="blue",
+            header_style="bold white",
+            border_style="bright_black",
             style="dim",
         )
 
         # Add columns to the table with specific styles
-        table.add_column("Index", style="bold yellow", no_wrap=True, justify="center")
-        table.add_column("Child Hotkey", style="bold green")
+        table.add_column("Index", style="bold white", no_wrap=True, justify="center")
+        table.add_column("Child Hotkey", style="bold bright_magenta")
         table.add_column("Proportion", style="bold cyan", no_wrap=True, justify="right")
         table.add_column(
-            "Childkey Take", style="bold blue", no_wrap=True, justify="right"
+            "Childkey Take", style="light_goldenrod2", no_wrap=True, justify="right"
         )
         table.add_column(
             "Current Stake Weight", style="bold red", no_wrap=True, justify="right"
@@ -1789,7 +1789,7 @@ async def get_children(
             key=lambda x: x[0], reverse=True
         )  # sorting by proportion (highest first)
 
-        console.print(f"\nChildren for netuid: {netuid} ", style="cyan")
+        console.print(f"\n[dark_orange]Children for netuid: {netuid} ")
 
         # add the children info to the table
         for idx, (proportion, hotkey, stake, child_take) in enumerate(children_info, 1):
