@@ -5,6 +5,7 @@ from textwrap import dedent
 from typing import TYPE_CHECKING, Optional, cast
 
 from bittensor_wallet import Wallet
+from bittensor_wallet.errors import KeyFileError
 from rich.prompt import Confirm
 from rich.table import Column, Table
 
@@ -97,7 +98,10 @@ async def register_subnetwork_extrinsic(
         ):
             return False
 
-    wallet.unlock_coldkey()
+    try:
+        wallet.unlock_coldkey()
+    except KeyFileError:
+        return False
 
     with console.status(":satellite: Registering subnet...", spinner="earth"):
         substrate = subtensor.substrate

@@ -7,6 +7,7 @@ from contextlib import suppress
 from typing import TYPE_CHECKING, Optional, Sequence, Union, cast
 
 from bittensor_wallet import Wallet
+from bittensor_wallet.errors import KeyFileError
 from rich.prompt import Confirm, Prompt
 from rich.table import Table, Column
 from rich.text import Text
@@ -126,7 +127,10 @@ async def add_stake_extrinsic(
     """
 
     # Decrypt keys,
-    wallet.unlock_coldkey()
+    try:
+        wallet.unlock_coldkey()
+    except KeyFileError:
+        return False
 
     # Default to wallet's own hotkey if the value is not passed.
     if hotkey_ss58 is None:
@@ -328,7 +332,10 @@ async def add_stake_multiple_extrinsic(
             return True
 
     # Decrypt coldkey.
-    wallet.unlock_coldkey()
+    try:
+        wallet.unlock_coldkey()
+    except KeyFileError:
+        return False
 
     with console.status(
         f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
@@ -506,7 +513,10 @@ async def unstake_extrinsic(
                       finalization/inclusion, the response is `True`.
     """
     # Decrypt keys,
-    wallet.unlock_coldkey()
+    try:
+        wallet.unlock_coldkey()
+    except KeyFileError:
+        return False
 
     if hotkey_ss58 is None:
         hotkey_ss58 = wallet.hotkey.ss58_address  # Default to wallet's own hotkey.
@@ -672,7 +682,10 @@ async def unstake_multiple_extrinsic(
             return True
 
     # Unlock coldkey.
-    wallet.unlock_coldkey()
+    try:
+        wallet.unlock_coldkey()
+    except KeyFileError:
+        return False
 
     with console.status(
         f":satellite: Syncing with chain: [white]{subtensor}[/white] ..."
@@ -876,7 +889,10 @@ async def set_children_extrinsic(
                 return False, "Operation Cancelled"
 
     # Decrypt coldkey.
-    wallet.unlock_coldkey()
+    try:
+        wallet.unlock_coldkey()
+    except KeyFileError:
+        return False, "There was an error unlocking your coldkey."
 
     with console.status(
         f":satellite: {operation} on [white]{subtensor.network}[/white] ..."
@@ -956,7 +972,10 @@ async def set_childkey_take_extrinsic(
             return False, "Operation Cancelled"
 
     # Decrypt coldkey.
-    wallet.unlock_coldkey()
+    try:
+        wallet.unlock_coldkey()
+    except KeyFileError:
+        return False, "There was an error unlocking your coldkey."
 
     with console.status(
         f":satellite: Setting childkey take on [white]{subtensor.network}[/white] ..."
