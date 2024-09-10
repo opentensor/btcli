@@ -15,7 +15,11 @@ import typer
 
 from bittensor_cli.src import Constants, DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance
-from bittensor_cli.src.bittensor.chain_data import DelegateInfo, NeuronInfoLite
+from bittensor_cli.src.bittensor.chain_data import (
+    DelegateInfo,
+    NeuronInfoLite,
+    decode_account_id,
+)
 from bittensor_cli.src.bittensor.extrinsics.root import (
     root_register_extrinsic,
     set_root_weights_extrinsic,
@@ -733,7 +737,7 @@ async def root_list(subtensor: SubtensorInterface):
             storage_function="Members",
             params=None,
         )
-        sm = senate_query.serialize() if hasattr(senate_query, "serialize") else None
+        sm = [decode_account_id(i[x][0]) for i in senate_query for x in range(len(i))]
 
         rn: list[NeuronInfoLite] = await subtensor.neurons_lite(netuid=0)
         if not rn:
@@ -804,9 +808,7 @@ async def root_list(subtensor: SubtensorInterface):
                 else ""
             ),
             neuron_data.hotkey,
-            "{:.5f}".format(
-                float(Balance.from_rao(total_stakes[neuron_data.hotkey]))
-            ),
+            "{:.5f}".format(float(Balance.from_rao(total_stakes[neuron_data.hotkey]))),
             "Yes" if neuron_data.hotkey in senate_members else "No",
         )
 
@@ -997,10 +999,8 @@ async def set_boost(
     """Boosts weight of a given netuid for root network."""
     console.print(f"Boosting weights in [dark_orange]network: {subtensor.network}")
     print_verbose(f"Fetching uid of hotkey on root: {wallet.hotkey_str}")
-    my_uid = (
-        await subtensor.substrate.query(
-            "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
-        )
+    my_uid = await subtensor.substrate.query(
+        "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
     )
 
     if my_uid is None:
@@ -1043,10 +1043,8 @@ async def set_slash(
     """Slashes weight"""
     console.print(f"Slashing weights in [dark_orange]network: {subtensor.network}")
     print_verbose(f"Fetching uid of hotkey on root: {wallet.hotkey_str}")
-    my_uid = (
-        await subtensor.substrate.query(
-            "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
-        )
+    my_uid = await subtensor.substrate.query(
+        "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
     )
     if my_uid is None:
         err_console.print("Your hotkey is not registered to the root network")
@@ -1183,7 +1181,6 @@ async def register(wallet: Wallet, subtensor: SubtensorInterface, prompt: bool):
     )
     current_recycle = Balance.from_rao(int(recycle_call))
     try:
-
         balance: Balance = balance_[wallet.coldkeypub.ss58_address]
     except TypeError as e:
         err_console.print(f"Unable to retrieve current recycle. {e}")

@@ -329,8 +329,8 @@ async def root_register_extrinsic(
         success, err_msg = await subtensor.sign_and_send_extrinsic(
             call,
             wallet=wallet,
-            wait_for_inclusion=wait_for_inclusion,
-            wait_for_finalization=wait_for_finalization,
+            wait_for_inclusion=False,  # TODO revert
+            wait_for_finalization=False,  # TODO revert
         )
 
         if not success:

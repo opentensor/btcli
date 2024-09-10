@@ -153,7 +153,9 @@ class ExtrinsicReceipt:
             self.__triggered_events = []
 
             for event in await self.substrate.get_events(block_hash=self.block_hash):
-                print("event", (await self.extrinsic_idx), event)
+                print(
+                    "event", (await self.extrinsic_idx), event
+                )  # TODO cameron is looking into this
                 if (
                     event.extrinsic_idx == await self.extrinsic_idx
                 ):  # TODO figure out where tf this is being set. I should not have to await it here.
@@ -909,10 +911,7 @@ class AsyncSubstrateInterface:
                 self.__chain = chain.get("result")
                 # await self.load_registry()
                 self.reload_type_registry()
-                await asyncio.gather(
-                    self.load_registry(),
-                    self.init_runtime(None)
-                )
+                await asyncio.gather(self.load_registry(), self.init_runtime(None))
             self.initialized = True
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -976,7 +975,7 @@ class AsyncSubstrateInterface:
         -------
 
         """
-        if scale_bytes == b'\x00':
+        if scale_bytes == b"\x00":
             obj = None
         else:
             obj = decode_by_type_string(type_string, self.registry, scale_bytes)
@@ -1607,9 +1606,7 @@ class AsyncSubstrateInterface:
                 q = bytes(query_value)
             else:
                 q = query_value
-            print(query_value)
             obj = await self.decode_scale(value_scale_type, q, True)
-
             # obj = runtime.runtime_config.create_scale_object(
             #     type_string=value_scale_type,
             #     data=ScaleBytes(query_value),

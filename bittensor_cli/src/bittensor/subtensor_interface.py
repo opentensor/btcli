@@ -317,7 +317,6 @@ class SubtensorInterface:
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
-        print("balance results", results)
         return {k: Balance(v["data"]["free"]) for (k, v) in results.items()}
 
     async def get_total_stake_for_coldkey(
@@ -342,9 +341,7 @@ class SubtensorInterface:
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
-        return {
-            k: Balance.from_rao(r or 0) for (k, r) in results.items()
-        }
+        return {k: Balance.from_rao(r or 0) for (k, r) in results.items()}
 
     async def get_total_stake_for_hotkey(
         self,
@@ -368,9 +365,7 @@ class SubtensorInterface:
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
-        return {
-            k: Balance.from_rao(r or 0) for (k, r) in results.items()
-        }
+        return {k: Balance.from_rao(r or 0) for (k, r) in results.items()}
 
     async def get_netuids_for_hotkey(
         self,
@@ -862,9 +857,7 @@ class SubtensorInterface:
                 formatted_children = []
                 for proportion, child in children:
                     # Convert U64 to int
-                    int_proportion = (
-                        int(proportion)
-                    )
+                    int_proportion = int(proportion)
                     formatted_children.append((int_proportion, child))
                 return True, formatted_children, ""
             else:

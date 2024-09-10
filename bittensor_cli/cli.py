@@ -660,9 +660,7 @@ class CLIManager:
                 else:
                     await cmd
             except ConnectionRefusedError:
-                err_console.print(
-                    f"Unable to connect to chain: {self.not_subtensor}"
-                )
+                err_console.print(f"Unable to connect to chain: {self.not_subtensor}")
                 asyncio.create_task(cmd).cancel()
                 raise typer.Exit()
             except ConnectionClosed:
@@ -672,7 +670,6 @@ class CLIManager:
                 raise typer.Exit()
 
         return asyncio.run(_run())
-
 
     def main_callback(
         self,
