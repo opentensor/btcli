@@ -24,6 +24,7 @@ from bittensor_wallet import Wallet
 import numpy as np
 from numpy.typing import NDArray
 from rich.prompt import Confirm
+from rich.table import Table, Column
 from scalecodec import ScaleBytes, U16, Vec
 from substrateinterface import Keypair
 
@@ -432,18 +433,25 @@ async def set_root_weights_extrinsic(
     print_verbose("Normalizing weights")
     formatted_weights = normalize_max_weight(x=weights, limit=max_weight_limit)
     console.print(
-        f"\nRaw Weights -> Normalized weights: \n\t{weights} -> \n\t{formatted_weights}\n"
+        f"\nRaw weights -> Normalized weights: \n\t{weights} -> \n\t{formatted_weights}\n"
     )
 
     # Ask before moving on.
     if prompt:
-        if not Confirm.ask(
-            "Do you want to set the following root weights?:\n"
-            f"[bold white]"
-            f"  weights: {formatted_weights}\n"
-            f"  uids: {netuids}"
-            "[/bold white]?"
-        ):
+        table = Table(
+            Column("[dark_orange]Netuid", justify="center", style="bold green"),
+            Column(
+                "[dark_orange]Weight", justify="center", style="bold light_goldenrod2"
+            ),
+            expand=False,
+            show_edge=False,
+        )
+
+        for netuid, weight in zip(netuids, formatted_weights):
+            table.add_row(str(netuid), f"{weight:.8f}")
+
+        console.print(table)
+        if not Confirm.ask("\nDo you want to set these root weights?"):
             return False
 
     try:

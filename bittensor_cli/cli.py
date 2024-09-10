@@ -8,6 +8,7 @@ from typing import Coroutine, Optional
 
 import rich
 import typer
+import numpy as np
 from bittensor_wallet import Wallet
 from git import Repo, GitError
 from rich.prompt import Confirm, FloatPrompt, Prompt, IntPrompt
@@ -42,6 +43,8 @@ assert __version_as_int__ < 2**31  # fits in int32
 __new_signature_version__ = 360
 
 _epilog = "Made with [bold red]:heart:[/bold red] by Openτensor Foundaτion"
+
+np.set_printoptions(precision=8, suppress=True, floatmode="fixed")
 
 
 class Options:
