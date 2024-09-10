@@ -87,8 +87,8 @@ def _get_real_torch():
 
 def log_no_torch_error():
     err_console.print(
-        "This command requires torch. You can install torch for bittensor"
-        ' with `pip install bittensor[torch]` or `pip install ".[torch]"`'
+        "This command requires torch. You can install torch for btcli"
+        ' with `pip install btcli[cuda]` or `pip install ".[cuda]"`'  # TODO extension
         " if installing from source, and then run the command with USE_TORCH=1 {command}"
     )
 
