@@ -905,15 +905,6 @@ async def _block_solver(
     """
     Shared code used by the Solvers to solve the POW solution
     """
-
-    async def fetch_hotkey_status():
-        _result = await subtensor.substrate.query(
-            module="SubtensorModule",
-            storage_function="Uids",
-            params=[netuid, wallet.hotkey.ss58_address],
-        )
-        return getattr(_result, "value", None)
-
     limit = int(math.pow(2, 256)) - 1
 
     # Establish communication queues
@@ -1021,7 +1012,9 @@ async def _block_solver(
     weights = [alpha_**i for i in range(n_samples)]  # weights decay by alpha
 
     timeout = 0.15 if cuda else 0.15
-    while netuid == -1 or not await fetch_hotkey_status():
+    while netuid == -1 or not await is_hotkey_registered(
+        subtensor, netuid, wallet.hotkey.ss58_address
+    ):
         # Wait until a solver finds a solution
         try:
             solution = solution_queue.get(block=True, timeout=timeout)
