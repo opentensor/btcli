@@ -74,7 +74,7 @@ async def register_subnetwork_extrinsic(
         """
         for event in await response_.triggered_events:
             # Access the event details
-            event_details = event.value["event"]
+            event_details = event["event"]
             # Check if the event_id is 'NetworkAdded'
             if event_details["event_id"] == event_name:
                 # Once found, you can access the attributes of the event_name

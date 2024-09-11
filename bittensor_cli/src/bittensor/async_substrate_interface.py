@@ -1360,7 +1360,11 @@ class AsyncSubstrateInterface:
         def convert_event_data(data):
             # Extract phase information
             phase_key, phase_value = next(iter(data["phase"].items()))
-            extrinsic_idx = phase_value[0]
+            try:
+                extrinsic_idx = phase_value[0]
+            except IndexError:
+                print(f"ERROR: {data}")
+                raise
 
             # Extract event details
             module_id, event_data = next(iter(data["event"].items()))
@@ -1368,12 +1372,13 @@ class AsyncSubstrateInterface:
 
             # Convert class and pays_fee dictionaries to their string equivalents if they exist
             attributes = attributes_data
-            for key, value in attributes.items():
-                if isinstance(value, dict):
-                    # Convert nested single-key dictionaries to their keys as strings
-                    sub_key = next(iter(value.keys()))
-                    if value[sub_key] == ():
-                        attributes[key] = sub_key
+            if isinstance(attributes, dict):
+                for key, value in attributes.items():
+                    if isinstance(value, dict):
+                        # Convert nested single-key dictionaries to their keys as strings
+                        sub_key = next(iter(value.keys()))
+                        if value[sub_key] == ():
+                            attributes[key] = sub_key
 
             # Create the converted dictionary
             converted = {
@@ -2446,7 +2451,6 @@ class AsyncSubstrateInterface:
                             type_string=f"({', '.join(key_type_string)})",
                             scale_bytes=bytes.fromhex(item[0][len(prefix) :]),
                             return_scale_obj=True,
-                            block_hash=block_hash,
                         )
 
                         # strip key_hashers to use as item key
@@ -2473,7 +2477,6 @@ class AsyncSubstrateInterface:
                             type_string=value_type,
                             scale_bytes=item_bytes,
                             return_scale_obj=True,
-                            block_hash=block_hash,
                         )
                     except Exception as _:
                         if not ignore_decoding_errors:

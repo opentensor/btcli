@@ -86,7 +86,7 @@ def test_root_commands(local_chain, wallet_setup):
     assert bob_root_info[3] == wallet_bob.hotkey.ss58_address
 
     # SENATOR: Since there are senator slots empty, Bob is assigned senator status
-    assert bob_root_info[7] == "Yes"  # TODO this is the only non-passing
+    assert bob_root_info[7] == "Yes"
 
     # List all root delegates in the network
     check_delegates = exec_command_alice(

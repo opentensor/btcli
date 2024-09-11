@@ -21,6 +21,7 @@ from bittensor_cli.src.bittensor.chain_data import (
     NeuronInfoLite,
     NeuronInfo,
     SubnetHyperparameters,
+    decode_account_id,
 )
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src import Constants, defaults, TYPE_REGISTRY
@@ -136,7 +137,7 @@ class SubtensorInterface:
     async def is_hotkey_delegate(
         self,
         hotkey_ss58: str,
-        block_hash: Optional[int] = None,
+        block_hash: Optional[str] = None,
         reuse_block: Optional[bool] = False,
     ) -> bool:
         """
@@ -152,12 +153,9 @@ class SubtensorInterface:
         Being a delegate is a significant status within the Bittensor network, indicating a neuron's
         involvement in consensus and governance processes.
         """
-        return hotkey_ss58 in [
-            info.hotkey_ss58
-            for info in await self.get_delegates(
-                block_hash=block_hash, reuse_block=reuse_block
-            )
-        ]
+        dels = await self.get_delegates(block_hash=block_hash, reuse_block=reuse_block)
+        print("dels", dels)
+        return hotkey_ss58 in [info.hotkey_ss58 for info in dels]
 
     async def get_delegates(
         self, block_hash: Optional[str] = None, reuse_block: Optional[bool] = False
@@ -173,6 +171,7 @@ class SubtensorInterface:
         hex_bytes_result = await self.query_runtime_api(
             runtime_api="DelegateInfoRuntimeApi", method="get_delegates", params=[]
         )
+        print("del hex bytes: ", hex_bytes_result)
         if hex_bytes_result is not None:
             try:
                 bytes_result = bytes.fromhex(hex_bytes_result[2:])
@@ -789,18 +788,20 @@ class SubtensorInterface:
 
         :return: `True` if the hotkey is known by the chain and there are accounts, `False` otherwise.
         """
-        result = await self.substrate.query(
+        _result = await self.substrate.query(
             module="SubtensorModule",
             storage_function="Owner",
             params=[hotkey_ss58],
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
-        return (
+        result = decode_account_id(_result[0])
+        return_val = (
             False
             if result is None
             else result != "5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM"
         )
+        return return_val
 
     async def sign_and_send_extrinsic(
         self,

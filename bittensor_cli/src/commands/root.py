@@ -118,10 +118,7 @@ async def _get_senate_members(
         params=None,
         block_hash=block_hash,
     )
-    if not hasattr(senate_members, "serialize"):
-        raise TypeError("Senate Members cannot be serialized.")
-
-    return senate_members.serialize()
+    return [decode_account_id(i[x][0]) for i in senate_members for x in range(len(i))]
 
 
 async def _get_proposals(
@@ -134,12 +131,18 @@ async def _get_proposals(
             block_hash=block_hash,
             params=[p_hash],
         )
-        return getattr(proposal_data, "serialize", lambda: None)()
+        print(
+            "proposal data", proposal_data
+        )  # TODO may just be able to use this. Must test
+        return getattr(
+            proposal_data, "serialize", lambda: None
+        )()  # TODO this will not have serialize
 
     async def get_proposal_vote_data(p_hash: str) -> Optional[ProposalVoteData]:
         vote_data = await subtensor.substrate.query(
             module="Triumvirate", name="Voting", block_hash=block_hash, params=[p_hash]
         )
+        print("vote data", vote_data)
         return getattr(vote_data, "serialize", lambda: None)()
 
     ph = await subtensor.substrate.query(
@@ -150,7 +153,7 @@ async def _get_proposals(
     )
 
     try:
-        proposal_hashes: list[str] = ph.serialize()
+        proposal_hashes: list[str] = ph or []
     except AttributeError:
         err_console.print("Unable to retrieve proposal vote data")
         raise typer.Exit()
@@ -543,7 +546,8 @@ async def delegate_extrinsic(
             params=[ss58],
             block_hash=block_hash_,
         )
-        return getattr(_result, "value", None)
+        print("hotkey owner548", _result)
+        return _result  # TODO may need to decode
 
     async def get_stake_for_coldkey_and_hotkey(
         hotkey_ss58: str, coldkey_ss58: str, block_hash_: str
