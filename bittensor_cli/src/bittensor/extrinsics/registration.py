@@ -484,12 +484,16 @@ async def register_extrinsic(
     :return: `True` if extrinsic was finalized or included in the block. If we did not wait for finalization/inclusion,
              the response is `True`.
     """
+
     async def get_neuron_for_pubkey_and_subnet():
-        uid = (await subtensor.substrate.query(
-            "SubtensorModule",
-            "Uids",
-            [netuid, wallet.hotkey.ss58_address]
-        )).value
+        uid = (
+            await subtensor.substrate.query(
+                "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
+            )
+        ).value
+        if uid is None:
+            return NeuronInfo.get_null_neuron()
+
         params = [netuid, uid]
         json_body = await subtensor.substrate.rpc_request(
             method="neuronInfo_getNeuron",
@@ -901,6 +905,15 @@ async def _block_solver(
     """
     Shared code used by the Solvers to solve the POW solution
     """
+
+    async def fetch_hotkey_status():
+        _result = await subtensor.substrate.query(
+            module="SubtensorModule",
+            storage_function="Uids",
+            params=[netuid, wallet.hotkey.ss58_address],
+        )
+        return getattr(_result, "value", None)
+
     limit = int(math.pow(2, 256)) - 1
 
     # Establish communication queues
@@ -1008,11 +1021,8 @@ async def _block_solver(
     weights = [alpha_**i for i in range(n_samples)]  # weights decay by alpha
 
     timeout = 0.15 if cuda else 0.15
-    while netuid == -1 or not await subtensor.substrate.query(
-        module="SubtensorModule",
-        storage_function="Uids",
-        params=[netuid, wallet.hotkey.ss58_address],
-    ):
+    # hk = await check_hotkey(subtensor, netuid, wallet)
+    while netuid == -1 or not await fetch_hotkey_status():
         # Wait until a solver finds a solution
         try:
             solution = solution_queue.get(block=True, timeout=timeout)
