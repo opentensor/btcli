@@ -802,11 +802,18 @@ class CLIManager:
                 val = Prompt.ask(
                     f"What value would you like to assign to [red]{arg}[/red]?"
                 )
+                args[arg] = val
                 self.config[arg] = val
 
         if (n := args.get("network")) and n.startswith("ws"):
             if not Confirm.ask(
                 "[yellow]Warning[/yellow] your 'network' appears to be a chain endpoint. "
+                "Verify this is intentional"
+            ):
+                raise typer.Exit()
+        if (c := args.get("chain")) and not c.startswith("ws"):
+            if not Confirm.ask(
+                "[yellow]Warning[/yellow] your 'chain' does not appear to be a chain endpoint. "
                 "Verify this is intentional"
             ):
                 raise typer.Exit()
