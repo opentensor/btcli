@@ -489,8 +489,7 @@ async def register_extrinsic(
             await subtensor.substrate.query(
                 "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
             )
-        ).value
-
+        )
         if uid is None:
             return NeuronInfo.get_null_neuron()
 

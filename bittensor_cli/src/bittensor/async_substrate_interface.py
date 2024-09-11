@@ -153,13 +153,13 @@ class ExtrinsicReceipt:
             self.__triggered_events = []
 
             for event in await self.substrate.get_events(block_hash=self.block_hash):
-                print(
-                    "event", (await self.extrinsic_idx), event
-                )  # TODO cameron is looking into this
-                if (
-                    event.extrinsic_idx == await self.extrinsic_idx
-                ):  # TODO figure out where tf this is being set. I should not have to await it here.
-                    self.__triggered_events.append(event)
+                # print(
+                #     "event", (await self.extrinsic_idx), event
+                # )  # TODO cameron is looking into this
+                # if (
+                #     event.extrinsic_idx == await self.extrinsic_idx
+                # ):  # TODO figure out where tf this is being set. I should not have to await it here.
+                self.__triggered_events.append(event)
 
         return cast(list, self.__triggered_events)
 
@@ -172,186 +172,88 @@ class ExtrinsicReceipt:
 
             for event in await self.triggered_events:
                 if (
-                    event.value["module_id"] == "TransactionPayment"
-                    and event.value["event_id"] == "TransactionFeePaid"
+                    event["event"]["module_id"] == "TransactionPayment"
+                    and event["event"]["event_id"] == "TransactionFeePaid"
                 ):
-                    self.__total_fee_amount = event.value["attributes"]["actual_fee"]
+                    self.__total_fee_amount = event["event"]["attributes"]["actual_fee"]
                     has_transaction_fee_paid_event = True
 
             # Process other events
             for event in await self.triggered_events:
                 # Check events
-                if self.substrate.implements_scaleinfo:
+                if (
+                    event["event"]["module_id"] == "System"
+                    and event["event"]["event_id"] == "ExtrinsicSuccess"
+                ):
+                    self.__is_success = True
+                    self.__error_message = None
+
+                    if "dispatch_info" in event["event"]["attributes"]:
+                        self.__weight = event["event"]["attributes"]["dispatch_info"][
+                            "weight"
+                        ]
+                    else:
+                        # Backwards compatibility
+                        self.__weight = event["event"]["attributes"]["weight"]
+
+                elif (
+                    event["event"]["module_id"] == "System"
+                    and event["event"]["event_id"] == "ExtrinsicFailed"
+                ):
+                    print("failed!", event)
+                    self.__is_success = False
+
+                    dispatch_info = event["event"]["attributes"]["dispatch_info"]
+                    dispatch_error = event["event"]["attributes"]["dispatch_error"]
+
+                    self.__weight = dispatch_info["weight"]
+
+                    if "Module" in dispatch_error:
+                        module_index = dispatch_error["Module"][0]["index"]
+                        error_index = dispatch_error["Module"][0]["error"]
+
+                        if isinstance(error_index, str):
+                            # Actual error index is first u8 in new [u8; 4] format
+                            error_index = int(error_index[2:4], 16)
+
+                        module_error = self.substrate.metadata.get_module_error(
+                            module_index=module_index, error_index=error_index
+                        )
+                        self.__error_message = {
+                            "type": "Module",
+                            "name": module_error.name,
+                            "docs": module_error.docs,
+                        }
+                    elif "BadOrigin" in dispatch_error:
+                        self.__error_message = {
+                            "type": "System",
+                            "name": "BadOrigin",
+                            "docs": "Bad origin",
+                        }
+                    elif "CannotLookup" in dispatch_error:
+                        self.__error_message = {
+                            "type": "System",
+                            "name": "CannotLookup",
+                            "docs": "Cannot lookup",
+                        }
+                    elif "Other" in dispatch_error:
+                        self.__error_message = {
+                            "type": "System",
+                            "name": "Other",
+                            "docs": "Unspecified error occurred",
+                        }
+
+                elif not has_transaction_fee_paid_event:
                     if (
-                        event.value["module_id"] == "System"
-                        and event.value["event_id"] == "ExtrinsicSuccess"
+                        event["event"]["module_id"] == "Treasury"
+                        and event["event"]["event_id"] == "Deposit"
                     ):
-                        self.__is_success = True
-                        self.__error_message = None
-
-                        if "dispatch_info" in event.value["attributes"]:
-                            self.__weight = event.value["attributes"]["dispatch_info"][
-                                "weight"
-                            ]
-                        else:
-                            # Backwards compatibility
-                            self.__weight = event.value["attributes"]["weight"]
-
+                        self.__total_fee_amount += event["event"]["attributes"]["value"]
                     elif (
-                        event.value["module_id"] == "System"
-                        and event.value["event_id"] == "ExtrinsicFailed"
+                        event["event"]["module_id"] == "Balances"
+                        and event["event"]["event_id"] == "Deposit"
                     ):
-                        self.__is_success = False
-
-                        if type(event.value["attributes"]) is dict:
-                            dispatch_info = event.value["attributes"]["dispatch_info"]
-                            dispatch_error = event.value["attributes"]["dispatch_error"]
-                        else:
-                            # Backwards compatibility
-                            dispatch_info = event.value["attributes"][1]
-                            dispatch_error = event.value["attributes"][0]
-
-                        self.__weight = dispatch_info["weight"]
-
-                        if "Module" in dispatch_error:
-                            if type(dispatch_error["Module"]) is tuple:
-                                module_index = dispatch_error["Module"][0]
-                                error_index = dispatch_error["Module"][1]
-                            else:
-                                module_index = dispatch_error["Module"]["index"]
-                                error_index = dispatch_error["Module"]["error"]
-
-                            if type(error_index) is str:
-                                # Actual error index is first u8 in new [u8; 4] format
-                                error_index = int(error_index[2:4], 16)
-
-                            module_error = self.substrate.metadata.get_module_error(
-                                module_index=module_index, error_index=error_index
-                            )
-                            self.__error_message = {
-                                "type": "Module",
-                                "name": module_error.name,
-                                "docs": module_error.docs,
-                            }
-                        elif "BadOrigin" in dispatch_error:
-                            self.__error_message = {
-                                "type": "System",
-                                "name": "BadOrigin",
-                                "docs": "Bad origin",
-                            }
-                        elif "CannotLookup" in dispatch_error:
-                            self.__error_message = {
-                                "type": "System",
-                                "name": "CannotLookup",
-                                "docs": "Cannot lookup",
-                            }
-                        elif "Other" in dispatch_error:
-                            self.__error_message = {
-                                "type": "System",
-                                "name": "Other",
-                                "docs": "Unspecified error occurred",
-                            }
-
-                    elif not has_transaction_fee_paid_event:
-                        if (
-                            event.value["module_id"] == "Treasury"
-                            and event.value["event_id"] == "Deposit"
-                        ):
-                            if type(event.value["attributes"]) is dict:
-                                self.__total_fee_amount += event.value["attributes"][
-                                    "value"
-                                ]
-                            else:
-                                # Backwards compatibility
-                                self.__total_fee_amount += event.value["attributes"]
-
-                        elif (
-                            event.value["module_id"] == "Balances"
-                            and event.value["event_id"] == "Deposit"
-                        ):
-                            if type(event.value["attributes"]) is dict:
-                                self.__total_fee_amount += event.value["attributes"][
-                                    "amount"
-                                ]
-                            else:
-                                # Backwards compatibility
-                                self.__total_fee_amount += event.value["attributes"][1]
-
-                else:
-                    if (
-                        event.event_module.name == "System"
-                        and event.event.name == "ExtrinsicSuccess"
-                    ):
-                        self.__is_success = True
-                        self.__error_message = None
-
-                        for param in event.params:
-                            if param["type"] == "DispatchInfo":
-                                self.__weight = param["value"]["weight"]
-
-                    elif (
-                        event.event_module.name == "System"
-                        and event.event.name == "ExtrinsicFailed"
-                    ):
-                        self.__is_success = False
-
-                        for param in event.params:
-                            if param["type"] == "DispatchError":
-                                if "Module" in param["value"]:
-                                    if type(param["value"]["Module"]["error"]) is str:
-                                        # Actual error index is first u8 in new [u8; 4] format (e.g. 0x01000000)
-                                        error_index = int(
-                                            param["value"]["Module"]["error"][2:4], 16
-                                        )
-                                    else:
-                                        error_index = param["value"]["Module"]["error"]
-
-                                    module_error = (
-                                        self.substrate.metadata.get_module_error(
-                                            module_index=param["value"]["Module"][
-                                                "index"
-                                            ],
-                                            error_index=error_index,
-                                        )
-                                    )
-                                    self.__error_message = {
-                                        "type": "Module",
-                                        "name": module_error.name,
-                                        "docs": module_error.docs,
-                                    }
-                                elif "BadOrigin" in param["value"]:
-                                    self.__error_message = {
-                                        "type": "System",
-                                        "name": "BadOrigin",
-                                        "docs": "Bad origin",
-                                    }
-                                elif "CannotLookup" in param["value"]:
-                                    self.__error_message = {
-                                        "type": "System",
-                                        "name": "CannotLookup",
-                                        "docs": "Cannot lookup",
-                                    }
-                                elif "Other" in param["value"]:
-                                    self.__error_message = {
-                                        "type": "System",
-                                        "name": "Other",
-                                        "docs": "Unspecified error occurred",
-                                    }
-
-                            if param["type"] == "DispatchInfo":
-                                self.__weight = param["value"]["weight"]
-
-                    elif (
-                        event.event_module.name == "Treasury"
-                        and event.event.name == "Deposit"
-                    ):
-                        self.__total_fee_amount += event.params[0]["value"]
-
-                    elif (
-                        event.event_module.name == "Balances"
-                        and event.event.name == "Deposit"
-                    ):
-                        self.__total_fee_amount += event.params[1]["value"]
+                        self.__total_fee_amount += event.value["attributes"]["amount"]
 
     @async_property
     async def is_success(self) -> bool:
@@ -1452,6 +1354,39 @@ class AsyncSubstrateInterface:
         -------
         list
         """
+
+        def convert_event_data(data):
+            # Extract phase information
+            phase_key, phase_value = next(iter(data["phase"].items()))
+            extrinsic_idx = phase_value[0]
+
+            # Extract event details
+            module_id, event_data = next(iter(data["event"].items()))
+            event_id, attributes_data = next(iter(event_data[0].items()))
+
+            # Convert class and pays_fee dictionaries to their string equivalents if they exist
+            attributes = attributes_data
+            for key, value in attributes.items():
+                if isinstance(value, dict):
+                    # Convert nested single-key dictionaries to their keys as strings
+                    sub_key = next(iter(value.keys()))
+                    if value[sub_key] == ():
+                        attributes[key] = sub_key
+
+            # Create the converted dictionary
+            converted = {
+                "phase": phase_key,
+                "extrinsic_idx": extrinsic_idx,
+                "event": {
+                    "module_id": module_id,
+                    "event_id": event_id,
+                    "attributes": attributes,
+                },
+                "topics": list(data["topics"]),  # Convert topics tuple to a list
+            }
+
+            return converted
+
         events = []
 
         if not block_hash:
@@ -1461,7 +1396,10 @@ class AsyncSubstrateInterface:
             module="System", storage_function="Events", block_hash=block_hash
         )
         if storage_obj:
-            events += list(storage_obj)
+            for item in list(storage_obj):
+                # print("item!", item)
+                events.append(convert_event_data(item))
+            # events += list(storage_obj)
         return events
 
     async def get_block_runtime_version(self, block_hash: str) -> dict:
