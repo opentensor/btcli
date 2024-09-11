@@ -1021,7 +1021,6 @@ async def _block_solver(
     weights = [alpha_**i for i in range(n_samples)]  # weights decay by alpha
 
     timeout = 0.15 if cuda else 0.15
-    # hk = await check_hotkey(subtensor, netuid, wallet)
     while netuid == -1 or not await fetch_hotkey_status():
         # Wait until a solver finds a solution
         try:
