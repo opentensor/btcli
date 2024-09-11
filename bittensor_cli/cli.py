@@ -434,9 +434,10 @@ class CLIManager:
 
         # subnets aliases
         self.app.add_typer(
-            self.subnets_app, name="subnets", short_help="Subnets commands, alias: `s`"
+            self.subnets_app, name="subnets", short_help="Subnets commands, alias: `s`, `subnet`"
         )
         self.app.add_typer(self.subnets_app, name="s", hidden=True)
+        self.app.add_typer(self.subnets_app, name="subnet", hidden=True)
 
         # weights aliases
         self.app.add_typer(
@@ -3524,7 +3525,7 @@ class CLIManager:
 
     def subnets_pow_register(
         self,
-        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_name: Optional[str] = Options.wallet_name_req,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hk_req,
         network: Optional[str] = Options.network,
