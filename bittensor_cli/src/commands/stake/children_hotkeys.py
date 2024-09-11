@@ -290,12 +290,7 @@ async def get_children(
         else:
             return 0
 
-    async def _render_table(
-        hk: str,
-        children_: list[tuple[int, str]],
-        prompt: bool = True,
-        netuid: int = None,
-    ):
+    async def _render_table(parent_hotkey: str, netuid_children_tuples: list[tuple[int, list[tuple[int, str]]]]):
         # Initialize Rich table for pretty printing
         table = Table(
             header_style="bold white",
@@ -304,7 +299,7 @@ async def get_children(
         )
 
         # Add columns to the table with specific styles
-        table.add_column("Index", style="bold white", no_wrap=True, justify="center")
+        table.add_column("Netuid", style="dark_orange", no_wrap=True, justify="center")
         table.add_column("Child Hotkey", style="bold bright_magenta")
         table.add_column("Proportion", style="bold cyan", no_wrap=True, justify="right")
         table.add_column(
@@ -314,101 +309,89 @@ async def get_children(
             "Current Stake Weight", style="bold red", no_wrap=True, justify="right"
         )
 
-        if not children_:
+        if not netuid_children_tuples:
             console.print(table)
             console.print(
-                f"[bold red]There are currently no child hotkeys on subnet {netuid} with Parent HotKey {hk}.[/bold red]"
+                f"[bold red]There are currently no child hotkeys with Parent HotKey {parent_hotkey}.[/bold red]"
             )
-            if prompt:
-                command = (
-                    f"`btcli stake child set --children <child_hotkey> --hotkey <parent_hotkey> "
-                    f"--netuid {netuid} --proportions <float>`"
-                )
-                console.print(
-                    f"[bold cyan]To add a child hotkey you can run the command: [white]{command}[/white][/bold cyan]"
-                )
             return
 
-        # calculate totals
+        # calculate totals per subnet
         total_proportion = 0
-        total_stake = 0
         total_stake_weight = 0
-        avg_take = 0
 
-        hotkey_stake_dict = await subtensor.get_total_stake_for_hotkey(hk)
-        hotkey_stake = hotkey_stake_dict.get(hk, Balance(0))
+        netuid_children_tuples.sort(key=lambda x: x[0])  # Sort by netuid in ascending order
 
-        children_info = []
-        child_stakes = await asyncio.gather(
-            *[get_total_stake_for_hk(c[1]) for c in children_]
-        )
-        child_takes = await asyncio.gather(*[get_take(c) for c in children_])
-        for child, child_stake, child_take in zip(children_, child_stakes, child_takes):
-            proportion = child[0]
-            child_hotkey = child[1]
+        for index, (netuid, children_) in enumerate(netuid_children_tuples):
+            # calculate totals
+            total_proportion_per_netuid = 0
+            total_stake_weight_per_netuid = 0
+            avg_take_per_netuid = 0
 
-            # add to totals
-            avg_take += child_take
-            total_stake += child_stake
+            hotkey_stake_dict = await subtensor.get_total_stake_for_hotkey(parent_hotkey)
+            hotkey_stake = hotkey_stake_dict.get(parent_hotkey, Balance(0))
 
-            proportion = u64_to_float(proportion)
-
-            children_info.append((proportion, child_hotkey, child_stake, child_take))
-
-        children_info.sort(
-            key=lambda x: x[0], reverse=True
-        )  # sorting by proportion (highest first)
-
-        console.print(f"\n[dark_orange]Children for netuid: {netuid} ")
-
-        # add the children info to the table
-        for idx, (proportion, hotkey, stake, child_take) in enumerate(children_info, 1):
-            proportion_percent = proportion * 100  # Proportion in percent
-            proportion_tao = hotkey_stake.tao * proportion  # Proportion in TAO
-
-            total_proportion += proportion_percent
-
-            # Conditionally format text
-            proportion_str = f"{proportion_percent:.3f}% ({proportion_tao:.3f}τ)"
-            stake_weight = stake.tao + proportion_tao
-            total_stake_weight += stake_weight
-            take_str = f"{child_take * 100:.3f}%"
-
-            hotkey = Text(hotkey, style="italic red" if proportion == 0 else "")
-            table.add_row(
-                str(idx),
-                hotkey,
-                proportion_str,
-                take_str,
-                str(f"{stake_weight:.3f}"),
+            children_info = []
+            child_stakes = await asyncio.gather(
+                *[get_total_stake_for_hk(c[1]) for c in children_]
             )
+            child_takes = await asyncio.gather(*[get_take(c) for c in children_])
+            for child, child_stake, child_take in zip(children_, child_stakes, child_takes):
+                proportion = child[0]
+                child_hotkey = child[1]
 
-        avg_take = avg_take / len(children_info)
+                # add to totals
+                avg_take_per_netuid += child_take
 
-        # add totals row
-        table.add_row(
-            "",
-            "[dim]Total[/dim]",
-            f"[dim]{total_proportion:.3f}%[/dim]",
-            f"[dim](avg) {avg_take * 100:.3f}%[/dim]",
-            f"[dim]{total_stake_weight:.3f}τ[/dim]",
-            style="dim",
-        )
-        console.print(table)
-        
-    async def _render_all_table(parent_hotkey: str, netuid_children_tuples: list[tuple[int, list[tuple[int, str]]]]):
+                proportion = u64_to_float(proportion)
 
-        table = Table(show_header=True, header_style="bold magenta")
-        table.add_column("netuid", style="dim")
-        table.add_column("child hotkey")
-        table.add_column("proportion", justify="right")
-        for netuid, children in netuid_children_tuples:
-            for proportion, hotkey in children:
+                children_info.append((proportion, child_hotkey, child_stake, child_take))
+
+            children_info.sort(
+                key=lambda x: x[0], reverse=True
+            )  # sorting by proportion (highest first)
+
+            for idx, (proportion, hotkey, stake, child_take) in enumerate(children_info, 1):
+                proportion_percent = proportion * 100  # Proportion in percent
+                proportion_tao = hotkey_stake.tao * proportion  # Proportion in TAO
+
+                total_proportion_per_netuid += proportion_percent
+
+                # Conditionally format text
+                proportion_str = f"{proportion_percent:.3f}% ({proportion_tao:.3f}τ)"
+                stake_weight = stake.tao + proportion_tao
+                total_stake_weight_per_netuid += stake_weight
+                take_str = f"{child_take * 100:.3f}%"
+
+                hotkey = Text(hotkey, style="italic red" if proportion == 0 else "")
                 table.add_row(
                     str(netuid),
                     hotkey,
-                    f"{u64_to_float(proportion):.3f}"
+                    proportion_str,
+                    take_str,
+                    str(f"{stake_weight:.3f}"),
                 )
+
+            avg_take_per_netuid = avg_take_per_netuid / len(children_info)
+
+            # add totals row for this netuid
+            table.add_row(
+                "",
+                "[dim]Total[/dim]",
+                f"[dim]{total_proportion_per_netuid:.3f}%[/dim]",
+                f"[dim](avg) {avg_take_per_netuid * 100:.3f}%[/dim]",
+                f"[dim]{total_stake_weight_per_netuid:.3f}τ[/dim]",
+                style="dim",
+            )
+
+            # add to grand totals
+            total_proportion += total_proportion_per_netuid
+            total_stake_weight += total_stake_weight_per_netuid
+
+            # Add a dividing line if there are more than one netuid
+            if len(netuid_children_tuples) > 1:
+                table.add_section()
+
         console.print(table)
 
     if netuid is None:
@@ -426,7 +409,7 @@ async def get_children(
                 err_console.print(
                     f"Failed to get children from subtensor {netuid}: {err_mg}"
                 )
-        await _render_all_table(wallet.hotkey.ss58_address, netuid_children_tuples)
+        await _render_table(wallet.hotkey.ss58_address, netuid_children_tuples)
     else:
         success, children, err_mg = await subtensor.get_children(
             wallet.hotkey.ss58_address, netuid
@@ -436,9 +419,9 @@ async def get_children(
         await get_total_stake_for_hk(wallet.hotkey.ss58_address, True)
         if children:
             netuid_children_tuples = [(netuid, children)]
-        await _render_table(wallet.hotkey.ss58_address, children, True, netuid)
+            await _render_table(wallet.hotkey.ss58_address, netuid_children_tuples)
 
-    return children
+        return children
 
 
 async def set_children(
@@ -501,7 +484,7 @@ async def set_children(
                 children_with_proportions=children_with_proportions,
                 prompt=False,
                 wait_for_inclusion=True,
-                wait_for_finalization=True
+                wait_for_finalization=False
             )
         console.print(":white_heavy_check_mark: [green]Sent set children request for all subnets.[/green]")
 
@@ -554,10 +537,10 @@ async def revoke_children(
                 children_with_proportions=[],
                 prompt=False,
                 wait_for_inclusion=True,
-                wait_for_finalization=True,
+                wait_for_finalization=False,
             )
-        console.print(":white_heavy_check_mark: [green]Sent revoke children request for all subnets.[/green]")
-
+        console.print(":white_heavy_check_mark: [green]Revoked children from all subnets.[/green]")
+        await get_children(wallet, subtensor)
 
 async def childkey_take(
     wallet: Wallet,
@@ -685,6 +668,6 @@ async def childkey_take(
                     take=take,
                     prompt=False,
                     wait_for_inclusion=True,
-                    wait_for_finalization=True,
+                    wait_for_finalization=False,
                 )
-            console.print(f":white_heavy_check_mark: [green]Sent childkey take of {take * 100:.2f}% to all.[/green]")
+            console.print(f":white_heavy_check_mark: [green]Sent childkey take of {take * 100:.2f}% to all subnets.[/green]")
