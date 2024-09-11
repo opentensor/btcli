@@ -886,6 +886,7 @@ class CLIManager:
         wallet_path: Optional[str],
         wallet_hotkey: Optional[str],
         validate: bool = True,
+        ask_type: str = "name"
     ) -> Wallet:
         """
         Generates a wallet object based on supplied values, validating the wallet is valid if flag is set
@@ -893,17 +894,24 @@ class CLIManager:
         :param wallet_path: root path of the wallets
         :param wallet_hotkey: name of the wallet hotkey file
         :param validate: flag whether to check for the wallet's validity
+        :param ask_type: aspect of the wallet (name, path, hotkey) to prompt the user for
         :return: created Wallet object
         """
         wallet_name = wallet_name or self.config.get("wallet_name")
         wallet_path = wallet_path or self.config.get("wallet_path")
         wallet_hotkey = wallet_hotkey or self.config.get("wallet_hotkey")
+        wallet: Wallet = None
 
         if not any([wallet_name, wallet_path, wallet_hotkey]):
             _wallet_str = typer.style("wallet", fg="blue")
-            wallet_name = typer.prompt(f"Enter {_wallet_str} name")
-            wallet = Wallet(name=wallet_name)
-        else:
+            wallet_type_asked = typer.prompt(f"Enter {_wallet_str} {ask_type}")
+            if ask_type == "name":
+                wallet = Wallet(name=wallet_type_asked)
+            elif ask_type == "path":
+                wallet = Wallet(path=wallet_type_asked)
+            elif ask_type == "hotkey":
+                wallet = Wallet(hotkey=wallet_type_asked)
+        if not wallet:
             wallet = Wallet(name=wallet_name, hotkey=wallet_hotkey, path=wallet_path)
         if validate:
             valid = utils.is_valid_wallet(wallet)
@@ -921,13 +929,7 @@ class CLIManager:
 
     def wallet_list(
         self,
-        wallet_path: str = typer.Option(
-            defaults.wallet.path,
-            "--wallet-path",
-            "-p",
-            help="Filepath of root of wallets",
-            prompt=True,
-        ),
+        wallet_path: str = Options.wallet_path,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -953,7 +955,8 @@ class CLIManager:
         It is intended for use within the Bittensor CLI to provide a quick overview of the user's wallets.
         """
         self.verbosity_handler(quiet, verbose)
-        return self._run_command(wallets.wallet_list(wallet_path))
+        wallet = self.wallet_ask(None, wallet_path, None, ask_type="path")
+        return self._run_command(wallets.wallet_list(wallet.path))
 
     def wallet_overview(
         self,
