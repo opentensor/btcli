@@ -200,7 +200,6 @@ class ExtrinsicReceipt:
                     event["event"]["module_id"] == "System"
                     and event["event"]["event_id"] == "ExtrinsicFailed"
                 ):
-                    print("failed!", event)
                     self.__is_success = False
 
                     dispatch_info = event["event"]["attributes"]["dispatch_info"]
@@ -210,12 +209,15 @@ class ExtrinsicReceipt:
 
                     if "Module" in dispatch_error:
                         module_index = dispatch_error["Module"][0]["index"]
-                        error_index = dispatch_error["Module"][0]["error"]
+                        error_index = int.from_bytes(
+                            bytes(dispatch_error["Module"][0]["error"]),
+                            byteorder="little",
+                            signed=False,
+                        )
 
                         if isinstance(error_index, str):
                             # Actual error index is first u8 in new [u8; 4] format
                             error_index = int(error_index[2:4], 16)
-
                         module_error = self.substrate.metadata.get_module_error(
                             module_index=module_index, error_index=error_index
                         )
