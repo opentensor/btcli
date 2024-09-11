@@ -434,9 +434,10 @@ class CLIManager:
 
         # subnets aliases
         self.app.add_typer(
-            self.subnets_app, name="subnets", short_help="Subnets commands, alias: `s`"
+            self.subnets_app, name="subnets", short_help="Subnets commands, alias: `s`, `subnet`"
         )
         self.app.add_typer(self.subnets_app, name="s", hidden=True)
+        self.app.add_typer(self.subnets_app, name="subnet", hidden=True)
 
         # weights aliases
         self.app.add_typer(
