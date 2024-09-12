@@ -127,12 +127,12 @@ async def _get_proposals(
     async def get_proposal_call_data(p_hash: str) -> Optional[GenericCall]:
         proposal_data = await subtensor.substrate.query(
             module="Triumvirate",
-            name="ProposalOf",
+            storage_function="ProposalOf",
             block_hash=block_hash,
             params=[p_hash],
         )
         print(
-            "proposal data", proposal_data
+            "proposal data", proposal_data, type(proposal_data)
         )  # TODO may just be able to use this. Must test
         return getattr(
             proposal_data, "serialize", lambda: None
@@ -140,7 +140,7 @@ async def _get_proposals(
 
     async def get_proposal_vote_data(p_hash: str) -> Optional[ProposalVoteData]:
         vote_data = await subtensor.substrate.query(
-            module="Triumvirate", name="Voting", block_hash=block_hash, params=[p_hash]
+            module="Triumvirate", storage_function="Voting", block_hash=block_hash, params=[p_hash]
         )
         print("vote data", vote_data)
         return getattr(vote_data, "serialize", lambda: None)()
@@ -153,8 +153,8 @@ async def _get_proposals(
     )
 
     try:
-        proposal_hashes: list[str] = ph or []
-    except AttributeError:
+        proposal_hashes: list[str] = [f'0x{bytes(ph[0][x][0]).hex()}'for x in range(len(ph[0]))]
+    except IndexError:
         err_console.print("Unable to retrieve proposal vote data")
         raise typer.Exit()
 
