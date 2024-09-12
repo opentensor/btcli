@@ -251,7 +251,35 @@ def prepare_child_proportions(children_with_proportions):
 async def get_children(
     wallet: Wallet, subtensor: "SubtensorInterface", netuid: Optional[int] = None
 ):
+    """
+    Retrieves the child hotkeys for the specified wallet.
+
+    Args:
+    - wallet: The wallet object containing the hotkey information.
+        Type: Wallet
+    - subtensor: Interface to interact with the subtensor network.
+        Type: SubtensorInterface
+    - netuid: Optional subnet identifier. If not provided, retrieves data for all subnets.
+        Type: Optional[int]
+
+    Returns:
+    - If netuid is specified, returns the list of child hotkeys for the given netuid.
+        Type: List[tuple[int, str]]
+    - If netuid is not specified, generates and prints a summary table of all child hotkeys across all subnets.
+    """
+
     async def get_total_stake_for_hk(hotkey: str, parent: bool = False):
+        """
+        Fetches and displays the total stake for a specified hotkey from the Subtensor blockchain network. 
+        If `parent` is True, it prints the hotkey and its corresponding stake.
+
+        Parameters:
+        - hotkey (str): The hotkey for which the stake needs to be fetched.
+        - parent (bool, optional): A flag to indicate whether the hotkey is the parent key. Defaults to False.
+
+        Returns:
+        - Balance: The total stake associated with the specified hotkey.
+        """
         _result = await subtensor.substrate.query(
             module="SubtensorModule",
             storage_function="TotalHotkeyStake",
@@ -291,6 +319,9 @@ async def get_children(
             return 0
 
     async def _render_table(parent_hotkey: str, netuid_children_tuples: list[tuple[int, list[tuple[int, str]]]]):
+        """
+        Retrieves and renders children hotkeys and their details for a given parent hotkey.
+        """
         # Initialize Rich table for pretty printing
         table = Table(
             header_style="bold white",
@@ -394,6 +425,7 @@ async def get_children(
 
         console.print(table)
 
+    # Core logic for get_children
     if netuid is None:
         # get all netuids
         netuids = await subtensor.get_all_subnet_netuids()
@@ -542,6 +574,7 @@ async def revoke_children(
         console.print(":white_heavy_check_mark: [green]Revoked children from all subnets.[/green]")
         await get_children(wallet, subtensor)
 
+
 async def childkey_take(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
@@ -563,6 +596,7 @@ async def childkey_take(
         return True
 
     def print_all_takes(takes: list[tuple[int, float]]):
+        """Print table with netuids and Takes"""
         table = Table(title="Current Child Takes")
         table.add_column("Netuid", justify="center", style="cyan")
         table.add_column("Take (%)", justify="right", style="magenta")
@@ -572,12 +606,14 @@ async def childkey_take(
 
         console.print(table)
 
-    async def display_chk_take(ss58):
+    async def display_chk_take(ss58, netuid):
+        """Print single key take for hotkey and netuid"""
         chk_take = await get_childkey_take(subtensor=subtensor, netuid=netuid, hotkey=ss58)
         chk_take = u16_to_float(chk_take)
         console.print(f"Child take for {ss58} is: {chk_take * 100:.2f}% on netuid {netuid}.")
 
     async def chk_all_subnets(ss58):
+        """Aggregate data for childkey take from all subnets"""
         netuids = await subtensor.get_all_subnet_netuids()
         takes = []
         for subnet in netuids:
@@ -589,6 +625,7 @@ async def childkey_take(
         print_all_takes(takes)
 
     async def set_chk_take_subnet(subnet, chk_take):
+        """Set the childkey take for a single subnet"""
         success, message = await set_childkey_take_extrinsic(
             subtensor=subtensor,
             wallet=wallet,
@@ -623,7 +660,7 @@ async def childkey_take(
     if not take:
         # print current Take, ask if change
         if netuid:
-            await display_chk_take(wallet.hotkey.ss58_address)
+            await display_chk_take(wallet.hotkey.ss58_address, netuid)
         else:
             # print take from all netuids
             await chk_all_subnets(wallet.hotkey.ss58_address)
@@ -670,4 +707,5 @@ async def childkey_take(
                     wait_for_inclusion=True,
                     wait_for_finalization=False,
                 )
-            console.print(f":white_heavy_check_mark: [green]Sent childkey take of {take * 100:.2f}% to all subnets.[/green]")
+            console.print(
+                f":white_heavy_check_mark: [green]Sent childkey take of {take * 100:.2f}% to all subnets.[/green]")
