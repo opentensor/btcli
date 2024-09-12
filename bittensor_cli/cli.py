@@ -4,7 +4,7 @@ import curses
 import os.path
 import re
 from pathlib import Path
-from typing import Coroutine, Optional, List
+from typing import Coroutine, Optional
 
 import rich
 import typer
