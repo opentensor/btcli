@@ -3,6 +3,7 @@ import asyncio
 import curses
 import os.path
 import re
+import sys
 from pathlib import Path
 from typing import Coroutine, Optional
 
@@ -669,7 +670,12 @@ class CLIManager:
                 err_console.print(str(e))
                 raise typer.Exit()
 
-        return asyncio.run(_run())
+        if sys.version_info < (3, 10):
+            # For Python 3.9 or lower
+            return asyncio.get_event_loop().run_until_complete(_run())
+        else:
+            # For Python 3.10 or higher
+            return asyncio.run(_run())
 
     def main_callback(
         self,
