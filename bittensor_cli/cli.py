@@ -3784,7 +3784,7 @@ class CLIManager:
 
     def subnets_pow_register(
         self,
-        wallet_name: Optional[str] = Options.wallet_name_req,
+        wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         network: Optional[str] = Options.network,
