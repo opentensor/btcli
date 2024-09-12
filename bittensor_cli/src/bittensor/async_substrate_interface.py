@@ -897,7 +897,7 @@ class AsyncSubstrateInterface:
         :returns: Runtime object
         """
 
-        async def get_runtime() -> Runtime:
+        async def get_runtime(block_hash, block_id) -> Runtime:
             # Check if runtime state already set to current block
             if (block_hash and block_hash == self.last_block_hash) or (
                 block_id and block_id == self.block_id
@@ -1014,7 +1014,7 @@ class AsyncSubstrateInterface:
             raise ValueError("Cannot provide block_hash and block_id at the same time")
 
         if not (runtime := self.runtime_cache.retrieve(block_id, block_hash)):
-            runtime = await get_runtime()
+            runtime = await get_runtime(block_hash, block_id)
             self.runtime_cache.add_item(block_id, block_hash, runtime)
         return runtime
 
