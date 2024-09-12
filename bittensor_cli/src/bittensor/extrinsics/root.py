@@ -416,7 +416,7 @@ async def set_root_weights_extrinsic(
         await subtensor.substrate.query(
             "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
         )
-    ).value
+    )
 
     if my_uid is None:
         err_console.print("Your hotkey is not registered to the root network")
