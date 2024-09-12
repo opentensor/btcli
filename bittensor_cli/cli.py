@@ -3089,6 +3089,18 @@ class CLIManager:
                 wallet = self.wallet_ask(
                     wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
                 )
+        elif all_hotkeys or include_hotkeys or exclude_hotkeys or hotkey_ss58_address:
+            wallet = self.wallet_ask(
+                wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+            )
+        else:
+            wallet = self.wallet_ask(
+                wallet_name,
+                wallet_path,
+                wallet_hotkey,
+                ask_for=[WO.NAME, WO.HOTKEY],
+                validate=WV.WALLET_AND_HOTKEY,
+            )
 
         return self._run_command(
             stake.stake_add(
@@ -3188,6 +3200,19 @@ class CLIManager:
             )
             raise typer.Exit()
 
+        if unstake_all and amount:
+            err_console.print(
+                "Cannot specify an amount and 'unstake-all'. Choose one or the other."
+            )
+            raise typer.Exit()
+
+        if not unstake_all and not amount:
+            amount = FloatPrompt.ask("[blue bold]Amount to unstake (TAO τ)[/blue bold]")
+
+        if unstake_all and not amount:
+            if not Confirm.ask("Unstake all staked TAO tokens?", default=False):
+                raise typer.Exit()
+
         if (
             not wallet_hotkey
             and not hotkey_ss58_address
@@ -3213,18 +3238,19 @@ class CLIManager:
                     wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
                 )
 
-        if unstake_all and amount:
-            err_console.print(
-                "Cannot specify an amount and 'unstake-all'. Choose one or the other."
+        elif all_hotkeys or include_hotkeys or exclude_hotkeys or hotkey_ss58_address:
+            wallet = self.wallet_ask(
+                wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
             )
-            raise typer.Exit()
 
-        if not unstake_all and not amount:
-            amount = FloatPrompt.ask("[blue bold]Amount to unstake (TAO τ)[/blue bold]")
-
-        if unstake_all and not amount:
-            if not Confirm.ask("Unstake all staked TAO tokens?", default=False):
-                raise typer.Exit()
+        else:
+            wallet = self.wallet_ask(
+                wallet_name,
+                wallet_path,
+                wallet_hotkey,
+                ask_for=[WO.NAME, WO.HOTKEY],
+                validate=WV.WALLET_AND_HOTKEY,
+            )
 
         return self._run_command(
             stake.unstake(

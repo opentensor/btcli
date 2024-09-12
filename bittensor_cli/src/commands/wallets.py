@@ -153,6 +153,7 @@ async def new_coldkey(
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
 
+
 async def wallet_create(
     wallet: Wallet,
     n_words: int = 12,
@@ -167,7 +168,7 @@ async def wallet_create(
         )
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
-    
+
     try:
         wallet.create_new_hotkey(
             n_words=n_words,
@@ -352,7 +353,7 @@ def create_transfer_history_table(transfers: list[dict]) -> Table:
     """Get output transfer table"""
 
     taostats_url_base = "https://x.taostats.io/extrinsic"
-    
+
     table_width = console.width - 5
     # Create a table
     table = Table(
@@ -587,9 +588,12 @@ async def overview(
         for netuid in netuids:
             neurons[str(netuid)] = []
 
-        all_wallet_names = {wallet.name for wallet in all_hotkeys}
+        all_wallet_data = [
+            {"name": wallet.name, "path": wallet.path} for wallet in all_hotkeys
+        ]
         all_coldkey_wallets = [
-            Wallet(name=wallet_name) for wallet_name in all_wallet_names
+            Wallet(name=wallet_data["name"], path=wallet_data["path"])
+            for wallet_data in all_wallet_data
         ]
 
         print_verbose("Fetching key addresses", status)
