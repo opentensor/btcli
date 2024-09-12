@@ -121,7 +121,7 @@ def test_staking(local_chain, wallet_setup):
     cleaned_stake = [
         re.sub(r"\s+", " ", line) for line in show_stake.stdout.splitlines()
     ]
-    stake_added = cleaned_stake[4].split()[4].strip("τ")
+    stake_added = cleaned_stake[6].split()[4].strip("τ")
     assert Balance.from_tao(100) == Balance.from_tao(float(stake_added))
 
     # TODO: Ask nucleus the rate limit and wait epoch
