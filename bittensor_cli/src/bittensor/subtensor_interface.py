@@ -153,9 +153,10 @@ class SubtensorInterface:
         Being a delegate is a significant status within the Bittensor network, indicating a neuron's
         involvement in consensus and governance processes.
         """
-        dels = await self.get_delegates(block_hash=block_hash, reuse_block=reuse_block)
-        print("dels", dels)
-        return hotkey_ss58 in [info.hotkey_ss58 for info in dels]
+        delegates = await self.get_delegates(
+            block_hash=block_hash, reuse_block=reuse_block
+        )
+        return hotkey_ss58 in [info.hotkey_ss58 for info in delegates]
 
     async def get_delegates(
         self, block_hash: Optional[str] = None, reuse_block: Optional[bool] = False

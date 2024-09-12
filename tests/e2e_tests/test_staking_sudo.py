@@ -127,7 +127,7 @@ def test_staking(local_chain, wallet_setup):
     # TODO: Ask nucleus the rate limit and wait epoch
     # Sleep 120 seconds for rate limiting when unstaking
     print("Waiting for interval for 2 minutes")
-    time.sleep(180)
+    time.sleep(120)
 
     # Execute remove_stake command and remove all 100 TAO from Alice
     remove_stake = exec_command_alice(

@@ -153,13 +153,8 @@ class ExtrinsicReceipt:
             self.__triggered_events = []
 
             for event in await self.substrate.get_events(block_hash=self.block_hash):
-                # print(
-                #     "event", (await self.extrinsic_idx), event
-                # )  # TODO cameron is looking into this
-                # if (
-                #     event.extrinsic_idx == await self.extrinsic_idx
-                # ):  # TODO figure out where tf this is being set. I should not have to await it here.
-                self.__triggered_events.append(event)
+                if event["extrinsic_idx"] == await self.extrinsic_idx:
+                    self.__triggered_events.append(event)
 
         return cast(list, self.__triggered_events)
 
@@ -901,15 +896,18 @@ class AsyncSubstrateInterface:
 
         :returns: Runtime object
         """
-        if block_id and block_hash:
-            raise ValueError("Cannot provide block_hash and block_id at the same time")
 
-        if not (runtime := self.runtime_cache.retrieve(block_id, block_hash)):
+        async def get_runtime() -> Runtime:
             # Check if runtime state already set to current block
-            # if (block_hash and block_hash == self.last_block_hash) or (
-            #     block_id and block_id == self.block_id
-            # ):
-            #     return
+            if (block_hash and block_hash == self.last_block_hash) or (
+                block_id and block_id == self.block_id
+            ):
+                return Runtime(
+                    self.chain,
+                    self.runtime_config,
+                    self.metadata,
+                    self.type_registry,
+                )
 
             if block_id is not None:
                 block_hash = await self.get_block_hash(block_id)
@@ -951,8 +949,13 @@ class AsyncSubstrateInterface:
                 )
 
             # Check if runtime state already set to current block
-            # if runtime_info.get("specVersion") == self.runtime_version:
-            #     return
+            if runtime_info.get("specVersion") == self.runtime_version:
+                return Runtime(
+                    self.chain,
+                    self.runtime_config,
+                    self.metadata,
+                    self.type_registry,
+                )
 
             self.runtime_version = runtime_info.get("specVersion")
             self.transaction_version = runtime_info.get("transactionVersion")
@@ -973,7 +976,6 @@ class AsyncSubstrateInterface:
             # Update type registry
             self.reload_type_registry(use_remote_preset=False, auto_discover=True)
 
-            # Check if PortableRegistry is present in metadata (V14+), otherwise fall back on legacy type registry (<V14)
             if self.implements_scaleinfo:
                 # self.debug_message('Add PortableRegistry from metadata to type registry')
                 self.runtime_config.add_portable_registry(self.metadata)
@@ -1001,12 +1003,18 @@ class AsyncSubstrateInterface:
             except NotImplementedError:
                 self.config["is_weight_v2"] = False
                 self.runtime_config.update_type_registry_types({"Weight": "WeightV1"})
-            runtime = Runtime(
+            return Runtime(
                 self.chain,
                 self.runtime_config,
                 self.metadata,
                 self.type_registry,
             )
+
+        if block_id and block_hash:
+            raise ValueError("Cannot provide block_hash and block_id at the same time")
+
+        if not (runtime := self.runtime_cache.retrieve(block_id, block_hash)):
+            runtime = await get_runtime()
             self.runtime_cache.add_item(block_id, block_hash, runtime)
         return runtime
 
@@ -1552,13 +1560,6 @@ class AsyncSubstrateInterface:
             else:
                 q = query_value
             obj = await self.decode_scale(value_scale_type, q, True)
-            # obj = runtime.runtime_config.create_scale_object(
-            #     type_string=value_scale_type,
-            #     data=ScaleBytes(query_value),
-            #     metadata=runtime.metadata,
-            # )
-            # obj.decode(check_remaining=True)
-            # obj.meta_info = {"result_found": response.get("result") is not None}
             result = obj
         if asyncio.iscoroutinefunction(result_handler):
             # For multipart responses as a result of subscriptions.
@@ -2193,7 +2194,6 @@ class AsyncSubstrateInterface:
                 for constant in module.constants:
                     if constant_name == constant.value["name"]:
                         return constant
-        print("not found")
 
     async def get_constant(
         self,

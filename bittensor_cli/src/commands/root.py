@@ -546,8 +546,7 @@ async def delegate_extrinsic(
             params=[ss58],
             block_hash=block_hash_,
         )
-        print("hotkey owner548", _result)
-        return _result  # TODO may need to decode
+        return decode_account_id(_result[0])
 
     async def get_stake_for_coldkey_and_hotkey(
         hotkey_ss58: str, coldkey_ss58: str, block_hash_: str
@@ -559,9 +558,7 @@ async def delegate_extrinsic(
             params=[hotkey_ss58, coldkey_ss58],
             block_hash=block_hash_,
         )
-        return (
-            Balance.from_rao(_result)  # TODO maybe or None
-        )
+        return Balance.from_rao(_result or 0)
 
     delegate_string = "delegate" if delegate else "undelegate"
 
