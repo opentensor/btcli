@@ -484,12 +484,13 @@ async def register_extrinsic(
     :return: `True` if extrinsic was finalized or included in the block. If we did not wait for finalization/inclusion,
              the response is `True`.
     """
+
     async def get_neuron_for_pubkey_and_subnet():
-        uid = (await subtensor.substrate.query(
-            "SubtensorModule",
-            "Uids",
-            [netuid, wallet.hotkey.ss58_address]
-        )).value
+        uid = (
+            await subtensor.substrate.query(
+                "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
+            )
+        ).value
         params = [netuid, uid]
         json_body = await subtensor.substrate.rpc_request(
             method="neuronInfo_getNeuron",
@@ -1614,6 +1615,15 @@ async def swap_hotkey_extrinsic(
 
     :return: Success
     """
+    block_hash = await subtensor.substrate.get_chain_head()
+    netuids_registered = await subtensor.get_netuids_for_hotkey(
+        wallet.hotkey.ss58_address, block_hash=block_hash
+    )
+    if not len(netuids_registered) > 0:
+        err_console.print(
+            f"Destination hotkey [dark_orange]{new_wallet.hotkey.ss58_address}[/dark_orange] is not registered. Please register and try again"
+        )
+        return False
 
     try:
         wallet.unlock_coldkey()
@@ -1623,7 +1633,10 @@ async def swap_hotkey_extrinsic(
     if prompt:
         # Prompt user for confirmation.
         if not Confirm.ask(
-            f"Swap {wallet.hotkey} for new hotkey: {new_wallet.hotkey}?"
+            f"Do you want to swap [dark_orange]{wallet.name}[/dark_orange] hotkey \n\t"
+            f"[dark_orange]{wallet.hotkey.ss58_address}[/dark_orange] with hotkey \n\t"
+            f"[dark_orange]{new_wallet.hotkey.ss58_address}[/dark_orange]\n"
+            "This operation will cost [bold cyan]1 TAO t (recycled)[/bold cyan]"
         ):
             return False
     print_verbose(

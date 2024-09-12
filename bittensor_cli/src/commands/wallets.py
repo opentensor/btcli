@@ -65,13 +65,16 @@ async def regen_coldkey(
             raise ValueError("File {} does not exist".format(json_path))
         with open(json_path, "r") as f:
             json_str = f.read()
-    wallet.regenerate_coldkey(
-        mnemonic=mnemonic,
-        seed=seed,
-        json=(json_str, json_password),
-        use_password=use_password,
-        overwrite=False,
-    )
+    try:
+        wallet.regenerate_coldkey(
+            mnemonic=mnemonic,
+            seed=seed,
+            json=(json_str, json_password),
+            use_password=use_password,
+            overwrite=False,
+        )
+    except KeyFileError:
+        print_error("KeyFileError: File is not writable")
 
 
 async def regen_coldkey_pub(
@@ -80,11 +83,14 @@ async def regen_coldkey_pub(
     public_key_hex: str,
 ):
     """Creates a new coldkeypub under this wallet."""
-    wallet.regenerate_coldkeypub(
-        ss58_address=ss58_address,
-        public_key=public_key_hex,
-        overwrite=False,
-    )
+    try:
+        wallet.regenerate_coldkeypub(
+            ss58_address=ss58_address,
+            public_key=public_key_hex,
+            overwrite=False,
+        )
+    except KeyFileError:
+        print_error("KeyFileError: File is not writable")
 
 
 async def regen_hotkey(
@@ -93,7 +99,7 @@ async def regen_hotkey(
     seed: Optional[str],
     json_path: Optional[str],
     json_password: Optional[str] = "",
-    use_password: Optional[bool] = True,
+    use_password: Optional[bool] = False,
 ):
     """Creates a new hotkey under this wallet."""
     json_str: Optional[str] = None
@@ -104,13 +110,16 @@ async def regen_hotkey(
         with open(json_path, "r") as f:
             json_str = f.read()
 
-    wallet.regenerate_hotkey(
-        mnemonic=mnemonic,
-        seed=seed,
-        json=(json_str, json_password),
-        use_password=use_password,
-        overwrite=False,
-    )
+    try:
+        wallet.regenerate_hotkey(
+            mnemonic=mnemonic,
+            seed=seed,
+            json=(json_str, json_password),
+            use_password=use_password,
+            overwrite=False,
+        )
+    except KeyFileError:
+        print_error("KeyFileError: File is not writable")
 
 
 async def new_hotkey(
@@ -119,11 +128,14 @@ async def new_hotkey(
     use_password: bool,
 ):
     """Creates a new hotkey under this wallet."""
-    wallet.create_new_hotkey(
-        n_words=n_words,
-        use_password=use_password,
-        overwrite=False,
-    )
+    try:
+        wallet.create_new_hotkey(
+            n_words=n_words,
+            use_password=use_password,
+            overwrite=False,
+        )
+    except KeyFileError:
+        print_error("KeyFileError: File is not writable")
 
 
 async def new_coldkey(
@@ -132,12 +144,14 @@ async def new_coldkey(
     use_password: bool,
 ):
     """Creates a new coldkey under this wallet."""
-    wallet.create_new_coldkey(
-        n_words=n_words,
-        use_password=use_password,
-        overwrite=False,
-    )
-
+    try:
+        wallet.create_new_coldkey(
+            n_words=n_words,
+            use_password=use_password,
+            overwrite=False,
+        )
+    except KeyFileError:
+        print_error("KeyFileError: File is not writable")
 
 async def wallet_create(
     wallet: Wallet,
@@ -145,16 +159,23 @@ async def wallet_create(
     use_password: bool = True,
 ):
     """Creates a new wallet."""
-    wallet.create_new_coldkey(
-        n_words=n_words,
-        use_password=use_password,
-        overwrite=False,
-    )
-    wallet.create_new_hotkey(
-        n_words=n_words,
-        use_password=False,
-        overwrite=False,
-    )
+    try:
+        wallet.create_new_coldkey(
+            n_words=n_words,
+            use_password=use_password,
+            overwrite=False,
+        )
+    except KeyFileError:
+        print_error("KeyFileError: File is not writable")
+    
+    try:
+        wallet.create_new_hotkey(
+            n_words=n_words,
+            use_password=False,
+            overwrite=False,
+        )
+    except KeyFileError:
+        print_error("KeyFileError: File is not writable")
 
 
 def get_coldkey_wallets_for_path(path: str) -> list[Wallet]:
@@ -331,13 +352,14 @@ def create_transfer_history_table(transfers: list[dict]) -> Table:
     """Get output transfer table"""
 
     taostats_url_base = "https://x.taostats.io/extrinsic"
-
+    
+    table_width = console.width - 5
     # Create a table
     table = Table(
         show_footer=True,
         box=box.SIMPLE,
         pad_edge=False,
-        width=None,
+        width=table_width,
         title="[underline dark_orange]Wallet Transfers[/underline dark_orange]\n\n[dark_orange]Network: finney",
     )
 
@@ -350,13 +372,13 @@ def create_transfer_history_table(transfers: list[dict]) -> Table:
     table.add_column(
         "[white]From",
         style="bright_magenta",
-        no_wrap=True,
+        overflow="fold",
         justify="right",
     )
     table.add_column(
         "[white]To",
         style="bright_magenta",
-        no_wrap=True,
+        overflow="fold",
         justify="right",
     )
     table.add_column(
@@ -380,7 +402,7 @@ def create_transfer_history_table(transfers: list[dict]) -> Table:
     table.add_column(
         "[white]URL (taostats)",
         style="bright_cyan",
-        no_wrap=True,
+        overflow="fold",
         justify="right",
     )
 
@@ -1286,7 +1308,7 @@ async def inspect(
         Column("[bold white]Hotkey", style="bright_magenta"),
         Column("[bold white]Stake", style="light_goldenrod2"),
         Column("[bold white]Emission", style="rgb(42,161,152)"),
-        title=f"[underline dark_orange]Wallets[/underline dark_orange]\n\n[dark_orange]Network: {subtensor.network}",
+        title=f"[underline dark_orange]Wallets[/underline dark_orange]\n\n[dark_orange]Network: {subtensor.network}\n",
         show_footer=True,
         show_edge=False,
         expand=True,

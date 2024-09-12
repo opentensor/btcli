@@ -11,9 +11,16 @@ import typer
 import numpy as np
 from bittensor_wallet import Wallet
 from git import Repo, GitError
+from rich import box
 from rich.prompt import Confirm, FloatPrompt, Prompt, IntPrompt
 from rich.table import Column, Table
-from .src import HYPERPARAMS, defaults, HELP_PANELS
+from .src import (
+    HYPERPARAMS,
+    defaults,
+    HELP_PANELS,
+    WalletOptions as WO,
+    WalletValidationTypes as WV,
+)
 from bittensor_cli.src.bittensor import utils
 from .src.bittensor.async_substrate_interface import SubstrateRequestException
 from .src.commands import root, stake, subnets, sudo, wallets
@@ -60,15 +67,6 @@ class Options:
         "--wallet.name",
         help="Name of wallet",
     )
-    wallet_name_req = typer.Option(
-        None,
-        "--wallet-name",
-        "-w",
-        "--wallet_name",
-        "--wallet.name",
-        help="Name of wallet",
-        prompt=True,
-    )
     wallet_path = typer.Option(
         None,
         "--wallet-path",
@@ -84,15 +82,6 @@ class Options:
         "--wallet_hotkey",
         "--wallet.hotkey",
         help="Hotkey of wallet",
-    )
-    wallet_hk_req = typer.Option(
-        None,
-        "--hotkey",
-        "-H",
-        "--wallet_hotkey",
-        "--wallet.hotkey",
-        help="Hotkey name of wallet",
-        prompt=True,
     )
     mnemonic = typer.Option(
         None, help="Mnemonic used to regen your key i.e. horse cart dog ..."
@@ -503,9 +492,6 @@ class CLIManager:
             "get-identity", rich_help_panel=HELP_PANELS["WALLET"]["IDENTITY"]
         )(self.wallet_get_id)
         self.wallet_app.command(
-            "check-swap", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
-        )(self.wallet_check_ck_swap)
-        self.wallet_app.command(
             "sign", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"]
         )(self.wallet_sign)
 
@@ -635,6 +621,14 @@ class CLIManager:
                 self.not_subtensor = SubtensorInterface(
                     self.config["network"], self.config["chain"]
                 )
+                if self.config["chain"]:
+                    console.print(
+                        f"Using chain: [dark_orange]{self.config["chain"]}[/dark_orange] from config"
+                    )
+                else:
+                    console.print(
+                        f"Using specified network [dark_orange]{self.config["network"]}[/dark_orange] from config"
+                    )
             else:
                 self.not_subtensor = SubtensorInterface(
                     defaults.subtensor.network, defaults.subtensor.chain_endpoint
@@ -773,6 +767,7 @@ class CLIManager:
         no_cache: Optional[bool] = typer.Option(
             False,
             "--no-cache",
+            "--no_cache",
             help="Disable caching of certain commands. This will disable the `--reuse-last` and `html` flags on "
             "commands such as `subnets metagraph`, `stake show` and `subnets list`.",
         ),
@@ -862,19 +857,58 @@ class CLIManager:
         [green]$[/green] btcli config clear --all
         """
         if all_items:
-            self.config = {}
+            if Confirm.ask("Do you want to clear all configurations?"):
+                self.config = {}
+                print("All configurations have been cleared.")
+            else:
+                print("Operation cancelled.")
+                return
+
+        args = {
+            "wallet_name": wallet_name,
+            "wallet_path": wallet_path,
+            "wallet_hotkey": wallet_hotkey,
+            "network": network,
+            "chain": chain,
+            "no_cache": no_cache,
+        }
+
+        # If no specific argument is provided, iterate over all
+        if not any(args.values()):
+            for arg in args.keys():
+                if self.config.get(arg) is not None:
+                    if Confirm.ask(
+                        f"Do you want to clear the [dark_orange]{arg}[/dark_orange] config?"
+                    ):
+                        self.config[arg] = None
+                        console.print(
+                            f"Cleared [dark_orange]{arg}[/dark_orange] config."
+                        )
+                    else:
+                        console.print(
+                            f"Skipped clearing [dark_orange]{arg}[/dark_orange] config."
+                        )
+
         else:
-            args = locals()
-            for arg in [
-                "wallet_name",
-                "wallet_path",
-                "wallet_hotkey",
-                "network",
-                "chain",
-                "no_cache",
-            ]:
-                if args.get(arg):
-                    self.config[arg] = None
+            # Check each specified argument
+            for arg, should_clear in args.items():
+                if should_clear:
+                    if self.config.get(arg) is not None:
+                        if Confirm.ask(
+                            f"Do you want to clear the [dark_orange]{arg}[/dark_orange] [bold cyan]({self.config.get(arg)})[/bold cyan] config?"
+                        ):
+                            self.config[arg] = None
+                            console.print(
+                                f"Cleared [dark_orange]{arg}[/dark_orange] config."
+                            )
+                        else:
+                            console.print(
+                                f"Skipped clearing [dark_orange]{arg}[/dark_orange] config."
+                            )
+                    else:
+                        console.print(
+                            f"No config set for [dark_orange]{arg}[/dark_orange]. Use `btcli config set` to set it."
+                        )
         with open(self.config_path, "w") as f:
             safe_dump(self.config, f)
 
@@ -882,7 +916,17 @@ class CLIManager:
         """
         Prints the current config file in a table
         """
-        table = Table(Column("Name"), Column("Value"))
+        table = Table(
+            Column(
+                "[bold white]Name",
+                style="dark_orange",
+            ),
+            Column(
+                "[bold white]Value",
+                style="gold1",
+            ),
+            box=box.SIMPLE_HEAD,
+        )
         for k, v in self.config.items():
             table.add_row(*[k, str(v)])
         console.print(table)
@@ -892,8 +936,8 @@ class CLIManager:
         wallet_name: Optional[str],
         wallet_path: Optional[str],
         wallet_hotkey: Optional[str],
-        validate: bool = True,
-        ask_type: str = "name"
+        ask_for: list[str] = [],
+        validate: WV = WV.WALLET,
     ) -> Wallet:
         """
         Generates a wallet object based on supplied values, validating the wallet is valid if flag is set
@@ -904,34 +948,60 @@ class CLIManager:
         :param ask_type: aspect of the wallet (name, path, hotkey) to prompt the user for
         :return: created Wallet object
         """
-        wallet_name = wallet_name or self.config.get("wallet_name")
-        wallet_path = wallet_path or self.config.get("wallet_path")
-        wallet_hotkey = wallet_hotkey or self.config.get("wallet_hotkey")
-        wallet: Wallet = None
+        # Prompt for missing attributes specified in ask_for
+        if WO.NAME in ask_for and not wallet_name:
+            if self.config.get("wallet_name"):
+                wallet_name = self.config.get("wallet_name")
+                console.print(
+                    f"Using wallet name from config:[bold cyan] {wallet_name}"
+                )
+            else:
+                wallet_name = typer.prompt(
+                    typer.style("Enter wallet name", fg="blue"),
+                    default=defaults.wallet.name,
+                )
 
-        if not any([wallet_name, wallet_path, wallet_hotkey]):
-            _wallet_str = typer.style("wallet", fg="blue")
-            wallet_type_asked = typer.prompt(f"Enter {_wallet_str} {ask_type}")
-            if ask_type == "name":
-                wallet = Wallet(name=wallet_type_asked)
-            elif ask_type == "path":
-                wallet = Wallet(path=wallet_type_asked)
-            elif ask_type == "hotkey":
-                wallet = Wallet(hotkey=wallet_type_asked)
-        if not wallet:
-            wallet = Wallet(name=wallet_name, hotkey=wallet_hotkey, path=wallet_path)
-        if validate:
+        if WO.HOTKEY in ask_for and not wallet_hotkey:
+            if self.config.get("wallet_hotkey"):
+                wallet_hotkey = self.config.get("wallet_hotkey")
+                console.print(
+                    f"Using wallet hotkey from config:[bold cyan] {wallet_hotkey}"
+                )
+            else:
+                wallet_hotkey = typer.prompt(
+                    typer.style("Enter wallet hotkey", fg="blue"),
+                    default=defaults.wallet.hotkey,
+                )
+        if wallet_path:
+            if wallet_path == "default":
+                wallet_path = defaults.wallet.path
+
+        elif self.config.get("wallet_path"):
+            wallet_path = self.config.get("wallet_path")
+            console.print(f"Using wallet path from config:[bold magenta] {wallet_path}")
+
+        if WO.PATH in ask_for and not wallet_path:
+            wallet_path = typer.prompt(
+                typer.style("Enter wallet path", fg="blue"),
+                default=defaults.wallet.path,
+            )
+        # Create the Wallet object
+        wallet = Wallet(name=wallet_name, path=wallet_path, hotkey=wallet_hotkey)
+
+        # Validate the wallet if required
+        if validate == WV.WALLET or validate == WV.WALLET_AND_HOTKEY:
             valid = utils.is_valid_wallet(wallet)
             if not valid[0]:
                 utils.err_console.print(
-                    f"[red]Error: Wallet does not appear valid. Please verify your wallet information: {wallet}[/red]"
+                    f"[red]Error: Wallet does not not exist. \nPlease verify your wallet information: {wallet}[/red]"
                 )
                 raise typer.Exit()
-            elif not valid[1]:
-                if not Confirm.ask(
-                    f"[yellow]Warning: Wallet appears valid, but hotkey '{wallet.hotkey_str}' does not. Proceed?"
-                ):
-                    raise typer.Exit()
+
+            if validate == WV.WALLET_AND_HOTKEY and not valid[1]:
+                utils.err_console.print(
+                    f"[red]Error: Wallet '{wallet.name}' exists but hotkey '{wallet.hotkey_str}' does not. \nPlease verify your wallet information: {wallet}[/red]"
+                )
+                raise typer.Exit()
         return wallet
 
     def wallet_list(
@@ -962,7 +1032,9 @@ class CLIManager:
         It is intended for use within the Bittensor CLI to provide a quick overview of the user's wallets.
         """
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(None, wallet_path, None, ask_type="path")
+        wallet = self.wallet_ask(
+            None, wallet_path, None, ask_for=[WO.PATH], validate=WV.NONE
+        )
         return self._run_command(wallets.wallet_list(wallet.path))
 
     def wallet_overview(
@@ -1066,13 +1138,10 @@ class CLIManager:
             )
             raise typer.Exit()
 
-        if all_wallets:
-            if not wallet_path:
-                wallet_path = Prompt.ask(
-                    "Enter the path of the wallets", default=defaults.wallet.path
-                )
+        ask_for = [WO.NAME] if not all_wallets else [WO.PATH]
+        validate = WV.WALLET if not all_wallets else WV.NONE
         wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, validate=False
+            wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
         )
         return self._run_command(
             wallets.overview(
@@ -1133,7 +1202,13 @@ class CLIManager:
         Users should verify the destination address and amount before confirming the transaction to avoid errors or loss of funds.
         """
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME],
+            validate=WV.WALLET,
+        )
         subtensor = self.initialize_chain(network, chain)
         return self._run_command(
             wallets.transfer(wallet, subtensor, destination, amount, prompt)
@@ -1141,9 +1216,9 @@ class CLIManager:
 
     def wallet_swap_hotkey(
         self,
-        wallet_name: Optional[str] = Options.wallet_name_req,
+        wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
         destination_hotkey_name: Optional[str] = typer.Argument(
@@ -1154,7 +1229,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        [red]Swap hotkeys[/red] for a neuron on the network.
+        Swap hotkeys for a neuron on the network.
 
         # Usage:
 
@@ -1165,10 +1240,23 @@ class CLIManager:
         [green]$[/green] btcli wallet swap_hotkey new_hotkey --wallet-name your_wallet_name --wallet-hotkey original_hotkey
         """
         self.verbosity_handler(quiet, verbose)
-        original_wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        original_wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
         if not destination_hotkey_name:
             destination_hotkey_name = typer.prompt("Enter the destination hotkey name")
-        new_wallet = self.wallet_ask(wallet_name, wallet_path, destination_hotkey_name)
+
+        new_wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            destination_hotkey_name,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
         self.initialize_chain(network, chain)
         return self._run_command(
             wallets.swap_hotkey(original_wallet, new_wallet, self.not_subtensor, prompt)
@@ -1237,13 +1325,11 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
         # if all-wallets is entered, ask for path
-        if all_wallets:
-            if not wallet_path:
-                wallet_path = Prompt.ask(
-                    "Enter the path of the wallets", default=defaults.wallet.path
-                )
+
+        ask_for = [WO.NAME] if not all_wallets else [WO.PATH]
+        validate = WV.WALLET if not all_wallets else WV.NONE
         wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, validate=False
+            wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
         )
         self.initialize_chain(network, chain)
         return self._run_command(
@@ -1329,7 +1415,13 @@ class CLIManager:
         without using real TAO tokens. It's important for users to have the necessary hardware setup, especially when opting for
         CUDA-based GPU calculations. It is currently disabled on testnet and finney. You must use this on a local chain.
         """
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME],
+            validate=WV.WALLET,
+        )
         return self._run_command(
             wallets.faucet(
                 wallet,
@@ -1347,7 +1439,7 @@ class CLIManager:
 
     def wallet_regen_coldkey(
         self,
-        wallet_name: Optional[str] = Options.wallet_name_req,
+        wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         mnemonic: Optional[str] = Options.mnemonic,
@@ -1377,9 +1469,19 @@ class CLIManager:
         security reasons. It should be used with caution to avoid overwriting existing keys unintentionally.
         """
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, validate=False
-        )
+
+        if not wallet_path:
+            wallet_path = Prompt.ask(
+                "Enter the path of wallets directory", default=defaults.wallet.path
+            )
+
+        if not wallet_name:
+            wallet_name = Prompt.ask(
+                "Enter the name of the new wallet", default=defaults.wallet.name
+            )
+
+        wallet = Wallet(wallet_name, wallet_hotkey, wallet_path)
+
         mnemonic, seed, json, json_password = get_creation_data(
             mnemonic, seed, json, json_password
         )
@@ -1396,7 +1498,7 @@ class CLIManager:
 
     def wallet_regen_coldkey_pub(
         self,
-        wallet_name: Optional[str] = Options.wallet_name_req,
+        wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         public_key_hex: Optional[str] = Options.public_hex_key,
@@ -1423,9 +1525,18 @@ class CLIManager:
         functionalities.
         """
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, validate=False
-        )
+
+        if not wallet_path:
+            wallet_path = Prompt.ask(
+                "Enter the path of wallets directory", default=defaults.wallet.path
+            )
+
+        if not wallet_name:
+            wallet_name = Prompt.ask(
+                "Enter the name of the new wallet", default=defaults.wallet.name
+            )
+        wallet = Wallet(wallet_name, wallet_hotkey, wallet_path)
+
         if not ss58_address and not public_key_hex:
             prompt_answer = typer.prompt(
                 "Enter the ss58_address or the public key in hex"
@@ -1445,14 +1556,19 @@ class CLIManager:
 
     def wallet_regen_hotkey(
         self,
-        wallet_name: Optional[str] = Options.wallet_name_req,
+        wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         mnemonic: Optional[str] = Options.mnemonic,
         seed: Optional[str] = Options.seed,
         json: Optional[str] = Options.json,
         json_password: Optional[str] = Options.json_password,
-        use_password: Optional[bool] = Options.use_password,
+        use_password: bool = typer.Option(
+            False,  # Overriden to False
+            help="Set true to protect the generated bittensor key with a password.",
+            is_flag=True,
+            flag_value=True,
+        ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -1475,7 +1591,13 @@ class CLIManager:
         It should be used cautiously to avoid accidental overwrites of existing keys.
         """
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET,
+        )
         mnemonic, seed, json, json_password = get_creation_data(
             mnemonic, seed, json, json_password
         )
@@ -1492,9 +1614,9 @@ class CLIManager:
 
     def wallet_new_hotkey(
         self,
-        wallet_name: Optional[str] = Options.wallet_name_req,
+        wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         n_words: Optional[int] = None,
         use_password: bool = typer.Option(
             False,  # Overriden to False
@@ -1523,7 +1645,11 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, validate=False
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET,
         )
         n_words = get_n_words(n_words)
         return self._run_command(wallets.new_hotkey(wallet, n_words, use_password))
@@ -1555,9 +1681,18 @@ class CLIManager:
         a secure presence on the Bittensor network.
         """
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, validate=False
-        )
+
+        if not wallet_path:
+            wallet_path = Prompt.ask(
+                "Enter the path of the wallets", default=defaults.wallet.path
+            )
+
+        if not wallet_name:
+            wallet_name = Prompt.ask(
+                "Enter the name of the new wallet", default=defaults.wallet.name
+            )
+
+        wallet = Wallet(wallet_name, wallet_hotkey, wallet_path)
         n_words = get_n_words(n_words)
         return self._run_command(wallets.new_coldkey(wallet, n_words, use_password))
 
@@ -1591,9 +1726,9 @@ class CLIManager:
 
     def wallet_create_wallet(
         self,
-        wallet_name: Optional[str] = Options.wallet_name_req,
+        wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         n_words: Optional[int] = None,
         use_password: bool = Options.use_password,
         quiet: bool = Options.quiet,
@@ -1619,7 +1754,11 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, validate=False
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.NONE,
         )
         n_words = get_n_words(n_words)
         return self._run_command(
@@ -1669,15 +1808,13 @@ class CLIManager:
         [green]$[/green] btcli w balance --all
         """
         self.verbosity_handler(quiet, verbose)
-        if all_balances:
-            if not wallet_path:
-                wallet_path = Prompt.ask(
-                    "Enter the path of the wallets", default=defaults.wallet.path
-                )
-        subtensor = self.initialize_chain(network, chain)
+
+        ask_for = [WO.PATH] if all_balances else [WO.NAME]
+        validate = WV.NONE if all_balances else WV.WALLET
         wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, validate=False
+            wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
         )
+        subtensor = self.initialize_chain(network, chain)
         return self._run_command(
             wallets.wallet_balance(wallet, subtensor, all_balances)
         )
@@ -1708,7 +1845,11 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, validate=False
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME],
+            validate=WV.WALLET,
         )
         return self._run_command(wallets.wallet_history(wallet))
 
@@ -1817,7 +1958,13 @@ class CLIManager:
         part of other scripts or applications.
         """
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.HOTKEY, WO.NAME],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
         return self._run_command(
             wallets.set_id(
                 wallet,
@@ -1888,7 +2035,7 @@ class CLIManager:
     def wallet_sign(
         self,
         wallet_path: str = Options.wallet_path,
-        wallet_name: str = Options.wallet_name_req,
+        wallet_name: str = Options.wallet_name,
         wallet_hotkey: str = Options.wallet_hotkey,
         use_hotkey: bool = typer.Option(
             False,
@@ -1921,13 +2068,16 @@ class CLIManager:
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         if not use_hotkey:
             use_hotkey = typer.confirm(
-                "Do you want to sign using the hotkey?", default=False
+                "Would you like to sign the transaction using the hotkey? (The default is to sign with the coldkey.)",
+                default=False,
             )
 
-        if use_hotkey and not wallet_hotkey:
-            wallet_hotkey = typer.prompt("Enter your hotkey name")
-            wallet = self.wallet_ask(wallet.name, wallet_path, wallet_hotkey)
+        ask_for = [WO.HOTKEY, WO.NAME] if use_hotkey else [WO.NAME]
+        validate = WV.WALLET_AND_HOTKEY if use_hotkey else WV.WALLET
 
+        wallet = self.wallet_ask(
+            wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
+        )
         if not message:
             message = typer.prompt("Enter the message to encode and sign")
 
@@ -1966,9 +2116,9 @@ class CLIManager:
         self,
         network: str = Options.network,
         chain: str = Options.chain,
-        wallet_name: str = Options.wallet_name_req,
+        wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
-        wallet_hotkey: str = Options.wallet_hk_req,
+        wallet_hotkey: str = Options.wallet_hotkey,
         netuids: list[int] = typer.Option(
             None, help="Netuids, e.g. `-n 0 -n 1 -n 2` ..."
         ),
@@ -2001,7 +2151,13 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
         netuids = list_prompt(netuids, int, "Enter netuids")
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.HOTKEY, WO.NAME],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
         if not weights:
             weights = list_prompt([], float, "Weights: e.g. 0.02, 0.03, 0.01 ")
         self._run_command(
@@ -2074,9 +2230,9 @@ class CLIManager:
         self,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
-        wallet_name: str = Options.wallet_name_req,
+        wallet_name: str = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         netuid: int = Options.netuid,
         amount: float = typer.Option(
             None,
@@ -2091,9 +2247,7 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Not currently working with new implementation
-
-        [red]Boost the weights[/red] for a specific [red]subnet[/red] within the root network on the Bittensor
+        Boost the weights for a specific subnet within the root network on the Bittensor
         network.
 
         # Usage:
@@ -2116,9 +2270,9 @@ class CLIManager:
         self,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
-        wallet_name: str = Options.wallet_name_req,
+        wallet_name: str = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         netuid: int = Options.netuid,
         amount: float = typer.Option(
             None,
@@ -2149,7 +2303,13 @@ class CLIManager:
 
         """
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
         return self._run_command(
             root.set_slash(
                 wallet, self.initialize_chain(network, chain), netuid, amount, prompt
@@ -2160,9 +2320,9 @@ class CLIManager:
         self,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
-        wallet_name: Optional[str] = Options.wallet_name_req,
+        wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         proposal: str = typer.Option(
             None,
             "--proposal",
@@ -2191,7 +2351,13 @@ class CLIManager:
         It plays a vital role in the governance and evolution of the Bittensor network.
         """
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
         return self._run_command(
             root.senate_vote(
                 wallet, self.initialize_chain(network, chain), proposal, prompt
@@ -2229,9 +2395,9 @@ class CLIManager:
         self,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
-        wallet_name: Optional[str] = Options.wallet_name_req,
+        wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -2280,7 +2446,13 @@ class CLIManager:
         Users should ensure their wallet is sufficiently funded before attempting to register a neuron.
         """
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
         return self._run_command(
             root.register(wallet, self.initialize_chain(network, chain), prompt)
         )
@@ -2317,9 +2489,9 @@ class CLIManager:
         self,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
-        wallet_name: Optional[str] = Options.wallet_name_req,
+        wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         take: float = typer.Option(None, help="The new take value."),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -2343,7 +2515,13 @@ class CLIManager:
         [italic]Note[/italic]: This function can be used to update the takes individually for every subnet
         """
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
         if not take:
             max_value = typer.style("Max: 0.18", fg="red")
             min_value = typer.style("Min: 0.08", fg="blue")
@@ -2425,7 +2603,9 @@ class CLIManager:
                         "[red]The amounts do not match. Please try again.[/red]"
                     )
 
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+        )
         return self._run_command(
             root.delegate_stake(
                 wallet,
@@ -2508,7 +2688,9 @@ class CLIManager:
                         "[red]The amounts do not match. Please try again.[/red]"
                     )
 
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+        )
         self._run_command(
             root.delegate_unstake(
                 wallet,
@@ -2586,7 +2768,9 @@ class CLIManager:
         [italic]Note[/italic]: This function is typically called by the CLI parser and is not intended to be used directly in user code.
         """
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+        )
         self._run_command(
             root.my_delegates(
                 wallet, self.initialize_chain(network, chain), all_wallets
@@ -2661,9 +2845,9 @@ class CLIManager:
     # TODO: Confirm if we need a command for this - currently registering to root auto makes u delegate
     def root_nominate(
         self,
-        wallet_name: Optional[str] = Options.wallet_name_req,
+        wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
         prompt: bool = Options.prompt,
@@ -2700,7 +2884,13 @@ class CLIManager:
         side effects on the network state.
         """
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
         return self._run_command(
             root.nominate(wallet, self.initialize_chain(network, chain), prompt)
         )
@@ -2764,10 +2954,11 @@ class CLIManager:
             raise typer.Exit()
         if not reuse_last:
             subtensor = self.initialize_chain(network, chain)
-            wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         else:
             subtensor = None
-            wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+        )
         return self._run_command(
             stake.show(
                 wallet,
@@ -2851,7 +3042,6 @@ class CLIManager:
         network. It allows for a strategic allocation of tokens to enhance network participation and influence.
         """
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
 
         if stake_all and amount:
             err_console.print(
@@ -2885,10 +3075,17 @@ class CLIManager:
             if not is_valid_ss58_address(hotkey):
                 wallet_hotkey = hotkey
                 wallet = self.wallet_ask(
-                    wallet.name, wallet_path, wallet_hotkey, validate=True
+                    wallet_name,
+                    wallet_path,
+                    wallet_hotkey,
+                    ask_for=[WO.NAME, WO.HOTKEY],
+                    validate=WV.WALLET_AND_HOTKEY,
                 )
             else:
                 hotkey_ss58_address = hotkey
+                wallet = self.wallet_ask(
+                    wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+                )
 
         return self._run_command(
             stake.stake_add(
@@ -2974,7 +3171,7 @@ class CLIManager:
         them from the network. It allows for flexible management of token stakes across different neurons (hotkeys) on the network.
         """
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+
         if all_hotkeys and include_hotkeys:
             err_console.print(
                 "You have specified hotkeys to include and the `--all-hotkeys` flag. The flag"
@@ -3001,10 +3198,17 @@ class CLIManager:
             if not is_valid_ss58_address(hotkey):
                 wallet_hotkey = hotkey
                 wallet = self.wallet_ask(
-                    wallet.name, wallet_path, wallet_hotkey, validate=True
+                    wallet_name,
+                    wallet_path,
+                    wallet_hotkey,
+                    ask_for=[WO.NAME, WO.HOTKEY],
+                    validate=WV.WALLET_AND_HOTKEY,
                 )
             else:
                 hotkey_ss58_address = hotkey
+                wallet = self.wallet_ask(
+                    wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+                )
 
         if unstake_all and amount:
             err_console.print(
@@ -3036,8 +3240,8 @@ class CLIManager:
 
     def stake_get_children(
         self,
-        wallet_name: Optional[str] = Options.wallet_name_req,
-        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         wallet_path: Optional[str] = Options.wallet_path,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
@@ -3078,16 +3282,26 @@ class CLIManager:
         [italic]Note[/italic]: This command is for users who wish to see child hotkeys among different neurons (hotkeys) on the network.
         """
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
+
         if all_netuids and netuid:
             err_console.print("Specify either netuid or all, not both.")
             raise typer.Exit()
+
         if all_netuids:
             netuid = None
+
         elif not netuid:
             netuid = IntPrompt.ask(
                 "Enter netuid (leave blank for all)", default=None, show_default=True
             )
+
         return self._run_command(
             stake.get_children(wallet, self.initialize_chain(network, chain), netuid)
         )
@@ -3097,8 +3311,8 @@ class CLIManager:
         children: list[str] = typer.Option(
             [], "--children", "-c", help="Enter children hotkeys (ss58)", prompt=False
         ),
-        wallet_name: str = Options.wallet_name_req,
-        wallet_hotkey: str = Options.wallet_hk_req,
+        wallet_name: str = Options.wallet_name,
+        wallet_hotkey: str = Options.wallet_hotkey,
         wallet_path: str = Options.wallet_path,
         network: str = Options.network,
         chain: str = Options.chain,
@@ -3138,18 +3352,28 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
         children = list_prompt(children, str, "Enter the child hotkeys (ss58)")
+
         proportions = list_prompt(
             proportions,
             float,
             "Enter proportions equal to the number of children (sum not exceeding a total of 1.0)",
         )
+
         if len(proportions) != len(children):
             err_console.print("You must have as many proportions as you have children.")
             raise typer.Exit()
+
         if sum(proportions) > 1.0:
             err_console.print("Your proportion total must sum not exceed 1.0.")
             raise typer.Exit()
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
         return self._run_command(
             stake.set_children(
                 wallet,
@@ -3164,8 +3388,8 @@ class CLIManager:
 
     def stake_revoke_children(
         self,
-        wallet_name: Optional[str] = Options.wallet_name_req,
-        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         wallet_path: Optional[str] = Options.wallet_path,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
@@ -3196,7 +3420,13 @@ class CLIManager:
         It allows for a complete removal of delegated authority to enhance network participation and influence.
         """
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
         return self._run_command(
             stake.revoke_children(
                 wallet,
@@ -3209,8 +3439,8 @@ class CLIManager:
 
     def stake_childkey_take(
         self,
-        wallet_name: Optional[str] = Options.wallet_name_req,
-        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         wallet_path: Optional[str] = Options.wallet_path,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
@@ -3249,7 +3479,14 @@ class CLIManager:
         [italic]]Note[/italic]: This command is critical for users who wish to modify their child hotkey take on the network.
         """
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
+
         return self._run_command(
             stake.childkey_take(
                 wallet=wallet,
@@ -3300,13 +3537,18 @@ class CLIManager:
         functioning and the impact of changing these parameters.
         """
         self.verbosity_handler(quiet, verbose)
+
         if not param_name:
             param_name = Prompt.ask(
                 "Enter hyperparameter", choices=list(HYPERPARAMS.keys())
             )
+
         if not param_value:
             param_value = Prompt.ask(f"Enter new value for {param_name}")
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+
+        wallet = self.wallet_ask(
+            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+        )
         return self._run_command(
             sudo.sudo_set_hyperparameter(
                 wallet,
@@ -3527,7 +3769,12 @@ class CLIManager:
         to the Bittensor ecosystem.
         """
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME],
+        )
         return self._run_command(
             subnets.create(wallet, self.initialize_chain(network, chain), prompt)
         )
@@ -3536,7 +3783,7 @@ class CLIManager:
         self,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
         netuid: int = Options.netuid,
@@ -3609,7 +3856,13 @@ class CLIManager:
         """
         return self._run_command(
             subnets.pow_register(
-                self.wallet_ask(wallet_name, wallet_path, wallet_hotkey),
+                self.wallet_ask(
+                    wallet_name,
+                    wallet_path,
+                    wallet_hotkey,
+                    ask_for=[WO.NAME, WO.HOTKEY],
+                    validate=WV.WALLET_AND_HOTKEY,
+                ),
                 self.initialize_chain(network, chain),
                 netuid,
                 processors,
@@ -3624,9 +3877,9 @@ class CLIManager:
 
     def subnets_register(
         self,
-        wallet_name: str = Options.wallet_name_req,
+        wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
-        wallet_hotkey: str = Options.wallet_hk_req,
+        wallet_hotkey: str = Options.wallet_hotkey,
         chain: str = Options.chain,
         network: str = Options.network,
         netuid: int = Options.netuid,
@@ -3672,9 +3925,16 @@ class CLIManager:
         wallet is sufficiently funded before attempting to register a neuron.
         """
         self.verbosity_handler(quiet, verbose)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
         return self._run_command(
             subnets.register(
-                self.wallet_ask(wallet_name, wallet_path, wallet_hotkey),
+                wallet,
                 self.initialize_chain(network, chain),
                 netuid,
                 prompt,
@@ -3835,10 +4095,18 @@ class CLIManager:
             )
             raise typer.Exit()
         salt = list_prompt(salt, int, "Corresponding salt for the hash function")
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
+
         return self._run_command(
             weights_cmds.reveal_weights(
                 self.initialize_chain(network, chain),
-                self.wallet_ask(wallet_name, wallet_path, wallet_hotkey),
+                wallet,
                 netuid,
                 uids,
                 weights,
@@ -3904,10 +4172,17 @@ class CLIManager:
             )
             raise typer.Exit()
         salt = list_prompt(salt, int, "Corresponding salt for the hash function")
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
         return self._run_command(
             weights_cmds.commit_weights(
                 self.initialize_chain(network, chain),
-                self.wallet_ask(wallet_name, wallet_path, wallet_hotkey),
+                wallet,
                 netuid,
                 uids,
                 weights,
