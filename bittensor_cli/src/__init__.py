@@ -1,3 +1,4 @@
+from enum import Enum
 from dataclasses import dataclass
 from typing import Any
 
@@ -95,6 +96,18 @@ class Defaults:
 
 
 defaults = Defaults
+
+
+class WalletOptions(Enum):
+    PATH: str = "path"
+    NAME: str = "name"
+    HOTKEY: str = "hotkey"
+
+
+class WalletValidationTypes(Enum):
+    NONE = None
+    WALLET = "wallet"
+    WALLET_AND_HOTKEY = "wallet_and_hotkey"
 
 
 TYPE_REGISTRY = {
