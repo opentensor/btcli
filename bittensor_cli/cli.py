@@ -67,15 +67,6 @@ class Options:
         "--wallet.name",
         help="Name of wallet",
     )
-    wallet_name_req = typer.Option(
-        None,
-        "--wallet-name",
-        "-w",
-        "--wallet_name",
-        "--wallet.name",
-        help="Name of wallet",
-        prompt=True,
-    )
     wallet_path = typer.Option(
         None,
         "--wallet-path",
@@ -91,15 +82,6 @@ class Options:
         "--wallet_hotkey",
         "--wallet.hotkey",
         help="Hotkey of wallet",
-    )
-    wallet_hk_req = typer.Option(
-        None,
-        "--hotkey",
-        "-H",
-        "--wallet_hotkey",
-        "--wallet.hotkey",
-        help="Hotkey name of wallet",
-        prompt=True,
     )
     mnemonic = typer.Option(
         None, help="Mnemonic used to regen your key i.e. horse cart dog ..."
@@ -1234,9 +1216,9 @@ class CLIManager:
 
     def wallet_swap_hotkey(
         self,
-        wallet_name: Optional[str] = Options.wallet_name_req,
+        wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hk_req,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
         destination_hotkey_name: Optional[str] = typer.Argument(
@@ -1516,7 +1498,7 @@ class CLIManager:
 
     def wallet_regen_coldkey_pub(
         self,
-        wallet_name: Optional[str] = Options.wallet_name_req,
+        wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         public_key_hex: Optional[str] = Options.public_hex_key,
