@@ -936,7 +936,7 @@ class CLIManager:
         wallet_name: Optional[str],
         wallet_path: Optional[str],
         wallet_hotkey: Optional[str],
-        ask_for: List[str] = [],
+        ask_for: list[str] = [],
         validate: WV = WV.WALLET,
     ) -> Wallet:
         """
@@ -1808,15 +1808,13 @@ class CLIManager:
         [green]$[/green] btcli w balance --all
         """
         self.verbosity_handler(quiet, verbose)
-        if all_balances:
-            if not wallet_path:
-                wallet_path = Prompt.ask(
-                    "Enter the path of the wallets", default=defaults.wallet.path
-                )
-        subtensor = self.initialize_chain(network, chain)
+
+        ask_for = [WO.PATH] if all_balances else [WO.NAME]
+        validate = WV.NONE if all_balances else WV.WALLET
         wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, validate=False, ask_for=["name"]
+            wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
         )
+        subtensor = self.initialize_chain(network, chain)
         return self._run_command(
             wallets.wallet_balance(wallet, subtensor, all_balances)
         )
