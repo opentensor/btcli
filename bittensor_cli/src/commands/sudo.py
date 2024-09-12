@@ -7,6 +7,7 @@ from rich import box
 from rich.table import Column, Table
 
 from bittensor_cli.src import HYPERPARAMS
+from bittensor_cli.src.bittensor.chain_data import decode_account_id
 from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
@@ -88,11 +89,12 @@ async def set_hyperparameter_extrinsic(
                       finalization/inclusion, the response is `True`.
     """
     print_verbose("Confirming subnet owner")
-    subnet_owner = await subtensor.substrate.query(
+    subnet_owner_ = await subtensor.substrate.query(
         module="SubtensorModule",
         storage_function="SubnetOwner",
         params=[netuid],
     )
+    subnet_owner = decode_account_id(subnet_owner_[0])
     if subnet_owner != wallet.coldkeypub.ss58_address:
         err_console.print(
             ":cross_mark: [red]This wallet doesn't own the specified subnet.[/red]"
@@ -215,7 +217,8 @@ async def get_hyperparameters(subtensor: "SubtensorInterface", netuid: int):
         Column("[white]HYPERPARAMETER", style="bright_cyan"),
         Column("[white]VALUE", style="bold spring_green4"),
         Column("[white]NORMALIZED", style="dark_sea_green"),
-        title=f"[underline dark_orange]\nSubnet Hyperparameters[/underline dark_orange]\n\n NETUID: [light_goldenrod2]{netuid}[/light_goldenrod2] - {subtensor}\n",
+        title=f"[underline dark_orange]\nSubnet Hyperparameters[/underline dark_orange]\n\n NETUID: [light_goldenrod2]"
+        f"{netuid}[/light_goldenrod2] - {subtensor}\n",
         show_footer=True,
         width=None,
         pad_edge=False,

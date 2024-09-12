@@ -171,7 +171,6 @@ class SubtensorInterface:
         hex_bytes_result = await self.query_runtime_api(
             runtime_api="DelegateInfoRuntimeApi", method="get_delegates", params=[]
         )
-        print("del hex bytes: ", hex_bytes_result)
         if hex_bytes_result is not None:
             try:
                 bytes_result = bytes.fromhex(hex_bytes_result[2:])

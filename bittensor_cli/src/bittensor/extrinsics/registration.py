@@ -486,10 +486,8 @@ async def register_extrinsic(
     """
 
     async def get_neuron_for_pubkey_and_subnet():
-        uid = (
-            await subtensor.substrate.query(
-                "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
-            )
+        uid = await subtensor.substrate.query(
+            "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
         )
         if uid is None:
             return NeuronInfo.get_null_neuron()
