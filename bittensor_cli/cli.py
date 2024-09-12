@@ -423,7 +423,9 @@ class CLIManager:
 
         # subnets aliases
         self.app.add_typer(
-            self.subnets_app, name="subnets", short_help="Subnets commands, alias: `s`, `subnet`"
+            self.subnets_app,
+            name="subnets",
+            short_help="Subnets commands, alias: `s`, `subnet`",
         )
         self.app.add_typer(self.subnets_app, name="s", hidden=True)
         self.app.add_typer(self.subnets_app, name="subnet", hidden=True)
@@ -624,11 +626,11 @@ class CLIManager:
                 )
                 if self.config["chain"]:
                     console.print(
-                        f"Using chain: [dark_orange]{self.config["chain"]}[/dark_orange] from config"
+                        f'Using chain: [dark_orange]{self.config["chain"]}[/dark_orange] from config'
                     )
                 else:
                     console.print(
-                        f"Using specified network [dark_orange]{self.config["network"]}[/dark_orange] from config"
+                        f"Using specified network [dark_orange]{self.config['network']}[/dark_orange] from config"
                     )
             else:
                 self.not_subtensor = SubtensorInterface(
