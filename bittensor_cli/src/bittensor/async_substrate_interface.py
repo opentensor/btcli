@@ -1371,8 +1371,7 @@ class AsyncSubstrateInterface:
             try:
                 extrinsic_idx = phase_value[0]
             except IndexError:
-                print(f"ERROR: {data}")
-                raise
+                extrinsic_idx = None
 
             # Extract event details
             module_id, event_data = next(iter(data["event"].items()))

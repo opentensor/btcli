@@ -38,6 +38,28 @@ class ParamWithTypes(TypedDict):
     type: str  # ScaleType string of the parameter.
 
 
+class ProposalVoteData:
+    index: int
+    threshold: int
+    ayes: list[str]
+    nays: list[str]
+    end: int
+
+    def __init__(self, proposal_dict: dict) -> None:
+        self.index = proposal_dict["index"]
+        self.threshold = proposal_dict["threshold"]
+        self.ayes = self.decode_ss58_tuples(proposal_dict["ayes"])
+        self.nays = self.decode_ss58_tuples(proposal_dict["nays"])
+        self.end = proposal_dict["end"]
+
+    @staticmethod
+    def decode_ss58_tuples(l: tuple):
+        """
+        Decodes a tuple of ss58 addresses formatted as bytes tuples
+        """
+        return [decode_account_id(l[x][0]) for x in range(len(l))]
+
+
 class SubtensorInterface:
     """
     Thin layer for interacting with Substrate Interface. Mostly a collection of frequently-used calls.
@@ -897,3 +919,34 @@ class SubtensorInterface:
             bytes_result = bytes.fromhex(hex_bytes_result)
 
         return SubnetHyperparameters.from_vec_u8(bytes_result)
+
+    async def get_vote_data(
+        self,
+        proposal_hash: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> Optional["ProposalVoteData"]:
+        """
+        Retrieves the voting data for a specific proposal on the Bittensor blockchain. This data includes
+        information about how senate members have voted on the proposal.
+
+        :param proposal_hash: The hash of the proposal for which voting data is requested.
+        :param block_hash: The hash of the blockchain block number to query the voting data.
+        :param reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        :return: An object containing the proposal's voting data, or `None` if not found.
+
+        This function is important for tracking and understanding the decision-making processes within
+        the Bittensor network, particularly how proposals are received and acted upon by the governing body.
+        """
+        vote_data = await self.substrate.query(
+            module="Triumvirate",
+            storage_function="Voting",
+            params=[proposal_hash],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+        if vote_data is None:
+            return None
+        else:
+            return ProposalVoteData(vote_data)

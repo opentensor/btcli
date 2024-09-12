@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import Optional, TypedDict
+from typing import Optional, TYPE_CHECKING
 
 from bittensor_wallet import Wallet
 from bittensor_wallet.errors import KeyFileError
@@ -44,6 +44,9 @@ from bittensor_cli.src.bittensor.utils import (
     group_vpermits,
 )
 
+if TYPE_CHECKING:
+    from bittensor_cli.src.bittensor.subtensor_interface import ProposalVoteData
+
 # helpers
 
 
@@ -52,7 +55,7 @@ def display_votes(
 ) -> str:
     vote_list = list()
 
-    for address in vote_data["ayes"]:
+    for address in vote_data.ayes:
         vote_list.append(
             "{}: {}".format(
                 delegate_info[address].name if address in delegate_info else address,
@@ -60,7 +63,7 @@ def display_votes(
             )
         )
 
-    for address in vote_data["nays"]:
+    for address in vote_data.nays:
         vote_list.append(
             "{}: {}".format(
                 delegate_info[address].name if address in delegate_info else address,
@@ -71,35 +74,22 @@ def display_votes(
     return "\n".join(vote_list)
 
 
-def format_call_data(call_data: GenericCall) -> str:
-    human_call_data = list()
+def format_call_data(call_data: dict) -> str:
+    # Extract the module and call details
+    module, call_details = next(iter(call_data.items()))
 
-    for arg in call_data["call_args"]:
-        arg_value = arg["value"]
+    # Extract the call function name and arguments
+    call_info = call_details[0]
+    call_function, call_args = next(iter(call_info.items()))
 
-        # If this argument is a nested call
-        func_args = (
-            format_call_data(
-                {
-                    "call_function": arg_value["call_function"],
-                    "call_args": arg_value["call_args"],
-                }
-            )
-            if isinstance(arg_value, dict) and "call_function" in arg_value
-            else str(arg_value)
-        )
+    # Extract the argument, handling tuple values
+    formatted_args = ", ".join(
+        str(arg[0]) if isinstance(arg, tuple) else str(arg)
+        for arg in call_args.values()
+    )
 
-        human_call_data.append("{}: {}".format(arg["name"], func_args))
-
-    return "{}({})".format(call_data["call_function"], ", ".join(human_call_data))
-
-
-class ProposalVoteData(TypedDict):
-    index: int
-    threshold: int
-    ayes: list[str]
-    nays: list[str]
-    end: int
+    # Format the final output string
+    return f"{call_function}({formatted_args})"
 
 
 async def _get_senate_members(
@@ -123,7 +113,7 @@ async def _get_senate_members(
 
 async def _get_proposals(
     subtensor: SubtensorInterface, block_hash: str
-) -> dict[str, tuple[GenericCall, ProposalVoteData]]:
+) -> dict[str, tuple[dict, "ProposalVoteData"]]:
     async def get_proposal_call_data(p_hash: str) -> Optional[GenericCall]:
         proposal_data = await subtensor.substrate.query(
             module="Triumvirate",
@@ -131,19 +121,7 @@ async def _get_proposals(
             block_hash=block_hash,
             params=[p_hash],
         )
-        print(
-            "proposal data", proposal_data, type(proposal_data)
-        )  # TODO may just be able to use this. Must test
-        return getattr(
-            proposal_data, "serialize", lambda: None
-        )()  # TODO this will not have serialize
-
-    async def get_proposal_vote_data(p_hash: str) -> Optional[ProposalVoteData]:
-        vote_data = await subtensor.substrate.query(
-            module="Triumvirate", storage_function="Voting", block_hash=block_hash, params=[p_hash]
-        )
-        print("vote data", vote_data)
-        return getattr(vote_data, "serialize", lambda: None)()
+        return proposal_data
 
     ph = await subtensor.substrate.query(
         module="Triumvirate",
@@ -153,14 +131,16 @@ async def _get_proposals(
     )
 
     try:
-        proposal_hashes: list[str] = [f'0x{bytes(ph[0][x][0]).hex()}'for x in range(len(ph[0]))]
+        proposal_hashes: list[str] = [
+            f"0x{bytes(ph[0][x][0]).hex()}" for x in range(len(ph[0]))
+        ]
     except IndexError:
         err_console.print("Unable to retrieve proposal vote data")
         raise typer.Exit()
 
     call_data_, vote_data_ = await asyncio.gather(
         asyncio.gather(*[get_proposal_call_data(h) for h in proposal_hashes]),
-        asyncio.gather(*[get_proposal_vote_data(h) for h in proposal_hashes]),
+        asyncio.gather(*[subtensor.get_vote_data(h) for h in proposal_hashes]),
     )
     return {
         proposal_hash: (cd, vd)
@@ -189,38 +169,6 @@ async def _is_senate_member(subtensor: SubtensorInterface, hotkey_ss58: str) -> 
         return False
 
     return senate_members.count(hotkey_ss58) > 0
-
-
-async def _get_vote_data(
-    subtensor: SubtensorInterface,
-    proposal_hash: str,
-    block_hash: Optional[str] = None,
-    reuse_block: bool = False,
-) -> Optional[ProposalVoteData]:
-    """
-    Retrieves the voting data for a specific proposal on the Bittensor blockchain. This data includes
-    information about how senate members have voted on the proposal.
-
-    :param subtensor: The SubtensorInterface object to use for the query
-    :param proposal_hash: The hash of the proposal for which voting data is requested.
-    :param block_hash: The hash of the blockchain block number to query the voting data.
-    :param reuse_block: Whether to reuse the last-used blockchain block hash.
-
-    :return: An object containing the proposal's voting data, or `None` if not found.
-
-    This function is important for tracking and understanding the decision-making processes within
-    the Bittensor network, particularly how proposals are received and acted upon by the governing body.
-    """
-    vote_data = await subtensor.substrate.query(
-        module="Triumvirate",
-        storage_function="Voting",
-        params=[proposal_hash],
-        block_hash=block_hash,
-        reuse_block_hash=reuse_block,
-    )
-    if not hasattr(vote_data, "serialize"):
-        return None
-    return vote_data.serialize() if vote_data is not None else None
 
 
 async def vote_senate_extrinsic(
@@ -273,13 +221,12 @@ async def vote_senate_extrinsic(
             err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
             await asyncio.sleep(0.5)
             return False
-
         # Successful vote, final check for data
         else:
-            if vote_data := await _get_vote_data(subtensor, proposal_hash):
+            if vote_data := await subtensor.get_vote_data(proposal_hash):
                 if (
-                    vote_data["ayes"].count(wallet.hotkey.ss58_address) > 0
-                    or vote_data["nays"].count(wallet.hotkey.ss58_address) > 0
+                    vote_data.ayes.count(wallet.hotkey.ss58_address) > 0
+                    or vote_data.nays.count(wallet.hotkey.ss58_address) > 0
                 ):
                     console.print(":white_heavy_check_mark: [green]Vote cast.[/green]")
                     return True
@@ -1256,20 +1203,16 @@ async def proposals(subtensor: SubtensorInterface):
         width=None,
         border_style="bright_black",
     )
-
-    for hash_ in all_proposals:
-        call_data, vote_data = all_proposals[hash_]
-
+    for hash_, (call_data, vote_data) in all_proposals.items():
         table.add_row(
             hash_,
-            str(vote_data["threshold"]),
-            str(len(vote_data["ayes"])),
-            str(len(vote_data["nays"])),
+            str(vote_data.threshold),
+            str(len(vote_data.ayes)),
+            str(len(vote_data.nays)),
             display_votes(vote_data, registered_delegate_info),
-            str(vote_data["end"]),
+            str(vote_data.end),
             format_call_data(call_data),
         )
-
     return console.print(table)
 
 
