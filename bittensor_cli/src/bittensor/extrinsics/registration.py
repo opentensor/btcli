@@ -491,6 +491,10 @@ async def register_extrinsic(
                 "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
             )
         ).value
+
+        if uid is None:
+            return NeuronInfo.get_null_neuron()
+
         params = [netuid, uid]
         json_body = await subtensor.substrate.rpc_request(
             method="neuronInfo_getNeuron",
@@ -1009,10 +1013,8 @@ async def _block_solver(
     weights = [alpha_**i for i in range(n_samples)]  # weights decay by alpha
 
     timeout = 0.15 if cuda else 0.15
-    while netuid == -1 or not await subtensor.substrate.query(
-        module="SubtensorModule",
-        storage_function="Uids",
-        params=[netuid, wallet.hotkey.ss58_address],
+    while netuid == -1 or not await is_hotkey_registered(
+        subtensor, netuid, wallet.hotkey.ss58_address
     ):
         # Wait until a solver finds a solution
         try:
