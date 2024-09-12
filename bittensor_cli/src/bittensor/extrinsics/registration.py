@@ -501,7 +501,7 @@ async def register_extrinsic(
         if not (result := json_body.get("result", None)):
             return NeuronInfo.get_null_neuron()
 
-        return NeuronInfo.from_vec_u8(result)
+        return NeuronInfo.from_vec_u8(bytes(result))
 
     print_verbose("Checking subnet status")
     if not await subtensor.subnet_exists(netuid):

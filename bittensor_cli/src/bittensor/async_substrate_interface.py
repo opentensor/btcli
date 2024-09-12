@@ -2007,7 +2007,7 @@ class AsyncSubstrateInterface:
         else:
             if isinstance(era, dict) and "current" not in era and "phase" not in era:
                 # Retrieve current block id
-                era["current"] = self.get_block_number(
+                era["current"] = await self.get_block_number(
                     await self.get_chain_finalised_head()
                 )
 

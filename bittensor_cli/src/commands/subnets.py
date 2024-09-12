@@ -502,7 +502,7 @@ async def metagraph_cmd(
             )
 
         difficulty = int(difficulty_)
-        total_issuance = Balance.from_rao(total_issuance_.value)
+        total_issuance = Balance.from_rao(total_issuance_)
         metagraph = MiniGraph(
             netuid=netuid, neurons=neurons, subtensor=subtensor, block=block
         )
