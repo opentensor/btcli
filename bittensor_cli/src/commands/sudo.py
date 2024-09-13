@@ -179,9 +179,6 @@ async def sudo_set_hyperparameter(
     param_value: str,
 ):
     """Set subnet hyperparameters."""
-    console.print("\n")
-    print_verbose("Fetching hyperparameters")
-    await get_hyperparameters(subtensor, netuid=netuid)
 
     normalized_value: Union[str, bool]
     if param_name in [
@@ -201,7 +198,13 @@ async def sudo_set_hyperparameter(
         )
         return
 
-    await set_hyperparameter_extrinsic(subtensor, wallet, netuid, param_name, value)
+    success = await set_hyperparameter_extrinsic(
+        subtensor, wallet, netuid, param_name, value
+    )
+    if success:
+        console.print("\n")
+        print_verbose("Fetching hyperparameters")
+        await get_hyperparameters(subtensor, netuid=netuid)
 
 
 async def get_hyperparameters(subtensor: "SubtensorInterface", netuid: int):
