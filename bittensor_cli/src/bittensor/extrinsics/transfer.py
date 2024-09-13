@@ -102,7 +102,7 @@ async def transfer_extrinsic(
     # Validate destination address.
     if not is_valid_bittensor_address_or_public_key(destination):
         err_console.print(
-            f":cross_mark: [red]Invalid destination address[/red]:[bold white]\n  {destination}[/bold white]"
+            f":cross_mark: [red]Invalid destination SS58 address[/red]:[bold white]\n  {destination}[/bold white]"
         )
         return False
     console.print(f"[dark_orange]Initiating transfer on network: {subtensor.network}")
@@ -158,17 +158,18 @@ async def transfer_extrinsic(
             console.print(":white_heavy_check_mark: [green]Finalized[/green]")
             console.print(f"[green]Block Hash: {block_hash}[/green]")
 
-            print_verbose("Fetching explorer URLs", status)
-            explorer_urls = get_explorer_url_for_network(
-                subtensor.network, block_hash, NETWORK_EXPLORER_MAP
-            )
-            if explorer_urls != {} and explorer_urls:
-                console.print(
-                    f"[green]Opentensor Explorer Link: {explorer_urls.get('opentensor')}[/green]"
+            if subtensor.network == "finney":
+                print_verbose("Fetching explorer URLs", status)
+                explorer_urls = get_explorer_url_for_network(
+                    subtensor.network, block_hash, NETWORK_EXPLORER_MAP
                 )
-                console.print(
-                    f"[green]Taostats Explorer Link: {explorer_urls.get('taostats')}[/green]"
-                )
+                if explorer_urls != {} and explorer_urls:
+                    console.print(
+                        f"[green]Opentensor Explorer Link: {explorer_urls.get('opentensor')}[/green]"
+                    )
+                    console.print(
+                        f"[green]Taostats Explorer Link: {explorer_urls.get('taostats')}[/green]"
+                    )
         else:
             console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
 

@@ -31,6 +31,7 @@ from bittensor_cli.src.bittensor.utils import (
     err_console,
     verbose_console,
     is_valid_ss58_address,
+    print_error,
 )
 from typing_extensions import Annotated
 from websockets import ConnectionClosed
@@ -1161,7 +1162,7 @@ class CLIManager:
 
     def wallet_transfer(
         self,
-        destination: str = typer.Option(
+        destination_ss58_address: str = typer.Option(
             None,
             "--destination",
             "--dest",
@@ -1204,6 +1205,10 @@ class CLIManager:
         [italic]Note[/italic]: This command is crucial for executing token transfers within the Bittensor network.
         Users should verify the destination address and amount before confirming the transaction to avoid errors or loss of funds.
         """
+        if not is_valid_ss58_address(destination_ss58_address):
+            print_error("You have entered an incorrect ss58 address. Please try again")
+            raise typer.Exit()
+
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
             wallet_name,
@@ -1214,7 +1219,9 @@ class CLIManager:
         )
         subtensor = self.initialize_chain(network, chain)
         return self._run_command(
-            wallets.transfer(wallet, subtensor, destination, amount, prompt)
+            wallets.transfer(
+                wallet, subtensor, destination_ss58_address, amount, prompt
+            )
         )
 
     def wallet_swap_hotkey(
@@ -1846,6 +1853,16 @@ class CLIManager:
         [italic]Note[/italic]: This command is essential for users to monitor their financial status on the Bittensor network.
         It helps in fetching info on all the transfers so that user can easily tally and cross-check the transactions.
         """
+
+        no_use_config_str = "Using network [dark_orange]finney[/dark_orange] and ignoring network/chain configs"
+
+        if self.config.get("network"):
+            if self.config.get("network") != "finney":
+                console.print(no_use_config_str)
+
+        elif self.config.get("chain"):
+            console.print(no_use_config_str)
+
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
             wallet_name,
@@ -1988,7 +2005,7 @@ class CLIManager:
 
     def wallet_get_id(
         self,
-        key: str = typer.Option(
+        target_ss58_address: str = typer.Option(
             None,
             "--key",
             "-k",
@@ -2030,9 +2047,13 @@ class CLIManager:
         [italic]Note[/italic]: This function is designed for CLI use and should be executed in a terminal.
         It is primarily used for informational purposes and has no side effects on the network state.
         """
+        if not is_valid_ss58_address(target_ss58_address):
+            print_error("You have entered an incorrect ss58 address. Please try again")
+            raise typer.Exit()
+
         self.verbosity_handler(quiet, verbose)
         return self._run_command(
-            wallets.get_id(self.initialize_chain(network, chain), key)
+            wallets.get_id(self.initialize_chain(network, chain), target_ss58_address)
         )
 
     def wallet_sign(
@@ -2068,7 +2089,6 @@ class CLIManager:
         over a coldkey or a hotkey.
         """
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         if not use_hotkey:
             use_hotkey = typer.confirm(
                 "Would you like to sign the transaction using the hotkey? (The default is to sign with the coldkey.)",
@@ -2211,7 +2231,8 @@ class CLIManager:
         self.verbosity_handler(quiet, verbose)
         if (reuse_last or html_output) and self.config.get("no_cache") is True:
             err_console.print(
-                "Unable to use `--reuse-last` or `--html` when config no-cache is set."
+                "Unable to use `--reuse-last` or `--html` when config no-cache is set to True. "
+                "Please change the config to False using `btcli config set`"
             )
             raise typer.Exit()
         if not reuse_last:
@@ -2952,7 +2973,8 @@ class CLIManager:
         self.verbosity_handler(quiet, verbose)
         if (reuse_last or html_output) and self.config.get("no_cache") is True:
             err_console.print(
-                "Unable to use `--reuse-last` or `--html` when config no-cache is set."
+                "Unable to use `--reuse-last` or `--html` when config no-cache is set to True. "
+                "Please change the config to False using `btcli config set`"
             )
             raise typer.Exit()
         if not reuse_last:
@@ -3566,11 +3588,22 @@ class CLIManager:
         functioning and the impact of changing these parameters.
         """
         self.verbosity_handler(quiet, verbose)
+        self._run_command(
+            sudo.get_hyperparameters(self.initialize_chain(network, chain), netuid)
+        )
 
         if not param_name:
-            param_name = Prompt.ask(
-                "Enter hyperparameter", choices=list(HYPERPARAMS.keys())
+            hyperparam_list = list(HYPERPARAMS.keys())
+            console.print("Available hyperparameters:\n")
+            for idx, param in enumerate(hyperparam_list, start=1):
+                console.print(f"  {idx}. {param}")
+            console.print()
+            choice = IntPrompt.ask(
+                "Enter the [bold]number[/bold] of the hyperparameter",
+                choices=[str(i) for i in range(1, len(hyperparam_list) + 1)],
+                show_choices=False,
             )
+            param_name = hyperparam_list[choice - 1]
 
         if not param_value:
             param_value = Prompt.ask(f"Enter new value for {param_name}")
@@ -3675,7 +3708,8 @@ class CLIManager:
         self.verbosity_handler(quiet, verbose)
         if (reuse_last or html_output) and self.config.get("no_cache") is True:
             err_console.print(
-                "Unable to use `--reuse-last` or `--html` when config no-cache is set."
+                "Unable to use `--reuse-last` or `--html` when config no-cache is set to True. "
+                "Please change the config to False using `btcli config set`"
             )
             raise typer.Exit()
         if reuse_last:
@@ -4042,7 +4076,8 @@ class CLIManager:
         self.verbosity_handler(quiet, verbose)
         if (reuse_last or html_output) and self.config.get("no_cache") is True:
             err_console.print(
-                "Unable to use `--reuse-last` or `--html` when config no-cache is set."
+                "Unable to use `--reuse-last` or `--html` when config `no-cache` is set to `True`. "
+                "Set the`no-cache` field to `False` by using `btcli config set` or editing the config.yml file."
             )
             raise typer.Exit()
 

@@ -10,6 +10,7 @@ from bittensor_cli.src import HYPERPARAMS
 from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
+    print_error,
     print_verbose,
     normalize_hyperparameters,
 )
@@ -206,6 +207,9 @@ async def sudo_set_hyperparameter(
 async def get_hyperparameters(subtensor: "SubtensorInterface", netuid: int):
     """View hyperparameters of a subnetwork."""
     print_verbose("Fetching hyperparameters")
+    if not await subtensor.subnet_exists(netuid):
+        print_error(f"Subnet with netuid {netuid} does not exist.")
+        return False
     subnet = await subtensor.get_subnet_hyperparameters(netuid)
 
     table = Table(
