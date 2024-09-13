@@ -718,14 +718,18 @@ class SubtensorInterface:
         def decode_hex_identity_dict(info_dictionary):
             for k, v in info_dictionary.items():
                 if isinstance(v, dict):
-                    item = list(v.values())[0]
-                    if isinstance(item, str) and item.startswith("0x"):
-                        try:
-                            info_dictionary[k] = bytes.fromhex(item[2:]).decode()
-                        except UnicodeDecodeError:
-                            print(f"Could not decode: {k}: {item}")
-                    else:
-                        info_dictionary[k] = item
+                    item = next(iter(v.values()))
+                else:
+                    item = v
+
+                if isinstance(item, tuple) and item:
+                    try:
+                        info_dictionary[k] = bytes(item[0]).decode("utf-8")
+                    except UnicodeDecodeError:
+                        print(f"Could not decode: {k}: {item}")
+                else:
+                    info_dictionary[k] = item
+
             return info_dictionary
 
         identity_info = await self.substrate.query(

@@ -412,10 +412,8 @@ async def set_root_weights_extrinsic(
         else:
             return False, await response.error_message
 
-    my_uid = (
-        await subtensor.substrate.query(
-            "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
-        )
+    my_uid = await subtensor.substrate.query(
+        "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
     )
 
     if my_uid is None:

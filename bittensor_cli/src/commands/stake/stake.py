@@ -48,7 +48,7 @@ async def _get_threshold_amount(
         storage_function="NominatorMinRequiredStake",
         block_hash=block_hash,
     )
-    min_req_stake: Balance = Balance.from_rao(mrs.decode())
+    min_req_stake: Balance = Balance.from_rao(mrs)
     return min_req_stake
 
 
