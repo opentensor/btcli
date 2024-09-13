@@ -10,8 +10,15 @@ from substrateinterface.exceptions import SubstrateRequestException
 
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
-from bittensor_cli.src.bittensor.utils import console, err_console, float_to_u16, float_to_u64, u16_to_float, \
-    u64_to_float, is_valid_ss58_address
+from bittensor_cli.src.bittensor.utils import (
+    console,
+    err_console,
+    float_to_u16,
+    float_to_u64,
+    u16_to_float,
+    u64_to_float,
+    is_valid_ss58_address,
+)
 
 
 async def set_children_extrinsic(
@@ -276,7 +283,7 @@ async def get_children(
 
     async def get_total_stake_for_hk(hotkey: str, parent: bool = False):
         """
-        Fetches and displays the total stake for a specified hotkey from the Subtensor blockchain network. 
+        Fetches and displays the total stake for a specified hotkey from the Subtensor blockchain network.
         If `parent` is True, it prints the hotkey and its corresponding stake.
 
         Parameters:
@@ -324,7 +331,10 @@ async def get_children(
         else:
             return 0
 
-    async def _render_table(parent_hotkey: str, netuid_children_tuples: list[tuple[int, list[tuple[int, str]]]]):
+    async def _render_table(
+        parent_hotkey: str,
+        netuid_children_tuples: list[tuple[int, list[tuple[int, str]]]],
+    ):
         """
         Retrieves and renders children hotkeys and their details for a given parent hotkey.
         """
@@ -357,7 +367,9 @@ async def get_children(
         total_proportion = 0
         total_stake_weight = 0
 
-        netuid_children_tuples.sort(key=lambda x: x[0])  # Sort by netuid in ascending order
+        netuid_children_tuples.sort(
+            key=lambda x: x[0]
+        )  # Sort by netuid in ascending order
 
         for index, (netuid, children_) in enumerate(netuid_children_tuples):
             # calculate totals
@@ -365,7 +377,9 @@ async def get_children(
             total_stake_weight_per_netuid = 0
             avg_take_per_netuid = 0
 
-            hotkey_stake_dict = await subtensor.get_total_stake_for_hotkey(parent_hotkey)
+            hotkey_stake_dict = await subtensor.get_total_stake_for_hotkey(
+                parent_hotkey
+            )
             hotkey_stake = hotkey_stake_dict.get(parent_hotkey, Balance(0))
 
             children_info = []
@@ -373,7 +387,9 @@ async def get_children(
                 *[get_total_stake_for_hk(c[1]) for c in children_]
             )
             child_takes = await asyncio.gather(*[get_take(c) for c in children_])
-            for child, child_stake, child_take in zip(children_, child_stakes, child_takes):
+            for child, child_stake, child_take in zip(
+                children_, child_stakes, child_takes
+            ):
                 proportion = child[0]
                 child_hotkey = child[1]
 
@@ -382,13 +398,15 @@ async def get_children(
 
                 proportion = u64_to_float(proportion)
 
-                children_info.append((proportion, child_hotkey, child_stake, child_take))
+                children_info.append(
+                    (proportion, child_hotkey, child_stake, child_take)
+                )
 
             children_info.sort(
                 key=lambda x: x[0], reverse=True
             )  # sorting by proportion (highest first)
 
-            for (proportion, hotkey, stake, child_take) in children_info:
+            for proportion, hotkey, stake, child_take in children_info:
                 proportion_percent = proportion * 100  # Proportion in percent
                 proportion_tao = hotkey_stake.tao * proportion  # Proportion in TAO
 
@@ -502,7 +520,9 @@ async def set_children(
             if wait_for_inclusion and wait_for_finalization:
                 console.print("New Status:")
                 await get_children(wallet, subtensor, netuid)
-            console.print(":white_heavy_check_mark: [green]Set children hotkeys.[/green]")
+            console.print(
+                ":white_heavy_check_mark: [green]Set children hotkeys.[/green]"
+            )
         else:
             console.print(
                 f":cross_mark:[red] Unable to set children hotkeys.[/red] {message}"
@@ -522,9 +542,11 @@ async def set_children(
                 children_with_proportions=children_with_proportions,
                 prompt=False,
                 wait_for_inclusion=True,
-                wait_for_finalization=False
+                wait_for_finalization=False,
             )
-        console.print(":white_heavy_check_mark: [green]Sent set children request for all subnets.[/green]")
+        console.print(
+            ":white_heavy_check_mark: [green]Sent set children request for all subnets.[/green]"
+        )
 
 
 async def revoke_children(
@@ -577,7 +599,9 @@ async def revoke_children(
                 wait_for_inclusion=True,
                 wait_for_finalization=False,
             )
-        console.print(":white_heavy_check_mark: [green]Sent revoke children command. Finalization may take a few minutes.[/green]")
+        console.print(
+            ":white_heavy_check_mark: [green]Sent revoke children command. Finalization may take a few minutes.[/green]"
+        )
 
 
 async def childkey_take(
@@ -613,9 +637,13 @@ async def childkey_take(
 
     async def display_chk_take(ss58, netuid):
         """Print single key take for hotkey and netuid"""
-        chk_take = await get_childkey_take(subtensor=subtensor, netuid=netuid, hotkey=ss58)
+        chk_take = await get_childkey_take(
+            subtensor=subtensor, netuid=netuid, hotkey=ss58
+        )
         chk_take = u16_to_float(chk_take)
-        console.print(f"Child take for {ss58} is: {chk_take * 100:.2f}% on netuid {netuid}.")
+        console.print(
+            f"Child take for {ss58} is: {chk_take * 100:.2f}% on netuid {netuid}."
+        )
 
     async def chk_all_subnets(ss58):
         """Aggregate data for childkey take from all subnets"""
@@ -624,7 +652,9 @@ async def childkey_take(
         for subnet in netuids:
             if subnet == 0:
                 continue
-            curr_take = await get_childkey_take(subtensor=subtensor, netuid=subnet, hotkey=ss58)
+            curr_take = await get_childkey_take(
+                subtensor=subtensor, netuid=subnet, hotkey=ss58
+            )
             if curr_take is not None:
                 take_value = u16_to_float(curr_take)
                 takes.append((subnet, take_value * 100))
@@ -650,7 +680,9 @@ async def childkey_take(
                 f"The childkey take for {wallet.hotkey.ss58_address} is now set to {take * 100:.2f}%."
             )
         else:
-            console.print(f":cross_mark:[red] Unable to set childkey take.[/red] {message}")
+            console.print(
+                f":cross_mark:[red] Unable to set childkey take.[/red] {message}"
+            )
 
     # Print childkey take for other user and return (dont offer to change take rate)
     if hotkey and hotkey != wallet.hotkey.ss58_address:
@@ -658,13 +690,17 @@ async def childkey_take(
         if netuid:
             await display_chk_take(hotkey, netuid)
             if take:
-                console.print(f"Hotkey {hotkey} not associated with wallet {wallet.name}.")
+                console.print(
+                    f"Hotkey {hotkey} not associated with wallet {wallet.name}."
+                )
             return
         else:
-            # show childhotkey take on all subnets 
+            # show childhotkey take on all subnets
             await chk_all_subnets(hotkey)
             if take:
-                console.print(f"Hotkey {hotkey} not associated with wallet {wallet.name}.")
+                console.print(
+                    f"Hotkey {hotkey} not associated with wallet {wallet.name}."
+                )
             return
 
     # Validate child SS58 addresses
@@ -698,7 +734,8 @@ async def childkey_take(
         return
     else:
         new_take_netuids = IntPrompt.ask(
-            "Enter netuid (leave blank for all)", default=None, show_default=True)
+            "Enter netuid (leave blank for all)", default=None, show_default=True
+        )
 
         if new_take_netuids:
             await set_chk_take_subnet(subnet=new_take_netuids, chk_take=take)
@@ -721,4 +758,5 @@ async def childkey_take(
                     wait_for_finalization=False,
                 )
             console.print(
-                f":white_heavy_check_mark: [green]Sent childkey take of {take * 100:.2f}% to all subnets.[/green]")
+                f":white_heavy_check_mark: [green]Sent childkey take of {take * 100:.2f}% to all subnets.[/green]"
+            )

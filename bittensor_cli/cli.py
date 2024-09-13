@@ -3081,7 +3081,9 @@ class CLIManager:
                 "Enter netuid (leave blank for all)", default=None, show_default=True
             )
         return self._run_command(
-            children_hotkeys.get_children(wallet, self.initialize_chain(network, chain), netuid)
+            children_hotkeys.get_children(
+                wallet, self.initialize_chain(network, chain), netuid
+            )
         )
 
     def stake_set_children(
