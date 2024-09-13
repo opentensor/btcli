@@ -97,7 +97,10 @@ async def set_children_extrinsic(
             )
 
         if success:
-            console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+            if wait_for_inclusion:
+                console.print(":white_heavy_check_mark: [green]Included[/green]")
+            if wait_for_finalization:
+                console.print(":white_heavy_check_mark: [green]Finalized[/green]")
             # bittensor.logging.success(
             #     prefix=operation,
             #     suffix="<green>Finalized: </green>" + str(success),
@@ -181,7 +184,10 @@ async def set_childkey_take_extrinsic(
                 )
 
             if success:
-                console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                if wait_for_inclusion:
+                    console.print(":white_heavy_check_mark: [green]Included[/green]")
+                if wait_for_finalization:
+                    console.print(":white_heavy_check_mark: [green]Finalized[/green]")
                 # bittensor.logging.success(
                 #     prefix="Setting childkey take",
                 #     suffix="<green>Finalized: </green>" + str(success),
@@ -343,7 +349,7 @@ async def get_children(
         if not netuid_children_tuples:
             console.print(table)
             console.print(
-                f"[bold red]There are currently no child hotkeys with Parent HotKey {parent_hotkey}.[/bold red]"
+                f"[bold red]There are currently no child hotkeys with parent hotkey: {wallet.name} ({parent_hotkey}).[/bold red]"
             )
             return
 
@@ -382,7 +388,7 @@ async def get_children(
                 key=lambda x: x[0], reverse=True
             )  # sorting by proportion (highest first)
 
-            for idx, (proportion, hotkey, stake, child_take) in enumerate(children_info, 1):
+            for (proportion, hotkey, stake, child_take) in children_info:
                 proportion_percent = proportion * 100  # Proportion in percent
                 proportion_tao = hotkey_stake.tao * proportion  # Proportion in TAO
 
@@ -571,8 +577,7 @@ async def revoke_children(
                 wait_for_inclusion=True,
                 wait_for_finalization=False,
             )
-        console.print(":white_heavy_check_mark: [green]Revoked children from all subnets.[/green]")
-        await get_children(wallet, subtensor)
+        console.print(":white_heavy_check_mark: [green]Sent revoke children command. Finalization may take a few minutes.[/green]")
 
 
 async def childkey_take(
@@ -617,6 +622,8 @@ async def childkey_take(
         netuids = await subtensor.get_all_subnet_netuids()
         takes = []
         for subnet in netuids:
+            if subnet == 0:
+                continue
             curr_take = await get_childkey_take(subtensor=subtensor, netuid=subnet, hotkey=ss58)
             if curr_take is not None:
                 take_value = u16_to_float(curr_take)
@@ -649,11 +656,15 @@ async def childkey_take(
     if hotkey and hotkey != wallet.hotkey.ss58_address:
         # display childkey take for other users
         if netuid:
-            await display_chk_take(hotkey)
+            await display_chk_take(hotkey, netuid)
+            if take:
+                console.print(f"Hotkey {hotkey} not associated with wallet {wallet.name}.")
             return
         else:
-            # show childhotkey take on all subnets they are registed on
+            # show childhotkey take on all subnets 
             await chk_all_subnets(hotkey)
+            if take:
+                console.print(f"Hotkey {hotkey} not associated with wallet {wallet.name}.")
             return
 
     # Validate child SS58 addresses
@@ -667,7 +678,7 @@ async def childkey_take(
 
         if not Confirm.ask("Would you like to change the child take?"):
             return
-        new_take_str = Prompt.ask("Enter the new take value (between 0 and 0.18): ")
+        new_take_str = Prompt.ask("Enter the new take value (between 0 and 0.18)")
         try:
             new_take_value = float(new_take_str)
             if not validate_take_value(new_take_value):
@@ -696,6 +707,8 @@ async def childkey_take(
         else:
             netuids = await subtensor.get_all_subnet_netuids()
             for netuid in netuids:
+                if netuid == 0:
+                    continue
                 console.print(f"Sending to netuid {netuid} take of {take * 100:.2f}%")
                 await set_childkey_take_extrinsic(
                     subtensor=subtensor,
