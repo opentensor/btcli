@@ -849,19 +849,22 @@ class SubtensorInterface:
         extrinsic = await self.substrate.create_signed_extrinsic(
             call=call, keypair=wallet.coldkey
         )  # sign with coldkey
-        response = await self.substrate.submit_extrinsic(
-            extrinsic,
-            wait_for_inclusion=wait_for_inclusion,
-            wait_for_finalization=wait_for_finalization,
-        )
-        # We only wait here if we expect finalization.
-        if not wait_for_finalization and not wait_for_inclusion:
-            return True, ""
-        await response.process_events()
-        if await response.is_success:
-            return True, ""
-        else:
-            return False, format_error_message(await response.error_message)
+        try:
+            response = await self.substrate.submit_extrinsic(
+                extrinsic,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+            )
+            # We only wait here if we expect finalization.
+            if not wait_for_finalization and not wait_for_inclusion:
+                return True, ""
+            await response.process_events()
+            if await response.is_success:
+                return True, ""
+            else:
+                return False, format_error_message(await response.error_message)
+        except SubstrateRequestException as e:
+            return False, e
 
     async def get_children(self, hotkey, netuid) -> tuple[bool, list, str]:
         """
