@@ -1100,7 +1100,7 @@ async def show(
                 "[bold white]Hotkey",
                 style="bright_magenta",
             ),
-            title="[underline dark_orange]Stake Show",
+            title=f"[underline dark_orange]Stake Show[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}\n",
             show_footer=True,
             show_edge=False,
             expand=False,

@@ -27,6 +27,7 @@ from rich.console import Console
 from rich.status import Status
 from substrateinterface.exceptions import SubstrateRequestException
 
+from bittensor_cli.src.bittensor.chain_data import NeuronInfo
 from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
@@ -87,8 +88,8 @@ def _get_real_torch():
 
 def log_no_torch_error():
     err_console.print(
-        "This command requires torch. You can install torch for bittensor"
-        ' with `pip install bittensor[torch]` or `pip install ".[torch]"`'
+        "This command requires torch. You can install torch for btcli"
+        ' with `pip install btcli[cuda]` or `pip install ".[cuda]"`'  # TODO extension
         " if installing from source, and then run the command with USE_TORCH=1 {command}"
     )
 
@@ -483,8 +484,30 @@ async def register_extrinsic(
     :return: `True` if extrinsic was finalized or included in the block. If we did not wait for finalization/inclusion,
              the response is `True`.
     """
+
+    async def get_neuron_for_pubkey_and_subnet():
+        uid = (
+            await subtensor.substrate.query(
+                "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
+            )
+        ).value
+
+        if uid is None:
+            return NeuronInfo.get_null_neuron()
+
+        params = [netuid, uid]
+        json_body = await subtensor.substrate.rpc_request(
+            method="neuronInfo_getNeuron",
+            params=params,
+        )
+
+        if not (result := json_body.get("result", None)):
+            return NeuronInfo.get_null_neuron()
+
+        return NeuronInfo.from_vec_u8(result)
+
     print_verbose("Checking subnet status")
-    if not subtensor.subnet_exists(netuid):
+    if not await subtensor.subnet_exists(netuid):
         err_console.print(
             f":cross_mark: [red]Failed[/red]: error: [bold white]subnet:{netuid}[/bold white] does not exist."
         )
@@ -494,9 +517,7 @@ async def register_extrinsic(
         f":satellite: Checking Account on [bold]subnet:{netuid}[/bold]...",
         spinner="aesthetic",
     ):
-        neuron = subtensor.get_neuron_for_pubkey_and_subnet(
-            wallet.hotkey.ss58_address, netuid=netuid
-        )
+        neuron = await get_neuron_for_pubkey_and_subnet()
         if not neuron.is_null:
             # bittensor.logging.debug(
             #     f"Wallet {wallet} is already registered on {neuron.netuid} with {neuron.uid}"
@@ -992,10 +1013,8 @@ async def _block_solver(
     weights = [alpha_**i for i in range(n_samples)]  # weights decay by alpha
 
     timeout = 0.15 if cuda else 0.15
-    while netuid == -1 or not await subtensor.substrate.query(
-        module="SubtensorModule",
-        storage_function="Uids",
-        params=[netuid, wallet.hotkey.ss58_address],
+    while netuid == -1 or not await is_hotkey_registered(
+        subtensor, netuid, wallet.hotkey.ss58_address
     ):
         # Wait until a solver finds a solution
         try:
@@ -1598,6 +1617,15 @@ async def swap_hotkey_extrinsic(
 
     :return: Success
     """
+    block_hash = await subtensor.substrate.get_chain_head()
+    netuids_registered = await subtensor.get_netuids_for_hotkey(
+        wallet.hotkey.ss58_address, block_hash=block_hash
+    )
+    if not len(netuids_registered) > 0:
+        err_console.print(
+            f"Destination hotkey [dark_orange]{new_wallet.hotkey.ss58_address}[/dark_orange] is not registered. Please register and try again"
+        )
+        return False
 
     try:
         wallet.unlock_coldkey()
@@ -1607,7 +1635,10 @@ async def swap_hotkey_extrinsic(
     if prompt:
         # Prompt user for confirmation.
         if not Confirm.ask(
-            f"Swap {wallet.hotkey} for new hotkey: {new_wallet.hotkey}?"
+            f"Do you want to swap [dark_orange]{wallet.name}[/dark_orange] hotkey \n\t"
+            f"[dark_orange]{wallet.hotkey.ss58_address}[/dark_orange] with hotkey \n\t"
+            f"[dark_orange]{new_wallet.hotkey.ss58_address}[/dark_orange]\n"
+            "This operation will cost [bold cyan]1 TAO t (recycled)[/bold cyan]"
         ):
             return False
     print_verbose(
