@@ -3594,13 +3594,14 @@ class CLIManager:
 
         if not param_name:
             hyperparam_list = list(HYPERPARAMS.keys())
-            console.print("\nAvailable hyperparameters:\n")
+            console.print("Available hyperparameters:\n")
             for idx, param in enumerate(hyperparam_list, start=1):
                 console.print(f"  {idx}. {param}")
             console.print()
             choice = IntPrompt.ask(
                 "Enter the [bold]number[/bold] of the hyperparameter",
                 choices=[str(i) for i in range(1, len(hyperparam_list) + 1)],
+                show_choices=False,
             )
             param_name = hyperparam_list[choice - 1]
 
