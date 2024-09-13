@@ -1167,7 +1167,9 @@ async def get_senate(subtensor: SubtensorInterface):
 async def register(wallet: Wallet, subtensor: SubtensorInterface, prompt: bool):
     """Register neuron by recycling some TAO."""
 
-    console.print(f"Registering on [dark_orange]netuid 0[/dark_orange] on network: [dark_orange]{subtensor.network}")
+    console.print(
+        f"Registering on [dark_orange]netuid 0[/dark_orange] on network: [dark_orange]{subtensor.network}"
+    )
 
     # Check current recycle amount
     print_verbose("Fetching recycle amount & balance")
@@ -1551,58 +1553,62 @@ async def list_delegates(subtensor: SubtensorInterface):
         console.print(
             ":warning:[yellow]Could not get delegate info from chain.[/yellow]"
         )
-    table_width = console.width - 5
     table = Table(
         Column(
-            "[white]INDEX",
+            "[white]INDEX\n\n",
             str(len(delegates)),
             style="bold white",
         ),
         Column(
-            "[white]DELEGATE",
+            "[white]DELEGATE\n\n",
             style="bold bright_cyan",
-            no_wrap=True,
             justify="left",
-            max_width=20,
+            overflow="fold",
+            ratio=1,
         ),
         Column(
-            "[white]SS58", str(len(delegates)), style="bright_magenta", max_width=48
+            "[white]SS58\n\n",
+            style="bright_magenta",
+            no_wrap=False,
+            overflow="fold",
+            ratio=2,
         ),
-        Column("[white]NOMINATORS", justify="center", style="gold1", no_wrap=True),
+        Column("[white]NOMINATORS\n\n", justify="center", style="gold1", no_wrap=True, ratio=1),
         Column(
-            "[white]DELEGATE STAKE(\u03c4)",
+            "[white]DELEGATE STAKE\n(\u03c4)\n",
             justify="right",
             style="orange1",
             no_wrap=True,
+            ratio=1
         ),
         Column(
-            "[white]TOTAL STAKE(\u03c4)",
+            "[white]TOTAL STAKE\n(\u03c4)\n",
             justify="right",
             style="light_goldenrod2",
-            no_wrap=True,
+            no_wrap=True,ratio=1
         ),
-        Column("[white]CHANGE/(4h)", style="grey0", justify="center"),
-        Column("[white]TAKE", style="white", no_wrap=True),
+        Column("[white]CHANGE\n/(4h)\n", style="grey0", justify="center", ratio=1),
+        Column("[white]TAKE\n\n", style="white", no_wrap=True, ratio=1),
         Column(
-            "[white]NOMINATOR/(24h)/k\u03c4",
+            "[white]NOMINATOR\n/(24h)/k\u03c4\n",
             style="dark_olive_green3",
-            justify="center",
+            justify="center",ratio=1
         ),
-        Column("[white]DELEGATE/(24h)", style="dark_olive_green3", justify="center"),
         Column(
-            "[white]VPERMIT",
+            "[white]DELEGATE\n/(24h)\n", style="dark_olive_green3", justify="center", ratio=1
+        ),
+        Column(
+            "[white]VPERMIT\n\n",
             justify="center",
             no_wrap=False,
             max_width=20,
-            style="dark_sea_green",
+            style="dark_sea_green", ratio=2
         ),
-        Column("[white]Desc", style="rgb(50,163,219)", max_width=30),
+        Column("[white]Desc\n\n", style="rgb(50,163,219)", max_width=30, ratio=2),
         title=f"[underline dark_orange]Root Delegates[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}\n",
         show_footer=True,
-        width=table_width,
         pad_edge=False,
         box=None,
-        expand=True,
     )
 
     for i, delegate in enumerate(delegates):
