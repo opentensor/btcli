@@ -180,9 +180,11 @@ async def subnets_list(
         rows = []
         db_rows = []
         total_neurons = 0
+        max_neurons = 0
 
         for subnet in subnets:
-            total_neurons += subnet.max_n
+            total_neurons += subnet.subnetwork_n
+            max_neurons += subnet.max_n
             rows.append(
                 (
                     str(subnet.netuid),
@@ -217,6 +219,7 @@ async def subnets_list(
             "network": subtensor.network,
             "netuid_count": len(subnets),
             "N": total_neurons,
+            "MAX_N": max_neurons,
             "rows": json.dumps(rows),
         }
         if not no_cache:
@@ -277,7 +280,7 @@ async def subnets_list(
             style="bright_cyan",
             justify="right",
         )
-        table.add_column("[bold white]MAX_N", style="bright_cyan", justify="right")
+        table.add_column("[bold white]MAX_N", footer=f"[white]{metadata['MAX_N']}[/white]", style="bright_cyan", justify="right")
         table.add_column(
             "[bold white]EMISSION", style="light_goldenrod2", justify="right"
         )
