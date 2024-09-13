@@ -23,8 +23,9 @@ from .src import (
 )
 from bittensor_cli.src.bittensor import utils
 from .src.bittensor.async_substrate_interface import SubstrateRequestException
-from .src.commands import root, stake, subnets, sudo, wallets
+from .src.commands import root, subnets, sudo, wallets
 from .src.commands import weights as weights_cmds
+from .src.commands.stake import children_hotkeys, stake
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
     console,
@@ -3305,6 +3306,7 @@ class CLIManager:
             False,
             "--all-netuids",
             "--all",
+            "--allnetuids",
             help="When set, gets children from all subnets on the bittensor network.",
         ),
         quiet: bool = Options.quiet,
@@ -3354,7 +3356,9 @@ class CLIManager:
             )
 
         return self._run_command(
-            stake.get_children(wallet, self.initialize_chain(network, chain), netuid)
+            children_hotkeys.get_children(
+                wallet, self.initialize_chain(network, chain), netuid
+            )
         )
 
     def stake_set_children(
@@ -3367,11 +3371,23 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         network: str = Options.network,
         chain: str = Options.chain,
-        netuid: int = Options.netuid,
+        netuid: Optional[int] = typer.Option(
+            None,
+            help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
+            prompt=False,
+        ),
+        all_netuids: bool = typer.Option(
+            False,
+            "--all-netuids",
+            "--all",
+            "--allnetuids",
+            help="When this flag is used it sets children on all subnets on the bittensor network.",
+        ),
         proportions: list[float] = typer.Option(
             [],
             "--proportions",
-            "-prop",
+            "--prop",
+            "-p",
             help="Enter proportions for children as (sum less than 1)",
             prompt=False,
         ),
@@ -3402,6 +3418,15 @@ class CLIManager:
         neurons (hotkeys) on the network. It allows for a strategic allocation of authority to enhance network participation and influence.
         """
         self.verbosity_handler(quiet, verbose)
+        if all_netuids and netuid:
+            err_console.print("Specify either netuid or all, not both.")
+            raise typer.Exit()
+        if all_netuids:
+            netuid = None
+        elif not netuid:
+            netuid = IntPrompt.ask(
+                "Enter netuid (leave blank for all)", default=None, show_default=True
+            )
         children = list_prompt(children, str, "Enter the child hotkeys (ss58)")
 
         proportions = list_prompt(
@@ -3426,14 +3451,14 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
         return self._run_command(
-            stake.set_children(
-                wallet,
-                self.initialize_chain(network, chain),
-                netuid,
-                children,
-                proportions,
-                wait_for_finalization,
-                wait_for_inclusion,
+            children_hotkeys.set_children(
+                wallet=wallet,
+                subtensor=self.initialize_chain(network, chain),
+                netuid=netuid,
+                children=children,
+                proportions=proportions,
+                wait_for_finalization=wait_for_finalization,
+                wait_for_inclusion=wait_for_inclusion,
             )
         )
 
@@ -3444,7 +3469,18 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
-        netuid: int = Options.netuid,
+        netuid: Optional[int] = typer.Option(
+            None,
+            help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
+            prompt=False,
+        ),
+        all_netuids: bool = typer.Option(
+            False,
+            "--all-netuids",
+            "--all",
+            "--allnetuids",
+            help="When this flag is used it sets children on all subnets on the bittensor network.",
+        ),
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
         quiet: bool = Options.quiet,
@@ -3478,8 +3514,17 @@ class CLIManager:
             ask_for=[WO.NAME, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
+        if all_netuids and netuid:
+            err_console.print("Specify either netuid or all, not both.")
+            raise typer.Exit()
+        if all_netuids:
+            netuid = None
+        elif not netuid:
+            netuid = IntPrompt.ask(
+                "Enter netuid (leave blank for all)", default=None, show_default=True
+            )
         return self._run_command(
-            stake.revoke_children(
+            children_hotkeys.revoke_children(
                 wallet,
                 self.initialize_chain(network, chain),
                 netuid,
@@ -3495,10 +3540,19 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
-        netuid: int = Options.netuid,
-        wait_for_inclusion: bool = Options.wait_for_inclusion,
-        wait_for_finalization: bool = Options.wait_for_finalization,
-        prompt: bool = Options.prompt,
+        hotkey: Optional[str] = None,
+        netuid: Optional[int] = typer.Option(
+            None,
+            help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
+            prompt=False,
+        ),
+        all_netuids: bool = typer.Option(
+            False,
+            "--all-netuids",
+            "--all",
+            "--allnetuids",
+            help="When this flag is used it sets children on all subnets on the bittensor network.",
+        ),
         take: Optional[float] = typer.Option(
             None,
             "--take",
@@ -3506,6 +3560,9 @@ class CLIManager:
             help="Enter take for your child hotkey",
             prompt=False,
         ),
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -3527,7 +3584,7 @@ class CLIManager:
         [green]$[/green] btcli stake child take --hotkey <child_hotkey> --take 0.12 --netuid 1
         ```
 
-        [italic]]Note[/italic]: This command is critical for users who wish to modify their child hotkey take on the network.
+        [italic]Note[/italic]: This command is critical for users who wish to modify their child hotkey take on the network.
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
@@ -3537,13 +3594,22 @@ class CLIManager:
             ask_for=[WO.NAME, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
-
+        if all_netuids and netuid:
+            err_console.print("Specify either netuid or all, not both.")
+            raise typer.Exit()
+        if all_netuids:
+            netuid = None
+        elif not netuid:
+            netuid = IntPrompt.ask(
+                "Enter netuid (leave blank for all)", default=None, show_default=True
+            )
         return self._run_command(
-            stake.childkey_take(
+            children_hotkeys.childkey_take(
                 wallet=wallet,
                 subtensor=self.initialize_chain(network, chain),
                 netuid=netuid,
                 take=take,
+                hotkey=hotkey,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 prompt=prompt,
