@@ -2284,7 +2284,13 @@ class CLIManager:
         [green]$[/green] btcli root boost --netuid 1 --increase 0.01
         """
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
         return self._run_command(
             root.set_boost(
                 wallet, self.initialize_chain(network, chain), netuid, amount, prompt
@@ -3672,7 +3678,9 @@ class CLIManager:
             param_name = hyperparam_list[choice - 1]
 
         if not param_value:
-            param_value = Prompt.ask(f"Enter new value for {param_name}")
+            param_value = Prompt.ask(
+                f"Enter the new value for [dark_orange]{param_name}[/dark_orange] in the VALUE column format"
+            )
 
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
