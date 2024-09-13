@@ -1607,7 +1607,6 @@ async def list_delegates(subtensor: SubtensorInterface):
         Column("[white]Desc\n\n", style="rgb(50,163,219)", max_width=30, ratio=2),
         title=f"[underline dark_orange]Root Delegates[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}\n",
         show_footer=True,
-        # width=table_width,
         pad_edge=False,
         box=None,
     )
