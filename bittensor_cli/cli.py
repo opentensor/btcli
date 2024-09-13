@@ -64,7 +64,7 @@ class Options:
     wallet_name = typer.Option(
         None,
         "--wallet-name",
-        "-w",
+        "--name",
         "--wallet_name",
         "--wallet.name",
         help="Name of wallet",
@@ -139,6 +139,12 @@ class Options:
         None,
         help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
         prompt=True,
+    )
+    weights = typer.Option(
+            [],
+            "--weights",
+            "-w",
+            help="Corresponding weights for the specified UIDs, e.g. `-w 0.2 -w 0.4 -w 0.1 ...",
     )
     reuse_last = typer.Option(
         False,
@@ -2144,13 +2150,8 @@ class CLIManager:
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
-        netuids: list[int] = typer.Option(
-            None, help="Netuids, e.g. `-n 0 -n 1 -n 2` ..."
-        ),
-        weights: list[float] = typer.Argument(
-            None,
-            help="Weights: e.g. `0.02 0.03 0.01` ...",
-        ),
+        netuids: list[int] = Options.netuids,
+        weights: list[float] = Options.weights,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -2176,6 +2177,7 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
         netuids = list_prompt(netuids, int, "Enter netuids (e.g: 1, 4, 6)")
+        weights = list_prompt(weights, float, "Enter weights (e.g. 0.02, 0.03, 0.01)")
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -2183,8 +2185,6 @@ class CLIManager:
             ask_for=[WO.HOTKEY, WO.NAME],
             validate=WV.WALLET_AND_HOTKEY,
         )
-        if not weights:
-            weights = list_prompt([], float, "Weights (e.g. 0.02, 0.03, 0.01)")
         self._run_command(
             root.set_weights(
                 wallet, self.initialize_chain(network, chain), netuids, weights, prompt
@@ -4205,12 +4205,7 @@ class CLIManager:
             "-u",
             help="Corresponding UIDs for the specified netuid, e.g. -u 1 -u 2 -u 3 ...",
         ),
-        weights: list[float] = typer.Option(
-            [],
-            "--weights",
-            "-w",
-            help="Corresponding weights for the specified UIDs, e.g. `-w 0.2 -w 0.4 -w 0.1 ...",
-        ),
+        weights: list[float] = Options.weights,
         salt: list[int] = typer.Option(
             [],
             "--salt",
@@ -4280,12 +4275,7 @@ class CLIManager:
             "-u",
             help="Corresponding UIDs for the specified netuid, e.g. -u 1 -u 2 -u 3 ...",
         ),
-        weights: list[float] = typer.Option(
-            [],
-            "--weights",
-            "-w",
-            help="Corresponding weights for the specified UIDs, e.g. `-w 0.2 -w 0.4 -w 0.1 ...",
-        ),
+        weights: list[float] = Options.weights,
         salt: list[int] = typer.Option(
             [],
             "--salt",
