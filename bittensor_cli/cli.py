@@ -3679,7 +3679,7 @@ class CLIManager:
 
         if not param_value:
             param_value = Prompt.ask(
-                f"Enter the new value for {param_name} in the VALUE column format"
+                f"Enter the new value for [dark_orange]{param_name}[/dark_orange] in the VALUE column format"
             )
 
         wallet = self.wallet_ask(
