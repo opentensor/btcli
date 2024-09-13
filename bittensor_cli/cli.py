@@ -64,7 +64,7 @@ class Options:
     wallet_name = typer.Option(
         None,
         "--wallet-name",
-        "-w",
+        "--name",
         "--wallet_name",
         "--wallet.name",
         help="Name of wallet",
@@ -135,10 +135,20 @@ class Options:
     netuids = typer.Option(
         [], "--netuids", "-n", help="Set the netuid(s) to filter by (e.g. `0 1 2`)"
     )
-    netuid = typer.Option(
-        None,
-        help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
-        prompt=True,
+    netuid = (
+        typer.Option(
+            None,
+            help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
+            prompt=True,
+        ),
+    )
+    weights = (
+        typer.Option(
+            [],
+            "--weights",
+            "-w",
+            help="Corresponding weights for the specified UIDs, e.g. `-w 0.2 -w 0.4 -w 0.1 ...",
+        ),
     )
     reuse_last = typer.Option(
         False,
@@ -731,44 +741,11 @@ class CLIManager:
 
     def set_config(
         self,
-        wallet_name: Optional[str] = typer.Option(
-            None,
-            "--wallet-name",
-            "--name",
-            "--wallet_name",
-            help="Wallet name",
-        ),
-        wallet_path: Optional[str] = typer.Option(
-            None,
-            "--wallet-path",
-            "--path",
-            "-p",
-            "--wallet_path",
-            help="Path to root of wallets",
-        ),
-        wallet_hotkey: Optional[str] = typer.Option(
-            None,
-            "--wallet-hotkey",
-            "--hotkey",
-            "-k",
-            "--wallet_hotkey",
-            help="name of the wallet hotkey file",
-        ),
-        network: Optional[str] = typer.Option(
-            None,
-            "--network",
-            "-n",
-            "--subtensor.network",
-            help="Network name: [finney, test, local]",
-        ),
-        chain: Optional[str] = typer.Option(
-            None,
-            "--chain",
-            "-c",
-            "--subtensor.chain_endpoint",
-            help="chain endpoint for the network (e.g. ws://127.0.0.1:9945, "
-            "wss://entrypoint-finney.opentensor.ai:443)",
-        ),
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
         no_cache: Optional[bool] = typer.Option(
             False,
             "--no-cache",
@@ -2143,13 +2120,8 @@ class CLIManager:
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
-        netuids: list[int] = typer.Option(
-            None, help="Netuids, e.g. `-n 0 -n 1 -n 2` ..."
-        ),
-        weights: list[float] = typer.Argument(
-            None,
-            help="Weights: e.g. `0.02 0.03 0.01` ...",
-        ),
+        netuids: list[int] = Options.netuids,
+        weights: list[float] = Options.weights,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -2175,6 +2147,7 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
         netuids = list_prompt(netuids, int, "Enter netuids")
+        weights = list_prompt(weights, float, "Enter weights")
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -2284,7 +2257,13 @@ class CLIManager:
         [green]$[/green] btcli root boost --netuid 1 --increase 0.01
         """
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
         return self._run_command(
             root.set_boost(
                 wallet, self.initialize_chain(network, chain), netuid, amount, prompt
@@ -4184,12 +4163,7 @@ class CLIManager:
             "-u",
             help="Corresponding UIDs for the specified netuid, e.g. -u 1 -u 2 -u 3 ...",
         ),
-        weights: list[float] = typer.Option(
-            [],
-            "--weights",
-            "-w",
-            help="Corresponding weights for the specified UIDs, e.g. `-w 0.2 -w 0.4 -w 0.1 ...",
-        ),
+        weights: list[float] = Options.weights,
         salt: list[int] = typer.Option(
             [],
             "--salt",
@@ -4259,12 +4233,7 @@ class CLIManager:
             "-u",
             help="Corresponding UIDs for the specified netuid, e.g. -u 1 -u 2 -u 3 ...",
         ),
-        weights: list[float] = typer.Option(
-            [],
-            "--weights",
-            "-w",
-            help="Corresponding weights for the specified UIDs, e.g. `-w 0.2 -w 0.4 -w 0.1 ...",
-        ),
+        weights: list[float] = Options.weights,
         salt: list[int] = typer.Option(
             [],
             "--salt",
