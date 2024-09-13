@@ -22,6 +22,7 @@ from bittensor_cli.src.bittensor.utils import (
     create_table,
     err_console,
     print_verbose,
+    print_error,
     format_error_message,
     get_delegates_details_from_github,
     get_metadata_table,
@@ -474,8 +475,13 @@ async def metagraph_cmd(
         with console.status(
             f":satellite: Syncing with chain: [white]{subtensor.network}[/white] ...",
             spinner="aesthetic",
-        ):
+        ) as status:
             block_hash = await subtensor.substrate.get_chain_head()
+
+            if not await subtensor.subnet_exists(netuid, block_hash):
+                print_error(f"Subnet with netuid: {netuid} does not exist", status)
+                return False
+
             neurons, difficulty_, total_issuance_, block = await asyncio.gather(
                 subtensor.neurons(netuid, block_hash=block_hash),
                 subtensor.get_hyperparameter(

@@ -588,12 +588,11 @@ async def overview(
         for netuid in netuids:
             neurons[str(netuid)] = []
 
-        all_wallet_data = [
-            {"name": wallet.name, "path": wallet.path} for wallet in all_hotkeys
-        ]
+        all_wallet_data = {(wallet.name, wallet.path) for wallet in all_hotkeys}
+
         all_coldkey_wallets = [
-            Wallet(name=wallet_data["name"], path=wallet_data["path"])
-            for wallet_data in all_wallet_data
+            Wallet(name=wallet_name, path=wallet_path)
+            for wallet_name, wallet_path in all_wallet_data
         ]
 
         print_verbose("Fetching key addresses", status)

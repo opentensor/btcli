@@ -88,9 +88,8 @@ def _get_real_torch():
 
 def log_no_torch_error():
     err_console.print(
-        "This command requires torch. You can install torch for btcli"
-        ' with `pip install btcli[cuda]` or `pip install ".[cuda]"`'  # TODO extension
-        " if installing from source, and then run the command with USE_TORCH=1 {command}"
+        "This command requires torch. You can install torch"
+        " with `pip install torch` and run the command again."
     )
 
 
@@ -527,9 +526,9 @@ async def register_extrinsic(
     if prompt:
         if not Confirm.ask(
             f"Continue Registration?\n"
-            f"  hotkey:\t[bold white]{wallet.hotkey.ss58_address}[/bold white]\n"
-            f"  coldkey:\t[bold white]{wallet.coldkeypub.ss58_address}[/bold white]\n"
-            f"  network:\t[bold white]{subtensor.network}[/bold white]"
+            f"  hotkey ({wallet.hotkey_str}):\t[bold white]{wallet.hotkey.ss58_address}[/bold white]\n"
+            f"  coldkey ({wallet.name}):\t[bold white]{wallet.coldkeypub.ss58_address}[/bold white]\n"
+            f"  network:\t\t[bold white]{subtensor.network}[/bold white]"
         ):
             return False
 

@@ -1167,7 +1167,7 @@ async def get_senate(subtensor: SubtensorInterface):
 async def register(wallet: Wallet, subtensor: SubtensorInterface, prompt: bool):
     """Register neuron by recycling some TAO."""
 
-    console.print(f"Registering on [dark_orange]network: {subtensor.network}")
+    console.print(f"Registering on [dark_orange]netuid 0[/dark_orange] on network: [dark_orange]{subtensor.network}")
 
     # Check current recycle amount
     print_verbose("Fetching recycle amount & balance")
