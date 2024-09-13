@@ -738,44 +738,11 @@ class CLIManager:
 
     def set_config(
         self,
-        wallet_name: Optional[str] = typer.Option(
-            None,
-            "--wallet-name",
-            "--name",
-            "--wallet_name",
-            help="Wallet name",
-        ),
-        wallet_path: Optional[str] = typer.Option(
-            None,
-            "--wallet-path",
-            "--path",
-            "-p",
-            "--wallet_path",
-            help="Path to root of wallets",
-        ),
-        wallet_hotkey: Optional[str] = typer.Option(
-            None,
-            "--wallet-hotkey",
-            "--hotkey",
-            "-k",
-            "--wallet_hotkey",
-            help="name of the wallet hotkey file",
-        ),
-        network: Optional[str] = typer.Option(
-            None,
-            "--network",
-            "-n",
-            "--subtensor.network",
-            help="Network name: [finney, test, local]",
-        ),
-        chain: Optional[str] = typer.Option(
-            None,
-            "--chain",
-            "-c",
-            "--subtensor.chain_endpoint",
-            help="chain endpoint for the network (e.g. ws://127.0.0.1:9945, "
-            "wss://entrypoint-finney.opentensor.ai:443)",
-        ),
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        network: Optional[str] = Options.network,
+        chain: Optional[str] = Options.chain,
         no_cache: Optional[bool] = typer.Option(
             False,
             "--no-cache",
