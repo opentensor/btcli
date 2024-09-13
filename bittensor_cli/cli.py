@@ -135,17 +135,21 @@ class Options:
     netuids = typer.Option(
         [], "--netuids", "-n", help="Set the netuid(s) to filter by (e.g. `0 1 2`)"
     )
-    netuid = typer.Option(
-        None,
-        help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
-        prompt=True,
-    ),
-    weights = typer.Option(
+    netuid = (
+        typer.Option(
+            None,
+            help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
+            prompt=True,
+        ),
+    )
+    weights = (
+        typer.Option(
             [],
             "--weights",
             "-w",
             help="Corresponding weights for the specified UIDs, e.g. `-w 0.2 -w 0.4 -w 0.1 ...",
-    ),
+        ),
+    )
     reuse_last = typer.Option(
         False,
         "--reuse-last",
@@ -2253,7 +2257,13 @@ class CLIManager:
         [green]$[/green] btcli root boost --netuid 1 --increase 0.01
         """
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
         return self._run_command(
             root.set_boost(
                 wallet, self.initialize_chain(network, chain), netuid, amount, prompt
