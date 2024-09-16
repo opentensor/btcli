@@ -495,6 +495,9 @@ async def set_children(
         if not is_valid_ss58_address(child):
             err_console.print(f":cross_mark:[red] Invalid SS58 address: {child}[/red]")
             return
+        if child == wallet.hotkey.ss58_address:
+            err_console.print(":cross_mark:[red] Cannot set yourself as a child.[/red]")
+            return
 
     total_proposed = sum(proportions)
     if total_proposed > 1:
@@ -624,9 +627,9 @@ async def childkey_take(
             return False
         return True
 
-    def print_all_takes(takes: list[tuple[int, float]]):
+    def print_all_takes(takes: list[tuple[int, float]], ss58: str):
         """Print table with netuids and Takes"""
-        table = Table(title="Current Child Takes")
+        table = Table(title=f"Current Child Takes for {ss58}")
         table.add_column("Netuid", justify="center", style="cyan")
         table.add_column("Take (%)", justify="right", style="magenta")
 
@@ -659,7 +662,7 @@ async def childkey_take(
                 take_value = u16_to_float(curr_take)
                 takes.append((subnet, take_value * 100))
 
-        print_all_takes(takes)
+        print_all_takes(takes, ss58)
 
     async def set_chk_take_subnet(subnet, chk_take):
         """Set the childkey take for a single subnet"""
