@@ -108,7 +108,11 @@ async def _get_senate_members(
         params=None,
         block_hash=block_hash,
     )
-    return [decode_account_id(i[x][0]) for i in senate_members for x in range(len(i))]
+    try:
+        return [decode_account_id(i[x][0]) for i in senate_members for x in range(len(i))]
+    except (IndexError, TypeError):
+        err_console.print("Unable to retrieve senate members.")
+        return []
 
 
 async def _get_proposals(
@@ -134,9 +138,9 @@ async def _get_proposals(
         proposal_hashes: list[str] = [
             f"0x{bytes(ph[0][x][0]).hex()}" for x in range(len(ph[0]))
         ]
-    except IndexError:
+    except (IndexError, TypeError):
         err_console.print("Unable to retrieve proposal vote data")
-        raise typer.Exit()
+        return []
 
     call_data_, vote_data_ = await asyncio.gather(
         asyncio.gather(*[get_proposal_call_data(h) for h in proposal_hashes]),
