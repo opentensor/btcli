@@ -109,7 +109,9 @@ async def _get_senate_members(
         block_hash=block_hash,
     )
     try:
-        return [decode_account_id(i[x][0]) for i in senate_members for x in range(len(i))]
+        return [
+            decode_account_id(i[x][0]) for i in senate_members for x in range(len(i))
+        ]
     except (IndexError, TypeError):
         err_console.print("Unable to retrieve senate members.")
         return []
@@ -421,7 +423,9 @@ async def set_take_extrinsic(
             success, err = await subtensor.sign_and_send_extrinsic(call, wallet)
 
     else:
-        console.print(f"Current take is {float(delegate.take):.4f}. Decreasing to {take:.4f}.")
+        console.print(
+            f"Current take is {float(delegate.take):.4f}. Decreasing to {take:.4f}."
+        )
         with console.status(
             f":satellite: Sending increase_take_extrinsic call on [white]{subtensor}[/white] ..."
         ):
@@ -892,10 +896,10 @@ async def get_weights(
         if not rows:
             err_console.print("No weights exist on the root network.")
             return
-        
+
         # Adding rows
         for row in rows:
-            new_row = [row[0]] + row[_min_lim + 1:_max_lim + 1]
+            new_row = [row[0]] + row[_min_lim + 1 : _max_lim + 1]
             table.add_row(*new_row)
 
         return console.print(table)
@@ -1522,36 +1526,48 @@ async def list_delegates(subtensor: SubtensorInterface):
             overflow="fold",
             ratio=2,
         ),
-        Column("[white]NOMINATORS\n\n", justify="center", style="gold1", no_wrap=True, ratio=1),
+        Column(
+            "[white]NOMINATORS\n\n",
+            justify="center",
+            style="gold1",
+            no_wrap=True,
+            ratio=1,
+        ),
         Column(
             "[white]DELEGATE STAKE\n(\u03c4)\n",
             justify="right",
             style="orange1",
             no_wrap=True,
-            ratio=1
+            ratio=1,
         ),
         Column(
             "[white]TOTAL STAKE\n(\u03c4)\n",
             justify="right",
             style="light_goldenrod2",
-            no_wrap=True,ratio=1
+            no_wrap=True,
+            ratio=1,
         ),
         Column("[white]CHANGE\n/(4h)\n", style="grey0", justify="center", ratio=1),
         Column("[white]TAKE\n\n", style="white", no_wrap=True, ratio=1),
         Column(
             "[white]NOMINATOR\n/(24h)/k\u03c4\n",
             style="dark_olive_green3",
-            justify="center",ratio=1
+            justify="center",
+            ratio=1,
         ),
         Column(
-            "[white]DELEGATE\n/(24h)\n", style="dark_olive_green3", justify="center", ratio=1
+            "[white]DELEGATE\n/(24h)\n",
+            style="dark_olive_green3",
+            justify="center",
+            ratio=1,
         ),
         Column(
             "[white]VPERMIT\n\n",
             justify="center",
             no_wrap=False,
             max_width=20,
-            style="dark_sea_green", ratio=2
+            style="dark_sea_green",
+            ratio=2,
         ),
         Column("[white]Desc\n\n", style="rgb(50,163,219)", max_width=30, ratio=2),
         title=f"[underline dark_orange]Root Delegates[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}\n",

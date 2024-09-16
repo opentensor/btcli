@@ -1,4 +1,5 @@
 import asyncio
+import binascii
 import itertools
 import os
 from collections import defaultdict
@@ -1460,12 +1461,13 @@ async def set_id(
 ):
     """Create a new or update existing identity on-chain."""
 
+    pgp_fingerprint_encoded = binascii.unhexlify(pgp_fingerprint.replace(" ", ""))
     id_dict = {
         "additional": [[]],
         "display": display_name,
         "legal": legal_name,
         "web": web_url,
-        "pgp_fingerprint": pgp_fingerprint.strip(" "),
+        "pgp_fingerprint": pgp_fingerprint_encoded,
         "riot": riot_handle,
         "email": email,
         "image": image,
@@ -1474,7 +1476,7 @@ async def set_id(
     }
 
     for field, string in id_dict.items():
-        if field == "pgp_fingerprint" and len(pgp_fingerprint.encode()) != 20:
+        if field == "pgp_fingerprint" and len(pgp_fingerprint_encoded) != 20:
             err_console.print(
                 "[red]Error:[/red] PGP Fingerprint must be exactly 20 bytes."
             )
@@ -1497,7 +1499,7 @@ async def set_id(
             "web": {f"Raw{len(web_url.encode())}": web_url.encode()},
             "riot": {f"Raw{len(riot_handle.encode())}": riot_handle.encode()},
             "email": {f"Raw{len(email.encode())}": email.encode()},
-            "pgp_fingerprint": pgp_fingerprint.strip(" ").encode() if pgp_fingerprint else None,
+            "pgp_fingerprint": pgp_fingerprint_encoded if pgp_fingerprint else None,
             "image": {f"Raw{len(image.encode())}": image.encode()},
             "info": {f"Raw{len(info_.encode())}": info_.encode()},
             "twitter": {f"Raw{len(twitter.encode())}": twitter.encode()},

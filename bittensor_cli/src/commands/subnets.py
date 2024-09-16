@@ -282,7 +282,12 @@ async def subnets_list(
             style="bright_cyan",
             justify="right",
         )
-        table.add_column("[bold white]MAX_N", footer=f"[white]{metadata['MAX_N']}[/white]", style="bright_cyan", justify="right")
+        table.add_column(
+            "[bold white]MAX_N",
+            footer=f"[white]{metadata['MAX_N']}[/white]",
+            style="bright_cyan",
+            justify="right",
+        )
         table.add_column(
             "[bold white]EMISSION", style="light_goldenrod2", justify="right"
         )

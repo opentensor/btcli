@@ -142,10 +142,10 @@ class Options:
         prompt=True,
     )
     weights = typer.Option(
-            [],
-            "--weights",
-            "-w",
-            help="Corresponding weights for the specified UIDs, e.g. `-w 0.2 -w 0.4 -w 0.1 ...",
+        [],
+        "--weights",
+        "-w",
+        help="Corresponding weights for the specified UIDs, e.g. `-w 0.2 -w 0.4 -w 0.1 ...",
     )
     reuse_last = typer.Option(
         False,
