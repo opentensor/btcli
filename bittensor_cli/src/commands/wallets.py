@@ -636,7 +636,7 @@ async def overview(
                 coldkeys_to_check.append(coldkey_wallet)
                 alerts_table.add_row(
                     "Found [light_goldenrod2]{}[/light_goldenrod2] stake with coldkey [bright_magenta]{}[/bright_magenta] that is not registered.".format(
-                        difference, coldkey_wallet.coldkeypub.ss58_address
+                        abs(difference), coldkey_wallet.coldkeypub.ss58_address
                     )
                 )
 
