@@ -154,6 +154,13 @@ async def _get_proposals(
     }
 
 
+def _validate_proposal_hash(proposal_hash: str) -> bool:
+    if proposal_hash[0:2] != "0x" or len(proposal_hash) != 66:
+        return False
+    else:
+        return True
+
+
 async def _is_senate_member(subtensor: SubtensorInterface, hotkey_ss58: str) -> bool:
     """
     Checks if a given neuron (identified by its hotkey SS58 address) is a member of the Bittensor senate.
@@ -1040,8 +1047,13 @@ async def senate_vote(
     """Vote in Bittensor's governance protocol proposals"""
 
     if not proposal_hash:
-        console.print(
-            'Aborting: Proposal hash not specified. View all proposals with the "proposals" command.'
+        err_console.print(
+            "Aborting: Proposal hash not specified. View all proposals with the `proposals` command."
+        )
+        return False
+    elif not _validate_proposal_hash(proposal_hash):
+        err_console.print(
+            "Aborting. Proposal hash is invalid. Proposal hashes should start with '0x' and be 32 bytes long"
         )
         return False
 

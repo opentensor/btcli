@@ -629,7 +629,9 @@ async def childkey_take(
 
     def print_all_takes(takes: list[tuple[int, float]], ss58: str):
         """Print table with netuids and Takes"""
-        table = Table(title=f"Current Child Takes for [bright_magenta]{ss58}[/bright_magenta]")
+        table = Table(
+            title=f"Current Child Takes for [bright_magenta]{ss58}[/bright_magenta]"
+        )
         table.add_column("Netuid", justify="center", style="cyan")
         table.add_column("Take (%)", justify="right", style="magenta")
 
