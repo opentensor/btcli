@@ -421,7 +421,7 @@ async def set_root_weights_extrinsic(
     if my_uid is None:
         err_console.print("Your hotkey is not registered to the root network")
         return False
-        
+
     try:
         wallet.unlock_coldkey()
     except KeyFileError:
