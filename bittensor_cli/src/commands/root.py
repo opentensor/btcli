@@ -142,7 +142,7 @@ async def _get_proposals(
         ]
     except (IndexError, TypeError):
         err_console.print("Unable to retrieve proposal vote data")
-        return []
+        return {}
 
     call_data_, vote_data_ = await asyncio.gather(
         asyncio.gather(*[get_proposal_call_data(h) for h in proposal_hashes]),
