@@ -8,11 +8,16 @@ from typing import TYPE_CHECKING, Optional, Sequence, Union, cast
 
 from bittensor_wallet import Wallet
 from bittensor_wallet.errors import KeyFileError
-from rich.prompt import Confirm
+from bittensor_wallet.utils import SS58_FORMAT
+from rich.prompt import Confirm, Prompt
 from rich.table import Table, Column
+from rich.text import Text
+from scalecodec import ss58_encode
+from substrateinterface.exceptions import SubstrateRequestException
 
 from bittensor_cli.src import Constants
 from bittensor_cli.src.bittensor.balances import Balance
+from bittensor_cli.src.bittensor.chain_data import decode_account_id
 from bittensor_cli.src.bittensor.utils import (
     console,
     create_table,
@@ -43,7 +48,7 @@ async def _get_threshold_amount(
         storage_function="NominatorMinRequiredStake",
         block_hash=block_hash,
     )
-    min_req_stake: Balance = Balance.from_rao(mrs.decode())
+    min_req_stake: Balance = Balance.from_rao(mrs)
     return min_req_stake
 
 
@@ -81,14 +86,12 @@ async def _get_hotkey_owner(
         params=[hotkey_ss58],
         block_hash=block_hash,
     )
-    hotkey_owner = (
-        val
-        if (
-            (val := getattr(hk_owner_query, "value", None))
-            and await subtensor.does_hotkey_exist(val, block_hash=block_hash)
-        )
-        else None
-    )
+    val = decode_account_id(hk_owner_query[0])
+    if val:
+        exists = await subtensor.does_hotkey_exist(val, block_hash=block_hash)
+    else:
+        exists = False
+    hotkey_owner = val if exists else None
     return hotkey_owner
 
 
@@ -161,7 +164,9 @@ async def add_stake_extrinsic(
                 params=[hotkey_ss58],
                 block_hash=block_hash,
             )
-            hotkey_take = u16_normalized_float(getattr(hk_result, "value", 0))
+            hotkey_take = u16_normalized_float(hk_result or 0)
+        else:
+            hotkey_take = None
 
         # Get current stake
         print_verbose("Fetching current stake", status)
@@ -246,7 +251,6 @@ async def add_stake_extrinsic(
         staking_response, err_msg = await subtensor.sign_and_send_extrinsic(
             call, wallet, wait_for_inclusion, wait_for_finalization
         )
-
     if staking_response is True:  # If we successfully staked.
         # We only wait here if we expect finalization.
         if not wait_for_finalization and not wait_for_inclusion:
@@ -418,7 +422,7 @@ async def add_stake_multiple_extrinsic(
                     storage_function="TxRateLimit",
                     block_hash=block_hash,
                 )
-                tx_rate_limit_blocks: int = getattr(tx_query, "value", 0)
+                tx_rate_limit_blocks: int = tx_query
                 if tx_rate_limit_blocks > 0:
                     with console.status(
                         f":hourglass: [yellow]Waiting for tx rate limit:"
@@ -786,7 +790,7 @@ async def unstake_multiple_extrinsic(
                     storage_function="TxRateLimit",
                     block_hash=block_hash,
                 )
-                tx_rate_limit_blocks: int = getattr(tx_query, "value", 0)
+                tx_rate_limit_blocks: int = tx_query
                 if tx_rate_limit_blocks > 0:
                     console.print(
                         ":hourglass: [yellow]Waiting for tx rate limit:"
@@ -904,7 +908,7 @@ async def show(
                     for netuid in netuids
                 ]
             )
-            uids = [getattr(_result, "value", None) for _result in uid_query]
+            uids = [_result for _result in uid_query]
             neurons = await asyncio.gather(
                 *[
                     subtensor.neuron_for_uid(uid, net)
@@ -924,9 +928,7 @@ async def show(
                 ),
             )
             emission_ = sum([n.emission for n in neurons]) if neurons else 0.0
-            return emission_, Balance.from_rao(stake.value) if getattr(
-                stake, "value", None
-            ) else Balance(0)
+            return emission_, Balance.from_rao(stake) if stake else Balance(0)
 
         hotkeys = cast(list[Wallet], get_hotkey_wallets_for_wallet(wallet_))
         stakes = {}

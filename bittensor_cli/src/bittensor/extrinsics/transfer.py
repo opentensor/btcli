@@ -92,12 +92,12 @@ async def transfer_extrinsic(
             return True, "", ""
 
         # Otherwise continue with finalization.
-        response.process_events()
-        if response.is_success:
+        await response.process_events()
+        if await response.is_success:
             block_hash_ = response.block_hash
             return True, block_hash_, ""
         else:
-            return False, "", format_error_message(response.error_message)
+            return False, "", format_error_message(await response.error_message)
 
     # Validate destination address.
     if not is_valid_bittensor_address_or_public_key(destination):

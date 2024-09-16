@@ -61,7 +61,9 @@ async def register_subnetwork_extrinsic(
             If we did not wait for finalization / inclusion, the response is ``true``.
     """
 
-    def _find_event_attributes_in_extrinsic_receipt(response_, event_name: str) -> list:
+    async def _find_event_attributes_in_extrinsic_receipt(
+        response_, event_name: str
+    ) -> list:
         """
         Searches for the attributes of a specified event within an extrinsic receipt.
 
@@ -70,9 +72,9 @@ async def register_subnetwork_extrinsic(
 
         :return: A list of attributes for the specified event. Returns [-1] if the event is not found.
         """
-        for event in response_.triggered_events:
+        for event in await response_.triggered_events:
             # Access the event details
-            event_details = event.value["event"]
+            event_details = event["event"]
             # Check if the event_id is 'NetworkAdded'
             if event_details["event_id"] == event_name:
                 # Once found, you can access the attributes of the event_name
@@ -125,17 +127,17 @@ async def register_subnetwork_extrinsic(
         if not wait_for_finalization and not wait_for_inclusion:
             return True
 
-        response.process_events()
-        if not response.is_success:
+        await response.process_events()
+        if not await response.is_success:
             err_console.print(
-                f":cross_mark: [red]Failed[/red]: {format_error_message(response.error_message)}"
+                f":cross_mark: [red]Failed[/red]: {format_error_message(await response.error_message)}"
             )
             await asyncio.sleep(0.5)
             return False
 
         # Successful registration, final check for membership
         else:
-            attributes = _find_event_attributes_in_extrinsic_receipt(
+            attributes = await _find_event_attributes_in_extrinsic_receipt(
                 response, "NetworkAdded"
             )
             console.print(
@@ -280,7 +282,12 @@ async def subnets_list(
             style="bright_cyan",
             justify="right",
         )
-        table.add_column("[bold white]MAX_N", footer=f"[white]{metadata['MAX_N']}[/white]", style="bright_cyan", justify="right")
+        table.add_column(
+            "[bold white]MAX_N",
+            footer=f"[white]{metadata['MAX_N']}[/white]",
+            style="bright_cyan",
+            justify="right",
+        )
         table.add_column(
             "[bold white]EMISSION", style="light_goldenrod2", justify="right"
         )
@@ -500,7 +507,7 @@ async def metagraph_cmd(
             )
 
         difficulty = int(difficulty_)
-        total_issuance = Balance.from_rao(total_issuance_.value)
+        total_issuance = Balance.from_rao(total_issuance_)
         metagraph = MiniGraph(
             netuid=netuid, neurons=neurons, subtensor=subtensor, block=block
         )

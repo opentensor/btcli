@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import Optional, TypedDict
+from typing import Optional, TYPE_CHECKING
 
 from bittensor_wallet import Wallet
 from bittensor_wallet.errors import KeyFileError
@@ -15,7 +15,11 @@ import typer
 
 from bittensor_cli.src import Constants, DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance
-from bittensor_cli.src.bittensor.chain_data import DelegateInfo, NeuronInfoLite
+from bittensor_cli.src.bittensor.chain_data import (
+    DelegateInfo,
+    NeuronInfoLite,
+    decode_account_id,
+)
 from bittensor_cli.src.bittensor.extrinsics.root import (
     root_register_extrinsic,
     set_root_weights_extrinsic,
@@ -40,6 +44,9 @@ from bittensor_cli.src.bittensor.utils import (
     group_vpermits,
 )
 
+if TYPE_CHECKING:
+    from bittensor_cli.src.bittensor.subtensor_interface import ProposalVoteData
+
 # helpers
 
 
@@ -48,7 +55,7 @@ def display_votes(
 ) -> str:
     vote_list = list()
 
-    for address in vote_data["ayes"]:
+    for address in vote_data.ayes:
         vote_list.append(
             "{}: {}".format(
                 delegate_info[address].name if address in delegate_info else address,
@@ -56,7 +63,7 @@ def display_votes(
             )
         )
 
-    for address in vote_data["nays"]:
+    for address in vote_data.nays:
         vote_list.append(
             "{}: {}".format(
                 delegate_info[address].name if address in delegate_info else address,
@@ -67,35 +74,22 @@ def display_votes(
     return "\n".join(vote_list)
 
 
-def format_call_data(call_data: GenericCall) -> str:
-    human_call_data = list()
+def format_call_data(call_data: dict) -> str:
+    # Extract the module and call details
+    module, call_details = next(iter(call_data.items()))
 
-    for arg in call_data["call_args"]:
-        arg_value = arg["value"]
+    # Extract the call function name and arguments
+    call_info = call_details[0]
+    call_function, call_args = next(iter(call_info.items()))
 
-        # If this argument is a nested call
-        func_args = (
-            format_call_data(
-                {
-                    "call_function": arg_value["call_function"],
-                    "call_args": arg_value["call_args"],
-                }
-            )
-            if isinstance(arg_value, dict) and "call_function" in arg_value
-            else str(arg_value)
-        )
+    # Extract the argument, handling tuple values
+    formatted_args = ", ".join(
+        str(arg[0]) if isinstance(arg, tuple) else str(arg)
+        for arg in call_args.values()
+    )
 
-        human_call_data.append("{}: {}".format(arg["name"], func_args))
-
-    return "{}({})".format(call_data["call_function"], ", ".join(human_call_data))
-
-
-class ProposalVoteData(TypedDict):
-    index: int
-    threshold: int
-    ayes: list[str]
-    nays: list[str]
-    end: int
+    # Format the final output string
+    return f"{call_function}({formatted_args})"
 
 
 async def _get_senate_members(
@@ -114,29 +108,26 @@ async def _get_senate_members(
         params=None,
         block_hash=block_hash,
     )
-    if not hasattr(senate_members, "serialize"):
-        raise TypeError("Senate Members cannot be serialized.")
-
-    return senate_members.serialize()
+    try:
+        return [
+            decode_account_id(i[x][0]) for i in senate_members for x in range(len(i))
+        ]
+    except (IndexError, TypeError):
+        err_console.print("Unable to retrieve senate members.")
+        return []
 
 
 async def _get_proposals(
     subtensor: SubtensorInterface, block_hash: str
-) -> dict[str, tuple[GenericCall, ProposalVoteData]]:
+) -> dict[str, tuple[dict, "ProposalVoteData"]]:
     async def get_proposal_call_data(p_hash: str) -> Optional[GenericCall]:
         proposal_data = await subtensor.substrate.query(
             module="Triumvirate",
-            name="ProposalOf",
+            storage_function="ProposalOf",
             block_hash=block_hash,
             params=[p_hash],
         )
-        return getattr(proposal_data, "serialize", lambda: None)()
-
-    async def get_proposal_vote_data(p_hash: str) -> Optional[ProposalVoteData]:
-        vote_data = await subtensor.substrate.query(
-            module="Triumvirate", name="Voting", block_hash=block_hash, params=[p_hash]
-        )
-        return getattr(vote_data, "serialize", lambda: None)()
+        return proposal_data
 
     ph = await subtensor.substrate.query(
         module="Triumvirate",
@@ -146,14 +137,16 @@ async def _get_proposals(
     )
 
     try:
-        proposal_hashes: list[str] = ph.serialize()
-    except AttributeError:
+        proposal_hashes: list[str] = [
+            f"0x{bytes(ph[0][x][0]).hex()}" for x in range(len(ph[0]))
+        ]
+    except (IndexError, TypeError):
         err_console.print("Unable to retrieve proposal vote data")
-        raise typer.Exit()
+        return {}
 
     call_data_, vote_data_ = await asyncio.gather(
         asyncio.gather(*[get_proposal_call_data(h) for h in proposal_hashes]),
-        asyncio.gather(*[get_proposal_vote_data(h) for h in proposal_hashes]),
+        asyncio.gather(*[subtensor.get_vote_data(h) for h in proposal_hashes]),
     )
     return {
         proposal_hash: (cd, vd)
@@ -182,38 +175,6 @@ async def _is_senate_member(subtensor: SubtensorInterface, hotkey_ss58: str) -> 
         return False
 
     return senate_members.count(hotkey_ss58) > 0
-
-
-async def _get_vote_data(
-    subtensor: SubtensorInterface,
-    proposal_hash: str,
-    block_hash: Optional[str] = None,
-    reuse_block: bool = False,
-) -> Optional[ProposalVoteData]:
-    """
-    Retrieves the voting data for a specific proposal on the Bittensor blockchain. This data includes
-    information about how senate members have voted on the proposal.
-
-    :param subtensor: The SubtensorInterface object to use for the query
-    :param proposal_hash: The hash of the proposal for which voting data is requested.
-    :param block_hash: The hash of the blockchain block number to query the voting data.
-    :param reuse_block: Whether to reuse the last-used blockchain block hash.
-
-    :return: An object containing the proposal's voting data, or `None` if not found.
-
-    This function is important for tracking and understanding the decision-making processes within
-    the Bittensor network, particularly how proposals are received and acted upon by the governing body.
-    """
-    vote_data = await subtensor.substrate.query(
-        module="Triumvirate",
-        storage_function="Voting",
-        params=[proposal_hash],
-        block_hash=block_hash,
-        reuse_block_hash=reuse_block,
-    )
-    if not hasattr(vote_data, "serialize"):
-        return None
-    return vote_data.serialize() if vote_data is not None else None
 
 
 async def vote_senate_extrinsic(
@@ -266,13 +227,12 @@ async def vote_senate_extrinsic(
             err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
             await asyncio.sleep(0.5)
             return False
-
         # Successful vote, final check for data
         else:
-            if vote_data := await _get_vote_data(subtensor, proposal_hash):
+            if vote_data := await subtensor.get_vote_data(proposal_hash):
                 if (
-                    vote_data["ayes"].count(wallet.hotkey.ss58_address) > 0
-                    or vote_data["nays"].count(wallet.hotkey.ss58_address) > 0
+                    vote_data.ayes.count(wallet.hotkey.ss58_address) > 0
+                    or vote_data.nays.count(wallet.hotkey.ss58_address) > 0
                 ):
                     console.print(":white_heavy_check_mark: [green]Vote cast.[/green]")
                     return True
@@ -292,7 +252,7 @@ async def burned_register_extrinsic(
     netuid: int,
     recycle_amount: Balance,
     old_balance: Balance,
-    wait_for_inclusion: bool = False,
+    wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
     prompt: bool = False,
 ) -> bool:
@@ -328,7 +288,7 @@ async def burned_register_extrinsic(
 
         print_verbose("Checking if already registered", status)
         neuron = await subtensor.neuron_for_uid(
-            uid=my_uid.value,
+            uid=my_uid,
             netuid=netuid,
             block_hash=subtensor.substrate.last_block_hash,
         )
@@ -463,7 +423,9 @@ async def set_take_extrinsic(
             success, err = await subtensor.sign_and_send_extrinsic(call, wallet)
 
     else:
-        console.print(f"Current take is {float(delegate.take):.4f}. Decreasing to {take:.4f}.")
+        console.print(
+            f"Current take is {float(delegate.take):.4f}. Decreasing to {take:.4f}."
+        )
         with console.status(
             f":satellite: Sending increase_take_extrinsic call on [white]{subtensor}[/white] ..."
         ):
@@ -539,7 +501,7 @@ async def delegate_extrinsic(
             params=[ss58],
             block_hash=block_hash_,
         )
-        return getattr(_result, "value", None)
+        return decode_account_id(_result[0])
 
     async def get_stake_for_coldkey_and_hotkey(
         hotkey_ss58: str, coldkey_ss58: str, block_hash_: str
@@ -551,9 +513,7 @@ async def delegate_extrinsic(
             params=[hotkey_ss58, coldkey_ss58],
             block_hash=block_hash_,
         )
-        return (
-            Balance.from_rao(_result.value) if getattr(_result, "value", None) else None
-        )
+        return Balance.from_rao(_result or 0)
 
     delegate_string = "delegate" if delegate else "undelegate"
 
@@ -733,7 +693,7 @@ async def root_list(subtensor: SubtensorInterface):
             storage_function="Members",
             params=None,
         )
-        sm = senate_query.serialize() if hasattr(senate_query, "serialize") else None
+        sm = [decode_account_id(i[x][0]) for i in senate_query for x in range(len(i))]
 
         rn: list[NeuronInfoLite] = await subtensor.neurons_lite(netuid=0)
         if not rn:
@@ -804,9 +764,7 @@ async def root_list(subtensor: SubtensorInterface):
                 else ""
             ),
             neuron_data.hotkey,
-            "{:.5f}".format(
-                float(Balance.from_rao(total_stakes[neuron_data.hotkey].value))
-            ),
+            "{:.5f}".format(float(Balance.from_rao(total_stakes[neuron_data.hotkey]))),
             "Yes" if neuron_data.hotkey in senate_members else "No",
         )
 
@@ -938,10 +896,10 @@ async def get_weights(
         if not rows:
             err_console.print("No weights exist on the root network.")
             return
-        
+
         # Adding rows
         for row in rows:
-            new_row = [row[0]] + row[_min_lim + 1:_max_lim + 1]
+            new_row = [row[0]] + row[_min_lim + 1 : _max_lim + 1]
             table.add_row(*new_row)
 
         return console.print(table)
@@ -970,17 +928,16 @@ async def _get_my_weights(
             "SubtensorModule", "TotalNetworks", reuse_block_hash=True
         ),
     )
-    my_weights: list[tuple[int, int]] = my_weights_.value
+    # If setting weights for the first time, pass 0 root weights
+    my_weights: list[tuple[int, int]] = (
+        my_weights_ if my_weights_ is not None else [(0, 0)]
+    )
+    total_subnets: int = total_subnets_
 
     print_verbose("Fetching current weights")
     for _, w in enumerate(my_weights):
         if w:
             print_verbose(f"{w}")
-    total_subnets: int = total_subnets_.value
-
-    # If setting weights for the first time, pass 0 root weights
-    if not my_weights:
-        my_weights = [(0, 0)]
 
     uids, values = zip(*my_weights)
     weight_array = convert_weight_uids_and_vals_to_tensor(total_subnets, uids, values)
@@ -997,11 +954,9 @@ async def set_boost(
     """Boosts weight of a given netuid for root network."""
     console.print(f"Boosting weights in [dark_orange]network: {subtensor.network}")
     print_verbose(f"Fetching uid of hotkey on root: {wallet.hotkey_str}")
-    my_uid = (
-        await subtensor.substrate.query(
-            "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
-        )
-    ).value
+    my_uid = await subtensor.substrate.query(
+        "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
+    )
 
     if my_uid is None:
         err_console.print("Your hotkey is not registered to the root network")
@@ -1043,11 +998,9 @@ async def set_slash(
     """Slashes weight"""
     console.print(f"Slashing weights in [dark_orange]network: {subtensor.network}")
     print_verbose(f"Fetching uid of hotkey on root: {wallet.hotkey_str}")
-    my_uid = (
-        await subtensor.substrate.query(
-            "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
-        )
-    ).value
+    my_uid = await subtensor.substrate.query(
+        "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
+    )
     if my_uid is None:
         err_console.print("Your hotkey is not registered to the root network")
         return False
@@ -1181,11 +1134,11 @@ async def register(wallet: Wallet, subtensor: SubtensorInterface, prompt: bool):
         subtensor.get_hyperparameter(param_name="Burn", netuid=0, reuse_block=True),
         subtensor.get_balance(wallet.coldkeypub.ss58_address, reuse_block=True),
     )
+    current_recycle = Balance.from_rao(int(recycle_call))
     try:
-        current_recycle = Balance.from_rao(int(recycle_call))
         balance: Balance = balance_[wallet.coldkeypub.ss58_address]
-    except TypeError:
-        err_console.print("Unable to retrieve current recycle.")
+    except TypeError as e:
+        err_console.print(f"Unable to retrieve current recycle. {e}")
         return False
     except KeyError:
         err_console.print("Unable to retrieve current balance.")
@@ -1257,20 +1210,16 @@ async def proposals(subtensor: SubtensorInterface):
         width=None,
         border_style="bright_black",
     )
-
-    for hash_ in all_proposals:
-        call_data, vote_data = all_proposals[hash_]
-
+    for hash_, (call_data, vote_data) in all_proposals.items():
         table.add_row(
             hash_,
-            str(vote_data["threshold"]),
-            str(len(vote_data["ayes"])),
-            str(len(vote_data["nays"])),
+            str(vote_data.threshold),
+            str(len(vote_data.ayes)),
+            str(len(vote_data.nays)),
             display_votes(vote_data, registered_delegate_info),
-            str(vote_data["end"]),
+            str(vote_data.end),
             format_call_data(call_data),
         )
-
     return console.print(table)
 
 
@@ -1577,36 +1526,48 @@ async def list_delegates(subtensor: SubtensorInterface):
             overflow="fold",
             ratio=2,
         ),
-        Column("[white]NOMINATORS\n\n", justify="center", style="gold1", no_wrap=True, ratio=1),
+        Column(
+            "[white]NOMINATORS\n\n",
+            justify="center",
+            style="gold1",
+            no_wrap=True,
+            ratio=1,
+        ),
         Column(
             "[white]DELEGATE STAKE\n(\u03c4)\n",
             justify="right",
             style="orange1",
             no_wrap=True,
-            ratio=1
+            ratio=1,
         ),
         Column(
             "[white]TOTAL STAKE\n(\u03c4)\n",
             justify="right",
             style="light_goldenrod2",
-            no_wrap=True,ratio=1
+            no_wrap=True,
+            ratio=1,
         ),
         Column("[white]CHANGE\n/(4h)\n", style="grey0", justify="center", ratio=1),
         Column("[white]TAKE\n\n", style="white", no_wrap=True, ratio=1),
         Column(
             "[white]NOMINATOR\n/(24h)/k\u03c4\n",
             style="dark_olive_green3",
-            justify="center",ratio=1
+            justify="center",
+            ratio=1,
         ),
         Column(
-            "[white]DELEGATE\n/(24h)\n", style="dark_olive_green3", justify="center", ratio=1
+            "[white]DELEGATE\n/(24h)\n",
+            style="dark_olive_green3",
+            justify="center",
+            ratio=1,
         ),
         Column(
             "[white]VPERMIT\n\n",
             justify="center",
             no_wrap=False,
             max_width=20,
-            style="dark_sea_green", ratio=2
+            style="dark_sea_green",
+            ratio=2,
         ),
         Column("[white]Desc\n\n", style="rgb(50,163,219)", max_width=30, ratio=2),
         title=f"[underline dark_orange]Root Delegates[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}\n",

@@ -1,20 +1,24 @@
 import asyncio
 import json
-import signal
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Optional, Any, Union, Callable, Awaitable
+from hashlib import blake2b
+from typing import Optional, Any, Union, Callable, Awaitable, cast
 
-import websockets
+from bt_decode import PortableRegistry, decode as decode_by_type_string, MetadataV15
+from async_property import async_property
 from scalecodec import GenericExtrinsic
 from scalecodec.base import ScaleBytes, ScaleType, RuntimeConfigurationObject
 from scalecodec.type_registry import load_type_registry_preset
 from scalecodec.types import GenericCall
-from substrateinterface import Keypair, ExtrinsicReceipt
-from substrateinterface.base import SubstrateInterface, QueryMapResult
-from substrateinterface.exceptions import SubstrateRequestException
+from substrateinterface import Keypair
+from substrateinterface.exceptions import (
+    SubstrateRequestException,
+    ExtrinsicNotFound,
+    BlockNotFound,
+)
 from substrateinterface.storage import StorageKey
-
+import websockets
 
 ResultHandler = Callable[[dict, Any], Awaitable[tuple[dict, bool]]]
 
@@ -25,6 +29,381 @@ class TimeoutException(Exception):
 
 def timeout_handler(signum, frame):
     raise TimeoutException("Operation timed out")
+
+
+class ExtrinsicReceipt:
+    """
+    Object containing information of submitted extrinsic. Block hash where extrinsic is included is required
+    when retrieving triggered events or determine if extrinsic was successful
+    """
+
+    def __init__(
+        self,
+        substrate: "AsyncSubstrateInterface",
+        extrinsic_hash: Optional[str] = None,
+        block_hash: Optional[str] = None,
+        block_number: Optional[int] = None,
+        extrinsic_idx: Optional[int] = None,
+        finalized=None,
+    ):
+        """
+        Object containing information of submitted extrinsic. Block hash where extrinsic is included is required
+        when retrieving triggered events or determine if extrinsic was successful
+
+        Parameters
+        ----------
+        substrate
+        extrinsic_hash
+        block_hash
+        finalized
+        """
+        self.substrate = substrate
+        self.extrinsic_hash = extrinsic_hash
+        self.block_hash = block_hash
+        self.block_number = block_number
+        self.finalized = finalized
+
+        self.__extrinsic_idx = extrinsic_idx
+        self.__extrinsic = None
+
+        self.__triggered_events: Optional[list] = None
+        self.__is_success: Optional[bool] = None
+        self.__error_message = None
+        self.__weight = None
+        self.__total_fee_amount = None
+
+    async def get_extrinsic_identifier(self) -> str:
+        """
+        Returns the on-chain identifier for this extrinsic in format "[block_number]-[extrinsic_idx]" e.g. 134324-2
+        Returns
+        -------
+        str
+        """
+        if self.block_number is None:
+            if self.block_hash is None:
+                raise ValueError(
+                    "Cannot create extrinsic identifier: block_hash is not set"
+                )
+
+            self.block_number = await self.substrate.get_block_number(self.block_hash)
+
+            if self.block_number is None:
+                raise ValueError(
+                    "Cannot create extrinsic identifier: unknown block_hash"
+                )
+
+        return f"{self.block_number}-{await self.extrinsic_idx}"
+
+    async def retrieve_extrinsic(self):
+        if not self.block_hash:
+            raise ValueError(
+                "ExtrinsicReceipt can't retrieve events because it's unknown which block_hash it is "
+                "included, manually set block_hash or use `wait_for_inclusion` when sending extrinsic"
+            )
+        # Determine extrinsic idx
+
+        block = await self.substrate.get_block(block_hash=self.block_hash)
+
+        extrinsics = block["extrinsics"]
+
+        if len(extrinsics) > 0:
+            if self.__extrinsic_idx is None:
+                self.__extrinsic_idx = self.__get_extrinsic_index(
+                    block_extrinsics=extrinsics, extrinsic_hash=self.extrinsic_hash
+                )
+
+            if self.__extrinsic_idx >= len(extrinsics):
+                raise ExtrinsicNotFound()
+
+            self.__extrinsic = extrinsics[self.__extrinsic_idx]
+
+    @async_property
+    async def extrinsic_idx(self) -> int:
+        """
+        Retrieves the index of this extrinsic in containing block
+
+        Returns
+        -------
+        int
+        """
+        if self.__extrinsic_idx is None:
+            await self.retrieve_extrinsic()
+        return self.__extrinsic_idx
+
+    @async_property
+    async def triggered_events(self) -> list:
+        """
+        Gets triggered events for submitted extrinsic. block_hash where extrinsic is included is required, manually
+        set block_hash or use `wait_for_inclusion` when submitting extrinsic
+
+        Returns
+        -------
+        list
+        """
+        if self.__triggered_events is None:
+            if not self.block_hash:
+                raise ValueError(
+                    "ExtrinsicReceipt can't retrieve events because it's unknown which block_hash it is "
+                    "included, manually set block_hash or use `wait_for_inclusion` when sending extrinsic"
+                )
+
+            if await self.extrinsic_idx is None:
+                await self.retrieve_extrinsic()
+
+            self.__triggered_events = []
+
+            for event in await self.substrate.get_events(block_hash=self.block_hash):
+                if event["extrinsic_idx"] == await self.extrinsic_idx:
+                    self.__triggered_events.append(event)
+
+        return cast(list, self.__triggered_events)
+
+    async def process_events(self):
+        if await self.triggered_events:
+            self.__total_fee_amount = 0
+
+            # Process fees
+            has_transaction_fee_paid_event = False
+
+            for event in await self.triggered_events:
+                if (
+                    event["event"]["module_id"] == "TransactionPayment"
+                    and event["event"]["event_id"] == "TransactionFeePaid"
+                ):
+                    self.__total_fee_amount = event["event"]["attributes"]["actual_fee"]
+                    has_transaction_fee_paid_event = True
+
+            # Process other events
+            for event in await self.triggered_events:
+                # Check events
+                if (
+                    event["event"]["module_id"] == "System"
+                    and event["event"]["event_id"] == "ExtrinsicSuccess"
+                ):
+                    self.__is_success = True
+                    self.__error_message = None
+
+                    if "dispatch_info" in event["event"]["attributes"]:
+                        self.__weight = event["event"]["attributes"]["dispatch_info"][
+                            "weight"
+                        ]
+                    else:
+                        # Backwards compatibility
+                        self.__weight = event["event"]["attributes"]["weight"]
+
+                elif (
+                    event["event"]["module_id"] == "System"
+                    and event["event"]["event_id"] == "ExtrinsicFailed"
+                ):
+                    self.__is_success = False
+
+                    dispatch_info = event["event"]["attributes"]["dispatch_info"]
+                    dispatch_error = event["event"]["attributes"]["dispatch_error"]
+
+                    self.__weight = dispatch_info["weight"]
+
+                    if "Module" in dispatch_error:
+                        module_index = dispatch_error["Module"][0]["index"]
+                        error_index = int.from_bytes(
+                            bytes(dispatch_error["Module"][0]["error"]),
+                            byteorder="little",
+                            signed=False,
+                        )
+
+                        if isinstance(error_index, str):
+                            # Actual error index is first u8 in new [u8; 4] format
+                            error_index = int(error_index[2:4], 16)
+                        module_error = self.substrate.metadata.get_module_error(
+                            module_index=module_index, error_index=error_index
+                        )
+                        self.__error_message = {
+                            "type": "Module",
+                            "name": module_error.name,
+                            "docs": module_error.docs,
+                        }
+                    elif "BadOrigin" in dispatch_error:
+                        self.__error_message = {
+                            "type": "System",
+                            "name": "BadOrigin",
+                            "docs": "Bad origin",
+                        }
+                    elif "CannotLookup" in dispatch_error:
+                        self.__error_message = {
+                            "type": "System",
+                            "name": "CannotLookup",
+                            "docs": "Cannot lookup",
+                        }
+                    elif "Other" in dispatch_error:
+                        self.__error_message = {
+                            "type": "System",
+                            "name": "Other",
+                            "docs": "Unspecified error occurred",
+                        }
+
+                elif not has_transaction_fee_paid_event:
+                    if (
+                        event["event"]["module_id"] == "Treasury"
+                        and event["event"]["event_id"] == "Deposit"
+                    ):
+                        self.__total_fee_amount += event["event"]["attributes"]["value"]
+                    elif (
+                        event["event"]["module_id"] == "Balances"
+                        and event["event"]["event_id"] == "Deposit"
+                    ):
+                        self.__total_fee_amount += event.value["attributes"]["amount"]
+
+    @async_property
+    async def is_success(self) -> bool:
+        """
+        Returns `True` if `ExtrinsicSuccess` event is triggered, `False` in case of `ExtrinsicFailed`
+        In case of False `error_message` will contain more details about the error
+
+
+        Returns
+        -------
+        bool
+        """
+        if self.__is_success is None:
+            await self.process_events()
+
+        return cast(bool, self.__is_success)
+
+    @async_property
+    async def error_message(self) -> Optional[dict]:
+        """
+        Returns the error message if the extrinsic failed in format e.g.:
+
+        `{'type': 'System', 'name': 'BadOrigin', 'docs': 'Bad origin'}`
+
+        Returns
+        -------
+        dict
+        """
+        if self.__error_message is None:
+            if await self.is_success:
+                return None
+            await self.process_events()
+        return self.__error_message
+
+    @async_property
+    async def weight(self) -> Union[int, dict]:
+        """
+        Contains the actual weight when executing this extrinsic
+
+        Returns
+        -------
+        int (WeightV1) or dict (WeightV2)
+        """
+        if self.__weight is None:
+            await self.process_events()
+        return self.__weight
+
+    @async_property
+    async def total_fee_amount(self) -> int:
+        """
+        Contains the total fee costs deducted when executing this extrinsic. This includes fee for the validator (
+        (`Balances.Deposit` event) and the fee deposited for the treasury (`Treasury.Deposit` event)
+
+        Returns
+        -------
+        int
+        """
+        if self.__total_fee_amount is None:
+            await self.process_events()
+        return cast(int, self.__total_fee_amount)
+
+    # Helper functions
+    @staticmethod
+    def __get_extrinsic_index(block_extrinsics: list, extrinsic_hash: str) -> int:
+        """
+        Returns the index of a provided extrinsic
+        """
+        for idx, extrinsic in enumerate(block_extrinsics):
+            if (
+                extrinsic.extrinsic_hash
+                and f"0x{extrinsic.extrinsic_hash.hex()}" == extrinsic_hash
+            ):
+                return idx
+        raise ExtrinsicNotFound()
+
+    # Backwards compatibility methods
+    def __getitem__(self, item):
+        return getattr(self, item)
+
+    def __iter__(self):
+        for item in self.__dict__.items():
+            yield item
+
+    def get(self, name):
+        return self[name]
+
+
+class QueryMapResult:
+    def __init__(
+        self,
+        records: list,
+        page_size: int,
+        substrate: "AsyncSubstrateInterface",
+        module: Optional[str] = None,
+        storage_function: Optional[str] = None,
+        params: Optional[list] = None,
+        block_hash: Optional[str] = None,
+        last_key: Optional[str] = None,
+        max_results: Optional[int] = None,
+        ignore_decoding_errors: bool = False,
+    ):
+        self.records = records
+        self.page_size = page_size
+        self.module = module
+        self.storage_function = storage_function
+        self.block_hash = block_hash
+        self.substrate = substrate
+        self.last_key = last_key
+        self.max_results = max_results
+        self.params = params
+        self.ignore_decoding_errors = ignore_decoding_errors
+        self.loading_complete = False
+        self._buffer = iter(self.records)  # Initialize the buffer with initial records
+
+    async def retrieve_next_page(self, start_key) -> list:
+        result = await self.substrate.query_map(
+            module=self.module,
+            storage_function=self.storage_function,
+            params=self.params,
+            page_size=self.page_size,
+            block_hash=self.block_hash,
+            start_key=start_key,
+            max_results=self.max_results,
+            ignore_decoding_errors=self.ignore_decoding_errors,
+        )
+
+        # Update last key from new result set to use as offset for next page
+        self.last_key = result.last_key
+        return result.records
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            # Try to get the next record from the buffer
+            return next(self._buffer)
+        except StopIteration:
+            # If no more records in the buffer, try to fetch the next page
+            if self.loading_complete:
+                raise StopAsyncIteration
+
+            next_page = await self.retrieve_next_page(self.last_key)
+            if not next_page:
+                self.loading_complete = True
+                raise StopAsyncIteration
+
+            # Update the buffer with the newly fetched records
+            self._buffer = iter(next_page)
+            return next(self._buffer)
+
+    def __getitem__(self, item):
+        return self.records[item]
 
 
 @dataclass
@@ -44,16 +423,20 @@ class RuntimeCache:
         self.blocks = {}
         self.block_hashes = {}
 
-    def add_item(self, block: int, block_hash: str, runtime: "Runtime"):
-        if block:
+    def add_item(
+        self, block: Optional[int], block_hash: Optional[str], runtime: "Runtime"
+    ):
+        if block is not None:
             self.blocks[block] = runtime
-        if block_hash:
-            self.block_hashes[block] = runtime
+        if block_hash is not None:
+            self.block_hashes[block_hash] = runtime
 
-    def retrieve(self, block: int, block_hash: str):
-        if block:
+    def retrieve(
+        self, block: Optional[int], block_hash: Optional[str]
+    ) -> Optional["Runtime"]:
+        if block is not None:
             return self.blocks.get(block)
-        elif block_hash:
+        elif block_hash is not None:
             return self.block_hashes.get(block_hash)
         else:
             return None
@@ -223,7 +606,7 @@ class Websocket:
         max_subscriptions=1024,
         max_connections=100,
         shutdown_timer=5,
-        options: dict = None,
+        options: Optional[dict] = None,
     ):
         """
         Websocket manager object. Allows for the use of a single websocket connection by multiple
@@ -237,7 +620,7 @@ class Websocket:
         # TODO allow setting max concurrent connections and rpc subscriptions per connection
         # TODO reconnection logic
         self.ws_url = ws_url
-        self.ws = None
+        self.ws: Optional[websockets.WebSocketClientProtocol] = None
         self.id = 0
         self.max_subscriptions = max_subscriptions
         self.max_connections = max_connections
@@ -308,7 +691,9 @@ class Websocket:
 
     async def _recv(self) -> None:
         try:
-            response = json.loads(await self.ws.recv())
+            response = json.loads(
+                await cast(websockets.WebSocketClientProtocol, self.ws).recv()
+            )
             async with self._lock:
                 self._open_subscriptions -= 1
             if "id" in response:
@@ -365,7 +750,7 @@ class Websocket:
 
 class AsyncSubstrateInterface:
     runtime = None
-    substrate = None
+    registry: Optional[PortableRegistry] = None
 
     def __init__(
         self,
@@ -390,7 +775,7 @@ class AsyncSubstrateInterface:
             },
         )
         self._lock = asyncio.Lock()
-        self.last_block_hash = None
+        self.last_block_hash: Optional[str] = None
         self.config = {
             "use_remote_preset": use_remote_preset,
             "auto_discover": auto_discover,
@@ -403,6 +788,14 @@ class AsyncSubstrateInterface:
         self.ss58_format = ss58_format
         self.type_registry = type_registry
         self.runtime_cache = RuntimeCache()
+        self.block_id: Optional[int] = None
+        self.runtime_version = None
+        self.runtime_config = RuntimeConfigurationObject()
+        self.__metadata_cache = {}
+        self.type_registry_preset = None
+        self.transaction_version = None
+        self.metadata = None
+        self.metadata_version_hex = "0x0f000000"  # v15
 
     async def __aenter__(self):
         await self.initialize()
@@ -412,25 +805,12 @@ class AsyncSubstrateInterface:
         Initialize the attached substrate object
         """
         async with self._lock:
-            if not self.substrate:
-                # This is low-level timeout handling
-                # We set a timeout for 10 seconds.
-                # NOTE: this will not work on Windows, but it's not supported anyway
-                signal.signal(signal.SIGALRM, timeout_handler)
-                signal.alarm(10)  # Set timeout to 10 seconds
-                try:
-                    self.substrate = SubstrateInterface(
-                        ss58_format=self.ss58_format,
-                        use_remote_preset=True,
-                        url=self.chain_endpoint,
-                        type_registry=self.type_registry,
-                    )
-                finally:
-                    # Cancel the alarm if the function completes before timeout
-                    signal.alarm(0)
-
+            if not self.initialized:
                 chain = await self.rpc_request("system_chain", [])
                 self.__chain = chain.get("result")
+                # await self.load_registry()
+                self.reload_type_registry()
+                await asyncio.gather(self.load_registry(), self.init_runtime(None))
             self.initialized = True
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -444,9 +824,9 @@ class AsyncSubstrateInterface:
         return self.__chain
 
     async def get_storage_item(self, module: str, storage_function: str):
-        if not self.substrate.metadata:
+        if not self.metadata:
             await self.init_runtime()
-        metadata_pallet = self.substrate.metadata.get_metadata_pallet(module)
+        metadata_pallet = self.metadata.get_metadata_pallet(module)
         storage_item = metadata_pallet.get_storage_function(storage_function)
         return storage_item
 
@@ -460,6 +840,45 @@ class AsyncSubstrateInterface:
             if self.last_block_hash:
                 return self.last_block_hash
         return block_hash
+
+    async def load_registry(self):
+        metadata_rpc_result = await self.rpc_request(
+            "state_call",
+            [
+                "Metadata_metadata_at_version",
+                self.metadata_version_hex,
+                await self.get_chain_finalised_head(),
+            ],
+        )
+        metadata_option_hex_str = metadata_rpc_result["result"]
+        metadata_option_bytes = bytes.fromhex(metadata_option_hex_str[2:])
+        metadata_v15 = MetadataV15.decode_from_metadata_option(metadata_option_bytes)
+        self.registry = PortableRegistry.from_metadata_v15(metadata_v15)
+
+    async def decode_scale(
+        self, type_string, scale_bytes: bytes, return_scale_obj=False
+    ):
+        """
+        Helper function to decode arbitrary SCALE-bytes (e.g. 0x02000000) according to given RUST type_string
+        (e.g. BlockNumber). The relevant versioning information of the type (if defined) will be applied if block_hash
+        is set
+
+        Parameters
+        ----------
+        type_string
+        scale_bytes
+        block_hash
+        return_scale_obj: if True the SCALE object itself is returned, otherwise the serialized dict value of the object
+
+        Returns
+        -------
+
+        """
+        if scale_bytes == b"\x00":
+            obj = None
+        else:
+            obj = decode_by_type_string(type_string, self.registry, scale_bytes)
+        return obj
 
     async def init_runtime(
         self, block_hash: Optional[str] = None, block_id: Optional[int] = None
@@ -477,19 +896,525 @@ class AsyncSubstrateInterface:
 
         :returns: Runtime object
         """
-        async with self._lock:
-            if not (runtime := self.runtime_cache.retrieve(block_id, block_hash)):
-                await asyncio.get_event_loop().run_in_executor(
-                    None, self.substrate.init_runtime, block_hash, block_id
-                )
-                runtime = Runtime(
+
+        async def get_runtime(block_hash, block_id) -> Runtime:
+            # Check if runtime state already set to current block
+            if (block_hash and block_hash == self.last_block_hash) or (
+                block_id and block_id == self.block_id
+            ):
+                return Runtime(
                     self.chain,
-                    self.substrate.runtime_config,
-                    self.substrate.metadata,
+                    self.runtime_config,
+                    self.metadata,
                     self.type_registry,
                 )
-                self.runtime_cache.add_item(block_id, block_hash, runtime)
+
+            if block_id is not None:
+                block_hash = await self.get_block_hash(block_id)
+
+            if not block_hash:
+                block_hash = await self.get_chain_head()
+
+            self.last_block_hash = block_hash
+            self.block_id = block_id
+
+            # In fact calls and storage functions are decoded against runtime of previous block, therefor retrieve
+            # metadata and apply type registry of runtime of parent block
+            block_header = await self.rpc_request(
+                "chain_getHeader", [self.last_block_hash]
+            )
+
+            if block_header["result"] is None:
+                raise SubstrateRequestException(
+                    f'Block not found for "{self.last_block_hash}"'
+                )
+
+            parent_block_hash: str = block_header["result"]["parentHash"]
+
+            if (
+                parent_block_hash
+                == "0x0000000000000000000000000000000000000000000000000000000000000000"
+            ):
+                runtime_block_hash = self.last_block_hash
+            else:
+                runtime_block_hash = parent_block_hash
+
+            runtime_info = await self.get_block_runtime_version(
+                block_hash=runtime_block_hash
+            )
+
+            if runtime_info is None:
+                raise SubstrateRequestException(
+                    f"No runtime information for block '{block_hash}'"
+                )
+
+            # Check if runtime state already set to current block
+            if runtime_info.get("specVersion") == self.runtime_version:
+                return Runtime(
+                    self.chain,
+                    self.runtime_config,
+                    self.metadata,
+                    self.type_registry,
+                )
+
+            self.runtime_version = runtime_info.get("specVersion")
+            self.transaction_version = runtime_info.get("transactionVersion")
+
+            if self.runtime_version in self.__metadata_cache:
+                # Get metadata from cache
+                # self.debug_message('Retrieved metadata for {} from memory'.format(self.runtime_version))
+                self.metadata = self.__metadata_cache[self.runtime_version]
+            else:
+                self.metadata = await self.get_block_metadata(
+                    block_hash=runtime_block_hash, decode=True
+                )
+                # self.debug_message('Retrieved metadata for {} from Substrate node'.format(self.runtime_version))
+
+                # Update metadata cache
+                self.__metadata_cache[self.runtime_version] = self.metadata
+
+            # Update type registry
+            self.reload_type_registry(use_remote_preset=False, auto_discover=True)
+
+            if self.implements_scaleinfo:
+                # self.debug_message('Add PortableRegistry from metadata to type registry')
+                self.runtime_config.add_portable_registry(self.metadata)
+
+            # Set active runtime version
+            self.runtime_config.set_active_spec_version_id(self.runtime_version)
+
+            # Check and apply runtime constants
+            ss58_prefix_constant = await self.get_constant(
+                "System", "SS58Prefix", block_hash=block_hash
+            )
+
+            if ss58_prefix_constant:
+                self.ss58_format = ss58_prefix_constant
+
+            # Set runtime compatibility flags
+            try:
+                _ = self.runtime_config.create_scale_object(
+                    "sp_weights::weight_v2::Weight"
+                )
+                self.config["is_weight_v2"] = True
+                self.runtime_config.update_type_registry_types(
+                    {"Weight": "sp_weights::weight_v2::Weight"}
+                )
+            except NotImplementedError:
+                self.config["is_weight_v2"] = False
+                self.runtime_config.update_type_registry_types({"Weight": "WeightV1"})
+            return Runtime(
+                self.chain,
+                self.runtime_config,
+                self.metadata,
+                self.type_registry,
+            )
+
+        if block_id and block_hash:
+            raise ValueError("Cannot provide block_hash and block_id at the same time")
+
+        if not (runtime := self.runtime_cache.retrieve(block_id, block_hash)):
+            runtime = await get_runtime(block_hash, block_id)
+            self.runtime_cache.add_item(block_id, block_hash, runtime)
         return runtime
+
+    def reload_type_registry(
+        self, use_remote_preset: bool = True, auto_discover: bool = True
+    ):
+        """
+        Reload type registry and preset used to instantiate the SubtrateInterface object. Useful to periodically apply
+        changes in type definitions when a runtime upgrade occurred
+
+        Parameters
+        ----------
+        use_remote_preset: When True preset is downloaded from Github master, otherwise use files from local installed scalecodec package
+        auto_discover
+
+        Returns
+        -------
+
+        """
+        self.runtime_config.clear_type_registry()
+
+        self.runtime_config.implements_scale_info = self.implements_scaleinfo
+
+        # Load metadata types in runtime configuration
+        self.runtime_config.update_type_registry(load_type_registry_preset(name="core"))
+        self.apply_type_registry_presets(
+            use_remote_preset=use_remote_preset, auto_discover=auto_discover
+        )
+
+    def apply_type_registry_presets(
+        self, use_remote_preset: bool = True, auto_discover: bool = True
+    ):
+        if self.type_registry_preset is not None:
+            # Load type registry according to preset
+            type_registry_preset_dict = load_type_registry_preset(
+                name=self.type_registry_preset, use_remote_preset=use_remote_preset
+            )
+
+            if not type_registry_preset_dict:
+                raise ValueError(
+                    f"Type registry preset '{self.type_registry_preset}' not found"
+                )
+
+        elif auto_discover:
+            # Try to auto discover type registry preset by chain name
+            type_registry_name = self.chain.lower().replace(" ", "-")
+            try:
+                type_registry_preset_dict = load_type_registry_preset(
+                    type_registry_name
+                )
+                # self.debug_message(f"Auto set type_registry_preset to {type_registry_name} ...")
+                self.type_registry_preset = type_registry_name
+            except ValueError:
+                type_registry_preset_dict = None
+
+        else:
+            type_registry_preset_dict = None
+
+        if type_registry_preset_dict:
+            # Load type registries in runtime configuration
+            if self.implements_scaleinfo is False:
+                # Only runtime with no embedded types in metadata need the default set of explicit defined types
+                self.runtime_config.update_type_registry(
+                    load_type_registry_preset(
+                        "legacy", use_remote_preset=use_remote_preset
+                    )
+                )
+
+            if self.type_registry_preset != "legacy":
+                self.runtime_config.update_type_registry(type_registry_preset_dict)
+
+        if self.type_registry:
+            # Load type registries in runtime configuration
+            self.runtime_config.update_type_registry(self.type_registry)
+
+    @property
+    def implements_scaleinfo(self) -> Optional[bool]:
+        """
+        Returns True if current runtime implementation a `PortableRegistry` (`MetadataV14` and higher)
+
+        Returns
+        -------
+        bool
+        """
+        if self.metadata:
+            return self.metadata.portable_registry is not None
+        else:
+            return None
+
+    async def _get_block_handler(
+        self,
+        block_hash: str,
+        ignore_decoding_errors: bool = False,
+        include_author: bool = False,
+        header_only: bool = False,
+        finalized_only: bool = False,
+        subscription_handler: Optional[Callable] = None,
+    ):
+        try:
+            await self.init_runtime(block_hash=block_hash)
+        except BlockNotFound:
+            return None
+
+        async def decode_block(block_data, block_data_hash=None):
+            if block_data:
+                if block_data_hash:
+                    block_data["header"]["hash"] = block_data_hash
+
+                if type(block_data["header"]["number"]) is str:
+                    # Convert block number from hex (backwards compatibility)
+                    block_data["header"]["number"] = int(
+                        block_data["header"]["number"], 16
+                    )
+
+                extrinsic_cls = self.runtime_config.get_decoder_class("Extrinsic")
+
+                if "extrinsics" in block_data:
+                    for idx, extrinsic_data in enumerate(block_data["extrinsics"]):
+                        extrinsic_decoder = extrinsic_cls(
+                            data=ScaleBytes(extrinsic_data),
+                            metadata=self.metadata,
+                            runtime_config=self.runtime_config,
+                        )
+                        try:
+                            extrinsic_decoder.decode(check_remaining=True)
+                            block_data["extrinsics"][idx] = extrinsic_decoder
+
+                        except Exception as e:
+                            if not ignore_decoding_errors:
+                                raise
+                            block_data["extrinsics"][idx] = None
+
+                for idx, log_data in enumerate(block_data["header"]["digest"]["logs"]):
+                    if type(log_data) is str:
+                        # Convert digest log from hex (backwards compatibility)
+                        try:
+                            log_digest_cls = self.runtime_config.get_decoder_class(
+                                "sp_runtime::generic::digest::DigestItem"
+                            )
+
+                            if log_digest_cls is None:
+                                raise NotImplementedError(
+                                    "No decoding class found for 'DigestItem'"
+                                )
+
+                            log_digest = log_digest_cls(data=ScaleBytes(log_data))
+                            log_digest.decode(
+                                check_remaining=self.config.get("strict_scale_decode")
+                            )
+
+                            block_data["header"]["digest"]["logs"][idx] = log_digest
+
+                            if include_author and "PreRuntime" in log_digest.value:
+                                if self.implements_scaleinfo:
+                                    engine = bytes(log_digest[1][0])
+                                    # Retrieve validator set
+                                    parent_hash = block_data["header"]["parentHash"]
+                                    validator_set = await self.query(
+                                        "Session", "Validators", block_hash=parent_hash
+                                    )
+
+                                    if engine == b"BABE":
+                                        babe_predigest = (
+                                            self.runtime_config.create_scale_object(
+                                                type_string="RawBabePreDigest",
+                                                data=ScaleBytes(
+                                                    bytes(log_digest[1][1])
+                                                ),
+                                            )
+                                        )
+
+                                        babe_predigest.decode(
+                                            check_remaining=self.config.get(
+                                                "strict_scale_decode"
+                                            )
+                                        )
+
+                                        rank_validator = babe_predigest[1].value[
+                                            "authority_index"
+                                        ]
+
+                                        block_author = validator_set[rank_validator]
+                                        block_data["author"] = block_author.value
+
+                                    elif engine == b"aura":
+                                        aura_predigest = (
+                                            self.runtime_config.create_scale_object(
+                                                type_string="RawAuraPreDigest",
+                                                data=ScaleBytes(
+                                                    bytes(log_digest[1][1])
+                                                ),
+                                            )
+                                        )
+
+                                        aura_predigest.decode(check_remaining=True)
+
+                                        rank_validator = aura_predigest.value[
+                                            "slot_number"
+                                        ] % len(validator_set)
+
+                                        block_author = validator_set[rank_validator]
+                                        block_data["author"] = block_author.value
+                                    else:
+                                        raise NotImplementedError(
+                                            f"Cannot extract author for engine {log_digest.value['PreRuntime'][0]}"
+                                        )
+                                else:
+                                    if (
+                                        log_digest.value["PreRuntime"]["engine"]
+                                        == "BABE"
+                                    ):
+                                        validator_set = await self.query(
+                                            "Session",
+                                            "Validators",
+                                            block_hash=block_hash,
+                                        )
+                                        rank_validator = log_digest.value["PreRuntime"][
+                                            "data"
+                                        ]["authority_index"]
+
+                                        block_author = validator_set.elements[
+                                            rank_validator
+                                        ]
+                                        block_data["author"] = block_author.value
+                                    else:
+                                        raise NotImplementedError(
+                                            f"Cannot extract author for engine {log_digest.value['PreRuntime']['engine']}"
+                                        )
+
+                        except Exception:
+                            if not ignore_decoding_errors:
+                                raise
+                            block_data["header"]["digest"]["logs"][idx] = None
+
+            return block_data
+
+        if callable(subscription_handler):
+            rpc_method_prefix = "Finalized" if finalized_only else "New"
+
+            async def result_handler(message, update_nr, subscription_id):
+                new_block = await decode_block({"header": message["params"]["result"]})
+
+                subscription_result = subscription_handler(
+                    new_block, update_nr, subscription_id
+                )
+
+                if subscription_result is not None:
+                    # Handler returned end result: unsubscribe from further updates
+                    self._forgettable_task = asyncio.create_task(
+                        self.rpc_request(
+                            f"chain_unsubscribe{rpc_method_prefix}Heads",
+                            [subscription_id],
+                        )
+                    )
+
+                return subscription_result
+
+            result = await self._make_rpc_request(
+                [
+                    self.make_payload(
+                        "_get_block_handler",
+                        f"chain_subscribe{rpc_method_prefix}Heads",
+                        [],
+                    )
+                ],
+                result_handler=result_handler,
+            )
+
+            return result
+
+        else:
+            if header_only:
+                response = await self.rpc_request("chain_getHeader", [block_hash])
+                return await decode_block(
+                    {"header": response["result"]}, block_data_hash=block_hash
+                )
+
+            else:
+                response = await self.rpc_request("chain_getBlock", [block_hash])
+                return await decode_block(
+                    response["result"]["block"], block_data_hash=block_hash
+                )
+
+    async def get_block(
+        self,
+        block_hash: Optional[str] = None,
+        block_number: Optional[int] = None,
+        ignore_decoding_errors: bool = False,
+        include_author: bool = False,
+        finalized_only: bool = False,
+    ) -> Optional[dict]:
+        """
+        Retrieves a block and decodes its containing extrinsics and log digest items. If `block_hash` and `block_number`
+        is omitted the chain tip will be retrieve, or the finalized head if `finalized_only` is set to true.
+
+        Either `block_hash` or `block_number` should be set, or both omitted.
+
+        Parameters
+        ----------
+        block_hash: the hash of the block to be retrieved
+        block_number: the block number to retrieved
+        ignore_decoding_errors: When set this will catch all decoding errors, set the item to None and continue decoding
+        include_author: This will retrieve the block author from the validator set and add to the result
+        finalized_only: when no `block_hash` or `block_number` is set, this will retrieve the finalized head
+
+        Returns
+        -------
+        A dict containing the extrinsic and digest logs data
+        """
+        if block_hash and block_number:
+            raise ValueError("Either block_hash or block_number should be be set")
+
+        if block_number is not None:
+            block_hash = await self.get_block_hash(block_number)
+
+            if block_hash is None:
+                return
+
+        if block_hash and finalized_only:
+            raise ValueError(
+                "finalized_only cannot be True when block_hash is provided"
+            )
+
+        if block_hash is None:
+            # Retrieve block hash
+            if finalized_only:
+                block_hash = await self.get_chain_finalised_head()
+            else:
+                block_hash = await self.get_chain_head()
+
+        return await self._get_block_handler(
+            block_hash=block_hash,
+            ignore_decoding_errors=ignore_decoding_errors,
+            header_only=False,
+            include_author=include_author,
+        )
+
+    async def get_events(self, block_hash: Optional[str] = None) -> list:
+        """
+        Convenience method to get events for a certain block (storage call for module 'System' and function 'Events')
+
+        Parameters
+        ----------
+        block_hash
+
+        Returns
+        -------
+        list
+        """
+
+        def convert_event_data(data):
+            # Extract phase information
+            phase_key, phase_value = next(iter(data["phase"].items()))
+            try:
+                extrinsic_idx = phase_value[0]
+            except IndexError:
+                extrinsic_idx = None
+
+            # Extract event details
+            module_id, event_data = next(iter(data["event"].items()))
+            event_id, attributes_data = next(iter(event_data[0].items()))
+
+            # Convert class and pays_fee dictionaries to their string equivalents if they exist
+            attributes = attributes_data
+            if isinstance(attributes, dict):
+                for key, value in attributes.items():
+                    if isinstance(value, dict):
+                        # Convert nested single-key dictionaries to their keys as strings
+                        sub_key = next(iter(value.keys()))
+                        if value[sub_key] == ():
+                            attributes[key] = sub_key
+
+            # Create the converted dictionary
+            converted = {
+                "phase": phase_key,
+                "extrinsic_idx": extrinsic_idx,
+                "event": {
+                    "module_id": module_id,
+                    "event_id": event_id,
+                    "attributes": attributes,
+                },
+                "topics": list(data["topics"]),  # Convert topics tuple to a list
+            }
+
+            return converted
+
+        events = []
+
+        if not block_hash:
+            block_hash = await self.get_chain_head()
+
+        storage_obj = await self.query(
+            module="System", storage_function="Events", block_hash=block_hash
+        )
+        if storage_obj:
+            for item in list(storage_obj):
+                # print("item!", item)
+                events.append(convert_event_data(item))
+            # events += list(storage_obj)
+        return events
 
     async def get_block_runtime_version(self, block_hash: str) -> dict:
         """
@@ -514,7 +1439,7 @@ class AsyncSubstrateInterface:
 
         """
         params = None
-        if decode and not self.substrate.runtime_config:
+        if decode and not self.runtime_config:
             raise ValueError(
                 "Cannot decode runtime configuration without a supplied runtime_config"
             )
@@ -527,7 +1452,7 @@ class AsyncSubstrateInterface:
             raise SubstrateRequestException(response["error"]["message"])
 
         if response.get("result") and decode:
-            metadata_decoder = self.substrate.runtime_config.create_scale_object(
+            metadata_decoder = self.runtime_config.create_scale_object(
                 "MetadataVersioned", data=ScaleBytes(response.get("result"))
             )
             metadata_decoder.decode()
@@ -539,16 +1464,16 @@ class AsyncSubstrateInterface:
     async def _preprocess(
         self,
         query_for: Optional[list],
-        block_hash: str,
+        block_hash: Optional[str],
         storage_function: str,
         module: str,
     ) -> Preprocessed:
         """
-        Creates a Preprocessed data object for passing to ``_make_rpc_request``
+        Creates a Preprocessed data object for passing to `_make_rpc_request`
         """
         params = query_for if query_for else []
         # Search storage call in metadata
-        metadata_pallet = self.substrate.metadata.get_metadata_pallet(module)
+        metadata_pallet = self.metadata.get_metadata_pallet(module)
 
         if not metadata_pallet:
             raise SubstrateRequestException(f'Pallet "{module}" not found')
@@ -573,14 +1498,10 @@ class AsyncSubstrateInterface:
             module,
             storage_item.value["name"],
             params,
-            runtime_config=self.substrate.runtime_config,
-            metadata=self.substrate.metadata,
+            runtime_config=self.runtime_config,
+            metadata=self.metadata,
         )
-        method = (
-            "state_getStorageAt"
-            if self.substrate.supports_rpc_method("state_getStorageAt")
-            else "state_getStorage"
-        )
+        method = "state_getStorageAt"
         return Preprocessed(
             str(query_for),
             method,
@@ -593,7 +1514,7 @@ class AsyncSubstrateInterface:
         self,
         response: dict,
         subscription_id: Union[int, str],
-        value_scale_type: str,
+        value_scale_type: Optional[str],
         storage_item: Optional[ScaleType] = None,
         runtime: Optional[Runtime] = None,
         result_handler: Optional[ResultHandler] = None,
@@ -611,15 +1532,15 @@ class AsyncSubstrateInterface:
 
         :return: (decoded response, completion)
         """
-        obj = response
+        result: Union[dict, ScaleType] = response
 
-        if value_scale_type:
+        if value_scale_type and isinstance(storage_item, ScaleType):
             if not runtime:
                 async with self._lock:
                     runtime = Runtime(
                         self.chain,
-                        self.substrate.runtime_config,
-                        self.substrate.metadata,
+                        self.runtime_config,
+                        self.metadata,
                         self.type_registry,
                     )
             if response.get("result") is not None:
@@ -631,19 +1552,20 @@ class AsyncSubstrateInterface:
                 # No result is interpreted as an Option<...> result
                 value_scale_type = f"Option<{value_scale_type}>"
                 query_value = storage_item.value_object["default"].value_object
-
-            obj = runtime.runtime_config.create_scale_object(
-                type_string=value_scale_type,
-                data=ScaleBytes(query_value),
-                metadata=runtime.metadata,
-            )
-            obj.decode(check_remaining=True)
-            obj.meta_info = {"result_found": response.get("result") is not None}
+            if isinstance(query_value, str):
+                q = bytes.fromhex(query_value[2:])
+            elif isinstance(query_value, bytearray):
+                q = bytes(query_value)
+            else:
+                q = query_value
+            obj = await self.decode_scale(value_scale_type, q, True)
+            result = obj
         if asyncio.iscoroutinefunction(result_handler):
             # For multipart responses as a result of subscriptions.
-            message, bool_result = await result_handler(obj, subscription_id)
+            message, bool_result = await result_handler(response, subscription_id)
             return message, bool_result
-        return obj, True
+
+        return result, True
 
     async def _make_rpc_request(
         self,
@@ -723,7 +1645,7 @@ class AsyncSubstrateInterface:
     async def rpc_request(
         self,
         method: str,
-        params: list,
+        params: Optional[list],
         block_hash: Optional[str] = None,
         reuse_block_hash: bool = False,
     ) -> Any:
@@ -741,6 +1663,7 @@ class AsyncSubstrateInterface:
         :return: the response from the RPC request
         """
         block_hash = await self._get_current_block_hash(block_hash, reuse_block_hash)
+        params = params or []
         payloads = [
             self.make_payload(
                 "rpc_request",
@@ -750,8 +1673,8 @@ class AsyncSubstrateInterface:
         ]
         runtime = Runtime(
             self.chain,
-            self.substrate.runtime_config,
-            self.substrate.metadata,
+            self.runtime_config,
+            self.metadata,
             self.type_registry,
         )
         result = await self._make_rpc_request(payloads, runtime=runtime)
@@ -778,8 +1701,8 @@ class AsyncSubstrateInterface:
             ],
             runtime=Runtime(
                 self.chain,
-                self.substrate.runtime_config,
-                self.substrate.metadata,
+                self.runtime_config,
+                self.metadata,
                 self.type_registry,
             ),
         )
@@ -790,8 +1713,8 @@ class AsyncSubstrateInterface:
         self,
         call_module: str,
         call_function: str,
-        call_params: dict = None,
-        block_hash: str = None,
+        call_params: Optional[dict] = None,
+        block_hash: Optional[str] = None,
     ) -> GenericCall:
         """
         Composes a call payload which can be used in an extrinsic.
@@ -804,14 +1727,24 @@ class AsyncSubstrateInterface:
 
         :return: A composed call
         """
-        return await asyncio.get_event_loop().run_in_executor(
-            None,
-            self.substrate.compose_call,
-            call_module,
-            call_function,
-            call_params,
-            block_hash,
+        if call_params is None:
+            call_params = {}
+
+        await self.init_runtime(block_hash=block_hash)
+
+        call = self.runtime_config.create_scale_object(
+            type_string="Call", metadata=self.metadata
         )
+
+        call.encode(
+            {
+                "call_module": call_module,
+                "call_function": call_function,
+                "call_args": call_params,
+            }
+        )
+
+        return call
 
     async def query_multiple(
         self,
@@ -855,8 +1788,8 @@ class AsyncSubstrateInterface:
     async def create_scale_object(
         self,
         type_string: str,
-        data: ScaleBytes = None,
-        block_hash: str = None,
+        data: Optional[ScaleBytes] = None,
+        block_hash: Optional[str] = None,
         **kwargs,
     ) -> "ScaleType":
         """
@@ -878,15 +1811,165 @@ class AsyncSubstrateInterface:
             type_string, data=data, **kwargs
         )
 
+    async def generate_signature_payload(
+        self,
+        call: GenericCall,
+        era=None,
+        nonce: int = 0,
+        tip: int = 0,
+        tip_asset_id: Optional[int] = None,
+        include_call_length: bool = False,
+    ) -> ScaleBytes:
+        # Retrieve genesis hash
+        genesis_hash = await self.get_block_hash(0)
+
+        if not era:
+            era = "00"
+
+        if era == "00":
+            # Immortal extrinsic
+            block_hash = genesis_hash
+        else:
+            # Determine mortality of extrinsic
+            era_obj = self.runtime_config.create_scale_object("Era")
+
+            if isinstance(era, dict) and "current" not in era and "phase" not in era:
+                raise ValueError(
+                    'The era dict must contain either "current" or "phase" element to encode a valid era'
+                )
+
+            era_obj.encode(era)
+            block_hash = await self.get_block_hash(
+                block_id=era_obj.birth(era.get("current"))
+            )
+
+        # Create signature payload
+        signature_payload = self.runtime_config.create_scale_object(
+            "ExtrinsicPayloadValue"
+        )
+
+        # Process signed extensions in metadata
+        if "signed_extensions" in self.metadata[1][1]["extrinsic"]:
+            # Base signature payload
+            signature_payload.type_mapping = [["call", "CallBytes"]]
+
+            # Add signed extensions to payload
+            signed_extensions = self.metadata.get_signed_extensions()
+
+            if "CheckMortality" in signed_extensions:
+                signature_payload.type_mapping.append(
+                    ["era", signed_extensions["CheckMortality"]["extrinsic"]]
+                )
+
+            if "CheckEra" in signed_extensions:
+                signature_payload.type_mapping.append(
+                    ["era", signed_extensions["CheckEra"]["extrinsic"]]
+                )
+
+            if "CheckNonce" in signed_extensions:
+                signature_payload.type_mapping.append(
+                    ["nonce", signed_extensions["CheckNonce"]["extrinsic"]]
+                )
+
+            if "ChargeTransactionPayment" in signed_extensions:
+                signature_payload.type_mapping.append(
+                    ["tip", signed_extensions["ChargeTransactionPayment"]["extrinsic"]]
+                )
+
+            if "ChargeAssetTxPayment" in signed_extensions:
+                signature_payload.type_mapping.append(
+                    ["asset_id", signed_extensions["ChargeAssetTxPayment"]["extrinsic"]]
+                )
+
+            if "CheckMetadataHash" in signed_extensions:
+                signature_payload.type_mapping.append(
+                    ["mode", signed_extensions["CheckMetadataHash"]["extrinsic"]]
+                )
+
+            if "CheckSpecVersion" in signed_extensions:
+                signature_payload.type_mapping.append(
+                    [
+                        "spec_version",
+                        signed_extensions["CheckSpecVersion"]["additional_signed"],
+                    ]
+                )
+
+            if "CheckTxVersion" in signed_extensions:
+                signature_payload.type_mapping.append(
+                    [
+                        "transaction_version",
+                        signed_extensions["CheckTxVersion"]["additional_signed"],
+                    ]
+                )
+
+            if "CheckGenesis" in signed_extensions:
+                signature_payload.type_mapping.append(
+                    [
+                        "genesis_hash",
+                        signed_extensions["CheckGenesis"]["additional_signed"],
+                    ]
+                )
+
+            if "CheckMortality" in signed_extensions:
+                signature_payload.type_mapping.append(
+                    [
+                        "block_hash",
+                        signed_extensions["CheckMortality"]["additional_signed"],
+                    ]
+                )
+
+            if "CheckEra" in signed_extensions:
+                signature_payload.type_mapping.append(
+                    ["block_hash", signed_extensions["CheckEra"]["additional_signed"]]
+                )
+
+            if "CheckMetadataHash" in signed_extensions:
+                signature_payload.type_mapping.append(
+                    [
+                        "metadata_hash",
+                        signed_extensions["CheckMetadataHash"]["additional_signed"],
+                    ]
+                )
+
+        if include_call_length:
+            length_obj = self.runtime_config.create_scale_object("Bytes")
+            call_data = str(length_obj.encode(str(call.data)))
+
+        else:
+            call_data = str(call.data)
+
+        payload_dict = {
+            "call": call_data,
+            "era": era,
+            "nonce": nonce,
+            "tip": tip,
+            "spec_version": self.runtime_version,
+            "genesis_hash": genesis_hash,
+            "block_hash": block_hash,
+            "transaction_version": self.transaction_version,
+            "asset_id": {"tip": tip, "asset_id": tip_asset_id},
+            "metadata_hash": None,
+            "mode": "Disabled",
+        }
+
+        signature_payload.encode(payload_dict)
+
+        if signature_payload.data.length > 256:
+            return ScaleBytes(
+                data=blake2b(signature_payload.data.data, digest_size=32).digest()
+            )
+
+        return signature_payload.data
+
     async def create_signed_extrinsic(
         self,
         call: GenericCall,
         keypair: Keypair,
-        era: dict = None,
-        nonce: int = None,
+        era: Optional[dict] = None,
+        nonce: Optional[int] = None,
         tip: int = 0,
-        tip_asset_id: int = None,
-        signature: Union[bytes, str] = None,
+        tip_asset_id: Optional[int] = None,
+        signature: Optional[Union[bytes, str]] = None,
     ) -> "GenericExtrinsic":
         """
         Creates an extrinsic signed by given account details
@@ -902,25 +1985,104 @@ class AsyncSubstrateInterface:
 
         :return: The signed Extrinsic
         """
-        return await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: self.substrate.create_signed_extrinsic(
-                call=call,
-                keypair=keypair,
-                era=era,
-                nonce=nonce,
-                tip=tip,
-                tip_asset_id=tip_asset_id,
-                signature=signature,
-            ),
+        await self.init_runtime()
+
+        # Check requirements
+        if not isinstance(call, GenericCall):
+            raise TypeError("'call' must be of type Call")
+
+        # Check if extrinsic version is supported
+        if self.metadata[1][1]["extrinsic"]["version"] != 4:  # type: ignore
+            raise NotImplementedError(
+                f"Extrinsic version {self.metadata[1][1]['extrinsic']['version']} not supported"  # type: ignore
+            )
+
+        # Retrieve nonce
+        if nonce is None:
+            nonce = await self.get_account_nonce(keypair.ss58_address) or 0
+
+        # Process era
+        if era is None:
+            era = "00"
+        else:
+            if isinstance(era, dict) and "current" not in era and "phase" not in era:
+                # Retrieve current block id
+                era["current"] = await self.get_block_number(
+                    await self.get_chain_finalised_head()
+                )
+
+        if signature is not None:
+            if isinstance(signature, str) and signature[0:2] == "0x":
+                signature = bytes.fromhex(signature[2:])
+
+            # Check if signature is a MultiSignature and contains signature version
+            if len(signature) == 65:
+                signature_version = signature[0]
+                signature = signature[1:]
+            else:
+                signature_version = keypair.crypto_type
+
+        else:
+            # Create signature payload
+            signature_payload = await self.generate_signature_payload(
+                call=call, era=era, nonce=nonce, tip=tip, tip_asset_id=tip_asset_id
+            )
+
+            # Set Signature version to crypto type of keypair
+            signature_version = keypair.crypto_type
+
+            # Sign payload
+            signature = keypair.sign(signature_payload)
+
+        # Create extrinsic
+        extrinsic = self.runtime_config.create_scale_object(
+            type_string="Extrinsic", metadata=self.metadata
         )
+
+        value = {
+            "account_id": f"0x{keypair.public_key.hex()}",
+            "signature": f"0x{signature.hex()}",
+            "call_function": call.value["call_function"],
+            "call_module": call.value["call_module"],
+            "call_args": call.value["call_args"],
+            "nonce": nonce,
+            "era": era,
+            "tip": tip,
+            "asset_id": {"tip": tip, "asset_id": tip_asset_id},
+            "mode": "Disabled",
+        }
+
+        # Check if ExtrinsicSignature is MultiSignature, otherwise omit signature_version
+        signature_cls = self.runtime_config.get_decoder_class("ExtrinsicSignature")
+        if issubclass(signature_cls, self.runtime_config.get_decoder_class("Enum")):
+            value["signature_version"] = signature_version
+
+        extrinsic.encode(value)
+
+        return extrinsic
+
+    async def get_chain_finalised_head(self):
+        """
+        A pass-though to existing JSONRPC method `chain_getFinalizedHead`
+
+        Returns
+        -------
+
+        """
+        response = await self.rpc_request("chain_getFinalizedHead", [])
+
+        if response is not None:
+            if "error" in response:
+                raise SubstrateRequestException(response["error"]["message"])
+
+            return response.get("result")
 
     async def runtime_call(
         self,
         api: str,
         method: str,
-        params: Union[list, dict] = None,
-        block_hash: str = None,
+        params: Optional[Union[list, dict]] = None,
+        block_hash: Optional[str] = None,
     ) -> ScaleType:
         """
         Calls a runtime API method
@@ -939,12 +2101,12 @@ class AsyncSubstrateInterface:
 
         async with self._lock:
             try:
-                runtime_call_def = self.substrate.runtime_config.type_registry[
-                    "runtime_api"
-                ][api]["methods"][method]
-                runtime_api_types = self.substrate.runtime_config.type_registry[
-                    "runtime_api"
-                ][api].get("types", {})
+                runtime_call_def = self.runtime_config.type_registry["runtime_api"][
+                    api
+                ]["methods"][method]
+                runtime_api_types = self.runtime_config.type_registry["runtime_api"][
+                    api
+                ].get("types", {})
             except KeyError:
                 raise ValueError(
                     f"Runtime API Call '{api}.{method}' not found in registry"
@@ -959,11 +2121,11 @@ class AsyncSubstrateInterface:
                 )
 
             # Add runtime API types to registry
-            self.substrate.runtime_config.update_type_registry_types(runtime_api_types)
+            self.runtime_config.update_type_registry_types(runtime_api_types)
             runtime = Runtime(
                 self.chain,
-                self.substrate.runtime_config,
-                self.substrate.metadata,
+                self.runtime_config,
+                self.metadata,
                 self.type_registry,
             )
 
@@ -1008,6 +2170,30 @@ class AsyncSubstrateInterface:
         )
         return nonce_obj.value
 
+    async def get_metadata_constant(self, module_name, constant_name, block_hash=None):
+        """
+        Retrieves the details of a constant for given module name, call function name and block_hash
+        (or chaintip if block_hash is omitted)
+
+        Parameters
+        ----------
+        module_name
+        constant_name
+        block_hash
+
+        Returns
+        -------
+        MetadataModuleConstants
+        """
+
+        # await self.init_runtime(block_hash=block_hash)
+
+        for module in self.metadata.pallets:
+            if module_name == module.name and module.constants:
+                for constant in module.constants:
+                    if constant_name == constant.value["name"]:
+                        return constant
+
     async def get_constant(
         self,
         module_name: str,
@@ -1029,13 +2215,18 @@ class AsyncSubstrateInterface:
         :return: ScaleType from the runtime call
         """
         block_hash = await self._get_current_block_hash(block_hash, reuse_block_hash)
-        async with self._lock:
-            return await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: self.substrate.get_constant(
-                    module_name, constant_name, block_hash
-                ),
+        constant = await self.get_metadata_constant(
+            module_name, constant_name, block_hash=block_hash
+        )
+        if constant:
+            # Decode to ScaleType
+            return await self.decode_scale(
+                constant.type,
+                bytes(constant.constant_value),
+                return_scale_obj=True,
             )
+        else:
+            return None
 
     async def get_payment_info(
         self, call: GenericCall, keypair: Keypair
@@ -1071,7 +2262,7 @@ class AsyncSubstrateInterface:
             call=call, keypair=keypair, signature=signature
         )
         async with self._lock:
-            extrinsic_len = self.substrate.runtime_config.create_scale_object("u32")
+            extrinsic_len = self.runtime_config.create_scale_object("u32")
         extrinsic_len.encode(len(extrinsic.data))
 
         result = await self.runtime_call(
@@ -1086,7 +2277,7 @@ class AsyncSubstrateInterface:
         storage_function: str,
         params: Optional[list] = None,
         block_hash: Optional[str] = None,
-        raw_storage_key: bytes = None,
+        raw_storage_key: Optional[bytes] = None,
         subscription_handler=None,
         reuse_block_hash: bool = False,
     ) -> "ScaleType":
@@ -1127,7 +2318,7 @@ class AsyncSubstrateInterface:
         max_results: Optional[int] = None,
         start_key: Optional[str] = None,
         page_size: int = 100,
-        ignore_decoding_errors: bool = True,
+        ignore_decoding_errors: bool = False,
         reuse_block_hash: bool = False,
     ) -> "QueryMapResult":
         """
@@ -1137,11 +2328,14 @@ class AsyncSubstrateInterface:
         Example:
 
         ```
-        result = substrate.query_map('System', 'Account', max_results=100)
+        result = await substrate.query_map('System', 'Account', max_results=100)
 
-        for account, account_info in result:
+        async for account, account_info in result:
             print(f"Free balance of account '{account.value}': {account_info.value['data']['free']}")
         ```
+
+        Note: it is important that you do not use `for x in result.records`, as this will sidestep possible
+        pagination. You must do `async for x in result`.
 
         :param module: The module name in the metadata, e.g. System or Balances.
         :param storage_function: The storage function name, e.g. Account or Locks.
@@ -1252,19 +2446,18 @@ class AsyncSubstrateInterface:
                             )
                             key_type_string.append(param_types[n])
 
-                        item_key_obj = self.substrate.decode_scale(
+                        item_key_obj = await self.decode_scale(
                             type_string=f"({', '.join(key_type_string)})",
-                            scale_bytes="0x" + item[0][len(prefix) :],
+                            scale_bytes=bytes.fromhex(item[0][len(prefix) :]),
                             return_scale_obj=True,
-                            block_hash=block_hash,
                         )
 
                         # strip key_hashers to use as item key
                         if len(param_types) - len(params) == 1:
-                            item_key = item_key_obj.value_object[1]
+                            item_key = item_key_obj[1]
                         else:
                             item_key = tuple(
-                                item_key_obj.value_object[key + 1]
+                                item_key_obj[key + 1]
                                 for key in range(len(params), len(param_types) + 1, 2)
                             )
 
@@ -1274,11 +2467,15 @@ class AsyncSubstrateInterface:
                         item_key = None
 
                     try:
-                        item_value = self.substrate.decode_scale(
+                        try:
+                            item_bytes = bytes.fromhex(item[1][2:])
+                        except ValueError:
+                            item_bytes = bytes.fromhex(item[1])
+
+                        item_value = await self.decode_scale(
                             type_string=value_type,
-                            scale_bytes=item[1],
+                            scale_bytes=item_bytes,
                             return_scale_obj=True,
-                            block_hash=block_hash,
                         )
                     except Exception as _:
                         if not ignore_decoding_errors:
@@ -1294,7 +2491,7 @@ class AsyncSubstrateInterface:
             storage_function=storage_function,
             params=params,
             block_hash=block_hash,
-            substrate=self.substrate,
+            substrate=self,
             last_key=last_key,
             max_results=max_results,
             ignore_decoding_errors=ignore_decoding_errors,
@@ -1396,7 +2593,7 @@ class AsyncSubstrateInterface:
             # Also, this will be a multipart response, so maybe should change to everything after the first response?
             # The following code implies this will be a single response after the initial subscription id.
             result = ExtrinsicReceipt(
-                substrate=self.substrate,
+                substrate=self,
                 extrinsic_hash=response["extrinsic_hash"],
                 block_hash=response["block_hash"],
                 finalized=response["finalized"],
@@ -1410,15 +2607,16 @@ class AsyncSubstrateInterface:
             if "result" not in response:
                 raise SubstrateRequestException(response.get("error"))
 
-            result = ExtrinsicReceipt(
-                substrate=self.substrate, extrinsic_hash=response["result"]
-            )
+            result = ExtrinsicReceipt(substrate=self, extrinsic_hash=response["result"])
 
         return result
 
     async def get_metadata_call_function(
-        self, module_name: str, call_function_name: str, block_hash: str = None
-    ) -> list:
+        self,
+        module_name: str,
+        call_function_name: str,
+        block_hash: Optional[str] = None,
+    ) -> Optional[list]:
         """
         Retrieves a list of all call functions in metadata active for given block_hash (or chaintip if block_hash
         is omitted)
@@ -1436,6 +2634,7 @@ class AsyncSubstrateInterface:
                 for call in pallet.calls:
                     if call.name == call_function_name:
                         return call
+        return None
 
     async def get_block_number(self, block_hash: Optional[str]) -> int:
         """Async version of `substrateinterface.base.get_block_number` method."""
@@ -1452,7 +2651,6 @@ class AsyncSubstrateInterface:
         """
         Closes the substrate connection, and the websocket connection.
         """
-        self.substrate.close()
         try:
             await self.ws.shutdown()
         except AttributeError:

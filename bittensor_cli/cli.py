@@ -3,6 +3,7 @@ import asyncio
 import curses
 import os.path
 import re
+import sys
 from pathlib import Path
 from typing import Coroutine, Optional
 
@@ -141,10 +142,10 @@ class Options:
         prompt=True,
     )
     weights = typer.Option(
-            [],
-            "--weights",
-            "-w",
-            help="Corresponding weights for the specified UIDs, e.g. `-w 0.2 -w 0.4 -w 0.1 ...",
+        [],
+        "--weights",
+        "-w",
+        help="Corresponding weights for the specified UIDs, e.g. `-w 0.2 -w 0.4 -w 0.1 ...",
     )
     reuse_last = typer.Option(
         False,
@@ -653,22 +654,28 @@ class CLIManager:
         """
 
         async def _run():
-            if self.not_subtensor:
-                async with self.not_subtensor:
+            try:
+                if self.not_subtensor:
+                    async with self.not_subtensor:
+                        await cmd
+                else:
                     await cmd
-            else:
-                await cmd
+            except ConnectionRefusedError:
+                err_console.print(f"Unable to connect to chain: {self.not_subtensor}")
+                asyncio.create_task(cmd).cancel()
+                raise typer.Exit()
+            except ConnectionClosed:
+                raise typer.Exit()
+            except SubstrateRequestException as e:
+                err_console.print(str(e))
+                raise typer.Exit()
 
-        try:
+        if sys.version_info < (3, 10):
+            # For Python 3.9 or lower
+            return asyncio.get_event_loop().run_until_complete(_run())
+        else:
+            # For Python 3.10 or higher
             return asyncio.run(_run())
-        except ConnectionRefusedError:
-            err_console.print(
-                f"Connection refused when connecting to chain: {self.not_subtensor}"
-            )
-        except ConnectionClosed:
-            pass
-        except SubstrateRequestException as e:
-            err_console.print(str(e))
 
     def main_callback(
         self,

@@ -10,7 +10,7 @@ from bittensor_cli.src.bittensor.networking import int_to_ip
 from bittensor_cli.src.bittensor.utils import SS58_FORMAT, u16_normalized_float
 
 
-def decode_account_id(account_id_bytes):
+def decode_account_id(account_id_bytes: tuple):
     # Convert the AccountId bytes to a Base64 string
     return ss58_encode(bytes(account_id_bytes).hex(), SS58_FORMAT)
 
@@ -406,7 +406,7 @@ class NeuronInfoLite:
                     trust=u16_normalized_float(trust),
                     uid=uid,
                     validator_permit=validator_permit,
-                    validator_trust=validator_trust,
+                    validator_trust=u16_normalized_float(validator_trust),
                 )
             )
         return results

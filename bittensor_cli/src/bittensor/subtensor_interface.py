@@ -21,6 +21,7 @@ from bittensor_cli.src.bittensor.chain_data import (
     NeuronInfoLite,
     NeuronInfo,
     SubnetHyperparameters,
+    decode_account_id,
 )
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src import Constants, defaults, TYPE_REGISTRY
@@ -35,6 +36,28 @@ from bittensor_cli.src.bittensor.utils import (
 class ParamWithTypes(TypedDict):
     name: str  # Name of the parameter.
     type: str  # ScaleType string of the parameter.
+
+
+class ProposalVoteData:
+    index: int
+    threshold: int
+    ayes: list[str]
+    nays: list[str]
+    end: int
+
+    def __init__(self, proposal_dict: dict) -> None:
+        self.index = proposal_dict["index"]
+        self.threshold = proposal_dict["threshold"]
+        self.ayes = self.decode_ss58_tuples(proposal_dict["ayes"])
+        self.nays = self.decode_ss58_tuples(proposal_dict["nays"])
+        self.end = proposal_dict["end"]
+
+    @staticmethod
+    def decode_ss58_tuples(l: tuple):
+        """
+        Decodes a tuple of ss58 addresses formatted as bytes tuples
+        """
+        return [decode_account_id(l[x][0]) for x in range(len(l))]
 
 
 class SubtensorInterface:
@@ -130,13 +153,13 @@ class SubtensorInterface:
         return (
             []
             if result is None or not hasattr(result, "records")
-            else [netuid.value for netuid, exists in result if exists]
+            else [netuid async for netuid, exists in result if exists]
         )
 
     async def is_hotkey_delegate(
         self,
         hotkey_ss58: str,
-        block_hash: Optional[int] = None,
+        block_hash: Optional[str] = None,
         reuse_block: Optional[bool] = False,
     ) -> bool:
         """
@@ -152,12 +175,10 @@ class SubtensorInterface:
         Being a delegate is a significant status within the Bittensor network, indicating a neuron's
         involvement in consensus and governance processes.
         """
-        return hotkey_ss58 in [
-            info.hotkey_ss58
-            for info in await self.get_delegates(
-                block_hash=block_hash, reuse_block=reuse_block
-            )
-        ]
+        delegates = await self.get_delegates(
+            block_hash=block_hash, reuse_block=reuse_block
+        )
+        return hotkey_ss58 in [info.hotkey_ss58 for info in delegates]
 
     async def get_delegates(
         self, block_hash: Optional[str] = None, reuse_block: Optional[bool] = False
@@ -173,14 +194,15 @@ class SubtensorInterface:
         hex_bytes_result = await self.query_runtime_api(
             runtime_api="DelegateInfoRuntimeApi", method="get_delegates", params=[]
         )
-        try:
-            bytes_result = bytes.fromhex(hex_bytes_result[2:])
-        except ValueError:
-            bytes_result = bytes.fromhex(hex_bytes_result)
-        except TypeError:
-            return []
+        if hex_bytes_result is not None:
+            try:
+                bytes_result = bytes.fromhex(hex_bytes_result[2:])
+            except ValueError:
+                bytes_result = bytes.fromhex(hex_bytes_result)
 
-        return DelegateInfo.list_from_vec_u8(bytes_result)
+            return DelegateInfo.list_from_vec_u8(bytes_result)
+        else:
+            return []
 
     async def get_stake_info_for_coldkey(
         self,
@@ -237,7 +259,7 @@ class SubtensorInterface:
             params=[hotkey_ss58, coldkey_ss58],
             block_hash=block_hash,
         )
-        return Balance.from_rao(getattr(_result, "value", 0))
+        return Balance.from_rao(_result or 0)
 
     async def query_runtime_api(
         self,
@@ -316,7 +338,7 @@ class SubtensorInterface:
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
-        return {k: Balance(v.value["data"]["free"]) for (k, v) in results.items()}
+        return {k: Balance(v["data"]["free"]) for (k, v) in results.items()}
 
     async def get_total_stake_for_coldkey(
         self,
@@ -340,9 +362,7 @@ class SubtensorInterface:
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
-        return {
-            k: Balance.from_rao(getattr(r, "value", 0)) for (k, r) in results.items()
-        }
+        return {k: Balance.from_rao(r or 0) for (k, r) in results.items()}
 
     async def get_total_stake_for_hotkey(
         self,
@@ -366,9 +386,7 @@ class SubtensorInterface:
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
-        return {
-            k: Balance.from_rao(getattr(r, "value", 0)) for (k, r) in results.items()
-        }
+        return {k: Balance.from_rao(r or 0) for (k, r) in results.items()}
 
     async def get_netuids_for_hotkey(
         self,
@@ -396,7 +414,7 @@ class SubtensorInterface:
             reuse_block_hash=reuse_block,
         )
         return (
-            [record[0].value for record in result.records if record[1]]
+            [record[0] async for record in result if record[1]]
             if result and hasattr(result, "records")
             else []
         )
@@ -423,7 +441,7 @@ class SubtensorInterface:
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
-        return getattr(result, "value", False)
+        return result
 
     async def get_hyperparameter(
         self,
@@ -443,6 +461,7 @@ class SubtensorInterface:
         :return: The value of the specified hyperparameter if the subnet exists, or None
         """
         if not await self.subnet_exists(netuid, block_hash):
+            print("subnet does not exist")
             return None
 
         result = await self.substrate.query(
@@ -453,10 +472,10 @@ class SubtensorInterface:
             reuse_block_hash=reuse_block,
         )
 
-        if result is None or not hasattr(result, "value"):
+        if result is None:
             return None
 
-        return result.value
+        return result
 
     async def filter_netuids_by_registered_hotkeys(
         self,
@@ -526,10 +545,10 @@ class SubtensorInterface:
             reuse_block_hash=reuse_block,
         )
 
-        if result is None or not hasattr(result, "value"):
+        if result is None:
             raise Exception("Unable to retrieve existential deposit amount.")
 
-        return Balance.from_rao(result.value)
+        return Balance.from_rao(result)
 
     async def neurons(
         self, netuid: int, block_hash: Optional[str] = None
@@ -699,14 +718,25 @@ class SubtensorInterface:
         def decode_hex_identity_dict(info_dictionary):
             for k, v in info_dictionary.items():
                 if isinstance(v, dict):
-                    item = list(v.values())[0]
-                    if isinstance(item, str) and item.startswith("0x"):
+                    item = next(iter(v.values()))
+                else:
+                    item = v
+                if isinstance(item, tuple) and item:
+                    if len(item) > 1:
                         try:
-                            info_dictionary[k] = bytes.fromhex(item[2:]).decode()
+                            info_dictionary[k] = (
+                                bytes(item).hex(sep=" ", bytes_per_sep=2).upper()
+                            )
                         except UnicodeDecodeError:
                             print(f"Could not decode: {k}: {item}")
                     else:
-                        info_dictionary[k] = item
+                        try:
+                            info_dictionary[k] = bytes(item[0]).decode("utf-8")
+                        except UnicodeDecodeError:
+                            print(f"Could not decode: {k}: {item}")
+                else:
+                    info_dictionary[k] = item
+
             return info_dictionary
 
         identity_info = await self.substrate.query(
@@ -717,7 +747,7 @@ class SubtensorInterface:
             reuse_block_hash=reuse_block,
         )
         try:
-            return decode_hex_identity_dict(identity_info.value["info"])
+            return decode_hex_identity_dict(identity_info["info"])
         except TypeError:
             return {}
 
@@ -738,17 +768,13 @@ class SubtensorInterface:
         The weight distribution is a key factor in the network's consensus algorithm and the ranking of neurons,
         influencing their influence and reward allocation within the subnet.
         """
-        w_map = []
         w_map_encoded = await self.substrate.query_map(
             module="SubtensorModule",
             storage_function="Weights",
             params=[netuid],
             block_hash=block_hash,
         )
-
-        if w_map_encoded.records:
-            for uid, w in w_map_encoded:
-                w_map.append((uid.serialize(), w.serialize()))
+        w_map = [(uid, w) async for uid, w in w_map_encoded]
 
         return w_map
 
@@ -770,16 +796,13 @@ class SubtensorInterface:
         within the subnet. It reflects how neurons recognize and invest in each other's intelligence and
         contributions, supporting diverse and niche systems within the Bittensor ecosystem.
         """
-        b_map = []
         b_map_encoded = await self.substrate.query_map(
             module="SubtensorModule",
             storage_function="Bonds",
             params=[netuid],
             block_hash=block_hash,
         )
-        if b_map_encoded.records:
-            for uid, b in b_map_encoded:
-                b_map.append((uid.serialize(), b.serialize()))
+        b_map = [(uid, b) async for uid, b in b_map_encoded]
 
         return b_map
 
@@ -798,18 +821,20 @@ class SubtensorInterface:
 
         :return: `True` if the hotkey is known by the chain and there are accounts, `False` otherwise.
         """
-        result = await self.substrate.query(
+        _result = await self.substrate.query(
             module="SubtensorModule",
             storage_function="Owner",
             params=[hotkey_ss58],
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
-        return (
+        result = decode_account_id(_result[0])
+        return_val = (
             False
-            if getattr(result, "value", None) is None
-            else result.value != "5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM"
+            if result is None
+            else result != "5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM"
         )
+        return return_val
 
     async def sign_and_send_extrinsic(
         self,
@@ -831,19 +856,22 @@ class SubtensorInterface:
         extrinsic = await self.substrate.create_signed_extrinsic(
             call=call, keypair=wallet.coldkey
         )  # sign with coldkey
-        response = await self.substrate.submit_extrinsic(
-            extrinsic,
-            wait_for_inclusion=wait_for_inclusion,
-            wait_for_finalization=wait_for_finalization,
-        )
-        # We only wait here if we expect finalization.
-        if not wait_for_finalization and not wait_for_inclusion:
-            return True, ""
-        response.process_events()
-        if response.is_success:
-            return True, ""
-        else:
-            return False, format_error_message(response.error_message)
+        try:
+            response = await self.substrate.submit_extrinsic(
+                extrinsic,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+            )
+            # We only wait here if we expect finalization.
+            if not wait_for_finalization and not wait_for_inclusion:
+                return True, ""
+            await response.process_events()
+            if await response.is_success:
+                return True, ""
+            else:
+                return False, format_error_message(await response.error_message)
+        except SubstrateRequestException as e:
+            return False, e
 
     async def get_children(self, hotkey, netuid) -> tuple[bool, list, str]:
         """
@@ -866,12 +894,8 @@ class SubtensorInterface:
                 formatted_children = []
                 for proportion, child in children:
                     # Convert U64 to int
-                    int_proportion = (
-                        proportion.value
-                        if hasattr(proportion, "value")
-                        else int(proportion)
-                    )
-                    formatted_children.append((int_proportion, child.value))
+                    int_proportion = int(proportion)
+                    formatted_children.append((int_proportion, child))
                 return True, formatted_children, ""
             else:
                 return True, [], ""
@@ -909,3 +933,34 @@ class SubtensorInterface:
             bytes_result = bytes.fromhex(hex_bytes_result)
 
         return SubnetHyperparameters.from_vec_u8(bytes_result)
+
+    async def get_vote_data(
+        self,
+        proposal_hash: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> Optional["ProposalVoteData"]:
+        """
+        Retrieves the voting data for a specific proposal on the Bittensor blockchain. This data includes
+        information about how senate members have voted on the proposal.
+
+        :param proposal_hash: The hash of the proposal for which voting data is requested.
+        :param block_hash: The hash of the blockchain block number to query the voting data.
+        :param reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        :return: An object containing the proposal's voting data, or `None` if not found.
+
+        This function is important for tracking and understanding the decision-making processes within
+        the Bittensor network, particularly how proposals are received and acted upon by the governing body.
+        """
+        vote_data = await self.substrate.query(
+            module="Triumvirate",
+            storage_function="Voting",
+            params=[proposal_hash],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+        if vote_data is None:
+            return None
+        else:
+            return ProposalVoteData(vote_data)

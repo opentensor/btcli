@@ -406,17 +406,15 @@ async def set_root_weights_extrinsic(
         if not wait_for_finalization and not wait_for_inclusion:
             return True, "Not waiting for finalization or inclusion."
 
-        response.process_events()
-        if response.is_success:
+        await response.process_events()
+        if await response.is_success:
             return True, "Successfully set weights."
         else:
-            return False, response.error_message
+            return False, await response.error_message
 
-    my_uid = (
-        await subtensor.substrate.query(
-            "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
-        )
-    ).value
+    my_uid = await subtensor.substrate.query(
+        "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
+    )
 
     if my_uid is None:
         err_console.print("Your hotkey is not registered to the root network")
