@@ -721,12 +721,19 @@ class SubtensorInterface:
                     item = next(iter(v.values()))
                 else:
                     item = v
-
                 if isinstance(item, tuple) and item:
-                    try:
-                        info_dictionary[k] = bytes(item[0]).decode("utf-8")
-                    except UnicodeDecodeError:
-                        print(f"Could not decode: {k}: {item}")
+                    if len(item) > 1:
+                        try:
+                            info_dictionary[k] = (
+                                bytes(item).hex(sep=" ", bytes_per_sep=2).upper()
+                            )
+                        except UnicodeDecodeError:
+                            print(f"Could not decode: {k}: {item}")
+                    else:
+                        try:
+                            info_dictionary[k] = bytes(item[0]).decode("utf-8")
+                        except UnicodeDecodeError:
+                            print(f"Could not decode: {k}: {item}")
                 else:
                     info_dictionary[k] = item
 
