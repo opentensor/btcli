@@ -1465,7 +1465,7 @@ async def set_id(
         "display": display_name,
         "legal": legal_name,
         "web": web_url,
-        "pgp_fingerprint": pgp_fingerprint,
+        "pgp_fingerprint": pgp_fingerprint.strip(" "),
         "riot": riot_handle,
         "email": email,
         "image": image,
@@ -1474,7 +1474,12 @@ async def set_id(
     }
 
     for field, string in id_dict.items():
-        if (size := getsizeof(string)) > 113:  # 64 + 49 overhead bytes for string
+        if field == "pgp_fingerprint" and len(pgp_fingerprint.encode()) != 20:
+            err_console.print(
+                "[red]Error:[/red] PGP Fingerprint must be exactly 20 bytes."
+            )
+            return False
+        elif (size := getsizeof(string)) > 113:  # 64 + 49 overhead bytes for string
             err_console.print(
                 f"[red]Error:[/red] Identity field [white]{field}[/white] must be <= 64 raw bytes.\n"
                 f"Value: '{string}' currently [white]{size} bytes[/white]."
@@ -1492,7 +1497,7 @@ async def set_id(
             "web": {f"Raw{len(web_url.encode())}": web_url.encode()},
             "riot": {f"Raw{len(riot_handle.encode())}": riot_handle.encode()},
             "email": {f"Raw{len(email.encode())}": email.encode()},
-            "pgp_fingerprint": pgp_fingerprint.encode() if pgp_fingerprint else None,
+            "pgp_fingerprint": pgp_fingerprint.strip(" ").encode() if pgp_fingerprint else None,
             "image": {f"Raw{len(image.encode())}": image.encode()},
             "info": {f"Raw{len(info_.encode())}": info_.encode()},
             "twitter": {f"Raw{len(twitter.encode())}": twitter.encode()},
