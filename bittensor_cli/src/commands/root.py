@@ -447,7 +447,7 @@ async def set_take_extrinsic(
         return True
     if current_take is None or current_take < take_u16:
         console.print(
-            "Current take is either not set or is lower than the new one. Will use increase_take"
+            f"Current take is {float(delegate.take):.4f}. Increasing to {take:.4f}."
         )
         with console.status(
             f":satellite: Sending decrease_take_extrinsic call on [white]{subtensor}[/white] ..."
@@ -463,7 +463,7 @@ async def set_take_extrinsic(
             success, err = await subtensor.sign_and_send_extrinsic(call, wallet)
 
     else:
-        console.print("Current take is higher than the new one. Will use decrease_take")
+        console.print(f"Current take is {float(delegate.take):.4f}. Decreasing to {take:.4f}.")
         with console.status(
             f":satellite: Sending increase_take_extrinsic call on [white]{subtensor}[/white] ..."
         ):
@@ -935,9 +935,13 @@ async def get_weights(
                 no_wrap=True,
             )
 
+        if not rows:
+            err_console.print("No weights exist on the root network.")
+            return
+        
         # Adding rows
         for row in rows:
-            new_row = [row[0]] + row[_min_lim:_max_lim]
+            new_row = [row[0]] + row[_min_lim + 1:_max_lim + 1]
             table.add_row(*new_row)
 
         return console.print(table)

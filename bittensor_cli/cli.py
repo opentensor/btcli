@@ -437,6 +437,7 @@ class CLIManager:
             self.weights_app,
             name="weights",
             short_help="Weights commands, aliases: `wt`, `weight`",
+            hidden=True,
         )
         self.app.add_typer(self.weights_app, name="wt", hidden=True)
         self.app.add_typer(self.weights_app, name="weight", hidden=True)
@@ -2174,7 +2175,7 @@ class CLIManager:
         distribution.
         """
         self.verbosity_handler(quiet, verbose)
-        netuids = list_prompt(netuids, int, "Enter netuids")
+        netuids = list_prompt(netuids, int, "Enter netuids (e.g: 1, 4, 6)")
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -2183,7 +2184,7 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
         if not weights:
-            weights = list_prompt([], float, "Weights: e.g. 0.02, 0.03, 0.01 ")
+            weights = list_prompt([], float, "Weights (e.g. 0.02, 0.03, 0.01)")
         self._run_command(
             root.set_weights(
                 wallet, self.initialize_chain(network, chain), netuids, weights, prompt
@@ -2264,7 +2265,7 @@ class CLIManager:
             "--amount",
             "--increase",
             "-a",
-            prompt=True,
+            prompt="Boost amount (added to existing weight)",
             help="Amount (float) to boost, (e.g. 0.01)",
         ),
         prompt: bool = Options.prompt,
@@ -2310,7 +2311,7 @@ class CLIManager:
             "--amount",
             "--decrease",
             "-a",
-            prompt=True,
+            prompt="Slash amount (subtracted from the existing weight)",
             help="Amount (float) to boost, (e.g. 0.01)",
         ),
         prompt: bool = Options.prompt,
@@ -2358,6 +2359,7 @@ class CLIManager:
             None,
             "--proposal",
             "--proposal-hash",
+            prompt="Enter the proposal hash",
             help="The hash of the proposal to vote on.",
         ),
         prompt: bool = Options.prompt,
@@ -2863,13 +2865,24 @@ class CLIManager:
         console application. It prints directly to the console and does not return any value.
         """
         self.verbosity_handler(quiet, verbose)
-        network_to_use = network or self.config["network"]
-        if network_to_use not in ["local", "test"]:
+
+        if chain:
+            sub = self.initialize_chain(network, chain)
+
+        elif network == "finney":
+            sub = self.initialize_chain(
+                "archive", "wss://archive.chain.opentensor.ai:443"
+            )
+
+        elif self.config.get("chain"):
+            sub = self.initialize_chain(network, self.config.get("chain"))
+
+        elif self.config.get("network") == "finney":
             sub = self.initialize_chain(
                 "archive", "wss://archive.chain.opentensor.ai:443"
             )
         else:
-            sub = self.initialize_chain(network_to_use, chain)
+            sub = self.initialize_chain(network, chain)
 
         return self._run_command(root.list_delegates(sub))
 
