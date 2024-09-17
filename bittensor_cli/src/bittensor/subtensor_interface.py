@@ -72,7 +72,10 @@ class SubtensorInterface:
                     "[yellow]Warning[/yellow]: Verify your chain endpoint is a valid substrate endpoint."
                 )
             self.chain_endpoint = chain_endpoint
-            self.network = "local"
+            if chain_endpoint == Constants.network_map["archive"]:
+                self.network = "archive - finney"
+            else:
+                self.network = "local"
         elif network and network in Constants.network_map:
             if network == "local":
                 console.log(
@@ -196,7 +199,10 @@ class SubtensorInterface:
         :return: List of DelegateInfo objects, or an empty list if there are no delegates.
         """
         hex_bytes_result = await self.query_runtime_api(
-            runtime_api="DelegateInfoRuntimeApi", method="get_delegates", params=[]
+            runtime_api="DelegateInfoRuntimeApi",
+            method="get_delegates",
+            params=[],
+            block_hash=block_hash,
         )
         if hex_bytes_result is not None:
             try:

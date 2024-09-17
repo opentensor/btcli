@@ -2894,23 +2894,27 @@ class CLIManager:
         self.verbosity_handler(quiet, verbose)
 
         if chain:
-            sub = self.initialize_chain(network, chain)
-
-        elif network == "finney":
-            sub = self.initialize_chain(
-                "archive", "wss://archive.chain.opentensor.ai:443"
-            )
-
-        elif self.config.get("chain"):
-            sub = self.initialize_chain(network, self.config.get("chain"))
-
-        elif self.config.get("network") == "finney":
-            sub = self.initialize_chain(
-                "archive", "wss://archive.chain.opentensor.ai:443"
-            )
+            selected_network = network
+            selected_chain = chain
+        elif network:
+            if network.lower() == "finney":
+                selected_network = "archive"
+                selected_chain = "wss://archive.chain.opentensor.ai:443"
+            else:
+                selected_network = network
+                selected_chain = chain
         else:
-            sub = self.initialize_chain(network, chain)
+            chain_config = self.config.get("chain")
+            chain_network = self.config.get("network")
 
+            if chain_network and chain_network.lower() == "finney" and not chain_config:
+                selected_network = "archive"
+                selected_chain = "wss://archive.chain.opentensor.ai:443"
+            else:
+                selected_network = chain_network
+                selected_chain = chain_config
+
+        sub = self.initialize_chain(selected_network, selected_chain)
         return self._run_command(root.list_delegates(sub))
 
     # TODO: Confirm if we need a command for this - currently registering to root auto makes u delegate
