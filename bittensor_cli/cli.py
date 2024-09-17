@@ -801,11 +801,11 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
-        no_cache: Optional[bool] = typer.Option(
+        no_cache: bool = typer.Option(
             False,
             "--cache/--no-cache",
             "--cache/--no_cache",
-            help="Disable caching of certain commands. This will disable the `--reuse-last` and `html` flags on "
+            help="Disable caching of certain commands. This will disable the `--reuse-last` and `--html` flags on "
             "commands such as `subnets metagraph`, `stake show` and `subnets list`.",
         ),
     ):
@@ -821,7 +821,7 @@ class CLIManager:
             "no_cache": no_cache,
         }
         bools = ["no_cache"]
-        if not all(v for v in args.values()):
+        if all(v is None for v in args.values()):
             arg = Prompt.ask("Which value would you like to update?", choices=list(args.keys()))
             if arg in bools:
                 nc = Confirm.ask(
