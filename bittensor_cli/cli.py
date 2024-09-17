@@ -3967,7 +3967,8 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME],
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
         )
         return self._run_command(
             subnets.create(wallet, self.initialize_chain(network, chain), prompt)
