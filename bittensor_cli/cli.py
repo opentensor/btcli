@@ -859,28 +859,13 @@ class CLIManager:
     def del_config(
         self,
         wallet_name: bool = typer.Option(
-            False,
-            *Options.wallet_name.param_decls
+            False, "--wallet-name", "--name", "--wallet_name", "--wallet.name"
         ),
         wallet_path: bool = typer.Option(
-            False,
-            *Options.wallet_path.param_decls
+            False, "--wallet-path", "--wallet_path", "-p", "--wallet.path"
         ),
         wallet_hotkey: bool = typer.Option(
-            False,
-            *Options.wallet_hotkey.param_decls
-        ),
-        network: bool = typer.Option(
-            False,
-            *Options.network.param_decls
-        ),
-        chain: bool = typer.Option(
-            False,
-            *Options.chain.param_decls
-        ),
-        no_cache: bool = typer.Option(
-            False,
-            "--no-cache", "--no_cache"
+            False, "--wallet-hotkey", "--hotkey", "-H", "--wallet.hotkey"
         ),
         network: bool = typer.Option(False, "--network", "--subtensor.network"),
         chain: bool = typer.Option(False, "--chain", "--subtensor.chain_endpoint"),
