@@ -674,9 +674,11 @@ async def unstake_multiple_extrinsic(
     if amounts is None:
         new_amounts = [None] * len(hotkey_ss58s)
     else:
-        new_amounts = amounts
-        if sum(amount.tao for amount in cast(Sequence[Balance], new_amounts)) == 0:
-            # Staking 0 tao
+        new_amounts = [
+            Balance(amount) if not isinstance(amount, Balance) else amount
+            for amount in (amounts or [None] * len(hotkey_ss58s))
+        ]
+        if sum(amount.tao for amount in new_amounts if amount is not None) == 0:
             return True
 
     # Unlock coldkey.
@@ -761,7 +763,7 @@ async def unstake_multiple_extrinsic(
             if not Confirm.ask(
                 f"Do you want to unstake:\n"
                 f"[bold white]\tamount: {unstaking_balance}\n"
-                f"\thotkey: {wallet.hotkey_str}[/bold white ]?"
+                f"ss58: {hotkey_ss58}[/bold white ]?"
             ):
                 continue
 
@@ -791,10 +793,13 @@ async def unstake_multiple_extrinsic(
                     block_hash=block_hash,
                 )
                 tx_rate_limit_blocks: int = tx_query
+                
+                # TODO: Handle in-case we have fast blocks 
                 if tx_rate_limit_blocks > 0:
                     console.print(
                         ":hourglass: [yellow]Waiting for tx rate limit:"
-                        " [white]{tx_rate_limit_blocks}[/white] blocks[/yellow]"
+                        f" [white]{tx_rate_limit_blocks}[/white] blocks,"
+                        f" estimated time: [white]{tx_rate_limit_blocks * 12} [/white] seconds[/yellow]"
                     )
                     await asyncio.sleep(
                         tx_rate_limit_blocks * 12
