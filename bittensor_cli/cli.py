@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 import asyncio
-import click
-from click.core import ParameterSource
 import curses
 import os.path
 import re
