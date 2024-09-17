@@ -802,7 +802,7 @@ class CLIManager:
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
         no_cache: Optional[bool] = typer.Option(
-            None,
+            False,
             "--cache/--no-cache",
             "--cache/--no_cache",
             help="Disable caching of certain commands. This will disable the `--reuse-last` and `html` flags on "
