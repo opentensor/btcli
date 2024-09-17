@@ -1434,12 +1434,12 @@ def set_id_prompts() -> tuple[str, str, str, str, str, str, str, str, str, bool]
         display_name,
         legal_name,
         web_url,
+        pgp_fingerprint,
         riot_handle,
         email,
-        pgp_fingerprint,
         image_url,
-        info_,
         twitter_url,
+        info_,
         validator_id,
     )
 
