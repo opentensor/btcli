@@ -770,7 +770,7 @@ async def overview(
                     if nn.axon_info.port != 0
                     else "[yellow]none[/yellow]"
                 ),
-                nn.hotkey,
+                nn.hotkey[:10],
             ]
 
             total_rank += rank
@@ -797,35 +797,30 @@ async def overview(
             grid.add_row("Deregistered Neurons")
         else:
             grid.add_row(f"Subnet: [dark_orange]{netuid}[/dark_orange]")
-
+        width = console.width
         table = Table(
             show_footer=False,
             pad_edge=True,
             box=box.SIMPLE,
             expand=True,
+            width=width - 5,
         )
         if last_subnet:
             table.add_column(
-                "[white]COLDKEY",
-                str(total_neurons),
-                style="bold bright_cyan",
+                "[white]COLDKEY", str(total_neurons), style="bold bright_cyan", ratio=2
             )
             table.add_column(
-                "[white]HOTKEY",
-                str(total_neurons),
-                style="bright_cyan",
+                "[white]HOTKEY", str(total_neurons), style="bright_cyan", ratio=2
             )
         else:
             # No footer for non-last subnet.
-            table.add_column("[white]COLDKEY", style="bold bright_cyan")
-            table.add_column("[white]HOTKEY", style="bright_cyan")
+            table.add_column("[white]COLDKEY", style="bold bright_cyan", ratio=2)
+            table.add_column("[white]HOTKEY", style="bright_cyan", ratio=2)
         table.add_column(
-            "[white]UID",
-            str(total_neurons),
-            style="rgb(42,161,152)",
+            "[white]UID", str(total_neurons), style="rgb(42,161,152)", ratio=1
         )
         table.add_column(
-            "[white]ACTIVE", justify="right", style="#8787ff", no_wrap=True
+            "[white]ACTIVE", justify="right", style="#8787ff", no_wrap=True, ratio=1
         )
         if last_subnet:
             table.add_column(
@@ -835,6 +830,7 @@ async def overview(
                 justify="right",
                 style="dark_orange",
                 no_wrap=True,
+                ratio=1,
             )
         else:
             # No footer for non-last subnet.
@@ -843,6 +839,7 @@ async def overview(
                 justify="right",
                 style="dark_orange",
                 no_wrap=True,
+                ratio=1.5,
             )
         table.add_column(
             "[white]RANK",
@@ -850,6 +847,7 @@ async def overview(
             justify="right",
             style="medium_purple",
             no_wrap=True,
+            ratio=1.5,
         )
         table.add_column(
             "[white]TRUST",
@@ -857,6 +855,7 @@ async def overview(
             justify="right",
             style="green",
             no_wrap=True,
+            ratio=1.5,
         )
         table.add_column(
             "[white]CONSENSUS",
@@ -864,6 +863,7 @@ async def overview(
             justify="right",
             style="rgb(42,161,152)",
             no_wrap=True,
+            ratio=1.5,
         )
         table.add_column(
             "[white]INCENTIVE",
@@ -871,6 +871,7 @@ async def overview(
             justify="right",
             style="#5fd7ff",
             no_wrap=True,
+            ratio=1.5,
         )
         table.add_column(
             "[white]DIVIDENDS",
@@ -878,6 +879,7 @@ async def overview(
             justify="right",
             style="#8787d7",
             no_wrap=True,
+            ratio=1.5,
         )
         table.add_column(
             "[white]EMISSION(\u03c1)",
@@ -885,6 +887,7 @@ async def overview(
             justify="right",
             style="#d7d7ff",
             no_wrap=True,
+            ratio=1.5,
         )
         table.add_column(
             "[white]VTRUST",
@@ -892,13 +895,14 @@ async def overview(
             justify="right",
             style="magenta",
             no_wrap=True,
+            ratio=1.5,
         )
-        table.add_column("[white]VPERMIT", justify="center", no_wrap=True)
-        table.add_column("[white]UPDATED", justify="right", no_wrap=True)
+        table.add_column("[white]VPERMIT", justify="center", no_wrap=True, ratio=0.75)
+        table.add_column("[white]UPDATED", justify="right", no_wrap=True, ratio=1)
         table.add_column(
-            "[white]AXON", justify="left", style="light_goldenrod2", no_wrap=True
+            "[white]AXON", justify="left", style="light_goldenrod2", ratio=2.5
         )
-        table.add_column("[white]HOTKEY_SS58", style="bright_magenta", no_wrap=False)
+        table.add_column("[white]HOTKEY_SS58", style="bright_magenta", ratio=2)
         table.show_footer = True
 
         if sort_by:
@@ -940,6 +944,10 @@ async def overview(
     )
     grid.add_row(Align(caption, vertical="middle", align="center"))
 
+    if console.width < 150:
+        console.print(
+            "[yellow]Warning: Your terminal width might be too small to view all information clearly"
+        )
     # Print the entire table/grid
     console.print(grid, width=None)
 
