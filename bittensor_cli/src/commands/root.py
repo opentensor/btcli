@@ -1360,35 +1360,41 @@ async def my_delegates(
         Column(
             "[white]OWNER",
             style="bold bright_cyan",
-            no_wrap=True,
+            overflow="fold",
             justify="left",
+            ratio=1,
         ),
-        Column("[white]SS58", style="bright_magenta", justify="center"),
+        Column("[white]SS58", style="bright_magenta", justify="left", overflow="fold", ratio=2),
         Column(
             "[white]Delegation",
             style="dark_orange",
+            no_wrap=True,
+            ratio=1
         ),
         Column(
             "[white]\u03c4/24h",
             style="bold green",
+            ratio=1
         ),
-        Column("[white]NOMS", justify="center", style="rgb(42,161,152)", no_wrap=True),
+        Column("[white]NOMS", justify="center", style="rgb(42,161,152)", no_wrap=True, ratio=1),
         Column(
             "[white]OWNER STAKE(\u03c4)",
             justify="right",
             style="light_goldenrod2",
             no_wrap=True,
+            ratio=1
         ),
         Column(
             "[white]TOTAL STAKE(\u03c4)",
             justify="right",
             style="light_goldenrod2",
             no_wrap=True,
+            ratio=1
         ),
-        Column("[white]SUBNETS", justify="right", style="white"),
+        Column("[white]SUBNETS", justify="right", style="white", ratio=1),
         Column("[white]VPERMIT", justify="right"),
-        Column("[white]24h/k\u03c4", style="rgb(42,161,152)", justify="center"),
-        Column("[white]Desc", style="rgb(50,163,219)"),
+        Column("[white]24h/k\u03c4", style="rgb(42,161,152)", justify="center", ratio=1),
+        Column("[white]Desc", style="rgb(50,163,219)", ratio=2),
         title=f"[underline dark_orange]My Delegates[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}\n",
         show_footer=True,
         show_edge=False,
