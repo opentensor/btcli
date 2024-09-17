@@ -2575,7 +2575,24 @@ class CLIManager:
 
         [italic]Note[/italic]: This function can be used to update the takes individually for every subnet
         """
+        max_value = 0.18
+        min_value = 0.08
         self.verbosity_handler(quiet, verbose)
+
+        if not take:
+            max_value_style = typer.style(f"Max: {max_value}", fg="magenta")
+            min_value_style = typer.style(f"Min: {min_value}", fg="magenta")
+            prompt_text = typer.style(
+                "Enter take value (0.18 for 18%)", fg="bright_cyan", bold=True
+            )
+            take = FloatPrompt.ask(f"{prompt_text} {min_value_style} {max_value_style}")
+
+        if not (min_value <= take <= max_value):
+            print_error(
+                f"Take value must be between {min_value} and {max_value}. Provided value: {take}"
+            )
+            raise typer.Exit()
+
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -2583,13 +2600,7 @@ class CLIManager:
             ask_for=[WO.NAME, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
-        if not take:
-            max_value = typer.style("Max: 0.18", fg="red")
-            min_value = typer.style("Min: 0.08", fg="blue")
-            prompt_text = typer.style(
-                "Enter take value (0.18 for 18%)", fg="green", bold=True
-            )
-            take = FloatPrompt.ask(f"{prompt_text} {min_value} {max_value}")
+
         return self._run_command(
             root.set_take(wallet, self.initialize_chain(network, chain), take)
         )
