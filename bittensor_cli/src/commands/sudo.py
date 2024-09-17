@@ -217,7 +217,7 @@ async def get_hyperparameters(subtensor: "SubtensorInterface", netuid: int):
         Column("[white]HYPERPARAMETER", style="bright_magenta"),
         Column("[white]VALUE", style="light_goldenrod2"),
         Column("[white]NORMALIZED", style="light_goldenrod3"),
-        title=f"[underline dark_orange]\nSubnet Hyperparameters[/underline dark_orange]\n\n NETUID: [dark_orange]"
+        title=f"[underline dark_orange]\nSubnet Hyperparameters[/underline dark_orange]\n NETUID: [dark_orange]"
         f"{netuid}[/dark_orange] - Network: [dark_orange]{subtensor.network}[/dark_orange]\n",
         show_footer=True,
         width=None,

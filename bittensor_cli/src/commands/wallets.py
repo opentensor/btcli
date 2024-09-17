@@ -366,46 +366,41 @@ def create_transfer_history_table(transfers: list[dict]) -> Table:
     )
 
     table.add_column(
-        "[white]ID",
-        style="dark_orange",
-        no_wrap=True,
-        justify="left",
+        "[white]ID", style="dark_orange", no_wrap=True, justify="left", ratio=1.4
     )
     table.add_column(
-        "[white]From",
-        style="bright_magenta",
-        overflow="fold",
-        justify="right",
+        "[white]From", style="bright_magenta", overflow="fold", justify="right", ratio=2
     )
     table.add_column(
-        "[white]To",
-        style="bright_magenta",
-        overflow="fold",
-        justify="right",
+        "[white]To", style="bright_magenta", overflow="fold", justify="right", ratio=2
     )
     table.add_column(
         "[white]Amount (Tao)",
         style="light_goldenrod2",
         no_wrap=True,
         justify="right",
+        ratio=1,
     )
     table.add_column(
         "[white]Extrinsic Id",
         style="rgb(42,161,152)",
         no_wrap=True,
         justify="right",
+        ratio=0.75,
     )
     table.add_column(
         "[white]Block Number",
         style="dark_sea_green",
         no_wrap=True,
         justify="right",
+        ratio=1,
     )
     table.add_column(
         "[white]URL (taostats)",
         style="bright_cyan",
         overflow="fold",
         justify="right",
+        ratio=2,
     )
 
     for item in transfers:
@@ -803,13 +798,11 @@ async def overview(
         else:
             grid.add_row(f"Subnet: [dark_orange]{netuid}[/dark_orange]")
 
-        table_width = console.width - 20
         table = Table(
             show_footer=False,
-            # width=None,
             pad_edge=True,
             box=box.SIMPLE,
-            width=table_width,
+            expand=True,
         )
         if last_subnet:
             table.add_column(
@@ -1301,22 +1294,22 @@ async def inspect(
             console.print(
                 ":warning:[yellow]Could not get delegate info from chain.[/yellow]"
             )
-    table_width = console.width - 20
+
     table = Table(
         Column("[bold white]Coldkey", style="dark_orange"),
         Column("[bold white]Balance", style="dark_sea_green"),
-        Column("[bold white]Delegate", style="bright_cyan"),
+        Column("[bold white]Delegate", style="bright_cyan", overflow="fold"),
         Column("[bold white]Stake", style="light_goldenrod2"),
         Column("[bold white]Emission", style="rgb(42,161,152)"),
         Column("[bold white]Netuid", style="dark_orange"),
-        Column("[bold white]Hotkey", style="bright_magenta"),
+        Column("[bold white]Hotkey", style="bright_magenta", overflow="fold"),
         Column("[bold white]Stake", style="light_goldenrod2"),
         Column("[bold white]Emission", style="rgb(42,161,152)"),
         title=f"[underline dark_orange]Wallets[/underline dark_orange]\n\n[dark_orange]Network: {subtensor.network}\n",
-        show_footer=True,
+        # show_footer=True,
         show_edge=False,
         expand=True,
-        width=table_width,
+        box=box.ASCII,
         border_style="bright_black",
     )
     rows = []
