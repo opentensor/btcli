@@ -865,7 +865,7 @@ class CLIManager:
         wallet_hotkey: bool = typer.Option(False, *Options.wallet_hotkey.param_decls),
         network: bool = typer.Option(False, *Options.network.param_decls),
         chain: bool = typer.Option(False, *Options.chain.param_decls),
-        use_cache: bool = typer.Option(True, "--cache/no-cache", "--cache/no_cache"),
+        use_cache: bool = typer.Option(False, "--cache"),
         all_items: bool = typer.Option(False, "--all"),
     ):
         """
