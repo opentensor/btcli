@@ -83,6 +83,7 @@ class Options:
         "--hotkey",
         "-H",
         "--wallet_hotkey",
+        "--wallet-hotkey",
         "--wallet.hotkey",
         help="Hotkey of wallet",
     )
