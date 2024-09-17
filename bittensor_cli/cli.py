@@ -615,6 +615,57 @@ class CLIManager:
             "commit", rich_help_panel=HELP_PANELS["WEIGHTS"]["COMMIT_REVEAL"]
         )(self.weights_commit)
 
+        # Sub command aliases
+        # Weights
+        self.wallet_app.command(
+            "swap_hotkey",
+            hidden=True,
+        )(self.wallet_swap_hotkey)
+        self.wallet_app.command(
+            "regen_coldkey",
+            hidden=True,
+        )(self.wallet_regen_coldkey)
+        self.wallet_app.command(
+            "regen_coldkeypub",
+            hidden=True,
+        )(self.wallet_regen_coldkey_pub)
+        self.wallet_app.command(
+            "regen_hotkey",
+            hidden=True,
+        )(self.wallet_regen_hotkey)
+        self.wallet_app.command(
+            "new_hotkey",
+            hidden=True,
+        )(self.wallet_new_hotkey)
+        self.wallet_app.command(
+            "new_coldkey",
+            hidden=True,
+        )(self.wallet_new_coldkey)
+        self.wallet_app.command(
+            "set_identity",
+            hidden=True,
+        )(self.wallet_set_id)
+        self.wallet_app.command(
+            "get_identity",
+            hidden=True,
+        )(self.wallet_get_id)
+
+        # Root
+        self.root_app.command("set_weights", hidden=True)(self.root_set_weights)
+        self.root_app.command("get_weights", hidden=True)(self.root_get_weights)
+        self.root_app.command("senate_vote", hidden=True)(self.root_senate_vote)
+        self.root_app.command("set_take", hidden=True)(self.root_set_take)
+        self.root_app.command("delegate_stake", hidden=True)(self.root_delegate_stake)
+        self.root_app.command("undelegate_stake", hidden=True)(
+            self.root_undelegate_stake
+        )
+        self.root_app.command("my_delegates", hidden=True)(self.root_my_delegates)
+        self.root_app.command("list_delegates", hidden=True)(self.root_list_delegates)
+
+        # Subnets
+        self.subnets_app.command("lock_cost", hidden=True)(self.subnets_lock_cost)
+        self.subnets_app.command("pow_register", hidden=True)(self.subnets_pow_register)
+
     def initialize_chain(
         self,
         network: Optional[str] = None,
@@ -751,9 +802,9 @@ class CLIManager:
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
         no_cache: Optional[bool] = typer.Option(
-            False,
-            "--no-cache",
-            "--no_cache",
+            None,
+            "--cache/--no-cache",
+            "--cache/--no_cache",
             help="Disable caching of certain commands. This will disable the `--reuse-last` and `html` flags on "
             "commands such as `subnets metagraph`, `stake show` and `subnets list`.",
         ),
@@ -771,7 +822,7 @@ class CLIManager:
             "no_cache",
         ]
         bools = ["no_cache"]
-        if not any(args.get(arg) for arg in args_list):
+        if all(args.get(arg) is None for arg in args_list):
             arg = Prompt.ask("Which value would you like to update?", choices=args_list)
             if arg in bools:
                 nc = Confirm.ask(
@@ -799,7 +850,8 @@ class CLIManager:
             ):
                 raise typer.Exit()
         for arg in args_list:
-            if val := args.get(arg):
+            val = args.get(arg)
+            if val is not None:
                 self.config[arg] = val
         with open(self.config_path, "w") as f:
             safe_dump(self.config, f)
@@ -807,26 +859,17 @@ class CLIManager:
     def del_config(
         self,
         wallet_name: bool = typer.Option(
-            False,
-            "--wallet-name",
+            False, "--wallet-name", "--name", "--wallet_name", "--wallet.name"
         ),
         wallet_path: bool = typer.Option(
-            False,
-            "--wallet-path",
+            False, "--wallet-path", "--wallet_path", "--wallet.path"
         ),
         wallet_hotkey: bool = typer.Option(
-            False,
-            "--wallet-hotkey",
+            False, "--wallet-hotkey", "--H", "--wallet_hotkey", "--wallet.hotkey"
         ),
-        network: bool = typer.Option(
-            False,
-            "--network",
-        ),
-        chain: bool = typer.Option(False, "--chain"),
-        no_cache: bool = typer.Option(
-            False,
-            "--no-cache",
-        ),
+        network: bool = typer.Option(False, "--network", "--subtensor.network"),
+        chain: bool = typer.Option(False, "--chain", "--subtensor.chain_endpoint"),
+        no_cache: bool = typer.Option(False, "--no-cache", "--no_cache"),
         all_items: bool = typer.Option(False, "--all"),
     ):
         """
@@ -1240,7 +1283,9 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
         if not destination_hotkey_name:
-            destination_hotkey_name = typer.prompt("Enter the destination hotkey name")
+            destination_hotkey_name = typer.prompt(
+                "Destination hotkey name (within same wallet)"
+            )
 
         new_wallet = self.wallet_ask(
             wallet_name,
@@ -1676,7 +1721,7 @@ class CLIManager:
 
         if not wallet_path:
             wallet_path = Prompt.ask(
-                "Enter the path of the wallets", default=defaults.wallet.path
+                "Enter the path of wallets directory", default=defaults.wallet.path
             )
 
         if not wallet_name:
@@ -1744,6 +1789,20 @@ class CLIManager:
         or for those who wish to completely renew their wallet keys. It ensures a fresh start with new keys
         for secure and effective participation in the network.
         """
+        if not wallet_path:
+            wallet_path = Prompt.ask(
+                "Enter the path of wallets directory", default=defaults.wallet.path
+            )
+
+        if not wallet_name:
+            wallet_name = Prompt.ask(
+                "Enter the name of new wallet", default=defaults.wallet.name
+            )
+        if not wallet_hotkey:
+            wallet_hotkey = Prompt.ask(
+                "Enter the the name of new hotkey", default=defaults.wallet.hotkey
+            )
+
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
             wallet_name,
@@ -3009,7 +3068,7 @@ class CLIManager:
         ),
         hotkey_ss58_address: str = typer.Option(
             "",
-            help="The SS58 address of the hotkey to unstake from.",
+            help="The SS58 address of the hotkey to stake to.",
         ),
         include_hotkeys: list[str] = typer.Option(
             [],
@@ -4150,7 +4209,7 @@ class CLIManager:
         else:
             if netuid is None:
                 netuid = rich.prompt.IntPrompt.ask(
-                    "Enter the netuid (network unique identifier) of the subnet within the root network, (e.g. 1)."
+                    "Enter the netuid (network unique identifier) of the subnet within the root network, (e.g. 1)"
                 )
             subtensor = self.initialize_chain(network, chain)
 

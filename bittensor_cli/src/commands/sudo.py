@@ -161,7 +161,7 @@ async def set_hyperparameter_extrinsic(
         # Successful registration, final check for membership
         else:
             console.print(
-                f":white_heavy_check_mark: [green]Hyper parameter {parameter} changed to {value}[/green]"
+                f":white_heavy_check_mark: [green]Hyperparameter {parameter} changed to {value}[/green]"
             )
             return True
 

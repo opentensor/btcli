@@ -196,7 +196,7 @@ def test_staking(local_chain, wallet_setup):
         ],
     )
     assert (
-        "✅ Hyper parameter max_burn changed to 10000000000"
+        "✅ Hyperparameter max_burn changed to 10000000000"
         in change_hyperparams.stdout
     )
 

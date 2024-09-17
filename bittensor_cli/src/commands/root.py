@@ -1604,7 +1604,7 @@ async def list_delegates(subtensor: SubtensorInterface):
                 delegate.hotkey_ss58
             ].description
         else:
-            delegate_name = ""
+            delegate_name = "~"
             delegate_url = ""
             delegate_description = ""
 

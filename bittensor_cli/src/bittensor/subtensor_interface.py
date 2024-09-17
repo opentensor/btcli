@@ -69,11 +69,15 @@ class SubtensorInterface:
         if chain_endpoint:
             if not chain_endpoint.startswith("ws"):
                 console.log(
-                    "[yellow]Warning[/yellow] verify your chain endpoint is a valid substrate endpoint."
+                    "[yellow]Warning[/yellow]: Verify your chain endpoint is a valid substrate endpoint."
                 )
             self.chain_endpoint = chain_endpoint
             self.network = "local"
         elif network and network in Constants.network_map:
+            if network == "local":
+                console.log(
+                    "[yellow]Warning[/yellow]: Verify your local subtensor is running on 9944 port."
+                )
             self.chain_endpoint = Constants.network_map[network]
             self.network = network
         else:
