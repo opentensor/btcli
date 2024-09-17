@@ -1314,7 +1314,6 @@ async def inspect(
         Column("[bold white]Stake", style="light_goldenrod2"),
         Column("[bold white]Emission", style="rgb(42,161,152)"),
         title=f"[underline dark_orange]Wallets[/underline dark_orange]\n\n[dark_orange]Network: {subtensor.network}\n",
-        # show_footer=True,
         show_edge=False,
         expand=True,
         box=box.ASCII,

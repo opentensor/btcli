@@ -2897,7 +2897,7 @@ class CLIManager:
             selected_network = network
             selected_chain = chain
         elif network:
-            if network.lower() == "finney":
+            if network == "finney":
                 selected_network = "archive"
                 selected_chain = "wss://archive.chain.opentensor.ai:443"
             else:
@@ -2907,7 +2907,7 @@ class CLIManager:
             chain_config = self.config.get("chain")
             chain_network = self.config.get("network")
 
-            if chain_network and chain_network.lower() == "finney" and not chain_config:
+            if chain_network and chain_network == "finney" and not chain_config:
                 selected_network = "archive"
                 selected_chain = "wss://archive.chain.opentensor.ai:443"
             else:
