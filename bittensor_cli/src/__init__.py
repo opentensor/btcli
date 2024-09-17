@@ -47,7 +47,7 @@ class Defaults:
             "wallet_path": None,
             "wallet_name": None,
             "wallet_hotkey": None,
-            "no_cache": False,
+            "use_cache": True,
             "metagraph_cols": {
                 "UID": True,
                 "STAKE": True,

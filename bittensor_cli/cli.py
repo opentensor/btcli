@@ -355,7 +355,7 @@ class CLIManager:
             "wallet_hotkey": None,
             "network": None,
             "chain": None,
-            "no_cache": False,
+            "use_cache": True,
             "metagraph_cols": {
                 "UID": True,
                 "STAKE": True,
@@ -802,33 +802,34 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
-        no_cache: Optional[bool] = typer.Option(
-            False,
+        use_cache: Optional[bool] = typer.Option(
+            None,
             "--cache/--no-cache",
             "--cache/--no_cache",
-            help="Disable caching of certain commands. This will disable the `--reuse-last` and `html` flags on "
+            help="Disable caching of certain commands. This will disable the `--reuse-last` and `--html` flags on "
             "commands such as `subnets metagraph`, `stake show` and `subnets list`.",
         ),
     ):
         """
-        Sets values in config file
+        Sets values in config file. To set metagraph configuration, use the command `btcli config metagraph`
         """
-        args = locals()
-        args_list = [
-            "wallet_name",
-            "wallet_path",
-            "wallet_hotkey",
-            "network",
-            "chain",
-            "no_cache",
-        ]
-        bools = ["no_cache"]
-        if all(args.get(arg) is None for arg in args_list):
-            arg = Prompt.ask("Which value would you like to update?", choices=args_list)
+        args = {
+            "wallet_name": wallet_name,
+            "wallet_path": wallet_path,
+            "wallet_hotkey": wallet_hotkey,
+            "network": network,
+            "chain": chain,
+            "use_cache": use_cache,
+        }
+        bools = ["use_cache"]
+        if all(v is None for v in args.values()):
+            arg = Prompt.ask(
+                "Which value would you like to update?", choices=list(args.keys())
+            )
             if arg in bools:
                 nc = Confirm.ask(
                     f"What value would you like to assign to [red]{arg}[/red]?",
-                    default=False,
+                    default=True,
                 )
                 self.config[arg] = nc
             else:
@@ -838,20 +839,19 @@ class CLIManager:
                 args[arg] = val
                 self.config[arg] = val
 
-        if (n := args.get("network")) and n.startswith("ws"):
+        if (n := args["network"]) and n.startswith("ws"):
             if not Confirm.ask(
                 "[yellow]Warning[/yellow] your 'network' appears to be a chain endpoint. "
                 "Verify this is intentional"
             ):
                 raise typer.Exit()
-        if (c := args.get("chain")) and not c.startswith("ws"):
+        if (c := args["chain"]) and not c.startswith("ws"):
             if not Confirm.ask(
                 "[yellow]Warning[/yellow] your 'chain' does not appear to be a chain endpoint. "
                 "Verify this is intentional"
             ):
                 raise typer.Exit()
-        for arg in args_list:
-            val = args.get(arg)
+        for arg, val in args.items():
             if val is not None:
                 self.config[arg] = val
         with open(self.config_path, "w") as f:
@@ -864,7 +864,7 @@ class CLIManager:
         wallet_hotkey: bool = typer.Option(False, *Options.wallet_hotkey.param_decls),
         network: bool = typer.Option(False, *Options.network.param_decls),
         chain: bool = typer.Option(False, *Options.chain.param_decls),
-        no_cache: bool = typer.Option(False, "--no-cache", "--no_cache"),
+        use_cache: bool = typer.Option(False, "--cache"),
         all_items: bool = typer.Option(False, "--all"),
     ):
         """
@@ -894,7 +894,7 @@ class CLIManager:
             "wallet_hotkey": wallet_hotkey,
             "network": network,
             "chain": chain,
-            "no_cache": no_cache,
+            "use_cache": use_cache,
         }
 
         # If no specific argument is provided, iterate over all
@@ -941,18 +941,20 @@ class CLIManager:
         Prints the current config file in a table
         """
         table = Table(
-            Column(
-                "[bold white]Name",
-                style="dark_orange",
-            ),
-            Column(
-                "[bold white]Value",
-                style="gold1",
-            ),
+            Column("[bold white]Name", style="dark_orange"),
+            Column("[bold white]Value", style="gold1"),
+            Column("", style="medium_purple"),
             box=box.SIMPLE_HEAD,
         )
-        for k, v in self.config.items():
-            table.add_row(*[k, str(v)])
+
+        for key, value in self.config.items():
+            if isinstance(value, dict):
+                # Nested dictionaries: only metagraph for now, but more may be added later
+                for idx, (sub_key, sub_value) in enumerate(value.items()):
+                    table.add_row(key if idx == 0 else "", str(sub_key), str(sub_value))
+            else:
+                table.add_row(str(key), str(value), "")
+
         console.print(table)
 
     def wallet_ask(
@@ -2259,7 +2261,7 @@ class CLIManager:
         are allocated across different subnets.
         """
         self.verbosity_handler(quiet, verbose)
-        if (reuse_last or html_output) and self.config.get("no_cache") is True:
+        if (reuse_last or html_output) and self.config.get("use_cache") is False:
             err_console.print(
                 "Unable to use `--reuse-last` or `--html` when config no-cache is set to True. "
                 "Please change the config to False using `btcli config set`"
@@ -2276,7 +2278,7 @@ class CLIManager:
                 limit_max_col,
                 reuse_last,
                 html_output,
-                self.config.get("no_cache", False),
+                not self.config.get("use_cache", True),
             )
         )
 
@@ -3030,7 +3032,7 @@ class CLIManager:
         accounts on the Bittensor network. It provides a clear and detailed overview of the user's staking activities.
         """
         self.verbosity_handler(quiet, verbose)
-        if (reuse_last or html_output) and self.config.get("no_cache") is True:
+        if (reuse_last or html_output) and self.config.get("use_cache") is False:
             err_console.print(
                 "Unable to use `--reuse-last` or `--html` when config no-cache is set to True. "
                 "Please change the config to False using `btcli config set`"
@@ -3050,7 +3052,7 @@ class CLIManager:
                 all_wallets,
                 reuse_last,
                 html_output,
-                self.config.get("no_cache", False),
+                not self.config.get("use_cache", True),
             )
         )
 
@@ -3832,7 +3834,7 @@ class CLIManager:
         structure and the distribution of its resources and ownership information for each subnet.
         """
         self.verbosity_handler(quiet, verbose)
-        if (reuse_last or html_output) and self.config.get("no_cache") is True:
+        if (reuse_last or html_output) and self.config.get("use_cache") is False:
             err_console.print(
                 "Unable to use `--reuse-last` or `--html` when config no-cache is set to True. "
                 "Please change the config to False using `btcli config set`"
@@ -3844,7 +3846,10 @@ class CLIManager:
             subtensor = self.initialize_chain(network, chain)
         return self._run_command(
             subnets.subnets_list(
-                subtensor, reuse_last, html_output, self.config.get("no_cache", False)
+                subtensor,
+                reuse_last,
+                html_output,
+                not self.config.get("use_cache", True),
             )
         )
 
@@ -4200,7 +4205,7 @@ class CLIManager:
         not as a standalone function within user code.
         """
         self.verbosity_handler(quiet, verbose)
-        if (reuse_last or html_output) and self.config.get("no_cache") is True:
+        if (reuse_last or html_output) and self.config.get("use_cache") is False:
             err_console.print(
                 "Unable to use `--reuse-last` or `--html` when config `no-cache` is set to `True`. "
                 "Set the`no-cache` field to `False` by using `btcli config set` or editing the config.yml file."
@@ -4225,7 +4230,7 @@ class CLIManager:
                 netuid,
                 reuse_last,
                 html_output,
-                self.config.get("no_cache", False),
+                not self.config.get("use_cache", True),
                 self.config.get("metagraph_cols", {}),
             )
         )
