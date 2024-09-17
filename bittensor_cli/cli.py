@@ -938,18 +938,20 @@ class CLIManager:
         Prints the current config file in a table
         """
         table = Table(
-            Column(
-                "[bold white]Name",
-                style="dark_orange",
-            ),
-            Column(
-                "[bold white]Value",
-                style="gold1",
-            ),
+            Column("[bold white]Name", style="dark_orange"),
+            Column("[bold white]Value", style="gold1"),
+            Column("", style="medium_purple"),
             box=box.SIMPLE_HEAD,
         )
-        for k, v in self.config.items():
-            table.add_row(*[k, str(v)])
+
+        for key, value in self.config.items():
+            if isinstance(value, dict):
+                # Nested dictionaries: only metagraph for now, but more may be added later
+                for idx, (sub_key, sub_value) in enumerate(value.items()):
+                    table.add_row(key if idx == 0 else "", str(sub_key), str(sub_value))
+            else:
+                table.add_row(str(key), str(value), "")
+
         console.print(table)
 
     def wallet_ask(
