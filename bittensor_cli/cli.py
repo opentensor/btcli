@@ -810,20 +810,19 @@ class CLIManager:
         ),
     ):
         """
-        Sets values in config file
+        Sets values in config file. To set metagraph configuration, use the command `btcli config metagraph`
         """
-        args = locals()
-        args_list = [
-            "wallet_name",
-            "wallet_path",
-            "wallet_hotkey",
-            "network",
-            "chain",
-            "no_cache",
-        ]
+        args = {
+            "wallet_name": wallet_name,
+            "wallet_path": wallet_path,
+            "wallet_hotkey": wallet_hotkey,
+            "network": network,
+            "chain": chain,
+            "no_cache": no_cache,
+        }
         bools = ["no_cache"]
-        if all(args.get(arg) is None for arg in args_list):
-            arg = Prompt.ask("Which value would you like to update?", choices=args_list)
+        if not all(v for v in args.values()):
+            arg = Prompt.ask("Which value would you like to update?", choices=list(args.keys()))
             if arg in bools:
                 nc = Confirm.ask(
                     f"What value would you like to assign to [red]{arg}[/red]?",
@@ -837,21 +836,20 @@ class CLIManager:
                 args[arg] = val
                 self.config[arg] = val
 
-        if (n := args.get("network")) and n.startswith("ws"):
+        if (n := args["network"]) and n.startswith("ws"):
             if not Confirm.ask(
                 "[yellow]Warning[/yellow] your 'network' appears to be a chain endpoint. "
                 "Verify this is intentional"
             ):
                 raise typer.Exit()
-        if (c := args.get("chain")) and not c.startswith("ws"):
+        if (c := args["chain"]) and not c.startswith("ws"):
             if not Confirm.ask(
                 "[yellow]Warning[/yellow] your 'chain' does not appear to be a chain endpoint. "
                 "Verify this is intentional"
             ):
                 raise typer.Exit()
-        for arg in args_list:
-            val = args.get(arg)
-            if val is not None:
+        for arg, val in args.items():
+            if val:
                 self.config[arg] = val
         with open(self.config_path, "w") as f:
             safe_dump(self.config, f)
