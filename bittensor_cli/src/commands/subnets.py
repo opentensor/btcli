@@ -385,7 +385,7 @@ async def create(wallet: Wallet, subtensor: "SubtensorInterface", prompt: bool):
 
         if do_set_identity:
             id_prompts = set_id_prompts()
-            await set_id(wallet, subtensor, *id_prompts)
+            await set_id(wallet, subtensor, *id_prompts, prompt=prompt)
 
 
 async def pow_register(
