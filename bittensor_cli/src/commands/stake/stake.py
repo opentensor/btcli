@@ -793,8 +793,8 @@ async def unstake_multiple_extrinsic(
                     block_hash=block_hash,
                 )
                 tx_rate_limit_blocks: int = tx_query
-                
-                # TODO: Handle in-case we have fast blocks 
+
+                # TODO: Handle in-case we have fast blocks
                 if tx_rate_limit_blocks > 0:
                     console.print(
                         ":hourglass: [yellow]Waiting for tx rate limit:"
