@@ -927,7 +927,9 @@ class SubtensorInterface:
             if await response.is_success:
                 return True, ""
             else:
-                return False, format_error_message(await response.error_message)
+                return False, format_error_message(
+                    await response.error_message, substrate=self.substrate
+                )
         except SubstrateRequestException as e:
             return False, e
 

@@ -614,7 +614,10 @@ async def register_extrinsic(
                         if not await response.is_success:
                             success, err_msg = (
                                 False,
-                                format_error_message(await response.error_message),
+                                format_error_message(
+                                    await response.error_message,
+                                    substrate=subtensor.substrate,
+                                ),
                             )
 
                     if not success:
@@ -785,7 +788,8 @@ async def run_faucet_extrinsic(
             await response.process_events()
             if not await response.is_success:
                 err_console.print(
-                    f":cross_mark: [red]Failed[/red]: {format_error_message(await response.error_message)}"
+                    f":cross_mark: [red]Failed[/red]: "
+                    f"{format_error_message(await response.error_message, subtensor.substrate)}"
                 )
                 if attempts == max_allowed_attempts:
                     raise MaxAttemptsException

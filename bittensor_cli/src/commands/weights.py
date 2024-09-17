@@ -266,7 +266,9 @@ class SetWeightsExtrinsic:
             if await response.is_success:
                 return True, "Successfully set weights."
             else:
-                return False, format_error_message(await response.error_message)
+                return False, format_error_message(
+                    await response.error_message, self.subtensor.substrate
+                )
 
         with console.status(
             f":satellite: Setting weights on [white]{self.subtensor.network}[/white] ..."
@@ -327,7 +329,9 @@ class SetWeightsExtrinsic:
             else:
                 success, error_message = (
                     False,
-                    format_error_message(await response.error_message),
+                    format_error_message(
+                        await response.error_message, self.subtensor.substrate
+                    ),
                 )
 
         if success:
