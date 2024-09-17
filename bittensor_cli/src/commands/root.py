@@ -41,7 +41,7 @@ from bittensor_cli.src.bittensor.utils import (
     render_table,
     ss58_to_vec_u8,
     update_metadata_table,
-    group_vpermits,
+    group_subnets,
 )
 
 if TYPE_CHECKING:
@@ -1364,36 +1364,41 @@ async def my_delegates(
             justify="left",
             ratio=1,
         ),
-        Column("[white]SS58", style="bright_magenta", justify="left", overflow="fold", ratio=2),
         Column(
-            "[white]Delegation",
-            style="dark_orange",
+            "[white]SS58",
+            style="bright_magenta",
+            justify="left",
+            overflow="fold",
+            ratio=2,
+        ),
+        Column("[white]Delegation", style="dark_orange", no_wrap=True, ratio=1),
+        Column("[white]\u03c4/24h", style="bold green", ratio=1),
+        Column(
+            "[white]NOMS",
+            justify="center",
+            style="rgb(42,161,152)",
             no_wrap=True,
-            ratio=1
+            ratio=1,
         ),
-        Column(
-            "[white]\u03c4/24h",
-            style="bold green",
-            ratio=1
-        ),
-        Column("[white]NOMS", justify="center", style="rgb(42,161,152)", no_wrap=True, ratio=1),
         Column(
             "[white]OWNER STAKE(\u03c4)",
             justify="right",
             style="light_goldenrod2",
             no_wrap=True,
-            ratio=1
+            ratio=1,
         ),
         Column(
             "[white]TOTAL STAKE(\u03c4)",
             justify="right",
             style="light_goldenrod2",
             no_wrap=True,
-            ratio=1
+            ratio=1,
         ),
         Column("[white]SUBNETS", justify="right", style="white", ratio=1),
         Column("[white]VPERMIT", justify="right"),
-        Column("[white]24h/k\u03c4", style="rgb(42,161,152)", justify="center", ratio=1),
+        Column(
+            "[white]24h/k\u03c4", style="rgb(42,161,152)", justify="center", ratio=1
+        ),
         Column("[white]Desc", style="rgb(50,163,219)", ratio=2),
         title=f"[underline dark_orange]My Delegates[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}\n",
         show_footer=True,
@@ -1470,13 +1475,8 @@ async def my_delegates(
                     str(len(delegate[0].nominators)),
                     f"{owner_stake!s:13.13}",
                     f"{delegate[0].total_stake!s:13.13}",
-                    str(delegate[0].registrations),
-                    str(
-                        [
-                            "*" if subnet in delegate[0].validator_permits else ""
-                            for subnet in delegate[0].registrations
-                        ]
-                    ),
+                    group_subnets(delegate[0].registrations),
+                    group_subnets(delegate[0].validator_permits),
                     f"{delegate[0].total_daily_return.tao * (1000 / (0.001 + delegate[0].total_stake.tao))!s:6.6}",
                     str(delegate_description),
                 )
@@ -1661,7 +1661,7 @@ async def list_delegates(subtensor: SubtensorInterface):
             # DELEGATE/(24h)
             f"{Balance.from_tao(delegate.total_daily_return.tao * 0.18) !s:6.6}",
             # VPERMIT
-            str(group_vpermits(delegate.registrations)),
+            str(group_subnets(delegate.registrations)),
             # Desc
             str(delegate_description),
             end_section=True,

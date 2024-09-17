@@ -253,20 +253,15 @@ async def subnets_list(
             )
             return
     if not html_output:
-        table_width = console.width - 20
-
         table = Table(
-            title=f"[underline dark_orange]Subnets - {metadata['network']}[/underline dark_orange]\n",
+            title=f"[underline dark_orange]Subnets[/underline dark_orange]\n[dark_orange]Network: {metadata['network']}[/dark_orange]\n",
             show_footer=True,
             show_edge=False,
             header_style="bold white",
             border_style="bright_black",
             style="bold",
-            title_style="bold white",
             title_justify="center",
             show_lines=False,
-            expand=True,
-            width=table_width,
             pad_edge=True,
         )
 
@@ -291,10 +286,10 @@ async def subnets_list(
         table.add_column(
             "[bold white]EMISSION", style="light_goldenrod2", justify="right"
         )
-        table.add_column("[bold white]TEMPO", style="magenta", justify="right")
-        table.add_column("[bold white]RECYCLE", style="bright_red", justify="right")
+        table.add_column("[bold white]TEMPO", style="rgb(42,161,152)", justify="right")
+        table.add_column("[bold white]RECYCLE", style="light_salmon3", justify="right")
         table.add_column("[bold white]POW", style="medium_purple", justify="right")
-        table.add_column("[bold white]SUDO", style="bright_magenta", justify="center")
+        table.add_column("[bold white]SUDO", style="bright_magenta", justify="right", overflow="fold")
 
         for row in rows:
             table.add_row(*row)

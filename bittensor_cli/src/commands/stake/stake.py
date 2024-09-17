@@ -1081,37 +1081,41 @@ async def show(
             )
             return
     if not html_output:
-        table_width = console.width - 20
         table = Table(
             Column(
                 "[bold white]Coldkey",
                 style="dark_orange",
+                ratio=1
             ),
             Column(
                 "[bold white]Balance",
                 metadata["total_balance"],
                 style="dark_sea_green",
+                ratio=1
             ),
-            Column("[bold white]Account", style="bright_cyan"),
+            Column("[bold white]Account", style="bright_cyan", ratio=1),
             Column(
                 "[bold white]Stake",
                 metadata["total_stake"],
                 style="light_goldenrod2",
+                ratio=1
             ),
             Column(
                 "[bold white]Rate /d",
                 metadata["total_rate"],
                 style="rgb(42,161,152)",
+                ratio=1
             ),
             Column(
                 "[bold white]Hotkey",
                 style="bright_magenta",
+                overflow="fold",
+                ratio=2
             ),
             title=f"[underline dark_orange]Stake Show[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}\n",
             show_footer=True,
             show_edge=False,
             expand=False,
-            width=table_width,
             border_style="bright_black",
         )
         for row in rows:
