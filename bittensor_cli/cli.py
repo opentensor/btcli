@@ -808,24 +808,27 @@ class CLIManager:
         self,
         wallet_name: bool = typer.Option(
             False,
-            "--wallet-name",
+            *Options.wallet_name.param_decls
         ),
         wallet_path: bool = typer.Option(
             False,
-            "--wallet-path",
+            *Options.wallet_path.param_decls
         ),
         wallet_hotkey: bool = typer.Option(
             False,
-            "--wallet-hotkey",
+            *Options.wallet_hotkey.param_decls
         ),
         network: bool = typer.Option(
             False,
-            "--network",
+            *Options.network.param_decls
         ),
-        chain: bool = typer.Option(False, "--chain"),
+        chain: bool = typer.Option(
+            False,
+            *Options.chain.param_decls
+        ),
         no_cache: bool = typer.Option(
             False,
-            "--no-cache",
+            "--no-cache", "--no_cache"
         ),
         all_items: bool = typer.Option(False, "--all"),
     ):
