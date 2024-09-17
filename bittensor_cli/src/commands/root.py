@@ -1072,7 +1072,7 @@ async def senate_vote(
         return False
 
     console.print(f"Fetching proposals in [dark_orange]network: {subtensor.network}")
-    vote_data = await _get_vote_data(subtensor, proposal_hash, reuse_block=True)
+    vote_data = await subtensor.get_vote_data(proposal_hash, reuse_block=True)
     if not vote_data:
         err_console.print(":cross_mark: [red]Failed[/red]: Proposal not found.")
         return False
