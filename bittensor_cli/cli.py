@@ -2099,10 +2099,10 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_name: str = Options.wallet_name,
         wallet_hotkey: str = Options.wallet_hotkey,
-        use_hotkey: bool = typer.Option(
-            False,
-            "--use-hotkey",
-            help="If specified, the message will be signed by the hotkey",
+        use_hotkey: Optional[bool] = typer.Option(
+            None,
+            "--use-hotkey/--no-use-hotkey",
+            help="If specified, the message will be signed by the hotkey. If not specified, the user will be prompted.",
         ),
         message: str = typer.Option("", help="The message to encode and sign"),
         quiet: bool = Options.quiet,
@@ -2127,10 +2127,10 @@ class CLIManager:
         over a coldkey or a hotkey.
         """
         self.verbosity_handler(quiet, verbose)
-        if not use_hotkey:
-            use_hotkey = typer.confirm(
-                "Would you like to sign the transaction using the [red]hotkey[/red]?"
-                " (The default is to sign with the [blue]coldkey[/blue])\n[Type y for hotkey and N for coldkey]",
+        if use_hotkey is None:
+            use_hotkey = Confirm.ask(
+                "Would you like to sign the transaction using your [red]hotkey[/red]?"
+                "\n[Type [red]y[/red] for [red]hotkey[/red] and [blue]n[/blue] for [blue]coldkey[/blue]] (default is [blue]coldkey[/blue])",
                 default=False,
             )
 
