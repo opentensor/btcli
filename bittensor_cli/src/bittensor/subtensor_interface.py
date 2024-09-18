@@ -982,6 +982,17 @@ class SubtensorInterface:
     async def get_delegate_identities(
         self, block_hash: Optional[str] = None
     ) -> dict[str, DelegatesDetails]:
+        """
+        Fetches delegates identities from the chain and GitHub. Preference is given to chain data, and missing info
+        is filled-in by the info from GitHub. At some point, we want to totally move away from fetching this info
+        from GitHub, but chain data is still limited in that regard.
+
+        Args:
+            block_hash: the hash of the blockchain block for the query
+
+        Returns: {ss58: DelegatesDetails, ...}
+
+        """
         timeout = aiohttp.ClientTimeout(10.0)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             identities_info, response = await asyncio.gather(
