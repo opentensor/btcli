@@ -15,7 +15,7 @@ from git import Repo, GitError
 from rich import box
 from rich.prompt import Confirm, FloatPrompt, Prompt, IntPrompt
 from rich.table import Column, Table
-from .src import (
+from bittensor_cli.src import (
     HYPERPARAMS,
     defaults,
     HELP_PANELS,
@@ -23,10 +23,10 @@ from .src import (
     WalletValidationTypes as WV,
 )
 from bittensor_cli.src.bittensor import utils
-from .src.bittensor.async_substrate_interface import SubstrateRequestException
-from .src.commands import root, subnets, sudo, wallets
-from .src.commands import weights as weights_cmds
-from .src.commands.stake import children_hotkeys, stake
+from bittensor_cli.src.bittensor.async_substrate_interface import SubstrateRequestException
+from bittensor_cli.src.commands import root, subnets, sudo, wallets
+from bittensor_cli.src.commands import weights as weights_cmds
+from bittensor_cli.src.commands.stake import children_hotkeys, stake
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
     console,
