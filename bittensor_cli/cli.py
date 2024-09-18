@@ -23,7 +23,9 @@ from bittensor_cli.src import (
     WalletValidationTypes as WV,
 )
 from bittensor_cli.src.bittensor import utils
-from bittensor_cli.src.bittensor.async_substrate_interface import SubstrateRequestException
+from bittensor_cli.src.bittensor.async_substrate_interface import (
+    SubstrateRequestException,
+)
 from bittensor_cli.src.commands import root, subnets, sudo, wallets
 from bittensor_cli.src.commands import weights as weights_cmds
 from bittensor_cli.src.commands.stake import children_hotkeys, stake

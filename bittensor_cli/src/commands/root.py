@@ -36,7 +36,6 @@ from bittensor_cli.src.bittensor.utils import (
     create_table,
     err_console,
     print_verbose,
-    get_delegates_details_from_github,
     get_metadata_table,
     render_table,
     ss58_to_vec_u8,
@@ -58,7 +57,7 @@ def display_votes(
     for address in vote_data.ayes:
         vote_list.append(
             "{}: {}".format(
-                delegate_info[address].name if address in delegate_info else address,
+                delegate_info[address].display if address in delegate_info else address,
                 "[bold green]Aye[/bold green]",
             )
         )
@@ -66,7 +65,7 @@ def display_votes(
     for address in vote_data.nays:
         vote_list.append(
             "{}: {}".format(
-                delegate_info[address].name if address in delegate_info else address,
+                delegate_info[address].display if address in delegate_info else address,
                 "[bold red]Nay[/bold red]",
             )
         )
@@ -706,9 +705,7 @@ async def root_list(subtensor: SubtensorInterface):
         if not rn:
             return None, None, None, None
 
-        di: dict[str, DelegatesDetails] = await get_delegates_details_from_github(
-            url=Constants.delegates_detail_url
-        )
+        di: dict[str, DelegatesDetails] = await subtensor.get_delegate_identities()
         ts: dict[str, ScaleType] = await subtensor.substrate.query_multiple(
             [n.hotkey for n in rn],
             module="SubtensorModule",
@@ -766,7 +763,7 @@ async def root_list(subtensor: SubtensorInterface):
         table.add_row(
             str(neuron_data.uid),
             (
-                delegate_info[neuron_data.hotkey].name
+                delegate_info[neuron_data.hotkey].display
                 if neuron_data.hotkey in delegate_info
                 else ""
             ),
@@ -1104,7 +1101,7 @@ async def get_senate(subtensor: SubtensorInterface):
     print_verbose("Fetching member details from Github")
     delegate_info: dict[
         str, DelegatesDetails
-    ] = await get_delegates_details_from_github(Constants.delegates_detail_url)
+    ] = await subtensor.get_delegate_identities()
 
     table = Table(
         Column(
@@ -1126,7 +1123,11 @@ async def get_senate(subtensor: SubtensorInterface):
 
     for ss58_address in senate_members:
         table.add_row(
-            (delegate_info[ss58_address].name if ss58_address in delegate_info else ""),
+            (
+                delegate_info[ss58_address].display
+                if ss58_address in delegate_info
+                else ""
+            ),
             ss58_address,
         )
 
@@ -1195,10 +1196,10 @@ async def proposals(subtensor: SubtensorInterface):
         _get_proposals(subtensor, block_hash),
     )
 
-    print_verbose("Fetching member information from Github")
+    print_verbose("Fetching member information from Chain")
     registered_delegate_info: dict[
         str, DelegatesDetails
-    ] = await get_delegates_details_from_github(Constants.delegates_detail_url)
+    ] = await subtensor.get_delegate_identities()
 
     table = Table(
         Column(
@@ -1421,7 +1422,7 @@ async def my_delegates(
     print_verbose("Fetching delegate information")
     wallets_with_delegates, registered_delegate_info = await asyncio.gather(
         asyncio.gather(*[wallet_to_delegates(wallet_, None) for wallet_ in wallets]),
-        get_delegates_details_from_github(Constants.delegates_detail_url),
+        subtensor.get_delegate_identities(),
     )
     if not registered_delegate_info:
         console.print(
@@ -1452,13 +1453,15 @@ async def my_delegates(
                 Balance.from_rao(0),  # default to 0 if no owner stake.
             )
             if delegate[0].hotkey_ss58 in registered_delegate_info:
-                delegate_name = registered_delegate_info[delegate[0].hotkey_ss58].name
-                delegate_url = registered_delegate_info[delegate[0].hotkey_ss58].url
+                delegate_name = registered_delegate_info[
+                    delegate[0].hotkey_ss58
+                ].display
+                delegate_url = registered_delegate_info[delegate[0].hotkey_ss58].web
                 delegate_description = registered_delegate_info[
                     delegate[0].hotkey_ss58
-                ].description
+                ].additional
             else:
-                delegate_name = ""
+                delegate_name = "~"
                 delegate_url = ""
                 delegate_description = ""
 
@@ -1491,15 +1494,12 @@ async def list_delegates(subtensor: SubtensorInterface):
     with console.status(
         ":satellite: Loading delegates...", spinner="aesthetic"
     ) as status:
-        print_verbose("Fetching delegate info from Github", status)
-        block_hash, registered_delegate_info = await asyncio.gather(
-            subtensor.substrate.get_chain_head(),
-            get_delegates_details_from_github(Constants.delegates_detail_url),
-        )
-        print_verbose("Fetching delegates info from chain", status)
-        block_number = await subtensor.substrate.get_block_number(block_hash)
-        delegates: list[DelegateInfo] = await subtensor.get_delegates(
-            block_hash=block_hash
+        print_verbose("Fetching delegate details from chain", status)
+        block_hash = await subtensor.substrate.get_chain_head()
+        registered_delegate_info, block_number, delegates = await asyncio.gather(
+            subtensor.get_delegate_identities(block_hash=block_hash),
+            subtensor.substrate.get_block_number(block_hash),
+            subtensor.get_delegates(block_hash=block_hash),
         )
 
         # TODO keep an eye on this, was not working at one point
@@ -1604,11 +1604,11 @@ async def list_delegates(subtensor: SubtensorInterface):
             Balance.from_rao(0),  # default to 0 if no owner stake.
         )
         if delegate.hotkey_ss58 in registered_delegate_info:
-            delegate_name = registered_delegate_info[delegate.hotkey_ss58].name
-            delegate_url = registered_delegate_info[delegate.hotkey_ss58].url
+            delegate_name = registered_delegate_info[delegate.hotkey_ss58].display
+            delegate_url = registered_delegate_info[delegate.hotkey_ss58].web
             delegate_description = registered_delegate_info[
                 delegate.hotkey_ss58
-            ].description
+            ].additional
         else:
             delegate_name = "~"
             delegate_url = ""

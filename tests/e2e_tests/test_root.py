@@ -211,14 +211,14 @@ def test_root_commands(local_chain, wallet_setup):
     assert alice_delegates_info[0] == wallet_alice.name
 
     # SS58: address of the Bob's hotkey (Alice has staked to Bob)
-    assert wallet_bob.hotkey.ss58_address == alice_delegates_info[1]
+    assert wallet_bob.hotkey.ss58_address == alice_delegates_info[2]
 
     # Delegation: This should be 10 as Alice delegated 10 TAO to Bob
-    delegate_stake = Balance.from_tao(float(alice_delegates_info[2].strip("τ")))
+    delegate_stake = Balance.from_tao(float(alice_delegates_info[3].strip("τ")))
     assert delegate_stake == Balance.from_tao(10)
 
     # TOTAL STAKE(τ): This should be 10 as only Alice has delegated to Bob
-    total_stake = Balance.from_tao(float(alice_delegates_info[6].strip("τ")))
+    total_stake = Balance.from_tao(float(alice_delegates_info[7].strip("τ")))
     assert total_stake == Balance.from_tao(10)
 
     # Total delegated Tao: This is listed at the bottom of the information
