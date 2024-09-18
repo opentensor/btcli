@@ -1461,7 +1461,7 @@ async def my_delegates(
                     delegate[0].hotkey_ss58
                 ].additional
             else:
-                delegate_name = ""
+                delegate_name = "~"
                 delegate_url = ""
                 delegate_description = ""
 
