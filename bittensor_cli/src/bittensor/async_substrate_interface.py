@@ -1533,7 +1533,6 @@ class AsyncSubstrateInterface:
         :return: (decoded response, completion)
         """
         result: Union[dict, ScaleType] = response
-
         if value_scale_type and isinstance(storage_item, ScaleType):
             if not runtime:
                 async with self._lock:
@@ -1564,7 +1563,6 @@ class AsyncSubstrateInterface:
             # For multipart responses as a result of subscriptions.
             message, bool_result = await result_handler(response, subscription_id)
             return message, bool_result
-
         return result, True
 
     async def _make_rpc_request(

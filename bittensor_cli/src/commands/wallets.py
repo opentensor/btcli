@@ -1340,7 +1340,6 @@ async def inspect(
                 ]
             ),
         )
-
     neuron_state_dict = {}
     for netuid, neuron in zip(all_netuids, all_neurons):
         neuron_state_dict[netuid] = neuron if neuron else []
