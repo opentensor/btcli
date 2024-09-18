@@ -3147,11 +3147,27 @@ class CLIManager:
             )
             raise typer.Exit()
 
-        if not wallet_hotkey and not all_hotkeys and not include_hotkeys:
-            _hotkey_str = typer.style("hotkey", fg="red")
-            hotkey = typer.prompt(f"Enter {_hotkey_str} name to stake or ss58_address")
-            if not is_valid_ss58_address(hotkey):
-                wallet_hotkey = hotkey
+        if (
+            not wallet_hotkey
+            and not all_hotkeys
+            and not include_hotkeys
+            and not hotkey_ss58_address
+        ):
+            hotkey_or_ss58 = Prompt.ask(
+                "Do you wish to stake to a ss58 address or a wallet hotkey",
+                choices=["ss58", "hotkey"],
+                default="ss58",
+            )
+            if hotkey_or_ss58 == "ss58":
+                hotkey_ss58_address = typer.prompt("Enter the ss58_address to stake to")
+                if not is_valid_ss58_address(hotkey_ss58_address):
+                    print_error("The entered ss58 address is incorrect")
+                    raise typer.Exit()
+                else:
+                    wallet = self.wallet_ask(
+                        wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+                    )
+            else:
                 wallet = self.wallet_ask(
                     wallet_name,
                     wallet_path,
@@ -3159,11 +3175,7 @@ class CLIManager:
                     ask_for=[WO.NAME, WO.HOTKEY],
                     validate=WV.WALLET_AND_HOTKEY,
                 )
-            else:
-                hotkey_ss58_address = hotkey
-                wallet = self.wallet_ask(
-                    wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
-                )
+
         elif all_hotkeys or include_hotkeys or exclude_hotkeys or hotkey_ss58_address:
             wallet = self.wallet_ask(
                 wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
@@ -3294,23 +3306,29 @@ class CLIManager:
             and not all_hotkeys
             and not include_hotkeys
         ):
-            _hotkey_str = typer.style("hotkey", fg="red")
-            hotkey = typer.prompt(
-                f"Enter {_hotkey_str} name to unstake or ss58_address"
+            hotkey_or_ss58 = Prompt.ask(
+                "Do you wish to unstake from a ss58 address or a wallet hotkey",
+                choices=["ss58", "hotkey"],
+                default="ss58",
             )
-            if not is_valid_ss58_address(hotkey):
-                wallet_hotkey = hotkey
+            if hotkey_or_ss58 == "ss58":
+                hotkey_ss58_address = typer.prompt(
+                    "Enter the ss58_address to unstake from"
+                )
+                if not is_valid_ss58_address(hotkey_ss58_address):
+                    print_error("The entered ss58 address is incorrect")
+                    raise typer.Exit()
+                else:
+                    wallet = self.wallet_ask(
+                        wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+                    )
+            else:
                 wallet = self.wallet_ask(
                     wallet_name,
                     wallet_path,
                     wallet_hotkey,
                     ask_for=[WO.NAME, WO.HOTKEY],
                     validate=WV.WALLET_AND_HOTKEY,
-                )
-            else:
-                hotkey_ss58_address = hotkey
-                wallet = self.wallet_ask(
-                    wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
                 )
 
         elif all_hotkeys or include_hotkeys or exclude_hotkeys or hotkey_ss58_address:

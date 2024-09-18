@@ -8,12 +8,10 @@ from typing import TYPE_CHECKING, Optional, Sequence, Union, cast
 
 from bittensor_wallet import Wallet
 from bittensor_wallet.errors import KeyFileError
-from bittensor_wallet.utils import SS58_FORMAT
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Confirm
 from rich.table import Table, Column
-from rich.text import Text
-from scalecodec import ss58_encode
-from substrateinterface.exceptions import SubstrateRequestException
+import typer
+
 
 from bittensor_cli.src import Constants
 from bittensor_cli.src.bittensor.balances import Balance
@@ -23,6 +21,7 @@ from bittensor_cli.src.bittensor.utils import (
     create_table,
     err_console,
     print_verbose,
+    print_error,
     get_coldkey_wallets_for_path,
     get_delegates_details_from_github,
     get_hotkey_wallets_for_wallet,
@@ -793,8 +792,8 @@ async def unstake_multiple_extrinsic(
                     block_hash=block_hash,
                 )
                 tx_rate_limit_blocks: int = tx_query
-                
-                # TODO: Handle in-case we have fast blocks 
+
+                # TODO: Handle in-case we have fast blocks
                 if tx_rate_limit_blocks > 0:
                     console.print(
                         ":hourglass: [yellow]Waiting for tx rate limit:"
@@ -1082,35 +1081,28 @@ async def show(
             return
     if not html_output:
         table = Table(
-            Column(
-                "[bold white]Coldkey",
-                style="dark_orange",
-                ratio=1
-            ),
+            Column("[bold white]Coldkey", style="dark_orange", ratio=1),
             Column(
                 "[bold white]Balance",
                 metadata["total_balance"],
                 style="dark_sea_green",
-                ratio=1
+                ratio=1,
             ),
             Column("[bold white]Account", style="bright_cyan", ratio=1),
             Column(
                 "[bold white]Stake",
                 metadata["total_stake"],
                 style="light_goldenrod2",
-                ratio=1
+                ratio=1,
             ),
             Column(
                 "[bold white]Rate /d",
                 metadata["total_rate"],
                 style="rgb(42,161,152)",
-                ratio=1
+                ratio=1,
             ),
             Column(
-                "[bold white]Hotkey",
-                style="bright_magenta",
-                overflow="fold",
-                ratio=2
+                "[bold white]Hotkey", style="bright_magenta", overflow="fold", ratio=2
             ),
             title=f"[underline dark_orange]Stake Show[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}\n",
             show_footer=True,
@@ -1181,6 +1173,10 @@ async def stake_add(
     # Get the hotkey_names (if any) and the hotkey_ss58s.
     hotkeys_to_stake_to: list[tuple[Optional[str], str]] = []
     if hotkey_ss58:
+        if not is_valid_ss58_address(hotkey_ss58):
+            print_error("The entered ss58 address is incorrect")
+            typer.Exit()
+
         # Stake to specific hotkey.
         hotkeys_to_stake_to = [(None, hotkey_ss58)]
     elif all_hotkeys:
