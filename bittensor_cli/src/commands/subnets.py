@@ -9,7 +9,7 @@ from bittensor_wallet.errors import KeyFileError
 from rich.prompt import Confirm
 from rich.table import Column, Table
 
-from bittensor_cli.src import Constants, DelegatesDetails
+from bittensor_cli.src import DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import SubnetInfo
 from bittensor_cli.src.bittensor.extrinsics.registration import register_extrinsic
@@ -24,7 +24,6 @@ from bittensor_cli.src.bittensor.utils import (
     print_verbose,
     print_error,
     format_error_message,
-    get_delegates_details_from_github,
     get_metadata_table,
     millify,
     render_table,
@@ -172,7 +171,7 @@ async def subnets_list(
         print_verbose("Fetching subnet and delegate information")
         subnets, delegate_info = await asyncio.gather(
             _get_all_subnets_info(),
-            get_delegates_details_from_github(url=Constants.delegates_detail_url),
+            subtensor.get_delegate_identities(),
         )
 
         if not subnets:
@@ -196,7 +195,11 @@ async def subnets_list(
                     str(subnet.tempo),
                     f"{subnet.burn!s:8.8}",
                     str(millify(subnet.difficulty)),
-                    f"{delegate_info[subnet.owner_ss58].name if subnet.owner_ss58 in delegate_info else subnet.owner_ss58}",
+                    str(
+                        delegate_info[subnet.owner_ss58].display
+                        if subnet.owner_ss58 in delegate_info
+                        else subnet.owner_ss58
+                    ),
                 )
             )
             db_rows.append(

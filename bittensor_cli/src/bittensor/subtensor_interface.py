@@ -977,15 +977,18 @@ class SubtensorInterface:
         else:
             return ProposalVoteData(vote_data)
 
-    async def get_delegate_identities(self, block_hash: Optional[str] = None) -> dict:
+    async def get_delegate_identities(
+        self, block_hash: Optional[str] = None
+    ) -> dict[str, DelegatesDetails]:
         identities_info = await self.substrate.query_map(
             module="Registry",
             storage_function="IdentityOf",
             block_hash=block_hash,
         )
         result = {
-            ss58_address: DelegatesDetails.from_chain_data(
+            decode_account_id(ss58_address[0]): DelegatesDetails.from_chain_data(
                 decode_hex_identity_dict(identity["info"])
             )
             for ss58_address, identity in identities_info
         }
+        return result

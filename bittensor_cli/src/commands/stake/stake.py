@@ -13,7 +13,6 @@ from rich.table import Table, Column
 import typer
 
 
-from bittensor_cli.src import Constants
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import decode_account_id
 from bittensor_cli.src.bittensor.utils import (
@@ -23,7 +22,6 @@ from bittensor_cli.src.bittensor.utils import (
     print_verbose,
     print_error,
     get_coldkey_wallets_for_path,
-    get_delegates_details_from_github,
     get_hotkey_wallets_for_wallet,
     is_valid_ss58_address,
     get_metadata_table,
@@ -964,7 +962,7 @@ async def show(
             for nom in dele.nominators:
                 if nom[0] == wallet_.coldkeypub.ss58_address:
                     delegate_name = (
-                        registered_delegate_info[dele.hotkey_ss58].name
+                        registered_delegate_info[dele.hotkey_ss58].display
                         if dele.hotkey_ss58 in registered_delegate_info
                         else dele.hotkey_ss58
                     )
@@ -998,16 +996,14 @@ async def show(
         else:
             wallets = [wallet]
 
-        print_verbose("Fetching delegate details from Github")
-        registered_delegate_info = await get_delegates_details_from_github(
-            Constants.delegates_detail_url
-        )
-
         with console.status(
             ":satellite: Retrieving account data...", spinner="aesthetic"
         ):
             block_hash_ = await subtensor.substrate.get_chain_head()
-            accounts = await get_all_wallet_accounts(block_hash=block_hash_)
+            registered_delegate_info, accounts = await asyncio.gather(
+                subtensor.get_delegate_identities(block_hash=block_hash_),
+                get_all_wallet_accounts(block_hash=block_hash_),
+            )
 
         total_stake: float = 0.0
         total_balance: float = 0.0

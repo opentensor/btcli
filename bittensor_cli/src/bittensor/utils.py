@@ -5,7 +5,6 @@ import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Collection, Optional, Union
 
-import aiohttp
 import numpy as np
 import scalecodec
 from bittensor_wallet import Wallet
@@ -17,7 +16,6 @@ from numpy.typing import NDArray
 from rich.console import Console
 from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
-from bittensor_cli.src import DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance
 
 if TYPE_CHECKING:
@@ -454,31 +452,6 @@ def convert_blocks_to_time(blocks: int, block_time: int = 12) -> tuple[int, int,
     minutes = (seconds % 3600) // 60
     remaining_seconds = seconds % 60
     return hours, minutes, remaining_seconds
-
-
-async def get_delegates_details_from_github(url: str) -> dict[str, DelegatesDetails]:
-    """
-    Queries GitHub to get the delegates details.
-
-    :return: {delegate: DelegatesDetails}
-    """
-    all_delegates_details = {}
-
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(10.0)) as session:
-        try:
-            response = await session.get(url)
-            if response.ok:
-                all_delegates: dict[str, Any] = await response.json(content_type=None)
-                for delegate_hotkey, delegates_details in all_delegates.items():
-                    all_delegates_details[delegate_hotkey] = DelegatesDetails.from_json(
-                        delegates_details
-                    )
-        except TimeoutError:
-            err_console.print(
-                "Request timed out pulling delegates details from GitHub."
-            )
-
-    return all_delegates_details
 
 
 def decode_hex_identity_dict(info_dictionary) -> dict[str, Any]:

@@ -21,7 +21,7 @@ from scalecodec import ScaleBytes
 import scalecodec
 import typer
 
-from bittensor_cli.src import TYPE_REGISTRY, Constants, DelegatesDetails
+from bittensor_cli.src import TYPE_REGISTRY
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import (
@@ -46,7 +46,6 @@ from bittensor_cli.src.bittensor.utils import (
     print_error,
     print_verbose,
     get_all_wallets_for_path,
-    get_delegates_details_from_github,
     get_hotkey_wallets_for_wallet,
 )
 
@@ -1236,7 +1235,7 @@ async def inspect(
     ) -> Generator[list[str], None, None]:
         for d_, staked in delegates_:
             if d_.hotkey_ss58 in registered_delegate_info:
-                delegate_name = registered_delegate_info[d_.hotkey_ss58].name
+                delegate_name = registered_delegate_info[d_.hotkey_ss58].display
             else:
                 delegate_name = d_.hotkey_ss58
             yield (
@@ -1295,9 +1294,7 @@ async def inspect(
         )
     # bittensor.logging.debug(f"Netuids to check: {all_netuids}")
     with console.status("Pulling delegates info...", spinner="aesthetic"):
-        registered_delegate_info: dict[
-            str, DelegatesDetails
-        ] = await get_delegates_details_from_github(url=Constants.delegates_detail_url)
+        registered_delegate_info = await subtensor.get_delegate_identities()
         if not registered_delegate_info:
             console.print(
                 ":warning:[yellow]Could not get delegate info from chain.[/yellow]"

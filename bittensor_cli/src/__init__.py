@@ -32,16 +32,30 @@ class DelegatesDetails:
 
     @classmethod
     def from_chain_data(cls, data: dict[str, Any]) -> "DelegatesDetails":
+        def decode(key: str, default=""):
+            try:
+                if isinstance(data.get(key), dict):
+                    value = next(data.get(key).values())
+                    return bytes(value[0]).decode("utf-8")
+                elif isinstance(data.get(key), int):
+                    return data.get(key)
+                elif isinstance(data.get(key), tuple):
+                    return bytes(data.get(key)[0]).decode("utf-8")
+                else:
+                    return default
+            except (UnicodeDecodeError, TypeError):
+                return default
+
         return cls(
-            display=data.get("display", ""),
-            additional=data.get("additional", []),
-            web=data.get("web", ""),
-            legal=data.get("legal"),
-            riot=data.get("riot"),
-            email=data.get("email"),
-            pgp_fingerprint=data.get("pgp_fingerprint"),
-            image=data.get("image"),
-            twitter=data.get("image"),
+            display=decode("display"),
+            additional=decode("additional", []),
+            web=decode("web"),
+            legal=decode("legal"),
+            riot=decode("riot"),
+            email=decode("email"),
+            pgp_fingerprint=decode("pgp_fingerprint", None),
+            image=decode("image"),
+            twitter=decode("twitter"),
         )
 
 
