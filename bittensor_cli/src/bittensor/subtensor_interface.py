@@ -23,6 +23,7 @@ from bittensor_cli.src.bittensor.chain_data import (
     SubnetHyperparameters,
     decode_account_id,
 )
+from bittensor_cli.src import DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src import Constants, defaults, TYPE_REGISTRY
 from bittensor_cli.src.bittensor.utils import (
@@ -30,6 +31,7 @@ from bittensor_cli.src.bittensor.utils import (
     format_error_message,
     console,
     err_console,
+    decode_hex_identity_dict,
 )
 
 
@@ -974,3 +976,16 @@ class SubtensorInterface:
             return None
         else:
             return ProposalVoteData(vote_data)
+
+    async def get_delegate_identities(self, block_hash: Optional[str] = None) -> dict:
+        identities_info = await self.substrate.query_map(
+            module="Registry",
+            storage_function="IdentityOf",
+            block_hash=block_hash,
+        )
+        result = {
+            ss58_address: DelegatesDetails.from_chain_data(
+                decode_hex_identity_dict(identity["info"])
+            )
+            for ss58_address, identity in identities_info
+        }

@@ -481,6 +481,60 @@ async def get_delegates_details_from_github(url: str) -> dict[str, DelegatesDeta
     return all_delegates_details
 
 
+def decode_hex_identity_dict(info_dictionary) -> dict[str, Any]:
+    """
+    Decodes hex-encoded strings in a dictionary.
+
+    This function traverses the given dictionary, identifies hex-encoded strings, and decodes them into readable strings. It handles nested dictionaries and lists within the dictionary.
+
+    Args:
+        info_dictionary (dict): The dictionary containing hex-encoded strings to decode.
+
+    Returns:
+        dict: The dictionary with decoded strings.
+
+    Examples:
+        input_dict = {
+        ...     "name": {"value": "0x6a6f686e"},
+        ...     "additional": [
+        ...         [{"data": "0x64617461"}]
+        ...     ]
+        ... }
+        decode_hex_identity_dict(input_dict)
+        {'name': 'john', 'additional': [('data', 'data')]}
+    """
+
+    def get_decoded(data: str) -> str:
+        """Decodes a hex-encoded string."""
+        try:
+            return bytes.fromhex(data[2:]).decode()
+        except UnicodeDecodeError:
+            print(f"Could not decode: {key}: {item}")
+
+    for key, value in info_dictionary.items():
+        if isinstance(value, dict):
+            item = list(value.values())[0]
+            if isinstance(item, str) and item.startswith("0x"):
+                try:
+                    info_dictionary[key] = get_decoded(item)
+                except UnicodeDecodeError:
+                    print(f"Could not decode: {key}: {item}")
+            else:
+                info_dictionary[key] = item
+        if key == "additional":
+            additional = []
+            for item in value:
+                additional.append(
+                    tuple(
+                        get_decoded(data=next(iter(sub_item.values())))
+                        for sub_item in item
+                    )
+                )
+            info_dictionary[key] = additional
+
+    return info_dictionary
+
+
 def get_human_readable(num: float, suffix="H"):
     """
     Converts a number to a human-readable string.

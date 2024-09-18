@@ -1,6 +1,6 @@
 from enum import Enum
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 
 class Constants:
@@ -20,18 +20,28 @@ class Constants:
 
 @dataclass
 class DelegatesDetails:
-    name: str
-    url: str
-    description: str
-    signature: str
+    display: str
+    additional: list[tuple[str, str]]
+    web: str
+    legal: Optional[str] = None
+    riot: Optional[str] = None
+    email: Optional[str] = None
+    pgp_fingerprint: Optional[str] = None
+    image: Optional[str] = None
+    twitter: Optional[str] = None
 
     @classmethod
-    def from_json(cls, json: dict[str, Any]) -> "DelegatesDetails":
+    def from_chain_data(cls, data: dict[str, Any]) -> "DelegatesDetails":
         return cls(
-            name=json["name"],
-            url=json["url"],
-            description=json["description"],
-            signature=json["signature"],
+            display=data.get("display", ""),
+            additional=data.get("additional", []),
+            web=data.get("web", ""),
+            legal=data.get("legal"),
+            riot=data.get("riot"),
+            email=data.get("email"),
+            pgp_fingerprint=data.get("pgp_fingerprint"),
+            image=data.get("image"),
+            twitter=data.get("image"),
         )
 
 
