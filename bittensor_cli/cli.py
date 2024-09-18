@@ -15,7 +15,7 @@ from git import Repo, GitError
 from rich import box
 from rich.prompt import Confirm, FloatPrompt, Prompt, IntPrompt
 from rich.table import Column, Table
-from .src import (
+from bittensor_cli.src import (
     HYPERPARAMS,
     defaults,
     HELP_PANELS,
@@ -23,10 +23,12 @@ from .src import (
     WalletValidationTypes as WV,
 )
 from bittensor_cli.src.bittensor import utils
-from .src.bittensor.async_substrate_interface import SubstrateRequestException
-from .src.commands import root, subnets, sudo, wallets
-from .src.commands import weights as weights_cmds
-from .src.commands.stake import children_hotkeys, stake
+from bittensor_cli.src.bittensor.async_substrate_interface import (
+    SubstrateRequestException,
+)
+from bittensor_cli.src.commands import root, subnets, sudo, wallets
+from bittensor_cli.src.commands import weights as weights_cmds
+from bittensor_cli.src.commands.stake import children_hotkeys, stake
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
     console,
@@ -52,7 +54,7 @@ __version_as_int__: int = sum(
 assert __version_as_int__ < 2**31  # fits in int32
 __new_signature_version__ = 360
 
-_epilog = "Made with [bold red]:heart:[/bold red] by Openτensor Foundaτion"
+_epilog = "Made with [bold red]:heart:[/bold red] by The Openτensor Foundaτion"
 
 np.set_printoptions(precision=8, suppress=True, floatmode="fixed")
 
@@ -68,7 +70,7 @@ class Options:
         "--name",
         "--wallet_name",
         "--wallet.name",
-        help="Name of wallet",
+        help="Name of the wallet.",
     )
     wallet_path = typer.Option(
         None,
@@ -76,7 +78,7 @@ class Options:
         "-p",
         "--wallet_path",
         "--wallet.path",
-        help="Filepath of root of wallets",
+        help="Path where the wallets are located. For example: `/Users/btuser/.bittensor/wallets`.",
     )
     wallet_hotkey = typer.Option(
         None,
@@ -85,86 +87,86 @@ class Options:
         "--wallet_hotkey",
         "--wallet-hotkey",
         "--wallet.hotkey",
-        help="Hotkey of wallet",
+        help="Hotkey of the wallet",
     )
     mnemonic = typer.Option(
-        None, help="Mnemonic used to regen your key i.e. horse cart dog ..."
+        None, help="Mnemonic used to regenerate your key. For example: horse cart dog ..."
     )
     seed = typer.Option(
-        None, help="Seed hex string used to regen your key i.e. 0x1234..."
+        None, help="Seed hex string used to regenerate your key. For example: 0x1234..."
     )
     json = typer.Option(
         None,
         "--json",
         "-j",
-        help="Path to a json file containing the encrypted key backup. (e.g. from PolkadotJS)",
+        help="Path to a JSON file containing the encrypted key backup. For example, a JSON file from PolkadotJS.)",
     )
     json_password = typer.Option(
-        None, "--json-password", help="Password to decrypt the json file."
+        None, "--json-password", help="Password to decrypt the JSON file."
     )
     use_password = typer.Option(
         True,
-        help="Set true to protect the generated bittensor key with a password.",
+        help="Set to `True` to protect the generated bittensor key with a password.",
         is_flag=True,
         flag_value=False,
     )
     public_hex_key = typer.Option(None, help="The public key in hex format.")
-    ss58_address = typer.Option(None, help="The SS58 address of the coldkey")
+    ss58_address = typer.Option(None, help="The SS58 address of the coldkey.")
     overwrite_coldkey = typer.Option(
         False,
-        help="Overwrite the old coldkey with the newly generated coldkey",
+        help="Overwrite the old coldkey with the newly generated coldkey.",
         prompt=True,
     )
     overwrite_hotkey = typer.Option(
         False,
-        help="Overwrite the old hotkey with the newly generated hotkey",
+        help="Overwrite the old hotkey with the newly generated hotkey.",
         prompt=True,
     )
     network = typer.Option(
         None,
         "--network",
         "--subtensor.network",
-        help="The subtensor network to connect to. Default: finney.",
+        help="The subtensor network to connect to. Default: finney. Allowed values: local, test, finney.",
         show_default=False,
     )
     chain = typer.Option(
         None,
         "--chain",
         "--subtensor.chain_endpoint",
-        help="The subtensor chain endpoint to connect to.",
+        help="The subtensor chain endpoint to connect to. The format should be similar to: ws://127.0.0.1:9946.",
         show_default=False,
     )
     netuids = typer.Option(
-        [], "--netuids", "-n", help="Set the netuid(s) to filter by (e.g. `0 1 2`)"
+        [], "--netuids", "-n", help="Set the netuid(s) to filter by. Separate multiple netuids with a space, for example: `0 1 2`."
     )
     netuid = typer.Option(
         None,
-        help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
+        help="The netuid of the subnet in the root network, (e.g. 1).",
         prompt=True,
     )
     weights = typer.Option(
         [],
         "--weights",
         "-w",
-        help="Corresponding weights for the specified UIDs, e.g. `-w 0.2 -w 0.4 -w 0.1 ...",
+        help="Weights for the specified UIDs, e.g. `-w 0.2 -w 0.4 -w 0.1 ...` Must correspond to the order of the UIDs.",
     )
     reuse_last = typer.Option(
         False,
         "--reuse-last",
-        help="Reuse the metagraph data you last retrieved. Only use this if you have already retrieved metagraph"
+        help="Reuse the metagraph data you last retrieved. Use this option only if you have already retrieved the metagraph."
         "data",
     )
     html_output = typer.Option(
         False,
         "--html",
-        help="Display the table as HTML in the browser, rather than in the Terminal.",
+        help="Display the table as HTML in the browser.",
     )
     wait_for_inclusion = typer.Option(
-        True, help="If set, waits until the transaction is included in a block."
+        True, help="If `True`, waits until the transaction is included in a block."
     )
     wait_for_finalization = typer.Option(
         True,
-        help="If set, waits until the transaction is finalized " "on the blockchain.",
+        help="If `True`, waits until the transaction is finalized " "on the blockchain.",
     )
     prompt = typer.Option(
         True,
@@ -179,7 +181,7 @@ class Options:
     quiet = typer.Option(
         False,
         "--quiet",
-        help="Do not output to the console besides critical information.",
+        help="Display only critical information on the console.",
     )
 
 

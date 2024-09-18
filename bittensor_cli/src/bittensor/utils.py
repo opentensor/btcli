@@ -5,7 +5,6 @@ import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Collection, Optional, Union
 
-import aiohttp
 import numpy as np
 import scalecodec
 from bittensor_wallet import Wallet
@@ -17,7 +16,6 @@ from numpy.typing import NDArray
 from rich.console import Console
 from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
-from bittensor_cli.src import DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance
 
 if TYPE_CHECKING:
@@ -478,29 +476,58 @@ def convert_blocks_to_time(blocks: int, block_time: int = 12) -> tuple[int, int,
     return hours, minutes, remaining_seconds
 
 
-async def get_delegates_details_from_github(url: str) -> dict[str, DelegatesDetails]:
+def decode_hex_identity_dict(info_dictionary) -> dict[str, Any]:
     """
-    Queries GitHub to get the delegates details.
+    Decodes hex-encoded strings in a dictionary.
 
-    :return: {delegate: DelegatesDetails}
+    This function traverses the given dictionary, identifies hex-encoded strings, and decodes them into readable strings. It handles nested dictionaries and lists within the dictionary.
+
+    Args:
+        info_dictionary (dict): The dictionary containing hex-encoded strings to decode.
+
+    Returns:
+        dict: The dictionary with decoded strings.
+
+    Examples:
+        input_dict = {
+        ...     "name": {"value": "0x6a6f686e"},
+        ...     "additional": [
+        ...         [{"data": "0x64617461"}]
+        ...     ]
+        ... }
+        decode_hex_identity_dict(input_dict)
+        {'name': 'john', 'additional': [('data', 'data')]}
     """
-    all_delegates_details = {}
 
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(10.0)) as session:
+    def get_decoded(data: str) -> str:
+        """Decodes a hex-encoded string."""
         try:
-            response = await session.get(url)
-            if response.ok:
-                all_delegates: dict[str, Any] = await response.json(content_type=None)
-                for delegate_hotkey, delegates_details in all_delegates.items():
-                    all_delegates_details[delegate_hotkey] = DelegatesDetails.from_json(
-                        delegates_details
-                    )
-        except TimeoutError:
-            err_console.print(
-                "Request timed out pulling delegates details from GitHub."
-            )
+            return bytes.fromhex(data[2:]).decode()
+        except UnicodeDecodeError:
+            print(f"Could not decode: {key}: {item}")
 
-    return all_delegates_details
+    for key, value in info_dictionary.items():
+        if isinstance(value, dict):
+            item = list(value.values())[0]
+            if isinstance(item, str) and item.startswith("0x"):
+                try:
+                    info_dictionary[key] = get_decoded(item)
+                except UnicodeDecodeError:
+                    print(f"Could not decode: {key}: {item}")
+            else:
+                info_dictionary[key] = item
+        if key == "additional":
+            additional = []
+            for item in value:
+                additional.append(
+                    tuple(
+                        get_decoded(data=next(iter(sub_item.values())))
+                        for sub_item in item
+                    )
+                )
+            info_dictionary[key] = additional
+
+    return info_dictionary
 
 
 def get_human_readable(num: float, suffix="H"):
