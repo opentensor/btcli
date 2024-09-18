@@ -214,7 +214,7 @@ async def subnets_list(
                     float(subnet.burn),
                     int(subnet.difficulty),  # millified in HTML table
                     str(
-                        delegate_info[subnet.owner_ss58].name
+                        delegate_info[subnet.owner_ss58].display
                         if subnet.owner_ss58 in delegate_info
                         else subnet.owner_ss58
                     ),
