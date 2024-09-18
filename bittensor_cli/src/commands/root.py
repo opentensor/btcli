@@ -1496,14 +1496,10 @@ async def list_delegates(subtensor: SubtensorInterface):
     ) as status:
         print_verbose("Fetching delegate details from chain", status)
         block_hash = await subtensor.substrate.get_chain_head()
-        # TODO combine these
-        registered_delegate_info = await subtensor.get_delegate_identities(
-            block_hash=block_hash
-        )
-        print_verbose("Fetching delegates info from chain", status)
-        block_number = await subtensor.substrate.get_block_number(block_hash)
-        delegates: list[DelegateInfo] = await subtensor.get_delegates(
-            block_hash=block_hash
+        registered_delegate_info, block_number, delegates = await asyncio.gather(
+            subtensor.get_delegate_identities(block_hash=block_hash),
+            subtensor.substrate.get_block_number(block_hash),
+            subtensor.get_delegates(block_hash=block_hash),
         )
 
         # TODO keep an eye on this, was not working at one point
