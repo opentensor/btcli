@@ -155,7 +155,7 @@ def validate_wallet_overview(
     pattern += (
         r"(?!none)\w+\s+" if axon_active else r"none\s+"
     )  # AXON - True if axon is active
-    pattern += rf"{hotkey_ss58}\s*"  # HOTKEY_SS58
+    pattern += rf"{hotkey_ss58[:10]}\s*"  # HOTKEY_SS58
 
     # Search for the pattern in the wallet information
     match = re.search(pattern, output)
@@ -185,7 +185,7 @@ def validate_wallet_inspect(
     bool: True if all checks pass, False otherwise.
     """
     # Preprocess lines to remove the | character
-    cleaned_text = text.replace("│", "")
+    cleaned_text = text.replace("│", "").replace("|", "")
     lines = [re.sub(r"\s+", " ", line) for line in cleaned_text.splitlines()]
 
     def parse_value(value):
@@ -198,7 +198,7 @@ def validate_wallet_inspect(
     # This is the first row when records of a coldkey start
     coldkey_pattern = rf"{coldkey}\s+{balance}"
     for line in lines:
-        match = re.search(coldkey_pattern, line)
+        match = re.search(coldkey_pattern, line.replace("|", ""))
         if match:
             break
     else:

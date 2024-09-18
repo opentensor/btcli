@@ -214,11 +214,11 @@ async def get_hyperparameters(subtensor: "SubtensorInterface", netuid: int):
     subnet = await subtensor.get_subnet_hyperparameters(netuid)
 
     table = Table(
-        Column("[white]HYPERPARAMETER", style="bright_cyan"),
-        Column("[white]VALUE", style="bold spring_green4"),
-        Column("[white]NORMALIZED", style="dark_sea_green"),
-        title=f"[underline dark_orange]\nSubnet Hyperparameters[/underline dark_orange]\n\n NETUID: [light_goldenrod2]"
-        f"{netuid}[/light_goldenrod2] - {subtensor}\n",
+        Column("[white]HYPERPARAMETER", style="bright_magenta"),
+        Column("[white]VALUE", style="light_goldenrod2"),
+        Column("[white]NORMALIZED", style="light_goldenrod3"),
+        title=f"[underline dark_orange]\nSubnet Hyperparameters[/underline dark_orange]\n NETUID: [dark_orange]"
+        f"{netuid}[/dark_orange] - Network: [dark_orange]{subtensor.network}[/dark_orange]\n",
         show_footer=True,
         width=None,
         pad_edge=False,

@@ -787,7 +787,7 @@ def render_tree(
         webbrowser.open(f"file://{output_file}")
 
 
-def group_vpermits(registrations):
+def group_subnets(registrations):
     if not registrations:
         return ""
 

@@ -6,8 +6,8 @@ from typing import Any
 class Constants:
     networks = ["local", "finney", "test", "archive"]
     finney_entrypoint = "wss://entrypoint-finney.opentensor.ai:443"
-    finney_test_entrypoint = "wss://test.finney.opentensor.ai:443/"
-    archive_entrypoint = "wss://archive.chain.opentensor.ai:443/"
+    finney_test_entrypoint = "wss://test.finney.opentensor.ai:443"
+    archive_entrypoint = "wss://archive.chain.opentensor.ai:443"
     local_entrypoint = "ws://127.0.0.1:9444"
     network_map = {
         "finney": finney_entrypoint,

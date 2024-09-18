@@ -253,20 +253,15 @@ async def subnets_list(
             )
             return
     if not html_output:
-        table_width = console.width - 20
-
         table = Table(
-            title=f"[underline dark_orange]Subnets - {metadata['network']}[/underline dark_orange]\n",
+            title=f"[underline dark_orange]Subnets[/underline dark_orange]\n[dark_orange]Network: {metadata['network']}[/dark_orange]\n",
             show_footer=True,
             show_edge=False,
             header_style="bold white",
             border_style="bright_black",
             style="bold",
-            title_style="bold white",
             title_justify="center",
             show_lines=False,
-            expand=True,
-            width=table_width,
             pad_edge=True,
         )
 
@@ -291,10 +286,12 @@ async def subnets_list(
         table.add_column(
             "[bold white]EMISSION", style="light_goldenrod2", justify="right"
         )
-        table.add_column("[bold white]TEMPO", style="magenta", justify="right")
-        table.add_column("[bold white]RECYCLE", style="bright_red", justify="right")
+        table.add_column("[bold white]TEMPO", style="rgb(42,161,152)", justify="right")
+        table.add_column("[bold white]RECYCLE", style="light_salmon3", justify="right")
         table.add_column("[bold white]POW", style="medium_purple", justify="right")
-        table.add_column("[bold white]SUDO", style="bright_magenta", justify="center")
+        table.add_column(
+            "[bold white]SUDO", style="bright_magenta", justify="right", overflow="fold"
+        )
 
         for row in rows:
             table.add_row(*row)
@@ -699,7 +696,6 @@ async def metagraph_cmd(
             )
             return
     else:
-        table_width = console.width - 20
         cols: dict[str, tuple[int, Column]] = {
             "UID": (
                 0,
@@ -707,7 +703,8 @@ async def metagraph_cmd(
                     "[bold white]UID",
                     footer=f"[white]{metadata_info['total_neurons']}[/white]",
                     style="white",
-                    justify="center",
+                    justify="right",
+                    ratio=0.75,
                 ),
             ),
             "STAKE": (
@@ -718,6 +715,7 @@ async def metagraph_cmd(
                     style="bright_cyan",
                     justify="right",
                     no_wrap=True,
+                    ratio=1.5,
                 ),
             ),
             "RANK": (
@@ -728,6 +726,7 @@ async def metagraph_cmd(
                     style="medium_purple",
                     justify="right",
                     no_wrap=True,
+                    ratio=1,
                 ),
             ),
             "TRUST": (
@@ -738,6 +737,7 @@ async def metagraph_cmd(
                     style="dark_sea_green",
                     justify="right",
                     no_wrap=True,
+                    ratio=1,
                 ),
             ),
             "CONSENSUS": (
@@ -748,6 +748,7 @@ async def metagraph_cmd(
                     style="rgb(42,161,152)",
                     justify="right",
                     no_wrap=True,
+                    ratio=1,
                 ),
             ),
             "INCENTIVE": (
@@ -758,6 +759,7 @@ async def metagraph_cmd(
                     style="#5fd7ff",
                     justify="right",
                     no_wrap=True,
+                    ratio=1,
                 ),
             ),
             "DIVIDENDS": (
@@ -768,6 +770,7 @@ async def metagraph_cmd(
                     style="#8787d7",
                     justify="right",
                     no_wrap=True,
+                    ratio=1,
                 ),
             ),
             "EMISSION": (
@@ -778,6 +781,7 @@ async def metagraph_cmd(
                     style="#d7d7ff",
                     justify="right",
                     no_wrap=True,
+                    ratio=1.5,
                 ),
             ),
             "VTRUST": (
@@ -788,6 +792,7 @@ async def metagraph_cmd(
                     style="magenta",
                     justify="right",
                     no_wrap=True,
+                    ratio=1,
                 ),
             ),
             "VAL": (
@@ -797,11 +802,12 @@ async def metagraph_cmd(
                     justify="center",
                     style="bright_white",
                     no_wrap=True,
+                    ratio=0.4,
                 ),
             ),
             "UPDATED": (
                 10,
-                Column("[bold white]UPDATED", justify="right", no_wrap=True),
+                Column("[bold white]UPDATED", justify="right", no_wrap=True, ratio=1),
             ),
             "ACTIVE": (
                 11,
@@ -810,6 +816,7 @@ async def metagraph_cmd(
                     justify="center",
                     style="#8787ff",
                     no_wrap=True,
+                    ratio=1,
                 ),
             ),
             "AXON": (
@@ -818,7 +825,8 @@ async def metagraph_cmd(
                     "[bold white]AXON",
                     justify="left",
                     style="dark_orange",
-                    no_wrap=True,
+                    overflow="fold",
+                    ratio=2,
                 ),
             ),
             "HOTKEY": (
@@ -827,7 +835,8 @@ async def metagraph_cmd(
                     "[bold white]HOTKEY",
                     justify="center",
                     style="bright_magenta",
-                    no_wrap=False,
+                    overflow="fold",
+                    ratio=1.5,
                 ),
             ),
             "COLDKEY": (
@@ -836,7 +845,8 @@ async def metagraph_cmd(
                     "[bold white]COLDKEY",
                     justify="center",
                     style="bright_magenta",
-                    no_wrap=False,
+                    overflow="fold",
+                    ratio=1.5,
                 ),
             ),
         }
@@ -867,7 +877,6 @@ async def metagraph_cmd(
                 f"Issuance: [bright_blue]{metadata_info['issuance']}[/bright_blue], "
                 f"Difficulty: [bright_cyan]{metadata_info['difficulty']}[/bright_cyan]\n"
             ),
-            width=table_width,
             pad_edge=True,
         )
 
