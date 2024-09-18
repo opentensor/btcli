@@ -3049,9 +3049,20 @@ class CLIManager:
             subtensor = self.initialize_chain(network, chain)
         else:
             subtensor = None
-        wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
-        )
+
+        if all_wallets:
+            wallet = self.wallet_ask(
+                wallet_name,
+                wallet_path,
+                wallet_hotkey,
+                ask_for=[WO.PATH],
+                validate=WV.NONE,
+            )
+        else:
+            wallet = self.wallet_ask(
+                wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+            )
+
         return self._run_command(
             stake.show(
                 wallet,
