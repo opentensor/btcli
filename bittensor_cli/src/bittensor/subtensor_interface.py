@@ -1,14 +1,16 @@
 import asyncio
 from typing import Optional, Any, Union, TypedDict, Iterable
 
-import scalecodec
-import typer
+
+import aiohttp
 from bittensor_wallet import Wallet
 from bittensor_wallet.utils import SS58_FORMAT
+import scalecodec
 from scalecodec import GenericCall
 from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
 from substrateinterface.exceptions import SubstrateRequestException
+import typer
 
 from bittensor_cli.src.bittensor.async_substrate_interface import (
     AsyncSubstrateInterface,
@@ -980,15 +982,50 @@ class SubtensorInterface:
     async def get_delegate_identities(
         self, block_hash: Optional[str] = None
     ) -> dict[str, DelegatesDetails]:
-        identities_info = await self.substrate.query_map(
-            module="Registry",
-            storage_function="IdentityOf",
-            block_hash=block_hash,
-        )
-        result = {
-            decode_account_id(ss58_address[0]): DelegatesDetails.from_chain_data(
-                decode_hex_identity_dict(identity["info"])
+        timeout = aiohttp.ClientTimeout(10.0)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            identities_info, response = await asyncio.gather(
+                self.substrate.query_map(
+                    module="Registry",
+                    storage_function="IdentityOf",
+                    block_hash=block_hash,
+                ),
+                session.get(Constants.delegates_detail_url),
             )
-            for ss58_address, identity in identities_info
-        }
-        return result
+
+            all_delegates_details = {
+                decode_account_id(ss58_address[0]): DelegatesDetails.from_chain_data(
+                    decode_hex_identity_dict(identity["info"])
+                )
+                for ss58_address, identity in identities_info
+            }
+
+            if response.ok:
+                all_delegates: dict[str, Any] = await response.json(content_type=None)
+
+                for delegate_hotkey, delegate_details in all_delegates.items():
+                    delegate_info = all_delegates_details.setdefault(
+                        delegate_hotkey,
+                        DelegatesDetails(
+                            display=delegate_details.get("name", ""),
+                            web=delegate_details.get("url", ""),
+                            additional=delegate_details.get("description", ""),
+                            pgp_fingerprint=delegate_details.get("fingerprint", ""),
+                        ),
+                    )
+                    delegate_info.display = (
+                        delegate_info.display or delegate_details.get("name", "")
+                    )
+                    delegate_info.web = delegate_info.web or delegate_details.get(
+                        "url", ""
+                    )
+                    delegate_info.additional = (
+                        delegate_info.additional
+                        or delegate_details.get("description", "")
+                    )
+                    delegate_info.pgp_fingerprint = (
+                        delegate_info.pgp_fingerprint
+                        or delegate_details.get("fingerprint", "")
+                    )
+
+        return all_delegates_details
