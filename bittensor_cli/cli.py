@@ -1186,7 +1186,7 @@ class CLIManager:
             "--destination",
             "--dest",
             "-d",
-            prompt=True,
+            prompt="Enter Destination Coldkey ss58 address",
             help="Destination address of the wallet.",
         ),
         amount: float = typer.Option(
@@ -2596,7 +2596,9 @@ class CLIManager:
     def root_delegate_stake(
         self,
         delegate_ss58key: str = typer.Option(
-            None, help="The `SS58` address of the delegate to stake to.", prompt=True
+            None,
+            help="The `SS58` address of the delegate to stake to.",
+            prompt="Enter Hotkey ss58 address you want to delegate to",
         ),
         amount: Optional[float] = typer.Option(
             None, help="The amount of Tao to stake. Do no specify if using `--all`"
@@ -2681,7 +2683,7 @@ class CLIManager:
         delegate_ss58key: str = typer.Option(
             None,
             help="The `SS58` address of the delegate to undelegate from.",
-            prompt=True,
+            prompt="Enter Hotkey ss58 address you want to undelegate from",
         ),
         amount: Optional[float] = typer.Option(
             None, help="The amount of Tao to unstake. Do no specify if using `--all`"
