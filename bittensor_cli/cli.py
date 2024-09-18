@@ -1943,7 +1943,7 @@ class CLIManager:
             prompt=True,
         ),
         email: str = typer.Option(
-            "", help="The email address for the identity.", prompt=True
+            "", "--email", help="The email address for the identity.", prompt=True
         ),
         pgp_fingerprint: str = typer.Option(
             "",
@@ -2129,7 +2129,8 @@ class CLIManager:
         self.verbosity_handler(quiet, verbose)
         if not use_hotkey:
             use_hotkey = typer.confirm(
-                "Would you like to sign the transaction using the hotkey? (The default is to sign with the coldkey.)",
+                "Would you like to sign the transaction using the [red]hotkey[/red]?"
+                " (The default is to sign with the [blue]coldkey[/blue])\n[Type y for hotkey and N for coldkey]",
                 default=False,
             )
 
@@ -3168,9 +3169,12 @@ class CLIManager:
             and not hotkey_ss58_address
         ):
             hotkey_or_ss58 = Prompt.ask(
-                "Do you wish to stake to a ss58 address or a wallet hotkey",
+                "Do you want to stake to a specific [blue]ss58 address[/blue] or a registered [red]wallet hotkey[/red]?\n"
+                "[Enter '[blue]ss58[/blue]' for an address or '[red]hotkey[/red]' for a wallet hotkey] (default is '[blue]ss58[/blue]')",
                 choices=["ss58", "hotkey"],
                 default="ss58",
+                show_choices=False,
+                show_default=False,
             )
             if hotkey_or_ss58 == "ss58":
                 hotkey_ss58_address = typer.prompt("Enter the ss58_address to stake to")
@@ -3321,9 +3325,12 @@ class CLIManager:
             and not include_hotkeys
         ):
             hotkey_or_ss58 = Prompt.ask(
-                "Do you wish to unstake from a ss58 address or a wallet hotkey",
+                "Do you want to unstake from a specific [blue]ss58 address[/blue] or a registered [red]wallet hotkey[/red]?\n"
+                "[Enter '[blue]ss58[/blue]' for an address or '[red]hotkey[/red]' for a wallet hotkey] (default is '[blue]ss58[/blue]')",
                 choices=["ss58", "hotkey"],
                 default="ss58",
+                show_choices=False,
+                show_default=False,
             )
             if hotkey_or_ss58 == "ss58":
                 hotkey_ss58_address = typer.prompt(
