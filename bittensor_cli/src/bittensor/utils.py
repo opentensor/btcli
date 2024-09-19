@@ -70,7 +70,7 @@ def u64_normalized_float(x: int) -> float:
 def float_to_u64(value: float) -> int:
     """Converts a float to a u64 int"""
     # Ensure the input is within the expected range
-    if not (0 <= value < 1):
+    if not (0 <= value <= 1):
         raise ValueError("Input value must be between 0 and 1")
 
     # Convert the float to a u64 value

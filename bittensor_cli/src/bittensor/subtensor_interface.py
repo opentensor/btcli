@@ -908,8 +908,9 @@ class SubtensorInterface:
                 formatted_children = []
                 for proportion, child in children:
                     # Convert U64 to int
+                    formatted_child = decode_account_id(child[0])
                     int_proportion = int(proportion)
-                    formatted_children.append((int_proportion, child))
+                    formatted_children.append((int_proportion, formatted_child))
                 return True, formatted_children, ""
             else:
                 return True, [], ""
