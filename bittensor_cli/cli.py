@@ -133,7 +133,7 @@ class Options:
         None,
         "--chain",
         "--subtensor.chain_endpoint",
-        help="The subtensor chain endpoint to connect to. The format should be similar to: ws://127.0.0.1:9946.",
+        help="The subtensor chain endpoint URL to connect to. The format should be similar to: ws://127.0.0.1:9946.",
         show_default=False,
     )
     netuids = typer.Option(
@@ -980,11 +980,11 @@ class CLIManager:
             if self.config.get("wallet_name"):
                 wallet_name = self.config.get("wallet_name")
                 console.print(
-                    f"Using wallet name from config:[bold cyan] {wallet_name}"
+                    f"Using the wallet name from config:[bold cyan] {wallet_name}"
                 )
             else:
                 wallet_name = typer.prompt(
-                    typer.style("Enter wallet name", fg="blue"),
+                    typer.style("Enter the wallet name", fg="blue"),
                     default=defaults.wallet.name,
                 )
 
@@ -992,11 +992,11 @@ class CLIManager:
             if self.config.get("wallet_hotkey"):
                 wallet_hotkey = self.config.get("wallet_hotkey")
                 console.print(
-                    f"Using wallet hotkey from config:[bold cyan] {wallet_hotkey}"
+                    f"Using the wallet hotkey from config:[bold cyan] {wallet_hotkey}"
                 )
             else:
                 wallet_hotkey = typer.prompt(
-                    typer.style("Enter wallet hotkey", fg="blue"),
+                    typer.style("Enter the wallet hotkey", fg="blue"),
                     default=defaults.wallet.hotkey,
                 )
         if wallet_path:
@@ -1005,11 +1005,11 @@ class CLIManager:
 
         elif self.config.get("wallet_path"):
             wallet_path = self.config.get("wallet_path")
-            console.print(f"Using wallet path from config:[bold magenta] {wallet_path}")
+            console.print(f"Using the wallet path from config:[bold magenta] {wallet_path}")
 
         if WO.PATH in ask_for and not wallet_path:
             wallet_path = typer.prompt(
-                typer.style("Enter wallet path", fg="blue"),
+                typer.style("Enter the wallet path", fg="blue"),
                 default=defaults.wallet.path,
             )
         # Create the Wallet object
@@ -1026,7 +1026,7 @@ class CLIManager:
 
             if validate == WV.WALLET_AND_HOTKEY and not valid[1]:
                 utils.err_console.print(
-                    f"[red]Error: Wallet '{wallet.name}' exists but hotkey '{wallet.hotkey_str}' does not. \nPlease verify your wallet information: {wallet}[/red]"
+                    f"[red]Error: Wallet '{wallet.name}' exists but the hotkey '{wallet.hotkey_str}' does not. \nPlease verify your wallet information: {wallet}[/red]"
                 )
                 raise typer.Exit()
         return wallet
@@ -1038,25 +1038,18 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Displays all wallets and their respective hotkeys present in the user's Bittensor configuration directory.
+        Displays all the wallets and their corresponding hotkeys that are located in the wallet path specified in the config.
 
-        The command organizes the information in a tree structure, displaying each
-        wallet along with the `ss58` addresses for the coldkey public key and any hotkeys associated with it.
-        The output is presented in a hierarchical tree format, with each wallet as a root node,
-        and any associated hotkeys as child nodes. The ``ss58`` address is displayed for each
-        coldkey and hotkey that is not encrypted and exists on the device.
+        The output display shows each wallet and its associated `ss58` addresses for the coldkey public key and any hotkeys. The output is presented in a hierarchical tree format, with each wallet as a root node and any associated hotkeys as child nodes. The `ss58` address is displayed for each coldkey and hotkey that is not encrypted and exists on the device.
 
-        # Usage:
-
-        Upon invocation, the command scans the wallet directory and prints a list of all wallets, indicating whether the
+        Upon invocation, the command scans the wallet directory and prints a list of all the wallets, indicating whether the
         public keys are available (`?` denotes unavailable or encrypted keys).
 
-        # Example usage:
+        # EXAMPLE
 
         [green]$[/green] btcli wallet list --path ~/.bittensor
 
-        [italic]Note[/italic]: This command is read-only and does not modify the filesystem or the network state.
-        It is intended for use within the Bittensor CLI to provide a quick overview of the user's wallets.
+        [bold]NOTE[/bold]: This command is read-only and does not modify the filesystem or the blockchain state. It is intended for use with the Bittensor CLI to provide a quick overview of the user's wallets.
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
@@ -1070,29 +1063,29 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         all_wallets: bool = typer.Option(
-            False, "--all", "-a", help="View overview for all wallets"
+            False, "--all", "-a", help="See an overview for all the wallets"
         ),
         sort_by: Optional[str] = typer.Option(
             None,
-            help="Sort the hotkeys by the specified column title (e.g. name, uid, axon).",
+            help="Sort the hotkeys by the specified column title. For example: name, uid, axon.",
         ),
         sort_order: Optional[str] = typer.Option(
             None,
-            help="Sort the hotkeys in the specified ordering. (ascending/asc or descending/desc/reverse)",
+            help="Sort the hotkeys in the specified order (ascending/asc or descending/desc/reverse).",
         ),
         include_hotkeys: list[str] = typer.Option(
             [],
             "--include-hotkeys",
             "-in",
-            help="Specify the hotkeys to include by name or ss58 address. (e.g. `hk1 hk2 hk3`). "
-            "If left empty, all hotkeys not excluded will be included.",
+            help="Hotkeys to include. Specify by name or ss58 address. "
+            "If left empty, all hotkeys, except those in the '--exclude-hotkeys', will be included.",
         ),
         exclude_hotkeys: list[str] = typer.Option(
             [],
             "--exclude-hotkeys",
             "-ex",
-            help="Specify the hotkeys to exclude by name or ss58 address. (e.g. `hk1 hk2 hk3`). "
-            "If left empty, and no hotkeys included in --include-hotkeys, all hotkeys will be included.",
+            help="Hotkeys to exclude. Specify by name or ss58 address. "
+            "If left empty, all hotkeys, except those in the '--include-hotkeys', will be excluded.",
         ),
         netuids: list[int] = Options.netuids,
         network: str = Options.network,
@@ -1101,16 +1094,14 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Presents a detailed overview of the user's registered accounts on the Bittensor network.
+        Displays a detailed overview of the user's registered accounts on the Bittensor network.
 
-        This command compiles and displays comprehensive information about each neuron associated with the user's
-        wallets, including both hotkeys and coldkeys. It is especially useful for users managing multiple accounts or
-        seeking a summary of their network activities and stake distributions.
+        This command compiles and displays comprehensive information about each neuron associated with the user's wallets, including both hotkeys and coldkeys. It is especially useful for users managing multiple accounts or looking for a summary of their network activities and stake distributions.
 
-        # Usage:
+        USAGE
 
         The command offers various options to customize the output. Users can filter the displayed data by specific
-        netuids, sort by different criteria, and choose to include all wallets in the user's configuration directory.
+        netuid, sort by different criteria, and choose to include all the wallets in the user's wallet path location.
         The output is presented in a tabular format with the following columns:
 
         - COLDKEY: The SS58 address of the coldkey.
@@ -1121,7 +1112,7 @@ class CLIManager:
 
         - ACTIVE: Indicates if the neuron is active.
 
-        - STAKE(τ): Amount of stake in the neuron, in Tao.
+        - STAKE(τ): Amount of stake in the neuron, in TAO.
 
         - RANK: The rank of the neuron within the network.
 
@@ -1133,7 +1124,7 @@ class CLIManager:
 
         - DIVIDENDS: Dividends earned by the neuron.
 
-        - EMISSION(p): Emission received by the neuron, in Rho.
+        - EMISSION(p): Emission received by the neuron, expressed in rho.
 
         - VTRUST: Validator trust score of the neuron.
 
@@ -1146,7 +1137,7 @@ class CLIManager:
         - HOTKEY_SS58: Human-readable representation of the hotkey.
 
 
-        # Example usage:
+        # EXAMPLE:
 
         [green]$[/green] btcli wallet overview
 
@@ -1154,14 +1145,14 @@ class CLIManager:
 
         [green]$[/green] btcli wallet overview -in hk1 -in hk2 --sort-by stake
 
-        [italic]Note[/italic]: This command is read-only and does not modify the network state or account configurations.
-        It provides a quick and comprehensive view of the user's network presence, making it ideal for monitoring account status,
+        [bold]NOTE[/bold]: This command is read-only and does not modify the blockchain state or account configuration.
+        It provides a quick and comprehensive view of the user's network presence, making it useful for monitoring account status,
         stake distribution, and overall contribution to the Bittensor network.
         """
         self.verbosity_handler(quiet, verbose)
         if include_hotkeys and exclude_hotkeys:
             utils.err_console.print(
-                "[red]You have specified hotkeys for inclusion and exclusion. Pick only one or neither."
+                "[red]You have specified both the inclusion and exclusion options. Only one of these options is allowed currently."
             )
             raise typer.Exit()
 
@@ -1190,8 +1181,8 @@ class CLIManager:
             "--destination",
             "--dest",
             "-d",
-            prompt="Enter Destination Coldkey ss58 address",
-            help="Destination address of the wallet.",
+            prompt="Enter the destination coldkey ss58 address",
+            help="Destination address (ss58) of the wallet (coldkey).",
         ),
         amount: float = typer.Option(
             None,
@@ -1210,26 +1201,25 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Transfer TAO tokens from one account to another on the Bittensor network.
+        Send TAO tokens from one wallet to another wallet on the Bittensor network.
 
-        This command is used for transactions between different accounts, enabling users to send tokens to other
+        This command is used for transactions between different wallet accounts, enabling users to send tokens to other
         participants on the network. The command displays the user's current balance before prompting for the amount
-        to transfer, ensuring transparency and accuracy in the transaction.
+        to transfer (send), ensuring transparency and accuracy in the transaction.
 
-        # Usage:
+        USAGE
 
-        The command requires specifying the destination address (public key) and the amount of TAO to be transferred.
-        It checks for sufficient balance and prompts for confirmation before proceeding with the transaction.
+        The command requires that you specify the destination address (public key) and the amount of TAO you want transferred.
+        It checks if sufficient balance exists in your wallet and prompts for confirmation before proceeding with the transaction.
 
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli wallet transfer --dest 5Dp8... --amount 100
 
-        [italic]Note[/italic]: This command is crucial for executing token transfers within the Bittensor network.
-        Users should verify the destination address and amount before confirming the transaction to avoid errors or loss of funds.
+        [bold]NOTE[/bold]: This command is used for executing token transfers within the Bittensor network. Users should verify the destination address and the TAO amount before confirming the transaction to avoid errors or loss of funds.
         """
         if not is_valid_ss58_address(destination_ss58_address):
-            print_error("You have entered an incorrect ss58 address. Please try again")
+            print_error("You have entered an incorrect ss58 address. Please try again.")
             raise typer.Exit()
 
         self.verbosity_handler(quiet, verbose)
