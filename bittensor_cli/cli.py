@@ -106,7 +106,7 @@ class Options:
     )
     use_password = typer.Option(
         True,
-        help="Set to `True` to protect the generated bittensor key with a password.",
+        help="Set this to `True` to protect the generated Bittensor key with a password.",
         is_flag=True,
         flag_value=False,
     )
@@ -208,7 +208,7 @@ def verbosity_console_handler(verbosity_level: int = 1) -> None:
     :param verbosity_level: int corresponding to verbosity level of console output (0 is quiet, 1 is normal, 2 is verbose)
     """
     if verbosity_level not in range(3):
-        raise ValueError(f"Invalid verbosity level: {verbosity_level}")
+        raise ValueError(f"Invalid verbosity level: {verbosity_level}. Must be one of: 0 (quiet), 1 (normal), 2 (verbose)")
     if verbosity_level == 0:
         console.quiet = True
         err_console.quiet = True
@@ -231,7 +231,7 @@ def get_n_words(n_words: Optional[int]) -> int:
     while n_words not in [12, 15, 18, 21, 24]:
         n_words = int(
             Prompt.ask(
-                "Choose number of words",
+                "Choose the number of words",
                 choices=["12", "15", "18", "21", "24"],
                 default=12,
             )
@@ -247,7 +247,7 @@ def get_creation_data(
     prompts to user, and determines what they've supplied. Returns all elements in a tuple.
     """
     if not mnemonic and not seed and not json:
-        prompt_answer = Prompt.ask("Enter mnemonic, seed, or json file location")
+        prompt_answer = Prompt.ask("Enter the mnemonic, or the seed hex string, or the location of the JSON file.")
         if prompt_answer.startswith("0x"):
             seed = prompt_answer
         elif len(prompt_answer.split(" ")) > 1:
@@ -255,7 +255,7 @@ def get_creation_data(
         else:
             json = prompt_answer
     if json and not json_password:
-        json_password = Prompt.ask("Enter json backup password", password=True)
+        json_password = Prompt.ask("Enter the backup password for JSON file.", password=True)
     return mnemonic, seed, json, json_password
 
 
@@ -280,7 +280,7 @@ def config_selector(conf: dict, title: str):
             stdscr.box()
             stdscr.addstr(0, (width - len(title)) // 2, title, curses.A_BOLD)
 
-            instructions = "Use UP/DOWN to navigate, SPACE to toggle, ENTER to confirm."
+            instructions = "Use UP/DOWN keys to navigate, SPACE to toggle, ENTER to confirm."
             stdscr.addstr(
                 2, (width - len(instructions)) // 2, instructions, curses.A_DIM
             )
@@ -321,11 +321,11 @@ def version_callback(value: bool):
     if value:
         try:
             version = (
-                f"BTCLI Version: {__version__}/"
+                f"BTCLI version: {__version__}/"
                 f"{Repo(os.path.dirname(os.path.dirname(__file__))).active_branch.name}"
             )
         except GitError:
-            version = f"BTCLI Version: {__version__}"
+            version = f"BTCLI version: {__version__}"
         typer.echo(version)
         raise typer.Exit()
 
@@ -690,11 +690,11 @@ class CLIManager:
                 )
                 if self.config["chain"]:
                     console.print(
-                        f'Using chain: [dark_orange]{self.config["chain"]}[/dark_orange] from config'
+                        f'Using the chain: [dark_orange]{self.config["chain"]}[/dark_orange] from config'
                     )
                 else:
                     console.print(
-                        f"Using specified network [dark_orange]{self.config['network']}[/dark_orange] from config"
+                        f"Using the specified network [dark_orange]{self.config['network']}[/dark_orange] from config"
                     )
             else:
                 self.not_subtensor = SubtensorInterface(
@@ -715,7 +715,7 @@ class CLIManager:
                 else:
                     await cmd
             except ConnectionRefusedError:
-                err_console.print(f"Unable to connect to chain: {self.not_subtensor}")
+                err_console.print(f"Unable to connect to the chain: {self.not_subtensor}")
                 asyncio.create_task(cmd).cancel()
                 raise typer.Exit()
             except ConnectionClosed:
@@ -738,8 +738,7 @@ class CLIManager:
         ] = None,
     ):
         """
-        Method called before all others when using any CLI command. Gives version if that flag is set, otherwise
-        loads the config from the config file.
+        Command line interface (CLI) for Bittensor. Uses the values in the configuration file. These values can be overriden by passing them explicitly in the command line. 
         """
         # create config file if it does not exist
         if not os.path.exists(self.config_path):
@@ -781,11 +780,11 @@ class CLIManager:
         reset: bool = typer.Option(
             False,
             "--reset",
-            help="Restore the config for metagraph columns to its default setting (all enabled).",
+            help="Restore the display of metagraph columns to show all columns.",
         ),
     ):
         """
-        Interactive module to update the config for which columns to display in the metagraph output.
+        Command option to configure the display of the metagraph columns.
         """
         if reset:
             selections_ = defaults.config.dictionary["metagraph_cols"]
@@ -808,12 +807,12 @@ class CLIManager:
             None,
             "--cache/--no-cache",
             "--cache/--no_cache",
-            help="Disable caching of certain commands. This will disable the `--reuse-last` and `--html` flags on "
+            help="Disable caching of some commands. This will disable the `--reuse-last` and `--html` flags on "
             "commands such as `subnets metagraph`, `stake show` and `subnets list`.",
         ),
     ):
         """
-        Sets values in config file. To set metagraph configuration, use the command `btcli config metagraph`
+        Sets the values in the config file. To set the metagraph configuration, use the command `btcli config metagraph`
         """
         args = {
             "wallet_name": wallet_name,
@@ -826,7 +825,7 @@ class CLIManager:
         bools = ["use_cache"]
         if all(v is None for v in args.values()):
             arg = Prompt.ask(
-                "Which value would you like to update?", choices=list(args.keys())
+                "Which config setting would you like to update?", choices=list(args.keys())
             )
             if arg in bools:
                 nc = Confirm.ask(
@@ -843,14 +842,14 @@ class CLIManager:
 
         if (n := args["network"]) and n.startswith("ws"):
             if not Confirm.ask(
-                "[yellow]Warning[/yellow] your 'network' appears to be a chain endpoint. "
-                "Verify this is intentional"
+                "[yellow]Warning:[/yellow] Unexpected input. You provided a chain endpoint URL to the 'network'. "
+                "Are you sure?"
             ):
                 raise typer.Exit()
         if (c := args["chain"]) and not c.startswith("ws"):
             if not Confirm.ask(
-                "[yellow]Warning[/yellow] your 'chain' does not appear to be a chain endpoint. "
-                "Verify this is intentional"
+                "[yellow]Warning:[/yellow] Unexpected input. You provided a 'network' name to the chain endpoint. "
+                "Are you sure?"
             ):
                 raise typer.Exit()
         for arg, val in args.items():
@@ -870,22 +869,22 @@ class CLIManager:
         all_items: bool = typer.Option(False, "--all"),
     ):
         """
-        Setting the flags in this command will clear those items from your config file.
+        Clears the fields in the config file and sets them to 'None'.
+        
+        # EXAMPLE
 
-        # Usage
+            - To clear the 'chain' and 'network' fields:
 
-        - To clear the chain and network:
+                [green]$[/green] btcli config clear --chain --network
 
-        [green]$[/green] btcli config clear --chain --network
+            - To clear your config entirely:
 
-        - To clear your config entirely:
-
-        [green]$[/green] btcli config clear --all
+                [green]$[/green] btcli config clear --all
         """
         if all_items:
             if Confirm.ask("Do you want to clear all configurations?"):
                 self.config = {}
-                print("All configurations have been cleared.")
+                print("All configurations have been cleared and set to 'None'.")
             else:
                 print("Operation cancelled.")
                 return
@@ -908,7 +907,7 @@ class CLIManager:
                     ):
                         self.config[arg] = None
                         console.print(
-                            f"Cleared [dark_orange]{arg}[/dark_orange] config."
+                            f"Cleared [dark_orange]{arg}[/dark_orange] config and set to 'None'."
                         )
                     else:
                         console.print(
@@ -925,7 +924,7 @@ class CLIManager:
                         ):
                             self.config[arg] = None
                             console.print(
-                                f"Cleared [dark_orange]{arg}[/dark_orange] config."
+                                f"Cleared [dark_orange]{arg}[/dark_orange] config and set to 'None'."
                             )
                         else:
                             console.print(
@@ -940,7 +939,7 @@ class CLIManager:
 
     def get_config(self):
         """
-        Prints the current config file in a table
+        Prints the current config file in a table.
         """
         table = Table(
             Column("[bold white]Name", style="dark_orange"),
