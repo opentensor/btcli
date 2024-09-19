@@ -8,6 +8,10 @@ Verify commands:
 * btcli root register
 """
 
+import asyncio
+from .utils import call_add_proposal
+
+
 def test_senate(local_chain, wallet_setup):
     """
     Test the senate functionality in Bittensor
@@ -77,4 +81,5 @@ def test_senate(local_chain, wallet_setup):
     # Assert Bob is now part of the senate
     assert wallet_bob.hotkey.ss58_address in root_senate_after_reg.stdout
 
-    # success = asyncio.run(call_add_proposal(local_chain, wallet_bob))
+    success = asyncio.run(call_add_proposal(local_chain, wallet_bob))
+    assert success is True
