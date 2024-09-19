@@ -1457,7 +1457,12 @@ async def set_id(
 ):
     """Create a new or update existing identity on-chain."""
 
-    pgp_fingerprint_encoded = binascii.unhexlify(pgp_fingerprint.replace(" ", ""))
+    try:
+        pgp_fingerprint_encoded = binascii.unhexlify(pgp_fingerprint.replace(" ", ""))
+    except Exception as e:
+        print_error(f"The PGP is not in the correct format: {e}")
+        raise typer.Exit()
+
     id_dict = {
         "additional": [[]],
         "display": display_name,

@@ -965,10 +965,10 @@ async def show(
                     delegate_name = (
                         registered_delegate_info[dele.hotkey_ss58].display
                         if dele.hotkey_ss58 in registered_delegate_info
-                        else dele.hotkey_ss58
+                        else None  # Changed from dele.hotkey_ss58 to None
                     )
                     stakes[dele.hotkey_ss58] = {
-                        "name": delegate_name,
+                        "name": delegate_name if delegate_name else dele.hotkey_ss58,
                         "stake": nom[1],
                         "rate": dele.total_daily_return.tao
                         * (nom[1] / dele.total_stake.tao),
@@ -1022,21 +1022,25 @@ async def show(
             )
             total_balance += cast(Balance, acc["balance"]).tao
             for key, value in cast(dict, acc["accounts"]).items():
+                # Prepare the account display name
+                if value["name"] and value["name"] != key:
+                    account_display_name = f"[bright_cyan]({value['name']})[/bright_cyan]   [bright_magenta]{key}[/bright_magenta]"
+                else:
+                    account_display_name = f"[bright_cyan](~)[/bright_cyan]   [bright_magenta]{key}[/bright_magenta]"
                 rows.append(
                     [
                         "",
                         "",
-                        value["name"],
+                        account_display_name,
                         str(value["stake"]),
                         str(value["rate"]),
-                        key,
                     ]
                 )
                 db_rows.append(
                     [
                         acc["name"],
                         None,
-                        value["name"],
+                        account_display_name,
                         float(value["stake"]),
                         float(value["rate"]),
                         key,
@@ -1087,7 +1091,7 @@ async def show(
                 style="dark_sea_green",
                 ratio=1,
             ),
-            Column("[bold white]Account", style="bright_cyan", ratio=1),
+            Column("[bold white]Hotkey", ratio=7, no_wrap=True),
             Column(
                 "[bold white]Stake",
                 metadata["total_stake"],
@@ -1100,17 +1104,37 @@ async def show(
                 style="rgb(42,161,152)",
                 ratio=1,
             ),
-            Column(
-                "[bold white]Hotkey", style="bright_magenta", overflow="fold", ratio=2
-            ),
             title=f"[underline dark_orange]Stake Show[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}\n",
             show_footer=True,
             show_edge=False,
             expand=False,
             border_style="bright_black",
         )
-        for row in rows:
-            table.add_row(*row)
+        num_rows = len(rows)
+        for i, row in enumerate(rows):
+            # Check if this row is a coldkey row
+            is_coldkey_row = row[0] != ""
+            # Determine if we need to add a separator after this row
+            if i + 1 < num_rows:
+                next_row = rows[i + 1]
+                # Next row is a coldkey row
+                next_is_coldkey = next_row[0] != ""
+            else:
+                # This is the last row
+                next_is_coldkey = True
+
+            if is_coldkey_row:
+                # Add the coldkey row
+                table.add_row(*row)
+                # If there are no hotkeys (next row is a coldkey or end of rows), add separator
+                if i + 1 == num_rows or next_is_coldkey:
+                    table.add_row(end_section=True)
+            else:
+                # Add the hotkey row
+                table.add_row(*row)
+                # If next row is a coldkey or end of rows, add separator
+                if i + 1 == num_rows or next_is_coldkey:
+                    table.add_row(end_section=True)
         console.print(table)
     else:
         render_tree(
@@ -1141,11 +1165,6 @@ async def show(
                     "field": "RATE",
                     "formatter": "money",
                     "formatterParams": {"symbol": "τ", "precision": 5},
-                },
-                {
-                    "title": "Hotkey",
-                    "field": "HOTKEY",
-                    "width": 425,
                 },
             ],
             0,
