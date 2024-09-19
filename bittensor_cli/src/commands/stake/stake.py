@@ -1005,10 +1005,8 @@ async def show(
             ":satellite: Retrieving account data...", spinner="aesthetic"
         ):
             block_hash_ = await subtensor.substrate.get_chain_head()
-            registered_delegate_info, accounts = await asyncio.gather(
-                subtensor.get_delegate_identities(block_hash=block_hash_),
-                get_all_wallet_accounts(block_hash=block_hash_),
-            )
+            registered_delegate_info = await subtensor.get_delegate_identities(block_hash=block_hash_)
+            accounts = await get_all_wallet_accounts(block_hash=block_hash_)
 
         total_stake: float = 0.0
         total_balance: float = 0.0

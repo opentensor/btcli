@@ -90,7 +90,8 @@ class Options:
         help="Hotkey of the wallet",
     )
     mnemonic = typer.Option(
-        None, help="Mnemonic used to regenerate your key. For example: horse cart dog ..."
+        None,
+        help="Mnemonic used to regenerate your key. For example: horse cart dog ...",
     )
     seed = typer.Option(
         None, help="Seed hex string used to regenerate your key. For example: 0x1234..."
@@ -137,7 +138,10 @@ class Options:
         show_default=False,
     )
     netuids = typer.Option(
-        [], "--netuids", "-n", help="Set the netuid(s) to filter by. Separate multiple netuids with a space, for example: `0 1 2`."
+        [],
+        "--netuids",
+        "-n",
+        help="Set the netuid(s) to filter by. Separate multiple netuids with a space, for example: `0 1 2`.",
     )
     netuid = typer.Option(
         None,
@@ -166,7 +170,8 @@ class Options:
     )
     wait_for_finalization = typer.Option(
         True,
-        help="If `True`, waits until the transaction is finalized " "on the blockchain.",
+        help="If `True`, waits until the transaction is finalized "
+        "on the blockchain.",
     )
     prompt = typer.Option(
         True,
@@ -208,7 +213,9 @@ def verbosity_console_handler(verbosity_level: int = 1) -> None:
     :param verbosity_level: int corresponding to verbosity level of console output (0 is quiet, 1 is normal, 2 is verbose)
     """
     if verbosity_level not in range(3):
-        raise ValueError(f"Invalid verbosity level: {verbosity_level}. Must be one of: 0 (quiet), 1 (normal), 2 (verbose)")
+        raise ValueError(
+            f"Invalid verbosity level: {verbosity_level}. Must be one of: 0 (quiet), 1 (normal), 2 (verbose)"
+        )
     if verbosity_level == 0:
         console.quiet = True
         err_console.quiet = True
@@ -247,7 +254,9 @@ def get_creation_data(
     prompts to user, and determines what they've supplied. Returns all elements in a tuple.
     """
     if not mnemonic and not seed and not json:
-        prompt_answer = Prompt.ask("Enter the mnemonic, or the seed hex string, or the location of the JSON file.")
+        prompt_answer = Prompt.ask(
+            "Enter the mnemonic, or the seed hex string, or the location of the JSON file."
+        )
         if prompt_answer.startswith("0x"):
             seed = prompt_answer
         elif len(prompt_answer.split(" ")) > 1:
@@ -255,7 +264,9 @@ def get_creation_data(
         else:
             json = prompt_answer
     if json and not json_password:
-        json_password = Prompt.ask("Enter the backup password for JSON file.", password=True)
+        json_password = Prompt.ask(
+            "Enter the backup password for JSON file.", password=True
+        )
     return mnemonic, seed, json, json_password
 
 
@@ -280,7 +291,9 @@ def config_selector(conf: dict, title: str):
             stdscr.box()
             stdscr.addstr(0, (width - len(title)) // 2, title, curses.A_BOLD)
 
-            instructions = "Use UP/DOWN keys to navigate, SPACE to toggle, ENTER to confirm."
+            instructions = (
+                "Use UP/DOWN keys to navigate, SPACE to toggle, ENTER to confirm."
+            )
             stdscr.addstr(
                 2, (width - len(instructions)) // 2, instructions, curses.A_DIM
             )
@@ -715,7 +728,9 @@ class CLIManager:
                 else:
                     await cmd
             except ConnectionRefusedError:
-                err_console.print(f"Unable to connect to the chain: {self.not_subtensor}")
+                err_console.print(
+                    f"Unable to connect to the chain: {self.not_subtensor}"
+                )
                 asyncio.create_task(cmd).cancel()
                 raise typer.Exit()
             except ConnectionClosed:
@@ -738,7 +753,7 @@ class CLIManager:
         ] = None,
     ):
         """
-        Command line interface (CLI) for Bittensor. Uses the values in the configuration file. These values can be overriden by passing them explicitly in the command line. 
+        Command line interface (CLI) for Bittensor. Uses the values in the configuration file. These values can be overriden by passing them explicitly in the command line.
         """
         # create config file if it does not exist
         if not os.path.exists(self.config_path):
@@ -825,7 +840,8 @@ class CLIManager:
         bools = ["use_cache"]
         if all(v is None for v in args.values()):
             arg = Prompt.ask(
-                "Which config setting would you like to update?", choices=list(args.keys())
+                "Which config setting would you like to update?",
+                choices=list(args.keys()),
             )
             if arg in bools:
                 nc = Confirm.ask(
@@ -870,7 +886,7 @@ class CLIManager:
     ):
         """
         Clears the fields in the config file and sets them to 'None'.
-        
+
         # EXAMPLE
 
             - To clear the 'chain' and 'network' fields:
@@ -1005,7 +1021,9 @@ class CLIManager:
 
         elif self.config.get("wallet_path"):
             wallet_path = self.config.get("wallet_path")
-            console.print(f"Using the wallet path from config:[bold magenta] {wallet_path}")
+            console.print(
+                f"Using the wallet path from config:[bold magenta] {wallet_path}"
+            )
 
         if WO.PATH in ask_for and not wallet_path:
             wallet_path = typer.prompt(
