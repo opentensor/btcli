@@ -1152,7 +1152,7 @@ class CLIManager:
         self.verbosity_handler(quiet, verbose)
         if include_hotkeys and exclude_hotkeys:
             utils.err_console.print(
-                "[red]You have specified the same hotkeys for both inclusion and exclusion. Pick only one or neither."
+                "[red]You have specified both the inclusion and exclusion options. Only one of these options is allowed currently."
             )
             raise typer.Exit()
 
