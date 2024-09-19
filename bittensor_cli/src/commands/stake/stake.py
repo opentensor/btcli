@@ -1040,7 +1040,7 @@ async def show(
                     [
                         acc["name"],
                         None,
-                        account_display_name,
+                        value["name"],
                         float(value["stake"]),
                         float(value["rate"]),
                         key,
