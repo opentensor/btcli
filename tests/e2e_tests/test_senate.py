@@ -83,3 +83,30 @@ def test_senate(local_chain, wallet_setup):
 
     success = asyncio.run(call_add_proposal(local_chain, wallet_bob))
     assert success is True
+
+    # Fetch proposals
+    proposals = exec_command_bob(
+        command="root",
+        sub_command="proposals",
+        extra_args=[
+            "--chain",
+            "ws://127.0.0.1:9945",
+        ]
+    )
+
+    proposals_output = proposals.stdout.splitlines()[8].split()
+
+    # Assert the hash is of correct length
+    assert len(proposals_output[0]) == 68
+    
+    # 0 Ayes for the proposal
+    assert proposals_output[2] == '0'
+
+    # 0 Nayes for the proposal
+    assert proposals_output[3] == '0'
+
+    # Assert initial threshold is 3
+    assert proposals_output[1] == '3'
+    
+
+    
