@@ -1270,13 +1270,19 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        Swap hotkeys for a neuron on the network.
+        Swap hotkeys of a given wallet on the blockchain. 
 
-        # Usage:
+        USAGE
 
-        The command is used to swap the hotkey of a wallet for another hotkey on that same wallet.
+        The command is used to swap the hotkey of a wallet for another hotkey on that same wallet. 
+        
+        IMPORTANT
 
-        # Example usage:
+        - Make sure that your original key pair (coldkeyA, hotkeyA) is already registered.
+        - Make sure that you first create the new hotkeyB before using it in this command.
+        - Finally, note that this command requires a fee of 1 TAO for recycling and this fee is taken from your wallet (coldkeyA).
+
+        EXAMPLE
 
         [green]$[/green] btcli wallet swap_hotkey destination_hotkey_name --wallet-name your_wallet_name --wallet-hotkey original_hotkey
         """
@@ -1290,7 +1296,7 @@ class CLIManager:
         )
         if not destination_hotkey_name:
             destination_hotkey_name = typer.prompt(
-                "Destination hotkey name (within same wallet)"
+                "Enter the destination hotkey name (within same wallet)"
             )
 
         new_wallet = self.wallet_ask(
