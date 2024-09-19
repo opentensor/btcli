@@ -1278,7 +1278,7 @@ class CLIManager:
 
         # Example usage:
 
-        [green]$[/green] btcli wallet swap_hotkey new_hotkey --wallet-name your_wallet_name --wallet-hotkey original_hotkey
+        [green]$[/green] btcli wallet swap_hotkey destination_hotkey_name --wallet-name your_wallet_name --wallet-hotkey original_hotkey
         """
         self.verbosity_handler(quiet, verbose)
         original_wallet = self.wallet_ask(
