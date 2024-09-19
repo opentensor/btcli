@@ -1945,7 +1945,7 @@ class CLIManager:
             prompt=True,
         ),
         email: str = typer.Option(
-            "", "--email", help="The email address for the identity.", prompt=True
+            "", help="The email address for the identity.", prompt=True
         ),
         pgp_fingerprint: str = typer.Option(
             "",
