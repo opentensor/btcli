@@ -28,6 +28,7 @@ from bittensor_cli.src.bittensor.utils import (
     update_metadata_table,
     render_tree,
     u16_normalized_float,
+    validate_coldkey_presence,
 )
 
 if TYPE_CHECKING:
@@ -993,6 +994,10 @@ async def show(
         cast("SubtensorInterface", subtensor)
         if all_wallets:
             wallets = get_coldkey_wallets_for_path(wallet.path)
+            valid_wallets, invalid_wallets = validate_coldkey_presence(wallets)
+            wallets = valid_wallets
+            for invalid_wallet in invalid_wallets:
+                print_error(f"No coldkeypub found for wallet: ({invalid_wallet.name})")
         else:
             wallets = [wallet]
 

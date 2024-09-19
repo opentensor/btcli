@@ -2090,10 +2090,10 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_name: str = Options.wallet_name,
         wallet_hotkey: str = Options.wallet_hotkey,
-        use_hotkey: bool = typer.Option(
-            False,
-            "--use-hotkey",
-            help="If specified, the message will be signed by the hotkey",
+        use_hotkey: Optional[bool] = typer.Option(
+            None,
+            "--use-hotkey/--no-use-hotkey",
+            help="If specified, the message will be signed by the hotkey. If not specified, the user will be prompted.",
         ),
         message: str = typer.Option("", help="The message to encode and sign"),
         quiet: bool = Options.quiet,
@@ -2118,9 +2118,10 @@ class CLIManager:
         over a coldkey or a hotkey.
         """
         self.verbosity_handler(quiet, verbose)
-        if not use_hotkey:
-            use_hotkey = typer.confirm(
-                "Would you like to sign the transaction using the hotkey? (The default is to sign with the coldkey.)",
+        if use_hotkey is None:
+            use_hotkey = Confirm.ask(
+                "Would you like to sign the transaction using your [red]hotkey[/red]?"
+                "\n[Type [red]y[/red] for [red]hotkey[/red] and [blue]n[/blue] for [blue]coldkey[/blue]] (default is [blue]coldkey[/blue])",
                 default=False,
             )
 
@@ -3039,9 +3040,20 @@ class CLIManager:
             subtensor = self.initialize_chain(network, chain)
         else:
             subtensor = None
-        wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
-        )
+
+        if all_wallets:
+            wallet = self.wallet_ask(
+                wallet_name,
+                wallet_path,
+                wallet_hotkey,
+                ask_for=[WO.PATH],
+                validate=WV.NONE,
+            )
+        else:
+            wallet = self.wallet_ask(
+                wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+            )
+
         return self._run_command(
             stake.show(
                 wallet,
@@ -3159,9 +3171,12 @@ class CLIManager:
             and not hotkey_ss58_address
         ):
             hotkey_or_ss58 = Prompt.ask(
-                "Do you wish to stake to a ss58 address or a wallet hotkey",
+                "Do you want to stake to a specific [blue]ss58 address[/blue] or a registered [red]wallet hotkey[/red]?\n"
+                "[Enter '[blue]ss58[/blue]' for an address or '[red]hotkey[/red]' for a wallet hotkey] (default is '[blue]ss58[/blue]')",
                 choices=["ss58", "hotkey"],
                 default="ss58",
+                show_choices=False,
+                show_default=False,
             )
             if hotkey_or_ss58 == "ss58":
                 hotkey_ss58_address = typer.prompt("Enter the ss58_address to stake to")
@@ -3312,9 +3327,12 @@ class CLIManager:
             and not include_hotkeys
         ):
             hotkey_or_ss58 = Prompt.ask(
-                "Do you wish to unstake from a ss58 address or a wallet hotkey",
+                "Do you want to unstake from a specific [blue]ss58 address[/blue] or a registered [red]wallet hotkey[/red]?\n"
+                "[Enter '[blue]ss58[/blue]' for an address or '[red]hotkey[/red]' for a wallet hotkey] (default is '[blue]ss58[/blue]')",
                 choices=["ss58", "hotkey"],
                 default="ss58",
+                show_choices=False,
+                show_default=False,
             )
             if hotkey_or_ss58 == "ss58":
                 hotkey_ss58_address = typer.prompt(

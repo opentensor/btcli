@@ -250,6 +250,28 @@ def get_all_wallets_for_path(path: str) -> list[Wallet]:
     return all_wallets
 
 
+def validate_coldkey_presence(
+    wallets: list[Wallet],
+) -> tuple[list[Wallet], list[Wallet]]:
+    """
+    Validates the presence of coldkeypub.txt for each wallet.
+
+    Returns:
+        tuple[list[Wallet], list[Wallet]]: A tuple containing two lists:
+            - The first list contains wallets with the required coldkey.
+            - The second list contains wallets without the required coldkey.
+    """
+    valid_wallets = []
+    invalid_wallets = []
+
+    for wallet in wallets:
+        if not os.path.exists(wallet.coldkeypub_file.path):
+            invalid_wallets.append(wallet)
+        else:
+            valid_wallets.append(wallet)
+    return valid_wallets, invalid_wallets
+
+
 def is_valid_wallet(wallet: Wallet) -> tuple[bool, bool]:
     """
     Verifies that the wallet with specified parameters.

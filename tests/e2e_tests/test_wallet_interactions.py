@@ -14,6 +14,11 @@ Verify commands:
 * btcli subnets list
 * btcli w inspect
 * btcli w overview
+* btcli w balance
+* btcli w transfer
+* btcli w set-identity
+* btcli w get-identity
+* btcli w sign
 """
 
 
@@ -171,14 +176,6 @@ def test_wallet_overview_inspect(local_chain, wallet_setup):
         ],  # (netuid, hotkey-display, stake, check_emissions)
     )
     print("Passed wallet overview, inspect command ✅")
-
-
-"""
-Verify commands:
-
-* btcli w balance
-* btcli w transfer
-"""
 
 
 def test_wallet_transfer(local_chain, wallet_setup):
@@ -352,4 +349,160 @@ def test_wallet_transfer(local_chain, wallet_setup):
 
     # This transfer is expected to fail due to low balance
     assert "❌ Not enough balance" in result.stdout
-    print("✅Passed wallet transfer, balance command ")
+    print("✅Passed wallet transfer, balance command")
+
+
+def test_wallet_identities(local_chain, wallet_setup):
+    """
+    Test setting ids & fetching ids in the network, and signing using wallets.
+
+    Steps:
+        1. Create a wallet for Alice
+        2. Set the network identity for Alice using pre-defined values
+        3. Assert id was set successfully and all values are correct
+        4. Fetch the id using hotkey and assert all values are correct
+        5. Sign a message using wallet's hotkey
+        5. Sign a message using wallet's coldkey
+
+    Raises:
+        AssertionError: If any of the checks or verifications fail
+    """
+    print("Testing wallet set-id, get-id, sign command 🧪")
+
+    wallet_path_alice = "//Alice"
+
+    # Create wallet for Alice
+    keypair_alice, wallet_alice, wallet_path_alice, exec_command_alice = wallet_setup(
+        wallet_path_alice
+    )
+
+    # Define values for Alice's identity
+    alice_identity = {
+        "display_name": "Alice",
+        "legal_name": "Alice OTF",
+        "web_url": "https://bittensor.com/",
+        "riot": "MyRiotID",
+        "email": "alice@opentensor.dev",
+        "pgp": "D2A1 F4A3 B1D3 5A74 63F0 678E 35E7 041A 22C1 A4FE",
+        "image_url": "https://bittensor.com/img/dark-Bittensor.svg",
+        "info": "I am a tester for OTF",
+        "twitter": "https://x.com/opentensor",
+    }
+
+    # Execute btcli set-identity command
+    set_id = exec_command_alice(
+        command="wallet",
+        sub_command="set-identity",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--network",
+            "local",
+            "--display-name",
+            alice_identity["display_name"],
+            "--legal-name",
+            alice_identity["legal_name"],
+            "--web-url",
+            alice_identity["web_url"],
+            "--riot",
+            alice_identity["riot"],
+            "--email",
+            alice_identity["email"],
+            "--pgp",
+            alice_identity["pgp"],
+            "--image-url",
+            alice_identity["image_url"],
+            "--info",
+            alice_identity["info"],
+            "-x",
+            alice_identity["twitter"],
+            "--validator-id",
+            "--no-prompt",
+        ],
+    )
+
+    # Assert all correct values are being set
+    assert "✅ Success!" in set_id.stdout
+    set_id_output = set_id.stdout.splitlines()
+
+    assert alice_identity["display_name"] in set_id_output[7]
+    assert alice_identity["legal_name"] in set_id_output[8]
+    assert alice_identity["web_url"] in set_id_output[9]
+    assert alice_identity["riot"] in set_id_output[10]
+    assert alice_identity["email"] in set_id_output[11]
+    assert alice_identity["pgp"] in set_id_output[12]
+    assert alice_identity["image_url"] in set_id_output[13]
+    assert alice_identity["twitter"] in set_id_output[14]
+
+    # TODO: Currently coldkey + hotkey are the same for test wallets.
+    # Maybe we can add a new key to help in distinguishing
+    assert wallet_alice.hotkey.ss58_address in set_id_output[5]
+
+    # Execute btcli get-identity using hotkey
+    get_identity = exec_command_alice(
+        command="wallet",
+        sub_command="get-identity",
+        extra_args=[
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--key",
+            wallet_alice.hotkey.ss58_address,
+        ],
+    )
+
+    # Assert all correct values are being fetched for the ID we just set
+    get_identity_output = get_identity.stdout.splitlines()
+    assert alice_identity["display_name"] in get_identity_output[6]
+    assert alice_identity["legal_name"] in get_identity_output[7]
+    assert alice_identity["web_url"] in get_identity_output[8]
+    assert alice_identity["riot"] in get_identity_output[9]
+    assert alice_identity["email"] in get_identity_output[10]
+    assert alice_identity["pgp"] in get_identity_output[11]
+    assert alice_identity["image_url"] in get_identity_output[12]
+    assert alice_identity["twitter"] in get_identity_output[13]
+
+    # Sign a message using hotkey
+    sign_using_hotkey = exec_command_alice(
+        command="wallet",
+        sub_command="sign",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--use-hotkey",
+            "--message",
+            "Bittensor is evolving to be the world's greatest decentralized AI network",
+        ],
+    )
+
+    assert "Message signed successfully" in sign_using_hotkey.stdout
+
+    # Sign a message using coldkey
+    sign_using_coldkey = exec_command_alice(
+        command="wallet",
+        sub_command="sign",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--use-hotkey",
+            "--message",
+            "Bittensor is evolving to be the world's greatest decentralized AI network",
+        ],
+    )
+
+    assert "Message signed successfully" in sign_using_coldkey.stdout
+
+    print("✅Passed wallet set-id, get-id, sign command")
