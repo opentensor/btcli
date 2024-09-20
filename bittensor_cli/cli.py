@@ -138,7 +138,7 @@ class Options:
         show_default=False,
     )
     netuids = typer.Option(
-        [],
+        None,
         "--netuids",
         "-n",
         help="Set the netuid(s) to filter by. Separate multiple netuids with a space, for example: `0 1 2`.",
@@ -149,7 +149,7 @@ class Options:
         prompt=True,
     )
     weights = typer.Option(
-        [],
+        None,
         "--weights",
         "-w",
         help="Weights for the specified UIDs, e.g. `-w 0.2 -w 0.4 -w 0.1 ...` Must correspond to the order of the UIDs.",
@@ -205,6 +205,14 @@ def list_prompt(init_var: list, list_type: type, help_text: str) -> list:
         prompt = Prompt.ask(help_text)
         init_var = [list_type(x) for x in re.split(r"[ ,]+", prompt) if x]
     return init_var
+
+
+def parse_to_list(raw_list: str, list_type: type, error_message: str) -> list:
+    try:
+        # Split the string by commas and convert each part to according to type
+        return [list_type(uid.strip()) for uid in raw_list.split(",") if uid.strip()]
+    except ValueError:
+        raise typer.BadParameter(error_message)
 
 
 def verbosity_console_handler(verbosity_level: int = 1) -> None:
@@ -1105,7 +1113,7 @@ class CLIManager:
             help="Hotkeys to exclude. Specify by name or ss58 address. "
             "If left empty, all hotkeys, except those in the '--include-hotkeys', will be excluded.",
         ),
-        netuids: list[int] = Options.netuids,
+        netuids: str = Options.netuids,
         network: str = Options.network,
         chain: str = Options.chain,
         quiet: bool = Options.quiet,
@@ -1173,6 +1181,13 @@ class CLIManager:
                 "[red]You have specified both the inclusion and exclusion options. Only one of these options is allowed currently."
             )
             raise typer.Exit()
+
+        if netuids:
+            netuids = parse_to_list(
+                netuids,
+                int,
+                "Netuids must be a comma-separated list of ints, e.g., `--netuids 1,2,3,4`.",
+            )
 
         ask_for = [WO.NAME] if not all_wallets else [WO.PATH]
         validate = WV.WALLET if not all_wallets else WV.NONE
@@ -1274,8 +1289,8 @@ class CLIManager:
 
         USAGE
 
-        The command is used to swap the hotkey of a wallet for another hotkey on that same wallet. 
-        
+        The command is used to swap the hotkey of a wallet for another hotkey on that same wallet.
+
         IMPORTANT
 
         - Make sure that your original key pair (coldkeyA, hotkeyA) is already registered.
@@ -1325,7 +1340,7 @@ class CLIManager:
         wallet_hotkey: str = Options.wallet_hotkey,
         network: str = Options.network,
         chain: str = Options.chain,
-        netuids: list[int] = Options.netuids,
+        netuids: str = Options.netuids,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -1361,8 +1376,15 @@ class CLIManager:
         [bold]Note[/bold]: The `inspect` command is for displaying information only and does not perform any transactions or state changes on the blockchain. It is intended to be used with Bittensor CLI and not as a standalone function in user code.
         """
         self.verbosity_handler(quiet, verbose)
-        # if all-wallets is entered, ask for path
 
+        if netuids:
+            netuids = parse_to_list(
+                netuids,
+                int,
+                "Netuids must be a comma-separated list of ints, e.g., `--netuids 1,2,3,4`.",
+            )
+
+        # if all-wallets is entered, ask for path
         ask_for = [WO.NAME] if not all_wallets else [WO.PATH]
         validate = WV.WALLET if not all_wallets else WV.NONE
         wallet = self.wallet_ask(
@@ -1441,7 +1463,7 @@ class CLIManager:
         USAGE
 
         The command uses the proof-of-work (POW) mechanism to validate the user's effort and rewards them with test TAO tokens. It is
-        typically used in local blockchain environments where transactions do not use real TAO tokens. 
+        typically used in local blockchain environments where transactions do not use real TAO tokens.
 
         EXAMPLE
 
@@ -1498,7 +1520,7 @@ class CLIManager:
         [green]$[/green] btcli wallet regen-coldkey --mnemonic "word1 word2 ... word12"
 
 
-        [bold]Note[/bold]: This command is critical for users who need to regenerate their coldkey either for recovery or for security reasons. 
+        [bold]Note[/bold]: This command is critical for users who need to regenerate their coldkey either for recovery or for security reasons.
         """
         self.verbosity_handler(quiet, verbose)
 
@@ -1541,11 +1563,11 @@ class CLIManager:
         """
         Regenerates the public part of a coldkey (coldkeypub.txt) for a wallet.
 
-        Use this command when you need to recreate your coldkeypub.txt from either the public key or SS58 address from the old coldkeypub.txt. 
+        Use this command when you need to recreate your coldkeypub.txt from either the public key or SS58 address from the old coldkeypub.txt.
 
         USAGE
 
-        The command requires either a public key in hexadecimal format or an ``SS58`` address from the old coldkeypub.txt to regenerate the coldkeypub. 
+        The command requires either a public key in hexadecimal format or an ``SS58`` address from the old coldkeypub.txt to regenerate the coldkeypub.
 
         EXAMPLE
 
@@ -1774,7 +1796,8 @@ class CLIManager:
 
         if not wallet_name:
             wallet_name = Prompt.ask(
-                "Enter the name of the new wallet (coldkey)", default=defaults.wallet.name
+                "Enter the name of the new wallet (coldkey)",
+                default=defaults.wallet.name,
             )
         if not wallet_hotkey:
             wallet_hotkey = Prompt.ask(
@@ -1959,8 +1982,8 @@ class CLIManager:
 
         The command prompts the user for the identity attributes and validates the input size for each attribute. It provides an option to update an existing validator hotkey identity. If the user consents to the transaction cost, the identity is updated on the blockchain.
 
-        Each field has a maximum size of 64 bytes. The PGP fingerprint field is an exception and has a maximum size of 20 bytes. The user is prompted to enter the PGP fingerprint as a hex string, which is then converted to bytes. The user is also prompted to enter the coldkey or hotkey ``ss58`` address for the identity to be updated. 
-        
+        Each field has a maximum size of 64 bytes. The PGP fingerprint field is an exception and has a maximum size of 20 bytes. The user is prompted to enter the PGP fingerprint as a hex string, which is then converted to bytes. The user is also prompted to enter the coldkey or hotkey ``ss58`` address for the identity to be updated.
+
         If the user does not have a hotkey, the coldkey address is used by default. If setting a validator identity, the hotkey will be used by default. If the user is setting an identity for a subnet, the coldkey will be used by default.
 
         EXAMPLE
@@ -2119,8 +2142,8 @@ class CLIManager:
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
-        netuids: list[int] = Options.netuids,
-        weights: list[float] = Options.weights,
+        netuids: str = Options.netuids,
+        weights: str = Options.weights,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -2145,8 +2168,32 @@ class CLIManager:
         distribution.
         """
         self.verbosity_handler(quiet, verbose)
-        netuids = list_prompt(netuids, int, "Enter netuids (e.g: 1, 4, 6)")
-        weights = list_prompt(weights, float, "Enter weights (e.g. 0.02, 0.03, 0.01)")
+
+        if netuids:
+            netuids = parse_to_list(
+                netuids,
+                int,
+                "Netuids must be a comma-separated list of ints, e.g., `--netuid 1,2,3,4`.",
+            )
+        else:
+            netuids = list_prompt(netuids, int, "Enter netuids (e.g: 1, 4, 6)")
+
+        if weights:
+            weights = parse_to_list(
+                weights,
+                float,
+                "Weights must be a comma-separated list of floats, e.g., `--weights 0.3,0.4,0.3`.",
+            )
+        else:
+            weights = list_prompt(
+                weights, float, "Enter weights (e.g. 0.02, 0.03, 0.01)"
+            )
+
+        if len(netuids) != len(weights):
+            raise typer.BadParameter(
+                "The number of netuids and weights must be the same."
+            )
+
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -4224,13 +4271,13 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         netuid: int = Options.netuid,
-        uids: list[int] = typer.Option(
-            [],
+        uids: str = typer.Option(
+            None,
             "--uids",
             "-u",
-            help="Corresponding UIDs for the specified netuid, e.g. -u 1 -u 2 -u 3 ...",
+            help="Corresponding UIDs for the specified netuid, e.g. -u 1,2,3 ...",
         ),
-        weights: list[float] = Options.weights,
+        weights: str = Options.weights,
         salt: list[int] = typer.Option(
             [],
             "--salt",
@@ -4256,10 +4303,30 @@ class CLIManager:
         [italic]Note[/italic]: This command is used to reveal weights for a specific subnet and requires the user to have the necessary permissions.
         """
         self.verbosity_handler(quiet, verbose)
-        uids = list_prompt(uids, int, "Corresponding UIDs for the specified netuid")
-        weights = list_prompt(
-            weights, float, "Corresponding weights for the specified UIDs"
-        )
+        if uids:
+            uids = parse_to_list(
+                uids,
+                int,
+                "Uids must be a comma-separated list of ints, e.g., `--uids 1,2,3,4`.",
+            )
+        else:
+            uids = list_prompt(
+                uids, int, "Corresponding UIDs for the specified netuid (eg: 1,2,3)"
+            )
+
+        if weights:
+            weights = parse_to_list(
+                weights,
+                float,
+                "Weights must be a comma-separated list of floats, e.g., `--weights 0.3,0.4,0.3`.",
+            )
+        else:
+            weights = list_prompt(
+                weights,
+                float,
+                "Corresponding weights for the specified UIDs (eg: 0.2,0.3,0.4)",
+            )
+
         if len(uids) != len(weights):
             err_console.print(
                 "The number of UIDs you specify must match up with the number of weights you specify"
@@ -4294,15 +4361,15 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         netuid: int = Options.netuid,
-        uids: list[int] = typer.Option(
-            [],
+        uids: str = typer.Option(
+            None,
             "--uids",
             "-u",
-            help="Corresponding UIDs for the specified netuid, e.g. -u 1 -u 2 -u 3 ...",
+            help="Corresponding UIDs for the specified netuid, e.g. -u 1,2,3 ...",
         ),
-        weights: list[float] = Options.weights,
-        salt: list[int] = typer.Option(
-            [],
+        weights: str = Options.weights,
+        salt: str = typer.Option(
+            None,
             "--salt",
             "-s",
             help="Corresponding salt for the hash function, e.g. -s 163 -s 241 -s 217 ...",
@@ -4322,21 +4389,43 @@ class CLIManager:
 
         ### Example usage:
 
-        [green]$[/green] btcli wt commit --netuid 1 --uids 1,2,3,4 --w 0.1 -w 0.2 -w 0.3 -w 0.4
+        [green]$[/green] btcli wt commit --netuid 1 --uids 1,2,3,4 --w 0.1,0.2,0.3
 
         [italic]Note[/italic]: This command is used to commit weights for a specific subnet and requires the user to have the necessary
         permissions.
         """
         self.verbosity_handler(quiet, verbose)
-        uids = list_prompt(uids, int, "Corresponding UIDs for the specified netuid")
-        weights = list_prompt(
-            weights, float, "Corresponding weights for the specified UIDs"
-        )
+
+        if uids:
+            uids = parse_to_list(
+                uids,
+                int,
+                "Uids must be a comma-separated list of ints, e.g., `--uids 1,2,3,4`.",
+            )
+        else:
+            uids = list_prompt(
+                uids, int, "Corresponding UIDs for the specified netuid (eg: 1,2,3)"
+            )
+
+        if weights:
+            weights = parse_to_list(
+                weights,
+                float,
+                "Weights must be a comma-separated list of floats, e.g., `--weights 0.3,0.4,0.3`.",
+            )
+        else:
+            weights = list_prompt(
+                weights,
+                float,
+                "Corresponding weights for the specified UIDs (eg: 0.2,0.3,0.4)",
+            )
+
         if len(uids) != len(weights):
             err_console.print(
                 "The number of UIDs you specify must match up with the number of weights you specify"
             )
             raise typer.Exit()
+
         salt = list_prompt(salt, int, "Corresponding salt for the hash function")
         wallet = self.wallet_ask(
             wallet_name,
