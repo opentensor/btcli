@@ -96,8 +96,9 @@ def test_senate(local_chain, wallet_setup):
 
     proposals_output = proposals.stdout.splitlines()[8].split()
 
-    # Assert the hash is of correct length
-    assert len(proposals_output[0]) == 68
+    # Assert the hash is of correct format
+    assert len(proposals_output[0]) == 66
+    assert proposals_output[0][0:2] == "0x"
     
     # 0 Ayes for the proposal
     assert proposals_output[2] == '0'
@@ -107,6 +108,36 @@ def test_senate(local_chain, wallet_setup):
 
     # Assert initial threshold is 3
     assert proposals_output[1] == '3'
-    
 
+    vote_aye = exec_command_bob(
+        command="root",
+        sub_command="senate-vote",
+        extra_args = [
+            "--wallet-path",
+            wallet_path_bob,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_bob.name,
+            "--hotkey",
+            wallet_bob.hotkey_str,
+            "--proposal-hash",
+            proposals_output[0],
+            "--vote-aye",
+            "--no-prompt"
+        ]
+    )
+
+    assert "✅ Vote cast" in vote_aye.stdout
     
+    # Fetch proposals
+    proposals = exec_command_bob(
+        command="root",
+        sub_command="proposals",
+        extra_args=[
+            "--chain",
+            "ws://127.0.0.1:9945",
+        ]
+    )
+
+    proposals_output = proposals.stdout.splitlines()[8].split()

@@ -1274,8 +1274,8 @@ class CLIManager:
 
         USAGE
 
-        The command is used to swap the hotkey of a wallet for another hotkey on that same wallet. 
-        
+        The command is used to swap the hotkey of a wallet for another hotkey on that same wallet.
+
         IMPORTANT
 
         - Make sure that your original key pair (coldkeyA, hotkeyA) is already registered.
@@ -1441,7 +1441,7 @@ class CLIManager:
         USAGE
 
         The command uses the proof-of-work (POW) mechanism to validate the user's effort and rewards them with test TAO tokens. It is
-        typically used in local blockchain environments where transactions do not use real TAO tokens. 
+        typically used in local blockchain environments where transactions do not use real TAO tokens.
 
         EXAMPLE
 
@@ -1498,7 +1498,7 @@ class CLIManager:
         [green]$[/green] btcli wallet regen-coldkey --mnemonic "word1 word2 ... word12"
 
 
-        [bold]Note[/bold]: This command is critical for users who need to regenerate their coldkey either for recovery or for security reasons. 
+        [bold]Note[/bold]: This command is critical for users who need to regenerate their coldkey either for recovery or for security reasons.
         """
         self.verbosity_handler(quiet, verbose)
 
@@ -1541,11 +1541,11 @@ class CLIManager:
         """
         Regenerates the public part of a coldkey (coldkeypub.txt) for a wallet.
 
-        Use this command when you need to recreate your coldkeypub.txt from either the public key or SS58 address from the old coldkeypub.txt. 
+        Use this command when you need to recreate your coldkeypub.txt from either the public key or SS58 address from the old coldkeypub.txt.
 
         USAGE
 
-        The command requires either a public key in hexadecimal format or an ``SS58`` address from the old coldkeypub.txt to regenerate the coldkeypub. 
+        The command requires either a public key in hexadecimal format or an ``SS58`` address from the old coldkeypub.txt to regenerate the coldkeypub.
 
         EXAMPLE
 
@@ -2384,6 +2384,12 @@ class CLIManager:
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        vote: bool = typer.Option(
+            None,
+            "--vote-aye/--vote-nay",
+            prompt="Enter y to vote Aye, or enter n to vote Nay",
+            help="The vote casted on the proposal",
+        ),
     ):
         """
         Cast a vote on an active proposal in Bittensor's governance protocol.
@@ -2412,7 +2418,7 @@ class CLIManager:
         )
         return self._run_command(
             root.senate_vote(
-                wallet, self.initialize_chain(network, chain), proposal, prompt
+                wallet, self.initialize_chain(network, chain), proposal, vote, prompt
             )
         )
 
