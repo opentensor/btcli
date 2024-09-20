@@ -965,7 +965,7 @@ async def show(
                     delegate_name = (
                         registered_delegate_info[dele.hotkey_ss58].display
                         if dele.hotkey_ss58 in registered_delegate_info
-                        else None  # Changed from dele.hotkey_ss58 to None
+                        else None
                     )
                     stakes[dele.hotkey_ss58] = {
                         "name": delegate_name if delegate_name else dele.hotkey_ss58,
@@ -1022,7 +1022,6 @@ async def show(
             )
             total_balance += cast(Balance, acc["balance"]).tao
             for key, value in cast(dict, acc["accounts"]).items():
-                # Prepare the account display name
                 if value["name"] and value["name"] != key:
                     account_display_name = f"[bright_cyan]({value['name']})[/bright_cyan]   [bright_magenta]{key}[/bright_magenta]"
                 else:
@@ -1110,32 +1109,16 @@ async def show(
             expand=False,
             border_style="bright_black",
         )
-        num_rows = len(rows)
-        for i, row in enumerate(rows):
-            # Check if this row is a coldkey row
-            is_coldkey_row = row[0] != ""
-            # Determine if we need to add a separator after this row
-            if i + 1 < num_rows:
-                next_row = rows[i + 1]
-                # Next row is a coldkey row
-                next_is_coldkey = next_row[0] != ""
-            else:
-                # This is the last row
-                next_is_coldkey = True
 
-            if is_coldkey_row:
-                # Add the coldkey row
-                table.add_row(*row)
-                # If there are no hotkeys (next row is a coldkey or end of rows), add separator
-                if i + 1 == num_rows or next_is_coldkey:
-                    table.add_row(end_section=True)
-            else:
-                # Add the hotkey row
-                table.add_row(*row)
-                # If next row is a coldkey or end of rows, add separator
-                if i + 1 == num_rows or next_is_coldkey:
-                    table.add_row(end_section=True)
+        for i, row in enumerate(rows):
+            is_last_row = i + 1 == len(rows)
+            table.add_row(*row)
+
+            # If last row or new coldkey starting next
+            if is_last_row or (rows[i + 1][0] != ""):
+                table.add_row(end_section=True)
         console.print(table)
+        
     else:
         render_tree(
             "stakeshow",
