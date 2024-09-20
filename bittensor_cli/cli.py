@@ -1563,11 +1563,11 @@ class CLIManager:
         """
         Regenerates the public part of a coldkey (coldkeypub.txt) for a wallet.
 
-        Use this command when you need to recreate your coldkeypub.txt from either the public key or SS58 address from the old coldkeypub.txt.
+        Use this command when you need to move machine for subnet mining. Use the public key or SS58 address from your coldkeypub.txt that you have on another machine to regenerate the coldkeypub.txt on this new machine. 
 
         USAGE
 
-        The command requires either a public key in hexadecimal format or an ``SS58`` address from the old coldkeypub.txt to regenerate the coldkeypub.
+        The command requires either a public key in hexadecimal format or an ``SS58`` address from the existing coldkeypub.txt from old machine to regenerate the coldkeypub on the new machine.
 
         EXAMPLE
 
@@ -2114,21 +2114,17 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Display the members of the root network (Netuid = 0) on the Bittensor network.
+        Show the neurons (root network validators) in the root network (netuid = 0).
 
-        This command provides an overview of the neurons that constitute the network's foundational layer.
+        USAGE
 
-        # Usage:
-        Upon execution, the command fetches and lists the neurons in the root network, showing their unique identifiers
-        (UIDs), names, addresses, stakes, and whether they are part of the senate (network governance body).
+        The command fetches and lists the neurons (root network validators) in the root network, showing their unique identifiers (UIDs), names, addresses, stakes, and whether they are part of the senate (network governance body).
 
-        # Example usage:
+        This command is useful for understanding the composition and governance structure of the Bittensor network's root network. It provides insights into which neurons hold significant influence and responsibility within the Bittensor network.
+
+        EXAMPLE
 
         [green]$[/green] btcli root list
-
-        [italic]Note[/italic]: This command is useful for users interested in understanding the composition and
-        governance structure of the Bittensor network's root layer. It provides insights into which neurons hold
-        significant influence and responsibility within the network.
         """
         self.verbosity_handler(quiet, verbose)
         return self._run_command(
@@ -2149,23 +2145,23 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Set the weights for the oot network on the Bittensor network.
+        Set the weights for different subnets, by setting them in the root network.
 
-        This command is used by network senators to influence the distribution of network rewards and responsibilities.
+        To use this command, you should specify the netuids and corresponding weights you wish to assign. This command is used by network senators to influence the distribution of subnet rewards and responsibilities.
 
-        # Usage:
+        You must have a comprehensive understanding of the dynamics of the subnets to use this command. It is a powerful tool that directly impacts the subnet's  operational mechanics and reward distribution.
 
-        The command allows setting weights for different subnets within the root network. Users need to specify the
-        netuids (network unique identifiers) and corresponding weights they wish to assign.
+        EXAMPLE
 
-        # Example usage:
+        With no spaces between the passed values:
 
-        [green]$[/green]  btcli root set-weights 0.3 0.3 0.4 -n 1 -n 2 -n 3 --chain ws://127.0.0.1:9945
+        [green]$[/green] btcli root set-weights --netuids 1,2 --weights 0.2,0.3 
+        
+        or
 
+        Include double quotes to include spaces between the passed values:
 
-        [green]$[/green] This command is particularly important for network senators and requires a comprehensive understanding of the
-        network's dynamics. It is a powerful tool that directly impacts the network's operational mechanics and reward
-        distribution.
+        [green]$[/green] btcli root set-weights --netuids "1, 2" --weights "0.2, 0.3" 
         """
         self.verbosity_handler(quiet, verbose)
 
@@ -2215,13 +2211,13 @@ class CLIManager:
             None,
             "--limit-min-col",
             "--min",
-            help="Limit left display of the table to this column.",
+            help="Limit the left display of the table to this column.",
         ),
         limit_max_col: Optional[int] = typer.Option(
             None,
             "--limit-max-col",
             "--max",
-            help="Limit right display of the table to this column.",
+            help="Limit the right display of the table to this column.",
         ),
         reuse_last: bool = Options.reuse_last,
         html_output: bool = Options.html_output,
@@ -2229,28 +2225,19 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Retrieve the weights set for the root network on the Bittensor network.
+        Shows a table listing the weights assigned to each subnet in the root network. 
 
-        This command provides visibility into how network responsibilities and rewards are distributed among various
-        subnets.
+        This command provides visibility into how network responsibilities and rewards are distributed among various subnets. This information is crucial for understanding the current influence and reward distribution across different subnets. Use this command if you are interested in the governance and operational dynamics of the Bittensor network. 
 
-        # Usage:
-        The command outputs a table listing the weights assigned to each subnet within the root network. This
-        information is crucial for understanding the current influence and reward distribution among the subnets.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli root get_weights
-
-        [italic]Note[/italic]: This command is essential for users interested in the governance and operational
-        dynamics of the Bittensor network. It offers transparency into how network rewards and responsibilities
-        are allocated across different subnets.
         """
         self.verbosity_handler(quiet, verbose)
         if (reuse_last or html_output) and self.config.get("use_cache") is False:
             err_console.print(
-                "Unable to use `--reuse-last` or `--html` when config no-cache is set to True. "
-                "Please change the config to False using `btcli config set`"
+                "Unable to use `--reuse-last` or `--html` when config 'no-cache' is set to 'True'."
+                "Change it to 'False' using `btcli config set`."
             )
             raise typer.Exit()
         if not reuse_last:
@@ -2281,22 +2268,17 @@ class CLIManager:
             "--amount",
             "--increase",
             "-a",
-            prompt="Boost amount (added to existing weight)",
-            help="Amount (float) to boost, (e.g. 0.01)",
+            prompt="Enter the boost amount (added to existing weight)",
+            help="Amount (float) to boost (added to the existing weight), (e.g. 0.01)",
         ),
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
         """
-        Boost the weights for a specific subnet within the root network on the Bittensor
-        network.
+        Increase (boost) the weights for a specific subnet in the root network. Any amount provided will be added to the subnet's existing weight.
 
-        # Usage:
-
-        The command allows boosting the weights for different subnets within the root network.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli root boost --netuid 1 --increase 0.01
         """
@@ -2327,27 +2309,19 @@ class CLIManager:
             "--amount",
             "--decrease",
             "-a",
-            prompt="Slash amount (subtracted from the existing weight)",
-            help="Amount (float) to boost, (e.g. 0.01)",
+            prompt="Enter the slash amount (subtracted from the existing weight)",
+            help="Amount (float) to slash (subtract from the existing weight), (e.g. 0.01)",
         ),
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
         """
-        Decrease the weights for a specific subnet within the root network on the Bittensor network.
+        Decrease (slash) the weights for a specific subnet in the root network. Any amount provided will be subtracted from the subnet's existing weight.
 
-        # Usage:
-
-        The command allows slashing (decreasing) the weights for different subnets within the root network.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli root slash --netuid 1 --decrease 0.01
-
-        Enter netuid (e.g. 1): 1
-        Enter decrease amount (e.g. 0.01): 0.2
-        Slashing weight for subnet: 1 by amount: 0.2
 
         """
         self.verbosity_handler(quiet, verbose)
@@ -2385,19 +2359,15 @@ class CLIManager:
         """
         Cast a vote on an active proposal in Bittensor's governance protocol.
 
-        This command is used by Senate members to vote on various proposals that shape the network's future.
+        This command is used by Senate members to vote on various proposals that shape the network's future. Use `btcli root proposals` to see the active proposals and their hashes. 
 
-        # Usage:
+        USAGE
 
-        The user needs to specify the hash of the proposal they want to vote on. The command then allows the Senate
-        member to cast an 'Aye' or 'Nay' vote, contributing to the decision-making process.
+        The user must specify the hash of the proposal they want to vote on. The command then allows the Senate member to cast a 'Yes' or 'No' vote, contributing to the decision-making process on the proposal. This command is crucial for Senate members to exercise their voting rights on key proposals. It plays a vital role in the governance and evolution of the Bittensor network.
 
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli root senate_vote --proposal <proposal_hash>
-
-        [italic]Note[/italic]: This command is crucial for Senate members to exercise their voting rights on key proposals.
-        It plays a vital role in the governance and evolution of the Bittensor network.
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
@@ -2421,21 +2391,13 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        View the members of Bittensor's governance protocol, known as the Senate.
+        Shows the Senate members of the Bittensor's governance protocol.
 
-        This command lists the delegates involved in the decision-making process of the Bittensor network.
+        This command lists the delegates involved in the decision-making process of the Bittensor network, showing their names and wallet addresses. This information is crucial for understanding who holds governance roles within the network.
 
-        # Usage:
-
-        The command retrieves and displays a list of Senate members, showing their names and wallet addresses.
-        This information is crucial for understanding who holds governance roles within the network.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli root senate
-
-        [italic]Note[/italic]: This command is particularly useful for users interested in the governance structure
-        and participants of the Bittensor network. It provides transparency into the network's decision-making body.
         """
         self.verbosity_handler(quiet, verbose)
         return self._run_command(root.get_senate(self.initialize_chain(network, chain)))
