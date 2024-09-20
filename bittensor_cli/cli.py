@@ -4278,8 +4278,8 @@ class CLIManager:
             help="Corresponding UIDs for the specified netuid, e.g. -u 1,2,3 ...",
         ),
         weights: str = Options.weights,
-        salt: list[int] = typer.Option(
-            [],
+        salt: str = typer.Option(
+            None,
             "--salt",
             "-s",
             help="Corresponding salt for the hash function, e.g. -s 163 -s 241 -s 217 ...",
@@ -4332,7 +4332,16 @@ class CLIManager:
                 "The number of UIDs you specify must match up with the number of weights you specify"
             )
             raise typer.Exit()
-        salt = list_prompt(salt, int, "Corresponding salt for the hash function")
+
+        if salt:
+            salt = parse_to_list(
+                salt,
+                int,
+                "Salt must be a comma-separated list of ints, e.g., `--weights 123,163,194`.",
+            )
+        else:
+            salt = list_prompt(salt, int, "Corresponding salt for the hash function")
+
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -4426,7 +4435,15 @@ class CLIManager:
             )
             raise typer.Exit()
 
-        salt = list_prompt(salt, int, "Corresponding salt for the hash function")
+        if salt:
+            salt = parse_to_list(
+                salt,
+                int,
+                "Salt must be a comma-separated list of ints, e.g., `--weights 123,163,194`.",
+            )
+        else:
+            salt = list_prompt(salt, int, "Corresponding salt for the hash function")
+
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
