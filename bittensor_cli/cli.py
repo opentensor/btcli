@@ -1270,7 +1270,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        Swap hotkeys of a given wallet on the blockchain. 
+        Swap hotkeys of a given wallet on the blockchain. For a registered key pair, for example, a (coldkeyA, hotkeyA) pair, this command swaps the hotkeyA with a new, unregistered, hotkeyB to move the original registration to the (coldkeyA, hotkeyB) pair.
 
         USAGE
 
@@ -1279,7 +1279,7 @@ class CLIManager:
         IMPORTANT
 
         - Make sure that your original key pair (coldkeyA, hotkeyA) is already registered.
-        - Make sure that you first create the new hotkeyB before using it in this command.
+        - Make sure that you use a newly created hotkeyB in this command. A hotkeyB that is already registered cannot be used in this command.
         - Finally, note that this command requires a fee of 1 TAO for recycling and this fee is taken from your wallet (coldkeyA).
 
         EXAMPLE
@@ -1318,7 +1318,7 @@ class CLIManager:
             "--all",
             "--all-wallets",
             "-a",
-            help="Inspect all wallets within specified path.",
+            help="Inspect all the wallets at the specified wallet path.",
         ),
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
@@ -1330,47 +1330,35 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Detailed report of a user's wallet pairs (coldkey, hotkey) on the Bittensor network.
+        Displays the details of the user's wallet pairs (coldkey, hotkey) on the Bittensor network.
 
-        This report includes balance and staking information for both the coldkey and hotkey associated with the wallet.
+        The output is presented as a table with the below columns:
 
-        The command gathers data on:
+        - [blue bold]Coldkey[/blue bold]: The coldkey associated with the user's wallet.
 
-        - Coldkey balance and delegated stakes.
-        - Hotkey stake and emissions per neuron on the network.
-        - Delegate names and details fetched from the network.
+        - [blue bold]Balance[/blue bold]: The balance of the coldkey.
 
-        The resulting table includes columns for:
+        - [blue bold]Delegate[/blue bold]: The name of the delegate to which the coldkey has staked TAO.
 
-        - *Coldkey*: The coldkey associated with the user's wallet.
+        - [blue bold]Stake[/blue bold]: The amount of stake held by both the coldkey and hotkey.
 
-        - *Balance*: The balance of the coldkey.
+        - [blue bold]Emission[/blue bold]: The emission or rewards earned from staking.
 
-        - *Delegate*: The name of the delegate to which the coldkey has staked funds.
+        - [blue bold]Netuid[/blue bold]: The network unique identifier of the subnet where the hotkey is active (i.e., validating).
 
-        - *Stake*: The amount of stake held by both the coldkey and hotkey.
+        - [blue bold]Hotkey[/blue bold]: The hotkey associated with the neuron on the network.
 
-        - *Emission*: The emission or rewards earned from staking.
+        USAGE
 
-        - *Netuid*: The network unique identifier of the subnet where the hotkey is active.
+        This command can be used to inspect a single wallet or all the wallets located at a specified path. It is useful for a comprehensive overview of a user's participation and performance in the Bittensor network.
 
-        - *Hotkey*: The hotkey associated with the neuron on the network.
-
-        # Usage:
-
-        This command can be used to inspect a single wallet or all wallets located within a
-        specified path. It is useful for a comprehensive overview of a user's participation
-        and performance in the Bittensor network.
-
-        # Example usage::
+        EXAMPLE
 
         [green]$[/green] btcli wallet inspect
 
         [green]$[/green] btcli wallet inspect --all -n 1 -n 2 -n 3
 
-        [italic]Note[/italic]: The `inspect` command is for displaying information only and does not perform any
-        transactions or state changes on the Bittensor network. It is intended to be used as
-        part of the Bittensor CLI and not as a standalone function within user code.
+        [bold]Note[/bold]: The `inspect` command is for displaying information only and does not perform any transactions or state changes on the blockchain. It is intended to be used with Bittensor CLI and not as a standalone function in user code.
         """
         self.verbosity_handler(quiet, verbose)
         # if all-wallets is entered, ask for path
@@ -1401,7 +1389,7 @@ class CLIManager:
         processors: Optional[int] = typer.Option(
             defaults.pow_register.num_processes,
             "--processors",
-            help="Number of processors to use for POW registration.",
+            help="Number of processors to use for proof of work (POW) registration.",
         ),
         update_interval: Optional[int] = typer.Option(
             defaults.pow_register.update_interval,
@@ -1423,19 +1411,19 @@ class CLIManager:
             defaults.pow_register.cuda.use_cuda,
             "--use-cuda/--no-use-cuda",
             "--cuda/--no-cuda",
-            help="Set flag to use CUDA to pow_register.",
+            help="Set flag to use CUDA for proof of work (POW) registration.",
         ),
         dev_id: Optional[int] = typer.Option(
             defaults.pow_register.cuda.dev_id,
             "--dev-id",
             "-d",
-            help="Set the CUDA device id(s). Goes by the order of speed. (i.e. 0 is the fastest).",
+            help="Set the CUDA device id(s) in the order of speed, where 0 is the fastest.",
         ),
         threads_per_block: Optional[int] = typer.Option(
             defaults.pow_register.cuda.tpb,
             "--threads-per-block",
             "-tbp",
-            help="Set the number of Threads Per Block for CUDA.",
+            help="Set the number of threads per block for CUDA.",
         ),
         max_successes: Optional[int] = typer.Option(
             3,
@@ -1446,23 +1434,20 @@ class CLIManager:
         """
         Obtain test TAO tokens by performing Proof of Work (PoW).
 
-        This command is particularly useful for users who need test tokens for operations on a local chain.
+        This command is useful for users who need test tokens for operations on a local blockchain.
 
-        # IMPORTANT:
-            *THIS COMMAND IS DISABLED ON FINNEY AND TESTNET.*
+        [blue bold]IMPORTANT[/blue bold]: THIS COMMAND IS DISABLED ON FINNEY AND TESTNET.
 
-        # Usage:
+        USAGE
 
-        The command uses the PoW mechanism to validate the user's effort and rewards them with test TAO tokens. It is
-        typically used in local chain environments where real value transactions are not necessary.
+        The command uses the proof-of-work (POW) mechanism to validate the user's effort and rewards them with test TAO tokens. It is
+        typically used in local blockchain environments where transactions do not use real TAO tokens. 
 
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli wallet faucet --faucet.num_processes 4 --faucet.cuda.use_cuda
 
-        [italic]Note[/italic]: This command is meant for use in local environments where users can experiment with the network
-        without using real TAO tokens. It's important for users to have the necessary hardware setup, especially when opting for
-        CUDA-based GPU calculations. It is currently disabled on testnet and finney. You must use this on a local chain.
+        [bold]Note[/bold]: This command is meant for used in local environments where users can experiment with the blockchain without using real TAO tokens. Users must have the necessary hardware setup, especially when opting for CUDA-based GPU calculations. It is currently disabled on testnet and mainnet (finney). You can only use this command on a local blockchain.
         """
         wallet = self.wallet_ask(
             wallet_name,
@@ -1500,28 +1485,26 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Regenerate a coldkey for a wallet on the Bittensor network.
+        Regenerate a coldkey for a wallet on the Bittensor blockchain network.
 
         This command is used to create a new coldkey from an existing mnemonic, seed, or JSON file.
 
-        # Usage:
+        USAGE
 
-        Users can specify a mnemonic, a seed string, or a JSON file path to regenerate a coldkey.
-        The command supports optional password protection for the generated key and can overwrite an existing coldkey.
+        Users can specify a mnemonic, a seed string, or a JSON file path to regenerate a coldkey. The command supports optional password protection for the generated key.
 
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli wallet regen-coldkey --mnemonic "word1 word2 ... word12"
 
 
-        [italic]Note[/italic]: This command is critical for users who need to regenerate their coldkey, possibly for recovery or
-        security reasons. It should be used with caution to avoid overwriting existing keys unintentionally.
+        [bold]Note[/bold]: This command is critical for users who need to regenerate their coldkey either for recovery or for security reasons. 
         """
         self.verbosity_handler(quiet, verbose)
 
         if not wallet_path:
             wallet_path = Prompt.ask(
-                "Enter the path of wallets directory", default=defaults.wallet.path
+                "Enter the path for the wallets directory", default=defaults.wallet.path
             )
 
         if not wallet_name:
@@ -1556,28 +1539,25 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Regenerate the public part of a coldkey (coldkeypub) for a wallet.
+        Regenerates the public part of a coldkey (coldkeypub.txt) for a wallet.
 
-        This command is used when a user needs to recreate their coldkeypub from an existing public key or SS58 address.
+        Use this command when you need to recreate your coldkeypub.txt from either the public key or SS58 address from the old coldkeypub.txt. 
 
-        # Usage:
+        USAGE
 
-        The command requires either a public key in hexadecimal format or an ``SS58`` address to regenerate the
-        coldkeypub. It optionally allows overwriting an existing coldkeypub file.
+        The command requires either a public key in hexadecimal format or an ``SS58`` address from the old coldkeypub.txt to regenerate the coldkeypub. 
 
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli wallet regen_coldkeypub --ss58_address 5DkQ4...
 
-        [italic]Note[/italic]: This command is particularly useful for users who need to regenerate their coldkeypub,
-        perhaps due to file corruption or loss. It is a recovery-focused utility that ensures continued access to wallet
-        functionalities.
+        [bold]Note[/bold]: This command is particularly useful for users who need to regenerate their coldkeypub, perhaps due to file corruption or loss. You will need either ss58 address or public hex key from your old coldkeypub.txt for the wallet. It is a recovery-focused utility that ensures continued access to your wallet functionalities.
         """
         self.verbosity_handler(quiet, verbose)
 
         if not wallet_path:
             wallet_path = Prompt.ask(
-                "Enter the path of wallets directory", default=defaults.wallet.path
+                "Enter the path to the wallets directory", default=defaults.wallet.path
             )
 
         if not wallet_name:
@@ -1614,7 +1594,7 @@ class CLIManager:
         json_password: Optional[str] = Options.json_password,
         use_password: bool = typer.Option(
             False,  # Overriden to False
-            help="Set true to protect the generated bittensor key with a password.",
+            help="Set to 'True' to protect the generated Bittensor key with a password.",
             is_flag=True,
             flag_value=True,
         ),
@@ -1626,18 +1606,16 @@ class CLIManager:
 
         Similar to regenerating a coldkey, this command creates a new hotkey from a mnemonic, seed, or JSON file.
 
-        # Usage:
+        USAGE
 
-        Users can provide a mnemonic, seed string, or a JSON file to regenerate the hotkey.
-        The command supports optional password protection and can overwrite an existing hotkey.
+        Users can provide a mnemonic, seed string, or a JSON file to regenerate the hotkey. The command supports optional password protection and can overwrite an existing hotkey.
 
         # Example usage:
 
         [green]$[/green] btcli wallet regen_hotkey --seed 0x1234...
 
-        [italic]Note[/italic]: This command is essential for users who need to regenerate their hotkey,
-        possibly for security upgrades or key recovery.
-        It should be used cautiously to avoid accidental overwrites of existing keys.
+        [bold]Note[/bold]: This command is essential for users who need to regenerate their hotkey, possibly for security upgrades or key recovery.
+        It should be used with caution to avoid accidental overwriting of existing keys.
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
@@ -1669,7 +1647,7 @@ class CLIManager:
         n_words: Optional[int] = None,
         use_password: bool = typer.Option(
             False,  # Overriden to False
-            help="Set true to protect the generated bittensor key with a password.",
+            help="Set to 'True' to protect the generated Bittensor key with a password.",
             is_flag=True,
             flag_value=True,
         ),
@@ -1677,20 +1655,18 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Create a new hotkey under a wallet.
+        Create a new hotkey for a wallet.
 
-        # Usage:
+        USAGE
 
-        This command is used to generate a new hotkey for managing a neuron or participating in the network,
-        with an optional word count for the mnemonic and supports password protection. It also allows overwriting an
+        This command is used to generate a new hotkey for managing a neuron or participating in a subnet. It provides options for the mnemonic word count, and supports password protection. It also allows overwriting the
         existing hotkey.
 
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli wallet new-hotkey --n_words 24
 
-        [italic]Note[/italic]: This command is useful for users who wish to create additional hotkeys
-        for different purposes, such as running multiple miners or separating operational roles within the network.
+        [italic]Note[/italic]: This command is useful to create additional hotkeys for different purposes, such as running multiple subnet miners or subnet validators or separating operational roles within the Bittensor network.
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
@@ -1714,26 +1690,23 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Create a new coldkey under a wallet. A coldkey, is essential for holding balances and performing high-value transactions.
+        Create a new coldkey. A coldkey is required for holding TAO balances and performing high-value transactions.
 
-        # Usage:
+        USAGE
 
-        The command creates a new coldkey with an optional word count for the mnemonic and supports password
-        protection. It also allows overwriting an existing coldkey.
+        The command creates a new coldkey. It provides options for the mnemonic word count, and supports password protection. It also allows overwriting an existing coldkey.
 
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli wallet new_coldkey --n_words 15
 
-        [italic]Note[/italic]: This command is crucial for users who need to create a new coldkey for
-        enhanced security or as part of setting up a new wallet. It's a foundational step in establishing
-        a secure presence on the Bittensor network.
+        [bold]Note[/bold]: This command is crucial for users who need to create a new coldkey for enhanced security or as part of setting up a new wallet. It is a foundational step in establishing a secure presence on the Bittensor network.
         """
         self.verbosity_handler(quiet, verbose)
 
         if not wallet_path:
             wallet_path = Prompt.ask(
-                "Enter the path of wallets directory", default=defaults.wallet.path
+                "Enter the path to the wallets directory", default=defaults.wallet.path
             )
 
         if not wallet_name:
