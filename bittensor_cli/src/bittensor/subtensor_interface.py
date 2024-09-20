@@ -346,7 +346,11 @@ class SubtensorInterface:
         :return: dict of {address: Balance objects}
         """
         calls = [
-            (await self.substrate.create_storage_key("System", "Account", [address]))
+            (
+                await self.substrate.create_storage_key(
+                    "System", "Account", [address], block_hash=block_hash
+                )
+            )
             for address in addresses
         ]
         batch_call = await self.substrate.query_multi(calls, block_hash=block_hash)
@@ -371,14 +375,22 @@ class SubtensorInterface:
 
         :return: {address: Balance objects}
         """
-        results = await self.substrate.query_multiple(
-            params=[s for s in ss58_addresses],
-            module="SubtensorModule",
-            storage_function="TotalColdkeyStake",
-            block_hash=block_hash,
-            reuse_block_hash=reuse_block,
-        )
-        return {k: Balance.from_rao(r or 0) for (k, r) in results.items()}
+        calls = [
+            (
+                await self.substrate.create_storage_key(
+                    "SubtensorModule",
+                    "TotalColdkeyStake",
+                    [address],
+                    block_hash=block_hash,
+                )
+            )
+            for address in ss58_addresses
+        ]
+        batch_call = await self.substrate.query_multi(calls, block_hash=block_hash)
+        results = {}
+        for item in batch_call:
+            results.update({item[0].params[0]: Balance.from_rao(item[1] or 0)})
+        return results
 
     async def get_total_stake_for_hotkey(
         self,

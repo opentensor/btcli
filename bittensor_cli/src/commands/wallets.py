@@ -229,10 +229,10 @@ async def wallet_balance(
             coldkeys = [wallet.coldkeypub.ss58_address]
             wallet_names = [wallet.name]
 
-        await subtensor.substrate.get_chain_head()
+        block_hash = await subtensor.substrate.get_chain_head()
         free_balances, staked_balances = await asyncio.gather(
-            subtensor.get_balance(*coldkeys, reuse_block=True),
-            subtensor.get_total_stake_for_coldkey(*coldkeys, reuse_block=True),
+            subtensor.get_balance(*coldkeys, block_hash=block_hash),
+            subtensor.get_total_stake_for_coldkey(*coldkeys, block_hash=block_hash),
         )
 
     total_free_balance = sum(free_balances.values())

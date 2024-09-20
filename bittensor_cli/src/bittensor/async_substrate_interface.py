@@ -1105,7 +1105,11 @@ class AsyncSubstrateInterface:
             return None
 
     async def create_storage_key(
-        self, pallet: str, storage_function: str, params: Optional[list] = None
+        self,
+        pallet: str,
+        storage_function: str,
+        params: Optional[list] = None,
+        block_hash: str = None,
     ) -> StorageKey:
         """
         Create a `StorageKey` instance providing storage function details. See `subscribe_storage()`.
@@ -1120,8 +1124,7 @@ class AsyncSubstrateInterface:
         -------
         StorageKey
         """
-
-        await self.init_runtime()
+        await self.init_runtime(block_hash=block_hash)
 
         return StorageKey.create_from_storage_function(
             pallet,
@@ -1732,7 +1735,7 @@ class AsyncSubstrateInterface:
             ),
         )
         self.last_block_hash = result["rpc_request"][0]["result"]
-        return self.last_block_hash
+        return result["rpc_request"][0]["result"]
 
     async def compose_call(
         self,
