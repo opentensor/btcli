@@ -802,7 +802,7 @@ class SubtensorInterface:
             params=[netuid],
             block_hash=block_hash,
         )
-        w_map = [(uid, w) async for uid, w in w_map_encoded]
+        w_map = [(uid, w or []) async for uid, w in w_map_encoded]
 
         return w_map
 
