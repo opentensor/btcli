@@ -1552,7 +1552,7 @@ async def list_delegates(subtensor: SubtensorInterface):
             ratio=1,
         ),
         Column(
-            "[white]DELEGATE STAKE\n(\u03c4)\n",
+            "[white]OWN STAKE\n(\u03c4)\n",
             justify="right",
             style="orange1",
             no_wrap=True,

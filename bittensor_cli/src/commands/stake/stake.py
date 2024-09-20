@@ -1342,7 +1342,7 @@ async def unstake(
     include_hotkeys: list[str],
     exclude_hotkeys: list[str],
     amount: float,
-    max_stake: float,
+    keep_stake: float,
     unstake_all: bool,
     prompt: bool,
 ):
@@ -1416,9 +1416,9 @@ async def unstake(
 
             if unstake_all:
                 unstake_amount_tao = hotkey_stake.tao
-            if max_stake:
+            if keep_stake:
                 # Get the current stake of the hotkey from this coldkey.
-                unstake_amount_tao = hotkey_stake.tao - max_stake
+                unstake_amount_tao = hotkey_stake.tao - keep_stake
                 amount = unstake_amount_tao
                 if unstake_amount_tao < 0:
                     # Skip if max_stake is greater than current stake.
