@@ -2312,7 +2312,7 @@ class CLIManager:
         """
         Cast a vote on an active proposal in Bittensor's governance protocol.
 
-        Use `btcli root proposals` to see the active proposals and their hashes. This command is used by Senate members to vote on various proposals that shape the network's future.
+        This command is used by Senate members to vote on various proposals that shape the network's future. Use `btcli root proposals` to see the active proposals and their hashes. 
 
         USAGE
 
