@@ -1541,11 +1541,11 @@ class CLIManager:
         """
         Regenerates the public part of a coldkey (coldkeypub.txt) for a wallet.
 
-        Use this command when you need to recreate your coldkeypub.txt from either the public key or SS58 address from the old coldkeypub.txt.
+        Use this command when you need to move machine for subnet mining. Use the public key or SS58 address from your coldkeypub.txt that you have on another machine to regenerate the coldkeypub.txt on this new machine. 
 
         USAGE
 
-        The command requires either a public key in hexadecimal format or an ``SS58`` address from the old coldkeypub.txt to regenerate the coldkeypub.
+        The command requires either a public key in hexadecimal format or an ``SS58`` address from the existing coldkeypub.txt from old machine to regenerate the coldkeypub on the new machine.
 
         EXAMPLE
 
@@ -1729,17 +1729,15 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Check the scheduled swap status of a coldkey.
+        Check the status of your scheduled coldkey swap.
 
-        # Usage:
+        USAGE
 
-        Users need to specify the wallet they want to check the swap status of.
+        Users should provide the old coldkey wallet to check the swap status.
 
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli wallet check_coldkey_swap
-
-        [italic]Note[/italic]: This command is important for users who wish check if swap requests were made against their coldkey.
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
@@ -1757,22 +1755,17 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Generate both a new coldkey and hotkey under a specified wallet.
+        Create a complete wallet by setting up both coldkey and hotkeys.
 
-        This command is a comprehensive utility for creating a complete wallet setup with both cold
-        and hotkeys.
+        USAGE
 
-        # Usage:
-        The command facilitates the creation of a new coldkey and hotkey with an optional word count for the
-        mnemonics. It supports password protection for the coldkey and allows overwriting of existing keys.
+        The command creates a new coldkey and hotkey. It provides an option for mnemonic word count. It supports password protection for the coldkey and allows overwriting of existing keys.
 
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli wallet create --n_words 21
 
-        [italic]Note[/italic]: This command is ideal for new users setting up their wallet for the first time
-        or for those who wish to completely renew their wallet keys. It ensures a fresh start with new keys
-        for secure and effective participation in the network.
+        [bold]Note[/bold]: This command is for new users setting up their wallet for the first time, or for those who wish to completely renew their wallet keys. It ensures a fresh start with new keys for secure and effective participation in the Bittensor network.
         """
         if not wallet_path:
             wallet_path = Prompt.ask(
@@ -1781,11 +1774,11 @@ class CLIManager:
 
         if not wallet_name:
             wallet_name = Prompt.ask(
-                "Enter the name of new wallet", default=defaults.wallet.name
+                "Enter the name of the new wallet (coldkey)", default=defaults.wallet.name
             )
         if not wallet_hotkey:
             wallet_hotkey = Prompt.ask(
-                "Enter the the name of new hotkey", default=defaults.wallet.hotkey
+                "Enter the the name of the new hotkey", default=defaults.wallet.hotkey
             )
 
         self.verbosity_handler(quiet, verbose)
@@ -1814,7 +1807,7 @@ class CLIManager:
             False,
             "--all",
             "-a",
-            help="Whether to display the balances for all wallets.",
+            help="Whether to display the balances for all the wallets.",
         ),
         network: str = Options.network,
         chain: str = Options.chain,
@@ -1822,26 +1815,21 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Check the balance of the wallet on the Bittensor network.
-        This provides a detailed view of the wallet's coldkey balances, including free and staked balances.
+        Check the balance of the wallet. This command shows a detailed view of the wallet's coldkey balances, including free and staked balances.
 
-        # Usage:
+        EXAMPLES:
 
-        The command lists the balances of all wallets in the user's configuration directory, showing the
-        wallet name, coldkey address, and the respective free and staked balances.
+        - To display the balance of a single wallet, use the command with the `--wallet-name` argument and provide the wallet name:
 
-        # Example usages:
+            [green]$[/green] btcli w balance --wallet-name WALLET
 
-        - To display the balance of a single wallet, use the command with the `--wallet-name` argument to specify
-        the wallet name:
+        - To use the default config values, use:
 
-        [green]$[/green] btcli w balance --wallet-name WALLET
+            [green]$[/green] btcli w balance
 
-        [green]$[/green] btcli w balance
+        - To display the balances of all your wallets, use the `--all` argument:
 
-        - To display the balances of all wallets, use the `--all` argument:
-
-        [green]$[/green] btcli w balance --all
+            [green]$[/green] btcli w balance --all
         """
         self.verbosity_handler(quiet, verbose)
 
@@ -1864,23 +1852,19 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Fetch the latest transfers of the provided wallet on the Bittensor network.
-        This provides a detailed view of the transfers carried out on the wallet.
+        Show the history of the transfers carried out with the provided wallet on the Bittensor network.
 
-        # Usage:
+        USAGE
 
-        The command lists the latest transfers of the provided wallet, showing the 'From', 'To', 'Amount',
-        'Extrinsic ID' and 'Block Number'.
+        The output shows the latest transfers of the provided wallet, showing the columns 'From', 'To', 'Amount', 'Extrinsic ID' and 'Block Number'.
 
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli wallet history
 
-        [italic]Note[/italic]: This command is essential for users to monitor their financial status on the Bittensor network.
-        It helps in fetching info on all the transfers so that user can easily tally and cross-check the transactions.
         """
 
-        no_use_config_str = "Using network [dark_orange]finney[/dark_orange] and ignoring network/chain configs"
+        no_use_config_str = "Using the network [dark_orange]finney[/dark_orange] and ignoring network/chain configs"
 
         if self.config.get("network"):
             if self.config.get("network") != "finney":
@@ -1921,13 +1905,13 @@ class CLIManager:
             prompt=True,
         ),
         web_url: str = typer.Option(
-            "", "--web-url", "--web", help="The web url for the identity.", prompt=True
+            "", "--web-url", "--web", help="The web URL for the identity.", prompt=True
         ),
         riot_handle: str = typer.Option(
             "",
             "--riot-handle",
             "--riot",
-            help="The riot handle for the identity.",
+            help="The Riot handle for the identity.",
             prompt=True,
         ),
         email: str = typer.Option(
@@ -1937,14 +1921,14 @@ class CLIManager:
             "",
             "--pgp-fingerprint",
             "--pgp",
-            help="The pgp fingerprint for the identity.",
+            help="The PGP fingerprint for the identity.",
             prompt=True,
         ),
         image_url: str = typer.Option(
             "",
             "--image-url",
             "--image",
-            help="The image url for the identity.",
+            help="The image URL for the identity.",
             prompt=True,
         ),
         info_: str = typer.Option(
@@ -1956,7 +1940,7 @@ class CLIManager:
             "-𝕏",
             "--twitter-url",
             "--twitter",
-            help="The 𝕏 (Twitter) url for the identity.",
+            help="The 𝕏 (Twitter) URL for the identity.",
             prompt=True,
         ),
         validator_id: bool = typer.Option(
@@ -1969,39 +1953,21 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        Allows for the creation or update of a delegate's on-chain identity on the Bittensor network.
+        Create or update the on-chain identity of a coldkey or a hotkey on the Bittensor network. [bold]Incurs a 1 TAO transaction fee.[/bold]
 
-        This identity includes various attributes such as display name, legal name, web URL, PGP fingerprint, and
-        contact information, among others.
+        The on-chain identity includes attributes such as display name, legal name, web URL, PGP fingerprint, and contact information, among others.
 
-        The command prompts the user for the different identity attributes and validates the
-        input size for each attribute. It provides an option to update an existing validator
-        hotkey identity. If the user consents to the transaction cost, the identity is updated
-        on the blockchain.
+        The command prompts the user for the identity attributes and validates the input size for each attribute. It provides an option to update an existing validator hotkey identity. If the user consents to the transaction cost, the identity is updated on the blockchain.
 
-        Each field has a maximum size of 64 bytes. The PGP fingerprint field is an exception
-        and has a maximum size of 20 bytes. The user is prompted to enter the PGP fingerprint
-        as a hex string, which is then converted to bytes. The user is also prompted to enter
-        the coldkey or hotkey ``ss58`` address for the identity to be updated. If the user does
-        not have a hotkey, the coldkey address is used by default.
+        Each field has a maximum size of 64 bytes. The PGP fingerprint field is an exception and has a maximum size of 20 bytes. The user is prompted to enter the PGP fingerprint as a hex string, which is then converted to bytes. The user is also prompted to enter the coldkey or hotkey ``ss58`` address for the identity to be updated. 
+        
+        If the user does not have a hotkey, the coldkey address is used by default. If setting a validator identity, the hotkey will be used by default. If the user is setting an identity for a subnet, the coldkey will be used by default.
 
-        If setting a validator identity, the hotkey will be used by default. If the user is
-        setting an identity for a subnet, the coldkey will be used by default.
-
-        # Usage:
-
-        The user should call this command from the command line and follow the interactive
-        prompts to enter or update the identity information. The command will display the
-        updated identity details in a table format upon successful execution.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli wallet set_identity
 
-        [italic]Note[/italic]: This command should only be used if the user is willing to incur the 1 TAO
-        transaction fee associated with setting an identity on the blockchain. It is a high-level command
-        that makes changes to the blockchain state and should not be used programmatically as
-        part of other scripts or applications.
+        [bold]Note[/bold]: This command should only be used if the user is willing to incur the 1 TAO transaction fee associated with setting an identity on the blockchain. It is a high-level command that makes changes to the blockchain state and should not be used programmatically as part of other scripts or applications.
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
@@ -2045,33 +2011,21 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Retrieves and displays the identity details of a user's coldkey or hotkey.
+        Shows the identity details of a user's coldkey or hotkey.
 
-        The command performs the following actions:
+        The command displays the information in a table format showing:
 
-        - Connects to the subtensor network and retrieves the identity information.
+        - [blue bold]Address[/blue bold]: The ``ss58`` address of the queried key.
 
-        - Displays the information in a structured table format.
+        - [blue bold]Item[/blue bold]: Various attributes of the identity such as stake, rank, and trust.
 
-        The displayed table includes:
+        - [blue bold]Value[/blue bold]: The corresponding values of the attributes.
 
-        - *Address*: The ``ss58`` address of the queried key.
-
-        - *Item*: Various attributes of the identity such as stake, rank, and trust.
-
-        - *Value*: The corresponding values of the attributes.
-
-        # Usage:
-
-        The user must provide an ss58 address as input to the command. If the address is not
-        provided in the configuration, the user is prompted to enter one.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli wallet get_identity --key <s58_address>
 
-        [italic]Note[/italic]: This function is designed for CLI use and should be executed in a terminal.
-        It is primarily used for informational purposes and has no side effects on the network state.
+        [bold]Note[/bold]: This command is primarily used for informational purposes and has no side effects on the blockchain network state.
         """
         if not is_valid_ss58_address(target_ss58_address):
             print_error("You have entered an incorrect ss58 address. Please try again")
@@ -2097,22 +2051,18 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Allows users to sign a message with the provided wallet or wallet hotkey.
+        Allows users to sign a message with the provided wallet or wallet hotkey. Use this command to easily prove your ownership of a coldkey or a hotkey.
 
-        # Usage:
+        USAGE
 
-        The command generates a signature for a given message using the provided wallet
+        Using the provided wallet (coldkey), the command generates a signature for a given message.
 
-        # Example usage:
+        EXAMPLES
 
         [green]$[/green] btcli wallet sign --wallet-name default --message '{"something": "here", "timestamp": 1719908486}'
 
         [green]$[/green] btcli wallet sign --wallet-name default --wallet-hotkey hotkey --message
         '{"something": "here", "timestamp": 1719908486}'
-
-        [italic]Note[/italic]: When using `btcli`, `w` is used interchangeably with `wallet`. You may use either based
-        on your preference for brevity or clarity. This command is essential for users to easily prove their ownership
-        over a coldkey or a hotkey.
         """
         self.verbosity_handler(quiet, verbose)
         if use_hotkey is None:
@@ -2141,21 +2091,17 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Display the members of the root network (Netuid = 0) on the Bittensor network.
+        Show the neurons (root network validators) in the root network (netuid = 0).
 
-        This command provides an overview of the neurons that constitute the network's foundational layer.
+        USAGE
 
-        # Usage:
-        Upon execution, the command fetches and lists the neurons in the root network, showing their unique identifiers
-        (UIDs), names, addresses, stakes, and whether they are part of the senate (network governance body).
+        The command fetches and lists the neurons (root network validators) in the root network, showing their unique identifiers (UIDs), names, addresses, stakes, and whether they are part of the senate (network governance body).
 
-        # Example usage:
+        This command is useful for understanding the composition and governance structure of the Bittensor network's root network. It provides insights into which neurons hold significant influence and responsibility within the Bittensor network.
+
+        EXAMPLE
 
         [green]$[/green] btcli root list
-
-        [italic]Note[/italic]: This command is useful for users interested in understanding the composition and
-        governance structure of the Bittensor network's root layer. It provides insights into which neurons hold
-        significant influence and responsibility within the network.
         """
         self.verbosity_handler(quiet, verbose)
         return self._run_command(
@@ -2176,23 +2122,23 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Set the weights for the oot network on the Bittensor network.
+        Set the weights for different subnets, by setting them in the root network.
 
-        This command is used by network senators to influence the distribution of network rewards and responsibilities.
+        To use this command, you should specify the netuids and corresponding weights you wish to assign. This command is used by network senators to influence the distribution of subnet rewards and responsibilities.
 
-        # Usage:
+        You must have a comprehensive understanding of the dynamics of the subnets to use this command. It is a powerful tool that directly impacts the subnet's  operational mechanics and reward distribution.
 
-        The command allows setting weights for different subnets within the root network. Users need to specify the
-        netuids (network unique identifiers) and corresponding weights they wish to assign.
+        EXAMPLE
 
-        # Example usage:
+        With no spaces between the passed values:
 
-        [green]$[/green]  btcli root set-weights 0.3 0.3 0.4 -n 1 -n 2 -n 3 --chain ws://127.0.0.1:9945
+        [green]$[/green] btcli root set-weights --netuids 1,2 --weights 0.2,0.3 
+        
+        or
 
+        Include double quotes to include spaces between the passed values:
 
-        [green]$[/green] This command is particularly important for network senators and requires a comprehensive understanding of the
-        network's dynamics. It is a powerful tool that directly impacts the network's operational mechanics and reward
-        distribution.
+        [green]$[/green] btcli root set-weights --netuids "1, 2" --weights "0.2, 0.3" 
         """
         self.verbosity_handler(quiet, verbose)
         netuids = list_prompt(netuids, int, "Enter netuids (e.g: 1, 4, 6)")
@@ -2218,13 +2164,13 @@ class CLIManager:
             None,
             "--limit-min-col",
             "--min",
-            help="Limit left display of the table to this column.",
+            help="Limit the left display of the table to this column.",
         ),
         limit_max_col: Optional[int] = typer.Option(
             None,
             "--limit-max-col",
             "--max",
-            help="Limit right display of the table to this column.",
+            help="Limit the right display of the table to this column.",
         ),
         reuse_last: bool = Options.reuse_last,
         html_output: bool = Options.html_output,
@@ -2232,28 +2178,19 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Retrieve the weights set for the root network on the Bittensor network.
+        Shows a table listing the weights assigned to each subnet in the root network. 
 
-        This command provides visibility into how network responsibilities and rewards are distributed among various
-        subnets.
+        This command provides visibility into how network responsibilities and rewards are distributed among various subnets. This information is crucial for understanding the current influence and reward distribution across different subnets. Use this command if you are interested in the governance and operational dynamics of the Bittensor network. 
 
-        # Usage:
-        The command outputs a table listing the weights assigned to each subnet within the root network. This
-        information is crucial for understanding the current influence and reward distribution among the subnets.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli root get_weights
-
-        [italic]Note[/italic]: This command is essential for users interested in the governance and operational
-        dynamics of the Bittensor network. It offers transparency into how network rewards and responsibilities
-        are allocated across different subnets.
         """
         self.verbosity_handler(quiet, verbose)
         if (reuse_last or html_output) and self.config.get("use_cache") is False:
             err_console.print(
-                "Unable to use `--reuse-last` or `--html` when config no-cache is set to True. "
-                "Please change the config to False using `btcli config set`"
+                "Unable to use `--reuse-last` or `--html` when config 'no-cache' is set to 'True'."
+                "Change it to 'False' using `btcli config set`."
             )
             raise typer.Exit()
         if not reuse_last:
@@ -2284,22 +2221,17 @@ class CLIManager:
             "--amount",
             "--increase",
             "-a",
-            prompt="Boost amount (added to existing weight)",
-            help="Amount (float) to boost, (e.g. 0.01)",
+            prompt="Enter the boost amount (added to existing weight)",
+            help="Amount (float) to boost (added to the existing weight), (e.g. 0.01)",
         ),
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
         """
-        Boost the weights for a specific subnet within the root network on the Bittensor
-        network.
+        Increase (boost) the weights for a specific subnet in the root network. Any amount provided will be added to the subnet's existing weight.
 
-        # Usage:
-
-        The command allows boosting the weights for different subnets within the root network.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli root boost --netuid 1 --increase 0.01
         """
@@ -2330,27 +2262,19 @@ class CLIManager:
             "--amount",
             "--decrease",
             "-a",
-            prompt="Slash amount (subtracted from the existing weight)",
-            help="Amount (float) to boost, (e.g. 0.01)",
+            prompt="Enter the slash amount (subtracted from the existing weight)",
+            help="Amount (float) to slash (subtract from the existing weight), (e.g. 0.01)",
         ),
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
         """
-        Decrease the weights for a specific subnet within the root network on the Bittensor network.
+        Decrease (slash) the weights for a specific subnet in the root network. Any amount provided will be subtracted from the subnet's existing weight.
 
-        # Usage:
-
-        The command allows slashing (decreasing) the weights for different subnets within the root network.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli root slash --netuid 1 --decrease 0.01
-
-        Enter netuid (e.g. 1): 1
-        Enter decrease amount (e.g. 0.01): 0.2
-        Slashing weight for subnet: 1 by amount: 0.2
 
         """
         self.verbosity_handler(quiet, verbose)
@@ -2394,19 +2318,15 @@ class CLIManager:
         """
         Cast a vote on an active proposal in Bittensor's governance protocol.
 
-        This command is used by Senate members to vote on various proposals that shape the network's future.
+        This command is used by Senate members to vote on various proposals that shape the network's future. Use `btcli root proposals` to see the active proposals and their hashes. 
 
-        # Usage:
+        USAGE
 
-        The user needs to specify the hash of the proposal they want to vote on. The command then allows the Senate
-        member to cast an 'Aye' or 'Nay' vote, contributing to the decision-making process.
+        The user must specify the hash of the proposal they want to vote on. The command then allows the Senate member to cast a 'Yes' or 'No' vote, contributing to the decision-making process on the proposal. This command is crucial for Senate members to exercise their voting rights on key proposals. It plays a vital role in the governance and evolution of the Bittensor network.
 
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli root senate_vote --proposal <proposal_hash>
-
-        [italic]Note[/italic]: This command is crucial for Senate members to exercise their voting rights on key proposals.
-        It plays a vital role in the governance and evolution of the Bittensor network.
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
@@ -2430,21 +2350,13 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        View the members of Bittensor's governance protocol, known as the Senate.
+        Shows the Senate members of the Bittensor's governance protocol.
 
-        This command lists the delegates involved in the decision-making process of the Bittensor network.
+        This command lists the delegates involved in the decision-making process of the Bittensor network, showing their names and wallet addresses. This information is crucial for understanding who holds governance roles within the network.
 
-        # Usage:
-
-        The command retrieves and displays a list of Senate members, showing their names and wallet addresses.
-        This information is crucial for understanding who holds governance roles within the network.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli root senate
-
-        [italic]Note[/italic]: This command is particularly useful for users interested in the governance structure
-        and participants of the Bittensor network. It provides transparency into the network's decision-making body.
         """
         self.verbosity_handler(quiet, verbose)
         return self._run_command(root.get_senate(self.initialize_chain(network, chain)))

@@ -229,10 +229,10 @@ async def wallet_balance(
             coldkeys = [wallet.coldkeypub.ss58_address]
             wallet_names = [wallet.name]
 
-        await subtensor.substrate.get_chain_head()
+        block_hash = await subtensor.substrate.get_chain_head()
         free_balances, staked_balances = await asyncio.gather(
-            subtensor.get_balance(*coldkeys, reuse_block=True),
-            subtensor.get_total_stake_for_coldkey(*coldkeys, reuse_block=True),
+            subtensor.get_balance(*coldkeys, block_hash=block_hash),
+            subtensor.get_total_stake_for_coldkey(*coldkeys, block_hash=block_hash),
         )
 
     total_free_balance = sum(free_balances.values())
@@ -471,6 +471,7 @@ async def _get_total_balance(
     subtensor: SubtensorInterface,
     wallet: Wallet,
     all_wallets: bool = False,
+    block_hash: Optional[str] = None,
 ) -> tuple[list[Wallet], Balance]:
     """
     Retrieves total balance of all or specified wallets
@@ -494,7 +495,7 @@ async def _get_total_balance(
             (
                 await subtensor.get_balance(
                     *(x.coldkeypub.ss58_address for x in _balance_cold_wallets),
-                    reuse_block=True,
+                    block_hash=block_hash
                 )
             ).values()
         )
@@ -515,7 +516,7 @@ async def _get_total_balance(
             total_balance = sum(
                 (
                     await subtensor.get_balance(
-                        coldkey_wallet.coldkeypub.ss58_address, reuse_block=True
+                        coldkey_wallet.coldkeypub.ss58_address, block_hash=block_hash
                     )
                 ).values()
             )
@@ -547,7 +548,7 @@ async def overview(
     print_verbose("Fetching total balance for coldkey/s")
     block_hash = await subtensor.substrate.get_chain_head()
     all_hotkeys, total_balance = await _get_total_balance(
-        total_balance, subtensor, wallet, all_wallets
+        total_balance, subtensor, wallet, all_wallets, block_hash=block_hash
     )
 
     with console.status(
@@ -608,19 +609,15 @@ async def overview(
         alerts_table.add_column("🥩 alert!")
 
         coldkeys_to_check = []
+        ck_stakes = await subtensor.get_total_stake_for_coldkey(
+            *(coldkey_wallet.coldkeypub.ss58_address for coldkey_wallet in all_coldkey_wallets if coldkey_wallet.coldkeypub),
+            block_hash=block_hash
+        )
         for coldkey_wallet in all_coldkey_wallets:
             if coldkey_wallet.coldkeypub:
                 # Check if we have any stake with hotkeys that are not registered.
-                total_coldkey_stake_from_chain = (
-                    # TODO gathering here may make sense or may not
-                    await subtensor.get_total_stake_for_coldkey(
-                        coldkey_wallet.coldkeypub.ss58_address, reuse_block=True
-                    )
-                )
                 difference = (
-                    total_coldkey_stake_from_chain[
-                        coldkey_wallet.coldkeypub.ss58_address
-                    ]
+                    ck_stakes[coldkey_wallet.coldkeypub.ss58_address]
                     - total_coldkey_stake_from_metagraph[
                         coldkey_wallet.coldkeypub.ss58_address
                     ]
