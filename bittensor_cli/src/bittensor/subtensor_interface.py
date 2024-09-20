@@ -796,6 +796,7 @@ class SubtensorInterface:
         The weight distribution is a key factor in the network's consensus algorithm and the ranking of neurons,
         influencing their influence and reward allocation within the subnet.
         """
+        # TODO look into seeing if we can speed this up with storage query
         w_map_encoded = await self.substrate.query_map(
             module="SubtensorModule",
             storage_function="Weights",
