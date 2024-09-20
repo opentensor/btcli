@@ -609,19 +609,15 @@ async def overview(
         alerts_table.add_column("🥩 alert!")
 
         coldkeys_to_check = []
+        ck_stakes = await subtensor.get_total_stake_for_coldkey(
+            *(coldkey_wallet.coldkeypub.ss58_address for coldkey_wallet in all_coldkey_wallets if coldkey_wallet.coldkeypub),
+            block_hash=block_hash
+        )
         for coldkey_wallet in all_coldkey_wallets:
             if coldkey_wallet.coldkeypub:
                 # Check if we have any stake with hotkeys that are not registered.
-                total_coldkey_stake_from_chain = (
-                    # TODO gathering here may make sense or may not
-                    await subtensor.get_total_stake_for_coldkey(
-                        coldkey_wallet.coldkeypub.ss58_address, reuse_block=True
-                    )
-                )
                 difference = (
-                    total_coldkey_stake_from_chain[
-                        coldkey_wallet.coldkeypub.ss58_address
-                    ]
+                    ck_stakes[coldkey_wallet.coldkeypub.ss58_address]
                     - total_coldkey_stake_from_metagraph[
                         coldkey_wallet.coldkeypub.ss58_address
                     ]
