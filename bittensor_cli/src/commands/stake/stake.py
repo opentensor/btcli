@@ -1005,7 +1005,9 @@ async def show(
             ":satellite: Retrieving account data...", spinner="aesthetic"
         ):
             block_hash_ = await subtensor.substrate.get_chain_head()
-            registered_delegate_info = await subtensor.get_delegate_identities(block_hash=block_hash_)
+            registered_delegate_info = await subtensor.get_delegate_identities(
+                block_hash=block_hash_
+            )
             accounts = await get_all_wallet_accounts(block_hash=block_hash_)
 
         total_stake: float = 0.0
@@ -1118,7 +1120,7 @@ async def show(
             if is_last_row or (rows[i + 1][0] != ""):
                 table.add_row(end_section=True)
         console.print(table)
-        
+
     else:
         render_tree(
             "stakeshow",
@@ -1150,6 +1152,11 @@ async def show(
                     "formatterParams": {"symbol": "τ", "precision": 5},
                 },
             ],
+            {
+                "title": "Hotkey",
+                "field": "HOTKEY",
+                "width": 425,
+            },
             0,
         )
 
