@@ -471,6 +471,7 @@ async def _get_total_balance(
     subtensor: SubtensorInterface,
     wallet: Wallet,
     all_wallets: bool = False,
+    block_hash: Optional[str] = None,
 ) -> tuple[list[Wallet], Balance]:
     """
     Retrieves total balance of all or specified wallets
@@ -494,7 +495,7 @@ async def _get_total_balance(
             (
                 await subtensor.get_balance(
                     *(x.coldkeypub.ss58_address for x in _balance_cold_wallets),
-                    reuse_block=True,
+                    block_hash=block_hash
                 )
             ).values()
         )
@@ -515,7 +516,7 @@ async def _get_total_balance(
             total_balance = sum(
                 (
                     await subtensor.get_balance(
-                        coldkey_wallet.coldkeypub.ss58_address, reuse_block=True
+                        coldkey_wallet.coldkeypub.ss58_address, block_hash=block_hash
                     )
                 ).values()
             )
@@ -547,7 +548,7 @@ async def overview(
     print_verbose("Fetching total balance for coldkey/s")
     block_hash = await subtensor.substrate.get_chain_head()
     all_hotkeys, total_balance = await _get_total_balance(
-        total_balance, subtensor, wallet, all_wallets
+        total_balance, subtensor, wallet, all_wallets, block_hash=block_hash
     )
 
     with console.status(
