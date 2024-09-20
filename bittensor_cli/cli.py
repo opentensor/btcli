@@ -1729,17 +1729,15 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Check the scheduled swap status of a coldkey.
+        Check the status of your scheduled coldkey swap.
 
-        # Usage:
+        USAGE
 
-        Users need to specify the wallet they want to check the swap status of.
+        Users should provide the old coldkey wallet to check the swap status.
 
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli wallet check_coldkey_swap
-
-        [italic]Note[/italic]: This command is important for users who wish check if swap requests were made against their coldkey.
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
@@ -1757,22 +1755,17 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Generate both a new coldkey and hotkey under a specified wallet.
+        Create a complete wallet by setting up both coldkey and hotkeys.
 
-        This command is a comprehensive utility for creating a complete wallet setup with both cold
-        and hotkeys.
+        USAGE
 
-        # Usage:
-        The command facilitates the creation of a new coldkey and hotkey with an optional word count for the
-        mnemonics. It supports password protection for the coldkey and allows overwriting of existing keys.
+        The command creates a new coldkey and hotkey. It provides an option for mnemonic word count. It supports password protection for the coldkey and allows overwriting of existing keys.
 
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli wallet create --n_words 21
 
-        [italic]Note[/italic]: This command is ideal for new users setting up their wallet for the first time
-        or for those who wish to completely renew their wallet keys. It ensures a fresh start with new keys
-        for secure and effective participation in the network.
+        [bold]Note[/bold]: This command is for new users setting up their wallet for the first time, or for those who wish to completely renew their wallet keys. It ensures a fresh start with new keys for secure and effective participation in the Bittensor network.
         """
         if not wallet_path:
             wallet_path = Prompt.ask(
@@ -1781,11 +1774,11 @@ class CLIManager:
 
         if not wallet_name:
             wallet_name = Prompt.ask(
-                "Enter the name of new wallet", default=defaults.wallet.name
+                "Enter the name of the new wallet (coldkey)", default=defaults.wallet.name
             )
         if not wallet_hotkey:
             wallet_hotkey = Prompt.ask(
-                "Enter the the name of new hotkey", default=defaults.wallet.hotkey
+                "Enter the the name of the new hotkey", default=defaults.wallet.hotkey
             )
 
         self.verbosity_handler(quiet, verbose)
@@ -1814,7 +1807,7 @@ class CLIManager:
             False,
             "--all",
             "-a",
-            help="Whether to display the balances for all wallets.",
+            help="Whether to display the balances for all the wallets.",
         ),
         network: str = Options.network,
         chain: str = Options.chain,
@@ -1822,26 +1815,21 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Check the balance of the wallet on the Bittensor network.
-        This provides a detailed view of the wallet's coldkey balances, including free and staked balances.
+        Check the balance of the wallet. This command shows a detailed view of the wallet's coldkey balances, including free and staked balances.
 
-        # Usage:
+        EXAMPLES:
 
-        The command lists the balances of all wallets in the user's configuration directory, showing the
-        wallet name, coldkey address, and the respective free and staked balances.
+        - To display the balance of a single wallet, use the command with the `--wallet-name` argument and provide the wallet name:
 
-        # Example usages:
+            [green]$[/green] btcli w balance --wallet-name WALLET
 
-        - To display the balance of a single wallet, use the command with the `--wallet-name` argument to specify
-        the wallet name:
+        - To use the default config values, use:
 
-        [green]$[/green] btcli w balance --wallet-name WALLET
+            [green]$[/green] btcli w balance
 
-        [green]$[/green] btcli w balance
+        - To display the balances of all your wallets, use the `--all` argument:
 
-        - To display the balances of all wallets, use the `--all` argument:
-
-        [green]$[/green] btcli w balance --all
+            [green]$[/green] btcli w balance --all
         """
         self.verbosity_handler(quiet, verbose)
 
@@ -1864,23 +1852,19 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Fetch the latest transfers of the provided wallet on the Bittensor network.
-        This provides a detailed view of the transfers carried out on the wallet.
+        Show the history of the transfers carried out with the provided wallet on the Bittensor network.
 
-        # Usage:
+        USAGE
 
-        The command lists the latest transfers of the provided wallet, showing the 'From', 'To', 'Amount',
-        'Extrinsic ID' and 'Block Number'.
+        The output shows the latest transfers of the provided wallet, showing the columns 'From', 'To', 'Amount', 'Extrinsic ID' and 'Block Number'.
 
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli wallet history
 
-        [italic]Note[/italic]: This command is essential for users to monitor their financial status on the Bittensor network.
-        It helps in fetching info on all the transfers so that user can easily tally and cross-check the transactions.
         """
 
-        no_use_config_str = "Using network [dark_orange]finney[/dark_orange] and ignoring network/chain configs"
+        no_use_config_str = "Using the network [dark_orange]finney[/dark_orange] and ignoring network/chain configs"
 
         if self.config.get("network"):
             if self.config.get("network") != "finney":
@@ -1921,13 +1905,13 @@ class CLIManager:
             prompt=True,
         ),
         web_url: str = typer.Option(
-            "", "--web-url", "--web", help="The web url for the identity.", prompt=True
+            "", "--web-url", "--web", help="The web URL for the identity.", prompt=True
         ),
         riot_handle: str = typer.Option(
             "",
             "--riot-handle",
             "--riot",
-            help="The riot handle for the identity.",
+            help="The Riot handle for the identity.",
             prompt=True,
         ),
         email: str = typer.Option(
@@ -1937,14 +1921,14 @@ class CLIManager:
             "",
             "--pgp-fingerprint",
             "--pgp",
-            help="The pgp fingerprint for the identity.",
+            help="The PGP fingerprint for the identity.",
             prompt=True,
         ),
         image_url: str = typer.Option(
             "",
             "--image-url",
             "--image",
-            help="The image url for the identity.",
+            help="The image URL for the identity.",
             prompt=True,
         ),
         info_: str = typer.Option(
@@ -1956,7 +1940,7 @@ class CLIManager:
             "-𝕏",
             "--twitter-url",
             "--twitter",
-            help="The 𝕏 (Twitter) url for the identity.",
+            help="The 𝕏 (Twitter) URL for the identity.",
             prompt=True,
         ),
         validator_id: bool = typer.Option(
@@ -1969,39 +1953,21 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        Allows for the creation or update of a delegate's on-chain identity on the Bittensor network.
+        Create or update the on-chain identity of a coldkey or a hotkey on the Bittensor network. [bold]Incurs a 1 TAO transaction fee.[/bold]
 
-        This identity includes various attributes such as display name, legal name, web URL, PGP fingerprint, and
-        contact information, among others.
+        The on-chain identity includes attributes such as display name, legal name, web URL, PGP fingerprint, and contact information, among others.
 
-        The command prompts the user for the different identity attributes and validates the
-        input size for each attribute. It provides an option to update an existing validator
-        hotkey identity. If the user consents to the transaction cost, the identity is updated
-        on the blockchain.
+        The command prompts the user for the identity attributes and validates the input size for each attribute. It provides an option to update an existing validator hotkey identity. If the user consents to the transaction cost, the identity is updated on the blockchain.
 
-        Each field has a maximum size of 64 bytes. The PGP fingerprint field is an exception
-        and has a maximum size of 20 bytes. The user is prompted to enter the PGP fingerprint
-        as a hex string, which is then converted to bytes. The user is also prompted to enter
-        the coldkey or hotkey ``ss58`` address for the identity to be updated. If the user does
-        not have a hotkey, the coldkey address is used by default.
+        Each field has a maximum size of 64 bytes. The PGP fingerprint field is an exception and has a maximum size of 20 bytes. The user is prompted to enter the PGP fingerprint as a hex string, which is then converted to bytes. The user is also prompted to enter the coldkey or hotkey ``ss58`` address for the identity to be updated. 
+        
+        If the user does not have a hotkey, the coldkey address is used by default. If setting a validator identity, the hotkey will be used by default. If the user is setting an identity for a subnet, the coldkey will be used by default.
 
-        If setting a validator identity, the hotkey will be used by default. If the user is
-        setting an identity for a subnet, the coldkey will be used by default.
-
-        # Usage:
-
-        The user should call this command from the command line and follow the interactive
-        prompts to enter or update the identity information. The command will display the
-        updated identity details in a table format upon successful execution.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli wallet set_identity
 
-        [italic]Note[/italic]: This command should only be used if the user is willing to incur the 1 TAO
-        transaction fee associated with setting an identity on the blockchain. It is a high-level command
-        that makes changes to the blockchain state and should not be used programmatically as
-        part of other scripts or applications.
+        [bold]Note[/bold]: This command should only be used if the user is willing to incur the 1 TAO transaction fee associated with setting an identity on the blockchain. It is a high-level command that makes changes to the blockchain state and should not be used programmatically as part of other scripts or applications.
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
@@ -2045,33 +2011,21 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Retrieves and displays the identity details of a user's coldkey or hotkey.
+        Shows the identity details of a user's coldkey or hotkey.
 
-        The command performs the following actions:
+        The command displays the information in a table format showing:
 
-        - Connects to the subtensor network and retrieves the identity information.
+        - [blue bold]Address[/blue bold]: The ``ss58`` address of the queried key.
 
-        - Displays the information in a structured table format.
+        - [blue bold]Item[/blue bold]: Various attributes of the identity such as stake, rank, and trust.
 
-        The displayed table includes:
+        - [blue bold]Value[/blue bold]: The corresponding values of the attributes.
 
-        - *Address*: The ``ss58`` address of the queried key.
-
-        - *Item*: Various attributes of the identity such as stake, rank, and trust.
-
-        - *Value*: The corresponding values of the attributes.
-
-        # Usage:
-
-        The user must provide an ss58 address as input to the command. If the address is not
-        provided in the configuration, the user is prompted to enter one.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli wallet get_identity --key <s58_address>
 
-        [italic]Note[/italic]: This function is designed for CLI use and should be executed in a terminal.
-        It is primarily used for informational purposes and has no side effects on the network state.
+        [bold]Note[/bold]: This command is primarily used for informational purposes and has no side effects on the blockchain network state.
         """
         if not is_valid_ss58_address(target_ss58_address):
             print_error("You have entered an incorrect ss58 address. Please try again")
@@ -2097,22 +2051,18 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Allows users to sign a message with the provided wallet or wallet hotkey.
+        Allows users to sign a message with the provided wallet or wallet hotkey. Use this command to easily prove your ownership of a coldkey or a hotkey.
 
-        # Usage:
+        USAGE
 
-        The command generates a signature for a given message using the provided wallet
+        Using the provided wallet (coldkey), the command generates a signature for a given message.
 
-        # Example usage:
+        EXAMPLES
 
         [green]$[/green] btcli wallet sign --wallet-name default --message '{"something": "here", "timestamp": 1719908486}'
 
         [green]$[/green] btcli wallet sign --wallet-name default --wallet-hotkey hotkey --message
         '{"something": "here", "timestamp": 1719908486}'
-
-        [italic]Note[/italic]: When using `btcli`, `w` is used interchangeably with `wallet`. You may use either based
-        on your preference for brevity or clarity. This command is essential for users to easily prove their ownership
-        over a coldkey or a hotkey.
         """
         self.verbosity_handler(quiet, verbose)
         if use_hotkey is None:
