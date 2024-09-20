@@ -1079,7 +1079,7 @@ async def senate_vote(
         subtensor=subtensor,
         wallet=wallet,
         proposal_hash=proposal_hash,
-        proposal_idx=vote_data["index"],
+        proposal_idx=vote_data.index,
         vote=vote,
         wait_for_inclusion=True,
         wait_for_finalization=False,

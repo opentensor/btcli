@@ -3,12 +3,15 @@ import re
 import shutil
 import subprocess
 import sys
-from typing import List, Tuple
+from typing import List, Tuple, TYPE_CHECKING
 
 from bittensor_cli.cli import CLIManager
-from bittensor_wallet import Wallet
 from substrateinterface import Keypair
 from typer.testing import CliRunner
+from bittensor_wallet import Wallet
+
+if TYPE_CHECKING:
+    from bittensor_cli.src.bittensor.async_substrate_interface import AsyncSubstrateInterface
 
 template_path = os.getcwd() + "/neurons/"
 templates_repo = "templates repository"
@@ -282,3 +285,31 @@ def uninstall_templates(install_dir):
     )
     # Delete everything in directory
     shutil.rmtree(install_dir)
+
+
+async def call_add_proposal(substrate: "AsyncSubstrateInterface", wallet: Wallet) -> bool:
+    async with substrate:
+        proposal_call = await substrate.compose_call(
+            call_module="System",
+            call_function="remark",
+            call_params={"remark": [0]},
+        )
+        call = await substrate.compose_call(
+            call_module="Triumvirate",
+            call_function="propose",
+            call_params={
+                "proposal": proposal_call,
+                "length_bound": 100_000,
+                "duration": 100_000_000,
+            },
+        )
+
+        extrinsic = await substrate.create_signed_extrinsic(call=call, keypair=wallet.coldkey)
+        response = await substrate.submit_extrinsic(
+            extrinsic,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+        )
+
+        await response.process_events()
+        return await response.is_success
