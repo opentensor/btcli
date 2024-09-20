@@ -2414,47 +2414,17 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Register a neuron on the Bittensor network by recycling some TAO (the network's native token).
+        Register a neuron (a subnet validator or a subnet miner) to a specified subnet by recycling some TAO to cover for the registration cost.
 
-        This command is used to add a new neuron to a specified subnet within the network, contributing to the
-        decentralization and robustness of Bittensor.
+        This command adds a new neuron (a subnet validator or a subnet miner) to a specified subnet, contributing to the decentralization and robustness of Bittensor.
 
         # Usage:
 
-        Before registering, the command checks if the specified subnet exists and whether the user's balance is
-        sufficient to cover the registration cost.
-
-        The registration cost is determined by the current recycle amount for the specified subnet. If the balance is
-        insufficient or the subnet does not exist, the command will exit with an appropriate error message.
-
-        If the preconditions are met, and the user confirms the transaction (if `no_prompt` is not set), the command
-        proceeds to register the neuron by recycling the required amount of TAO.
-
-        The command structure includes:
-
-        - Verification of subnet existence.
-
-        - Checking the user's balance against the current recycle amount for the subnet.
-
-        - User confirmation prompt for proceeding with registration.
-
-        - Execution of the registration process.
-
-
-        Columns Displayed in the confirmation prompt:
-
-        - Balance: The current balance of the user's wallet in TAO.
-
-        - Cost to Register: The required amount of TAO needed to register on the specified subnet.
-
+        Before registering, the command checks if the specified subnet exists and whether the TAO balance in the user's wallet is sufficient to cover the registration cost. The registration cost is determined by the current recycle amount for the specified subnet. If the balance is insufficient or the subnet does not exist, the command will exit with an appropriate error message.
 
         # Example usage:
 
         [green]$[/green] btcli subnets register --netuid 1
-
-        [italic]Note[/italic]: This command is critical for users who wish to contribute a new neuron to the network.
-        It requires careful consideration of the subnet selection and an understanding of the registration costs.
-        Users should ensure their wallet is sufficiently funded before attempting to register a neuron.
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
@@ -2476,22 +2446,13 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        View active proposals for the senate within Bittensor's governance protocol.
+        View active proposals for the senate in the Bittensor's governance protocol.
 
-        This command displays the details of ongoing proposals, including votes, thresholds, and proposal data.
+        This command displays the details of ongoing proposals, including proposal hashes, votes, thresholds, and proposal data.
 
-        # Usage:
-
-        The command lists all active proposals, showing their hash, voting threshold, number of ayes and nays, detailed
-        votes by address, end block number, and call data associated with each proposal.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli root proposals
-
-        [italic]Note[/italic]: This command is essential for users who are actively participating in or monitoring the
-        governance of the Bittensor network. It provides a detailed view of the proposals being considered, along with
-        the community's response to each.
         """
         self.verbosity_handler(quiet, verbose)
         return self._run_command(root.proposals(self.initialize_chain(network, chain)))
@@ -2508,22 +2469,16 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Allows users to change their delegate take.
+        Allows users to change their delegate take percentage.
 
-        The command performs several checks:
+        This command can be used to update the delegate takes individually for every subnet. To run the command, the user must have a configured wallet with both hotkey and coldkey. The command performs the below checks:
 
-        1. Hotkey is already a delegate
-        2. New take value is within 0-18% range
+            1. The provided hotkey is already a delegate.
+            2. The new take value is within 0-18% range.
 
-        # Usage:
-
-        To run the command, the user must have a configured wallet with both hotkey and coldkey. Also, the hotkey should already be a delegate.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli root set_take --wallet-name my_wallet --wallet-hotkey my_hotkey
-
-        [italic]Note[/italic]: This function can be used to update the takes individually for every subnet
         """
         max_value = 0.18
         min_value = 0.08
@@ -2559,17 +2514,17 @@ class CLIManager:
         self,
         delegate_ss58key: str = typer.Option(
             None,
-            help="The `SS58` address of the delegate to stake to.",
-            prompt="Enter Hotkey ss58 address you want to delegate to",
+            help="The ss58 address of the delegate hotkey to stake TAO to.",
+            prompt="Enter the hotkey ss58 address you want to delegate TAO to.",
         ),
         amount: Optional[float] = typer.Option(
-            None, help="The amount of Tao to stake. Do no specify if using `--all`"
+            None, help="The amount of TAO to stake. Do no specify if using `--all`"
         ),
         stake_all: Optional[bool] = typer.Option(
             False,
             "--all",
             "-a",
-            help="If specified, the command stakes all available Tao. Do not specify if using"
+            help="If specified, the command stakes all available TAO. Do not specify if using"
             " `--amount`",
         ),
         wallet_name: Optional[str] = Options.wallet_name,
@@ -2582,34 +2537,25 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Stakes Tao to a specified delegate on the Bittensor network.
+        Stakes TAO to a specified delegate hotkey.
 
-        This action allocates the user's Tao to support a delegate, potentially earning staking rewards in return.
+        This command allocates the user's TAO to the specified hotkey of a delegate, potentially earning staking rewards in return. If the
+        `--all` flag is used, it delegates the entire TAO balance available in the user's wallet.
 
-        The command interacts with the user to determine the delegate and the amount of Tao to be staked. If the
-        `--all` flag is used, it delegates the entire available balance.
+        This command should be run by a TAO holder. Compare this command with "btcli stake add" that is typically run by a subnet validator to add stake to their own delegate hotkey.
 
-        # Usage:
+        EXAMPLE
 
-        The user must specify the delegate's SS58 address and the amount of Tao to stake. The function sends a
-        transaction to the subtensor network to delegate the specified amount to the chosen delegate. These values are
-        prompted if not provided. You can list all delegates with `btcli root list-delegates`.
+        [green]$[/green] btcli root delegate-stake --delegate_ss58key <SS58_ADDRESS> --amount <AMOUNT>
 
-        # Example usage:
+        [green]$[/green] btcli root delegate-stake --delegate_ss58key <SS58_ADDRESS> --all
 
-        [green]$[/green] btcli delegate-stake --delegate_ss58key <SS58_ADDRESS> --amount <AMOUNT>
-
-        [green]$[/green] btcli delegate-stake --delegate_ss58key <SS58_ADDRESS> --all
-
-
-        [italic]Note[/italic]: This command modifies the blockchain state and may incur transaction fees. It requires user confirmation
-        and interaction, and is designed to be used within the Bittensor CLI environment. The user should ensure the delegate's address
-        and the amount to be staked are correct before executing the command.
+        [blue bold]Note[/blue bold]: This command modifies the blockchain state and may incur transaction fees. The user should ensure the delegate's address and the amount to be staked are correct before executing the command.
         """
         self.verbosity_handler(quiet, verbose)
         if amount and stake_all:
             err_console.print(
-                "`--amount` and `--all` specified. Choose one or the other."
+                "Both `--amount` and `--all` are specified. Choose one or the other."
             )
         if not stake_all and not amount:
             while True:
@@ -2644,17 +2590,17 @@ class CLIManager:
         self,
         delegate_ss58key: str = typer.Option(
             None,
-            help="The `SS58` address of the delegate to undelegate from.",
-            prompt="Enter Hotkey ss58 address you want to undelegate from",
+            help="The ss58 address of the delegate to undelegate from.",
+            prompt="Enter the hotkey ss58 address you want to undelegate from",
         ),
         amount: Optional[float] = typer.Option(
-            None, help="The amount of Tao to unstake. Do no specify if using `--all`"
+            None, help="The amount of TAO to unstake. Do no specify if using `--all`"
         ),
         unstake_all: Optional[bool] = typer.Option(
             False,
             "--all",
             "-a",
-            help="If specified, the command undelegates all staked Tao from the delegate. Do not specify if using"
+            help="If specified, the command undelegates all staked TAO from the delegate. Do not specify if using"
             " `--amount`",
         ),
         wallet_name: Optional[str] = Options.wallet_name,
@@ -2667,34 +2613,20 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Allows users to withdraw their staked Tao from a delegate on the Bittensor network.
+        Allows users to withdraw their staked TAO from a delegate.
 
-        This process is known as "undelegating" and it reverses the delegation process, freeing up the staked tokens.
+        The user must provide the delegate hotkey's ss58 address and the amount of TAO to undelegate. The function will then send a transaction to the blockchain to process the undelegation. This command can result in a change to the blockchain state and may incur transaction fees.
 
-        The command prompts the user for the amount of Tao to undelegate and the ``SS58`` address of the delegate from
-        which to undelegate. If the ``--all`` flag is used, it will attempt to undelegate the entire staked amount from
-        the specified delegate.
-
-        # Usage:
-
-        The user must provide the delegate's SS58 address and the amount of Tao to undelegate. The function will then
-        send a transaction to the Bittensor network to process the undelegation.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli undelegate --delegate_ss58key <SS58_ADDRESS> --amount <AMOUNT>
 
-        [green]$[/green]  btcli undelegate --delegate_ss58key <SS58_ADDRESS> --all
-
-
-        [italic]Note[/italic]: This command can result in a change to the blockchain state and may incur transaction fees.
-        It is interactive and requires confirmation from the user before proceeding. It should be used with care as undelegating can
-        affect the delegate's total stake and potentially the user's staking rewards.
+        [green]$[/green] btcli undelegate --delegate_ss58key <SS58_ADDRESS> --all
         """
         self.verbosity_handler(quiet, verbose)
         if amount and unstake_all:
             err_console.print(
-                "`--amount` and `--all` specified. Choose one or the other."
+                "Both `--amount` and `--all` are specified. Choose one or the other."
             )
         if not unstake_all and not amount:
             while True:
@@ -2737,26 +2669,23 @@ class CLIManager:
             "--all-wallets",
             "--all",
             "-a",
-            help="If specified, the command aggregates information across all wallets.",
+            help="If specified, the command aggregates information across all the wallets.",
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
         """
-        Retrieves and displays a table of delegated stakes from a user's wallet(s) to various delegates.
-
-        The command provides detailed insights into the user's
-        staking activities and the performance of their chosen delegates.
+        Shows a table with the details on the user's delegates. 
 
         The table output includes the following columns:
 
-        - Wallet: The name of the user's wallet.
+        - Wallet: The name of the user's wallet (coldkey).
 
-        - OWNER: The name of the delegate's owner.
+        - OWNER: The name of the delegate who owns the hotkey.
 
-        - SS58: The truncated SS58 address of the delegate.
+        - SS58: The truncated SS58 address of the delegate's hotkey.
 
-        - Delegation: The amount of Tao staked by the user to the delegate.
+        - Delegation: The amount of TAO staked by the user to the delegate.
 
         - τ/24h: The earnings from the delegate to the user over the past 24 hours.
 
@@ -2770,26 +2699,19 @@ class CLIManager:
 
         - VPERMIT: Validator permits held by the delegate for various subnets.
 
-        - 24h/kτ: Earnings per 1000 Tao staked over the last 24 hours.
+        - 24h/kτ: Earnings per 1000 TAO staked over the last 24 hours.
 
         - Desc: A description of the delegate.
 
+        The command also sums and prints the total amount of TAO delegated across all wallets.
 
-        The command also sums and prints the total amount of Tao delegated across all wallets.
-
-        # Usage:
-
-        The command can be run as part of the Bittensor CLI suite of tools and requires no parameters if a single wallet
-        is used. If multiple wallets are present, the `--all` flag can be specified to aggregate information across
-        all wallets.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli root my-delegates
         [green]$[/green] btcli root my-delegates --all
         [green]$[/green] btcli root my-delegates --wallet-name my_wallet
 
-        [italic]Note[/italic]: This function is typically called by the CLI parser and is not intended to be used directly in user code.
+        [blue bold]Note[/blue bold]: This command is not intended to be used directly in user code.
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
@@ -2809,7 +2731,7 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Displays a table of Bittensor network delegates, providing a comprehensive overview of delegate statistics and information.
+        Displays a table of Bittensor network-wide delegates, providing a comprehensive overview of delegate statistics and information.
 
         This table helps users make informed decisions on which delegates to allocate their TAO stake.
 
@@ -2819,19 +2741,19 @@ class CLIManager:
 
         - DELEGATE: The name of the delegate.
 
-        - SS58: The delegate's unique SS58 address (truncated for display).
+        - SS58: The delegate's unique ss58 address (truncated for display).
 
         - NOMINATORS: The count of nominators backing the delegate.
 
-        - DELEGATE STAKE(τ): The amount of delegate's own stake (not the TAO delegated from any nominators).
+        - OWN STAKE(τ): The amount of delegate's own stake (not the TAO delegated from any nominators).
 
-        - TOTAL STAKE(τ): The delegate's cumulative stake, including self-staked and nominators' stakes.
+        - TOTAL STAKE(τ): The delegate's total stake, i.e., the sum of delegate's own stake and nominators' stakes.
 
         - CHANGE/(4h): The percentage change in the delegate's stake over the last four hours.
 
-        - SUBNETS: The subnets to which the delegate is registered.
+        - SUBNETS: The subnets in which the delegate is registered.
 
-        - VPERMIT: Indicates the subnets for which the delegate has validator permits.
+        - VPERMIT: Indicates the subnets in which the delegate has validator permits.
 
         - NOMINATOR/(24h)/kτ: The earnings per 1000 τ staked by nominators in the last 24 hours.
 
@@ -2839,12 +2761,14 @@ class CLIManager:
 
         - DESCRIPTION: A brief description of the delegate's purpose and operations.
 
+        [blue bold]NOTES:[/blue bold]
+        
+            - Sorting is done based on the `TOTAL STAKE` column in descending order. 
+            - Changes in stake are shown as: increases in green and decreases in red. 
+            - Entries with no previous data are marked with `NA`. 
+            - Each delegate's name is a hyperlink to more information, if available.
 
-        Sorting is done based on the `TOTAL STAKE` column in descending order. Changes in stake are highlighted:
-        increases in green and decreases in red. Entries with no previous data are marked with ``NA``. Each delegate's
-        name is a hyperlink to their respective URL, if available.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli root list_delegates
 
@@ -2852,7 +2776,7 @@ class CLIManager:
 
         [green]$[/green] btcli root list_delegates --subtensor.network finney # can also be `test` or `local`
 
-        [italic]Note[/italic]: This function is part of the Bittensor CLI tools and is intended for use within a
+        [blue bold]NOTE[/blue bold]: This commmand is intended for use within a
         console application. It prints directly to the console and does not return any value.
         """
         self.verbosity_handler(quiet, verbose)
@@ -2894,33 +2818,27 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Facilitates a wallet to become a delegate on the Bittensor network.
+        Enables a wallet's hotkey to become a delegate.
 
-        This command handles the nomination process, including wallet unlocking and verification of the hotkey's current
-        delegate status.
+        This command handles the nomination process, including wallet unlocking and verification of the hotkey's current delegate status.
 
         The command performs several checks:
 
-        - Verifies that the hotkey is not already a delegate to prevent redundant nominations.
+            - Verifies that the hotkey is not already a delegate to prevent redundant nominations.
 
-        - Tries to nominate the wallet and reports success or failure.
+            - Tries to nominate the wallet and reports success or failure.
 
         Upon success, the wallet's hotkey is registered as a delegate on the network.
 
-        # Usage:
+        To run the command, the user must have a configured wallet with both hotkey and coldkey. If the wallet is not already nominated, this command will initiate the process.
 
-        To run the command, the user must have a configured wallet with both hotkey and coldkey. If the wallet is not
-        already nominated, this command will initiate the process.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli root nominate
 
         [green]$[/green] btcli root nominate --wallet-name my_wallet --wallet-hotkey my_hotkey
 
-        [italic]Note[/italic]: This function is intended to be used as a CLI command. It prints the outcome directly to the console
-        and does not return any value. It should not be called programmatically in user code due to its interactive nature and
-        side effects on the network state.
+        [blue bold]Note[/blue bold]: This command prints the output directly to the console. It should not be called programmatically in user code due to its interactive nature and side effects on the network state.
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
@@ -2941,7 +2859,7 @@ class CLIManager:
             "--all",
             "--all-wallets",
             "-a",
-            help="When set, the command checks all coldkey wallets instead of just the specified wallet.",
+            help="When set, the command checks all the coldkey wallets of the user instead of just the specified wallet.",
         ),
         network: Optional[str] = Options.network,
         chain: Optional[str] = Options.chain,
@@ -2954,42 +2872,33 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        List all stake accounts associated with a user's wallet on the Bittensor network.
+        Lists all the stake accounts associated with a user's wallet.
 
-        This command provides a comprehensive view of the stakes associated with both hotkeys and delegates linked to
-        the user's coldkey.
+        This command provides a comprehensive view of the stakes associated with the user's coldkeys. It shows both the user's own hotkeys and also the hotkeys of the delegates to which this user has staked. 
 
-        # Usage:
+        The command lists all the stake accounts for a specified wallet or all wallets in the user's configuration directory. It displays the coldkey, balance, hotkey details (own hotkey and delegate hotkey), stake amount, and the rate of return.
 
-        The command lists all stake accounts for a specified wallet or all wallets in the user's configuration
-        directory. It displays the coldkey, balance, account details (hotkey/delegate name), stake amount, and the rate
-        of return.
-
-        The command compiles a table showing:
+        The command shows a table with the below columns:
 
         - Coldkey: The coldkey associated with the wallet.
 
         - Balance: The balance of the coldkey.
 
-        - Account: The name of the hotkey or delegate.
+        - Hotkey: The names of the coldkey's own hotkeys and the delegate hotkeys to which this coldkey has staked.
 
-        - Stake: The amount of TAO staked to the hotkey or delegate.
+        - Stake: The amount of TAO staked to all the hotkeys.
 
-        - Rate: The rate of return on the stake, typically shown in TAO per day.
+        - Rate: The rate of return on the stake, shown in TAO per day.
 
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli stake show --all
-
-        [italic]Note[/italic]: This command is essential for users who wish to monitor their stake distribution and returns across various
-        accounts on the Bittensor network. It provides a clear and detailed overview of the user's staking activities.
         """
         self.verbosity_handler(quiet, verbose)
         if (reuse_last or html_output) and self.config.get("use_cache") is False:
             err_console.print(
-                "Unable to use `--reuse-last` or `--html` when config no-cache is set to True. "
-                "Please change the config to False using `btcli config set`"
+                "Unable to use `--reuse-last` or `--html` when config 'no-cache' is set to 'True'. "
+                "Please change the config to 'False' using `btcli config set`"
             )
             raise typer.Exit()
         if not reuse_last:
@@ -3028,37 +2937,37 @@ class CLIManager:
             "--all-tokens",
             "--all",
             "-a",
-            help="When set, stakes all available tokens from the coldkey.",
+            help="When set, the command stakes all the available TAO from the coldkey.",
         ),
         amount: float = typer.Option(
-            0.0, "--amount", help="The amount of TAO tokens to stake"
+            0.0, "--amount", help="The amount of TAO to stake"
         ),
         max_stake: float = typer.Option(
             0.0,
             "--max-stake",
             "-m",
-            help="Sets the maximum amount of TAO to have staked in each hotkey.",
+            help="Sets the maximum amount of TAO to stake in each hotkey.",
         ),
         hotkey_ss58_address: str = typer.Option(
             "",
-            help="The SS58 address of the hotkey to stake to.",
+            help="The ss58 address of the hotkey to stake to.",
         ),
         include_hotkeys: list[str] = typer.Option(
             [],
             "--include-hotkeys",
             "-in",
-            help="Specifies hotkeys by name or SS58 address to stake to. i.e `-in hk1 -in hk2`",
+            help="Specifies hotkeys by name or ss58 address to stake to. For example, `-in hk1 -in hk2`",
         ),
         exclude_hotkeys: list[str] = typer.Option(
             [],
             "--exclude-hotkeys",
             "-ex",
-            help="Specifies hotkeys by name/SS58 address not to stake to (only use with `--all-hotkeys`.)"
-            " i.e. `-ex hk3 -ex hk4`",
+            help="Specifies hotkeys by name or ss58 address to not to stake to (use this option only with `--all-hotkeys`)"
+            " i.e. `--all-hotkeys -ex hk3 -ex hk4`",
         ),
         all_hotkeys: bool = typer.Option(
             False,
-            help="When set, stakes to all hotkeys associated with the wallet. Do not use if specifying "
+            help="When set, the command stakes to all the hotkeys associated with the wallet. Do not use if specifying "
             "hotkeys in `--include-hotkeys`.",
         ),
         wallet_name: str = Options.wallet_name,
@@ -3071,26 +2980,15 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Stake TAO tokens to one or more hotkeys from a user's coldkey on the Bittensor network.
+        Stake TAO to one or more hotkeys associated with the user's coldkey.
 
-        This command is used to allocate tokens to different hotkeys, securing their position and influence on the
-         network.
+        This command is used by a subnet validator to stake to their own hotkey. Compare this command with "btcli root delegate" that is typically run by a TAO holder to delegate their TAO to a delegate's hotkey.
 
-        # Usage:
+        This command is used by a subnet validator to allocate stake TAO to their different hotkeys, securing their position and influence on the network.
 
-        Users can specify the amount to stake, the hotkeys to stake to (either by name or ``SS58`` address), and whether
-        to stake to all hotkeys. The command checks for sufficient balance and hotkey registration before proceeding
-        with the staking process.
-
-
-        The command prompts for confirmation before executing the staking operation.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli stake add --amount 100 --wallet-name <my_wallet> --wallet-hotkey <my_hotkey>
-
-        [italic]Note[/italic]: This command is critical for users who wish to distribute their stakes among different neurons (hotkeys) on the
-        network. It allows for a strategic allocation of tokens to enhance network participation and influence.
         """
         self.verbosity_handler(quiet, verbose)
 
@@ -3109,14 +3007,14 @@ class CLIManager:
 
         if all_hotkeys and include_hotkeys:
             err_console.print(
-                "You have specified hotkeys to include and the `--all-hotkeys` flag. The flag"
+                "You have specified hotkeys to include and also the `--all-hotkeys` flag. The flag"
                 "should only be used standalone (to use all hotkeys) or with `--exclude-hotkeys`."
             )
             raise typer.Exit()
 
         if include_hotkeys and exclude_hotkeys:
             err_console.print(
-                "You have specified including and excluding hotkeys. Select one or the other."
+                "You have specified options for both including and excluding hotkeys. Select one or the other."
             )
             raise typer.Exit()
 
@@ -3135,7 +3033,7 @@ class CLIManager:
                 show_default=False,
             )
             if hotkey_or_ss58 == "ss58":
-                hotkey_ss58_address = typer.prompt("Enter the ss58_address to stake to")
+                hotkey_ss58_address = typer.prompt("Enter the ss58 address to stake to")
                 if not is_valid_ss58_address(hotkey_ss58_address):
                     print_error("The entered ss58 address is incorrect")
                     raise typer.Exit()
@@ -3191,14 +3089,14 @@ class CLIManager:
             False,
             "--unstake-all",
             "--all",
-            help="When set, unstakes all staked tokens from the specified hotkeys.",
+            help="When set, this commmand unstakes all staked TAO from the specified hotkeys.",
         ),
         amount: float = typer.Option(
-            0.0, "--amount", "-a", help="The amount of TAO tokens to unstake."
+            0.0, "--amount", "-a", help="The amount of TAO to unstake."
         ),
         hotkey_ss58_address: str = typer.Option(
             "",
-            help="The SS58 address of the hotkey to unstake from.",
+            help="The ss58 address of the hotkey to unstake from.",
         ),
         max_stake: float = typer.Option(
             0.0,
@@ -3210,18 +3108,18 @@ class CLIManager:
             [],
             "--include-hotkeys",
             "-in",
-            help="Specifies hotkeys by name or SS58 address to unstake from. i.e `-in hk1 -in hk2`",
+            help="Specifies the hotkeys by name or ss58 address to unstake from. For example, `-in hk1 -in hk2`",
         ),
         exclude_hotkeys: list[str] = typer.Option(
             [],
             "--exclude-hotkeys",
             "-ex",
-            help="Specifies hotkeys by name/SS58 address not to unstake from (only use with `--all-hotkeys`.)"
-            " i.e. `-ex hk3 -ex hk4`",
+            help="Specifies the hotkeys by name or ss58 address not to unstake from (only use with `--all-hotkeys`)"
+            " i.e. `--all-hotkeys -ex hk3 -ex hk4`",
         ),
         all_hotkeys: bool = typer.Option(
             False,
-            help="When set, unstakes from all hotkeys associated with the wallet. Do not use if specifying "
+            help="When set, this command unstakes from all the hotkeys associated with the wallet. Do not use if specifying "
             "hotkeys in `--include-hotkeys`.",
         ),
         prompt: bool = Options.prompt,
@@ -3229,43 +3127,34 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Unstake TAO tokens from one or more hotkeys and transfer them back to the user's coldkey.
+        Unstake TAO from one or more hotkeys and transfer them back to the user's coldkey.
 
-        This command is used to withdraw tokens previously staked to different hotkeys.
+        This command is used to withdraw TAO previously staked to different hotkeys.
 
-        # Usage:
-
-        Users can specify the amount to unstake, the hotkeys to unstake from (either by name or `SS58` address), and
-        whether to unstake from all hotkeys. The command checks for sufficient stake and prompts for confirmation before
-        proceeding with the unstaking process.
-
-        The command prompts for confirmation before executing the unstaking operation.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli stake remove --amount 100 -in hk1 -in hk2
 
-        [italic]Note[/italic]: This command is important for users who wish to reallocate their stakes or withdraw
-        them from the network. It allows for flexible management of token stakes across different neurons (hotkeys) on the network.
+        [blue bold]Note[/blue bold]: This command is for users who wish to reallocate their stake or withdraw them from the network. It allows for flexible management of TAO stake across different neurons (hotkeys) on the network.
         """
         self.verbosity_handler(quiet, verbose)
 
         if all_hotkeys and include_hotkeys:
             err_console.print(
-                "You have specified hotkeys to include and the `--all-hotkeys` flag. The flag"
+                "You have specified hotkeys to include and also the `--all-hotkeys` flag. The flag"
                 "should only be used standalone (to use all hotkeys) or with `--exclude-hotkeys`."
             )
             raise typer.Exit()
 
         if include_hotkeys and exclude_hotkeys:
             err_console.print(
-                "You have specified including and excluding hotkeys. Select one or the other."
+                "You have specified both including and excluding hotkeys options. Select one or the other."
             )
             raise typer.Exit()
 
         if unstake_all and amount:
             err_console.print(
-                "Cannot specify an amount and 'unstake-all'. Choose one or the other."
+                "Cannot specify both a specific amount and 'unstake-all'. Choose one or the other."
             )
             raise typer.Exit()
 
@@ -3292,7 +3181,7 @@ class CLIManager:
             )
             if hotkey_or_ss58 == "ss58":
                 hotkey_ss58_address = typer.prompt(
-                    "Enter the ss58_address to unstake from"
+                    "Enter the ss58 address to unstake from"
                 )
                 if not is_valid_ss58_address(hotkey_ss58_address):
                     print_error("The entered ss58 address is incorrect")
@@ -3348,7 +3237,7 @@ class CLIManager:
         chain: Optional[str] = Options.chain,
         netuid: Optional[int] = typer.Option(
             None,
-            help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
+            help="The netuid of the subnet (e.g. 2)",
             prompt=False,
         ),
         all_netuids: bool = typer.Option(
@@ -3356,32 +3245,27 @@ class CLIManager:
             "--all-netuids",
             "--all",
             "--allnetuids",
-            help="When set, gets children from all subnets on the bittensor network.",
+            help="When set, gets the child hotkeys from all the subnets.",
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
         """
-        Get all child hotkeys on a specified subnet on the Bittensor network.
+        Get all the child hotkeys on a specified subnet.
 
-        This command is used to view delegated authority to different hotkeys on the subnet.
-
-        # Usage:
-        Users can specify the subnet and see the children and the proportion that is given to them.
+        This command is used to view the authority delegated to different hotkeys on the subnet. Users can specify the subnet and see the child hotkeys and the proportion that is given to them.
 
         The command compiles a table showing:
 
         - ChildHotkey: The hotkey associated with the child.
         - ParentHotKey: The hotkey associated with the parent.
-        - Proportion: The proportion that is assigned to them.
+        - Proportion: The proportion that is assigned to the child hotkey by the parent hotkey.
         - Expiration: The expiration of the hotkey.
 
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli stake get_children --netuid 1
         [green]$[/green] btcli stake get_children --all-netuids
-
-        [italic]Note[/italic]: This command is for users who wish to see child hotkeys among different neurons (hotkeys) on the network.
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
@@ -3393,7 +3277,7 @@ class CLIManager:
         )
 
         if all_netuids and netuid:
-            err_console.print("Specify either netuid or all, not both.")
+            err_console.print("Specify either a netuid or 'all', not both.")
             raise typer.Exit()
 
         if all_netuids:
@@ -3401,7 +3285,7 @@ class CLIManager:
 
         elif not netuid:
             netuid = IntPrompt.ask(
-                "Enter netuid (leave blank for all)", default=None, show_default=True
+                "Enter a netuid (leave blank for all)", default=None, show_default=True
             )
 
         return self._run_command(
@@ -3413,7 +3297,7 @@ class CLIManager:
     def stake_set_children(
         self,
         children: list[str] = typer.Option(
-            [], "--children", "-c", help="Enter children hotkeys (ss58)", prompt=False
+            [], "--children", "-c", help="Enter child hotkeys (ss58)", prompt=False
         ),
         wallet_name: str = Options.wallet_name,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -3422,7 +3306,7 @@ class CLIManager:
         chain: str = Options.chain,
         netuid: Optional[int] = typer.Option(
             None,
-            help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
+            help="The netuid of the subnet, (e.g. 4)",
             prompt=False,
         ),
         all_netuids: bool = typer.Option(
@@ -3430,14 +3314,14 @@ class CLIManager:
             "--all-netuids",
             "--all",
             "--allnetuids",
-            help="When this flag is used it sets children on all subnets on the bittensor network.",
+            help="When this flag is used it sets child hotkeys on all subnets.",
         ),
         proportions: list[float] = typer.Option(
             [],
             "--proportions",
             "--prop",
             "-p",
-            help="Enter proportions for children as (sum less than 1)",
+            help="Enter the stake weight proportions for the child hotkeys (sum should be less than or equal to 1)",
             prompt=False,
         ),
         wait_for_inclusion: bool = Options.wait_for_inclusion,
@@ -3446,20 +3330,16 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Add children hotkeys on a specified subnet on the Bittensor network.
+        Set child hotkeys on a specified subnet.
 
-        This command is used to delegate authority to different hotkeys, securing their position and influence on the
-        subnet.
+        This command is used to delegate authority to different hotkeys, securing their position and influence on the subnet.
 
         # Usage:
 
-        Users can specify the amount or 'proportion' to delegate to child hotkeys (``SS58`` address),
-        the user needs to have sufficient authority to make this call, and the sum of proportions cannot be greater
+        Users can specify the 'proportion' to delegate to child hotkeys (``ss58`` address). The sum of proportions cannot be greater
         than 1.
 
-        The command prompts for confirmation before executing the set_children operation.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli stake child set - <child_hotkey> -c <child_hotkey> --hotkey <parent_hotkey> --netuid 1 -prop 0.3 -prop 0.3
 
