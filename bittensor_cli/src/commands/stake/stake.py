@@ -1151,12 +1151,12 @@ async def show(
                     "formatter": "money",
                     "formatterParams": {"symbol": "τ", "precision": 5},
                 },
+                {
+                    "title": "Hotkey",
+                    "field": "HOTKEY",
+                    "width": 425,
+                },
             ],
-            {
-                "title": "Hotkey",
-                "field": "HOTKEY",
-                "width": 425,
-            },
             0,
         )
 
