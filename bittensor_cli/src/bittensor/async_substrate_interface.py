@@ -1104,6 +1104,33 @@ class AsyncSubstrateInterface:
         else:
             return None
 
+    async def create_storage_key(
+        self, pallet: str, storage_function: str, params: Optional[list] = None
+    ) -> StorageKey:
+        """
+        Create a `StorageKey` instance providing storage function details. See `subscribe_storage()`.
+
+        Parameters
+        ----------
+        pallet: name of pallet
+        storage_function: name of storage function
+        params: Optional list of parameters in case of a Mapped storage function
+
+        Returns
+        -------
+        StorageKey
+        """
+
+        await self.init_runtime()
+
+        return StorageKey.create_from_storage_function(
+            pallet,
+            storage_function,
+            params,
+            runtime_config=self.runtime_config,
+            metadata=self.metadata,
+        )
+
     async def _get_block_handler(
         self,
         block_hash: str,
@@ -1783,6 +1810,70 @@ class AsyncSubstrateInterface:
             param: responses[p.queryable][0] for (param, p) in zip(params, preprocessed)
         }
 
+    async def query_multi(
+        self, storage_keys: list[StorageKey], block_hash: Optional[str] = None
+    ) -> list:
+        """
+        Query multiple storage keys in one request.
+
+        Example:
+
+        ```
+        storage_keys = [
+            substrate.create_storage_key(
+                "System", "Account", ["F4xQKRUagnSGjFqafyhajLs94e7Vvzvr8ebwYJceKpr8R7T"]
+            ),
+            substrate.create_storage_key(
+                "System", "Account", ["GSEX8kR4Kz5UZGhvRUCJG93D5hhTAoVZ5tAe6Zne7V42DSi"]
+            )
+        ]
+
+        result = substrate.query_multi(storage_keys)
+        ```
+
+        Parameters
+        ----------
+        storage_keys: list of StorageKey objects
+        block_hash: Optional block_hash of state snapshot
+
+        Returns
+        -------
+        list of `(storage_key, scale_obj)` tuples
+        """
+
+        await self.init_runtime(block_hash=block_hash)
+
+        # Retrieve corresponding value
+        response = await self.rpc_request(
+            "state_queryStorageAt", [[s.to_hex() for s in storage_keys], block_hash]
+        )
+
+        if "error" in response:
+            raise SubstrateRequestException(response["error"]["message"])
+
+        result = []
+
+        storage_key_map = {s.to_hex(): s for s in storage_keys}
+
+        for result_group in response["result"]:
+            for change_storage_key, change_data in result_group["changes"]:
+                # Decode result for specified storage_key
+                storage_key = storage_key_map[change_storage_key]
+                if change_data is None:
+                    change_data = b"\x00"
+                else:
+                    change_data = bytes.fromhex(change_data[2:])
+                result.append(
+                    (
+                        storage_key,
+                        await self.decode_scale(
+                            storage_key.value_scale_type, change_data
+                        ),
+                    )
+                )
+
+        return result
+
     async def create_scale_object(
         self,
         type_string: str,
@@ -2259,8 +2350,7 @@ class AsyncSubstrateInterface:
         extrinsic = await self.create_signed_extrinsic(
             call=call, keypair=keypair, signature=signature
         )
-        async with self._lock:
-            extrinsic_len = self.runtime_config.create_scale_object("u32")
+        extrinsic_len = self.runtime_config.create_scale_object("u32")
         extrinsic_len.encode(len(extrinsic.data))
 
         result = await self.runtime_call(

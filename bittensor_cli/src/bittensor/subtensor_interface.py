@@ -345,14 +345,16 @@ class SubtensorInterface:
         :param reuse_block: Whether to reuse the last-used block hash when retrieving info.
         :return: dict of {address: Balance objects}
         """
-        results = await self.substrate.query_multiple(
-            params=[a for a in addresses],
-            storage_function="Account",
-            module="System",
-            block_hash=block_hash,
-            reuse_block_hash=reuse_block,
-        )
-        return {k: Balance(v["data"]["free"]) for (k, v) in results.items()}
+        calls = [
+            (await self.substrate.create_storage_key("System", "Account", [address]))
+            for address in addresses
+        ]
+        batch_call = await self.substrate.query_multi(calls, block_hash=block_hash)
+        results = {}
+        for item in batch_call:
+            value = item[1] or {"data": {"free": 0}}
+            results.update({item[0].params[0]: Balance(value["data"]["free"])})
+        return results
 
     async def get_total_stake_for_coldkey(
         self,
