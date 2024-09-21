@@ -141,7 +141,7 @@ class Options:
         None,
         "--netuids",
         "-n",
-        help="Set the netuid(s) to filter by. Separate multiple netuids with a space, for example: `0 1 2`.",
+        help="Set the netuid(s) to filter by. Separate multiple netuids with a comma, for example: `-n 0,1,2`.",
     )
     netuid = typer.Option(
         None,
@@ -152,12 +152,13 @@ class Options:
         None,
         "--weights",
         "-w",
-        help="Weights for the specified UIDs, e.g. `-w 0.2 -w 0.4 -w 0.1 ...` Must correspond to the order of the UIDs.",
+        help="Weights for the specified UIDs, e.g. `-w 0.2,0.4,0.1 ...` Must correspond to the order of the UIDs.",
     )
     reuse_last = typer.Option(
         False,
         "--reuse-last",
-        help="Reuse the metagraph data you last retrieved. Use this option only if you have already retrieved the metagraph."
+        help="Reuse the metagraph data you last retrieved."
+        "Use this option only if you have already retrieved the metagraph."
         "data",
     )
     html_output = typer.Option(
@@ -1563,7 +1564,7 @@ class CLIManager:
         """
         Regenerates the public part of a coldkey (coldkeypub.txt) for a wallet.
 
-        Use this command when you need to move machine for subnet mining. Use the public key or SS58 address from your coldkeypub.txt that you have on another machine to regenerate the coldkeypub.txt on this new machine. 
+        Use this command when you need to move machine for subnet mining. Use the public key or SS58 address from your coldkeypub.txt that you have on another machine to regenerate the coldkeypub.txt on this new machine.
 
         USAGE
 
@@ -2155,13 +2156,13 @@ class CLIManager:
 
         With no spaces between the passed values:
 
-        [green]$[/green] btcli root set-weights --netuids 1,2 --weights 0.2,0.3 
-        
+        [green]$[/green] btcli root set-weights --netuids 1,2 --weights 0.2,0.3
+
         or
 
         Include double quotes to include spaces between the passed values:
 
-        [green]$[/green] btcli root set-weights --netuids "1, 2" --weights "0.2, 0.3" 
+        [green]$[/green] btcli root set-weights --netuids "1, 2" --weights "0.2, 0.3"
         """
         self.verbosity_handler(quiet, verbose)
 
@@ -2225,9 +2226,9 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Shows a table listing the weights assigned to each subnet in the root network. 
+        Shows a table listing the weights assigned to each subnet in the root network.
 
-        This command provides visibility into how network responsibilities and rewards are distributed among various subnets. This information is crucial for understanding the current influence and reward distribution across different subnets. Use this command if you are interested in the governance and operational dynamics of the Bittensor network. 
+        This command provides visibility into how network responsibilities and rewards are distributed among various subnets. This information is crucial for understanding the current influence and reward distribution across different subnets. Use this command if you are interested in the governance and operational dynamics of the Bittensor network.
 
         EXAMPLE
 
@@ -2365,7 +2366,7 @@ class CLIManager:
         """
         Cast a vote on an active proposal in Bittensor's governance protocol.
 
-        This command is used by Senate members to vote on various proposals that shape the network's future. Use `btcli root proposals` to see the active proposals and their hashes. 
+        This command is used by Senate members to vote on various proposals that shape the network's future. Use `btcli root proposals` to see the active proposals and their hashes.
 
         USAGE
 
@@ -2681,7 +2682,7 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Shows a table with the details on the user's delegates. 
+        Shows a table with the details on the user's delegates.
 
         The table output includes the following columns:
 
@@ -2768,10 +2769,10 @@ class CLIManager:
         - DESCRIPTION: A brief description of the delegate's purpose and operations.
 
         [blue bold]NOTES:[/blue bold]
-        
-            - Sorting is done based on the `TOTAL STAKE` column in descending order. 
-            - Changes in stake are shown as: increases in green and decreases in red. 
-            - Entries with no previous data are marked with `NA`. 
+
+            - Sorting is done based on the `TOTAL STAKE` column in descending order.
+            - Changes in stake are shown as: increases in green and decreases in red.
+            - Entries with no previous data are marked with `NA`.
             - Each delegate's name is a hyperlink to more information, if available.
 
         EXAMPLE
@@ -2880,7 +2881,7 @@ class CLIManager:
         """
         Lists all the stake accounts associated with a user's wallet.
 
-        This command provides a comprehensive view of the stakes associated with the user's coldkeys. It shows both the user's own hotkeys and also the hotkeys of the delegates to which this user has staked. 
+        This command provides a comprehensive view of the stakes associated with the user's coldkeys. It shows both the user's own hotkeys and also the hotkeys of the delegates to which this user has staked.
 
         The command lists all the stake accounts for a specified wallet or all wallets in the user's configuration directory. It displays the coldkey, balance, hotkey details (own hotkey and delegate hotkey), stake amount, and the rate of return.
 
