@@ -2905,7 +2905,7 @@ class CLIManager:
             0.0,
             "--max-stake",
             "-m",
-            help="Sets the maximum amount of TAO to stake in each hotkey.",
+            help="Stake is sent to a hotkey only until the hotkey's total stake is less than or equal to this maximum staked TAO. If a hotkey already has stake greater than this amount, then stake is not added to this hotkey.",
         ),
         hotkey_ss58_address: str = typer.Option(
             "",
@@ -2926,7 +2926,7 @@ class CLIManager:
         ),
         all_hotkeys: bool = typer.Option(
             False,
-            help="When set, the command stakes to all the hotkeys associated with the wallet. Do not use if specifying "
+            help="When set, this command stakes to all hotkeys associated with the wallet. Do not use if specifying "
             "hotkeys in `--include-hotkeys`.",
         ),
         wallet_name: str = Options.wallet_name,
@@ -2961,7 +2961,7 @@ class CLIManager:
             amount = FloatPrompt.ask("[blue bold]Amount to stake (TAO τ)[/blue bold]")
 
         if stake_all and not amount:
-            if not Confirm.ask("Stake all available TAO tokens?", default=False):
+            if not Confirm.ask("Stake all the available TAO tokens?", default=False):
                 raise typer.Exit()
 
         if all_hotkeys and include_hotkeys:
@@ -3212,19 +3212,12 @@ class CLIManager:
         """
         Get all the child hotkeys on a specified subnet.
 
-        This command is used to view the authority delegated to different hotkeys on the subnet. Users can specify the subnet and see the child hotkeys and the proportion that is given to them.
-
-        The command compiles a table showing:
-
-        - ChildHotkey: The hotkey associated with the child.
-        - ParentHotKey: The hotkey associated with the parent.
-        - Proportion: The proportion that is assigned to the child hotkey by the parent hotkey.
-        - Expiration: The expiration of the hotkey.
+        Users can specify the subnet and see the child hotkeys and the proportion that is given to them. This command is used to view the authority delegated to different hotkeys on the subnet. 
 
         EXAMPLE
 
-        [green]$[/green] btcli stake get_children --netuid 1
-        [green]$[/green] btcli stake get_children --all-netuids
+        [green]$[/green] btcli stake child get --netuid 1
+        [green]$[/green] btcli stake child get --all-netuids
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
@@ -3236,7 +3229,7 @@ class CLIManager:
         )
 
         if all_netuids and netuid:
-            err_console.print("Specify either a netuid or 'all', not both.")
+            err_console.print("Specify either a netuid or `--all`, not both.")
             raise typer.Exit()
 
         if all_netuids:
@@ -3289,38 +3282,32 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Set child hotkeys on a specified subnet.
+        Set child hotkeys on specified subnets.
 
-        This command is used to delegate authority to different hotkeys, securing their position and influence on the subnet.
+        Users can specify the 'proportion' to delegate to child hotkeys (ss58 address). The sum of proportions cannot be greater than 1.
 
-        # Usage:
-
-        Users can specify the 'proportion' to delegate to child hotkeys (``ss58`` address). The sum of proportions cannot be greater
-        than 1.
+        This command is used to delegate authority to different hotkeys, securing their position and influence on the subnet.      
 
         EXAMPLE
 
-        [green]$[/green] btcli stake child set - <child_hotkey> -c <child_hotkey> --hotkey <parent_hotkey> --netuid 1 -prop 0.3 -prop 0.3
-
-        [italic]Note[/italic]: This command is critical for users who wish to delegate children hotkeys among different
-        neurons (hotkeys) on the network. It allows for a strategic allocation of authority to enhance network participation and influence.
+        [green]$[/green] btcli stake child set -c 5FCL3gmjtQV4xxxxuEPEFQVhyyyyqYgNwX7drFLw7MSdBnxP -c 5Hp5dxxxxtGg7pu8dN2btyyyyVA1vELmM9dy8KQv3LxV8PA7 --hotkey default --netuid 1 -p 0.3 -p 0.7
         """
         self.verbosity_handler(quiet, verbose)
         if all_netuids and netuid:
-            err_console.print("Specify either netuid or all, not both.")
+            err_console.print("Specify either a netuid or `--all`, not both.")
             raise typer.Exit()
         if all_netuids:
             netuid = None
         elif not netuid:
             netuid = IntPrompt.ask(
-                "Enter netuid (leave blank for all)", default=None, show_default=True
+                "Enter a netuid (leave blank for all)", default=None, show_default=True
             )
-        children = list_prompt(children, str, "Enter the child hotkeys (ss58)")
+        children = list_prompt(children, str, "Enter the child hotkeys (ss58), comma-separated for multiple")
 
         proportions = list_prompt(
             proportions,
             float,
-            "Enter proportions equal to the number of children (sum not exceeding a total of 1.0)",
+            "Enter comma-separated proportions equal to the number of children (sum not exceeding a total of 1.0)",
         )
 
         if len(proportions) != len(children):
@@ -3328,7 +3315,7 @@ class CLIManager:
             raise typer.Exit()
 
         if sum(proportions) > 1.0:
-            err_console.print("Your proportion total must sum not exceed 1.0.")
+            err_console.print("Your proportion total must not exceed 1.0.")
             raise typer.Exit()
 
         wallet = self.wallet_ask(
@@ -3359,7 +3346,7 @@ class CLIManager:
         chain: Optional[str] = Options.chain,
         netuid: Optional[int] = typer.Option(
             None,
-            help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
+            help="The netuid of the subnet, (e.g. 8)",
             prompt=False,
         ),
         all_netuids: bool = typer.Option(
@@ -3367,7 +3354,7 @@ class CLIManager:
             "--all-netuids",
             "--all",
             "--allnetuids",
-            help="When this flag is used it sets children on all subnets on the bittensor network.",
+            help="When this flag is used it sets child hotkeys on all the subnets.",
         ),
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
@@ -3375,24 +3362,13 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Remove all children hotkeys on a specified subnet on the Bittensor network.
+        Remove all children hotkeys on a specified subnet.
 
-        This command is used to remove delegated authority from all child hotkeys, removing their position and influence
-        on the subnet.
+        This command is used to remove delegated authority from all child hotkeys, removing their position and influence on the subnet.
 
-        # Usage:
-
-        Users need to specify the parent hotkey and the subnet ID (netuid).
-        The user needs to have sufficient authority to make this call.
-
-        The command prompts for confirmation before executing the revoke_children operation.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli stake child revoke --hotkey <parent_hotkey> --netuid 1
-
-        [italic]Note[/italic]:This command is critical for users who wish to remove children hotkeys on the network.
-        It allows for a complete removal of delegated authority to enhance network participation and influence.
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
@@ -3403,7 +3379,7 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
         if all_netuids and netuid:
-            err_console.print("Specify either netuid or all, not both.")
+            err_console.print("Specify either a netuid or '--all', not both.")
             raise typer.Exit()
         if all_netuids:
             netuid = None
@@ -3431,7 +3407,7 @@ class CLIManager:
         hotkey: Optional[str] = None,
         netuid: Optional[int] = typer.Option(
             None,
-            help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1)",
+            help="The netuid of the subnet, (e.g. 23)",
             prompt=False,
         ),
         all_netuids: bool = typer.Option(
@@ -3439,13 +3415,13 @@ class CLIManager:
             "--all-netuids",
             "--all",
             "--allnetuids",
-            help="When this flag is used it sets children on all subnets on the bittensor network.",
+            help="When this flag is used it sets child hotkeys on all the subnets.",
         ),
         take: Optional[float] = typer.Option(
             None,
             "--take",
             "-t",
-            help="Enter take for your child hotkey",
+            help="Use to set the take value for your child hotkey. When not used, the command will fetch the current take value.",
             prompt=False,
         ),
         wait_for_inclusion: bool = Options.wait_for_inclusion,
@@ -3455,24 +3431,19 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Get and set your childkey take on a specified subnet on the Bittensor network.
+        Get and set your child hotkey take on a specified subnet.
 
-        This command is used to set the take on your child hotkeys with limits between 0 - 18%.
+        The child hotkey take must be between 0 - 18%.
 
-        # Usage:
+        EXAMPLE
 
-        Users need to specify their child hotkey and the subnet ID (netuid).
+        To get the current take value, do not use the '--take' option:
 
-        The command prompts for confirmation before setting the childkey take.
+            [green]$[/green] btcli stake child take --hotkey <child_hotkey> --netuid 1
 
-        # Example usage:
+        To set a new take value, use the '--take' option:
 
-        [green]$[/green] btcli stake child take --hotkey <child_hotkey> --netuid 1
-
-        [green]$[/green] btcli stake child take --hotkey <child_hotkey> --take 0.12 --netuid 1
-        ```
-
-        [italic]Note[/italic]: This command is critical for users who wish to modify their child hotkey take on the network.
+            [green]$[/green] btcli stake child take --hotkey <child_hotkey> --take 0.12 --netuid 1
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
@@ -3483,7 +3454,7 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
         if all_netuids and netuid:
-            err_console.print("Specify either netuid or all, not both.")
+            err_console.print("Specify either a netuid or '--all', not both.")
             raise typer.Exit()
         if all_netuids:
             netuid = None
@@ -3516,30 +3487,19 @@ class CLIManager:
             "", "--param", "--parameter", help="The subnet hyperparameter to set"
         ),
         param_value: str = typer.Option(
-            "", "--value", help="The subnet hyperparameter value to set."
+            "", "--value", help="Value to set the hyperparameter to."
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
         """
-        Used to set hyperparameters for a specific subnet on the Bittensor network.
+        Used to set hyperparameters for a specific subnet.
 
-        This command allows subnet owners to modify various hyperparameters of theirs subnet, such as its tempo,
-        emission rates, and other network-specific settings.
+        This command allows subnet owners to modify hyperparameters such as its tempo, emission rates, and other hyperparameters.
 
-        # Usage:
+        EXAMPLE
 
-        The command first prompts the user to enter the hyperparameter they wish to change and its new value.
-        It then uses the user's wallet and configuration settings to authenticate and send the hyperparameter update
-        to the specified subnet.
-
-        # Example usage:
-
-        [green]$[/green] btcli sudo set --netuid 1 --param 'tempo' --value '0.5'
-
-        [italic]Note[/italic]: This command requires the user to specify the subnet identifier (``netuid``) and both
-        the hyperparameter and its new value. It is intended for advanced users who are familiar with the network's
-        functioning and the impact of changing these parameters.
+        [green]$[/green] btcli sudo set --netuid 1 --param tempo --value 400
         """
         self.verbosity_handler(quiet, verbose)
         self._run_command(
@@ -3586,23 +3546,13 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Retrieve hyperparameters of a specific subnet.
+        Shows a list of the hyperparameters for the specified subnet.
 
-        This command is used for both `sudo get` and `subnets hyperparameters`.
+        The output of this command is the same as that of `btcli subnets hyperparameters`.
 
-        # Usage:
-
-        The command connects to the Bittensor network, queries the specified subnet, and returns a detailed list
-        of all its hyperparameters. This includes crucial operational parameters that determine the subnet's
-        performance and interaction within the network.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli sudo get --netuid 1
-
-
-        [italic]Note[/italic]: Users need to provide the `netuid` of the subnet whose hyperparameters they wish to view.
-        This command is designed for informational purposes and does not alter any network settings or configurations.
         """
         self.verbosity_handler(quiet, verbose)
         return self._run_command(
