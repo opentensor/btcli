@@ -1349,8 +1349,13 @@ async def inspect(
         ):
             rows.append(row)
 
-    for row in rows:
+    for i, row in enumerate(rows):
+        is_last_row = i + 1 == len(rows)
         table.add_row(*row)
+
+        # If last row or new coldkey starting next
+        if is_last_row or (rows[i + 1][0] != ""):
+            table.add_row(end_section=True)
 
     return console.print(table)
 
@@ -1454,7 +1459,12 @@ async def set_id(
 ):
     """Create a new or update existing identity on-chain."""
 
-    pgp_fingerprint_encoded = binascii.unhexlify(pgp_fingerprint.replace(" ", ""))
+    try:
+        pgp_fingerprint_encoded = binascii.unhexlify(pgp_fingerprint.replace(" ", ""))
+    except Exception as e:
+        print_error(f"The PGP is not in the correct format: {e}")
+        raise typer.Exit()
+
     id_dict = {
         "additional": [[]],
         "display": display_name,

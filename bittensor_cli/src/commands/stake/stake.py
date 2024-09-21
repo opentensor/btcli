@@ -965,10 +965,10 @@ async def show(
                     delegate_name = (
                         registered_delegate_info[dele.hotkey_ss58].display
                         if dele.hotkey_ss58 in registered_delegate_info
-                        else dele.hotkey_ss58
+                        else None
                     )
                     stakes[dele.hotkey_ss58] = {
-                        "name": delegate_name,
+                        "name": delegate_name if delegate_name else dele.hotkey_ss58,
                         "stake": nom[1],
                         "rate": dele.total_daily_return.tao
                         * (nom[1] / dele.total_stake.tao),
@@ -1005,7 +1005,9 @@ async def show(
             ":satellite: Retrieving account data...", spinner="aesthetic"
         ):
             block_hash_ = await subtensor.substrate.get_chain_head()
-            registered_delegate_info = await subtensor.get_delegate_identities(block_hash=block_hash_)
+            registered_delegate_info = await subtensor.get_delegate_identities(
+                block_hash=block_hash_
+            )
             accounts = await get_all_wallet_accounts(block_hash=block_hash_)
 
         total_stake: float = 0.0
@@ -1022,14 +1024,17 @@ async def show(
             )
             total_balance += cast(Balance, acc["balance"]).tao
             for key, value in cast(dict, acc["accounts"]).items():
+                if value["name"] and value["name"] != key:
+                    account_display_name = f"[bright_cyan]({value['name']})[/bright_cyan]   [bright_magenta]{key}[/bright_magenta]"
+                else:
+                    account_display_name = f"[bright_cyan](~)[/bright_cyan]   [bright_magenta]{key}[/bright_magenta]"
                 rows.append(
                     [
                         "",
                         "",
-                        value["name"],
+                        account_display_name,
                         str(value["stake"]),
                         str(value["rate"]),
-                        key,
                     ]
                 )
                 db_rows.append(
@@ -1087,7 +1092,7 @@ async def show(
                 style="dark_sea_green",
                 ratio=1,
             ),
-            Column("[bold white]Account", style="bright_cyan", ratio=1),
+            Column("[bold white]Hotkey", ratio=7, no_wrap=True),
             Column(
                 "[bold white]Stake",
                 metadata["total_stake"],
@@ -1100,18 +1105,22 @@ async def show(
                 style="rgb(42,161,152)",
                 ratio=1,
             ),
-            Column(
-                "[bold white]Hotkey", style="bright_magenta", overflow="fold", ratio=2
-            ),
             title=f"[underline dark_orange]Stake Show[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}\n",
             show_footer=True,
             show_edge=False,
             expand=False,
             border_style="bright_black",
         )
-        for row in rows:
+
+        for i, row in enumerate(rows):
+            is_last_row = i + 1 == len(rows)
             table.add_row(*row)
+
+            # If last row or new coldkey starting next
+            if is_last_row or (rows[i + 1][0] != ""):
+                table.add_row(end_section=True)
         console.print(table)
+
     else:
         render_tree(
             "stakeshow",
