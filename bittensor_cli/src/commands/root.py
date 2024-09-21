@@ -1039,6 +1039,7 @@ async def senate_vote(
     wallet: Wallet,
     subtensor: SubtensorInterface,
     proposal_hash: str,
+    vote: bool,
     prompt: bool,
 ) -> bool:
     """Vote in Bittensor's governance protocol proposals"""
@@ -1074,7 +1075,6 @@ async def senate_vote(
         err_console.print(":cross_mark: [red]Failed[/red]: Proposal not found.")
         return False
 
-    vote: bool = Confirm.ask("Desired vote for proposal")
     success = await vote_senate_extrinsic(
         subtensor=subtensor,
         wallet=wallet,

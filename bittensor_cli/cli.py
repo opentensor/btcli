@@ -2355,6 +2355,12 @@ class CLIManager:
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        vote: bool = typer.Option(
+            None,
+            "--vote-aye/--vote-nay",
+            prompt="Enter y to vote Aye, or enter n to vote Nay",
+            help="The vote casted on the proposal",
+        ),
     ):
         """
         Cast a vote on an active proposal in Bittensor's governance protocol.
@@ -2379,7 +2385,7 @@ class CLIManager:
         )
         return self._run_command(
             root.senate_vote(
-                wallet, self.initialize_chain(network, chain), proposal, prompt
+                wallet, self.initialize_chain(network, chain), proposal, vote, prompt
             )
         )
 
