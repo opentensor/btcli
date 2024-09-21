@@ -3621,51 +3621,26 @@ class CLIManager:
         """
         List all subnets and their detailed information.
 
-        This command is designed to provide users with comprehensive information about each subnet within the
-        network, including its unique identifier (netuid), the number of neurons, maximum neuron capacity,
-        emission rate, tempo, recycle register cost (burn), proof of work (PoW) difficulty, and the name or
-        SS58 address of the subnet owner.
-
-        # Usage:
-
-        Upon invocation, the command performs the following actions:
-
-        1. It initializes the Bittensor subtensor object with the user's configuration.
-
-        2. It retrieves a list of all subnets in the network along with their detailed information.
-
-        3. The command compiles this data into a table format, displaying key information about each subnet.
-
-
-        In addition to the basic subnet details, the command also fetches delegate information to provide the
-        name of the subnet owner where available. If the owner's name is not available, the owner's ``SS58``
-        address is displayed.
-
-        The command structure includes:
-
-        - Initializing the Bittensor subtensor and retrieving subnet information.
-
-        - Calculating the total number of neurons across all subnets.
-
-        - Constructing a table that includes columns for `NETUID`, `N` (current neurons), `MAX_N`
-        (maximum neurons), `EMISSION`, `TEMPO`, `BURN`, `POW` (proof of work difficulty), and
-        `SUDO` (owner's name or `SS58` address).
-
-        - Displaying the table with a footer that summarizes the total number of subnets and neurons.
-
-
-        # Example usage:
+        This command displays a table with the below columns:
+        
+        - NETUID: The subnet's netuid.
+        - N: The number of neurons (subnet validators and subnet miners) in the subnet.
+        - MAX_N: The maximum allowed number of neurons in the subnet.
+        - EMISSION: The percentage of emissions to the subnet as of the last tempo.
+        - TEMPO: The subnet's tempo, expressed in number of blocks.
+        - RECYCLE: The recycle register cost for this subnet.
+        - POW: The proof of work (PoW) difficulty.
+        - SUDO: The subnet owner's name or the owner's ss58 address.
+        
+        EXAMPLE
 
         [green]$[/green] btcli subnets list
-
-        [italic]Note[/italic]: This command is particularly useful for users seeking an overview of the Bittensor network's
-        structure and the distribution of its resources and ownership information for each subnet.
         """
         self.verbosity_handler(quiet, verbose)
         if (reuse_last or html_output) and self.config.get("use_cache") is False:
             err_console.print(
-                "Unable to use `--reuse-last` or `--html` when config no-cache is set to True. "
-                "Please change the config to False using `btcli config set`"
+                "Unable to use `--reuse-last` or `--html` when config 'no-cache' is set to 'True'. "
+                "Change the config to 'False' using `btcli config set`."
             )
             raise typer.Exit()
         if reuse_last:
@@ -3689,47 +3664,13 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        View the locking cost required for creating a new subnetwork.
+        Shows the required amount of TAO to be locked for creating a new subnet, i.e., cost of registering a new subnet.
 
-        This command is designed to provide users with the current cost of registering a new subnetwork, which is a
-        critical piece of information for anyone considering expanding the network's infrastructure.
+        The current implementation anneals the cost of creating a subnet over a period of two days. If the displayed cost is unappealing to you, check back in a day or two to see if it has decreased to a more affordable level.
 
-        The current implementation anneals the cost of creating a subnet over a period of two days. If the cost is
-        unappealing currently, check back in a day or two to see if it has reached a more amenable level.
-
-        # Usage:
-
-        Upon invocation, the command performs the following operations:
-
-        1. It copies the user's current Bittensor configuration.
-
-        2. It initializes the Bittensor subtensor object with this configuration.
-
-        3. It then retrieves the subnet lock cost using the ``get_subnet_burn_cost()`` method from the subtensor object.
-
-        4. The cost is displayed to the user in a readable format, indicating the amount of Tao required to lock for
-        registering a new subnetwork.
-
-        In case of any errors during the process (e.g., network issues, configuration problems), the command will catch
-        these exceptions and inform the user that it failed to retrieve the lock cost, along with the specific error
-        encountered.
-
-        The command structure includes:
-
-        - Copying and using the user's configuration for Bittensor.
-
-        - Retrieving the current subnet lock cost from the Bittensor network.
-
-        - Displaying the cost in a user-friendly manner.
-
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli subnets lock_cost
-
-        [italic]Note[/italic]: This command is particularly useful for users who are planning to contribute to the Bittensor network
-        by adding new subnetworks. Understanding the lock cost is essential for these users to make informed decisions about their
-        potential contributions and investments in the network.
         """
         self.verbosity_handler(quiet, verbose)
         return self._run_command(
@@ -3748,47 +3689,11 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Register a new subnetwork on the Bittensor network :sparkles:.
+        Registers a new subnet.
 
-        This command facilitates the creation and registration of a subnetwork, which involves interaction with the
-        user's wallet and the Bittensor subtensor. It ensures that the user has the necessary credentials and
-        configurations to successfully register a new subnetwork.
-
-        # Usage:
-        Upon invocation, the command performs several key steps to register a subnetwork:
-
-        1. It copies the user's current configuration settings.
-
-        2. It accesses the user's wallet using the provided configuration.
-
-        3. It initializes the Bittensor subtensor object with the user's configuration.
-
-        4. It then calls the `create` function of the subtensor object, passing the user's wallet and a prompt setting
-        based on the user's configuration.
-
-
-        If the user's configuration does not specify a wallet name and `no_prompt` is not set, the command will prompt
-        the user to enter a wallet name. This name is then used in the registration process.
-
-        The command structure includes:
-
-        - Copying the user's configuration.
-
-        - Accessing and preparing the user's wallet.
-
-        - Initializing the Bittensor subtensor.
-
-        - Registering the subnetwork with the necessary credentials.
-
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli subnets create
-
-        [italic]Note[/italic]: This command is intended for advanced users of the Bittensor network who wish to contribute by adding new
-        subnetworks. It requires a clear understanding of the network's functioning and the roles of subnetworks. Users
-        should ensure that they have secured their wallet and are aware of the implications of adding a new subnetwork
-        to the Bittensor ecosystem.
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
@@ -3820,7 +3725,7 @@ class CLIManager:
             defaults.pow_register.update_interval,
             "--update-interval",
             "-u",
-            help="The number of nonces to process before checking for next block during registration",
+            help="The number of nonces to process before checking for the next block during registration",
         ),
         output_in_place: Optional[bool] = typer.Option(
             defaults.pow_register.output_in_place,
@@ -3836,46 +3741,38 @@ class CLIManager:
             defaults.pow_register.cuda.use_cuda,
             "--use-cuda/--no-use-cuda",
             "--cuda/--no-cuda",
-            help="Set flag to use CUDA to pow_register.",
+            help="Set the flag to use CUDA for POW registration.",
         ),
         dev_id: Optional[int] = typer.Option(
             defaults.pow_register.cuda.dev_id,
             "--dev-id",
             "-d",
-            help="Set the CUDA device id(s). Goes by the order of speed. (i.e. 0 is the fastest).",
+            help="Set the CUDA device id(s), in the order of the device speed (0 is the fastest).",
         ),
         threads_per_block: Optional[int] = typer.Option(
             defaults.pow_register.cuda.tpb,
             "--threads-per-block",
             "-tbp",
-            help="Set the number of Threads Per Block for CUDA.",
+            help="Set the number of threads per block for CUDA.",
         ),
     ):
         """
-        Register a neuron on the Bittensor network using Proof of Work (PoW).
+        Register a neuron (a subnet validator or a subnet miner) using Proof of Work (POW).
 
-        This method is an alternative registration process that leverages computational work for securing a neuron's
-        place on the network.
+        This method is an alternative registration process that uses computational work for securing a neuron's place on the subnet.
 
-        # Usage:
+        The command starts by verifying the existence of the specified subnet. If the subnet does not exist, it terminates with an error message. On successful verification, the POW registration process is initiated, which requires solving computational puzzles.
 
-        The command starts by verifying the existence of the specified subnet. If the subnet does not exist, it
-        terminates with an error message. On successful verification, the PoW registration process is initiated, which
-        requires solving computational puzzles.
+        The command also supports additional wallet and subtensor arguments, enabling further customization of the registration process.
 
-        The command also supports additional wallet and subtensor arguments, enabling further customization of the
-        registration process.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli pow_register --netuid 1 --num_processes 4 --cuda
 
-        [italic]Note[/italic]: This command is suited for users with adequate computational resources to participate in PoW registration.
-        It requires a sound understanding of the network's operations and PoW mechanics. Users should ensure their systems
-        meet the necessary hardware and software requirements, particularly when opting for CUDA-based GPU acceleration.
+        [blue bold]Note[/blue bold]: This command is suitable for users with adequate computational resources to participate in POW registration.
+        It requires a sound understanding of the network's operations and POW mechanics. Users should ensure their systems meet the necessary hardware and software requirements, particularly when opting for CUDA-based GPU acceleration.
 
-        This command may be disabled according to the subnet owner's directive. For example, on netuid 1 this is
-        permanently disabled.
+        This command may be disabled by the subnet owner. For example, on netuid 1 this is permanently disabled.
         """
         return self._run_command(
             subnets.pow_register(
@@ -3911,41 +3808,15 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Register a neuron on the Bittensor network by recycling some TAO (the network's native token) :open_book:.
+        Register a neuron (a subnet validator or a subnet miner) in the specified subnet by recycling some TAO.
 
-        This command is used to add a new neuron to a specified subnet within the network, contributing to the
-        decentralization and robustness of Bittensor.
+        Before registering, the command checks if the specified subnet exists and whether the user's balance is sufficient to cover the registration cost.
 
-        # Usage:
+        The registration cost is determined by the current recycle amount for the specified subnet. If the balance is insufficient or the subnet does not exist, the command will exit with an error message.
 
-        Before registering, the command checks if the specified subnet exists and whether the user's balance is
-        sufficient to cover the registration cost.
-
-        The registration cost is determined by the current recycle amount for the specified subnet. If the balance is
-        insufficient or the subnet does not exist, the command will exit with an appropriate error message.
-
-        If the preconditions are met, and the user confirms the transaction (if `no_prompt` is not set), the command
-        proceeds to register the neuron by recycling the required amount of TAO.
-
-        The command structure includes:
-
-        - Verification of subnet existence.
-        - Checking the user's balance against the current recycle amount for the subnet.
-        - User confirmation prompt for proceeding with registration.
-        - Execution of the registration process.
-
-        Columns Displayed in the confirmation prompt:
-
-        - Balance: The current balance of the user's wallet in TAO.
-        - Cost to Register: The required amount of TAO needed to register on the specified subnet.
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli subnets register --netuid 1
-
-        [italic]Note[/italic]:This command is critical for users who wish to contribute a new neuron to the network. It requires careful
-        consideration of the subnet selection and an understanding of the registration costs. Users should ensure their
-        wallet is sufficiently funded before attempting to register a neuron.
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
@@ -3968,7 +3839,7 @@ class CLIManager:
         self,
         netuid: Optional[int] = typer.Option(
             None,
-            help="The netuid (network unique identifier) of the subnet within the root network, (e.g. 1). This "
+            help="The netuid of the subnet (e.g. 1). This option "
             "is ignored when used with `--reuse-last`.",
         ),
         network: str = Options.network,
@@ -3979,16 +3850,15 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Retrieve and display the metagraph of a subnetwork.
+        Shows the metagraph of a subnet.
 
-        This metagraph contains detailed information about all the neurons (nodes)
-        participating in the network, including their stakes, trust scores, and more.
+        The displayed metagraph, representing a snapshot of the subnet's state at the time of calling, contains detailed information about all the neurons (subnet validator and subnet miner nodes) participating in the subnet, including the neuron's stake, trust score, and more.
 
         The table displayed includes the following columns for each neuron:
 
         - [bold]UID[/bold]: Unique identifier of the neuron.
 
-        - [bold]STAKE(τ)[/bold]: Total stake of the neuron in Tao (τ).
+        - [bold]STAKE(τ)[/bold]: Total stake of the neuron in TAO (τ).
 
         - [bold]RANK[/bold]: Rank score of the neuron.
 
@@ -4000,7 +3870,7 @@ class CLIManager:
 
         - [bold]DIVIDENDS[/bold]: Dividends earned by the neuron.
 
-        - [bold]EMISSION(p)[/bold]: Emission in Rho (p) received by the neuron.
+        - [bold]EMISSION(p)[/bold]: Emission in rho (p) received by the neuron.
 
         - [bold]VTRUST[/bold]: Validator trust score indicating the network's trust in the neuron as a validator.
 
@@ -4016,22 +3886,21 @@ class CLIManager:
 
         - [bold]COLDKEY[/bold]: Partial coldkey (public key) of the neuron.
 
-
         The command also prints network-wide statistics such as total stake, issuance, and difficulty.
 
-        # Usage:
+        The user must specify the netuid to query the metagraph. If not specified, the default netuid from the config is used.
 
-        The user must specify the network UID to query the metagraph. If not specified, the default network UID is used.
+        EXAMPLE
 
-        # Example usage:
+        Show the metagraph of the root network (netuid 0) on finney (mainnet):
 
-        [green]$[/green] btcli subnet metagraph --netuid 0  # Root network
+            [green]$[/green] btcli subnet metagraph --netuid 0
+        
+        Show the metagraph of subnet 1 on the testnet:
 
-        [green]$[/green] btcli subnet metagraph --netuid 1 --network test
+            [green]$[/green] btcli subnet metagraph --netuid 1 --network test
 
-        [italic]Note[/italic]: This command provides a snapshot of the network's state at the time of calling.
-        It is useful for network analysis and diagnostics. It is intended to be used as part of the Bittensor CLI and
-        not as a standalone function within user code.
+        [blue bold]Note[/blue bold]: This command is not intended to be used as a standalone function within user code.
         """
         self.verbosity_handler(quiet, verbose)
         if (reuse_last or html_output) and self.config.get("use_cache") is False:
@@ -4049,7 +3918,7 @@ class CLIManager:
         else:
             if netuid is None:
                 netuid = rich.prompt.IntPrompt.ask(
-                    "Enter the netuid (network unique identifier) of the subnet within the root network, (e.g. 1)"
+                    "Enter the netuid (e.g. 1)"
                 )
             subtensor = self.initialize_chain(network, chain)
 
@@ -4089,28 +3958,22 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Reveal weights for a specific subnet on the Bittensor network.
+        Reveal weights for a specific subnet.
 
-        # Usage:
+        You must specify the netuid, the UIDs you are interested in, and weights you wish to reveal.
 
-        The command allows revealing weights for a specific subnet. Users need to specify the netuid (network unique
-        identifier), corresponding UIDs, and weights they wish to reveal.
-
-
-        # Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli wt reveal --netuid 1 --uids 1,2,3,4 --weights 0.1,0.2,0.3,0.4 --salt 163,241,217,11,161,142,147,189
-
-        [italic]Note[/italic]: This command is used to reveal weights for a specific subnet and requires the user to have the necessary permissions.
         """
         self.verbosity_handler(quiet, verbose)
-        uids = list_prompt(uids, int, "Corresponding UIDs for the specified netuid")
+        uids = list_prompt(uids, int, "UIDs of interest for the specified netuid")
         weights = list_prompt(
             weights, float, "Corresponding weights for the specified UIDs"
         )
         if len(uids) != len(weights):
             err_console.print(
-                "The number of UIDs you specify must match up with the number of weights you specify"
+                "The number of UIDs you specify must match up with the specified number of weights"
             )
             raise typer.Exit()
         salt = list_prompt(salt, int, "Corresponding salt for the hash function")
@@ -4146,7 +4009,7 @@ class CLIManager:
             [],
             "--uids",
             "-u",
-            help="Corresponding UIDs for the specified netuid, e.g. -u 1 -u 2 -u 3 ...",
+            help="UIDs of interest for the specified netuid, e.g. -u 1 -u 2 -u 3 ...",
         ),
         weights: list[float] = Options.weights,
         salt: list[int] = typer.Option(
@@ -4160,29 +4023,22 @@ class CLIManager:
     ):
         """
 
-        Commit weights for specific subnet on the Bittensor network.
+        Commit weights for specific subnet.
 
-        # Usage:
+        Use this command to commit weights for a specific subnet. You must specify the netuid, the UIDs you are interested in, and the weights you wish to commit.
 
-        The command allows committing weights for a specific subnet. Users need to specify the netuid (network unique
-        identifier), corresponding UIDs, and weights they wish to commit.
-
-
-        ### Example usage:
+        EXAMPLE
 
         [green]$[/green] btcli wt commit --netuid 1 --uids 1,2,3,4 --w 0.1 -w 0.2 -w 0.3 -w 0.4
-
-        [italic]Note[/italic]: This command is used to commit weights for a specific subnet and requires the user to have the necessary
-        permissions.
         """
         self.verbosity_handler(quiet, verbose)
-        uids = list_prompt(uids, int, "Corresponding UIDs for the specified netuid")
+        uids = list_prompt(uids, int, "UIDs of interest for the specified netuid")
         weights = list_prompt(
             weights, float, "Corresponding weights for the specified UIDs"
         )
         if len(uids) != len(weights):
             err_console.print(
-                "The number of UIDs you specify must match up with the number of weights you specify"
+                "The number of UIDs you specify must match up with the specified number of weights"
             )
             raise typer.Exit()
         salt = list_prompt(salt, int, "Corresponding salt for the hash function")
