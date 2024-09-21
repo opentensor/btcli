@@ -2905,7 +2905,7 @@ class CLIManager:
             0.0,
             "--max-stake",
             "-m",
-            help="Sets the maximum amount of TAO to stake in each hotkey.",
+            help="Stake is sent to a hotkey only until the hotkey's total stake is less than or equal to this maximum staked TAO. If a hotkey already has stake greater than this amount, then stake is not added to this hotkey.",
         ),
         hotkey_ss58_address: str = typer.Option(
             "",
@@ -2927,6 +2927,7 @@ class CLIManager:
         all_hotkeys: bool = typer.Option(
             False,
             help="When set, the command stakes to all the hotkeys associated with the wallet. Do not use if specifying "
+            help="When set, this command stakes to all hotkeys associated with the wallet. Do not use if specifying "
             "hotkeys in `--include-hotkeys`.",
         ),
         wallet_name: str = Options.wallet_name,
