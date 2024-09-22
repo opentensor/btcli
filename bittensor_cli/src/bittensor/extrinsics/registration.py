@@ -440,7 +440,6 @@ async def is_hotkey_registered(
         params=[netuid, hotkey_ss58],
     )
     if _result is not None:
-        print(_result)
         return True
     else:
         return False
