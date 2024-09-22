@@ -3350,7 +3350,11 @@ class CLIManager:
             netuid = IntPrompt.ask(
                 "Enter a netuid (leave blank for all)", default=None, show_default=True
             )
-        children = list_prompt(children, str, "Enter the child hotkeys (ss58), comma-separated for multiple")
+        children = list_prompt(
+            children,
+            str,
+            "Enter the child hotkeys (ss58), comma-separated for multiple",
+        )
 
         proportions = list_prompt(
             proportions,
@@ -3915,9 +3919,7 @@ class CLIManager:
             subtensor = None
         else:
             if netuid is None:
-                netuid = rich.prompt.IntPrompt.ask(
-                    "Enter the netuid (e.g. 1)"
-                )
+                netuid = rich.prompt.IntPrompt.ask("Enter the netuid (e.g. 1)")
             subtensor = self.initialize_chain(network, chain)
 
         return self._run_command(
