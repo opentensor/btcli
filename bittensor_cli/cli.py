@@ -209,21 +209,20 @@ def list_prompt(init_var: list, list_type: type, help_text: str) -> list:
 
 
 def parse_to_list(
-    raw_list: str, 
-    list_type: type, 
-    error_message: str, 
-    is_ss58: bool = False
+    raw_list: str, list_type: type, error_message: str, is_ss58: bool = False
 ) -> list:
     try:
         # Split the string by commas and convert each part to according to type
-        parsed_list = [list_type(uid.strip()) for uid in raw_list.split(",") if uid.strip()]
-        
+        parsed_list = [
+            list_type(uid.strip()) for uid in raw_list.split(",") if uid.strip()
+        ]
+
         # Validate in-case of ss58s
         if is_ss58:
             for item in parsed_list:
                 if not is_valid_ss58_address(item):
                     raise typer.BadParameter(f"Invalid SS58 address: {item}")
-        
+
         return parsed_list
     except ValueError:
         raise typer.BadParameter(error_message)
@@ -1215,7 +1214,7 @@ class CLIManager:
                 include_hotkeys,
                 str,
                 "Hotkeys must be a comma-separated list of ss58s, e.g., `--include-hotkeys 5Grw....,5Grw....`.",
-                is_ss58=True
+                is_ss58=True,
             )
 
         if exclude_hotkeys:
@@ -1223,7 +1222,7 @@ class CLIManager:
                 exclude_hotkeys,
                 str,
                 "Hotkeys must be a comma-separated list of ss58s, e.g., `--exclude-hotkeys 5Grw....,5Grw....`.",
-                is_ss58=True
+                is_ss58=True,
             )
 
         return self._run_command(
@@ -1728,7 +1727,7 @@ class CLIManager:
             wallet_hotkey = Prompt.ask(
                 "Enter the name of the new hotkey", default=defaults.wallet.hotkey
             )
-            
+
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -3112,7 +3111,7 @@ class CLIManager:
                 include_hotkeys,
                 str,
                 "Hotkeys must be a comma-separated list of ss58s, e.g., `--include-hotkeys 5Grw....,5Grw....`.",
-                is_ss58=True
+                is_ss58=True,
             )
 
         if exclude_hotkeys:
@@ -3120,7 +3119,7 @@ class CLIManager:
                 exclude_hotkeys,
                 str,
                 "Hotkeys must be a comma-separated list of ss58s, e.g., `--exclude-hotkeys 5Grw....,5Grw....`.",
-                is_ss58=True
+                is_ss58=True,
             )
 
         return self._run_command(
@@ -3274,13 +3273,13 @@ class CLIManager:
                 ask_for=[WO.NAME, WO.HOTKEY],
                 validate=WV.WALLET_AND_HOTKEY,
             )
-        
+
         if include_hotkeys:
             include_hotkeys = parse_to_list(
                 include_hotkeys,
                 str,
                 "Hotkeys must be a comma-separated list of ss58s, e.g., `--include-hotkeys 5Grw....,5Grw....`.",
-                is_ss58=True
+                is_ss58=True,
             )
 
         if exclude_hotkeys:
@@ -3288,7 +3287,7 @@ class CLIManager:
                 exclude_hotkeys,
                 str,
                 "Hotkeys must be a comma-separated list of ss58s, e.g., `--exclude-hotkeys 5Grw....,5Grw....`.",
-                is_ss58=True
+                is_ss58=True,
             )
 
         return self._run_command(
@@ -3629,10 +3628,10 @@ class CLIManager:
         hyperparams = self._run_command(
             sudo.get_hyperparameters(self.initialize_chain(network, chain), netuid)
         )
-        
+
         if not hyperparams:
             raise typer.Exit()
-        
+
         if not param_name:
             hyperparam_list = list(HYPERPARAMS.keys())
             console.print("Available hyperparameters:\n")
