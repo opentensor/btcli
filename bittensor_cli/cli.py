@@ -1213,16 +1213,14 @@ class CLIManager:
             include_hotkeys = parse_to_list(
                 include_hotkeys,
                 str,
-                "Hotkeys must be a comma-separated list of ss58s, e.g., `--include-hotkeys 5Grw....,5Grw....`.",
-                is_ss58=True,
+                "Hotkey names must be a comma-separated list, e.g., `--include-hotkeys hk1,hk2`.",
             )
 
         if exclude_hotkeys:
             exclude_hotkeys = parse_to_list(
                 exclude_hotkeys,
                 str,
-                "Hotkeys must be a comma-separated list of ss58s, e.g., `--exclude-hotkeys 5Grw....,5Grw....`.",
-                is_ss58=True,
+                "Hotkeys names must be a comma-separated list, e.g., `--exclude-hotkeys hk1,hk2`.",
             )
 
         return self._run_command(

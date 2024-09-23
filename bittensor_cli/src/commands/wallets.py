@@ -47,6 +47,7 @@ from bittensor_cli.src.bittensor.utils import (
     print_verbose,
     get_all_wallets_for_path,
     get_hotkey_wallets_for_wallet,
+    is_valid_ss58_address,
 )
 
 
@@ -556,7 +557,7 @@ async def overview(
         spinner="aesthetic",
     ) as status:
         # We are printing for a select number of hotkeys from all_hotkeys.
-        if include_hotkeys:
+        if include_hotkeys or exclude_hotkeys:
             print_verbose(
                 "Fetching for select hotkeys passed in 'include_hotkeys'", status
             )
@@ -956,15 +957,26 @@ def _get_hotkeys(
     include_hotkeys: list[str], exclude_hotkeys: list[str], all_hotkeys: list[Wallet]
 ) -> list[Wallet]:
     """Filters a set of hotkeys (all_hotkeys) based on whether they are included or excluded."""
+
+    def is_hotkey_matched(wallet: Wallet, item: str) -> bool:
+        if is_valid_ss58_address(item):
+            return wallet.hotkey.ss58_address == item
+        else:
+            return wallet.hotkey_str == item
+
     if include_hotkeys:
         # We are only showing hotkeys that are specified.
         all_hotkeys = [
-            hotkey for hotkey in all_hotkeys if hotkey.hotkey_str in include_hotkeys
+            hotkey
+            for hotkey in all_hotkeys
+            if any(is_hotkey_matched(hotkey, item) for item in include_hotkeys)
         ]
     else:
         # We are excluding the specified hotkeys from all_hotkeys.
         all_hotkeys = [
-            hotkey for hotkey in all_hotkeys if hotkey.hotkey_str not in exclude_hotkeys
+            hotkey
+            for hotkey in all_hotkeys
+            if not any(is_hotkey_matched(hotkey, item) for item in exclude_hotkeys)
         ]
     return all_hotkeys
 
