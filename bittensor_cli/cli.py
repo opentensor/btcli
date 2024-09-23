@@ -138,10 +138,10 @@ class Options:
         show_default=False,
     )
     netuids = typer.Option(
-        [],
+        None,
         "--netuids",
         "-n",
-        help="Set the netuid(s) to filter by. Separate multiple netuids with a space, for example: `0 1 2`.",
+        help="Set the netuid(s) to filter by. Separate multiple netuids with a comma, for example: `-n 0,1,2`.",
     )
     netuid = typer.Option(
         None,
@@ -149,15 +149,16 @@ class Options:
         prompt=True,
     )
     weights = typer.Option(
-        [],
+        None,
         "--weights",
         "-w",
-        help="Weights for the specified UIDs, e.g. `-w 0.2 -w 0.4 -w 0.1 ...` Must correspond to the order of the UIDs.",
+        help="Weights for the specified UIDs, e.g. `-w 0.2,0.4,0.1 ...` Must correspond to the order of the UIDs.",
     )
     reuse_last = typer.Option(
         False,
         "--reuse-last",
-        help="Reuse the metagraph data you last retrieved. Use this option only if you have already retrieved the metagraph."
+        help="Reuse the metagraph data you last retrieved."
+        "Use this option only if you have already retrieved the metagraph."
         "data",
     )
     html_output = typer.Option(
@@ -205,6 +206,26 @@ def list_prompt(init_var: list, list_type: type, help_text: str) -> list:
         prompt = Prompt.ask(help_text)
         init_var = [list_type(x) for x in re.split(r"[ ,]+", prompt) if x]
     return init_var
+
+
+def parse_to_list(
+    raw_list: str, list_type: type, error_message: str, is_ss58: bool = False
+) -> list:
+    try:
+        # Split the string by commas and convert each part to according to type
+        parsed_list = [
+            list_type(uid.strip()) for uid in raw_list.split(",") if uid.strip()
+        ]
+
+        # Validate in-case of ss58s
+        if is_ss58:
+            for item in parsed_list:
+                if not is_valid_ss58_address(item):
+                    raise typer.BadParameter(f"Invalid SS58 address: {item}")
+
+        return parsed_list
+    except ValueError:
+        raise typer.BadParameter(error_message)
 
 
 def verbosity_console_handler(verbosity_level: int = 1) -> None:
@@ -724,9 +745,10 @@ class CLIManager:
             try:
                 if self.not_subtensor:
                     async with self.not_subtensor:
-                        await cmd
+                        result = await cmd
                 else:
-                    await cmd
+                    result = await cmd
+                return result
             except ConnectionRefusedError:
                 err_console.print(
                     f"Unable to connect to the chain: {self.not_subtensor}"
@@ -1091,21 +1113,21 @@ class CLIManager:
             None,
             help="Sort the hotkeys in the specified order (ascending/asc or descending/desc/reverse).",
         ),
-        include_hotkeys: list[str] = typer.Option(
-            [],
+        include_hotkeys: str = typer.Option(
+            "",
             "--include-hotkeys",
             "-in",
             help="Hotkeys to include. Specify by name or ss58 address. "
             "If left empty, all hotkeys, except those in the '--exclude-hotkeys', will be included.",
         ),
-        exclude_hotkeys: list[str] = typer.Option(
-            [],
+        exclude_hotkeys: str = typer.Option(
+            "",
             "--exclude-hotkeys",
             "-ex",
             help="Hotkeys to exclude. Specify by name or ss58 address. "
             "If left empty, all hotkeys, except those in the '--include-hotkeys', will be excluded.",
         ),
-        netuids: list[int] = Options.netuids,
+        netuids: str = Options.netuids,
         network: str = Options.network,
         chain: str = Options.chain,
         quiet: bool = Options.quiet,
@@ -1161,7 +1183,7 @@ class CLIManager:
 
         [green]$[/green] btcli wallet overview --all --sort-by stake --sort-order descending
 
-        [green]$[/green] btcli wallet overview -in hk1 -in hk2 --sort-by stake
+        [green]$[/green] btcli wallet overview -in hk1,hk2 --sort-by stake
 
         [bold]NOTE[/bold]: This command is read-only and does not modify the blockchain state or account configuration.
         It provides a quick and comprehensive view of the user's network presence, making it useful for monitoring account status,
@@ -1174,11 +1196,33 @@ class CLIManager:
             )
             raise typer.Exit()
 
+        if netuids:
+            netuids = parse_to_list(
+                netuids,
+                int,
+                "Netuids must be a comma-separated list of ints, e.g., `--netuids 1,2,3,4`.",
+            )
+
         ask_for = [WO.NAME] if not all_wallets else [WO.PATH]
         validate = WV.WALLET if not all_wallets else WV.NONE
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
         )
+
+        if include_hotkeys:
+            include_hotkeys = parse_to_list(
+                include_hotkeys,
+                str,
+                "Hotkey names must be a comma-separated list, e.g., `--include-hotkeys hk1,hk2`.",
+            )
+
+        if exclude_hotkeys:
+            exclude_hotkeys = parse_to_list(
+                exclude_hotkeys,
+                str,
+                "Hotkeys names must be a comma-separated list, e.g., `--exclude-hotkeys hk1,hk2`.",
+            )
+
         return self._run_command(
             wallets.overview(
                 wallet,
@@ -1325,7 +1369,7 @@ class CLIManager:
         wallet_hotkey: str = Options.wallet_hotkey,
         network: str = Options.network,
         chain: str = Options.chain,
-        netuids: list[int] = Options.netuids,
+        netuids: str = Options.netuids,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -1361,8 +1405,15 @@ class CLIManager:
         [bold]Note[/bold]: The `inspect` command is for displaying information only and does not perform any transactions or state changes on the blockchain. It is intended to be used with Bittensor CLI and not as a standalone function in user code.
         """
         self.verbosity_handler(quiet, verbose)
-        # if all-wallets is entered, ask for path
 
+        if netuids:
+            netuids = parse_to_list(
+                netuids,
+                int,
+                "Netuids must be a comma-separated list of ints, e.g., `--netuids 1,2,3,4`.",
+            )
+
+        # if all-wallets is entered, ask for path
         ask_for = [WO.NAME] if not all_wallets else [WO.PATH]
         validate = WV.WALLET if not all_wallets else WV.NONE
         wallet = self.wallet_ask(
@@ -1669,6 +1720,12 @@ class CLIManager:
         [italic]Note[/italic]: This command is useful to create additional hotkeys for different purposes, such as running multiple subnet miners or subnet validators or separating operational roles within the Bittensor network.
         """
         self.verbosity_handler(quiet, verbose)
+
+        if not wallet_hotkey:
+            wallet_hotkey = Prompt.ask(
+                "Enter the name of the new hotkey", default=defaults.wallet.hotkey
+            )
+
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -2116,8 +2173,8 @@ class CLIManager:
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
-        netuids: list[int] = Options.netuids,
-        weights: list[float] = Options.weights,
+        netuids: str = Options.netuids,
+        weights: str = Options.weights,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -2142,8 +2199,32 @@ class CLIManager:
         [green]$[/green] btcli root set-weights --netuids "1, 2" --weights "0.2, 0.3"
         """
         self.verbosity_handler(quiet, verbose)
-        netuids = list_prompt(netuids, int, "Enter netuids (e.g: 1, 4, 6)")
-        weights = list_prompt(weights, float, "Enter weights (e.g. 0.02, 0.03, 0.01)")
+
+        if netuids:
+            netuids = parse_to_list(
+                netuids,
+                int,
+                "Netuids must be a comma-separated list of ints, e.g., `--netuid 1,2,3,4`.",
+            )
+        else:
+            netuids = list_prompt(netuids, int, "Enter netuids (e.g: 1, 4, 6)")
+
+        if weights:
+            weights = parse_to_list(
+                weights,
+                float,
+                "Weights must be a comma-separated list of floats, e.g., `--weights 0.3,0.4,0.3`.",
+            )
+        else:
+            weights = list_prompt(
+                weights, float, "Enter weights (e.g. 0.02, 0.03, 0.01)"
+            )
+
+        if len(netuids) != len(weights):
+            raise typer.BadParameter(
+                "The number of netuids and weights must be the same."
+            )
+
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -2912,18 +2993,18 @@ class CLIManager:
             "",
             help="The ss58 address of the hotkey to stake to.",
         ),
-        include_hotkeys: list[str] = typer.Option(
-            [],
+        include_hotkeys: str = typer.Option(
+            "",
             "--include-hotkeys",
             "-in",
-            help="Specifies hotkeys by name or ss58 address to stake to. For example, `-in hk1 -in hk2`",
+            help="Specifies hotkeys by name or ss58 address to stake to. For example, `-in hk1,hk2`",
         ),
-        exclude_hotkeys: list[str] = typer.Option(
-            [],
+        exclude_hotkeys: str = typer.Option(
+            "",
             "--exclude-hotkeys",
             "-ex",
             help="Specifies hotkeys by name or ss58 address to not to stake to (use this option only with `--all-hotkeys`)"
-            " i.e. `--all-hotkeys -ex hk3 -ex hk4`",
+            " i.e. `--all-hotkeys -ex hk3,hk4`",
         ),
         all_hotkeys: bool = typer.Option(
             False,
@@ -2988,7 +3069,7 @@ class CLIManager:
                 "Do you want to stake to a specific [blue]ss58 address[/blue] or a registered [red]wallet hotkey[/red]?\n"
                 "[Enter '[blue]ss58[/blue]' for an address or '[red]hotkey[/red]' for a wallet hotkey] (default is '[blue]ss58[/blue]')",
                 choices=["ss58", "hotkey"],
-                default="ss58",
+                default="hotkey",
                 show_choices=False,
                 show_default=False,
             )
@@ -3021,6 +3102,22 @@ class CLIManager:
                 wallet_hotkey,
                 ask_for=[WO.NAME, WO.HOTKEY],
                 validate=WV.WALLET_AND_HOTKEY,
+            )
+
+        if include_hotkeys:
+            include_hotkeys = parse_to_list(
+                include_hotkeys,
+                str,
+                "Hotkeys must be a comma-separated list of ss58s, e.g., `--include-hotkeys 5Grw....,5Grw....`.",
+                is_ss58=True,
+            )
+
+        if exclude_hotkeys:
+            exclude_hotkeys = parse_to_list(
+                exclude_hotkeys,
+                str,
+                "Hotkeys must be a comma-separated list of ss58s, e.g., `--exclude-hotkeys 5Grw....,5Grw....`.",
+                is_ss58=True,
             )
 
         return self._run_command(
@@ -3064,18 +3161,18 @@ class CLIManager:
             "--keep",
             help="Sets the maximum amount of TAO to remain staked in each hotkey.",
         ),
-        include_hotkeys: list[str] = typer.Option(
-            [],
+        include_hotkeys: str = typer.Option(
+            "",
             "--include-hotkeys",
             "-in",
-            help="Specifies the hotkeys by name or ss58 address to unstake from. For example, `-in hk1 -in hk2`",
+            help="Specifies the hotkeys by name or ss58 address to unstake from. For example, `-in hk1,hk2`",
         ),
-        exclude_hotkeys: list[str] = typer.Option(
-            [],
+        exclude_hotkeys: str = typer.Option(
+            "",
             "--exclude-hotkeys",
             "-ex",
             help="Specifies the hotkeys by name or ss58 address not to unstake from (only use with `--all-hotkeys`)"
-            " i.e. `--all-hotkeys -ex hk3 -ex hk4`",
+            " i.e. `--all-hotkeys -ex hk3,hk4`",
         ),
         all_hotkeys: bool = typer.Option(
             False,
@@ -3093,7 +3190,7 @@ class CLIManager:
 
         EXAMPLE
 
-        [green]$[/green] btcli stake remove --amount 100 -in hk1 -in hk2
+        [green]$[/green] btcli stake remove --amount 100 -in hk1,hk2
 
         [blue bold]Note[/blue bold]: This command is for users who wish to reallocate their stake or withdraw them from the network. It allows for flexible management of TAO stake across different neurons (hotkeys) on the network.
         """
@@ -3173,6 +3270,22 @@ class CLIManager:
                 wallet_hotkey,
                 ask_for=[WO.NAME, WO.HOTKEY],
                 validate=WV.WALLET_AND_HOTKEY,
+            )
+
+        if include_hotkeys:
+            include_hotkeys = parse_to_list(
+                include_hotkeys,
+                str,
+                "Hotkeys must be a comma-separated list of ss58s, e.g., `--include-hotkeys 5Grw....,5Grw....`.",
+                is_ss58=True,
+            )
+
+        if exclude_hotkeys:
+            exclude_hotkeys = parse_to_list(
+                exclude_hotkeys,
+                str,
+                "Hotkeys must be a comma-separated list of ss58s, e.g., `--exclude-hotkeys 5Grw....,5Grw....`.",
+                is_ss58=True,
             )
 
         return self._run_command(
@@ -3509,9 +3622,13 @@ class CLIManager:
         [green]$[/green] btcli sudo set --netuid 1 --param tempo --value 400
         """
         self.verbosity_handler(quiet, verbose)
-        self._run_command(
+
+        hyperparams = self._run_command(
             sudo.get_hyperparameters(self.initialize_chain(network, chain), netuid)
         )
+
+        if not hyperparams:
+            raise typer.Exit()
 
         if not param_name:
             hyperparam_list = list(HYPERPARAMS.keys())
@@ -3896,15 +4013,15 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         netuid: int = Options.netuid,
-        uids: list[int] = typer.Option(
-            [],
+        uids: str = typer.Option(
+            None,
             "--uids",
             "-u",
-            help="Corresponding UIDs for the specified netuid, e.g. -u 1 -u 2 -u 3 ...",
+            help="Corresponding UIDs for the specified netuid, e.g. -u 1,2,3 ...",
         ),
-        weights: list[float] = Options.weights,
-        salt: list[int] = typer.Option(
-            [],
+        weights: str = Options.weights,
+        salt: str = typer.Option(
+            None,
             "--salt",
             "-s",
             help="Corresponding salt for the hash function, e.g. -s 163 -s 241 -s 217 ...",
@@ -3926,12 +4043,45 @@ class CLIManager:
         weights = list_prompt(
             weights, float, "Corresponding weights for the specified UIDs"
         )
+        if uids:
+            uids = parse_to_list(
+                uids,
+                int,
+                "Uids must be a comma-separated list of ints, e.g., `--uids 1,2,3,4`.",
+            )
+        else:
+            uids = list_prompt(
+                uids, int, "Corresponding UIDs for the specified netuid (eg: 1,2,3)"
+            )
+
+        if weights:
+            weights = parse_to_list(
+                weights,
+                float,
+                "Weights must be a comma-separated list of floats, e.g., `--weights 0.3,0.4,0.3`.",
+            )
+        else:
+            weights = list_prompt(
+                weights,
+                float,
+                "Corresponding weights for the specified UIDs (eg: 0.2,0.3,0.4)",
+            )
+
         if len(uids) != len(weights):
             err_console.print(
                 "The number of UIDs you specify must match up with the specified number of weights"
             )
             raise typer.Exit()
-        salt = list_prompt(salt, int, "Corresponding salt for the hash function")
+
+        if salt:
+            salt = parse_to_list(
+                salt,
+                int,
+                "Salt must be a comma-separated list of ints, e.g., `--weights 123,163,194`.",
+            )
+        else:
+            salt = list_prompt(salt, int, "Corresponding salt for the hash function")
+
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -3960,15 +4110,15 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         netuid: int = Options.netuid,
-        uids: list[int] = typer.Option(
-            [],
+        uids: str = typer.Option(
+            None,
             "--uids",
             "-u",
-            help="UIDs of interest for the specified netuid, e.g. -u 1 -u 2 -u 3 ...",
+            help="UIDs of interest for the specified netuid, e.g. -u 1,2,3 ...",
         ),
-        weights: list[float] = Options.weights,
-        salt: list[int] = typer.Option(
-            [],
+        weights: str = Options.weights,
+        salt: str = typer.Option(
+            None,
             "--salt",
             "-s",
             help="Corresponding salt for the hash function, e.g. -s 163 -s 241 -s 217 ...",
@@ -3984,19 +4134,51 @@ class CLIManager:
 
         EXAMPLE
 
-        [green]$[/green] btcli wt commit --netuid 1 --uids 1,2,3,4 --w 0.1 -w 0.2 -w 0.3 -w 0.4
+        [green]$[/green] btcli wt commit --netuid 1 --uids 1,2,3,4 --w 0.1,0.2,0.3
+
+        [italic]Note[/italic]: This command is used to commit weights for a specific subnet and requires the user to have the necessary
+        permissions.
         """
         self.verbosity_handler(quiet, verbose)
-        uids = list_prompt(uids, int, "UIDs of interest for the specified netuid")
-        weights = list_prompt(
-            weights, float, "Corresponding weights for the specified UIDs"
-        )
+
+        if uids:
+            uids = parse_to_list(
+                uids,
+                int,
+                "Uids must be a comma-separated list of ints, e.g., `--uids 1,2,3,4`.",
+            )
+        else:
+            uids = list_prompt(
+                uids, int, "UIDs of interest for the specified netuid (eg: 1,2,3)"
+            )
+
+        if weights:
+            weights = parse_to_list(
+                weights,
+                float,
+                "Weights must be a comma-separated list of floats, e.g., `--weights 0.3,0.4,0.3`.",
+            )
+        else:
+            weights = list_prompt(
+                weights,
+                float,
+                "Corresponding weights for the specified UIDs (eg: 0.2,0.3,0.4)",
+            )
         if len(uids) != len(weights):
             err_console.print(
                 "The number of UIDs you specify must match up with the specified number of weights"
             )
             raise typer.Exit()
-        salt = list_prompt(salt, int, "Corresponding salt for the hash function")
+
+        if salt:
+            salt = parse_to_list(
+                salt,
+                int,
+                "Salt must be a comma-separated list of ints, e.g., `--weights 123,163,194`.",
+            )
+        else:
+            salt = list_prompt(salt, int, "Corresponding salt for the hash function")
+
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
