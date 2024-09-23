@@ -3190,7 +3190,7 @@ class CLIManager:
 
         EXAMPLE
 
-        [green]$[/green] btcli stake remove --amount 100 -in hk1 -in hk2
+        [green]$[/green] btcli stake remove --amount 100 -in hk1,hk2
 
         [blue bold]Note[/blue bold]: This command is for users who wish to reallocate their stake or withdraw them from the network. It allows for flexible management of TAO stake across different neurons (hotkeys) on the network.
         """
