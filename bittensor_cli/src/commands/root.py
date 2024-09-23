@@ -332,7 +332,7 @@ async def burned_register_extrinsic(
     else:
         with console.status(":satellite: Checking Balance...", spinner="aesthetic"):
             block_hash = await subtensor.substrate.get_chain_head()
-            new_balance, netuids_for_hotkey = await asyncio.gather(
+            new_balance, netuids_for_hotkey, my_uid = await asyncio.gather(
                 subtensor.get_balance(
                     wallet.coldkeypub.ss58_address,
                     block_hash=block_hash,
@@ -340,6 +340,9 @@ async def burned_register_extrinsic(
                 ),
                 subtensor.get_netuids_for_hotkey(
                     wallet.hotkey.ss58_address, block_hash=block_hash
+                ),
+                subtensor.substrate.query(
+                    "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
                 ),
             )
 
@@ -349,7 +352,9 @@ async def burned_register_extrinsic(
         )
 
         if len(netuids_for_hotkey) > 0:
-            console.print(":white_heavy_check_mark: [green]Registered[/green]")
+            console.print(
+                f":white_heavy_check_mark: [green]Registered on netuid {netuid} with UID {my_uid}[/green]"
+            )
             return True
         else:
             # neuron not found, try again
