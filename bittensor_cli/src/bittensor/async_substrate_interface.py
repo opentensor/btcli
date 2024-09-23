@@ -760,6 +760,7 @@ class AsyncSubstrateInterface:
         auto_reconnect=True,
         ss58_format=None,
         type_registry=None,
+        chain_name=None,
     ):
         """
         The asyncio-compatible version of the subtensor interface commands we use in bittensor
@@ -796,6 +797,7 @@ class AsyncSubstrateInterface:
         self.transaction_version = None
         self.metadata = None
         self.metadata_version_hex = "0x0f000000"  # v15
+        self.__chain = chain_name
 
     async def __aenter__(self):
         await self.initialize()
@@ -806,8 +808,9 @@ class AsyncSubstrateInterface:
         """
         async with self._lock:
             if not self.initialized:
-                chain = await self.rpc_request("system_chain", [])
-                self.__chain = chain.get("result")
+                if not self.__chain:
+                    chain = await self.rpc_request("system_chain", [])
+                    self.__chain = chain.get("result")
                 # await self.load_registry()
                 self.reload_type_registry()
                 await asyncio.gather(self.load_registry(), self.init_runtime(None))
@@ -960,18 +963,19 @@ class AsyncSubstrateInterface:
             self.runtime_version = runtime_info.get("specVersion")
             self.transaction_version = runtime_info.get("transactionVersion")
 
-            if self.runtime_version in self.__metadata_cache:
-                # Get metadata from cache
-                # self.debug_message('Retrieved metadata for {} from memory'.format(self.runtime_version))
-                self.metadata = self.__metadata_cache[self.runtime_version]
-            else:
-                self.metadata = await self.get_block_metadata(
-                    block_hash=runtime_block_hash, decode=True
-                )
-                # self.debug_message('Retrieved metadata for {} from Substrate node'.format(self.runtime_version))
+            if not self.metadata:
+                if self.runtime_version in self.__metadata_cache:
+                    # Get metadata from cache
+                    # self.debug_message('Retrieved metadata for {} from memory'.format(self.runtime_version))
+                    self.metadata = self.__metadata_cache[self.runtime_version]
+                else:
+                    self.metadata = await self.get_block_metadata(
+                        block_hash=runtime_block_hash, decode=True
+                    )
+                    # self.debug_message('Retrieved metadata for {} from Substrate node'.format(self.runtime_version))
 
-                # Update metadata cache
-                self.__metadata_cache[self.runtime_version] = self.metadata
+                    # Update metadata cache
+                    self.__metadata_cache[self.runtime_version] = self.metadata
 
             # Update type registry
             self.reload_type_registry(use_remote_preset=False, auto_discover=True)
