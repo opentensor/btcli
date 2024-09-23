@@ -340,17 +340,22 @@ async def root_register_extrinsic(
 
         # Successful registration, final check for neuron and pubkey
         else:
-            is_registered = await is_hotkey_registered(
-                subtensor, netuid=0, hotkey_ss58=wallet.hotkey.ss58_address
+            uid = await subtensor.substrate.query(
+                module="SubtensorModule",
+                storage_function="Uids",
+                params=[0, wallet.hotkey.ss58_address],
             )
-            if is_registered:
-                console.print(":white_heavy_check_mark: [green]Registered[/green]")
+            if uid is not None:
+                console.print(
+                    f":white_heavy_check_mark: [green]Registered with UID {uid}[/green]"
+                )
                 return True
             else:
                 # neuron not found, try again
                 err_console.print(
                     ":cross_mark: [red]Unknown error. Neuron not found.[/red]"
                 )
+                return False
 
 
 async def set_root_weights_extrinsic(
