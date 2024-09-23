@@ -1541,7 +1541,7 @@ class CLIManager:
         """
         Regenerates the public part of a coldkey (coldkeypub.txt) for a wallet.
 
-        Use this command when you need to move machine for subnet mining. Use the public key or SS58 address from your coldkeypub.txt that you have on another machine to regenerate the coldkeypub.txt on this new machine. 
+        Use this command when you need to move machine for subnet mining. Use the public key or SS58 address from your coldkeypub.txt that you have on another machine to regenerate the coldkeypub.txt on this new machine.
 
         USAGE
 
@@ -1774,7 +1774,8 @@ class CLIManager:
 
         if not wallet_name:
             wallet_name = Prompt.ask(
-                "Enter the name of the new wallet (coldkey)", default=defaults.wallet.name
+                "Enter the name of the new wallet (coldkey)",
+                default=defaults.wallet.name,
             )
         if not wallet_hotkey:
             wallet_hotkey = Prompt.ask(
@@ -1959,8 +1960,8 @@ class CLIManager:
 
         The command prompts the user for the identity attributes and validates the input size for each attribute. It provides an option to update an existing validator hotkey identity. If the user consents to the transaction cost, the identity is updated on the blockchain.
 
-        Each field has a maximum size of 64 bytes. The PGP fingerprint field is an exception and has a maximum size of 20 bytes. The user is prompted to enter the PGP fingerprint as a hex string, which is then converted to bytes. The user is also prompted to enter the coldkey or hotkey ``ss58`` address for the identity to be updated. 
-        
+        Each field has a maximum size of 64 bytes. The PGP fingerprint field is an exception and has a maximum size of 20 bytes. The user is prompted to enter the PGP fingerprint as a hex string, which is then converted to bytes. The user is also prompted to enter the coldkey or hotkey ``ss58`` address for the identity to be updated.
+
         If the user does not have a hotkey, the coldkey address is used by default. If setting a validator identity, the hotkey will be used by default. If the user is setting an identity for a subnet, the coldkey will be used by default.
 
         EXAMPLE
@@ -2132,13 +2133,13 @@ class CLIManager:
 
         With no spaces between the passed values:
 
-        [green]$[/green] btcli root set-weights --netuids 1,2 --weights 0.2,0.3 
-        
+        [green]$[/green] btcli root set-weights --netuids 1,2 --weights 0.2,0.3
+
         or
 
         Include double quotes to include spaces between the passed values:
 
-        [green]$[/green] btcli root set-weights --netuids "1, 2" --weights "0.2, 0.3" 
+        [green]$[/green] btcli root set-weights --netuids "1, 2" --weights "0.2, 0.3"
         """
         self.verbosity_handler(quiet, verbose)
         netuids = list_prompt(netuids, int, "Enter netuids (e.g: 1, 4, 6)")
@@ -2178,9 +2179,9 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Shows a table listing the weights assigned to each subnet in the root network. 
+        Shows a table listing the weights assigned to each subnet in the root network.
 
-        This command provides visibility into how network responsibilities and rewards are distributed among various subnets. This information is crucial for understanding the current influence and reward distribution across different subnets. Use this command if you are interested in the governance and operational dynamics of the Bittensor network. 
+        This command provides visibility into how network responsibilities and rewards are distributed among various subnets. This information is crucial for understanding the current influence and reward distribution across different subnets. Use this command if you are interested in the governance and operational dynamics of the Bittensor network.
 
         EXAMPLE
 
@@ -2318,7 +2319,7 @@ class CLIManager:
         """
         Cast a vote on an active proposal in Bittensor's governance protocol.
 
-        This command is used by Senate members to vote on various proposals that shape the network's future. Use `btcli root proposals` to see the active proposals and their hashes. 
+        This command is used by Senate members to vote on various proposals that shape the network's future. Use `btcli root proposals` to see the active proposals and their hashes.
 
         USAGE
 
@@ -2634,7 +2635,7 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Shows a table with the details on the user's delegates. 
+        Shows a table with the details on the user's delegates.
 
         The table output includes the following columns:
 
@@ -2721,10 +2722,10 @@ class CLIManager:
         - DESCRIPTION: A brief description of the delegate's purpose and operations.
 
         [blue bold]NOTES:[/blue bold]
-        
-            - Sorting is done based on the `TOTAL STAKE` column in descending order. 
-            - Changes in stake are shown as: increases in green and decreases in red. 
-            - Entries with no previous data are marked with `NA`. 
+
+            - Sorting is done based on the `TOTAL STAKE` column in descending order.
+            - Changes in stake are shown as: increases in green and decreases in red.
+            - Entries with no previous data are marked with `NA`.
             - Each delegate's name is a hyperlink to more information, if available.
 
         EXAMPLE
@@ -2833,7 +2834,7 @@ class CLIManager:
         """
         Lists all the stake accounts associated with a user's wallet.
 
-        This command provides a comprehensive view of the stakes associated with the user's coldkeys. It shows both the user's own hotkeys and also the hotkeys of the delegates to which this user has staked. 
+        This command provides a comprehensive view of the stakes associated with the user's coldkeys. It shows both the user's own hotkeys and also the hotkeys of the delegates to which this user has staked.
 
         The command lists all the stake accounts for a specified wallet or all wallets in the user's configuration directory. It displays the coldkey, balance, hotkey details (own hotkey and delegate hotkey), stake amount, and the rate of return.
 
@@ -2957,7 +2958,7 @@ class CLIManager:
             )
             raise typer.Exit()
 
-        if not stake_all and not amount:
+        if not stake_all and not amount and not max_stake:
             amount = FloatPrompt.ask("[blue bold]Amount to stake (TAO τ)[/blue bold]")
 
         if stake_all and not amount:
@@ -3057,10 +3058,10 @@ class CLIManager:
             "",
             help="The ss58 address of the hotkey to unstake from.",
         ),
-        max_stake: float = typer.Option(
+        keep_stake: float = typer.Option(
             0.0,
-            "--max-stake",
-            "--max",
+            "--keep-stake",
+            "--keep",
             help="Sets the maximum amount of TAO to remain staked in each hotkey.",
         ),
         include_hotkeys: list[str] = typer.Option(
@@ -3117,7 +3118,7 @@ class CLIManager:
             )
             raise typer.Exit()
 
-        if not unstake_all and not amount:
+        if not unstake_all and not amount and not keep_stake:
             amount = FloatPrompt.ask("[blue bold]Amount to unstake (TAO τ)[/blue bold]")
 
         if unstake_all and not amount:
@@ -3131,8 +3132,10 @@ class CLIManager:
             and not include_hotkeys
         ):
             hotkey_or_ss58 = Prompt.ask(
-                "Do you want to unstake from a specific [blue]ss58 address[/blue] or a registered [red]wallet hotkey[/red]?\n"
-                "[Enter '[blue]ss58[/blue]' for an address or '[red]hotkey[/red]' for a wallet hotkey] (default is '[blue]ss58[/blue]')",
+                "Do you want to unstake from a specific [blue]ss58 address[/blue] or a registered [red]wallet hotkey"
+                "[/red]?\n"
+                "[Enter '[blue]ss58[/blue]' for an address or '[red]hotkey[/red]' for a wallet hotkey] (default is "
+                "'[blue]ss58[/blue]')",
                 choices=["ss58", "hotkey"],
                 default="ss58",
                 show_choices=False,
@@ -3181,7 +3184,7 @@ class CLIManager:
                 include_hotkeys,
                 exclude_hotkeys,
                 amount,
-                max_stake,
+                keep_stake,
                 unstake_all,
                 prompt,
             )
@@ -3212,7 +3215,7 @@ class CLIManager:
         """
         Get all the child hotkeys on a specified subnet.
 
-        Users can specify the subnet and see the child hotkeys and the proportion that is given to them. This command is used to view the authority delegated to different hotkeys on the subnet. 
+        Users can specify the subnet and see the child hotkeys and the proportion that is given to them. This command is used to view the authority delegated to different hotkeys on the subnet.
 
         EXAMPLE
 
@@ -3286,7 +3289,7 @@ class CLIManager:
 
         Users can specify the 'proportion' to delegate to child hotkeys (ss58 address). The sum of proportions cannot be greater than 1.
 
-        This command is used to delegate authority to different hotkeys, securing their position and influence on the subnet.      
+        This command is used to delegate authority to different hotkeys, securing their position and influence on the subnet.
 
         EXAMPLE
 
@@ -3302,7 +3305,11 @@ class CLIManager:
             netuid = IntPrompt.ask(
                 "Enter a netuid (leave blank for all)", default=None, show_default=True
             )
-        children = list_prompt(children, str, "Enter the child hotkeys (ss58), comma-separated for multiple")
+        children = list_prompt(
+            children,
+            str,
+            "Enter the child hotkeys (ss58), comma-separated for multiple",
+        )
 
         proportions = list_prompt(
             proportions,
@@ -3572,7 +3579,7 @@ class CLIManager:
         List all subnets and their detailed information.
 
         This command displays a table with the below columns:
-        
+
         - NETUID: The subnet's netuid.
         - N: The number of neurons (subnet validators and subnet miners) in the subnet.
         - MAX_N: The maximum allowed number of neurons in the subnet.
@@ -3581,7 +3588,7 @@ class CLIManager:
         - RECYCLE: The recycle register cost for this subnet.
         - POW: The proof of work (PoW) difficulty.
         - SUDO: The subnet owner's name or the owner's ss58 address.
-        
+
         EXAMPLE
 
         [green]$[/green] btcli subnets list
@@ -3845,7 +3852,7 @@ class CLIManager:
         Show the metagraph of the root network (netuid 0) on finney (mainnet):
 
             [green]$[/green] btcli subnet metagraph --netuid 0
-        
+
         Show the metagraph of subnet 1 on the testnet:
 
             [green]$[/green] btcli subnet metagraph --netuid 1 --network test
@@ -3867,9 +3874,7 @@ class CLIManager:
             subtensor = None
         else:
             if netuid is None:
-                netuid = rich.prompt.IntPrompt.ask(
-                    "Enter the netuid (e.g. 1)"
-                )
+                netuid = rich.prompt.IntPrompt.ask("Enter the netuid (e.g. 1)")
             subtensor = self.initialize_chain(network, chain)
 
         return self._run_command(
