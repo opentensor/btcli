@@ -3005,7 +3005,7 @@ class CLIManager:
             )
             raise typer.Exit()
 
-        if not stake_all and not amount:
+        if not stake_all and not amount and not max_stake:
             amount = FloatPrompt.ask("[blue bold]Amount to stake (TAO τ)[/blue bold]")
 
         if stake_all and not amount:
@@ -3105,10 +3105,10 @@ class CLIManager:
             "",
             help="The ss58 address of the hotkey to unstake from.",
         ),
-        max_stake: float = typer.Option(
+        keep_stake: float = typer.Option(
             0.0,
-            "--max-stake",
-            "--max",
+            "--keep-stake",
+            "--keep",
             help="Sets the maximum amount of TAO to remain staked in each hotkey.",
         ),
         include_hotkeys: list[str] = typer.Option(
@@ -3165,7 +3165,7 @@ class CLIManager:
             )
             raise typer.Exit()
 
-        if not unstake_all and not amount:
+        if not unstake_all and not amount and not keep_stake:
             amount = FloatPrompt.ask("[blue bold]Amount to unstake (TAO τ)[/blue bold]")
 
         if unstake_all and not amount:
@@ -3179,8 +3179,10 @@ class CLIManager:
             and not include_hotkeys
         ):
             hotkey_or_ss58 = Prompt.ask(
-                "Do you want to unstake from a specific [blue]ss58 address[/blue] or a registered [red]wallet hotkey[/red]?\n"
-                "[Enter '[blue]ss58[/blue]' for an address or '[red]hotkey[/red]' for a wallet hotkey] (default is '[blue]ss58[/blue]')",
+                "Do you want to unstake from a specific [blue]ss58 address[/blue] or a registered [red]wallet hotkey"
+                "[/red]?\n"
+                "[Enter '[blue]ss58[/blue]' for an address or '[red]hotkey[/red]' for a wallet hotkey] (default is "
+                "'[blue]ss58[/blue]')",
                 choices=["ss58", "hotkey"],
                 default="ss58",
                 show_choices=False,
@@ -3229,7 +3231,7 @@ class CLIManager:
                 include_hotkeys,
                 exclude_hotkeys,
                 amount,
-                max_stake,
+                keep_stake,
                 unstake_all,
                 prompt,
             )
