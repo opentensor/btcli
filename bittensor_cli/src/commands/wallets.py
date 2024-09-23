@@ -495,7 +495,7 @@ async def _get_total_balance(
             (
                 await subtensor.get_balance(
                     *(x.coldkeypub.ss58_address for x in _balance_cold_wallets),
-                    block_hash=block_hash
+                    block_hash=block_hash,
                 )
             ).values()
         )
@@ -610,8 +610,12 @@ async def overview(
 
         coldkeys_to_check = []
         ck_stakes = await subtensor.get_total_stake_for_coldkey(
-            *(coldkey_wallet.coldkeypub.ss58_address for coldkey_wallet in all_coldkey_wallets if coldkey_wallet.coldkeypub),
-            block_hash=block_hash
+            *(
+                coldkey_wallet.coldkeypub.ss58_address
+                for coldkey_wallet in all_coldkey_wallets
+                if coldkey_wallet.coldkeypub
+            ),
+            block_hash=block_hash,
         )
         for coldkey_wallet in all_coldkey_wallets:
             if coldkey_wallet.coldkeypub:
@@ -1479,7 +1483,11 @@ async def set_id(
     }
 
     for field, string in id_dict.items():
-        if field == "pgp_fingerprint" and len(pgp_fingerprint_encoded) != 20:
+        if (
+            field == "pgp_fingerprint"
+            and pgp_fingerprint
+            and len(pgp_fingerprint_encoded) != 20
+        ):
             err_console.print(
                 "[red]Error:[/red] PGP Fingerprint must be exactly 20 bytes."
             )
