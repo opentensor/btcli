@@ -2195,35 +2195,34 @@ class AsyncSubstrateInterface:
         if params is None:
             params = {}
 
-        async with self._lock:
-            try:
-                runtime_call_def = self.runtime_config.type_registry["runtime_api"][
-                    api
-                ]["methods"][method]
-                runtime_api_types = self.runtime_config.type_registry["runtime_api"][
-                    api
-                ].get("types", {})
-            except KeyError:
-                raise ValueError(
-                    f"Runtime API Call '{api}.{method}' not found in registry"
-                )
-
-            if isinstance(params, list) and len(params) != len(
-                runtime_call_def["params"]
-            ):
-                raise ValueError(
-                    f"Number of parameter provided ({len(params)}) does not "
-                    f"match definition {len(runtime_call_def['params'])}"
-                )
-
-            # Add runtime API types to registry
-            self.runtime_config.update_type_registry_types(runtime_api_types)
-            runtime = Runtime(
-                self.chain,
-                self.runtime_config,
-                self.metadata,
-                self.type_registry,
+        try:
+            runtime_call_def = self.runtime_config.type_registry["runtime_api"][
+                api
+            ]["methods"][method]
+            runtime_api_types = self.runtime_config.type_registry["runtime_api"][
+                api
+            ].get("types", {})
+        except KeyError:
+            raise ValueError(
+                f"Runtime API Call '{api}.{method}' not found in registry"
             )
+
+        if isinstance(params, list) and len(params) != len(
+            runtime_call_def["params"]
+        ):
+            raise ValueError(
+                f"Number of parameter provided ({len(params)}) does not "
+                f"match definition {len(runtime_call_def['params'])}"
+            )
+
+        # Add runtime API types to registry
+        self.runtime_config.update_type_registry_types(runtime_api_types)
+        runtime = Runtime(
+            self.chain,
+            self.runtime_config,
+            self.metadata,
+            self.type_registry,
+        )
 
         # Encode params
         param_data = ScaleBytes(bytes())
