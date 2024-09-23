@@ -322,8 +322,8 @@ async def add_stake_multiple_extrinsic(
     if amounts is None:
         new_amounts = [None] * len(hotkey_ss58s)
     else:
-        new_amounts = amounts
-        if sum(amount.tao for amount in amounts) == 0:
+        new_amounts = [Balance.from_tao(amount) for amount in amounts]
+        if sum(amount.tao for amount in new_amounts) == 0:
             # Staking 0 tao
             return True
 

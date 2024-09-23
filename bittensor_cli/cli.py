@@ -208,10 +208,23 @@ def list_prompt(init_var: list, list_type: type, help_text: str) -> list:
     return init_var
 
 
-def parse_to_list(raw_list: str, list_type: type, error_message: str) -> list:
+def parse_to_list(
+    raw_list: str, 
+    list_type: type, 
+    error_message: str, 
+    is_ss58: bool = False
+) -> list:
     try:
         # Split the string by commas and convert each part to according to type
-        return [list_type(uid.strip()) for uid in raw_list.split(",") if uid.strip()]
+        parsed_list = [list_type(uid.strip()) for uid in raw_list.split(",") if uid.strip()]
+        
+        # Validate in-case of ss58s
+        if is_ss58:
+            for item in parsed_list:
+                if not is_valid_ss58_address(item):
+                    raise typer.BadParameter(f"Invalid SS58 address: {item}")
+        
+        return parsed_list
     except ValueError:
         raise typer.BadParameter(error_message)
 
@@ -733,9 +746,10 @@ class CLIManager:
             try:
                 if self.not_subtensor:
                     async with self.not_subtensor:
-                        await cmd
+                        result = await cmd
                 else:
-                    await cmd
+                    result = await cmd
+                return result
             except ConnectionRefusedError:
                 err_console.print(
                     f"Unable to connect to the chain: {self.not_subtensor}"
@@ -1100,15 +1114,15 @@ class CLIManager:
             None,
             help="Sort the hotkeys in the specified order (ascending/asc or descending/desc/reverse).",
         ),
-        include_hotkeys: list[str] = typer.Option(
-            [],
+        include_hotkeys: str = typer.Option(
+            "",
             "--include-hotkeys",
             "-in",
             help="Hotkeys to include. Specify by name or ss58 address. "
             "If left empty, all hotkeys, except those in the '--exclude-hotkeys', will be included.",
         ),
-        exclude_hotkeys: list[str] = typer.Option(
-            [],
+        exclude_hotkeys: str = typer.Option(
+            "",
             "--exclude-hotkeys",
             "-ex",
             help="Hotkeys to exclude. Specify by name or ss58 address. "
@@ -1170,7 +1184,7 @@ class CLIManager:
 
         [green]$[/green] btcli wallet overview --all --sort-by stake --sort-order descending
 
-        [green]$[/green] btcli wallet overview -in hk1 -in hk2 --sort-by stake
+        [green]$[/green] btcli wallet overview -in hk1,hk2 --sort-by stake
 
         [bold]NOTE[/bold]: This command is read-only and does not modify the blockchain state or account configuration.
         It provides a quick and comprehensive view of the user's network presence, making it useful for monitoring account status,
@@ -1195,6 +1209,23 @@ class CLIManager:
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
         )
+
+        if include_hotkeys:
+            include_hotkeys = parse_to_list(
+                include_hotkeys,
+                str,
+                "Hotkeys must be a comma-separated list of ss58s, e.g., `--include-hotkeys 5Grw....,5Grw....`.",
+                is_ss58=True
+            )
+
+        if exclude_hotkeys:
+            exclude_hotkeys = parse_to_list(
+                exclude_hotkeys,
+                str,
+                "Hotkeys must be a comma-separated list of ss58s, e.g., `--exclude-hotkeys 5Grw....,5Grw....`.",
+                is_ss58=True
+            )
+
         return self._run_command(
             wallets.overview(
                 wallet,
@@ -1692,6 +1723,12 @@ class CLIManager:
         [italic]Note[/italic]: This command is useful to create additional hotkeys for different purposes, such as running multiple subnet miners or subnet validators or separating operational roles within the Bittensor network.
         """
         self.verbosity_handler(quiet, verbose)
+
+        if not wallet_hotkey:
+            wallet_hotkey = Prompt.ask(
+                "Enter the name of the new hotkey", default=defaults.wallet.hotkey
+            )
+            
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -2959,18 +2996,18 @@ class CLIManager:
             "",
             help="The ss58 address of the hotkey to stake to.",
         ),
-        include_hotkeys: list[str] = typer.Option(
-            [],
+        include_hotkeys: str = typer.Option(
+            "",
             "--include-hotkeys",
             "-in",
-            help="Specifies hotkeys by name or ss58 address to stake to. For example, `-in hk1 -in hk2`",
+            help="Specifies hotkeys by name or ss58 address to stake to. For example, `-in hk1,hk2`",
         ),
-        exclude_hotkeys: list[str] = typer.Option(
-            [],
+        exclude_hotkeys: str = typer.Option(
+            "",
             "--exclude-hotkeys",
             "-ex",
             help="Specifies hotkeys by name or ss58 address to not to stake to (use this option only with `--all-hotkeys`)"
-            " i.e. `--all-hotkeys -ex hk3 -ex hk4`",
+            " i.e. `--all-hotkeys -ex hk3,hk4`",
         ),
         all_hotkeys: bool = typer.Option(
             False,
@@ -3035,7 +3072,7 @@ class CLIManager:
                 "Do you want to stake to a specific [blue]ss58 address[/blue] or a registered [red]wallet hotkey[/red]?\n"
                 "[Enter '[blue]ss58[/blue]' for an address or '[red]hotkey[/red]' for a wallet hotkey] (default is '[blue]ss58[/blue]')",
                 choices=["ss58", "hotkey"],
-                default="ss58",
+                default="hotkey",
                 show_choices=False,
                 show_default=False,
             )
@@ -3068,6 +3105,22 @@ class CLIManager:
                 wallet_hotkey,
                 ask_for=[WO.NAME, WO.HOTKEY],
                 validate=WV.WALLET_AND_HOTKEY,
+            )
+
+        if include_hotkeys:
+            include_hotkeys = parse_to_list(
+                include_hotkeys,
+                str,
+                "Hotkeys must be a comma-separated list of ss58s, e.g., `--include-hotkeys 5Grw....,5Grw....`.",
+                is_ss58=True
+            )
+
+        if exclude_hotkeys:
+            exclude_hotkeys = parse_to_list(
+                exclude_hotkeys,
+                str,
+                "Hotkeys must be a comma-separated list of ss58s, e.g., `--exclude-hotkeys 5Grw....,5Grw....`.",
+                is_ss58=True
             )
 
         return self._run_command(
@@ -3111,18 +3164,18 @@ class CLIManager:
             "--keep",
             help="Sets the maximum amount of TAO to remain staked in each hotkey.",
         ),
-        include_hotkeys: list[str] = typer.Option(
-            [],
+        include_hotkeys: str = typer.Option(
+            "",
             "--include-hotkeys",
             "-in",
-            help="Specifies the hotkeys by name or ss58 address to unstake from. For example, `-in hk1 -in hk2`",
+            help="Specifies the hotkeys by name or ss58 address to unstake from. For example, `-in hk1,hk2`",
         ),
-        exclude_hotkeys: list[str] = typer.Option(
-            [],
+        exclude_hotkeys: str = typer.Option(
+            "",
             "--exclude-hotkeys",
             "-ex",
             help="Specifies the hotkeys by name or ss58 address not to unstake from (only use with `--all-hotkeys`)"
-            " i.e. `--all-hotkeys -ex hk3 -ex hk4`",
+            " i.e. `--all-hotkeys -ex hk3,hk4`",
         ),
         all_hotkeys: bool = typer.Option(
             False,
@@ -3220,6 +3273,22 @@ class CLIManager:
                 wallet_hotkey,
                 ask_for=[WO.NAME, WO.HOTKEY],
                 validate=WV.WALLET_AND_HOTKEY,
+            )
+        
+        if include_hotkeys:
+            include_hotkeys = parse_to_list(
+                include_hotkeys,
+                str,
+                "Hotkeys must be a comma-separated list of ss58s, e.g., `--include-hotkeys 5Grw....,5Grw....`.",
+                is_ss58=True
+            )
+
+        if exclude_hotkeys:
+            exclude_hotkeys = parse_to_list(
+                exclude_hotkeys,
+                str,
+                "Hotkeys must be a comma-separated list of ss58s, e.g., `--exclude-hotkeys 5Grw....,5Grw....`.",
+                is_ss58=True
             )
 
         return self._run_command(
@@ -3556,10 +3625,14 @@ class CLIManager:
         [green]$[/green] btcli sudo set --netuid 1 --param tempo --value 400
         """
         self.verbosity_handler(quiet, verbose)
-        self._run_command(
+
+        hyperparams = self._run_command(
             sudo.get_hyperparameters(self.initialize_chain(network, chain), netuid)
         )
-
+        
+        if not hyperparams:
+            raise typer.Exit()
+        
         if not param_name:
             hyperparam_list = list(HYPERPARAMS.keys())
             console.print("Available hyperparameters:\n")

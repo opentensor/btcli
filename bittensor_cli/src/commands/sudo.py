@@ -232,3 +232,4 @@ async def get_hyperparameters(subtensor: "SubtensorInterface", netuid: int):
         table.add_row("  " + param, value, norm_value)
 
     console.print(table)
+    return True
