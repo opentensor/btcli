@@ -766,7 +766,7 @@ class AsyncSubstrateInterface:
         The asyncio-compatible version of the subtensor interface commands we use in bittensor
         """
         self.chain_endpoint = chain_endpoint
-        self.__chain = None
+        self.__chain = chain_name
         self.ws = Websocket(
             chain_endpoint,
             options={
@@ -797,23 +797,29 @@ class AsyncSubstrateInterface:
         self.transaction_version = None
         self.metadata = None
         self.metadata_version_hex = "0x0f000000"  # v15
-        self.__chain = chain_name
+        self.registry_loader: Optional[asyncio.Task] = None
+        self.runtime_loader: Optional[asyncio.Task] = None
 
     async def __aenter__(self):
         await self.initialize()
 
     async def initialize(self):
         """
-        Initialize the attached substrate object
+        Initialize the connection to the chain.
         """
         async with self._lock:
             if not self.initialized:
-                if not self.__chain:
-                    chain = await self.rpc_request("system_chain", [])
-                    self.__chain = chain.get("result")
-                # await self.load_registry()
-                self.reload_type_registry()
-                await asyncio.gather(self.load_registry(), self.init_runtime(None))
+                try:
+                    if not self.__chain:
+                        chain = await self.rpc_request("system_chain", [])
+                        self.__chain = chain.get("result")
+                    # await self.load_registry()
+                    self.reload_type_registry()
+                    self.registry_loader = asyncio.create_task(self.load_registry())
+                    self.runtime_loader = asyncio.create_task(self.init_runtime(None, init=True))
+                    # await asyncio.gather(self.load_registry(), self.init_runtime(None))
+                except ConnectionRefusedError:
+                    raise
             self.initialized = True
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -877,6 +883,8 @@ class AsyncSubstrateInterface:
         -------
 
         """
+        if self.registry_loader.done():
+            await self.registry_loader
         if scale_bytes == b"\x00":
             obj = None
         else:
@@ -884,7 +892,7 @@ class AsyncSubstrateInterface:
         return obj
 
     async def init_runtime(
-        self, block_hash: Optional[str] = None, block_id: Optional[int] = None
+        self, block_hash: Optional[str] = None, block_id: Optional[int] = None, init=False
     ) -> Runtime:
         """
         This method is used by all other methods that deals with metadata and types defined in the type registry.
@@ -899,6 +907,8 @@ class AsyncSubstrateInterface:
 
         :returns: Runtime object
         """
+        if not init:
+            await self.runtime_loader
 
         async def get_runtime(block_hash, block_id) -> Runtime:
             # Check if runtime state already set to current block
