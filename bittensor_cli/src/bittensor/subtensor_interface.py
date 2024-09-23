@@ -101,6 +101,7 @@ class SubtensorInterface:
             chain_endpoint=self.chain_endpoint,
             ss58_format=SS58_FORMAT,
             type_registry=TYPE_REGISTRY,
+            chain_name="Bittensor",
         )
 
     def __str__(self):

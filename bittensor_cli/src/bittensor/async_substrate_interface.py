@@ -760,12 +760,13 @@ class AsyncSubstrateInterface:
         auto_reconnect=True,
         ss58_format=None,
         type_registry=None,
+        chain_name=None,
     ):
         """
         The asyncio-compatible version of the subtensor interface commands we use in bittensor
         """
         self.chain_endpoint = chain_endpoint
-        self.__chain = None
+        self.__chain = chain_name
         self.ws = Websocket(
             chain_endpoint,
             options={
@@ -802,13 +803,13 @@ class AsyncSubstrateInterface:
 
     async def initialize(self):
         """
-        Initialize the attached substrate object
+        Initialize the connection to the chain.
         """
         async with self._lock:
             if not self.initialized:
-                chain = await self.rpc_request("system_chain", [])
-                self.__chain = chain.get("result")
-                # await self.load_registry()
+                if not self.__chain:
+                    chain = await self.rpc_request("system_chain", [])
+                    self.__chain = chain.get("result")
                 self.reload_type_registry()
                 await asyncio.gather(self.load_registry(), self.init_runtime(None))
             self.initialized = True
@@ -896,7 +897,6 @@ class AsyncSubstrateInterface:
 
         :returns: Runtime object
         """
-
         async def get_runtime(block_hash, block_id) -> Runtime:
             # Check if runtime state already set to current block
             if (block_hash and block_hash == self.last_block_hash) or (
@@ -960,18 +960,19 @@ class AsyncSubstrateInterface:
             self.runtime_version = runtime_info.get("specVersion")
             self.transaction_version = runtime_info.get("transactionVersion")
 
-            if self.runtime_version in self.__metadata_cache:
-                # Get metadata from cache
-                # self.debug_message('Retrieved metadata for {} from memory'.format(self.runtime_version))
-                self.metadata = self.__metadata_cache[self.runtime_version]
-            else:
-                self.metadata = await self.get_block_metadata(
-                    block_hash=runtime_block_hash, decode=True
-                )
-                # self.debug_message('Retrieved metadata for {} from Substrate node'.format(self.runtime_version))
+            if not self.metadata:
+                if self.runtime_version in self.__metadata_cache:
+                    # Get metadata from cache
+                    # self.debug_message('Retrieved metadata for {} from memory'.format(self.runtime_version))
+                    self.metadata = self.__metadata_cache[self.runtime_version]
+                else:
+                    self.metadata = await self.get_block_metadata(
+                        block_hash=runtime_block_hash, decode=True
+                    )
+                    # self.debug_message('Retrieved metadata for {} from Substrate node'.format(self.runtime_version))
 
-                # Update metadata cache
-                self.__metadata_cache[self.runtime_version] = self.metadata
+                    # Update metadata cache
+                    self.__metadata_cache[self.runtime_version] = self.metadata
 
             # Update type registry
             self.reload_type_registry(use_remote_preset=False, auto_discover=True)
@@ -2191,35 +2192,34 @@ class AsyncSubstrateInterface:
         if params is None:
             params = {}
 
-        async with self._lock:
-            try:
-                runtime_call_def = self.runtime_config.type_registry["runtime_api"][
-                    api
-                ]["methods"][method]
-                runtime_api_types = self.runtime_config.type_registry["runtime_api"][
-                    api
-                ].get("types", {})
-            except KeyError:
-                raise ValueError(
-                    f"Runtime API Call '{api}.{method}' not found in registry"
-                )
-
-            if isinstance(params, list) and len(params) != len(
-                runtime_call_def["params"]
-            ):
-                raise ValueError(
-                    f"Number of parameter provided ({len(params)}) does not "
-                    f"match definition {len(runtime_call_def['params'])}"
-                )
-
-            # Add runtime API types to registry
-            self.runtime_config.update_type_registry_types(runtime_api_types)
-            runtime = Runtime(
-                self.chain,
-                self.runtime_config,
-                self.metadata,
-                self.type_registry,
+        try:
+            runtime_call_def = self.runtime_config.type_registry["runtime_api"][
+                api
+            ]["methods"][method]
+            runtime_api_types = self.runtime_config.type_registry["runtime_api"][
+                api
+            ].get("types", {})
+        except KeyError:
+            raise ValueError(
+                f"Runtime API Call '{api}.{method}' not found in registry"
             )
+
+        if isinstance(params, list) and len(params) != len(
+            runtime_call_def["params"]
+        ):
+            raise ValueError(
+                f"Number of parameter provided ({len(params)}) does not "
+                f"match definition {len(runtime_call_def['params'])}"
+            )
+
+        # Add runtime API types to registry
+        self.runtime_config.update_type_registry_types(runtime_api_types)
+        runtime = Runtime(
+            self.chain,
+            self.runtime_config,
+            self.metadata,
+            self.type_registry,
+        )
 
         # Encode params
         param_data = ScaleBytes(bytes())
