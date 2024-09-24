@@ -13,6 +13,17 @@
 
 </div>
 
+- [Documentation](#documentation)
+- [Install on macOS and Linux](#install-on-macos-and-linux)
+  - [Install from source](#install-from-source)
+- [Install on Windows](#install-on-windows)
+- [Verify the installation](#verify-the-installation)
+- [Configuration](#configuration)
+  - [Example config file](#example-config-file)
+- [License](#license)
+
+---
+
 The Bittensor CLI, `btcli`, is a powerful command line tool for the Bittensor platform. You can use it on any macOS, Linux or WSL terminal to manage all common operations like creating a wallet, registering a subnet or a neuron, delegating your TAO, viewing Senate proposals and voting for them, and much more. Help information can be invoked for every command and option with `--help` option.
 
 ![btcli screenshot](./assets/btcli-screenshot.png)
