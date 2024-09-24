@@ -764,11 +764,10 @@ async def root_list(subtensor: SubtensorInterface):
             border_style="bright_black",
             leading=True,
         )
-            
 
         if not root_neurons:
             err_console.print(
-                f"[red]Error: No neurons detected on network:[/red] [white]{subtensor}"
+                f"[red]Error: No neurons detected on the network:[/red] [white]{subtensor}"
             )
             raise typer.Exit()
         
@@ -1506,10 +1505,10 @@ async def my_delegates(
                 )
     if console.width < 150:
         console.print(
-            "[yellow]Warning: Your terminal width might be too small to view all information clearly"
+            "[yellow]Warning: Your terminal width might be too small to view all the information clearly"
         )
     console.print(table)
-    console.print(f"Total delegated Tao: {total_delegated}")
+    console.print(f"Total delegated TAO: {total_delegated}")
 
 
 async def list_delegates(subtensor: SubtensorInterface):
