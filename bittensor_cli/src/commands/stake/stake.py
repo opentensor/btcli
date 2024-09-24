@@ -1025,14 +1025,15 @@ async def show(
             total_balance += cast(Balance, acc["balance"]).tao
             for key, value in cast(dict, acc["accounts"]).items():
                 if value["name"] and value["name"] != key:
-                    account_display_name = f"[bright_cyan]({value['name']})[/bright_cyan]   [bright_magenta]{key}[/bright_magenta]"
+                    account_display_name = f"{value['name']}"
                 else:
-                    account_display_name = f"[bright_cyan](~)[/bright_cyan]   [bright_magenta]{key}[/bright_magenta]"
+                    account_display_name = "(~)"
                 rows.append(
                     [
                         "",
                         "",
                         account_display_name,
+                        key,
                         str(value["stake"]),
                         str(value["rate"]),
                     ]
@@ -1092,7 +1093,8 @@ async def show(
                 style="dark_sea_green",
                 ratio=1,
             ),
-            Column("[bold white]Hotkey", ratio=7, no_wrap=True),
+            Column("[bold white]Account", style="bright_cyan", ratio=3),
+            Column("[bold white]Hotkey", ratio=7, no_wrap=True, style="bright_magenta"),
             Column(
                 "[bold white]Stake",
                 metadata["total_stake"],

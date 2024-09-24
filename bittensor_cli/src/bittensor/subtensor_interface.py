@@ -544,10 +544,18 @@ class SubtensorInterface:
             all_netuids = netuids_with_registered_hotkeys
 
         else:
-            all_netuids = [
+            filtered_netuids = [
                 netuid for netuid in all_netuids if netuid in filter_for_netuids
             ]
-            all_netuids.extend(netuids_with_registered_hotkeys)
+
+            registered_hotkeys_filtered = [
+                netuid
+                for netuid in netuids_with_registered_hotkeys
+                if netuid in filter_for_netuids
+            ]
+
+            # Combine both filtered lists
+            all_netuids = filtered_netuids + registered_hotkeys_filtered
 
         return list(set(all_netuids))
 

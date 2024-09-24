@@ -719,58 +719,72 @@ async def root_list(subtensor: SubtensorInterface):
         )
         return sm, rn, di, ts
 
-    table = Table(
-        Column(
-            "[bold white]UID",
-            style="dark_orange",
-            no_wrap=True,
-        ),
-        Column(
-            "[bold white]NAME",
-            style="bright_cyan",
-            no_wrap=True,
-        ),
-        Column(
-            "[bold white]ADDRESS",
-            style="bright_magenta",
-            no_wrap=True,
-        ),
-        Column(
-            "[bold white]STAKE(\u03c4)",
-            justify="right",
-            style="light_goldenrod2",
-            no_wrap=True,
-        ),
-        Column(
-            "[bold white]SENATOR",
-            style="dark_sea_green",
-            no_wrap=True,
-        ),
-        title=f"[underline dark_orange]Root Network[/underline dark_orange]\n[dark_orange]Network {subtensor.network}",
-        show_footer=True,
-        show_edge=False,
-        expand=False,
-        border_style="bright_black",
-    )
+
     with console.status(
         f":satellite: Syncing with chain: [white]{subtensor}[/white] ...",
         spinner="aesthetic",
     ):
+            
         senate_members, root_neurons, delegate_info, total_stakes = await _get_list()
+        total_tao = sum(float(Balance.from_rao(total_stakes[neuron.hotkey])) for neuron in root_neurons)
 
-    if not root_neurons:
-        err_console.print(
-            f"[red]Error: No neurons detected on network:[/red] [white]{subtensor}"
+        table = Table(
+            Column(
+                "[bold white]UID",
+                style="dark_orange",
+                no_wrap=True,
+                footer=f"[bold]{len(root_neurons)}[/bold]"
+            ),
+            Column(
+                "[bold white]NAME",
+                style="bright_cyan",
+                no_wrap=True,
+            ),
+            Column(
+                "[bold white]ADDRESS",
+                style="bright_magenta",
+                no_wrap=True,
+            ),
+            Column(
+                "[bold white]STAKE(\u03c4)",
+                justify="right",
+                style="light_goldenrod2",
+                no_wrap=True,
+                footer=f"{total_tao:.2f} (\u03c4) "
+            ),
+            Column(
+                "[bold white]SENATOR",
+                style="dark_sea_green",
+                no_wrap=True,
+            ),
+            title=f"[underline dark_orange]Root Network[/underline dark_orange]\n[dark_orange]Network {subtensor.network}",
+            show_footer=True,
+            show_edge=False,
+            expand=False,
+            border_style="bright_black",
+            leading=True,
         )
-        raise typer.Exit()
+            
 
-    for neuron_data in root_neurons:
+        if not root_neurons:
+            err_console.print(
+                f"[red]Error: No neurons detected on network:[/red] [white]{subtensor}"
+            )
+            raise typer.Exit()
+        
+        sorted_root_neurons = sorted(
+            root_neurons,
+            key=lambda neuron: float(Balance.from_rao(total_stakes[neuron.hotkey])),
+            reverse=True,
+        )
+
+    for neuron_data in sorted_root_neurons:
         table.add_row(
             str(neuron_data.uid),
             (
                 delegate_info[neuron_data.hotkey].display
                 if neuron_data.hotkey in delegate_info
-                else ""
+                else "~"
             ),
             neuron_data.hotkey,
             "{:.5f}".format(float(Balance.from_rao(total_stakes[neuron_data.hotkey]))),
@@ -1124,6 +1138,7 @@ async def get_senate(subtensor: SubtensorInterface):
         show_edge=False,
         expand=False,
         border_style="bright_black",
+        leading=True,
     )
 
     for ss58_address in senate_members:
@@ -1131,7 +1146,7 @@ async def get_senate(subtensor: SubtensorInterface):
             (
                 delegate_info[ss58_address].display
                 if ss58_address in delegate_info
-                else ""
+                else "~"
             ),
             ss58_address,
         )
@@ -1375,7 +1390,7 @@ async def my_delegates(
             style="bright_magenta",
             justify="left",
             overflow="fold",
-            ratio=2,
+            ratio=3,
         ),
         Column("[white]Delegation", style="dark_orange", no_wrap=True, ratio=1),
         Column("[white]\u03c4/24h", style="bold green", ratio=1),
@@ -1405,13 +1420,14 @@ async def my_delegates(
         Column(
             "[white]24h/k\u03c4", style="rgb(42,161,152)", justify="center", ratio=1
         ),
-        Column("[white]Desc", style="rgb(50,163,219)", ratio=2),
+        Column("[white]Desc", style="rgb(50,163,219)", ratio=3),
         title=f"[underline dark_orange]My Delegates[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}\n",
         show_footer=True,
         show_edge=False,
         expand=False,
         box=box.SIMPLE_HEAVY,
         border_style="bright_black",
+        leading=True,
     )
 
     total_delegated = 0
@@ -1488,7 +1504,10 @@ async def my_delegates(
                     f"{delegate[0].total_daily_return.tao * (1000 / (0.001 + delegate[0].total_stake.tao))!s:6.6}",
                     str(delegate_description),
                 )
-
+    if console.width < 150:
+        console.print(
+            "[yellow]Warning: Your terminal width might be too small to view all information clearly"
+        )
     console.print(table)
     console.print(f"Total delegated Tao: {total_delegated}")
 
