@@ -179,9 +179,9 @@ class Options:
     prompt = typer.Option(
         True,
         "--prompt/--no-prompt",
-        "--no/--yes",
+        " /--yes",
         "--prompt/--no_prompt",
-        "-n/-y",
+        " /-y",
         help="Enable or disable interactive prompts.",
     )
     verbose = typer.Option(
@@ -866,7 +866,6 @@ class CLIManager:
         }
         bools = ["use_cache"]
         if all(v is None for v in args.values()):
-            
             # Print existing configs
             self.get_config()
 
