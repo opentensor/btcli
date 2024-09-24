@@ -101,7 +101,7 @@ class Options:
         None,
         "--json",
         "-j",
-        help="Path to a JSON file containing the encrypted key backup. For example, a JSON file from PolkadotJS.)",
+        help="Path to a JSON file containing the encrypted key backup. For example, a JSON file from PolkadotJS.",
     )
     json_password = typer.Option(
         None, "--json-password", help="Password to decrypt the JSON file."
@@ -1712,7 +1712,12 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        n_words: Optional[int] = None,
+        n_words: Optional[int] = typer.Option(
+            None,
+            "--n-words",
+            "--n_words",
+            help="The number of words used in the mnemonic. Options: [12, 15, 18, 21, 24]",
+        ),
         use_password: bool = typer.Option(
             False,  # Overriden to False
             help="Set to 'True' to protect the generated Bittensor key with a password.",
@@ -1763,7 +1768,12 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        n_words: Optional[int] = None,
+        n_words: Optional[int] = typer.Option(
+            None,
+            "--n-words",
+            "--n_words",
+            help="The number of words used in the mnemonic. Options: [12, 15, 18, 21, 24]",
+        ),
         use_password: Optional[bool] = Options.use_password,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3094,23 +3104,15 @@ class CLIManager:
             and not hotkey_ss58_address
         ):
             hotkey_or_ss58 = Prompt.ask(
-                "Do you want to stake to a specific [blue]ss58 address[/blue] or a registered [red]wallet hotkey[/red]?\n"
-                "[Enter '[blue]ss58[/blue]' for an address or '[red]hotkey[/red]' for a wallet hotkey] (default is '[red]hotkey[/red]')",
-                choices=["ss58", "hotkey"],
-                default="hotkey",
-                show_choices=False,
-                show_default=False,
+                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to stake to",
             )
-            if hotkey_or_ss58 == "ss58":
-                hotkey_ss58_address = typer.prompt("Enter the ss58 address to stake to")
-                if not is_valid_ss58_address(hotkey_ss58_address):
-                    print_error("The entered ss58 address is incorrect")
-                    raise typer.Exit()
-                else:
-                    wallet = self.wallet_ask(
-                        wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
-                    )
+            if is_valid_ss58_address(hotkey_or_ss58):
+                hotkey_ss58_address = hotkey_or_ss58
+                wallet = self.wallet_ask(
+                    wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+                )
             else:
+                wallet_hotkey = hotkey_or_ss58
                 wallet = self.wallet_ask(
                     wallet_name,
                     wallet_path,
@@ -3257,27 +3259,15 @@ class CLIManager:
             and not include_hotkeys
         ):
             hotkey_or_ss58 = Prompt.ask(
-                "Do you want to unstake from a specific [blue]ss58 address[/blue] or a registered [red]wallet hotkey"
-                "[/red]?\n"
-                "[Enter '[blue]ss58[/blue]' for an address or '[red]hotkey[/red]' for a wallet hotkey] (default is "
-                "'[red]hotkey[/red]')",
-                choices=["ss58", "hotkey"],
-                default="hotkey",
-                show_choices=False,
-                show_default=False,
+                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake from"
             )
-            if hotkey_or_ss58 == "ss58":
-                hotkey_ss58_address = typer.prompt(
-                    "Enter the ss58 address to unstake from"
+            if is_valid_ss58_address(hotkey_or_ss58):
+                hotkey_ss58_address = hotkey_or_ss58
+                wallet = self.wallet_ask(
+                    wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
                 )
-                if not is_valid_ss58_address(hotkey_ss58_address):
-                    print_error("The entered ss58 address is incorrect")
-                    raise typer.Exit()
-                else:
-                    wallet = self.wallet_ask(
-                        wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
-                    )
             else:
+                wallet_hotkey = hotkey_or_ss58
                 wallet = self.wallet_ask(
                     wallet_name,
                     wallet_path,
