@@ -83,10 +83,10 @@ def test_root_commands(local_chain, wallet_setup):
     assert bob_root_info[0] == "0"
 
     # ADDRESS: Assert correct hotkey is registered
-    assert bob_root_info[3] == wallet_bob.hotkey.ss58_address
+    assert bob_root_info[4] == wallet_bob.hotkey.ss58_address
 
     # SENATOR: Since there are senator slots empty, Bob is assigned senator status
-    assert bob_root_info[7] == "Yes"
+    assert bob_root_info[8] == "Yes"
 
     # List all root delegates in the network
     check_delegates = exec_command_alice(

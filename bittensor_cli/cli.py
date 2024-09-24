@@ -6,6 +6,7 @@ import re
 import sys
 from pathlib import Path
 from typing import Coroutine, Optional
+from dataclasses import fields
 
 import rich
 import typer
@@ -16,7 +17,6 @@ from rich import box
 from rich.prompt import Confirm, FloatPrompt, Prompt, IntPrompt
 from rich.table import Column, Table
 from bittensor_cli.src import (
-    HYPERPARAMS,
     defaults,
     HELP_PANELS,
     WalletOptions as WO,
@@ -30,6 +30,7 @@ from bittensor_cli.src.commands import root, subnets, sudo, wallets
 from bittensor_cli.src.commands import weights as weights_cmds
 from bittensor_cli.src.commands.stake import children_hotkeys, stake
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
+from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
 from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
@@ -100,7 +101,7 @@ class Options:
         None,
         "--json",
         "-j",
-        help="Path to a JSON file containing the encrypted key backup. For example, a JSON file from PolkadotJS.)",
+        help="Path to a JSON file containing the encrypted key backup. For example, a JSON file from PolkadotJS.",
     )
     json_password = typer.Option(
         None, "--json-password", help="Password to decrypt the JSON file."
@@ -140,8 +141,9 @@ class Options:
     netuids = typer.Option(
         None,
         "--netuids",
+        "--netuid",
         "-n",
-        help="Set the netuid(s) to filter by. Separate multiple netuids with a comma, for example: `-n 0,1,2`.",
+        help="Set the netuid(s) to exclude. Separate multiple netuids with a comma, for example: `-n 0,1,2`.",
     )
     netuid = typer.Option(
         None,
@@ -177,6 +179,9 @@ class Options:
     prompt = typer.Option(
         True,
         "--prompt/--no-prompt",
+        " /--yes",
+        "--prompt/--no_prompt",
+        " /-y",
         help="Enable or disable interactive prompts.",
     )
     verbose = typer.Option(
@@ -861,10 +866,22 @@ class CLIManager:
         }
         bools = ["use_cache"]
         if all(v is None for v in args.values()):
-            arg = Prompt.ask(
-                "Which config setting would you like to update?",
-                choices=list(args.keys()),
+            # Print existing configs
+            self.get_config()
+
+            # Create numbering to choose from
+            config_keys = list(args.keys())
+            console.print("Which config setting would you like to update?\n")
+            for idx, key in enumerate(config_keys, start=1):
+                console.print(f"{idx}. {key}")
+
+            choice = IntPrompt.ask(
+                "\nEnter the [bold]number[/bold] of the config setting you want to update",
+                choices=[str(i) for i in range(1, len(config_keys) + 1)],
+                show_choices=False,
             )
+            arg = config_keys[choice - 1]
+
             if arg in bools:
                 nc = Confirm.ask(
                     f"What value would you like to assign to [red]{arg}[/red]?",
@@ -1695,7 +1712,12 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        n_words: Optional[int] = None,
+        n_words: Optional[int] = typer.Option(
+            None,
+            "--n-words",
+            "--n_words",
+            help="The number of words used in the mnemonic. Options: [12, 15, 18, 21, 24]",
+        ),
         use_password: bool = typer.Option(
             False,  # Overriden to False
             help="Set to 'True' to protect the generated Bittensor key with a password.",
@@ -1721,6 +1743,11 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
 
+        if not wallet_name:
+            wallet_name = Prompt.ask(
+                "Enter the wallet name", default=defaults.wallet.name
+            )
+
         if not wallet_hotkey:
             wallet_hotkey = Prompt.ask(
                 "Enter the name of the new hotkey", default=defaults.wallet.hotkey
@@ -1741,7 +1768,12 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        n_words: Optional[int] = None,
+        n_words: Optional[int] = typer.Option(
+            None,
+            "--n-words",
+            "--n_words",
+            help="The number of words used in the mnemonic. Options: [12, 15, 18, 21, 24]",
+        ),
         use_password: Optional[bool] = Options.use_password,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -2173,7 +2205,13 @@ class CLIManager:
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
-        netuids: str = Options.netuids,
+        netuids=typer.Option(
+            None,
+            "--netuids",
+            "--netuid",
+            "-n",
+            help="Set the netuid(s) to set weights to. Separate multiple netuids with a comma, for example: `-n 0,1,2`.",
+        ),
         weights: str = Options.weights,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
@@ -3066,23 +3104,15 @@ class CLIManager:
             and not hotkey_ss58_address
         ):
             hotkey_or_ss58 = Prompt.ask(
-                "Do you want to stake to a specific [blue]ss58 address[/blue] or a registered [red]wallet hotkey[/red]?\n"
-                "[Enter '[blue]ss58[/blue]' for an address or '[red]hotkey[/red]' for a wallet hotkey] (default is '[blue]ss58[/blue]')",
-                choices=["ss58", "hotkey"],
-                default="hotkey",
-                show_choices=False,
-                show_default=False,
+                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to stake to",
             )
-            if hotkey_or_ss58 == "ss58":
-                hotkey_ss58_address = typer.prompt("Enter the ss58 address to stake to")
-                if not is_valid_ss58_address(hotkey_ss58_address):
-                    print_error("The entered ss58 address is incorrect")
-                    raise typer.Exit()
-                else:
-                    wallet = self.wallet_ask(
-                        wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
-                    )
+            if is_valid_ss58_address(hotkey_or_ss58):
+                hotkey_ss58_address = hotkey_or_ss58
+                wallet = self.wallet_ask(
+                    wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+                )
             else:
+                wallet_hotkey = hotkey_or_ss58
                 wallet = self.wallet_ask(
                     wallet_name,
                     wallet_path,
@@ -3229,27 +3259,15 @@ class CLIManager:
             and not include_hotkeys
         ):
             hotkey_or_ss58 = Prompt.ask(
-                "Do you want to unstake from a specific [blue]ss58 address[/blue] or a registered [red]wallet hotkey"
-                "[/red]?\n"
-                "[Enter '[blue]ss58[/blue]' for an address or '[red]hotkey[/red]' for a wallet hotkey] (default is "
-                "'[blue]ss58[/blue]')",
-                choices=["ss58", "hotkey"],
-                default="ss58",
-                show_choices=False,
-                show_default=False,
+                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake from"
             )
-            if hotkey_or_ss58 == "ss58":
-                hotkey_ss58_address = typer.prompt(
-                    "Enter the ss58 address to unstake from"
+            if is_valid_ss58_address(hotkey_or_ss58):
+                hotkey_ss58_address = hotkey_or_ss58
+                wallet = self.wallet_ask(
+                    wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
                 )
-                if not is_valid_ss58_address(hotkey_ss58_address):
-                    print_error("The entered ss58 address is incorrect")
-                    raise typer.Exit()
-                else:
-                    wallet = self.wallet_ask(
-                        wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
-                    )
             else:
+                wallet_hotkey = hotkey_or_ss58
                 wallet = self.wallet_ask(
                     wallet_name,
                     wallet_path,
@@ -3631,7 +3649,7 @@ class CLIManager:
             raise typer.Exit()
 
         if not param_name:
-            hyperparam_list = list(HYPERPARAMS.keys())
+            hyperparam_list = [field.name for field in fields(SubnetHyperparameters)]
             console.print("Available hyperparameters:\n")
             for idx, param in enumerate(hyperparam_list, start=1):
                 console.print(f"  {idx}. {param}")
@@ -4024,7 +4042,7 @@ class CLIManager:
             None,
             "--salt",
             "-s",
-            help="Corresponding salt for the hash function, e.g. -s 163 -s 241 -s 217 ...",
+            help="Corresponding salt for the hash function, e.g. -s 163,241,217 ...",
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
