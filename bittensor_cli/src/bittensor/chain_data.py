@@ -571,9 +571,11 @@ class SubnetInfo:
             )
         return result
 
+
 @dataclass
 class SubnetInfoV2:
     """Dataclass for subnet info."""
+
     netuid: int
     owner_ss58: str
     max_allowed_validators: int
@@ -776,7 +778,7 @@ custom_rpc_type_registry = {
                 ["arbitration_block", "Compact<u64>"],
             ],
         },
-          "SubnetState": {
+        "SubnetState": {
             "type": "struct",
             "type_mapping": [
                 ["netuid", "Compact<u16>"],
