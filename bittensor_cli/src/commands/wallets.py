@@ -275,7 +275,7 @@ async def wallet_balance(
             style="green",
             no_wrap=True,
         ),
-        title=f"[underline dark_orange]Wallet Coldkey Balance[/underline dark_orange]\n\n[dark_orange]Network: {subtensor.network}",
+        title=f"[underline dark_orange]Wallet Coldkey Balance[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}",
         show_footer=True,
         show_edge=False,
         border_style="bright_black",
@@ -595,9 +595,13 @@ async def overview(
             for wallet_name, wallet_path in all_wallet_data
         ]
 
-        all_coldkey_wallets, invalid_wallets = validate_coldkey_presence(all_coldkey_wallets)
+        all_coldkey_wallets, invalid_wallets = validate_coldkey_presence(
+            all_coldkey_wallets
+        )
         for invalid_wallet in invalid_wallets:
-            print_error(f"No coldkeypub found for wallet: ({invalid_wallet.name})", status)
+            print_error(
+                f"No coldkeypub found for wallet: ({invalid_wallet.name})", status
+            )
         all_hotkeys, _ = validate_coldkey_presence(all_hotkeys)
 
         print_verbose("Fetching key addresses", status)
@@ -1331,7 +1335,7 @@ async def inspect(
         Column("[bold white]Hotkey", style="bright_magenta", overflow="fold"),
         Column("[bold white]Stake", style="light_goldenrod2"),
         Column("[bold white]Emission", style="rgb(42,161,152)"),
-        title=f"[underline dark_orange]Wallets[/underline dark_orange]\n\n[dark_orange]Network: {subtensor.network}\n",
+        title=f"[underline dark_orange]Wallets[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}\n",
         show_edge=False,
         expand=True,
         box=box.MINIMAL,

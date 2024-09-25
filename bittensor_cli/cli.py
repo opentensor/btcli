@@ -1006,6 +1006,9 @@ class CLIManager:
 
         for key, value in self.config.items():
             if isinstance(value, dict):
+                if key == "network" and value is None:
+                    value = "None (default = finney)"
+
                 # Nested dictionaries: only metagraph for now, but more may be added later
                 for idx, (sub_key, sub_value) in enumerate(value.items()):
                     table.add_row(key if idx == 0 else "", str(sub_key), str(sub_value))
