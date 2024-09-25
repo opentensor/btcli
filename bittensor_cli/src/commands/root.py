@@ -1270,8 +1270,8 @@ async def set_take(wallet: Wallet, subtensor: SubtensorInterface, take: float) -
             )
             return False
 
-        if take > 0.18 or take < 0.08:
-            err_console.print("ERROR: Take value should not exceed 18% or be below 8%")
+        if take > 0.18 or take < 0:
+            err_console.print("ERROR: Take value should not exceed 18% or be below 0%")
             return False
 
         result: bool = await set_take_extrinsic(
