@@ -17,7 +17,7 @@ class Constants:
         "archive": archive_entrypoint,
         "local": local_entrypoint,
         "dev": dev_entrypoint,
-        "rao": rao_entrypoint
+        "rao": rao_entrypoint,
     }
     delegates_detail_url = "https://raw.githubusercontent.com/opentensor/bittensor-delegates/main/public/delegates.json"
 
