@@ -64,7 +64,7 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/opentensor/btcli",
     author="bittensor.com",
-    packages=find_packages(exclude=["tests", "tests.*", "*/tests/*", "*/tests"]),
+    packages=find_packages(exclude=["tests", "tests.*", "*/tests/*", "*/tests"]) + ['bittensor_cli.src.bittensor.templates'],
     include_package_data=True,
     package_data={
         "": ["templates/*"],
@@ -82,7 +82,7 @@ setup(
         ],
     },
     classifiers=[
-        "Development Status :: 1 - Alpha",
+        "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",
         "Topic :: Software Development :: Build Tools",
         "License :: OSI Approved :: MIT License",
@@ -90,6 +90,7 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
         "Topic :: Scientific/Engineering",
         "Topic :: Scientific/Engineering :: Mathematics",
         "Topic :: Scientific/Engineering :: Artificial Intelligence",

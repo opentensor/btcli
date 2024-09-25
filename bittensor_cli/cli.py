@@ -44,7 +44,8 @@ from yaml import safe_dump, safe_load
 
 __version__ = "8.0.0"
 
-_version_split = __version__.split(".")
+_core_version = re.match(r"^\d+\.\d+\.\d+", __version__).group(0)
+_version_split = _core_version.split(".")
 __version_info__ = tuple(int(part) for part in _version_split)
 _version_int_base = 1000
 assert max(__version_info__) < _version_int_base
