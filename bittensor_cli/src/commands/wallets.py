@@ -17,6 +17,7 @@ from rich.align import Align
 from rich.prompt import Confirm, Prompt
 from rich.table import Column, Table
 from rich.tree import Tree
+from rich.padding import Padding
 from scalecodec import ScaleBytes
 import scalecodec
 import typer
@@ -48,6 +49,7 @@ from bittensor_cli.src.bittensor.utils import (
     get_all_wallets_for_path,
     get_hotkey_wallets_for_wallet,
     is_valid_ss58_address,
+    validate_coldkey_presence,
 )
 
 
@@ -280,6 +282,7 @@ async def wallet_balance(
         box=box.SIMPLE_HEAVY,
         pad_edge=False,
         width=None,
+        leading=True,
     )
 
     for name, (coldkey, free, staked) in balances.items():
@@ -298,7 +301,7 @@ async def wallet_balance(
         str(total_staked_balance),
         str(total_free_balance + total_staked_balance),
     )
-    console.print(table)
+    console.print(Padding(table, (0, 0, 0, 4)))
     await subtensor.substrate.close()
 
 
@@ -353,15 +356,15 @@ async def get_wallet_transfers(wallet_address: str) -> list[dict]:
 def create_transfer_history_table(transfers: list[dict]) -> Table:
     """Get output transfer table"""
 
-    taostats_url_base = "https://x.taostats.io/extrinsic"
+    taostats_url_base = "https://taostats.io/extrinsic"
 
-    table_width = console.width - 5
     # Create a table
     table = Table(
         show_footer=True,
         box=box.SIMPLE,
         pad_edge=False,
-        width=table_width,
+        leading=True,
+        expand=False,
         title="[underline dark_orange]Wallet Transfers[/underline dark_orange]\n\n[dark_orange]Network: finney",
     )
 
@@ -415,7 +418,7 @@ def create_transfer_history_table(transfers: list[dict]) -> Table:
             f"{tao_amount:.3f}",
             str(item["extrinsicId"]),
             item["blockNumber"],
-            f"{taostats_url_base}/{item['blockNumber']}-{item['extrinsicId']}",
+            f"{taostats_url_base}/{item['blockNumber']}-{item['extrinsicId']:04}",
         )
     table.add_row()
     return table
@@ -591,6 +594,11 @@ async def overview(
             Wallet(name=wallet_name, path=wallet_path)
             for wallet_name, wallet_path in all_wallet_data
         ]
+
+        all_coldkey_wallets, invalid_wallets = validate_coldkey_presence(all_coldkey_wallets)
+        for invalid_wallet in invalid_wallets:
+            print_error(f"No coldkeypub found for wallet: ({invalid_wallet.name})", status)
+        all_hotkeys, _ = validate_coldkey_presence(all_hotkeys)
 
         print_verbose("Fetching key addresses", status)
         all_hotkey_addresses, hotkey_coldkey_to_hotkey_wallet = _get_key_address(
@@ -1326,7 +1334,7 @@ async def inspect(
         title=f"[underline dark_orange]Wallets[/underline dark_orange]\n\n[dark_orange]Network: {subtensor.network}\n",
         show_edge=False,
         expand=True,
-        box=box.ASCII,
+        box=box.MINIMAL,
         border_style="bright_black",
     )
     rows = []
