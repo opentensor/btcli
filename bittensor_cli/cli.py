@@ -2571,7 +2571,7 @@ class CLIManager:
         [green]$[/green] btcli root set_take --wallet-name my_wallet --wallet-hotkey my_hotkey
         """
         max_value = 0.18
-        min_value = 0.08
+        min_value = 0.00
         self.verbosity_handler(quiet, verbose)
 
         if not take:
