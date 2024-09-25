@@ -571,6 +571,47 @@ class SubnetInfo:
             )
         return result
 
+@dataclass
+class SubnetInfoV2:
+    """Dataclass for subnet info."""
+    netuid: int
+    owner_ss58: str
+    max_allowed_validators: int
+    scaling_law_power: float
+    subnetwork_n: int
+    max_n: int
+    blocks_since_epoch: int
+    modality: int
+    emission_value: float
+    burn: Balance
+    tao_locked: Balance
+    hyperparameters: "SubnetHyperparameters"
+    dynamic_pool: "DynamicPool"
+
+    @classmethod
+    def from_vec_u8(cls, vec_u8: bytes) -> Optional["SubnetInfoV2"]:
+        """Returns a SubnetInfoV2 object from a ``vec_u8``."""
+        if len(vec_u8) == 0:
+            return None
+        decoded = bt_decode.SubnetInfoV2.decode(vec_u8)  # TODO fix values
+
+        if decoded is None:
+            return None
+
+        return cls.fix_decoded_values(decoded)
+
+    @classmethod
+    def list_from_vec_u8(cls, vec_u8: bytes) -> List["SubnetInfoV2"]:
+        """Returns a list of SubnetInfoV2 objects from a ``vec_u8``."""
+        decoded = bt_decode.SubnetInfoV2.decode_vec(vec_u8)  # TODO fix values
+
+        if decoded is None:
+            return []
+
+        decoded = [cls.fix_decoded_values(d) for d in decoded]
+
+        return decoded
+
 
 custom_rpc_type_registry = {
     "types": {
@@ -597,6 +638,35 @@ custom_rpc_type_registry = {
                 ["owner", "AccountId"],
             ],
         },
+        "DynamicPoolInfoV2": {
+            "type": "struct",
+            "type_mapping": [
+                ["netuid", "u16"],
+                ["alpha_issuance", "u64"],
+                ["alpha_outstanding", "u64"],
+                ["alpha_reserve", "u64"],
+                ["tao_reserve", "u64"],
+                ["k", "u128"],
+            ],
+        },
+        "SubnetInfoV2": {
+            "type": "struct",
+            "type_mapping": [
+                ["netuid", "u16"],
+                ["owner", "AccountId"],
+                ["max_allowed_validators", "u16"],
+                ["scaling_law_power", "u16"],
+                ["subnetwork_n", "u16"],
+                ["max_allowed_uids", "u16"],
+                ["blocks_since_last_step", "Compact<u32>"],
+                ["network_modality", "u16"],
+                ["emission_values", "Compact<u64>"],
+                ["burn", "Compact<u64>"],
+                ["tao_locked", "Compact<u64>"],
+                ["hyperparameters", "SubnetHyperparameters"],
+                ["dynamic_pool", "Option<DynamicPoolInfoV2>"],
+            ],
+        },
         "DelegateInfo": {
             "type": "struct",
             "type_mapping": [
@@ -608,6 +678,16 @@ custom_rpc_type_registry = {
                 ["validator_permits", "Vec<Compact<u16>>"],
                 ["return_per_1000", "Compact<u64>"],
                 ["total_daily_return", "Compact<u64>"],
+            ],
+        },
+        "DelegateInfoLight": {
+            "type": "struct",
+            "type_mapping": [
+                ["delegate_ss58", "AccountId"],
+                ["owner_ss58", "AccountId"],
+                ["take", "u16"],
+                ["owner_stake", "Compact<u64>"],
+                ["total_stake", "Compact<u64>"],
             ],
         },
         "NeuronInfo": {
@@ -688,11 +768,67 @@ custom_rpc_type_registry = {
                 ["ip_type_and_protocol", "Compact<u8>"],
             ],
         },
+        "ScheduledColdkeySwapInfo": {
+            "type": "struct",
+            "type_mapping": [
+                ["old_coldkey", "AccountId"],
+                ["new_coldkey", "AccountId"],
+                ["arbitration_block", "Compact<u64>"],
+            ],
+        },
+          "SubnetState": {
+            "type": "struct",
+            "type_mapping": [
+                ["netuid", "Compact<u16>"],
+                ["hotkeys", "Vec<AccountId>"],
+                ["coldkeys", "Vec<AccountId>"],
+                ["active", "Vec<bool>"],
+                ["validator_permit", "Vec<bool>"],
+                ["pruning_score", "Vec<Compact<u16>>"],
+                ["last_update", "Vec<Compact<u64>>"],
+                ["emission", "Vec<Compact<u64>>"],
+                ["dividends", "Vec<Compact<u16>>"],
+                ["incentives", "Vec<Compact<u16>>"],
+                ["consensus", "Vec<Compact<u16>>"],
+                ["trust", "Vec<Compact<u16>>"],
+                ["rank", "Vec<Compact<u16>>"],
+                ["block_at_registration", "Vec<Compact<u64>>"],
+                ["local_stake", "Vec<Compact<u64>>"],
+                ["global_stake", "Vec<Compact<u64>>"],
+                ["stake_weight", "Vec<Compact<u16>>"],
+                ["emission_history", "Vec<Vec<Compact<u64>>>"],
+            ],
+        },
         "StakeInfo": {
             "type": "struct",
             "type_mapping": [
                 ["hotkey", "AccountId"],
                 ["coldkey", "AccountId"],
+                ["stake", "Compact<u64>"],
+            ],
+        },
+        "DynamicInfo": {
+            "type": "struct",
+            "type_mapping": [
+                ["owner", "AccountId"],
+                ["netuid", "Compact<u16>"],
+                ["tempo", "Compact<u16>"],
+                ["last_step", "Compact<u64>"],
+                ["blocks_since_last_step", "Compact<u64>"],
+                ["emission", "Compact<u64>"],
+                ["alpha_in", "Compact<u64>"],
+                ["alpha_out", "Compact<u64>"],
+                ["tao_in", "Compact<u64>"],
+                ["total_locked", "Compact<u64>"],
+                ["owner_locked", "Compact<u64>"],
+            ],
+        },
+        "SubstakeElements": {
+            "type": "struct",
+            "type_mapping": [
+                ["hotkey", "AccountId"],
+                ["coldkey", "AccountId"],
+                ["netuid", "Compact<u16>"],
                 ["stake", "Compact<u64>"],
             ],
         },
