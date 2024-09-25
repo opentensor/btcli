@@ -1,5 +1,6 @@
 wheel
 async-property==0.2.2
+py-bip39-bindings==0.1.11
 aiohttp~=3.10.2
 backoff~=2.2.1
 GitPython>=3.0.0
@@ -16,5 +17,6 @@ scalecodec==1.2.11
 substrate-interface~=1.7.9
 typer~=0.12
 websockets>=12.0
-git+https://github.com/opentensor/btwallet.git#egg=bittensor-wallet
+git+https://github.com/opentensor/btwallet.git#egg=bittensor-wallet # To be removed
+# bittensor-wallet==1.0.0r  # To be uncommented after wallet release
 bt-decode==0.2.0a0  # this will change in the future to 0.2.0
