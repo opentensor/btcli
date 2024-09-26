@@ -26,6 +26,9 @@ def test_root_commands(local_chain, wallet_setup):
         4. Execute list delegates and verify information
         5. Execute set-take command, change the take to 12%, verify
         6. Execute delegate-stake command, stake from Alice to Bob
+        7. Execute undelegate-stake command, unstake from Bob to Alice
+        8. Execute delegate-stake command, stake all from Alice to Bob
+        9. Execute undelegate-stake command, unstake all from Bob to Alice
 
     Raises:
         AssertionError: If any of the checks or verifications fail
@@ -219,12 +222,12 @@ def test_root_commands(local_chain, wallet_setup):
     delegate_stake = Balance.from_tao(string_tao_to_float(alice_delegates_info[3]))
     assert delegate_stake == Balance.from_tao(delegate_amount)
 
-    # TOTAL STAKE(τ): This should be 10 as only Alice has delegated to Bob
+    # TOTAL STAKE(τ): This should be `delegate_amount` as only Alice has delegated to Bob
     total_stake = Balance.from_tao(string_tao_to_float(alice_delegates_info[7]))
     assert total_stake == Balance.from_tao(delegate_amount)
 
     # Total delegated Tao: This is listed at the bottom of the information
-    # Since Alice has only delegated to Bob, total should be 10 TAO
+    # Since Alice has only delegated to Bob, total should be `delegate_amount` TAO
     total_delegated_tao = Balance.from_tao(
         string_tao_to_float(alice_delegates.stdout.splitlines()[8].split()[3])
     )
@@ -252,6 +255,71 @@ def test_root_commands(local_chain, wallet_setup):
             "local",
             "--amount",
             f"{delegate_amount}",
+            "--no-prompt",
+        ],
+    )
+    assert "✅ Finalized" in undelegate_alice.stdout
+
+    # TODO: Ask nucleus the rate limit and wait epoch
+    # Sleep 120 seconds for rate limiting when unstaking
+    print("Waiting for interval for 2 minutes")
+    time.sleep(120)
+
+    # Stake to delegate Bob from Alice
+    stake_delegate = exec_command_alice(
+        command="root",
+        sub_command="delegate-stake",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--delegate-ss58key",
+            wallet_bob.hotkey.ss58_address,
+            "--network",
+            "local",
+            "--all",
+            "--no-prompt",
+        ],
+    )
+    assert "✅ Finalized" in stake_delegate.stdout
+
+    # First row are headers, records start from second row
+    alice_delegates_info = alice_delegates.stdout.splitlines()[5].split()
+
+    # WALLET: Wallet name of Alice
+    assert alice_delegates_info[0] == wallet_alice.name
+
+    # SS58: address of the Bob's hotkey (Alice has staked to Bob)
+    assert wallet_bob.hotkey.ss58_address == alice_delegates_info[2]
+
+    # Delegation: This should be 999999 as Alice delegated 999999 TAO to Bob
+    delegate_stake = Balance.from_tao(string_tao_to_float(alice_delegates_info[3]))
+    assert delegate_stake == Balance.from_tao(999999)
+
+    # TODO: Ask nucleus the rate limit and wait epoch
+    # Sleep 120 seconds for rate limiting when unstaking
+    print("Waiting for interval for 2 minutes")
+    time.sleep(120)
+
+    # Unstake from Bob Delegate
+    undelegate_alice = exec_command_alice(
+        command="root",
+        sub_command="undelegate-stake",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--delegate-ss58key",
+            wallet_bob.hotkey.ss58_address,
+            "--network",
+            "local",
+            "--all",
             "--no-prompt",
         ],
     )

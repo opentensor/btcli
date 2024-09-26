@@ -461,7 +461,7 @@ async def delegate_extrinsic(
     subtensor: SubtensorInterface,
     wallet: Wallet,
     delegate_ss58: str,
-    amount: Balance,
+    amount: Optional[float],
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt: bool = False,
@@ -472,7 +472,7 @@ async def delegate_extrinsic(
     :param subtensor: The SubtensorInterface used to perform the delegation, initialized.
     :param wallet: Bittensor wallet object.
     :param delegate_ss58: The `ss58` address of the delegate.
-    :param amount: Amount to stake as bittensor balance
+    :param amount: Amount to stake as bittensor balance, None to stake all available TAO.
     :param wait_for_inclusion: If set, waits for the extrinsic to enter a block before returning `True`, or returns
                               `False` if the extrinsic fails to enter the block within the timeout.
     :param wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `True`,
@@ -484,19 +484,19 @@ async def delegate_extrinsic(
              the response is `True`.
     """
 
-    async def _do_delegation() -> tuple[bool, str]:
+    async def _do_delegation(staking_balance: Balance) -> tuple[bool, str]:
         """Performs the delegation extrinsic call to the chain."""
         if delegate:
             call = await subtensor.substrate.compose_call(
                 call_module="SubtensorModule",
                 call_function="add_stake",
-                call_params={"hotkey": delegate_ss58, "amount_staked": amount.rao},
+                call_params={"hotkey": delegate_ss58, "amount_staked": staking_balance.rao},
             )
         else:
             call = await subtensor.substrate.compose_call(
                 call_module="SubtensorModule",
                 call_function="remove_stake",
-                call_params={"hotkey": delegate_ss58, "amount_unstaked": amount.rao},
+                call_params={"hotkey": delegate_ss58, "amount_unstaked": staking_balance.rao},
             )
         return await subtensor.sign_and_send_extrinsic(
             call, wallet, wait_for_inclusion, wait_for_finalization
@@ -569,14 +569,7 @@ async def delegate_extrinsic(
         # Stake it all.
         staking_balance = Balance.from_tao(my_prev_coldkey_balance.tao)
     else:
-        staking_balance = amount
-
-    if delegate:
-        # Remove existential balance to keep key alive.
-        if staking_balance > (b1k := Balance.from_rao(1000)):
-            staking_balance = staking_balance - b1k
-        else:
-            staking_balance = staking_balance
+        staking_balance = Balance.from_tao(amount)
 
     # Check enough balance to stake.
     if delegate_string == "delegate" and  staking_balance > my_prev_coldkey_balance:
@@ -599,6 +592,16 @@ async def delegate_extrinsic(
         )
         return False
 
+    if delegate:
+        # Grab the existential deposit.
+        existential_deposit = await subtensor.get_existential_deposit()
+
+        # Remove existential balance to keep key alive.
+        if staking_balance > my_prev_coldkey_balance - existential_deposit:
+            staking_balance = my_prev_coldkey_balance - existential_deposit
+        else:
+            staking_balance = staking_balance
+
     # Ask before moving on.
     if prompt:
         if not Confirm.ask(
@@ -615,7 +618,7 @@ async def delegate_extrinsic(
         spinner="aesthetic",
     ) as status:
         print_verbose("Transmitting delegate operation call")
-        staking_response, err_msg = await _do_delegation()
+        staking_response, err_msg = await _do_delegation(staking_balance)
 
     if staking_response is True:  # If we successfully staked.
         # We only wait here if we expect finalization.
@@ -1318,7 +1321,7 @@ async def set_take(wallet: Wallet, subtensor: SubtensorInterface, take: float) -
 async def delegate_stake(
     wallet: Wallet,
     subtensor: SubtensorInterface,
-    amount: float,
+    amount: Optional[float],
     delegate_ss58key: str,
     prompt: bool,
 ):
@@ -1328,7 +1331,7 @@ async def delegate_stake(
         subtensor,
         wallet,
         delegate_ss58key,
-        Balance.from_tao(amount),
+        amount,
         wait_for_inclusion=True,
         prompt=prompt,
         delegate=True,
@@ -1338,7 +1341,7 @@ async def delegate_stake(
 async def delegate_unstake(
     wallet: Wallet,
     subtensor: SubtensorInterface,
-    amount: float,
+    amount: Optional[float],
     delegate_ss58key: str,
     prompt: bool,
 ):
@@ -1348,7 +1351,7 @@ async def delegate_unstake(
         subtensor,
         wallet,
         delegate_ss58key,
-        Balance.from_tao(amount),
+        amount,
         wait_for_inclusion=True,
         prompt=prompt,
         delegate=False,
