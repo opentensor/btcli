@@ -2805,7 +2805,11 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=([WO.NAME] if not all_wallets else [WO.PATH]),
+            validate=WV.WALLET if not all_wallets else WV.NONE
         )
         self._run_command(
             root.my_delegates(
