@@ -11,7 +11,9 @@ from typer.testing import CliRunner
 from bittensor_wallet import Wallet
 
 if TYPE_CHECKING:
-    from bittensor_cli.src.bittensor.async_substrate_interface import AsyncSubstrateInterface
+    from bittensor_cli.src.bittensor.async_substrate_interface import (
+        AsyncSubstrateInterface,
+    )
 
 template_path = os.getcwd() + "/neurons/"
 templates_repo = "templates repository"
@@ -287,7 +289,9 @@ def uninstall_templates(install_dir):
     shutil.rmtree(install_dir)
 
 
-async def call_add_proposal(substrate: "AsyncSubstrateInterface", wallet: Wallet) -> bool:
+async def call_add_proposal(
+    substrate: "AsyncSubstrateInterface", wallet: Wallet
+) -> bool:
     async with substrate:
         proposal_call = await substrate.compose_call(
             call_module="System",
@@ -304,7 +308,9 @@ async def call_add_proposal(substrate: "AsyncSubstrateInterface", wallet: Wallet
             },
         )
 
-        extrinsic = await substrate.create_signed_extrinsic(call=call, keypair=wallet.coldkey)
+        extrinsic = await substrate.create_signed_extrinsic(
+            call=call, keypair=wallet.coldkey
+        )
         response = await substrate.submit_extrinsic(
             extrinsic,
             wait_for_inclusion=True,
