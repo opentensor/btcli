@@ -579,12 +579,12 @@ async def delegate_extrinsic(
             staking_balance = staking_balance
 
     # Check enough balance to stake.
-    if staking_balance > my_prev_coldkey_balance:
+    if delegate_string == "delegate" and  staking_balance > my_prev_coldkey_balance:
         err_console.print(
-            ":cross_mark: [red]Not enough balance[/red]:[bold white]\n"
-            f"  balance:{my_prev_coldkey_balance}\n"
-            f"  amount: {staking_balance}\n"
-            f"  coldkey: {wallet.name}[/bold white]"
+            ":cross_mark: [red]Not enough balance to stake[/red]:\n"
+            f"  [bold blue]current balance[/bold blue]:{my_prev_coldkey_balance}\n"
+            f"  [bold red]amount staking[/bold red]: {staking_balance}\n"
+            f"  [bold white]coldkey: {wallet.name}[/bold white]"
         )
         return False
 
@@ -595,7 +595,7 @@ async def delegate_extrinsic(
             "\n:cross_mark: [red]Not enough balance to unstake[/red]:\n"
             f"  [bold blue]current stake[/bold blue]: {my_prev_delegated_stake}\n"
             f"  [bold red]amount unstaking[/bold red]: {staking_balance}\n"
-            f"  [bold white]coldkey: {wallet.name}[/bold white]\n\n"
+            f"  [bold white]coldkey: {wallet.name}[bold white]\n\n"
         )
         return False
 
