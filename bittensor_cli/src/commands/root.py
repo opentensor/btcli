@@ -484,19 +484,19 @@ async def delegate_extrinsic(
              the response is `True`.
     """
 
-    async def _do_delegation(staking_balance: Balance) -> tuple[bool, str]:
+    async def _do_delegation(staking_balance_: Balance) -> tuple[bool, str]:
         """Performs the delegation extrinsic call to the chain."""
         if delegate:
             call = await subtensor.substrate.compose_call(
                 call_module="SubtensorModule",
                 call_function="add_stake",
-                call_params={"hotkey": delegate_ss58, "amount_staked": staking_balance.rao},
+                call_params={"hotkey": delegate_ss58, "amount_staked": staking_balance_.rao},
             )
         else:
             call = await subtensor.substrate.compose_call(
                 call_module="SubtensorModule",
                 call_function="remove_stake",
-                call_params={"hotkey": delegate_ss58, "amount_unstaked": staking_balance.rao},
+                call_params={"hotkey": delegate_ss58, "amount_unstaked": staking_balance_.rao},
             )
         return await subtensor.sign_and_send_extrinsic(
             call, wallet, wait_for_inclusion, wait_for_finalization
