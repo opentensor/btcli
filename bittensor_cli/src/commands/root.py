@@ -567,7 +567,11 @@ async def delegate_extrinsic(
     # Convert to bittensor.Balance
     if amount is None:
         # Stake it all.
-        staking_balance = Balance.from_tao(my_prev_coldkey_balance.tao)
+        if delegate_string == "delegate":
+            staking_balance = Balance.from_tao(my_prev_coldkey_balance.tao)
+        else:
+            # Unstake all
+            staking_balance = Balance.from_tao(my_prev_delegated_stake.tao)
     else:
         staking_balance = Balance.from_tao(amount)
 
