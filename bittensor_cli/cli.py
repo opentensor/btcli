@@ -2862,7 +2862,7 @@ class CLIManager:
             if network == "finney":
                 network = "wss://archive.chain.opentensor.ai:443"
         elif self.config.get("network"):
-            if self.config.get("network"):
+            if self.config.get("network") == "finney":
                 network = "wss://archive.chain.opentensor.ai:443"
 
         sub = self.initialize_chain(network)
