@@ -3,6 +3,7 @@ import asyncio
 import curses
 import os.path
 import re
+import ssl
 import sys
 from pathlib import Path
 from typing import Coroutine, Optional
@@ -756,16 +757,18 @@ class CLIManager:
                 else:
                     result = await cmd
                 return result
-            except ConnectionRefusedError:
+            except (ConnectionRefusedError, ssl.SSLError):
                 err_console.print(
                     f"Unable to connect to the chain: {self.not_subtensor}"
                 )
                 asyncio.create_task(cmd).cancel()
                 raise typer.Exit()
             except ConnectionClosed:
+                asyncio.create_task(cmd).cancel()
                 raise typer.Exit()
             except SubstrateRequestException as e:
                 err_console.print(str(e))
+                asyncio.create_task(cmd).cancel()
                 raise typer.Exit()
 
         if sys.version_info < (3, 10):

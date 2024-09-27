@@ -845,11 +845,7 @@ class AsyncSubstrateInterface:
     async def load_registry(self):
         metadata_rpc_result = await self.rpc_request(
             "state_call",
-            [
-                "Metadata_metadata_at_version",
-                self.metadata_version_hex,
-                await self.get_chain_finalised_head(),
-            ],
+            ["Metadata_metadata_at_version", self.metadata_version_hex],
         )
         metadata_option_hex_str = metadata_rpc_result["result"]
         metadata_option_bytes = bytes.fromhex(metadata_option_hex_str[2:])
@@ -897,6 +893,7 @@ class AsyncSubstrateInterface:
 
         :returns: Runtime object
         """
+
         async def get_runtime(block_hash, block_id) -> Runtime:
             # Check if runtime state already set to current block
             if (block_hash and block_hash == self.last_block_hash) or (
@@ -2193,20 +2190,16 @@ class AsyncSubstrateInterface:
             params = {}
 
         try:
-            runtime_call_def = self.runtime_config.type_registry["runtime_api"][
-                api
-            ]["methods"][method]
+            runtime_call_def = self.runtime_config.type_registry["runtime_api"][api][
+                "methods"
+            ][method]
             runtime_api_types = self.runtime_config.type_registry["runtime_api"][
                 api
             ].get("types", {})
         except KeyError:
-            raise ValueError(
-                f"Runtime API Call '{api}.{method}' not found in registry"
-            )
+            raise ValueError(f"Runtime API Call '{api}.{method}' not found in registry")
 
-        if isinstance(params, list) and len(params) != len(
-            runtime_call_def["params"]
-        ):
+        if isinstance(params, list) and len(params) != len(runtime_call_def["params"]):
             raise ValueError(
                 f"Number of parameter provided ({len(params)}) does not "
                 f"match definition {len(runtime_call_def['params'])}"
