@@ -47,7 +47,7 @@ def test_senate(local_chain, wallet_setup):
         command="root",
         sub_command="senate",
         extra_args=[
-            "--chain",
+            "--network",
             "ws://127.0.0.1:9945",
         ],
     )
@@ -63,14 +63,12 @@ def test_senate(local_chain, wallet_setup):
         extra_args=[
             "--wallet-path",
             wallet_path_bob,
-            "--chain",
+            "--network",
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet_bob.name,
             "--hotkey",
             wallet_bob.hotkey_str,
-            "--network",
-            "local",
             "--no-prompt",
         ],
     )
@@ -173,8 +171,6 @@ def test_senate(local_chain, wallet_setup):
             wallet_alice.name,
             "--hotkey",
             wallet_alice.hotkey_str,
-            "--network",
-            "local",
             "--no-prompt",
         ],
     )

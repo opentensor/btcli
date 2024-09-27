@@ -53,8 +53,6 @@ def test_wallet_overview_inspect(local_chain, wallet_setup):
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet.name,
-            "--network",
-            "local",
             "--no-prompt",
         ],
     )
@@ -67,8 +65,6 @@ def test_wallet_overview_inspect(local_chain, wallet_setup):
         extra_args=[
             "--chain",
             "ws://127.0.0.1:9945",
-            "--network",
-            "local",
         ],
     )
 
@@ -86,8 +82,6 @@ def test_wallet_overview_inspect(local_chain, wallet_setup):
             wallet.name,
             "--hotkey",
             wallet.hotkey_str,
-            "--network",
-            "local",
             "--netuid",
             "1",
             "--chain",
@@ -108,8 +102,6 @@ def test_wallet_overview_inspect(local_chain, wallet_setup):
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet.name,
-            "--network",
-            "local",
         ],
     )
 
@@ -132,8 +124,6 @@ def test_wallet_overview_inspect(local_chain, wallet_setup):
             wallet_path,
             "--wallet-name",
             wallet.name,
-            "--network",
-            "local",
             "--chain",
             "ws://127.0.0.1:9945",
         ],
@@ -158,8 +148,6 @@ def test_wallet_overview_inspect(local_chain, wallet_setup):
             wallet_path,
             "--wallet-name",
             wallet.name,
-            "--network",
-            "local",
             "--chain",
             "ws://127.0.0.1:9945",
         ],
@@ -218,8 +206,6 @@ def test_wallet_transfer(local_chain, wallet_setup):
             "ws://127.0.0.1:9945",
             "--wallet-name",
             "default",
-            "--network",
-            "local",
         ],
     )
 
@@ -252,8 +238,6 @@ def test_wallet_transfer(local_chain, wallet_setup):
             "ws://127.0.0.1:9945",
             "--wallet-name",
             "default",
-            "--network",
-            "local",
             "--amount",
             "100",
             "--no-prompt",
@@ -273,8 +257,6 @@ def test_wallet_transfer(local_chain, wallet_setup):
             "ws://127.0.0.1:9945",
             "--wallet-name",
             "default",
-            "--network",
-            "local",
         ],
     )
 
@@ -304,8 +286,6 @@ def test_wallet_transfer(local_chain, wallet_setup):
             "ws://127.0.0.1:9945",
             "--wallet-name",
             "default",
-            "--network",
-            "local",
         ],
     )
 
@@ -339,8 +319,6 @@ def test_wallet_transfer(local_chain, wallet_setup):
             "ws://127.0.0.1:9945",
             "--wallet-name",
             "default",
-            "--network",
-            "local",
             "--amount",
             "100",
             "--no-prompt",
@@ -402,8 +380,6 @@ def test_wallet_identities(local_chain, wallet_setup):
             wallet_alice.name,
             "--wallet-hotkey",
             wallet_alice.hotkey_str,
-            "--network",
-            "local",
             "--display-name",
             alice_identity["display_name"],
             "--legal-name",

@@ -17,6 +17,7 @@ from rich.console import Console
 from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
 from bittensor_cli.src.bittensor.balances import Balance
+from urllib.parse import urlparse
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
@@ -859,3 +860,18 @@ def group_subnets(registrations):
         ranges.append(f"{start}-{registrations[-1]}")
 
     return ", ".join(ranges)
+
+
+def validate_chain_endpoint(endpoint_url) -> tuple[bool, str]:
+    parsed = urlparse(endpoint_url)
+    if parsed.scheme not in ("ws", "wss"):
+        return False, (
+            f"Invalid URL or network name provided: [bright_cyan]({endpoint_url})[/bright_cyan].\n"
+            "Allowed network names are [bright_cyan]finney, test, local[/bright_cyan]. "
+            "Valid chain endpoints should use the scheme [bright_cyan]`ws` or `wss`[/bright_cyan].\n"
+        )
+    if not parsed.netloc:
+        return False, "Invalid URL passed as the endpoint"
+    if not parsed.port:
+        return False, "No port specified in the URL"
+    return True, ""
