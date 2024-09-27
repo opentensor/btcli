@@ -885,7 +885,7 @@ class CLIManager:
             if n in Constants.networks:
                 if not Confirm.ask(
                     f"You provided a network [dark_orange]{n}[/dark_orange] which is mapped to "
-                    "[dark_orange]{Constants.network_map[n]}[/dark_orange]\n"
+                    f"[dark_orange]{Constants.network_map[n]}[/dark_orange]\n"
                     "Do you want to continue?"
                 ):
                     typer.Exit()
@@ -898,7 +898,7 @@ class CLIManager:
                         )
                         args["network"] = known_network
                         if not Confirm.ask(
-                            "You provided an endpoint [dark_orange]{n}[/dark_orange] which is mapped to "
+                            f"You provided an endpoint [dark_orange]{n}[/dark_orange] which is mapped to "
                             f"[dark_orange]{known_network}[/dark_orange]\n"
                             "Do you want to continue?"
                         ):
