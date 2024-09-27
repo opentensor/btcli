@@ -18,6 +18,7 @@
 # DEALINGS IN THE SOFTWARE.
 
 from typing import Union
+from bittensor_cli.src import UNITS
 
 
 class Balance:
@@ -279,3 +280,21 @@ class Balance:
         :return: A Balance object representing the given amount.
         """
         return Balance(amount)
+
+    @staticmethod
+    def get_unit(netuid: int):
+        units = UNITS
+        base = len(units)
+        if netuid < base:
+            return units[netuid]
+        else:
+            result = ""
+            while netuid > 0:
+                result = units[netuid % base] + result
+                netuid //= base
+            return result
+
+    def set_unit(self, netuid: int):
+        self.unit = Balance.get_unit(netuid)
+        self.rao_unit = Balance.get_unit(netuid)
+        return self
