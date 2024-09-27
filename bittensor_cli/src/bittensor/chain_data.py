@@ -660,12 +660,8 @@ class DynamicInfo:
         alpha_out = Balance.from_rao(decoded["alpha_out"]).set_unit(netuid)
         alpha_in = Balance.from_rao(decoded["alpha_in"]).set_unit(netuid)
         tao_in = Balance.from_rao(decoded["tao_in"]).set_unit(0)
-        total_locked = Balance.from_rao(decoded["total_locked"]).set_unit(
-            netuid
-        )
-        owner_locked = Balance.from_rao(decoded["owner_locked"]).set_unit(
-            netuid
-        )
+        total_locked = Balance.from_rao(decoded["total_locked"]).set_unit(netuid)
+        owner_locked = Balance.from_rao(decoded["owner_locked"]).set_unit(netuid)
         price = (
             Balance.from_tao(tao_in.tao / alpha_in.tao)
             if alpha_in.tao > 0
@@ -766,6 +762,7 @@ class DynamicInfo:
 @dataclass
 class DynamicPoolInfoV2:
     """Dataclass for dynamic pool info."""
+
     netuid: int
     alpha_issuance: int
     alpha_outstanding: int
@@ -836,10 +833,12 @@ class DynamicPool:
             self.price = Balance.from_tao(1.0)
 
     def __str__(self) -> str:
-        return (f"DynamicPool( alpha_issuance={self.alpha_issuance}, "
-                f"alpha_outstanding={self.alpha_outstanding}, "
-                f"alpha_reserve={self.alpha_reserve}, "
-                f"tao_reserve={self.tao_reserve}, k={self.k}, price={self.price} )")
+        return (
+            f"DynamicPool( alpha_issuance={self.alpha_issuance}, "
+            f"alpha_outstanding={self.alpha_outstanding}, "
+            f"alpha_reserve={self.alpha_reserve}, "
+            f"tao_reserve={self.tao_reserve}, k={self.k}, price={self.price} )"
+        )
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -922,6 +921,7 @@ class DynamicPool:
 @dataclass
 class ScheduledColdkeySwapInfo:
     """Dataclass for scheduled coldkey swap information."""
+
     old_coldkey: str
     new_coldkey: str
     arbitration_block: int
@@ -966,9 +966,7 @@ class ScheduledColdkeySwapInfo:
         )
         if decoded is None:
             return None
-        return [
-            ss58_encode(account_id, SS58_FORMAT) for account_id in decoded
-        ]
+        return [ss58_encode(account_id, SS58_FORMAT) for account_id in decoded]
 
 
 @dataclass
@@ -994,15 +992,20 @@ class SubnetState:
 
     @classmethod
     def from_vec_u8(cls, vec_u8: list[int]) -> Optional["SubnetState"]:
-        if len(vec_u8) == 0: return None
+        if len(vec_u8) == 0:
+            return None
         decoded = from_scale_encoding(vec_u8, ChainDataType.SubnetState, is_option=True)
-        if decoded is None: return None
+        if decoded is None:
+            return None
         return SubnetState.fix_decoded_values(decoded)
 
     @classmethod
     def list_from_vec_u8(cls, vec_u8: list[int]) -> list["SubnetState"]:
-        decoded = from_scale_encoding( vec_u8, ChainDataType.SubnetState, is_vec=True, is_option=True )
-        if decoded is None:return []
+        decoded = from_scale_encoding(
+            vec_u8, ChainDataType.SubnetState, is_vec=True, is_option=True
+        )
+        if decoded is None:
+            return []
         decoded = [SubnetState.fix_decoded_values(d) for d in decoded]
         return decoded
 
@@ -1010,25 +1013,34 @@ class SubnetState:
     def fix_decoded_values(cls, decoded: dict) -> "SubnetState":
         netuid = decoded["netuid"]
         return SubnetState(
-            netuid = netuid,
-            hotkeys = [ss58_encode(val, SS58_FORMAT) for val in decoded["hotkeys"]],
-            coldkeys = [ss58_encode(val, SS58_FORMAT) for val in decoded["coldkeys"]],
-            active = decoded["active"],
-            validator_permit = decoded["validator_permit"],
-            pruning_score = [u16_normalized_float(val) for val in decoded["pruning_score"]],
-            last_update = decoded["last_update"],
-            emission = [Balance.from_rao( val ).set_unit(netuid) for val in decoded["emission"]],
-            dividends = [u16_normalized_float(val) for val in decoded["dividends"]],
-            incentives = [u16_normalized_float(val) for val in decoded["incentives"]],
-            consensus = [u16_normalized_float(val) for val in decoded["consensus"]],
-            trust = [u16_normalized_float(val) for val in decoded["trust"]],
-            rank = [u16_normalized_float(val) for val in decoded["rank"]],
-            block_at_registration = decoded["block_at_registration"],
-            local_stake = [Balance.from_rao( val ).set_unit(netuid) for val in decoded["local_stake"]],
-            global_stake = [Balance.from_rao( val ).set_unit(0) for val in decoded["global_stake"]],
-            stake_weight = [u16_normalized_float(val) for val in decoded["stake_weight"]],
-            emission_history = decoded["emission_history"]
+            netuid=netuid,
+            hotkeys=[ss58_encode(val, SS58_FORMAT) for val in decoded["hotkeys"]],
+            coldkeys=[ss58_encode(val, SS58_FORMAT) for val in decoded["coldkeys"]],
+            active=decoded["active"],
+            validator_permit=decoded["validator_permit"],
+            pruning_score=[
+                u16_normalized_float(val) for val in decoded["pruning_score"]
+            ],
+            last_update=decoded["last_update"],
+            emission=[
+                Balance.from_rao(val).set_unit(netuid) for val in decoded["emission"]
+            ],
+            dividends=[u16_normalized_float(val) for val in decoded["dividends"]],
+            incentives=[u16_normalized_float(val) for val in decoded["incentives"]],
+            consensus=[u16_normalized_float(val) for val in decoded["consensus"]],
+            trust=[u16_normalized_float(val) for val in decoded["trust"]],
+            rank=[u16_normalized_float(val) for val in decoded["rank"]],
+            block_at_registration=decoded["block_at_registration"],
+            local_stake=[
+                Balance.from_rao(val).set_unit(netuid) for val in decoded["local_stake"]
+            ],
+            global_stake=[
+                Balance.from_rao(val).set_unit(0) for val in decoded["global_stake"]
+            ],
+            stake_weight=[u16_normalized_float(val) for val in decoded["stake_weight"]],
+            emission_history=decoded["emission_history"],
         )
+
 
 class SubstakeElements:
     @staticmethod
@@ -1047,7 +1059,6 @@ class SubstakeElements:
                 }
             )
         return result
-
 
 
 custom_rpc_type_registry = {
