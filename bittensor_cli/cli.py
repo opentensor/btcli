@@ -1135,10 +1135,12 @@ class CLIManager:
         ),
         sort_by: Optional[str] = typer.Option(
             None,
+            "--sort-by", "--sort_by",
             help="Sort the hotkeys by the specified column title. For example: name, uid, axon.",
         ),
         sort_order: Optional[str] = typer.Option(
             None,
+            "--sort-order", "--sort_order",
             help="Sort the hotkeys in the specified order (ascending/asc or descending/desc/reverse).",
         ),
         include_hotkeys: str = typer.Option(
