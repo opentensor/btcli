@@ -118,11 +118,11 @@ def test_root_commands(local_chain, wallet_setup):
     assert take_percentage == 0.18
 
     # DELEGATE STAKE(τ): This should be 0 as no delegation yet
-    delegate_stake = Balance.from_tao(float(bob_delegate_info[4].strip("τ")))
+    delegate_stake = Balance.from_tao(string_tao_to_float(bob_delegate_info[4]))
     assert delegate_stake == Balance.from_tao(0)
 
     # TOTAL STAKE(τ): This should be 0 as no stake yet
-    total_stake = Balance.from_tao(float(bob_delegate_info[5].strip("τ")))
+    total_stake = Balance.from_tao(string_tao_to_float(bob_delegate_info[5]))
     assert total_stake == Balance.from_tao(0)
 
     # Setting 12% as the new take
@@ -167,6 +167,8 @@ def test_root_commands(local_chain, wallet_setup):
     take_percentage = float(bob_delegate_info[7].strip("%")) / 100
     assert take_percentage == float(new_take)
 
+    delegate_amount = 999999
+
     # Stake to delegate Bob from Alice
     stake_delegate = exec_command_alice(
         command="root",
@@ -183,7 +185,7 @@ def test_root_commands(local_chain, wallet_setup):
             "--network",
             "local",
             "--amount",
-            "10",
+            f"{delegate_amount}",
             "--no-prompt",
         ],
     )
@@ -214,19 +216,19 @@ def test_root_commands(local_chain, wallet_setup):
     assert wallet_bob.hotkey.ss58_address == alice_delegates_info[2]
 
     # Delegation: This should be 10 as Alice delegated 10 TAO to Bob
-    delegate_stake = Balance.from_tao(float(alice_delegates_info[3].strip("τ")))
-    assert delegate_stake == Balance.from_tao(10)
+    delegate_stake = Balance.from_tao(string_tao_to_float(alice_delegates_info[3]))
+    assert delegate_stake == Balance.from_tao(delegate_amount)
 
     # TOTAL STAKE(τ): This should be 10 as only Alice has delegated to Bob
-    total_stake = Balance.from_tao(float(alice_delegates_info[7].strip("τ")))
-    assert total_stake == Balance.from_tao(10)
+    total_stake = Balance.from_tao(string_tao_to_float(alice_delegates_info[7]))
+    assert total_stake == Balance.from_tao(delegate_amount)
 
     # Total delegated Tao: This is listed at the bottom of the information
     # Since Alice has only delegated to Bob, total should be 10 TAO
     total_delegated_tao = Balance.from_tao(
-        float(alice_delegates.stdout.splitlines()[8].split()[3].strip("τ"))
+        string_tao_to_float(alice_delegates.stdout.splitlines()[8].split()[3])
     )
-    assert total_delegated_tao == Balance.from_tao(10)
+    assert total_delegated_tao == Balance.from_tao(delegate_amount)
 
     # TODO: Ask nucleus the rate limit and wait epoch
     # Sleep 120 seconds for rate limiting when unstaking
@@ -249,10 +251,14 @@ def test_root_commands(local_chain, wallet_setup):
             "--network",
             "local",
             "--amount",
-            "10",
+            f"{delegate_amount}",
             "--no-prompt",
         ],
     )
     assert "✅ Finalized" in undelegate_alice.stdout
 
     print("✅ Passed Root commands")
+
+
+def string_tao_to_float(alice_delegates_info: str) -> float:
+    return float(alice_delegates_info.replace(",", "").strip("τ"))
