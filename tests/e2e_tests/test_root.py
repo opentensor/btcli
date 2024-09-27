@@ -50,14 +50,12 @@ def test_root_commands(local_chain, wallet_setup):
         extra_args=[
             "--wallet-path",
             wallet_path_bob,
-            "--chain",
+            "--network",
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet_bob.name,
             "--hotkey",
             wallet_bob.hotkey_str,
-            "--network",
-            "local",
             "--no-prompt",
         ],
     )
@@ -70,8 +68,6 @@ def test_root_commands(local_chain, wallet_setup):
         extra_args=[
             "--chain",
             "ws://127.0.0.1:9945",
-            "--network",
-            "local",
         ],
     )
 
@@ -95,8 +91,6 @@ def test_root_commands(local_chain, wallet_setup):
         extra_args=[
             "--chain",
             "ws://127.0.0.1:9945",
-            "--network",
-            "local",
         ],
     )
 
@@ -139,8 +133,6 @@ def test_root_commands(local_chain, wallet_setup):
             wallet_bob.name,
             "--hotkey",
             wallet_bob.hotkey_str,
-            "--network",
-            "local",
             "--take",
             new_take,
         ],
@@ -156,8 +148,6 @@ def test_root_commands(local_chain, wallet_setup):
         extra_args=[
             "--chain",
             "ws://127.0.0.1:9945",
-            "--network",
-            "local",
         ],
     )
     # Capture delegate information after setting take
@@ -182,8 +172,6 @@ def test_root_commands(local_chain, wallet_setup):
             wallet_alice.name,
             "--delegate-ss58key",
             wallet_bob.hotkey.ss58_address,
-            "--network",
-            "local",
             "--amount",
             f"{delegate_amount}",
             "--no-prompt",
@@ -202,8 +190,6 @@ def test_root_commands(local_chain, wallet_setup):
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet_alice.name,
-            "--network",
-            "local",
         ],
     )
     # First row are headers, records start from second row
@@ -248,8 +234,6 @@ def test_root_commands(local_chain, wallet_setup):
             wallet_alice.name,
             "--delegate-ss58key",
             wallet_bob.hotkey.ss58_address,
-            "--network",
-            "local",
             "--amount",
             f"{delegate_amount}",
             "--no-prompt",
