@@ -2665,7 +2665,7 @@ class CLIManager:
             root.delegate_stake(
                 wallet,
                 self.initialize_chain(network),
-                float(amount),
+                amount,
                 delegate_ss58key,
                 prompt,
             )
@@ -2735,7 +2735,7 @@ class CLIManager:
             root.delegate_unstake(
                 wallet,
                 self.initialize_chain(network),
-                float(amount),
+                amount,
                 delegate_ss58key,
                 prompt,
             )
