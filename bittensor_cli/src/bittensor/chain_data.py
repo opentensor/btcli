@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Any, Union
 
 import bt_decode
 import netaddr
@@ -852,7 +852,7 @@ class DynamicPool:
     def alpha_to_tao(self, alpha: Balance) -> Balance:
         return Balance.from_tao(alpha.tao * self.price.tao)
 
-    def tao_to_alpha_with_slippage(self, tao: Balance) -> Tuple[Balance, Balance]:
+    def tao_to_alpha_with_slippage(self, tao: Balance) -> tuple[Balance, Balance]:
         """
         Returns an estimate of how much Alpha would a staker receive if they stake their tao
         using the current pool state
@@ -888,7 +888,7 @@ class DynamicPool:
             slippage = Balance.from_tao(0)
         return alpha_returned, slippage
 
-    def alpha_to_tao_with_slippage(self, alpha: Balance) -> Tuple[Balance, Balance]:
+    def alpha_to_tao_with_slippage(self, alpha: Balance) -> tuple[Balance, Balance]:
         """
         Returns an estimate of how much TAO would a staker receive if they unstake their
         alpha using the current pool state
