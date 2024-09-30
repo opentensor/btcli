@@ -2502,9 +2502,9 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Register a neuron (a subnet validator or a subnet miner) to a specified subnet by recycling some TAO to cover for the registration cost.
+        Register a neuron to the root subnet by recycling some TAO to cover for the registration cost.
 
-        This command adds a new neuron (a subnet validator or a subnet miner) to a specified subnet, contributing to the decentralization and robustness of Bittensor.
+        This command adds a new neuron as a validator on the root network This will allow owner to set subnet weighhts.
 
         # Usage:
 
