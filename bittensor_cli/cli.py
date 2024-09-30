@@ -712,11 +712,11 @@ class CLIManager:
         network: Optional[str] = None,
     ) -> SubtensorInterface:
         """
-        Intelligently initializes a connection to the chain, depending on the supplied (or in config) values. Set's the
+        Intelligently initializes a connection to the chain, depending on the supplied (or in config) values. Sets the
         `self.not_subtensor` object to this created connection.
 
-        :param network: Network name (e.g. finney, test, etc.)
-        :param chain: the chain endpoint (e.g. ws://127.0.0.1:9945, wss://entrypoint-finney.opentensor.ai:443, etc.)
+        :param network: Network name (e.g. finney, test, etc.) or
+                        chain endpoint (e.g. ws://127.0.0.1:9945, wss://entrypoint-finney.opentensor.ai:443)
         """
         if not self.not_subtensor:
             if network:
