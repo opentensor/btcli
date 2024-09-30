@@ -2856,8 +2856,6 @@ class CLIManager:
 
         [green]$[/green] btcli root list_delegates
 
-        [green]$[/green] btcli root list_delegates --wallet-name my_wallet
-
         [green]$[/green] btcli root list_delegates --subtensor.network finney # can also be `test` or `local`
 
         [blue bold]NOTE[/blue bold]: This commmand is intended for use within a
