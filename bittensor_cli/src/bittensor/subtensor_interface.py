@@ -34,7 +34,7 @@ from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
     decode_hex_identity_dict,
-    validate_chain_endpoint
+    validate_chain_endpoint,
 )
 
 
@@ -84,7 +84,9 @@ class SubtensorInterface:
                 self.chain_endpoint = network
                 if network in Constants.network_map.values():
                     self.network = next(
-                        key for key, value in Constants.network_map.items() if value == network
+                        key
+                        for key, value in Constants.network_map.items()
+                        if value == network
                     )
                 else:
                     self.network = "custom"

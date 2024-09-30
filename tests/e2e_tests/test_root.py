@@ -185,13 +185,17 @@ def test_root_commands(local_chain, wallet_setup):
         exec_command=exec_command_alice,
         wallet=wallet_alice,
         delegate_ss58key=wallet_bob.hotkey.ss58_address,
-        delegate_amount=10
+        delegate_amount=10,
     )
 
     check_balance(
         exec_command=exec_command_alice,
         wallet=wallet_alice,
-        expected_balance={'free_balance': 999990.0, 'staked_balance': 10.0, 'total_balance': 1000000.0},
+        expected_balance={
+            "free_balance": 999990.0,
+            "staked_balance": 10.0,
+            "total_balance": 1000000.0,
+        },
     )
 
     # TODO: Ask nucleus the rate limit and wait epoch
@@ -224,7 +228,11 @@ def test_root_commands(local_chain, wallet_setup):
     check_balance(
         exec_command=exec_command_alice,
         wallet=wallet_alice,
-        expected_balance={'free_balance': 1000000.0, 'staked_balance': 0.0, 'total_balance': 1000000.0},
+        expected_balance={
+            "free_balance": 1000000.0,
+            "staked_balance": 0.0,
+            "total_balance": 1000000.0,
+        },
     )
 
     # TODO: Ask nucleus the rate limit and wait epoch
@@ -261,7 +269,11 @@ def test_root_commands(local_chain, wallet_setup):
     check_balance(
         exec_command=exec_command_alice,
         wallet=wallet_alice,
-        expected_balance={'free_balance': 0.0000005, 'staked_balance': 999999.9999995, 'total_balance': 1000000.0},
+        expected_balance={
+            "free_balance": 0.0000005,
+            "staked_balance": 999999.9999995,
+            "total_balance": 1000000.0,
+        },
     )
 
     # TODO: Ask nucleus the rate limit and wait epoch
@@ -293,7 +305,11 @@ def test_root_commands(local_chain, wallet_setup):
     check_balance(
         exec_command=exec_command_alice,
         wallet=wallet_alice,
-        expected_balance={'free_balance': 1000000.0, 'staked_balance': 0.0, 'total_balance': 1000000.0},
+        expected_balance={
+            "free_balance": 1000000.0,
+            "staked_balance": 0.0,
+            "total_balance": 1000000.0,
+        },
     )
 
     print("✅ Passed Root commands")
@@ -344,7 +360,7 @@ def check_balance(exec_command, wallet, expected_balance):
             "--network",
             "ws://127.0.0.1:9945",
             "--wallet-name",
-            wallet.name
+            wallet.name,
         ],
     )
 
