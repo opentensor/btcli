@@ -2504,7 +2504,7 @@ class CLIManager:
         """
         Register a neuron to the root subnet by recycling some TAO to cover for the registration cost.
 
-        This command adds a new neuron as a validator on the root network This will allow owner to set subnet weighhts.
+        This command adds a new neuron as a validator on the root network. This will allow the neuron owner to set subnet weights.
 
         # Usage:
 
