@@ -1,5 +1,6 @@
 import asyncio
 import json
+import random
 from collections import defaultdict
 from dataclasses import dataclass
 from hashlib import blake2b
@@ -1690,9 +1691,10 @@ class AsyncSubstrateInterface:
         """
         block_hash = await self._get_current_block_hash(block_hash, reuse_block_hash)
         params = params or []
+        payload_id = f"{method}{random.randint(0, 7000)}"
         payloads = [
             self.make_payload(
-                "rpc_request",
+                payload_id,
                 method,
                 params + [block_hash] if block_hash else params,
             )
@@ -1704,14 +1706,14 @@ class AsyncSubstrateInterface:
             self.type_registry,
         )
         result = await self._make_rpc_request(payloads, runtime=runtime)
-        if "error" in result["rpc_request"][0]:
+        if "error" in result[payload_id][0]:
             raise SubstrateRequestException(
                 result["rpc_request"][0]["error"]["message"]
             )
-        if "result" in result["rpc_request"][0]:
-            return result["rpc_request"][0]
+        if "result" in result[payload_id][0]:
+            return result[payload_id][0]
         else:
-            raise SubstrateRequestException(result["rpc_request"][0])
+            raise SubstrateRequestException(result[payload_id][0])
 
     async def get_block_hash(self, block_id: int) -> str:
         return (await self.rpc_request("chain_getBlockHash", [block_id]))["result"]
