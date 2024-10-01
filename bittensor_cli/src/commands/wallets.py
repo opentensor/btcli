@@ -30,10 +30,12 @@ from bittensor_cli.src.bittensor.chain_data import (
     NeuronInfoLite,
     StakeInfo,
     custom_rpc_type_registry,
+    decode_account_id,
 )
 from bittensor_cli.src.bittensor.extrinsics.registration import (
     run_faucet_extrinsic,
     swap_hotkey_extrinsic,
+    is_hotkey_registered,
 )
 from bittensor_cli.src.bittensor.extrinsics.transfer import transfer_extrinsic
 from bittensor_cli.src.bittensor.networking import int_to_ip
@@ -1484,10 +1486,13 @@ async def set_id(
     info_: str,
     validator_id: bool,
     prompt: bool,
+    subnet_netuid: int,
 ):
     """Create a new or update existing identity on-chain."""
 
     try:
+        if pgp_fingerprint.startswith("0x"):
+            pgp_fingerprint = pgp_fingerprint[2:]  # Strip '0x'
         pgp_fingerprint_encoded = binascii.unhexlify(pgp_fingerprint.replace(" ", ""))
     except Exception as e:
         print_error(f"The PGP is not in the correct format: {e}")
@@ -1549,7 +1554,37 @@ async def set_id(
         ):
             console.print(":cross_mark: Aborted!")
             raise typer.Exit()
+    
+    if validator_id:
+        block_hash = await subtensor.substrate.get_chain_head()
 
+        is_registered_on_root, hotkey_owner= await asyncio.gather(
+            is_hotkey_registered(
+                subtensor, netuid=0, hotkey_ss58=wallet.hotkey.ss58_address
+            ), 
+            subtensor.get_hotkey_owner(
+            subtensor, hotkey_ss58=wallet.hotkey.ss58_address, block_hash=block_hash
+        ))
+
+        if not is_registered_on_root:
+            print_error("The hotkey is not registered on root. Aborting.")
+            
+        own_hotkey = wallet.coldkeypub.ss58_address == hotkey_owner
+        if not own_hotkey:
+            print_error("The hotkey doesn't belong to the coldkey wallet. Aborting.")
+    else:
+        subnet_owner_ = await subtensor.substrate.query(
+            module="SubtensorModule",
+            storage_function="SubnetOwner",
+            params=[subnet_netuid],
+        )
+        subnet_owner = decode_account_id(subnet_owner_[0])
+        if subnet_owner != wallet.coldkeypub.ss58_address:
+            err_console.print(
+                ":cross_mark: [red]This wallet doesn't own the specified subnet.[/red]"
+            )
+            return False
+        
     try:
         wallet.unlock_coldkey()
     except KeyFileError:

@@ -1155,12 +1155,14 @@ class CLIManager:
         ),
         sort_by: Optional[str] = typer.Option(
             None,
-            "--sort-by", "--sort_by",
+            "--sort-by",
+            "--sort_by",
             help="Sort the hotkeys by the specified column title. For example: name, uid, axon.",
         ),
         sort_order: Optional[str] = typer.Option(
             None,
-            "--sort-order", "--sort_order",
+            "--sort-order",
+            "--sort_order",
             help="Sort the hotkeys in the specified order (ascending/asc or descending/desc/reverse).",
         ),
         include_hotkeys: str = typer.Option(
@@ -2007,44 +2009,46 @@ class CLIManager:
             "--display-name",
             "--display",
             help="The display name for the identity.",
-            prompt=True,
         ),
         legal_name: str = typer.Option(
             "",
             "--legal-name",
             "--legal",
             help="The legal name for the identity.",
-            prompt=True,
         ),
         web_url: str = typer.Option(
-            "", "--web-url", "--web", help="The web URL for the identity.", prompt=True
+            "",
+            "--web-url",
+            "--web",
+            help="The web URL for the identity.",
         ),
         riot_handle: str = typer.Option(
             "",
             "--riot-handle",
             "--riot",
             help="The Riot handle for the identity.",
-            prompt=True,
         ),
         email: str = typer.Option(
-            "", help="The email address for the identity.", prompt=True
+            "",
+            help="The email address for the identity.",
         ),
         pgp_fingerprint: str = typer.Option(
             "",
             "--pgp-fingerprint",
             "--pgp",
             help="The PGP fingerprint for the identity.",
-            prompt=True,
         ),
         image_url: str = typer.Option(
             "",
             "--image-url",
             "--image",
             help="The image URL for the identity.",
-            prompt=True,
         ),
         info_: str = typer.Option(
-            "", "--info", "-i", help="The info for the identity.", prompt=True
+            "",
+            "--info",
+            "-i",
+            help="The info for the identity.",
         ),
         twitter_url: str = typer.Option(
             "",
@@ -2053,12 +2057,16 @@ class CLIManager:
             "--twitter-url",
             "--twitter",
             help="The 𝕏 (Twitter) URL for the identity.",
-            prompt=True,
         ),
-        validator_id: bool = typer.Option(
+        validator_id: Optional[bool] = typer.Option(
+            None,
             "--validator/--not-validator",
             help="Are you updating a validator hotkey identity?",
-            prompt=True,
+        ),
+        subnet_netuid: Optional[int] = typer.Option(
+            None,
+            "--netuid",
+            help="Netuid if you are updating identity of a subnet owner"
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -2079,7 +2087,7 @@ class CLIManager:
 
         [green]$[/green] btcli wallet set_identity
 
-        [bold]Note[/bold]: This command should only be used if the user is willing to incur the 1 TAO transaction fee associated with setting an identity on the blockchain. It is a high-level command that makes changes to the blockchain state and should not be used programmatically as part of other scripts or applications.
+        [bold]Note[/bold]: This command should only be used if the user is willing to incur the a recycle fee associated with setting an identity on the blockchain. It is a high-level command that makes changes to the blockchain state and should not be used programmatically as part of other scripts or applications.
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
@@ -2089,6 +2097,59 @@ class CLIManager:
             ask_for=[WO.HOTKEY, WO.NAME],
             validate=WV.WALLET_AND_HOTKEY,
         )
+
+        if not any(
+            [
+                display_name,
+                legal_name,
+                web_url,
+                riot_handle,
+                email,
+                pgp_fingerprint,
+                image_url,
+                info_,
+                twitter_url,
+            ]
+        ):
+            console.print("[yellow]All fields are optional. Press Enter to skip a field.[/yellow]")
+
+        display_name = display_name or typer.prompt(
+            "Display name", default="", show_default=False
+        )
+        legal_name = legal_name or typer.prompt(
+            "Legal name", default="", show_default=False
+        )
+        web_url = web_url or typer.prompt(
+            "Web URL", default="", show_default=False
+        )
+        riot_handle = riot_handle or typer.prompt(
+            "Riot handle", default="", show_default=False
+        )
+        email = email or typer.prompt(
+            "Email address", default="", show_default=False
+        )
+        pgp_fingerprint = pgp_fingerprint or typer.prompt(
+            "PGP fingerprint (Eg: A1B2 C3D4 E5F6 7890 1234 5678 9ABC DEF0 1234 5678)",
+            default="",
+            show_default=False,
+        )
+        image_url = image_url or typer.prompt(
+            "Image URL", default="", show_default=False
+        )
+        info_ = info_ or typer.prompt("Enter info", default="", show_default=False)
+        twitter_url = twitter_url or typer.prompt(
+            "Twitter (𝕏) URL", default="", show_default=False
+        )
+
+        validator_id = validator_id or Confirm.ask(
+            "Are you updating a [bold blue]validator hotkey[/bold blue] identity or a [bold blue]subnet owner[/bold blue] identity?\n"
+            "Enter [bold green]Y[/bold green] for [bold]validator hotkey[/bold] or [bold red]N[/bold red] for [bold]subnet owner[/bold]",
+            show_choices=True,
+        )
+
+        if validator_id is False:
+            subnet_netuid = IntPrompt.ask("Enter the netuid of the subnet you own")
+
         return self._run_command(
             wallets.set_id(
                 wallet,
@@ -2104,6 +2165,7 @@ class CLIManager:
                 info_,
                 validator_id,
                 prompt,
+                subnet_netuid,
             )
         )
 

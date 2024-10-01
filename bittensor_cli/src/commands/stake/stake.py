@@ -14,7 +14,6 @@ import typer
 
 
 from bittensor_cli.src.bittensor.balances import Balance
-from bittensor_cli.src.bittensor.chain_data import decode_account_id
 from bittensor_cli.src.bittensor.utils import (
     console,
     create_table,
@@ -75,24 +74,6 @@ async def _check_threshold_amount(
         return True, min_req_stake
 
 
-async def _get_hotkey_owner(
-    subtensor: "SubtensorInterface", hotkey_ss58: str, block_hash: str
-) -> Optional[str]:
-    hk_owner_query = await subtensor.substrate.query(
-        module="SubtensorModule",
-        storage_function="Owner",
-        params=[hotkey_ss58],
-        block_hash=block_hash,
-    )
-    val = decode_account_id(hk_owner_query[0])
-    if val:
-        exists = await subtensor.does_hotkey_exist(val, block_hash=block_hash)
-    else:
-        exists = False
-    hotkey_owner = val if exists else None
-    return hotkey_owner
-
-
 async def add_stake_extrinsic(
     subtensor: "SubtensorInterface",
     wallet: Wallet,
@@ -141,7 +122,7 @@ async def add_stake_extrinsic(
         block_hash = await subtensor.substrate.get_chain_head()
         # Get hotkey owner
         print_verbose("Confirming hotkey owner", status)
-        hotkey_owner = await _get_hotkey_owner(
+        hotkey_owner = await subtensor.get_hotkey_owner(
             subtensor, hotkey_ss58=hotkey_ss58, block_hash=block_hash
         )
         own_hotkey = wallet.coldkeypub.ss58_address == hotkey_owner
@@ -532,7 +513,7 @@ async def unstake_extrinsic(
                 hotkey_ss58=hotkey_ss58,
                 block_hash=block_hash,
             ),
-            _get_hotkey_owner(subtensor, hotkey_ss58, block_hash),
+            subtensor.get_hotkey_owner(subtensor, hotkey_ss58, block_hash),
         )
 
         own_hotkey: bool = wallet.coldkeypub.ss58_address == hotkey_owner
@@ -702,7 +683,7 @@ async def unstake_multiple_extrinsic(
             ]
         )
         hotkey_owners_ = asyncio.gather(
-            *[_get_hotkey_owner(subtensor, h, block_hash) for h in hotkey_ss58s]
+            *[subtensor.get_hotkey_owner(subtensor, h, block_hash) for h in hotkey_ss58s]
         )
 
         old_balance, old_stakes, hotkey_owners, threshold = await asyncio.gather(
