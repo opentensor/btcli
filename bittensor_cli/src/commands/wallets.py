@@ -1554,21 +1554,22 @@ async def set_id(
         ):
             console.print(":cross_mark: Aborted!")
             raise typer.Exit()
-    
+
     if validator_id:
         block_hash = await subtensor.substrate.get_chain_head()
 
-        is_registered_on_root, hotkey_owner= await asyncio.gather(
+        is_registered_on_root, hotkey_owner = await asyncio.gather(
             is_hotkey_registered(
                 subtensor, netuid=0, hotkey_ss58=wallet.hotkey.ss58_address
-            ), 
+            ),
             subtensor.get_hotkey_owner(
-            subtensor, hotkey_ss58=wallet.hotkey.ss58_address, block_hash=block_hash
-        ))
+                subtensor, hotkey_ss58=wallet.hotkey.ss58_address, block_hash=block_hash
+            ),
+        )
 
         if not is_registered_on_root:
             print_error("The hotkey is not registered on root. Aborting.")
-            
+
         own_hotkey = wallet.coldkeypub.ss58_address == hotkey_owner
         if not own_hotkey:
             print_error("The hotkey doesn't belong to the coldkey wallet. Aborting.")
@@ -1580,11 +1581,9 @@ async def set_id(
         )
         subnet_owner = decode_account_id(subnet_owner_[0])
         if subnet_owner != wallet.coldkeypub.ss58_address:
-            err_console.print(
-                ":cross_mark: [red]This wallet doesn't own the specified subnet.[/red]"
-            )
+            print_error(f":cross_mark: This wallet doesn't own subnet {subnet_netuid}.")
             return False
-        
+
     try:
         wallet.unlock_coldkey()
     except KeyFileError:
