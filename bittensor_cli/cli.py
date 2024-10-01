@@ -712,11 +712,11 @@ class CLIManager:
         network: Optional[str] = None,
     ) -> SubtensorInterface:
         """
-        Intelligently initializes a connection to the chain, depending on the supplied (or in config) values. Set's the
+        Intelligently initializes a connection to the chain, depending on the supplied (or in config) values. Sets the
         `self.not_subtensor` object to this created connection.
 
-        :param network: Network name (e.g. finney, test, etc.)
-        :param chain: the chain endpoint (e.g. ws://127.0.0.1:9945, wss://entrypoint-finney.opentensor.ai:443, etc.)
+        :param network: Network name (e.g. finney, test, etc.) or
+                        chain endpoint (e.g. ws://127.0.0.1:9945, wss://entrypoint-finney.opentensor.ai:443)
         """
         if not self.not_subtensor:
             if network:
@@ -897,7 +897,9 @@ class CLIManager:
                 if valid_endpoint:
                     if valid_endpoint in Constants.network_map.values():
                         known_network = next(
-                            key for key, value in Constants.network_map.items() if value == network
+                            key
+                            for key, value in Constants.network_map.items()
+                            if value == network
                         )
                         args["network"] = known_network
                         if not Confirm.ask(
@@ -2802,7 +2804,7 @@ class CLIManager:
             wallet_path,
             wallet_hotkey,
             ask_for=([WO.NAME] if not all_wallets else [WO.PATH]),
-            validate=WV.WALLET if not all_wallets else WV.NONE
+            validate=WV.WALLET if not all_wallets else WV.NONE,
         )
         self._run_command(
             root.my_delegates(wallet, self.initialize_chain(network), all_wallets)
@@ -2860,7 +2862,7 @@ class CLIManager:
 
         [green]$[/green] btcli root list_delegates --subtensor.network finney # can also be `test` or `local`
 
-        [blue bold]NOTE[/blue bold]: This commmand is intended for use within a
+        [blue bold]NOTE[/blue bold]: This command is intended for use within a
         console application. It prints directly to the console and does not return any value.
         """
         self.verbosity_handler(quiet, verbose)
@@ -2868,9 +2870,12 @@ class CLIManager:
         if network:
             if network == "finney":
                 network = "wss://archive.chain.opentensor.ai:443"
-        elif self.config.get("network"):
-            if self.config.get("network") == "finney":
-                network = "wss://archive.chain.opentensor.ai:443"
+        elif (conf_net := self.config.get("network")) == "finney":
+            network = "wss://archive.chain.opentensor.ai:443"
+        elif conf_net:
+            network = conf_net
+        else:
+            network = "wss://archive.chain.opentensor.ai:443"
 
         sub = self.initialize_chain(network)
         return self._run_command(root.list_delegates(sub))

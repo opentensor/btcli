@@ -70,7 +70,7 @@ def test_root_commands(local_chain, wallet_setup):
         command="root",
         sub_command="list",
         extra_args=[
-            "--chain",
+            "--network",
             "ws://127.0.0.1:9945",
         ],
     )
@@ -93,7 +93,7 @@ def test_root_commands(local_chain, wallet_setup):
         command="root",
         sub_command="list-delegates",
         extra_args=[
-            "--chain",
+            "--network",
             "ws://127.0.0.1:9945",
         ],
     )
@@ -131,7 +131,7 @@ def test_root_commands(local_chain, wallet_setup):
         extra_args=[
             "--wallet-path",
             wallet_path_bob,
-            "--chain",
+            "--network",
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet_bob.name,
@@ -150,7 +150,7 @@ def test_root_commands(local_chain, wallet_setup):
         command="root",
         sub_command="list-delegates",
         extra_args=[
-            "--chain",
+            "--network",
             "ws://127.0.0.1:9945",
         ],
     )
@@ -168,14 +168,14 @@ def test_root_commands(local_chain, wallet_setup):
         extra_args=[
             "--wallet-path",
             wallet_path_alice,
-            "--chain",
+            "--network",
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet_alice.name,
             "--delegate-ss58key",
             wallet_bob.hotkey.ss58_address,
             "--amount",
-            f"10",
+            "10",
             "--no-prompt",
         ],
     )
@@ -185,13 +185,17 @@ def test_root_commands(local_chain, wallet_setup):
         exec_command=exec_command_alice,
         wallet=wallet_alice,
         delegate_ss58key=wallet_bob.hotkey.ss58_address,
-        delegate_amount=10
+        delegate_amount=10,
     )
 
     check_balance(
         exec_command=exec_command_alice,
         wallet=wallet_alice,
-        expected_balance={'free_balance': 999990.0, 'staked_balance': 10.0, 'total_balance': 1000000.0},
+        expected_balance={
+            "free_balance": 999990.0,
+            "staked_balance": 10.0,
+            "total_balance": 1000000.0,
+        },
     )
 
     # TODO: Ask nucleus the rate limit and wait epoch
@@ -206,14 +210,12 @@ def test_root_commands(local_chain, wallet_setup):
         extra_args=[
             "--wallet-path",
             wallet_path_alice,
-            "--chain",
+            "--network",
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet_alice.name,
             "--delegate-ss58key",
             wallet_bob.hotkey.ss58_address,
-            "--network",
-            "local",
             "--amount",
             f"10",
             "--no-prompt",
@@ -224,7 +226,11 @@ def test_root_commands(local_chain, wallet_setup):
     check_balance(
         exec_command=exec_command_alice,
         wallet=wallet_alice,
-        expected_balance={'free_balance': 1000000.0, 'staked_balance': 0.0, 'total_balance': 1000000.0},
+        expected_balance={
+            "free_balance": 1000000.0,
+            "staked_balance": 0.0,
+            "total_balance": 1000000.0,
+        },
     )
 
     # TODO: Ask nucleus the rate limit and wait epoch
@@ -239,14 +245,12 @@ def test_root_commands(local_chain, wallet_setup):
         extra_args=[
             "--wallet-path",
             wallet_path_alice,
-            "--chain",
+            "--network",
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet_alice.name,
             "--delegate-ss58key",
             wallet_bob.hotkey.ss58_address,
-            "--network",
-            "local",
             "--all",
             "--no-prompt",
         ],
@@ -263,7 +267,11 @@ def test_root_commands(local_chain, wallet_setup):
     check_balance(
         exec_command=exec_command_alice,
         wallet=wallet_alice,
-        expected_balance={'free_balance': 0.0000005, 'staked_balance': 999999.9999995, 'total_balance': 1000000.0},
+        expected_balance={
+            "free_balance": 0.0000005,
+            "staked_balance": 999999.9999995,
+            "total_balance": 1000000.0,
+        },
     )
 
     # TODO: Ask nucleus the rate limit and wait epoch
@@ -278,14 +286,12 @@ def test_root_commands(local_chain, wallet_setup):
         extra_args=[
             "--wallet-path",
             wallet_path_alice,
-            "--chain",
+            "--network",
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet_alice.name,
             "--delegate-ss58key",
             wallet_bob.hotkey.ss58_address,
-            "--network",
-            "local",
             "--all",
             "--no-prompt",
         ],
@@ -295,7 +301,11 @@ def test_root_commands(local_chain, wallet_setup):
     check_balance(
         exec_command=exec_command_alice,
         wallet=wallet_alice,
-        expected_balance={'free_balance': 1000000.0, 'staked_balance': 0.0, 'total_balance': 1000000.0},
+        expected_balance={
+            "free_balance": 1000000.0,
+            "staked_balance": 0.0,
+            "total_balance": 1000000.0,
+        },
     )
 
     print("✅ Passed Root commands")
@@ -309,12 +319,10 @@ def check_my_delegates(exec_command, wallet, delegate_ss58key, delegate_amount):
         extra_args=[
             "--wallet-path",
             wallet.path,
-            "--chain",
+            "--network",
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet.name,
-            "--network",
-            "local",
         ],
     )
     # First row are headers, records start from second row
@@ -345,12 +353,10 @@ def check_balance(exec_command, wallet, expected_balance):
         extra_args=[
             "--wallet-path",
             wallet.path,
-            "--chain",
+            "--network",
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet.name,
-            "--network",
-            "local",
         ],
     )
 
