@@ -2239,7 +2239,7 @@ class CLIManager:
         """
         Set the weights for different subnets, by setting them in the root network.
 
-        To use this command, you should specify the netuids and corresponding weights you wish to assign. This command is used by network senators to influence the distribution of subnet rewards and responsibilities.
+        To use this command, you should specify the netuids and corresponding weights you wish to assign. This command is used by validators registered to the root subnet to influence the distribution of subnet rewards and responsibilities.
 
         You must have a comprehensive understanding of the dynamics of the subnets to use this command. It is a powerful tool that directly impacts the subnet's  operational mechanics and reward distribution.
 
@@ -2506,9 +2506,9 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Register a neuron (a subnet validator or a subnet miner) to a specified subnet by recycling some TAO to cover for the registration cost.
+        Register a neuron to the root subnet by recycling some TAO to cover for the registration cost.
 
-        This command adds a new neuron (a subnet validator or a subnet miner) to a specified subnet, contributing to the decentralization and robustness of Bittensor.
+        This command adds a new neuron as a validator on the root network. This will allow the neuron owner to set subnet weights.
 
         # Usage:
 
@@ -2859,8 +2859,6 @@ class CLIManager:
         EXAMPLE
 
         [green]$[/green] btcli root list_delegates
-
-        [green]$[/green] btcli root list_delegates --wallet-name my_wallet
 
         [green]$[/green] btcli root list_delegates --subtensor.network finney # can also be `test` or `local`
 
