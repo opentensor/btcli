@@ -419,7 +419,10 @@ class CLIManager:
         self.config_path = os.path.expanduser(defaults.config.path)
 
         self.app = typer.Typer(
-            rich_markup_mode="rich", callback=self.main_callback, epilog=_epilog
+            rich_markup_mode="rich",
+            callback=self.main_callback,
+            epilog=_epilog,
+            no_args_is_help=True,
         )
         self.config_app = typer.Typer(epilog=_epilog)
         self.wallet_app = typer.Typer(epilog=_epilog)
@@ -434,51 +437,65 @@ class CLIManager:
             self.config_app,
             name="config",
             short_help="Config commands, aliases: `c`, `conf`",
+            no_args_is_help=True,
         )
-        self.app.add_typer(self.config_app, name="conf", hidden=True)
-        self.app.add_typer(self.config_app, name="c", hidden=True)
+        self.app.add_typer(
+            self.config_app, name="conf", hidden=True, no_args_is_help=True
+        )
+        self.app.add_typer(self.config_app, name="c", hidden=True, no_args_is_help=True)
 
         # wallet aliases
         self.app.add_typer(
             self.wallet_app,
             name="wallet",
             short_help="Wallet commands, aliases: `wallets`, `w`",
+            no_args_is_help=True,
         )
-        self.app.add_typer(self.wallet_app, name="w", hidden=True)
-        self.app.add_typer(self.wallet_app, name="wallets", hidden=True)
+        self.app.add_typer(self.wallet_app, name="w", hidden=True, no_args_is_help=True)
+        self.app.add_typer(
+            self.wallet_app, name="wallets", hidden=True, no_args_is_help=True
+        )
 
         # root aliases
         self.app.add_typer(
             self.root_app,
             name="root",
             short_help="Root commands, alias: `r`",
+            no_args_is_help=True,
         )
-        self.app.add_typer(self.root_app, name="r", hidden=True)
+        self.app.add_typer(self.root_app, name="r", hidden=True, no_args_is_help=True)
 
         # stake aliases
         self.app.add_typer(
             self.stake_app,
             name="stake",
             short_help="Stake commands, alias: `st`",
+            no_args_is_help=True,
         )
-        self.app.add_typer(self.stake_app, name="st", hidden=True)
+        self.app.add_typer(self.stake_app, name="st", hidden=True, no_args_is_help=True)
 
         # sudo aliases
         self.app.add_typer(
             self.sudo_app,
             name="sudo",
             short_help="Sudo commands, alias: `su`",
+            no_args_is_help=True,
         )
-        self.app.add_typer(self.sudo_app, name="su", hidden=True)
+        self.app.add_typer(self.sudo_app, name="su", hidden=True, no_args_is_help=True)
 
         # subnets aliases
         self.app.add_typer(
             self.subnets_app,
             name="subnets",
             short_help="Subnets commands, alias: `s`, `subnet`",
+            no_args_is_help=True,
         )
-        self.app.add_typer(self.subnets_app, name="s", hidden=True)
-        self.app.add_typer(self.subnets_app, name="subnet", hidden=True)
+        self.app.add_typer(
+            self.subnets_app, name="s", hidden=True, no_args_is_help=True
+        )
+        self.app.add_typer(
+            self.subnets_app, name="subnet", hidden=True, no_args_is_help=True
+        )
 
         # weights aliases
         self.app.add_typer(
@@ -486,9 +503,14 @@ class CLIManager:
             name="weights",
             short_help="Weights commands, aliases: `wt`, `weight`",
             hidden=True,
+            no_args_is_help=True,
         )
-        self.app.add_typer(self.weights_app, name="wt", hidden=True)
-        self.app.add_typer(self.weights_app, name="weight", hidden=True)
+        self.app.add_typer(
+            self.weights_app, name="wt", hidden=True, no_args_is_help=True
+        )
+        self.app.add_typer(
+            self.weights_app, name="weight", hidden=True, no_args_is_help=True
+        )
 
         # config commands
         self.config_app.command("set")(self.set_config)
@@ -610,8 +632,11 @@ class CLIManager:
             name="child",
             short_help="Child Hotkey commands, alias: `children`",
             rich_help_panel=HELP_PANELS["STAKE"]["CHILD"],
+            no_args_is_help=True,
         )
-        self.stake_app.add_typer(children_app, name="children", hidden=True)
+        self.stake_app.add_typer(
+            children_app, name="children", hidden=True, no_args_is_help=True
+        )
         children_app.command("get")(self.stake_get_children)
         children_app.command("set")(self.stake_set_children)
         children_app.command("revoke")(self.stake_revoke_children)
