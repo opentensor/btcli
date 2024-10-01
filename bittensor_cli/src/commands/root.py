@@ -618,7 +618,7 @@ async def delegate_extrinsic(
             f"\n[bold blue]Current stake[/bold blue]: [blue]{my_prev_delegated_stake}[/blue]\n"
             f"[bold white]Do you want to {delegate_string}:[/bold white]\n"
             f"  [bold red]amount[/bold red]: [red]{staking_balance}\n[/red]"
-            f"  [bold yellow]to hotkey[/bold yellow]: [yellow]{delegate_ss58}\n[/yellow]"
+            f"  [bold yellow]{"to" if delegate_string == "delegate" else "from"} hotkey[/bold yellow]: [yellow]{delegate_ss58}\n[/yellow]"
             f"  [bold green]hotkey owner[/bold green]: [green]{delegate_owner}[/green]"
         ):
             return False
