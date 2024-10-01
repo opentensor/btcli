@@ -46,7 +46,7 @@ from textwrap import dedent
 from websockets import ConnectionClosed
 from yaml import safe_dump, safe_load
 
-__version__ = "8.0.0"
+__version__ = "8.1.0"
 
 _core_version = re.match(r"^\d+\.\d+\.\d+", __version__).group(0)
 _version_split = _core_version.split(".")
