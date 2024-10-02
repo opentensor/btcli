@@ -2139,7 +2139,7 @@ class CLIManager:
             email = email or text_rejection("Email address")
             pgp_fingerprint = pgp_fingerprint or retry_prompt(
                 "PGP fingerprint (Eg: A1B2 C3D4 E5F6 7890 1234 5678 9ABC DEF0 1234 5678)",
-                lambda s: "" if not s else pgp_check(s),
+                lambda s: False if not s else pgp_check(s),
                 "[red]Error:[/red] PGP Fingerprint must be exactly 20 bytes.",
             )
             image_url = image_url or text_rejection("Image URL")
