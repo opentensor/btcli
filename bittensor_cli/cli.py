@@ -381,10 +381,10 @@ class CLIManager:
     :var stake_app: the Typer app as it relates to stake commands
     :var sudo_app: the Typer app as it relates to sudo commands
     :var subnets_app: the Typer app as it relates to subnets commands
-    :var not_subtensor: the `SubtensorInterface` object passed to the various commands that require it
+    :var subtensor: the `SubtensorInterface` object passed to the various commands that require it
     """
 
-    not_subtensor: Optional[SubtensorInterface]
+    subtensor: Optional[SubtensorInterface]
     app: typer.Typer
     config_app: typer.Typer
     wallet_app: typer.Typer
@@ -417,7 +417,7 @@ class CLIManager:
                 "COLDKEY": True,
             },
         }
-        self.not_subtensor = None
+        self.subtensor = None
         self.config_base_path = os.path.expanduser(defaults.config.base_path)
         self.config_path = os.path.expanduser(defaults.config.path)
 
@@ -741,22 +741,22 @@ class CLIManager:
     ) -> SubtensorInterface:
         """
         Intelligently initializes a connection to the chain, depending on the supplied (or in config) values. Sets the
-        `self.not_subtensor` object to this created connection.
+        `self.subtensor` object to this created connection.
 
         :param network: Network name (e.g. finney, test, etc.) or
                         chain endpoint (e.g. ws://127.0.0.1:9945, wss://entrypoint-finney.opentensor.ai:443)
         """
-        if not self.not_subtensor:
+        if not self.subtensor:
             if network:
-                self.not_subtensor = SubtensorInterface(network)
+                self.subtensor = SubtensorInterface(network)
             elif self.config["network"]:
-                self.not_subtensor = SubtensorInterface(self.config["network"])
+                self.subtensor = SubtensorInterface(self.config["network"])
                 console.print(
                     f"Using the specified network [dark_orange]{self.config['network']}[/dark_orange] from config"
                 )
             else:
-                self.not_subtensor = SubtensorInterface(defaults.subtensor.network)
-        return self.not_subtensor
+                self.subtensor = SubtensorInterface(defaults.subtensor.network)
+        return self.subtensor
 
     def _run_command(self, cmd: Coroutine) -> None:
         """
@@ -765,16 +765,14 @@ class CLIManager:
 
         async def _run():
             try:
-                if self.not_subtensor:
-                    async with self.not_subtensor:
+                if self.subtensor:
+                    async with self.subtensor:
                         result = await cmd
                 else:
                     result = await cmd
                 return result
             except (ConnectionRefusedError, ssl.SSLError):
-                err_console.print(
-                    f"Unable to connect to the chain: {self.not_subtensor}"
-                )
+                err_console.print(f"Unable to connect to the chain: {self.subtensor}")
                 asyncio.create_task(cmd).cancel()
                 raise typer.Exit()
             except ConnectionClosed:
@@ -1429,7 +1427,7 @@ class CLIManager:
         )
         self.initialize_chain(network)
         return self._run_command(
-            wallets.swap_hotkey(original_wallet, new_wallet, self.not_subtensor, prompt)
+            wallets.swap_hotkey(original_wallet, new_wallet, self.subtensor, prompt)
         )
 
     def wallet_inspect(
@@ -1499,7 +1497,7 @@ class CLIManager:
         return self._run_command(
             wallets.inspect(
                 wallet,
-                self.not_subtensor,
+                self.subtensor,
                 netuids_filter=netuids,
                 all_wallets=all_wallets,
             )
@@ -1888,7 +1886,7 @@ class CLIManager:
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         self.initialize_chain(network)
-        return self._run_command(wallets.check_coldkey_swap(wallet, self.not_subtensor))
+        return self._run_command(wallets.check_coldkey_swap(wallet, self.subtensor))
 
     def wallet_create_wallet(
         self,
