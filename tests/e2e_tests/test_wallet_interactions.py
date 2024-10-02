@@ -354,7 +354,7 @@ def test_wallet_transfer(local_chain, wallet_setup):
     )
 
     # This transfer is expected to fail due to low balance
-    assert "❌ Not enough balance" in result.stdout
+    assert "❌ Not enough balance" in result.stderr
     print("✅Passed wallet transfer, balance command")
 
 
