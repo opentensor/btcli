@@ -20,6 +20,7 @@ from rich.prompt import Confirm, Prompt
 from rich.table import Column, Table
 from rich.tree import Tree
 from rich.padding import Padding
+from rich.prompt import IntPrompt
 from scalecodec import ScaleBytes
 import scalecodec
 import typer
@@ -1438,7 +1439,9 @@ async def swap_hotkey(
     )
 
 
-def set_id_prompts() -> tuple[str, str, str, str, str, str, str, str, str, bool]:
+def set_id_prompts(
+    validator: bool,
+) -> tuple[str, str, str, str, str, str, str, str, str, bool, int]:
     """
     Used to prompt the user to input their info for setting the ID
     :return: (display_name, legal_name, web_url, riot_handle, email,pgp_fingerprint, image_url, info_, twitter_url,
@@ -1466,20 +1469,16 @@ def set_id_prompts() -> tuple[str, str, str, str, str, str, str, str, str, bool]
     email = text_rejection("Email address")
     pgp_fingerprint = retry_prompt(
         "PGP fingerprint (Eg: A1B2 C3D4 E5F6 7890 1234 5678 9ABC DEF0 1234 5678)",
-        pgp_check,
+        lambda s: "" if not s else pgp_check(s),
         "[red]Error:[/red] PGP Fingerprint must be exactly 20 bytes.",
     )
     image_url = text_rejection("Image URL")
     info_ = text_rejection("Enter info")
-    twitter_url = typer.prompt("𝕏 (Twitter) URL")
+    twitter_url = text_rejection("𝕏 (Twitter) URL")
 
-    validator_id = Confirm.ask(
-        "Are you updating a [bold blue]validator hotkey[/bold blue] identity or a [bold blue]subnet "
-        "owner[/bold blue] identity?\n"
-        "Enter [bold green]Y[/bold green] for [bold]validator hotkey[/bold] or [bold red]N[/bold red] for "
-        "[bold]subnet owner[/bold]",
-        show_choices=True,
-    )
+    subnet_netuid = None
+    if validator is False:
+        subnet_netuid = IntPrompt.ask("Enter the netuid of the subnet you own")
 
     return (
         display_name,
@@ -1491,7 +1490,8 @@ def set_id_prompts() -> tuple[str, str, str, str, str, str, str, str, str, bool]
         image_url,
         twitter_url,
         info_,
-        validator_id,
+        validator,
+        subnet_netuid,
     )
 
 
@@ -1508,25 +1508,17 @@ async def set_id(
     twitter: str,
     info_: str,
     validator_id: bool,
-    prompt: bool,
     subnet_netuid: int,
+    prompt: bool,
 ):
     """Create a new or update existing identity on-chain."""
-
-    try:
-        if pgp_fingerprint.startswith("0x"):
-            pgp_fingerprint = pgp_fingerprint[2:]  # Strip '0x'
-        pgp_fingerprint_encoded = binascii.unhexlify(pgp_fingerprint.replace(" ", ""))
-    except Exception as e:
-        print_error(f"The PGP is not in the correct format: {e}")
-        raise typer.Exit()
 
     id_dict = {
         "additional": [[]],
         "display": display_name,
         "legal": legal_name,
         "web": web_url,
-        "pgp_fingerprint": pgp_fingerprint_encoded,
+        "pgp_fingerprint": pgp_fingerprint,
         "riot": riot_handle,
         "email": email,
         "image": image,
@@ -1538,7 +1530,7 @@ async def set_id(
         if (
             field == "pgp_fingerprint"
             and pgp_fingerprint
-            and len(pgp_fingerprint_encoded) != 20
+            and len(pgp_fingerprint) != 20
         ):
             err_console.print(
                 "[red]Error:[/red] PGP Fingerprint must be exactly 20 bytes."
@@ -1562,7 +1554,7 @@ async def set_id(
             "web": {f"Raw{len(web_url.encode())}": web_url.encode()},
             "riot": {f"Raw{len(riot_handle.encode())}": riot_handle.encode()},
             "email": {f"Raw{len(email.encode())}": email.encode()},
-            "pgp_fingerprint": pgp_fingerprint_encoded if pgp_fingerprint else None,
+            "pgp_fingerprint": pgp_fingerprint if pgp_fingerprint else None,
             "image": {f"Raw{len(image.encode())}": image.encode()},
             "info": {f"Raw{len(info_.encode())}": info_.encode()},
             "twitter": {f"Raw{len(twitter.encode())}": twitter.encode()},

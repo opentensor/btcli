@@ -1749,10 +1749,8 @@ async def nominate(wallet: Wallet, subtensor: SubtensorInterface, prompt: bool):
 
         # Prompt use to set identity on chain.
         if prompt:
-            do_set_identity = Confirm.ask(
-                "Subnetwork registered successfully. Would you like to set your identity? [y/n]"
-            )
+            do_set_identity = Confirm.ask("Would you like to set your identity? [y/n]")
 
             if do_set_identity:
-                id_prompts = set_id_prompts()
+                id_prompts = set_id_prompts(validator=True)
                 await set_id(wallet, subtensor, *id_prompts, prompt=prompt)
