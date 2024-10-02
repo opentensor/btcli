@@ -888,9 +888,7 @@ class SubtensorInterface:
         )
         val = decode_account_id(hk_owner_query[0])
         if val:
-            exists = await self.does_hotkey_exist(
-                hotkey_ss58, block_hash=block_hash
-            )
+            exists = await self.does_hotkey_exist(hotkey_ss58, block_hash=block_hash)
         else:
             exists = False
         hotkey_owner = val if exists else None
