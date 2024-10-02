@@ -27,8 +27,8 @@ from numpy.typing import NDArray
 from rich.prompt import Confirm
 from rich.table import Table, Column
 from scalecodec import ScaleBytes, U16, Vec
-from substrateinterface import Keypair
-
+# from substrateinterface import Keypair
+from bittensor_wallet import Keypair
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.extrinsics.registration import is_hotkey_registered
 from bittensor_cli.src.bittensor.utils import (

@@ -1,3 +1,5 @@
+from time import sleep
+
 from bittensor_cli.src.bittensor.balances import Balance
 from tests.e2e_tests.utils import (
     extract_coldkey_balance,
@@ -60,6 +62,8 @@ def test_wallet_overview_inspect(local_chain, wallet_setup):
     )
     assert f"✅ Registered subnetwork with netuid: {netuid}" in result.stdout
 
+    sleep(3)
+
     # List all the subnets in the network
     subnets_list = exec_command(
         command="subnets",
@@ -71,6 +75,8 @@ def test_wallet_overview_inspect(local_chain, wallet_setup):
             "local",
         ],
     )
+
+    sleep(3)
 
     # Assert using regex that the subnet is visible in subnets list
     assert verify_subnet_entry(subnets_list.stdout, netuid, keypair.ss58_address)
@@ -455,6 +461,7 @@ def test_wallet_identities(local_chain, wallet_setup):
             wallet_alice.hotkey.ss58_address,
         ],
     )
+    # print(get_identity.stdout)
 
     # Assert all correct values are being fetched for the ID we just set
     get_identity_output = get_identity.stdout.splitlines()

@@ -11,7 +11,7 @@ from scalecodec import GenericExtrinsic
 from scalecodec.base import ScaleBytes, ScaleType, RuntimeConfigurationObject
 from scalecodec.type_registry import load_type_registry_preset
 from scalecodec.types import GenericCall
-from substrateinterface import Keypair
+from bittensor_wallet import Keypair
 from substrateinterface.exceptions import (
     SubstrateRequestException,
     ExtrinsicNotFound,

@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING, Any, Collection, Optional, Union
 
 import numpy as np
 import scalecodec
-from bittensor_wallet import Wallet
-from bittensor_wallet.keyfile import Keypair
-from bittensor_wallet.utils import SS58_FORMAT, ss58
+from bittensor_wallet import Wallet, Keypair
+from bittensor_wallet.utils import SS58_FORMAT
+from bittensor_wallet import utils
 from jinja2 import Template
 from markupsafe import Markup
 from numpy.typing import NDArray
@@ -300,10 +300,8 @@ def is_valid_ss58_address(address: str) -> bool:
     :return: `True` if the address is a valid ss58 address for Bittensor, `False` otherwise.
     """
     try:
-        return ss58.is_valid_ss58_address(
-            address, valid_ss58_format=SS58_FORMAT
-        ) or ss58.is_valid_ss58_address(
-            address, valid_ss58_format=42
+        return utils.is_valid_ss58_address(
+            address
         )  # Default substrate ss58 format (legacy)
     except IndexError:
         return False

@@ -6,9 +6,8 @@ import sys
 from typing import List, Tuple, TYPE_CHECKING
 
 from bittensor_cli.cli import CLIManager
-from substrateinterface import Keypair
+from bittensor_wallet import Keypair, Wallet
 from typer.testing import CliRunner
-from bittensor_wallet import Wallet
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.async_substrate_interface import AsyncSubstrateInterface

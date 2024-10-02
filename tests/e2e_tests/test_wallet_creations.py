@@ -364,7 +364,7 @@ def test_wallet_regen(wallet_setup):
     )
 
     # Wait a bit to ensure file system updates modification time
-    time.sleep(1)
+    time.sleep(30)
 
     new_coldkey_mod_time = os.path.getmtime(coldkey_path)
 
