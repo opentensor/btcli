@@ -337,6 +337,11 @@ def test_wallet_regen(wallet_setup):
         ],
     )
 
+    # Check for an exception first
+    assert result.exception is None
+    # Verify the command has output, as expected
+    assert result.stdout is not None
+
     mnemonics = extract_mnemonics_from_commands(result.stdout)
 
     wallet_status, message = verify_wallet_dir(
