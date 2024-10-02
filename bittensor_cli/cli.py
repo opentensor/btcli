@@ -2139,12 +2139,12 @@ class CLIManager:
             email = email or text_rejection("Email address")
             pgp_fingerprint = pgp_fingerprint or retry_prompt(
                 "PGP fingerprint (Eg: A1B2 C3D4 E5F6 7890 1234 5678 9ABC DEF0 1234 5678)",
-                pgp_check,
+                lambda s: False if not s else pgp_check(s),
                 "[red]Error:[/red] PGP Fingerprint must be exactly 20 bytes.",
             )
             image_url = image_url or text_rejection("Image URL")
             info_ = info_ or text_rejection("Enter info")
-            twitter_url = twitter_url or typer.prompt("𝕏 (Twitter) URL")
+            twitter_url = twitter_url or text_rejection("𝕏 (Twitter) URL")
 
             validator_id = validator_id or Confirm.ask(
                 "Are you updating a [bold blue]validator hotkey[/bold blue] identity or a [bold blue]subnet "
