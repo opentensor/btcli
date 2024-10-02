@@ -114,15 +114,10 @@ async def regen_hotkey(
             json_str = f.read()
 
     try:
-        json_tuple = (
-            (json_str or "", json_password or "")
-            if any([json_str, json_password])
-            else None
-        )
         wallet.regenerate_hotkey(
             mnemonic=mnemonic,
             seed=seed,
-            json=json_tuple,
+            json=(json_str, json_password) if all([json_str, json_password]) else None,
             use_password=use_password,
             overwrite=False,
         )
