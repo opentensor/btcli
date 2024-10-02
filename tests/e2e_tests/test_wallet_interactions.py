@@ -398,7 +398,7 @@ def test_wallet_identities(local_chain, wallet_setup):
             alice_identity["info"],
             "-x",
             alice_identity["twitter"],
-            "--validator-id",
+            "--validator",
             "--no-prompt",
         ],
     )

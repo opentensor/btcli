@@ -1563,7 +1563,7 @@ async def set_id(
                 subtensor, netuid=0, hotkey_ss58=wallet.hotkey.ss58_address
             ),
             subtensor.get_hotkey_owner(
-                subtensor, hotkey_ss58=wallet.hotkey.ss58_address, block_hash=block_hash
+                hotkey_ss58=wallet.hotkey.ss58_address, block_hash=block_hash
             ),
         )
 

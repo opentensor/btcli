@@ -878,9 +878,9 @@ class SubtensorInterface:
         return return_val
 
     async def get_hotkey_owner(
-        subtensor: "SubtensorInterface", hotkey_ss58: str, block_hash: str
+        self, hotkey_ss58: str, block_hash: str
     ) -> Optional[str]:
-        hk_owner_query = await subtensor.substrate.query(
+        hk_owner_query = await self.substrate.query(
             module="SubtensorModule",
             storage_function="Owner",
             params=[hotkey_ss58],
@@ -888,7 +888,7 @@ class SubtensorInterface:
         )
         val = decode_account_id(hk_owner_query[0])
         if val:
-            exists = await subtensor.does_hotkey_exist(
+            exists = await self.does_hotkey_exist(
                 hotkey_ss58, block_hash=block_hash
             )
         else:

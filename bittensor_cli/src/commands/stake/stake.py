@@ -123,7 +123,7 @@ async def add_stake_extrinsic(
         # Get hotkey owner
         print_verbose("Confirming hotkey owner", status)
         hotkey_owner = await subtensor.get_hotkey_owner(
-            subtensor, hotkey_ss58=hotkey_ss58, block_hash=block_hash
+            hotkey_ss58=hotkey_ss58, block_hash=block_hash
         )
         own_hotkey = wallet.coldkeypub.ss58_address == hotkey_owner
         if not own_hotkey:
@@ -513,7 +513,7 @@ async def unstake_extrinsic(
                 hotkey_ss58=hotkey_ss58,
                 block_hash=block_hash,
             ),
-            subtensor.get_hotkey_owner(subtensor, hotkey_ss58, block_hash),
+            subtensor.get_hotkey_owner(hotkey_ss58, block_hash),
         )
 
         own_hotkey: bool = wallet.coldkeypub.ss58_address == hotkey_owner
@@ -683,7 +683,7 @@ async def unstake_multiple_extrinsic(
             ]
         )
         hotkey_owners_ = asyncio.gather(
-            *[subtensor.get_hotkey_owner(subtensor, h, block_hash) for h in hotkey_ss58s]
+            *[subtensor.get_hotkey_owner(h, block_hash) for h in hotkey_ss58s]
         )
 
         old_balance, old_stakes, hotkey_owners, threshold = await asyncio.gather(
