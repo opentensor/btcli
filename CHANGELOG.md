@@ -1,5 +1,28 @@
 # Changelog
 
+## 8.1.0 /2024-10-02
+
+## What's Changed
+* Allow for delegate take between 0 and 18% by @garrett-opentensor in https://github.com/opentensor/btcli/pull/123
+* Fixed: wallet balance check when undelegating the stake by @the-mx in https://github.com/opentensor/btcli/pull/124
+* `root my-delegates` ask for path instead of name when using `--all` by @thewhaleking in https://github.com/opentensor/btcli/pull/126
+* Fix/delegate all by @the-mx in https://github.com/opentensor/btcli/pull/125
+* Handle SSL errors and avoid unnecessary chain head calls by @thewhaleking in https://github.com/opentensor/btcli/pull/127
+* Deprecate: Remove chain config by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/128
+* Update staging by @thewhaleking in https://github.com/opentensor/btcli/pull/130
+* set archive node properly by @thewhaleking in https://github.com/opentensor/btcli/pull/143
+* Randomise rpc request ID by @thewhaleking in https://github.com/opentensor/btcli/pull/131
+* update help text in the BTCLI by @dougsillars in https://github.com/opentensor/btcli/pull/139
+* Backmerge/main to staging - 1st oct by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/145
+* Backmerge main to staging by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/147
+* Updates "btcli w set-identity" by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/146
+
+## New Contributors
+* @the-mx made their first contribution in https://github.com/opentensor/btcli/pull/124
+* @dougsillars made their first contribution in https://github.com/opentensor/btcli/pull/139
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v8.0.0...v8.1.0
+
 ## 8.0.0 /2024-09-25
 
 ## What's Changed
