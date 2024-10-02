@@ -1,7 +1,7 @@
 import time
 
 from bittensor_cli.src.bittensor.balances import Balance
-from tests.e2e_tests.utils import extract_coldkey_balance
+from .utils import extract_coldkey_balance
 
 """
 Verify commands:

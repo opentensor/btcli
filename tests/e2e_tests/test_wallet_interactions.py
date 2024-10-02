@@ -1,7 +1,7 @@
 from time import sleep
 
 from bittensor_cli.src.bittensor.balances import Balance
-from tests.e2e_tests.utils import (
+from .utils import (
     extract_coldkey_balance,
     validate_wallet_inspect,
     validate_wallet_overview,
