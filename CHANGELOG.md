@@ -16,6 +16,8 @@
 * Backmerge/main to staging - 1st oct by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/145
 * Backmerge main to staging by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/147
 * Updates "btcli w set-identity" by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/146
+* Give recent commit in version by @thewhaleking in https://github.com/opentensor/btcli/pull/156
+* Rename `not_subtensor` to `subtensor` by @thewhaleking in https://github.com/opentensor/btcli/pull/157
 
 ## New Contributors
 * @the-mx made their first contribution in https://github.com/opentensor/btcli/pull/124
