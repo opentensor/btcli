@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 import asyncio
+import binascii
 import curses
+from functools import partial
 import os.path
 import re
 import ssl
 import sys
 from pathlib import Path
-from typing import Coroutine, Optional
+from typing import Coroutine, Optional, Callable
 from dataclasses import fields
 
 import rich
@@ -211,6 +213,35 @@ def list_prompt(init_var: list, list_type: type, help_text: str) -> list:
         prompt = Prompt.ask(help_text)
         init_var = [list_type(x) for x in re.split(r"[ ,]+", prompt) if x]
     return init_var
+
+
+def retry_prompt(
+    helper_text: str,
+    rejection: Callable,
+    rejection_text: str,
+    default="",
+    show_default=False,
+    prompt_type=typer.prompt,
+):
+    """
+    Allows for asking prompts again if they do not meet a certain criteria (as defined in `rejection`)
+    Args:
+        helper_text: The helper text to display for the prompt
+        rejection: A function that returns True if the input should be rejected, and False if it should be accepted
+        rejection_text: The text to display to the user if their input hits the rejection
+        default: the default value to use for the prompt, default ""
+        show_default: whether to show the default, default False
+        prompt_type: the type of prompt, default typer.prompt
+
+    Returns: the input value (or default)
+
+    """
+    while True:
+        var = prompt_type(helper_text, default=default, show_default=show_default)
+        if not rejection(var):
+            return var
+        else:
+            err_console.print(rejection_text)
 
 
 def parse_to_list(
@@ -2066,7 +2097,7 @@ class CLIManager:
         subnet_netuid: Optional[int] = typer.Option(
             None,
             "--netuid",
-            help="Netuid if you are updating identity of a subnet owner"
+            help="Netuid if you are updating identity of a subnet owner",
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -2111,63 +2142,67 @@ class CLIManager:
                 twitter_url,
             ]
         ):
-            console.print("[yellow]All fields are optional. Press Enter to skip a field.[/yellow]")
-
-        display_name = display_name or typer.prompt(
-            "Display name", default="", show_default=False
-        )
-        legal_name = legal_name or typer.prompt(
-            "Legal name", default="", show_default=False
-        )
-        web_url = web_url or typer.prompt(
-            "Web URL", default="", show_default=False
-        )
-        riot_handle = riot_handle or typer.prompt(
-            "Riot handle", default="", show_default=False
-        )
-        email = email or typer.prompt(
-            "Email address", default="", show_default=False
-        )
-        pgp_fingerprint = pgp_fingerprint or typer.prompt(
-            "PGP fingerprint (Eg: A1B2 C3D4 E5F6 7890 1234 5678 9ABC DEF0 1234 5678)",
-            default="",
-            show_default=False,
-        )
-        image_url = image_url or typer.prompt(
-            "Image URL", default="", show_default=False
-        )
-        info_ = info_ or typer.prompt("Enter info", default="", show_default=False)
-        twitter_url = twitter_url or typer.prompt(
-            "Twitter (𝕏) URL", default="", show_default=False
-        )
-
-        validator_id = validator_id or Confirm.ask(
-            "Are you updating a [bold blue]validator hotkey[/bold blue] identity or a [bold blue]subnet owner[/bold blue] identity?\n"
-            "Enter [bold green]Y[/bold green] for [bold]validator hotkey[/bold] or [bold red]N[/bold red] for [bold]subnet owner[/bold]",
-            show_choices=True,
-        )
-
-        if validator_id is False:
-            subnet_netuid = IntPrompt.ask("Enter the netuid of the subnet you own")
-
-        return self._run_command(
-            wallets.set_id(
-                wallet,
-                self.initialize_chain(network),
-                display_name,
-                legal_name,
-                web_url,
-                pgp_fingerprint,
-                riot_handle,
-                email,
-                image_url,
-                twitter_url,
-                info_,
-                validator_id,
-                prompt,
-                subnet_netuid,
+            console.print(
+                "[yellow]All fields are optional. Press Enter to skip a field.[/yellow]"
             )
-        )
+            text_rejection = partial(
+                retry_prompt,
+                rejection=lambda x: sys.getsizeof(x) > 113,
+                rejection_text="[red]Error:[/red] Identity field must be <= 64 raw bytes.",
+            )
+
+            def pgp_check(s: str):
+                try:
+                    if s.startswith("0x"):
+                        s = s[2:]  # Strip '0x'
+                    pgp_fingerprint_encoded = binascii.unhexlify(s.replace(" ", ""))
+                except Exception:
+                    return True
+                return True if len(pgp_fingerprint_encoded) != 20 else False
+
+            display_name = display_name or text_rejection("Display name")
+            legal_name = legal_name or text_rejection("Legal name")
+            web_url = web_url or text_rejection("Web URL")
+            riot_handle = riot_handle or text_rejection("Riot handle")
+            email = email or text_rejection("Email address")
+            pgp_fingerprint = pgp_fingerprint or retry_prompt(
+                "PGP fingerprint (Eg: A1B2 C3D4 E5F6 7890 1234 5678 9ABC DEF0 1234 5678)",
+                pgp_check,
+                "[red]Error:[/red] PGP Fingerprint must be exactly 20 bytes.",
+            )
+            image_url = image_url or text_rejection("Image URL")
+            info_ = info_ or text_rejection("Enter info")
+            twitter_url = twitter_url or typer.prompt("𝕏 (Twitter) URL")
+
+            validator_id = validator_id or Confirm.ask(
+                "Are you updating a [bold blue]validator hotkey[/bold blue] identity or a [bold blue]subnet "
+                "owner[/bold blue] identity?\n"
+                "Enter [bold green]Y[/bold green] for [bold]validator hotkey[/bold] or [bold red]N[/bold red] for "
+                "[bold]subnet owner[/bold]",
+                show_choices=True,
+            )
+
+            if validator_id is False:
+                subnet_netuid = IntPrompt.ask("Enter the netuid of the subnet you own")
+
+            return self._run_command(
+                wallets.set_id(
+                    wallet,
+                    self.initialize_chain(network),
+                    display_name,
+                    legal_name,
+                    web_url,
+                    pgp_fingerprint,
+                    riot_handle,
+                    email,
+                    image_url,
+                    twitter_url,
+                    info_,
+                    validator_id,
+                    prompt,
+                    subnet_netuid,
+                )
+            )
 
     def wallet_get_id(
         self,
