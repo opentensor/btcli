@@ -2157,24 +2157,24 @@ class CLIManager:
             if validator_id is False:
                 subnet_netuid = IntPrompt.ask("Enter the netuid of the subnet you own")
 
-            return self._run_command(
-                wallets.set_id(
-                    wallet,
-                    self.initialize_chain(network),
-                    display_name,
-                    legal_name,
-                    web_url,
-                    pgp_fingerprint,
-                    riot_handle,
-                    email,
-                    image_url,
-                    twitter_url,
-                    info_,
-                    validator_id,
-                    prompt,
-                    subnet_netuid,
-                )
+        return self._run_command(
+            wallets.set_id(
+                wallet,
+                self.initialize_chain(network),
+                display_name,
+                legal_name,
+                web_url,
+                pgp_fingerprint,
+                riot_handle,
+                email,
+                image_url,
+                twitter_url,
+                info_,
+                validator_id,
+                prompt,
+                subnet_netuid,
             )
+        )
 
     def wallet_get_id(
         self,
