@@ -8,7 +8,7 @@ import re
 import ssl
 import sys
 from pathlib import Path
-from typing import Coroutine, Optional, Callable
+from typing import Coroutine, Optional
 from dataclasses import fields
 
 import rich
@@ -42,6 +42,7 @@ from bittensor_cli.src.bittensor.utils import (
     is_valid_ss58_address,
     print_error,
     validate_chain_endpoint,
+    retry_prompt,
 )
 from typing_extensions import Annotated
 from textwrap import dedent
@@ -213,35 +214,6 @@ def list_prompt(init_var: list, list_type: type, help_text: str) -> list:
         prompt = Prompt.ask(help_text)
         init_var = [list_type(x) for x in re.split(r"[ ,]+", prompt) if x]
     return init_var
-
-
-def retry_prompt(
-    helper_text: str,
-    rejection: Callable,
-    rejection_text: str,
-    default="",
-    show_default=False,
-    prompt_type=typer.prompt,
-):
-    """
-    Allows for asking prompts again if they do not meet a certain criteria (as defined in `rejection`)
-    Args:
-        helper_text: The helper text to display for the prompt
-        rejection: A function that returns True if the input should be rejected, and False if it should be accepted
-        rejection_text: The text to display to the user if their input hits the rejection
-        default: the default value to use for the prompt, default ""
-        show_default: whether to show the default, default False
-        prompt_type: the type of prompt, default typer.prompt
-
-    Returns: the input value (or default)
-
-    """
-    while True:
-        var = prompt_type(helper_text, default=default, show_default=show_default)
-        if not rejection(var):
-            return var
-        else:
-            err_console.print(rejection_text)
 
 
 def parse_to_list(

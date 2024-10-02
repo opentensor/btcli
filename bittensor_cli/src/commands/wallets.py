@@ -2,8 +2,10 @@ import asyncio
 import binascii
 import itertools
 import os
+import sys
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 from sys import getsizeof
 from typing import Any, Collection, Generator, Optional
 
@@ -52,6 +54,7 @@ from bittensor_cli.src.bittensor.utils import (
     get_hotkey_wallets_for_wallet,
     is_valid_ss58_address,
     validate_coldkey_presence,
+    retry_prompt,
 )
 
 
@@ -1441,22 +1444,35 @@ def set_id_prompts() -> tuple[str, str, str, str, str, str, str, str, str, bool]
     :return: (display_name, legal_name, web_url, riot_handle, email,pgp_fingerprint, image_url, info_, twitter_url,
              validator_id)
     """
-    display_name = Prompt.ask(
-        "Display Name: The display name for the identity.", default=""
+    text_rejection = partial(
+        retry_prompt,
+        rejection=lambda x: sys.getsizeof(x) > 113,
+        rejection_text="[red]Error:[/red] Identity field must be <= 64 raw bytes.",
     )
-    legal_name = Prompt.ask("Legal Name: The legal name for the identity.", default="")
-    web_url = Prompt.ask("Web URL: The web url for the identity.", default="")
-    riot_handle = Prompt.ask(
-        "Riot Handle: The riot handle for the identity.", default=""
-    )
-    email = Prompt.ask("Email: The email address for the identity.", default="")
-    pgp_fingerprint = Prompt.ask(
+
+    def pgp_check(s: str):
+        try:
+            if s.startswith("0x"):
+                s = s[2:]  # Strip '0x'
+            pgp_fingerprint_encoded = binascii.unhexlify(s.replace(" ", ""))
+        except Exception:
+            return True
+        return True if len(pgp_fingerprint_encoded) != 20 else False
+
+    display_name = text_rejection("Display name")
+    legal_name = text_rejection("Legal name")
+    web_url = text_rejection("Web URL")
+    riot_handle = text_rejection("Riot handle")
+    email = text_rejection("Email address")
+    pgp_fingerprint = retry_prompt(
         "PGP fingerprint (Eg: A1B2 C3D4 E5F6 7890 1234 5678 9ABC DEF0 1234 5678)",
-        default="",
+        pgp_check,
+        "[red]Error:[/red] PGP Fingerprint must be exactly 20 bytes.",
     )
-    image_url = Prompt.ask("Image URL: The image url for the identity.", default="")
-    info_ = Prompt.ask("Info: Info about the identity", default="")
-    twitter_url = Prompt.ask("𝕏 URL: The 𝕏 (Twitter) url for the identity.")
+    image_url = text_rejection("Image URL")
+    info_ = text_rejection("Enter info")
+    twitter_url = typer.prompt("𝕏 (Twitter) URL")
+
     validator_id = Confirm.ask(
         "Are you updating a [bold blue]validator hotkey[/bold blue] identity or a [bold blue]subnet "
         "owner[/bold blue] identity?\n"
