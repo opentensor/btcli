@@ -362,9 +362,11 @@ def version_callback(value: bool):
     """
     if value:
         try:
+            repo = Repo(os.path.dirname(os.path.dirname(__file__)))
             version = (
                 f"BTCLI version: {__version__}/"
-                f"{Repo(os.path.dirname(os.path.dirname(__file__))).active_branch.name}"
+                f"{repo.active_branch.name}/"
+                f"{repo.commit()}"
             )
         except GitError:
             version = f"BTCLI version: {__version__}"
