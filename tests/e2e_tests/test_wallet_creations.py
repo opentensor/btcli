@@ -138,20 +138,28 @@ def extract_mnemonics_from_commands(output: str) -> Dict[str, Optional[str]]:
         dict: A dictionary keys 'coldkey' and 'hotkey', each containing their mnemonics.
     """
     mnemonics: Dict[str, Optional[str]] = {"coldkey": None, "hotkey": None}
-    lines = output.splitlines()
 
     key_types = ["coldkey", "hotkey"]
-    command_prefix = "btcli w regen-"
 
-    for line in lines:
-        line = line.strip().lower()
+    # We will assume the most recent match is the one we want
+    for key_type in key_types:
+        # Note: python's re needs this P before the group name
+        # See: https://stackoverflow.com/questions/10059673/named-regular-expression-group-pgroup-nameregexp-what-does-p-stand-for
+        pat = re.compile(rf"(?P<key_type>{key_type}).*?(?P<mnemonic>(\w+( |)){{12}})")
+        matches = pat.search(output)
 
-        if line.startswith(command_prefix):
-            for key_type in key_types:
-                if line.startswith(f"{command_prefix}{key_type} --mnemonic "):
-                    mnemonic_phrase = line.split("--mnemonic ")[1].strip().strip('"')
-                    mnemonics[key_type] = mnemonic_phrase
-                    break
+        groups = matches.groupdict()
+
+        if len(groups.keys()) == 0:
+            mnemonics[key_type] = None
+            continue
+
+        key_type_str = groups["key_type"]
+        if key_type != key_type_str:
+            continue
+
+        mnemonic_phrase = groups["mnemonic"]
+        mnemonics[key_type] = mnemonic_phrase
 
     return mnemonics
 

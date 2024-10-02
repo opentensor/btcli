@@ -31,7 +31,8 @@ def setup_wallet(uri: str):
         inputs: List[str] = None,
     ):
         cli_manager = CLIManager()
-        runner = CliRunner()
+        # Capture stderr separately from stdout
+        runner = CliRunner(mix_stderr=False)
         # Prepare the command arguments
         args = [
             command,
@@ -45,7 +46,11 @@ def setup_wallet(uri: str):
 
         input_text = "\n".join(inputs) + "\n" if inputs else None
         result = runner.invoke(
-            cli_manager.app, args, input=input_text, env={"COLUMNS": "700"}
+            cli_manager.app,
+            args,
+            input=input_text,
+            env={"COLUMNS": "700"},
+            catch_exceptions=False,
         )
         return result
 
