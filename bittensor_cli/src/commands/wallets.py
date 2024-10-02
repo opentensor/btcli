@@ -1569,12 +1569,12 @@ async def set_id(
 
         if not is_registered_on_root:
             print_error("The hotkey is not registered on root. Aborting.")
-            typer.Exit()
+            return False
 
         own_hotkey = wallet.coldkeypub.ss58_address == hotkey_owner
         if not own_hotkey:
             print_error("The hotkey doesn't belong to the coldkey wallet. Aborting.")
-            typer.Exit()
+            return False
     else:
         subnet_owner_ = await subtensor.substrate.query(
             module="SubtensorModule",
