@@ -490,13 +490,19 @@ async def delegate_extrinsic(
             call = await subtensor.substrate.compose_call(
                 call_module="SubtensorModule",
                 call_function="add_stake",
-                call_params={"hotkey": delegate_ss58, "amount_staked": staking_balance_.rao},
+                call_params={
+                    "hotkey": delegate_ss58,
+                    "amount_staked": staking_balance_.rao,
+                },
             )
         else:
             call = await subtensor.substrate.compose_call(
                 call_module="SubtensorModule",
                 call_function="remove_stake",
-                call_params={"hotkey": delegate_ss58, "amount_unstaked": staking_balance_.rao},
+                call_params={
+                    "hotkey": delegate_ss58,
+                    "amount_unstaked": staking_balance_.rao,
+                },
             )
         return await subtensor.sign_and_send_extrinsic(
             call, wallet, wait_for_inclusion, wait_for_finalization
@@ -576,7 +582,7 @@ async def delegate_extrinsic(
         staking_balance = Balance.from_tao(amount)
 
     # Check enough balance to stake.
-    if delegate_string == "delegate" and  staking_balance > my_prev_coldkey_balance:
+    if delegate_string == "delegate" and staking_balance > my_prev_coldkey_balance:
         err_console.print(
             ":cross_mark: [red]Not enough balance to stake[/red]:\n"
             f"  [bold blue]current balance[/bold blue]:{my_prev_coldkey_balance}\n"
@@ -726,21 +732,22 @@ async def root_list(subtensor: SubtensorInterface):
         )
         return sm, rn, di, ts
 
-
     with console.status(
         f":satellite: Syncing with chain: [white]{subtensor}[/white] ...",
         spinner="aesthetic",
     ):
-            
         senate_members, root_neurons, delegate_info, total_stakes = await _get_list()
-        total_tao = sum(float(Balance.from_rao(total_stakes[neuron.hotkey])) for neuron in root_neurons)
+        total_tao = sum(
+            float(Balance.from_rao(total_stakes[neuron.hotkey]))
+            for neuron in root_neurons
+        )
 
         table = Table(
             Column(
                 "[bold white]UID",
                 style="dark_orange",
                 no_wrap=True,
-                footer=f"[bold]{len(root_neurons)}[/bold]"
+                footer=f"[bold]{len(root_neurons)}[/bold]",
             ),
             Column(
                 "[bold white]NAME",
@@ -757,7 +764,7 @@ async def root_list(subtensor: SubtensorInterface):
                 justify="right",
                 style="light_goldenrod2",
                 no_wrap=True,
-                footer=f"{total_tao:.2f} (\u03c4) "
+                footer=f"{total_tao:.2f} (\u03c4) ",
             ),
             Column(
                 "[bold white]SENATOR",
@@ -777,7 +784,7 @@ async def root_list(subtensor: SubtensorInterface):
                 f"[red]Error: No neurons detected on the network:[/red] [white]{subtensor}"
             )
             raise typer.Exit()
-        
+
         sorted_root_neurons = sorted(
             root_neurons,
             key=lambda neuron: float(Balance.from_rao(total_stakes[neuron.hotkey])),
