@@ -1526,11 +1526,17 @@ async def set_id(
         "info": info_,
     }
 
+    try:
+        pgp_fingerprint_encoded = binascii.unhexlify(pgp_fingerprint.replace(" ", ""))
+    except Exception as e:
+        print_error(f"The PGP is not in the correct format: {e}")
+        raise typer.Exit()
+
     for field, string in id_dict.items():
         if (
             field == "pgp_fingerprint"
             and pgp_fingerprint
-            and len(pgp_fingerprint) != 20
+            and len(pgp_fingerprint_encoded) != 20
         ):
             err_console.print(
                 "[red]Error:[/red] PGP Fingerprint must be exactly 20 bytes."
@@ -1554,7 +1560,7 @@ async def set_id(
             "web": {f"Raw{len(web_url.encode())}": web_url.encode()},
             "riot": {f"Raw{len(riot_handle.encode())}": riot_handle.encode()},
             "email": {f"Raw{len(email.encode())}": email.encode()},
-            "pgp_fingerprint": pgp_fingerprint if pgp_fingerprint else None,
+            "pgp_fingerprint": pgp_fingerprint_encoded if pgp_fingerprint else None,
             "image": {f"Raw{len(image.encode())}": image.encode()},
             "info": {f"Raw{len(info_.encode())}": info_.encode()},
             "twitter": {f"Raw{len(twitter.encode())}": twitter.encode()},
