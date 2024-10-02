@@ -1451,12 +1451,19 @@ def set_id_prompts() -> tuple[str, str, str, str, str, str, str, str, str, bool]
     )
     email = Prompt.ask("Email: The email address for the identity.", default="")
     pgp_fingerprint = Prompt.ask(
-        "PGP Fingerprint: The pgp fingerprint for the identity.", default=""
+        "PGP fingerprint (Eg: A1B2 C3D4 E5F6 7890 1234 5678 9ABC DEF0 1234 5678)",
+        default="",
     )
     image_url = Prompt.ask("Image URL: The image url for the identity.", default="")
     info_ = Prompt.ask("Info: Info about the identity", default="")
     twitter_url = Prompt.ask("𝕏 URL: The 𝕏 (Twitter) url for the identity.")
-    validator_id = Confirm.ask("Are you updating a validator hotkey identity?")
+    validator_id = Confirm.ask(
+        "Are you updating a [bold blue]validator hotkey[/bold blue] identity or a [bold blue]subnet "
+        "owner[/bold blue] identity?\n"
+        "Enter [bold green]Y[/bold green] for [bold]validator hotkey[/bold] or [bold red]N[/bold red] for "
+        "[bold]subnet owner[/bold]",
+        show_choices=True,
+    )
 
     return (
         display_name,
