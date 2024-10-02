@@ -3,10 +3,11 @@ import os
 import sqlite3
 import webbrowser
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Collection, Optional, Union
+from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable
 
 import numpy as np
 import scalecodec
+import typer
 from bittensor_wallet import Wallet
 from bittensor_wallet.keyfile import Keypair
 from bittensor_wallet.utils import SS58_FORMAT, ss58
@@ -875,3 +876,32 @@ def validate_chain_endpoint(endpoint_url) -> tuple[bool, str]:
     if not parsed.port:
         return False, "No port specified in the URL"
     return True, ""
+
+
+def retry_prompt(
+    helper_text: str,
+    rejection: Callable,
+    rejection_text: str,
+    default="",
+    show_default=False,
+    prompt_type=typer.prompt,
+):
+    """
+    Allows for asking prompts again if they do not meet a certain criteria (as defined in `rejection`)
+    Args:
+        helper_text: The helper text to display for the prompt
+        rejection: A function that returns True if the input should be rejected, and False if it should be accepted
+        rejection_text: The text to display to the user if their input hits the rejection
+        default: the default value to use for the prompt, default ""
+        show_default: whether to show the default, default False
+        prompt_type: the type of prompt, default `typer.prompt`
+
+    Returns: the input value (or default)
+
+    """
+    while True:
+        var = prompt_type(helper_text, default=default, show_default=show_default)
+        if not rejection(var):
+            return var
+        else:
+            err_console.print(rejection_text)
