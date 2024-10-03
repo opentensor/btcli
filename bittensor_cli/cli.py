@@ -1098,7 +1098,10 @@ class CLIManager:
                 )
             else:
                 wallet_name = typer.prompt(
-                    typer.style("Enter the wallet name", fg="blue"),
+                    typer.style(
+                        "Enter the wallet name (you can set this with `btcli config set --wallet-name`",
+                        fg="blue",
+                    ),
                     default=defaults.wallet.name,
                 )
 
@@ -1110,7 +1113,10 @@ class CLIManager:
                 )
             else:
                 wallet_hotkey = typer.prompt(
-                    typer.style("Enter the wallet hotkey", fg="blue"),
+                    typer.style(
+                        "Enter the wallet hotkey (you can set this with `btcli config set --hotkey`)",
+                        fg="blue",
+                    ),
                     default=defaults.wallet.hotkey,
                 )
         if wallet_path:
@@ -1125,7 +1131,10 @@ class CLIManager:
 
         if WO.PATH in ask_for and not wallet_path:
             wallet_path = typer.prompt(
-                typer.style("Enter the wallet path", fg="blue"),
+                typer.style(
+                    "Enter the wallet path (you can set this with `btcli config set --wallet-path`",
+                    fg="blue",
+                ),
                 default=defaults.wallet.path,
             )
         # Create the Wallet object
@@ -1138,13 +1147,15 @@ class CLIManager:
             valid = utils.is_valid_wallet(wallet)
             if not valid[0]:
                 utils.err_console.print(
-                    f"[red]Error: Wallet does not not exist. \nPlease verify your wallet information: {wallet}[/red]"
+                    f"[red]Error: Wallet does not not exist. \n"
+                    f"Please verify your wallet information: {wallet}[/red]"
                 )
                 raise typer.Exit()
 
             if validate == WV.WALLET_AND_HOTKEY and not valid[1]:
                 utils.err_console.print(
-                    f"[red]Error: Wallet '{wallet.name}' exists but the hotkey '{wallet.hotkey_str}' does not. \nPlease verify your wallet information: {wallet}[/red]"
+                    f"[red]Error: Wallet '{wallet.name}' exists but the hotkey '{wallet.hotkey_str}' does not. \n"
+                    f"Please verify your wallet information: {wallet}[/red]"
                 )
                 raise typer.Exit()
         return wallet
