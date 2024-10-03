@@ -1098,9 +1098,11 @@ class CLIManager:
                 )
             else:
                 wallet_name = typer.prompt(
-                    typer.style(
-                        "Enter the wallet name (you can set this with `btcli config set --wallet-name`",
-                        fg="blue",
+                    typer.style("Enter the wallet name", fg="blue")
+                    + typer.style(
+                        " (Hint: You can set this with `btcli config set --wallet-name`)",
+                        fg="green",
+                        italic=True,
                     ),
                     default=defaults.wallet.name,
                 )
@@ -1113,9 +1115,11 @@ class CLIManager:
                 )
             else:
                 wallet_hotkey = typer.prompt(
-                    typer.style(
-                        "Enter the wallet hotkey (you can set this with `btcli config set --hotkey`)",
-                        fg="blue",
+                    typer.style("Enter the wallet hotkey", fg="blue")
+                    + typer.style(
+                        " (Hint: You can set this with `btcli config set --wallet-hotkey`)",
+                        fg="green",
+                        italic=True,
                     ),
                     default=defaults.wallet.hotkey,
                 )
@@ -1131,9 +1135,11 @@ class CLIManager:
 
         if WO.PATH in ask_for and not wallet_path:
             wallet_path = typer.prompt(
-                typer.style(
-                    "Enter the wallet path (you can set this with `btcli config set --wallet-path`",
-                    fg="blue",
+                typer.style("Enter the wallet path", fg="blue")
+                + typer.style(
+                    " (Hint: You can set this with `btcli config set --wallet-path`)",
+                    fg="green",
+                    italic=True,
                 ),
                 default=defaults.wallet.path,
             )
@@ -1645,6 +1651,7 @@ class CLIManager:
             wallet_path = Prompt.ask(
                 "Enter the path for the wallets directory", default=defaults.wallet.path
             )
+            wallet_path = os.path.expanduser(wallet_path)
 
         if not wallet_name:
             wallet_name = Prompt.ask(
@@ -1698,6 +1705,7 @@ class CLIManager:
             wallet_path = Prompt.ask(
                 "Enter the path to the wallets directory", default=defaults.wallet.path
             )
+            wallet_path = os.path.expanduser(wallet_path)
 
         if not wallet_name:
             wallet_name = Prompt.ask(
@@ -1874,7 +1882,13 @@ class CLIManager:
                 "Enter the name of the new wallet", default=defaults.wallet.name
             )
 
-        wallet = Wallet(wallet_name, wallet_hotkey, wallet_path)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.NONE,
+        )
         n_words = get_n_words(n_words)
         return self._run_command(wallets.new_coldkey(wallet, n_words, use_password))
 
