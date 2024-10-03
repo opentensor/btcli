@@ -54,14 +54,12 @@ def test_root_commands(local_chain, wallet_setup):
         extra_args=[
             "--wallet-path",
             wallet_path_bob,
-            "--chain",
+            "--network",
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet_bob.name,
             "--hotkey",
             wallet_bob.hotkey_str,
-            "--network",
-            "local",
             "--no-prompt",
         ],
     )
@@ -72,10 +70,8 @@ def test_root_commands(local_chain, wallet_setup):
         command="root",
         sub_command="list",
         extra_args=[
-            "--chain",
-            "ws://127.0.0.1:9945",
             "--network",
-            "local",
+            "ws://127.0.0.1:9945",
         ],
     )
 
@@ -97,10 +93,8 @@ def test_root_commands(local_chain, wallet_setup):
         command="root",
         sub_command="list-delegates",
         extra_args=[
-            "--chain",
-            "ws://127.0.0.1:9945",
             "--network",
-            "local",
+            "ws://127.0.0.1:9945",
         ],
     )
 
@@ -137,14 +131,12 @@ def test_root_commands(local_chain, wallet_setup):
         extra_args=[
             "--wallet-path",
             wallet_path_bob,
-            "--chain",
+            "--network",
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet_bob.name,
             "--hotkey",
             wallet_bob.hotkey_str,
-            "--network",
-            "local",
             "--take",
             new_take,
         ],
@@ -158,10 +150,8 @@ def test_root_commands(local_chain, wallet_setup):
         command="root",
         sub_command="list-delegates",
         extra_args=[
-            "--chain",
-            "ws://127.0.0.1:9945",
             "--network",
-            "local",
+            "ws://127.0.0.1:9945",
         ],
     )
     # Capture delegate information after setting take
@@ -178,16 +168,14 @@ def test_root_commands(local_chain, wallet_setup):
         extra_args=[
             "--wallet-path",
             wallet_path_alice,
-            "--chain",
+            "--network",
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet_alice.name,
             "--delegate-ss58key",
             wallet_bob.hotkey.ss58_address,
-            "--network",
-            "local",
             "--amount",
-            f"10",
+            "10",
             "--no-prompt",
         ],
     )
@@ -222,14 +210,12 @@ def test_root_commands(local_chain, wallet_setup):
         extra_args=[
             "--wallet-path",
             wallet_path_alice,
-            "--chain",
+            "--network",
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet_alice.name,
             "--delegate-ss58key",
             wallet_bob.hotkey.ss58_address,
-            "--network",
-            "local",
             "--amount",
             f"10",
             "--no-prompt",
@@ -259,14 +245,12 @@ def test_root_commands(local_chain, wallet_setup):
         extra_args=[
             "--wallet-path",
             wallet_path_alice,
-            "--chain",
+            "--network",
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet_alice.name,
             "--delegate-ss58key",
             wallet_bob.hotkey.ss58_address,
-            "--network",
-            "local",
             "--all",
             "--no-prompt",
         ],
@@ -302,14 +286,12 @@ def test_root_commands(local_chain, wallet_setup):
         extra_args=[
             "--wallet-path",
             wallet_path_alice,
-            "--chain",
+            "--network",
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet_alice.name,
             "--delegate-ss58key",
             wallet_bob.hotkey.ss58_address,
-            "--network",
-            "local",
             "--all",
             "--no-prompt",
         ],
@@ -337,12 +319,10 @@ def check_my_delegates(exec_command, wallet, delegate_ss58key, delegate_amount):
         extra_args=[
             "--wallet-path",
             wallet.path,
-            "--chain",
+            "--network",
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet.name,
-            "--network",
-            "local",
         ],
     )
     # First row are headers, records start from second row
@@ -373,12 +353,10 @@ def check_balance(exec_command, wallet, expected_balance):
         extra_args=[
             "--wallet-path",
             wallet.path,
-            "--chain",
+            "--network",
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet.name,
-            "--network",
-            "local",
         ],
     )
 

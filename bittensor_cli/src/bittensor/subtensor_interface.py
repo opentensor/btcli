@@ -34,6 +34,7 @@ from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
     decode_hex_identity_dict,
+    validate_chain_endpoint,
 )
 
 
@@ -69,33 +70,35 @@ class SubtensorInterface:
     Thin layer for interacting with Substrate Interface. Mostly a collection of frequently-used calls.
     """
 
-    def __init__(self, network, chain_endpoint):
-        if chain_endpoint:
-            if not chain_endpoint.startswith("ws"):
-                console.log(
-                    "[yellow]Warning[/yellow]: Verify your chain endpoint is a valid substrate endpoint."
-                )
-            self.chain_endpoint = chain_endpoint
-            if chain_endpoint == Constants.network_map["archive"]:
-                self.network = "archive - finney"
-            else:
-                self.network = "local"
-        elif network and network in Constants.network_map:
-            if network == "local":
-                console.log(
-                    "[yellow]Warning[/yellow]: Verify your local subtensor is running on 9944 port."
-                )
+    def __init__(self, network):
+        if network in Constants.network_map:
             self.chain_endpoint = Constants.network_map[network]
             self.network = network
+            if network == "local":
+                console.log(
+                    "[yellow]Warning[/yellow]: Verify your local subtensor is running on port 9944."
+                )
         else:
-            console.log(
-                f"Network not specified or not valid. Using default chain endpoint: "
-                f"{Constants.network_map[defaults.subtensor.network]}.\n"
-                f"You can set this for commands with the `--network` flag, or by setting this"
-                f" in the config."
-            )
-            self.chain_endpoint = Constants.network_map[defaults.subtensor.network]
-            self.network = defaults.subtensor.network
+            is_valid, _ = validate_chain_endpoint(network)
+            if is_valid:
+                self.chain_endpoint = network
+                if network in Constants.network_map.values():
+                    self.network = next(
+                        key
+                        for key, value in Constants.network_map.items()
+                        if value == network
+                    )
+                else:
+                    self.network = "custom"
+            else:
+                console.log(
+                    f"Network not specified or not valid. Using default chain endpoint: "
+                    f"{Constants.network_map[defaults.subtensor.network]}.\n"
+                    f"You can set this for commands with the `--network` flag, or by setting this"
+                    f" in the config."
+                )
+                self.chain_endpoint = Constants.network_map[defaults.subtensor.network]
+                self.network = defaults.subtensor.network
 
         self.substrate = AsyncSubstrateInterface(
             chain_endpoint=self.chain_endpoint,
@@ -873,6 +876,23 @@ class SubtensorInterface:
             else result != "5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM"
         )
         return return_val
+
+    async def get_hotkey_owner(
+        self, hotkey_ss58: str, block_hash: str
+    ) -> Optional[str]:
+        hk_owner_query = await self.substrate.query(
+            module="SubtensorModule",
+            storage_function="Owner",
+            params=[hotkey_ss58],
+            block_hash=block_hash,
+        )
+        val = decode_account_id(hk_owner_query[0])
+        if val:
+            exists = await self.does_hotkey_exist(hotkey_ss58, block_hash=block_hash)
+        else:
+            exists = False
+        hotkey_owner = val if exists else None
+        return hotkey_owner
 
     async def sign_and_send_extrinsic(
         self,

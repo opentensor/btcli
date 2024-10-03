@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 import asyncio
+import binascii
 import curses
+from functools import partial
 import os.path
 import re
+import ssl
 import sys
 from pathlib import Path
 from typing import Coroutine, Optional
@@ -21,6 +24,7 @@ from bittensor_cli.src import (
     HELP_PANELS,
     WalletOptions as WO,
     WalletValidationTypes as WV,
+    Constants,
 )
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.async_substrate_interface import (
@@ -37,6 +41,8 @@ from bittensor_cli.src.bittensor.utils import (
     verbose_console,
     is_valid_ss58_address,
     print_error,
+    validate_chain_endpoint,
+    retry_prompt,
 )
 from typing_extensions import Annotated
 from textwrap import dedent
@@ -130,14 +136,9 @@ class Options:
         None,
         "--network",
         "--subtensor.network",
-        help="The subtensor network to connect to. Default: finney. Allowed values: local, test, finney.",
-        show_default=False,
-    )
-    chain = typer.Option(
-        None,
         "--chain",
         "--subtensor.chain_endpoint",
-        help="The subtensor chain endpoint URL to connect to. The format should be similar to: ws://127.0.0.1:9946.",
+        help="The subtensor network to connect to. Default: finney.",
         show_default=False,
     )
     netuids = typer.Option(
@@ -361,9 +362,11 @@ def version_callback(value: bool):
     """
     if value:
         try:
+            repo = Repo(os.path.dirname(os.path.dirname(__file__)))
             version = (
                 f"BTCLI version: {__version__}/"
-                f"{Repo(os.path.dirname(os.path.dirname(__file__))).active_branch.name}"
+                f"{repo.active_branch.name}/"
+                f"{repo.commit()}"
             )
         except GitError:
             version = f"BTCLI version: {__version__}"
@@ -380,10 +383,10 @@ class CLIManager:
     :var stake_app: the Typer app as it relates to stake commands
     :var sudo_app: the Typer app as it relates to sudo commands
     :var subnets_app: the Typer app as it relates to subnets commands
-    :var not_subtensor: the `SubtensorInterface` object passed to the various commands that require it
+    :var subtensor: the `SubtensorInterface` object passed to the various commands that require it
     """
 
-    not_subtensor: Optional[SubtensorInterface]
+    subtensor: Optional[SubtensorInterface]
     app: typer.Typer
     config_app: typer.Typer
     wallet_app: typer.Typer
@@ -397,7 +400,6 @@ class CLIManager:
             "wallet_path": None,
             "wallet_hotkey": None,
             "network": None,
-            "chain": None,
             "use_cache": True,
             "metagraph_cols": {
                 "UID": True,
@@ -417,7 +419,7 @@ class CLIManager:
                 "COLDKEY": True,
             },
         }
-        self.not_subtensor = None
+        self.subtensor = None
         self.config_base_path = os.path.expanduser(defaults.config.base_path)
         self.config_path = os.path.expanduser(defaults.config.path)
 
@@ -738,35 +740,25 @@ class CLIManager:
     def initialize_chain(
         self,
         network: Optional[str] = None,
-        chain: Optional[str] = None,
     ) -> SubtensorInterface:
         """
-        Intelligently initializes a connection to the chain, depending on the supplied (or in config) values. Set's the
-        `self.not_subtensor` object to this created connection.
+        Intelligently initializes a connection to the chain, depending on the supplied (or in config) values. Sets the
+        `self.subtensor` object to this created connection.
 
-        :param network: Network name (e.g. finney, test, etc.)
-        :param chain: the chain endpoint (e.g. ws://127.0.0.1:9945, wss://entrypoint-finney.opentensor.ai:443, etc.)
+        :param network: Network name (e.g. finney, test, etc.) or
+                        chain endpoint (e.g. ws://127.0.0.1:9945, wss://entrypoint-finney.opentensor.ai:443)
         """
-        if not self.not_subtensor:
-            if network or chain:
-                self.not_subtensor = SubtensorInterface(network, chain)
-            elif self.config["network"] or self.config["chain"]:
-                self.not_subtensor = SubtensorInterface(
-                    self.config["network"], self.config["chain"]
+        if not self.subtensor:
+            if network:
+                self.subtensor = SubtensorInterface(network)
+            elif self.config["network"]:
+                self.subtensor = SubtensorInterface(self.config["network"])
+                console.print(
+                    f"Using the specified network [dark_orange]{self.config['network']}[/dark_orange] from config"
                 )
-                if self.config["chain"]:
-                    console.print(
-                        f'Using the chain: [dark_orange]{self.config["chain"]}[/dark_orange] from config'
-                    )
-                else:
-                    console.print(
-                        f"Using the specified network [dark_orange]{self.config['network']}[/dark_orange] from config"
-                    )
             else:
-                self.not_subtensor = SubtensorInterface(
-                    defaults.subtensor.network, defaults.subtensor.chain_endpoint
-                )
-        return self.not_subtensor
+                self.subtensor = SubtensorInterface(defaults.subtensor.network)
+        return self.subtensor
 
     def _run_command(self, cmd: Coroutine) -> None:
         """
@@ -775,22 +767,22 @@ class CLIManager:
 
         async def _run():
             try:
-                if self.not_subtensor:
-                    async with self.not_subtensor:
+                if self.subtensor:
+                    async with self.subtensor:
                         result = await cmd
                 else:
                     result = await cmd
                 return result
-            except ConnectionRefusedError:
-                err_console.print(
-                    f"Unable to connect to the chain: {self.not_subtensor}"
-                )
+            except (ConnectionRefusedError, ssl.SSLError):
+                err_console.print(f"Unable to connect to the chain: {self.subtensor}")
                 asyncio.create_task(cmd).cancel()
                 raise typer.Exit()
             except ConnectionClosed:
+                asyncio.create_task(cmd).cancel()
                 raise typer.Exit()
             except SubstrateRequestException as e:
                 err_console.print(str(e))
+                asyncio.create_task(cmd).cancel()
                 raise typer.Exit()
 
         if sys.version_info < (3, 10):
@@ -871,7 +863,6 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         use_cache: Optional[bool] = typer.Option(
             None,
             "--cache/--no-cache",
@@ -888,7 +879,6 @@ class CLIManager:
             "wallet_path": wallet_path,
             "wallet_hotkey": wallet_hotkey,
             "network": network,
-            "chain": chain,
             "use_cache": use_cache,
         }
         bools = ["use_cache"]
@@ -922,23 +912,48 @@ class CLIManager:
                 args[arg] = val
                 self.config[arg] = val
 
-        if (n := args["network"]) and n.startswith("ws"):
-            if not Confirm.ask(
-                "[yellow]Warning:[/yellow] Unexpected input. You provided a chain endpoint URL to the 'network'. "
-                "Are you sure?"
-            ):
-                raise typer.Exit()
-        if (c := args["chain"]) and not c.startswith("ws"):
-            if not Confirm.ask(
-                "[yellow]Warning:[/yellow] Unexpected input. You provided a 'network' name to the chain endpoint. "
-                "Are you sure?"
-            ):
-                raise typer.Exit()
+        if n := args.get("network"):
+            if n in Constants.networks:
+                if not Confirm.ask(
+                    f"You provided a network [dark_orange]{n}[/dark_orange] which is mapped to "
+                    f"[dark_orange]{Constants.network_map[n]}[/dark_orange]\n"
+                    "Do you want to continue?"
+                ):
+                    typer.Exit()
+            else:
+                valid_endpoint, error = validate_chain_endpoint(n)
+                if valid_endpoint:
+                    if valid_endpoint in Constants.network_map.values():
+                        known_network = next(
+                            key
+                            for key, value in Constants.network_map.items()
+                            if value == network
+                        )
+                        args["network"] = known_network
+                        if not Confirm.ask(
+                            f"You provided an endpoint [dark_orange]{n}[/dark_orange] which is mapped to "
+                            f"[dark_orange]{known_network}[/dark_orange]\n"
+                            "Do you want to continue?"
+                        ):
+                            typer.Exit()
+                    else:
+                        if not Confirm.ask(
+                            f"You provided a chain endpoint URL [dark_orange]{n}[/dark_orange]\n"
+                            "Do you want to continue?"
+                        ):
+                            raise typer.Exit()
+                else:
+                    print_error(f"{error}")
+                    raise typer.Exit()
+
         for arg, val in args.items():
             if val is not None:
                 self.config[arg] = val
         with open(self.config_path, "w") as f:
             safe_dump(self.config, f)
+
+        # Print latest configs after updating
+        self.get_config()
 
     def del_config(
         self,
@@ -946,7 +961,6 @@ class CLIManager:
         wallet_path: bool = typer.Option(False, *Options.wallet_path.param_decls),
         wallet_hotkey: bool = typer.Option(False, *Options.wallet_hotkey.param_decls),
         network: bool = typer.Option(False, *Options.network.param_decls),
-        chain: bool = typer.Option(False, *Options.chain.param_decls),
         use_cache: bool = typer.Option(False, "--cache"),
         all_items: bool = typer.Option(False, "--all"),
     ):
@@ -976,7 +990,6 @@ class CLIManager:
             "wallet_path": wallet_path,
             "wallet_hotkey": wallet_hotkey,
             "network": network,
-            "chain": chain,
             "use_cache": use_cache,
         }
 
@@ -1023,6 +1036,8 @@ class CLIManager:
         """
         Prints the current config file in a table.
         """
+        deprecated_configs = ["chain"]
+
         table = Table(
             Column("[bold white]Name", style="dark_orange"),
             Column("[bold white]Value", style="gold1"),
@@ -1031,8 +1046,16 @@ class CLIManager:
         )
 
         for key, value in self.config.items():
-            if key == "network" and value is None:
-                value = "None (default = finney)"
+            if key == "network":
+                if value is None:
+                    value = "None (default = finney)"
+                else:
+                    if value in Constants.networks:
+                        value = value + f" ({Constants.network_map[value]})"
+
+            elif key in deprecated_configs:
+                continue
+
             if isinstance(value, dict):
                 # Nested dictionaries: only metagraph for now, but more may be added later
                 for idx, (sub_key, sub_value) in enumerate(value.items()):
@@ -1044,7 +1067,7 @@ class CLIManager:
         console.print(
             dedent(
                 """
-            Note: The chain endpoint will take precedence over network.
+            [red]Deprecation notice[/red]: The chain endpoint config is now deprecated. You can use the network config to pass chain endpoints.
             """
             )
         )
@@ -1162,10 +1185,14 @@ class CLIManager:
         ),
         sort_by: Optional[str] = typer.Option(
             None,
+            "--sort-by",
+            "--sort_by",
             help="Sort the hotkeys by the specified column title. For example: name, uid, axon.",
         ),
         sort_order: Optional[str] = typer.Option(
             None,
+            "--sort-order",
+            "--sort_order",
             help="Sort the hotkeys in the specified order (ascending/asc or descending/desc/reverse).",
         ),
         include_hotkeys: str = typer.Option(
@@ -1184,7 +1211,6 @@ class CLIManager:
         ),
         netuids: str = Options.netuids,
         network: str = Options.network,
-        chain: str = Options.chain,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -1281,7 +1307,7 @@ class CLIManager:
         return self._run_command(
             wallets.overview(
                 wallet,
-                self.initialize_chain(network, chain),
+                self.initialize_chain(network),
                 all_wallets,
                 sort_by,
                 sort_order,
@@ -1312,7 +1338,6 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         network: str = Options.network,
-        chain: str = Options.chain,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -1347,7 +1372,7 @@ class CLIManager:
             ask_for=[WO.NAME],
             validate=WV.WALLET,
         )
-        subtensor = self.initialize_chain(network, chain)
+        subtensor = self.initialize_chain(network)
         return self._run_command(
             wallets.transfer(
                 wallet, subtensor, destination_ss58_address, amount, prompt
@@ -1360,7 +1385,6 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         destination_hotkey_name: Optional[str] = typer.Argument(
             None, help="Destination hotkey name."
         ),
@@ -1405,9 +1429,9 @@ class CLIManager:
             ask_for=[WO.NAME, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
-        self.initialize_chain(network, chain)
+        self.initialize_chain(network)
         return self._run_command(
-            wallets.swap_hotkey(original_wallet, new_wallet, self.not_subtensor, prompt)
+            wallets.swap_hotkey(original_wallet, new_wallet, self.subtensor, prompt)
         )
 
     def wallet_inspect(
@@ -1423,7 +1447,6 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         network: str = Options.network,
-        chain: str = Options.chain,
         netuids: str = Options.netuids,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -1474,11 +1497,11 @@ class CLIManager:
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
         )
-        self.initialize_chain(network, chain)
+        self.initialize_chain(network)
         return self._run_command(
             wallets.inspect(
                 wallet,
-                self.not_subtensor,
+                self.subtensor,
                 netuids_filter=netuids,
                 all_wallets=all_wallets,
             )
@@ -1490,7 +1513,6 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         # TODO add the following to config
         processors: Optional[int] = typer.Option(
             defaults.pow_register.num_processes,
@@ -1565,7 +1587,7 @@ class CLIManager:
         return self._run_command(
             wallets.faucet(
                 wallet,
-                self.initialize_chain(network, chain),
+                self.initialize_chain(network),
                 threads_per_block,
                 update_interval,
                 processors,
@@ -1851,7 +1873,6 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -1868,8 +1889,8 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
-        self.initialize_chain(network, chain)
-        return self._run_command(wallets.check_coldkey_swap(wallet, self.not_subtensor))
+        self.initialize_chain(network)
+        return self._run_command(wallets.check_coldkey_swap(wallet, self.subtensor))
 
     def wallet_create_wallet(
         self,
@@ -1938,7 +1959,6 @@ class CLIManager:
             help="Whether to display the balances for all the wallets.",
         ),
         network: str = Options.network,
-        chain: str = Options.chain,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -1966,7 +1986,7 @@ class CLIManager:
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
         )
-        subtensor = self.initialize_chain(network, chain)
+        subtensor = self.initialize_chain(network)
         return self._run_command(
             wallets.wallet_balance(wallet, subtensor, all_balances)
         )
@@ -1998,9 +2018,6 @@ class CLIManager:
             if self.config.get("network") != "finney":
                 console.print(no_use_config_str)
 
-        elif self.config.get("chain"):
-            console.print(no_use_config_str)
-
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
             wallet_name,
@@ -2017,50 +2034,51 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         display_name: str = typer.Option(
             "",
             "--display-name",
             "--display",
             help="The display name for the identity.",
-            prompt=True,
         ),
         legal_name: str = typer.Option(
             "",
             "--legal-name",
             "--legal",
             help="The legal name for the identity.",
-            prompt=True,
         ),
         web_url: str = typer.Option(
-            "", "--web-url", "--web", help="The web URL for the identity.", prompt=True
+            "",
+            "--web-url",
+            "--web",
+            help="The web URL for the identity.",
         ),
         riot_handle: str = typer.Option(
             "",
             "--riot-handle",
             "--riot",
             help="The Riot handle for the identity.",
-            prompt=True,
         ),
         email: str = typer.Option(
-            "", help="The email address for the identity.", prompt=True
+            "",
+            help="The email address for the identity.",
         ),
         pgp_fingerprint: str = typer.Option(
             "",
             "--pgp-fingerprint",
             "--pgp",
             help="The PGP fingerprint for the identity.",
-            prompt=True,
         ),
         image_url: str = typer.Option(
             "",
             "--image-url",
             "--image",
             help="The image URL for the identity.",
-            prompt=True,
         ),
         info_: str = typer.Option(
-            "", "--info", "-i", help="The info for the identity.", prompt=True
+            "",
+            "--info",
+            "-i",
+            help="The info for the identity.",
         ),
         twitter_url: str = typer.Option(
             "",
@@ -2069,12 +2087,16 @@ class CLIManager:
             "--twitter-url",
             "--twitter",
             help="The 𝕏 (Twitter) URL for the identity.",
-            prompt=True,
         ),
-        validator_id: bool = typer.Option(
+        validator_id: Optional[bool] = typer.Option(
+            None,
             "--validator/--not-validator",
             help="Are you updating a validator hotkey identity?",
-            prompt=True,
+        ),
+        subnet_netuid: Optional[int] = typer.Option(
+            None,
+            "--netuid",
+            help="Netuid if you are updating identity of a subnet owner",
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -2095,7 +2117,7 @@ class CLIManager:
 
         [green]$[/green] btcli wallet set_identity
 
-        [bold]Note[/bold]: This command should only be used if the user is willing to incur the 1 TAO transaction fee associated with setting an identity on the blockchain. It is a high-level command that makes changes to the blockchain state and should not be used programmatically as part of other scripts or applications.
+        [bold]Note[/bold]: This command should only be used if the user is willing to incur the a recycle fee associated with setting an identity on the blockchain. It is a high-level command that makes changes to the blockchain state and should not be used programmatically as part of other scripts or applications.
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
@@ -2105,10 +2127,67 @@ class CLIManager:
             ask_for=[WO.HOTKEY, WO.NAME],
             validate=WV.WALLET_AND_HOTKEY,
         )
+
+        if not any(
+            [
+                display_name,
+                legal_name,
+                web_url,
+                riot_handle,
+                email,
+                pgp_fingerprint,
+                image_url,
+                info_,
+                twitter_url,
+            ]
+        ):
+            console.print(
+                "[yellow]All fields are optional. Press Enter to skip a field.[/yellow]"
+            )
+            text_rejection = partial(
+                retry_prompt,
+                rejection=lambda x: sys.getsizeof(x) > 113,
+                rejection_text="[red]Error:[/red] Identity field must be <= 64 raw bytes.",
+            )
+
+            def pgp_check(s: str):
+                try:
+                    if s.startswith("0x"):
+                        s = s[2:]  # Strip '0x'
+                    pgp_fingerprint_encoded = binascii.unhexlify(s.replace(" ", ""))
+                except Exception:
+                    return True
+                return True if len(pgp_fingerprint_encoded) != 20 else False
+
+            display_name = display_name or text_rejection("Display name")
+            legal_name = legal_name or text_rejection("Legal name")
+            web_url = web_url or text_rejection("Web URL")
+            riot_handle = riot_handle or text_rejection("Riot handle")
+            email = email or text_rejection("Email address")
+            pgp_fingerprint = pgp_fingerprint or retry_prompt(
+                "PGP fingerprint (Eg: A1B2 C3D4 E5F6 7890 1234 5678 9ABC DEF0 1234 5678)",
+                lambda s: False if not s else pgp_check(s),
+                "[red]Error:[/red] PGP Fingerprint must be exactly 20 bytes.",
+            )
+            image_url = image_url or text_rejection("Image URL")
+            info_ = info_ or text_rejection("Enter info")
+            twitter_url = twitter_url or text_rejection("𝕏 (Twitter) URL")
+
+            validator_id = validator_id or Confirm.ask(
+                "Are you updating a [bold blue]validator hotkey[/bold blue] identity or a [bold blue]subnet "
+                "owner[/bold blue] identity?\n"
+                "Enter [bold green]Y[/bold green] for [bold]validator hotkey[/bold] or [bold red]N[/bold red] for "
+                "[bold]subnet owner[/bold]",
+                show_choices=True,
+            )
+
+            if validator_id is False:
+                subnet_netuid = IntPrompt.ask("Enter the netuid of the subnet you own")
+
         return self._run_command(
             wallets.set_id(
                 wallet,
-                self.initialize_chain(network, chain),
+                self.initialize_chain(network),
                 display_name,
                 legal_name,
                 web_url,
@@ -2120,6 +2199,7 @@ class CLIManager:
                 info_,
                 validator_id,
                 prompt,
+                subnet_netuid,
             )
         )
 
@@ -2134,7 +2214,6 @@ class CLIManager:
             prompt=True,
         ),
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2161,7 +2240,7 @@ class CLIManager:
 
         self.verbosity_handler(quiet, verbose)
         return self._run_command(
-            wallets.get_id(self.initialize_chain(network, chain), target_ss58_address)
+            wallets.get_id(self.initialize_chain(network), target_ss58_address)
         )
 
     def wallet_sign(
@@ -2214,7 +2293,6 @@ class CLIManager:
     def root_list(
         self,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2233,13 +2311,12 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
         return self._run_command(
-            root.root_list(subtensor=self.initialize_chain(network, chain))
+            root.root_list(subtensor=self.initialize_chain(network))
         )
 
     def root_set_weights(
         self,
         network: str = Options.network,
-        chain: str = Options.chain,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -2258,7 +2335,7 @@ class CLIManager:
         """
         Set the weights for different subnets, by setting them in the root network.
 
-        To use this command, you should specify the netuids and corresponding weights you wish to assign. This command is used by network senators to influence the distribution of subnet rewards and responsibilities.
+        To use this command, you should specify the netuids and corresponding weights you wish to assign. This command is used by validators registered to the root subnet to influence the distribution of subnet rewards and responsibilities.
 
         You must have a comprehensive understanding of the dynamics of the subnets to use this command. It is a powerful tool that directly impacts the subnet's  operational mechanics and reward distribution.
 
@@ -2310,14 +2387,13 @@ class CLIManager:
         )
         self._run_command(
             root.set_weights(
-                wallet, self.initialize_chain(network, chain), netuids, weights, prompt
+                wallet, self.initialize_chain(network), netuids, weights, prompt
             )
         )
 
     def root_get_weights(
         self,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         limit_min_col: Optional[int] = typer.Option(
             None,
             "--limit-min-col",
@@ -2352,7 +2428,7 @@ class CLIManager:
             )
             raise typer.Exit()
         if not reuse_last:
-            subtensor = self.initialize_chain(network, chain)
+            subtensor = self.initialize_chain(network)
         else:
             subtensor = None
         return self._run_command(
@@ -2369,7 +2445,6 @@ class CLIManager:
     def root_boost(
         self,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         wallet_name: str = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
@@ -2403,14 +2478,13 @@ class CLIManager:
         )
         return self._run_command(
             root.set_boost(
-                wallet, self.initialize_chain(network, chain), netuid, amount, prompt
+                wallet, self.initialize_chain(network), netuid, amount, prompt
             )
         )
 
     def root_slash(
         self,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         wallet_name: str = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
@@ -2445,14 +2519,13 @@ class CLIManager:
         )
         return self._run_command(
             root.set_slash(
-                wallet, self.initialize_chain(network, chain), netuid, amount, prompt
+                wallet, self.initialize_chain(network), netuid, amount, prompt
             )
         )
 
     def root_senate_vote(
         self,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
@@ -2496,14 +2569,13 @@ class CLIManager:
         )
         return self._run_command(
             root.senate_vote(
-                wallet, self.initialize_chain(network, chain), proposal, vote, prompt
+                wallet, self.initialize_chain(network), proposal, vote, prompt
             )
         )
 
     def root_senate(
         self,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2517,12 +2589,11 @@ class CLIManager:
         [green]$[/green] btcli root senate
         """
         self.verbosity_handler(quiet, verbose)
-        return self._run_command(root.get_senate(self.initialize_chain(network, chain)))
+        return self._run_command(root.get_senate(self.initialize_chain(network)))
 
     def root_register(
         self,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
@@ -2531,9 +2602,9 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Register a neuron (a subnet validator or a subnet miner) to a specified subnet by recycling some TAO to cover for the registration cost.
+        Register a neuron to the root subnet by recycling some TAO to cover for the registration cost.
 
-        This command adds a new neuron (a subnet validator or a subnet miner) to a specified subnet, contributing to the decentralization and robustness of Bittensor.
+        This command adds a new neuron as a validator on the root network. This will allow the neuron owner to set subnet weights.
 
         # Usage:
 
@@ -2552,13 +2623,12 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
         return self._run_command(
-            root.register(wallet, self.initialize_chain(network, chain), prompt)
+            root.register(wallet, self.initialize_chain(network), prompt)
         )
 
     def root_proposals(
         self,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2572,12 +2642,11 @@ class CLIManager:
         [green]$[/green] btcli root proposals
         """
         self.verbosity_handler(quiet, verbose)
-        return self._run_command(root.proposals(self.initialize_chain(network, chain)))
+        return self._run_command(root.proposals(self.initialize_chain(network)))
 
     def root_set_take(
         self,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
@@ -2624,7 +2693,7 @@ class CLIManager:
         )
 
         return self._run_command(
-            root.set_take(wallet, self.initialize_chain(network, chain), take)
+            root.set_take(wallet, self.initialize_chain(network), take)
         )
 
     def root_delegate_stake(
@@ -2648,7 +2717,6 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -2696,7 +2764,7 @@ class CLIManager:
         return self._run_command(
             root.delegate_stake(
                 wallet,
-                self.initialize_chain(network, chain),
+                self.initialize_chain(network),
                 amount,
                 delegate_ss58key,
                 prompt,
@@ -2724,7 +2792,6 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -2767,7 +2834,7 @@ class CLIManager:
         self._run_command(
             root.delegate_unstake(
                 wallet,
-                self.initialize_chain(network, chain),
+                self.initialize_chain(network),
                 amount,
                 delegate_ss58key,
                 prompt,
@@ -2777,7 +2844,6 @@ class CLIManager:
     def root_my_delegates(
         self,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
@@ -2832,18 +2898,19 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=([WO.NAME] if not all_wallets else [WO.PATH]),
+            validate=WV.WALLET if not all_wallets else WV.NONE,
         )
         self._run_command(
-            root.my_delegates(
-                wallet, self.initialize_chain(network, chain), all_wallets
-            )
+            root.my_delegates(wallet, self.initialize_chain(network), all_wallets)
         )
 
     def root_list_delegates(
         self,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2889,37 +2956,24 @@ class CLIManager:
 
         [green]$[/green] btcli root list_delegates
 
-        [green]$[/green] btcli root list_delegates --wallet-name my_wallet
-
         [green]$[/green] btcli root list_delegates --subtensor.network finney # can also be `test` or `local`
 
-        [blue bold]NOTE[/blue bold]: This commmand is intended for use within a
+        [blue bold]NOTE[/blue bold]: This command is intended for use within a
         console application. It prints directly to the console and does not return any value.
         """
         self.verbosity_handler(quiet, verbose)
 
-        if chain:
-            selected_network = network
-            selected_chain = chain
-        elif network:
+        if network:
             if network == "finney":
-                selected_network = "archive"
-                selected_chain = "wss://archive.chain.opentensor.ai:443"
-            else:
-                selected_network = network
-                selected_chain = chain
+                network = "wss://archive.chain.opentensor.ai:443"
+        elif (conf_net := self.config.get("network")) == "finney":
+            network = "wss://archive.chain.opentensor.ai:443"
+        elif conf_net:
+            network = conf_net
         else:
-            chain_config = self.config.get("chain")
-            chain_network = self.config.get("network")
+            network = "wss://archive.chain.opentensor.ai:443"
 
-            if chain_network and chain_network == "finney" and not chain_config:
-                selected_network = "archive"
-                selected_chain = "wss://archive.chain.opentensor.ai:443"
-            else:
-                selected_network = chain_network
-                selected_chain = chain_config
-
-        sub = self.initialize_chain(selected_network, selected_chain)
+        sub = self.initialize_chain(network)
         return self._run_command(root.list_delegates(sub))
 
     # TODO: Confirm if we need a command for this - currently registering to root auto makes u delegate
@@ -2929,7 +2983,6 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -2966,7 +3019,7 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
         return self._run_command(
-            root.nominate(wallet, self.initialize_chain(network, chain), prompt)
+            root.nominate(wallet, self.initialize_chain(network), prompt)
         )
 
     def stake_show(
@@ -2979,7 +3032,6 @@ class CLIManager:
             help="When set, the command checks all the coldkey wallets of the user instead of just the specified wallet.",
         ),
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         wallet_path: Optional[str] = Options.wallet_path,
@@ -3019,7 +3071,7 @@ class CLIManager:
             )
             raise typer.Exit()
         if not reuse_last:
-            subtensor = self.initialize_chain(network, chain)
+            subtensor = self.initialize_chain(network)
         else:
             subtensor = None
 
@@ -3091,7 +3143,6 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         network: str = Options.network,
-        chain: str = Options.chain,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3191,7 +3242,7 @@ class CLIManager:
         return self._run_command(
             stake.stake_add(
                 wallet,
-                self.initialize_chain(network, chain),
+                self.initialize_chain(network),
                 amount,
                 stake_all,
                 max_stake,
@@ -3206,7 +3257,6 @@ class CLIManager:
     def stake_remove(
         self,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -3347,7 +3397,7 @@ class CLIManager:
         return self._run_command(
             stake.unstake(
                 wallet,
-                self.initialize_chain(network, chain),
+                self.initialize_chain(network),
                 hotkey_ss58_address,
                 all_hotkeys,
                 include_hotkeys,
@@ -3365,7 +3415,6 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         wallet_path: Optional[str] = Options.wallet_path,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         netuid: Optional[int] = typer.Option(
             None,
             help="The netuid of the subnet (e.g. 2)",
@@ -3414,7 +3463,7 @@ class CLIManager:
 
         return self._run_command(
             children_hotkeys.get_children(
-                wallet, self.initialize_chain(network, chain), netuid
+                wallet, self.initialize_chain(network), netuid
             )
         )
 
@@ -3427,7 +3476,6 @@ class CLIManager:
         wallet_hotkey: str = Options.wallet_hotkey,
         wallet_path: str = Options.wallet_path,
         network: str = Options.network,
-        chain: str = Options.chain,
         netuid: Optional[int] = typer.Option(
             None,
             help="The netuid of the subnet, (e.g. 4)",
@@ -3504,7 +3552,7 @@ class CLIManager:
         return self._run_command(
             children_hotkeys.set_children(
                 wallet=wallet,
-                subtensor=self.initialize_chain(network, chain),
+                subtensor=self.initialize_chain(network),
                 netuid=netuid,
                 children=children,
                 proportions=proportions,
@@ -3519,7 +3567,6 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         wallet_path: Optional[str] = Options.wallet_path,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         netuid: Optional[int] = typer.Option(
             None,
             help="The netuid of the subnet, (e.g. 8)",
@@ -3566,7 +3613,7 @@ class CLIManager:
         return self._run_command(
             children_hotkeys.revoke_children(
                 wallet,
-                self.initialize_chain(network, chain),
+                self.initialize_chain(network),
                 netuid,
                 wait_for_inclusion,
                 wait_for_finalization,
@@ -3579,7 +3626,6 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         wallet_path: Optional[str] = Options.wallet_path,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         hotkey: Optional[str] = None,
         netuid: Optional[int] = typer.Option(
             None,
@@ -3641,7 +3687,7 @@ class CLIManager:
         return self._run_command(
             children_hotkeys.childkey_take(
                 wallet=wallet,
-                subtensor=self.initialize_chain(network, chain),
+                subtensor=self.initialize_chain(network),
                 netuid=netuid,
                 take=take,
                 hotkey=hotkey,
@@ -3654,7 +3700,6 @@ class CLIManager:
     def sudo_set(
         self,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -3680,7 +3725,7 @@ class CLIManager:
         self.verbosity_handler(quiet, verbose)
 
         hyperparams = self._run_command(
-            sudo.get_hyperparameters(self.initialize_chain(network, chain), netuid)
+            sudo.get_hyperparameters(self.initialize_chain(network), netuid)
         )
 
         if not hyperparams:
@@ -3710,7 +3755,7 @@ class CLIManager:
         return self._run_command(
             sudo.sudo_set_hyperparameter(
                 wallet,
-                self.initialize_chain(network, chain),
+                self.initialize_chain(network),
                 netuid,
                 param_name,
                 param_value,
@@ -3720,7 +3765,6 @@ class CLIManager:
     def sudo_get(
         self,
         network: str = Options.network,
-        chain: str = Options.chain,
         netuid: int = Options.netuid,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3736,13 +3780,12 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
         return self._run_command(
-            sudo.get_hyperparameters(self.initialize_chain(network, chain), netuid)
+            sudo.get_hyperparameters(self.initialize_chain(network), netuid)
         )
 
     def subnets_list(
         self,
         network: str = Options.network,
-        chain: str = Options.chain,
         reuse_last: bool = Options.reuse_last,
         html_output: bool = Options.html_output,
         quiet: bool = Options.quiet,
@@ -3776,7 +3819,7 @@ class CLIManager:
         if reuse_last:
             subtensor = None
         else:
-            subtensor = self.initialize_chain(network, chain)
+            subtensor = self.initialize_chain(network)
         return self._run_command(
             subnets.subnets_list(
                 subtensor,
@@ -3789,7 +3832,6 @@ class CLIManager:
     def subnets_lock_cost(
         self,
         network: str = Options.network,
-        chain: str = Options.chain,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -3803,9 +3845,7 @@ class CLIManager:
         [green]$[/green] btcli subnets lock_cost
         """
         self.verbosity_handler(quiet, verbose)
-        return self._run_command(
-            subnets.lock_cost(self.initialize_chain(network, chain))
-        )
+        return self._run_command(subnets.lock_cost(self.initialize_chain(network)))
 
     def subnets_create(
         self,
@@ -3813,7 +3853,6 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         network: str = Options.network,
-        chain: str = Options.chain,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3834,7 +3873,7 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
         return self._run_command(
-            subnets.create(wallet, self.initialize_chain(network, chain), prompt)
+            subnets.create(wallet, self.initialize_chain(network), prompt)
         )
 
     def subnets_pow_register(
@@ -3843,7 +3882,6 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         network: Optional[str] = Options.network,
-        chain: Optional[str] = Options.chain,
         netuid: int = Options.netuid,
         # TODO add the following to config
         processors: Optional[int] = typer.Option(
@@ -3913,7 +3951,7 @@ class CLIManager:
                     ask_for=[WO.NAME, WO.HOTKEY],
                     validate=WV.WALLET_AND_HOTKEY,
                 ),
-                self.initialize_chain(network, chain),
+                self.initialize_chain(network),
                 netuid,
                 processors,
                 update_interval,
@@ -3930,7 +3968,6 @@ class CLIManager:
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
-        chain: str = Options.chain,
         network: str = Options.network,
         netuid: int = Options.netuid,
         prompt: bool = Options.prompt,
@@ -3959,7 +3996,7 @@ class CLIManager:
         return self._run_command(
             subnets.register(
                 wallet,
-                self.initialize_chain(network, chain),
+                self.initialize_chain(network),
                 netuid,
                 prompt,
             )
@@ -3973,7 +4010,6 @@ class CLIManager:
             "is ignored when used with `--reuse-last`.",
         ),
         network: str = Options.network,
-        chain: str = Options.chain,
         reuse_last: bool = Options.reuse_last,
         html_output: bool = Options.html_output,
         quiet: bool = Options.quiet,
@@ -4048,7 +4084,7 @@ class CLIManager:
         else:
             if netuid is None:
                 netuid = rich.prompt.IntPrompt.ask("Enter the netuid (e.g. 1)")
-            subtensor = self.initialize_chain(network, chain)
+            subtensor = self.initialize_chain(network)
 
         return self._run_command(
             subnets.metagraph_cmd(
@@ -4064,7 +4100,6 @@ class CLIManager:
     def weights_reveal(
         self,
         network: str = Options.network,
-        chain: str = Options.chain,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -4148,7 +4183,7 @@ class CLIManager:
 
         return self._run_command(
             weights_cmds.reveal_weights(
-                self.initialize_chain(network, chain),
+                self.initialize_chain(network),
                 wallet,
                 netuid,
                 uids,
@@ -4161,7 +4196,6 @@ class CLIManager:
     def weights_commit(
         self,
         network: str = Options.network,
-        chain: str = Options.chain,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -4244,7 +4278,7 @@ class CLIManager:
         )
         return self._run_command(
             weights_cmds.commit_weights(
-                self.initialize_chain(network, chain),
+                self.initialize_chain(network),
                 wallet,
                 netuid,
                 uids,
