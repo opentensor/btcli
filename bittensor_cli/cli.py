@@ -1106,6 +1106,8 @@ class CLIManager:
                 default=defaults.wallet.path,
             )
         # Create the Wallet object
+        if wallet_path:
+            wallet_path = os.path.expanduser(wallet_path)
         wallet = Wallet(name=wallet_name, path=wallet_path, hotkey=wallet_hotkey)
 
         # Validate the wallet if required
