@@ -217,10 +217,11 @@ def test_root_commands(local_chain, wallet_setup):
             "--delegate-ss58key",
             wallet_bob.hotkey.ss58_address,
             "--amount",
-            f"10",
+            "10",
             "--no-prompt",
         ],
     )
+    time.sleep(10)
     assert "✅ Finalized" in undelegate_alice.stdout
 
     check_balance(
