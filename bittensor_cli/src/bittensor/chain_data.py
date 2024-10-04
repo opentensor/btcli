@@ -556,7 +556,7 @@ class DelegateInfoLite:
         )
 
     @classmethod
-    def from_vec_u8(cls, vec_u8: List[int]) -> Optional["DelegateInfoLite"]:
+    def from_vec_u8(cls, vec_u8: list[int]) -> Optional["DelegateInfoLite"]:
         """Returns a DelegateInfoLite object from a ``vec_u8``."""
         if len(vec_u8) == 0:
             return None
