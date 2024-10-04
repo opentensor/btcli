@@ -1,5 +1,6 @@
 import asyncio
 import json
+import random
 from collections import defaultdict
 from dataclasses import dataclass
 from hashlib import blake2b
@@ -11,7 +12,7 @@ from scalecodec import GenericExtrinsic
 from scalecodec.base import ScaleBytes, ScaleType, RuntimeConfigurationObject
 from scalecodec.type_registry import load_type_registry_preset
 from scalecodec.types import GenericCall
-from substrateinterface import Keypair
+from bittensor_wallet import Keypair
 from substrateinterface.exceptions import (
     SubstrateRequestException,
     ExtrinsicNotFound,
@@ -845,11 +846,7 @@ class AsyncSubstrateInterface:
     async def load_registry(self):
         metadata_rpc_result = await self.rpc_request(
             "state_call",
-            [
-                "Metadata_metadata_at_version",
-                self.metadata_version_hex,
-                await self.get_chain_finalised_head(),
-            ],
+            ["Metadata_metadata_at_version", self.metadata_version_hex],
         )
         metadata_option_hex_str = metadata_rpc_result["result"]
         metadata_option_bytes = bytes.fromhex(metadata_option_hex_str[2:])
@@ -897,6 +894,7 @@ class AsyncSubstrateInterface:
 
         :returns: Runtime object
         """
+
         async def get_runtime(block_hash, block_id) -> Runtime:
             # Check if runtime state already set to current block
             if (block_hash and block_hash == self.last_block_hash) or (
@@ -1693,9 +1691,10 @@ class AsyncSubstrateInterface:
         """
         block_hash = await self._get_current_block_hash(block_hash, reuse_block_hash)
         params = params or []
+        payload_id = f"{method}{random.randint(0, 7000)}"
         payloads = [
             self.make_payload(
-                "rpc_request",
+                payload_id,
                 method,
                 params + [block_hash] if block_hash else params,
             )
@@ -1707,14 +1706,14 @@ class AsyncSubstrateInterface:
             self.type_registry,
         )
         result = await self._make_rpc_request(payloads, runtime=runtime)
-        if "error" in result["rpc_request"][0]:
+        if "error" in result[payload_id][0]:
             raise SubstrateRequestException(
                 result["rpc_request"][0]["error"]["message"]
             )
-        if "result" in result["rpc_request"][0]:
-            return result["rpc_request"][0]
+        if "result" in result[payload_id][0]:
+            return result[payload_id][0]
         else:
-            raise SubstrateRequestException(result["rpc_request"][0])
+            raise SubstrateRequestException(result[payload_id][0])
 
     async def get_block_hash(self, block_id: int) -> str:
         return (await self.rpc_request("chain_getBlockHash", [block_id]))["result"]
@@ -2193,20 +2192,16 @@ class AsyncSubstrateInterface:
             params = {}
 
         try:
-            runtime_call_def = self.runtime_config.type_registry["runtime_api"][
-                api
-            ]["methods"][method]
+            runtime_call_def = self.runtime_config.type_registry["runtime_api"][api][
+                "methods"
+            ][method]
             runtime_api_types = self.runtime_config.type_registry["runtime_api"][
                 api
             ].get("types", {})
         except KeyError:
-            raise ValueError(
-                f"Runtime API Call '{api}.{method}' not found in registry"
-            )
+            raise ValueError(f"Runtime API Call '{api}.{method}' not found in registry")
 
-        if isinstance(params, list) and len(params) != len(
-            runtime_call_def["params"]
-        ):
+        if isinstance(params, list) and len(params) != len(runtime_call_def["params"]):
             raise ValueError(
                 f"Number of parameter provided ({len(params)}) does not "
                 f"match definition {len(runtime_call_def['params'])}"

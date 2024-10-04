@@ -384,7 +384,7 @@ async def create(wallet: Wallet, subtensor: "SubtensorInterface", prompt: bool):
         )
 
         if do_set_identity:
-            id_prompts = set_id_prompts()
+            id_prompts = set_id_prompts(validator=False)
             await set_id(wallet, subtensor, *id_prompts, prompt=prompt)
 
 

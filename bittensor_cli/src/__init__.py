@@ -67,7 +67,6 @@ class Defaults:
         path = "~/.bittensor/config.yml"
         dictionary = {
             "network": None,
-            "chain": None,
             "wallet_path": None,
             "wallet_name": None,
             "wallet_hotkey": None,

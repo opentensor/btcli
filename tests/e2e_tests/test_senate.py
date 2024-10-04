@@ -47,7 +47,7 @@ def test_senate(local_chain, wallet_setup):
         command="root",
         sub_command="senate",
         extra_args=[
-            "--chain",
+            "--network",
             "ws://127.0.0.1:9945",
         ],
     )
@@ -63,14 +63,12 @@ def test_senate(local_chain, wallet_setup):
         extra_args=[
             "--wallet-path",
             wallet_path_bob,
-            "--chain",
+            "--network",
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet_bob.name,
             "--hotkey",
             wallet_bob.hotkey_str,
-            "--network",
-            "local",
             "--no-prompt",
         ],
     )
@@ -88,7 +86,7 @@ def test_senate(local_chain, wallet_setup):
 
     # Assert Bob is now part of the senate
     assert wallet_bob.hotkey.ss58_address in root_senate_after_reg.stdout
-    
+
     # Manually add a proposal on the chain & assert
     success = asyncio.run(call_add_proposal(local_chain, wallet_bob))
     assert success is True
@@ -154,10 +152,10 @@ def test_senate(local_chain, wallet_setup):
     assert proposals_after_aye_output[5] == "Aye"
 
     # Aye votes increased to 1
-    assert proposals_after_aye_output[2] == '1'
+    assert proposals_after_aye_output[2] == "1"
 
     # Nay votes remain 0
-    assert proposals_after_aye_output[3] == '0'
+    assert proposals_after_aye_output[3] == "0"
 
     # Register Alice to the root network (0)
     # Registering to root automatically makes you a senator if eligible
@@ -173,8 +171,6 @@ def test_senate(local_chain, wallet_setup):
             wallet_alice.name,
             "--hotkey",
             wallet_alice.hotkey_str,
-            "--network",
-            "local",
             "--no-prompt",
         ],
     )

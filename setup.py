@@ -64,7 +64,8 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/opentensor/btcli",
     author="bittensor.com",
-    packages=find_packages(exclude=["tests", "tests.*", "*/tests/*", "*/tests"]) + ['bittensor_cli.src.bittensor.templates'],
+    packages=find_packages(exclude=["tests", "tests.*", "*/tests/*", "*/tests"])
+    + ["bittensor_cli.src.bittensor.templates"],
     include_package_data=True,
     package_data={
         "": ["templates/*"],

@@ -2,8 +2,10 @@ import asyncio
 import binascii
 import itertools
 import os
+import sys
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 from sys import getsizeof
 from typing import Any, Collection, Generator, Optional
 
@@ -18,6 +20,7 @@ from rich.prompt import Confirm, Prompt
 from rich.table import Column, Table
 from rich.tree import Tree
 from rich.padding import Padding
+from rich.prompt import IntPrompt
 from scalecodec import ScaleBytes
 import scalecodec
 import typer
@@ -30,10 +33,12 @@ from bittensor_cli.src.bittensor.chain_data import (
     NeuronInfoLite,
     StakeInfo,
     custom_rpc_type_registry,
+    decode_account_id,
 )
 from bittensor_cli.src.bittensor.extrinsics.registration import (
     run_faucet_extrinsic,
     swap_hotkey_extrinsic,
+    is_hotkey_registered,
 )
 from bittensor_cli.src.bittensor.extrinsics.transfer import transfer_extrinsic
 from bittensor_cli.src.bittensor.networking import int_to_ip
@@ -50,6 +55,7 @@ from bittensor_cli.src.bittensor.utils import (
     get_hotkey_wallets_for_wallet,
     is_valid_ss58_address,
     validate_coldkey_presence,
+    retry_prompt,
 )
 
 
@@ -72,7 +78,7 @@ async def regen_coldkey(
         wallet.regenerate_coldkey(
             mnemonic=mnemonic,
             seed=seed,
-            json=(json_str, json_password),
+            json=(json_str, json_password) if all([json_str, json_password]) else None,
             use_password=use_password,
             overwrite=False,
         )
@@ -117,7 +123,7 @@ async def regen_hotkey(
         wallet.regenerate_hotkey(
             mnemonic=mnemonic,
             seed=seed,
-            json=(json_str, json_password),
+            json=(json_str, json_password) if all([json_str, json_password]) else None,
             use_password=use_password,
             overwrite=False,
         )
@@ -1433,28 +1439,46 @@ async def swap_hotkey(
     )
 
 
-def set_id_prompts() -> tuple[str, str, str, str, str, str, str, str, str, bool]:
+def set_id_prompts(
+    validator: bool,
+) -> tuple[str, str, str, str, str, str, str, str, str, bool, int]:
     """
     Used to prompt the user to input their info for setting the ID
     :return: (display_name, legal_name, web_url, riot_handle, email,pgp_fingerprint, image_url, info_, twitter_url,
              validator_id)
     """
-    display_name = Prompt.ask(
-        "Display Name: The display name for the identity.", default=""
+    text_rejection = partial(
+        retry_prompt,
+        rejection=lambda x: sys.getsizeof(x) > 113,
+        rejection_text="[red]Error:[/red] Identity field must be <= 64 raw bytes.",
     )
-    legal_name = Prompt.ask("Legal Name: The legal name for the identity.", default="")
-    web_url = Prompt.ask("Web URL: The web url for the identity.", default="")
-    riot_handle = Prompt.ask(
-        "Riot Handle: The riot handle for the identity.", default=""
+
+    def pgp_check(s: str):
+        try:
+            if s.startswith("0x"):
+                s = s[2:]  # Strip '0x'
+            pgp_fingerprint_encoded = binascii.unhexlify(s.replace(" ", ""))
+        except Exception:
+            return True
+        return True if len(pgp_fingerprint_encoded) != 20 else False
+
+    display_name = text_rejection("Display name")
+    legal_name = text_rejection("Legal name")
+    web_url = text_rejection("Web URL")
+    riot_handle = text_rejection("Riot handle")
+    email = text_rejection("Email address")
+    pgp_fingerprint = retry_prompt(
+        "PGP fingerprint (Eg: A1B2 C3D4 E5F6 7890 1234 5678 9ABC DEF0 1234 5678)",
+        lambda s: False if not s else pgp_check(s),
+        "[red]Error:[/red] PGP Fingerprint must be exactly 20 bytes.",
     )
-    email = Prompt.ask("Email: The email address for the identity.", default="")
-    pgp_fingerprint = Prompt.ask(
-        "PGP Fingerprint: The pgp fingerprint for the identity.", default=""
-    )
-    image_url = Prompt.ask("Image URL: The image url for the identity.", default="")
-    info_ = Prompt.ask("Info: Info about the identity", default="")
-    twitter_url = Prompt.ask("𝕏 URL: The 𝕏 (Twitter) url for the identity.")
-    validator_id = Confirm.ask("Are you updating a validator hotkey identity?")
+    image_url = text_rejection("Image URL")
+    info_ = text_rejection("Enter info")
+    twitter_url = text_rejection("𝕏 (Twitter) URL")
+
+    subnet_netuid = None
+    if validator is False:
+        subnet_netuid = IntPrompt.ask("Enter the netuid of the subnet you own")
 
     return (
         display_name,
@@ -1466,7 +1490,8 @@ def set_id_prompts() -> tuple[str, str, str, str, str, str, str, str, str, bool]
         image_url,
         twitter_url,
         info_,
-        validator_id,
+        validator,
+        subnet_netuid,
     )
 
 
@@ -1483,28 +1508,29 @@ async def set_id(
     twitter: str,
     info_: str,
     validator_id: bool,
+    subnet_netuid: int,
     prompt: bool,
 ):
     """Create a new or update existing identity on-chain."""
-
-    try:
-        pgp_fingerprint_encoded = binascii.unhexlify(pgp_fingerprint.replace(" ", ""))
-    except Exception as e:
-        print_error(f"The PGP is not in the correct format: {e}")
-        raise typer.Exit()
 
     id_dict = {
         "additional": [[]],
         "display": display_name,
         "legal": legal_name,
         "web": web_url,
-        "pgp_fingerprint": pgp_fingerprint_encoded,
+        "pgp_fingerprint": pgp_fingerprint,
         "riot": riot_handle,
         "email": email,
         "image": image,
         "twitter": twitter,
         "info": info_,
     }
+
+    try:
+        pgp_fingerprint_encoded = binascii.unhexlify(pgp_fingerprint.replace(" ", ""))
+    except Exception as e:
+        print_error(f"The PGP is not in the correct format: {e}")
+        raise typer.Exit()
 
     for field, string in id_dict.items():
         if (
@@ -1549,6 +1575,37 @@ async def set_id(
         ):
             console.print(":cross_mark: Aborted!")
             raise typer.Exit()
+
+    if validator_id:
+        block_hash = await subtensor.substrate.get_chain_head()
+
+        is_registered_on_root, hotkey_owner = await asyncio.gather(
+            is_hotkey_registered(
+                subtensor, netuid=0, hotkey_ss58=wallet.hotkey.ss58_address
+            ),
+            subtensor.get_hotkey_owner(
+                hotkey_ss58=wallet.hotkey.ss58_address, block_hash=block_hash
+            ),
+        )
+
+        if not is_registered_on_root:
+            print_error("The hotkey is not registered on root. Aborting.")
+            return False
+
+        own_hotkey = wallet.coldkeypub.ss58_address == hotkey_owner
+        if not own_hotkey:
+            print_error("The hotkey doesn't belong to the coldkey wallet. Aborting.")
+            return False
+    else:
+        subnet_owner_ = await subtensor.substrate.query(
+            module="SubtensorModule",
+            storage_function="SubnetOwner",
+            params=[subnet_netuid],
+        )
+        subnet_owner = decode_account_id(subnet_owner_[0])
+        if subnet_owner != wallet.coldkeypub.ss58_address:
+            print_error(f":cross_mark: This wallet doesn't own subnet {subnet_netuid}.")
+            return False
 
     try:
         wallet.unlock_coldkey()

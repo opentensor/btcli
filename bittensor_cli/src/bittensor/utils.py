@@ -3,20 +3,25 @@ import os
 import sqlite3
 import webbrowser
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Collection, Optional, Union
+from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable
+from urllib.parse import urlparse
 
-import numpy as np
-import scalecodec
-from bittensor_wallet import Wallet
-from bittensor_wallet.keyfile import Keypair
-from bittensor_wallet.utils import SS58_FORMAT, ss58
+from bittensor_wallet import Wallet, Keypair
+from bittensor_wallet.utils import SS58_FORMAT
+from bittensor_wallet import utils
 from jinja2 import Template
 from markupsafe import Markup
+import numpy as np
 from numpy.typing import NDArray
 from rich.console import Console
+import scalecodec
 from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
+import typer
+
+
 from bittensor_cli.src.bittensor.balances import Balance
+
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
@@ -217,6 +222,7 @@ def get_hotkey_wallets_for_wallet(
         except (
             UnicodeDecodeError,
             AttributeError,
+            TypeError
         ):  # usually an unrelated file like .DS_Store
             continue
 
@@ -300,10 +306,8 @@ def is_valid_ss58_address(address: str) -> bool:
     :return: `True` if the address is a valid ss58 address for Bittensor, `False` otherwise.
     """
     try:
-        return ss58.is_valid_ss58_address(
-            address, valid_ss58_format=SS58_FORMAT
-        ) or ss58.is_valid_ss58_address(
-            address, valid_ss58_format=42
+        return utils.is_valid_ss58_address(
+            address
         )  # Default substrate ss58 format (legacy)
     except IndexError:
         return False
@@ -859,3 +863,47 @@ def group_subnets(registrations):
         ranges.append(f"{start}-{registrations[-1]}")
 
     return ", ".join(ranges)
+
+
+def validate_chain_endpoint(endpoint_url) -> tuple[bool, str]:
+    parsed = urlparse(endpoint_url)
+    if parsed.scheme not in ("ws", "wss"):
+        return False, (
+            f"Invalid URL or network name provided: [bright_cyan]({endpoint_url})[/bright_cyan].\n"
+            "Allowed network names are [bright_cyan]finney, test, local[/bright_cyan]. "
+            "Valid chain endpoints should use the scheme [bright_cyan]`ws` or `wss`[/bright_cyan].\n"
+        )
+    if not parsed.netloc:
+        return False, "Invalid URL passed as the endpoint"
+    if not parsed.port:
+        return False, "No port specified in the URL"
+    return True, ""
+
+
+def retry_prompt(
+    helper_text: str,
+    rejection: Callable,
+    rejection_text: str,
+    default="",
+    show_default=False,
+    prompt_type=typer.prompt,
+):
+    """
+    Allows for asking prompts again if they do not meet a certain criteria (as defined in `rejection`)
+    Args:
+        helper_text: The helper text to display for the prompt
+        rejection: A function that returns True if the input should be rejected, and False if it should be accepted
+        rejection_text: The text to display to the user if their input hits the rejection
+        default: the default value to use for the prompt, default ""
+        show_default: whether to show the default, default False
+        prompt_type: the type of prompt, default `typer.prompt`
+
+    Returns: the input value (or default)
+
+    """
+    while True:
+        var = prompt_type(helper_text, default=default, show_default=show_default)
+        if not rejection(var):
+            return var
+        else:
+            err_console.print(rejection_text)
