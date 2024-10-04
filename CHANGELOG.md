@@ -18,6 +18,7 @@
 * Updates "btcli w set-identity" by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/146
 * Give recent commit in version by @thewhaleking in https://github.com/opentensor/btcli/pull/156
 * Rename `not_subtensor` to `subtensor` by @thewhaleking in https://github.com/opentensor/btcli/pull/157
+* Integrate Rust Wallet — tests by @thewhaleking @opendansor @roman-opentensor @ibraheem-opentensor @camfairchild  in https://github.com/opentensor/btcli/pull/158
 
 ## New Contributors
 * @the-mx made their first contribution in https://github.com/opentensor/btcli/pull/124
