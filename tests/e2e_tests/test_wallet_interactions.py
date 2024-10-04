@@ -456,7 +456,6 @@ def test_wallet_identities(local_chain, wallet_setup):
             wallet_alice.hotkey.ss58_address,
         ],
     )
-    # print(get_identity.stdout)
 
     # Assert all correct values are being fetched for the ID we just set
     get_identity_output = get_identity.stdout.splitlines()
