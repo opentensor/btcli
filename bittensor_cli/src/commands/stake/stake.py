@@ -1177,7 +1177,8 @@ async def stake_add_new(
     )
     # Init the table.
     table = Table(
-        title=f"[white]Staking operation from Coldkey SS58[/white]: [bold dark_green]{wallet.coldkeypub.ss58_address}[/bold dark_green]\n",
+        title="[white]Staking operation from Coldkey SS58[/white]: "
+              f"[bold dark_green]{wallet.coldkeypub.ss58_address}[/bold dark_green]\n",
         width=console.width - 5,
         safe_box=True,
         padding=(0, 1),
