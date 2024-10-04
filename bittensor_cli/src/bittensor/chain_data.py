@@ -557,11 +557,11 @@ class DelegateInfoLite:
 
     @classmethod
     def from_vec_u8(cls, vec_u8: List[int]) -> Optional["DelegateInfoLite"]:
-        """Returns a DelegateInfoLight object from a ``vec_u8``."""
+        """Returns a DelegateInfoLite object from a ``vec_u8``."""
         if len(vec_u8) == 0:
             return None
 
-        decoded = from_scale_encoding(vec_u8, ChainDataType.DelegateInfoLight)
+        decoded = from_scale_encoding(vec_u8, ChainDataType.DelegateInfoLite)
 
         if decoded is None:
             return None
@@ -572,9 +572,9 @@ class DelegateInfoLite:
 
     @classmethod
     def list_from_vec_u8(cls, vec_u8: list[int]) -> list["DelegateInfoLite"]:
-        """Returns a list of DelegateInfoLight objects from a ``vec_u8``."""
+        """Returns a list of DelegateInfoLite objects from a ``vec_u8``."""
         decoded = from_scale_encoding(
-            vec_u8, ChainDataType.DelegateInfoLight, is_vec=True
+            vec_u8, ChainDataType.DelegateInfoLite, is_vec=True
         )
 
         if decoded is None:
@@ -1197,7 +1197,7 @@ custom_rpc_type_registry = {
                 ["total_daily_return", "Compact<u64>"],
             ],
         },
-        "DelegateInfoLight": {
+        "DelegateInfoLite": {
             "type": "struct",
             "type_mapping": [
                 ["delegate_ss58", "AccountId"],
