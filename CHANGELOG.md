@@ -1,5 +1,14 @@
 # Changelog
 
+## 8.1.1 /2024-10-04
+
+## What's Changed
+
+* Handles missing hotkey file when traversing wallet by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/161
+* Backmerge/8.1.0 by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/162
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v8.0.0...v8.1.1
+
 ## 8.1.0 /2024-10-03
 
 ## What's Changed
