@@ -6,9 +6,8 @@ import sys
 from typing import List, Tuple, TYPE_CHECKING
 
 from bittensor_cli.cli import CLIManager
-from substrateinterface import Keypair
+from bittensor_wallet import Keypair, Wallet
 from typer.testing import CliRunner
-from bittensor_wallet import Wallet
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.async_substrate_interface import (
@@ -34,7 +33,8 @@ def setup_wallet(uri: str):
         inputs: List[str] = None,
     ):
         cli_manager = CLIManager()
-        runner = CliRunner()
+        # Capture stderr separately from stdout
+        runner = CliRunner(mix_stderr=False)
         # Prepare the command arguments
         args = [
             command,
@@ -48,7 +48,11 @@ def setup_wallet(uri: str):
 
         input_text = "\n".join(inputs) + "\n" if inputs else None
         result = runner.invoke(
-            cli_manager.app, args, input=input_text, env={"COLUMNS": "700"}
+            cli_manager.app,
+            args,
+            input=input_text,
+            env={"COLUMNS": "700"},
+            catch_exceptions=False,
         )
         return result
 

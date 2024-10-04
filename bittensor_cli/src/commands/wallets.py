@@ -78,7 +78,7 @@ async def regen_coldkey(
         wallet.regenerate_coldkey(
             mnemonic=mnemonic,
             seed=seed,
-            json=(json_str, json_password),
+            json=(json_str, json_password) if all([json_str, json_password]) else None,
             use_password=use_password,
             overwrite=False,
         )
@@ -123,7 +123,7 @@ async def regen_hotkey(
         wallet.regenerate_hotkey(
             mnemonic=mnemonic,
             seed=seed,
-            json=(json_str, json_password),
+            json=(json_str, json_password) if all([json_str, json_password]) else None,
             use_password=use_password,
             overwrite=False,
         )

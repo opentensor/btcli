@@ -1,7 +1,7 @@
 import time
 
 from bittensor_cli.src.bittensor.balances import Balance
-from tests.e2e_tests.utils import extract_coldkey_balance
+from .utils import extract_coldkey_balance
 
 """
 Verify commands:
@@ -217,10 +217,11 @@ def test_root_commands(local_chain, wallet_setup):
             "--delegate-ss58key",
             wallet_bob.hotkey.ss58_address,
             "--amount",
-            f"10",
+            "10",
             "--no-prompt",
         ],
     )
+    time.sleep(10)
     assert "✅ Finalized" in undelegate_alice.stdout
 
     check_balance(

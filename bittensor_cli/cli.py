@@ -1098,7 +1098,12 @@ class CLIManager:
                 )
             else:
                 wallet_name = typer.prompt(
-                    typer.style("Enter the wallet name", fg="blue"),
+                    typer.style("Enter the wallet name", fg="blue")
+                    + typer.style(
+                        " (Hint: You can set this with `btcli config set --wallet-name`)",
+                        fg="green",
+                        italic=True,
+                    ),
                     default=defaults.wallet.name,
                 )
 
@@ -1110,7 +1115,12 @@ class CLIManager:
                 )
             else:
                 wallet_hotkey = typer.prompt(
-                    typer.style("Enter the wallet hotkey", fg="blue"),
+                    typer.style("Enter the wallet hotkey", fg="blue")
+                    + typer.style(
+                        " (Hint: You can set this with `btcli config set --wallet-hotkey`)",
+                        fg="green",
+                        italic=True,
+                    ),
                     default=defaults.wallet.hotkey,
                 )
         if wallet_path:
@@ -1125,10 +1135,17 @@ class CLIManager:
 
         if WO.PATH in ask_for and not wallet_path:
             wallet_path = typer.prompt(
-                typer.style("Enter the wallet path", fg="blue"),
+                typer.style("Enter the wallet path", fg="blue")
+                + typer.style(
+                    " (Hint: You can set this with `btcli config set --wallet-path`)",
+                    fg="green",
+                    italic=True,
+                ),
                 default=defaults.wallet.path,
             )
         # Create the Wallet object
+        if wallet_path:
+            wallet_path = os.path.expanduser(wallet_path)
         wallet = Wallet(name=wallet_name, path=wallet_path, hotkey=wallet_hotkey)
 
         # Validate the wallet if required
@@ -1136,13 +1153,15 @@ class CLIManager:
             valid = utils.is_valid_wallet(wallet)
             if not valid[0]:
                 utils.err_console.print(
-                    f"[red]Error: Wallet does not not exist. \nPlease verify your wallet information: {wallet}[/red]"
+                    f"[red]Error: Wallet does not not exist. \n"
+                    f"Please verify your wallet information: {wallet}[/red]"
                 )
                 raise typer.Exit()
 
             if validate == WV.WALLET_AND_HOTKEY and not valid[1]:
                 utils.err_console.print(
-                    f"[red]Error: Wallet '{wallet.name}' exists but the hotkey '{wallet.hotkey_str}' does not. \nPlease verify your wallet information: {wallet}[/red]"
+                    f"[red]Error: Wallet '{wallet.name}' exists but the hotkey '{wallet.hotkey_str}' does not. \n"
+                    f"Please verify your wallet information: {wallet}[/red]"
                 )
                 raise typer.Exit()
         return wallet
@@ -1282,7 +1301,7 @@ class CLIManager:
                 "Netuids must be a comma-separated list of ints, e.g., `--netuids 1,2,3,4`.",
             )
 
-        ask_for = [WO.NAME] if not all_wallets else [WO.PATH]
+        ask_for = [WO.NAME, WO.PATH] if not all_wallets else [WO.PATH]
         validate = WV.WALLET if not all_wallets else WV.NONE
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
@@ -1367,7 +1386,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME],
+            ask_for=[WO.NAME, WO.PATH],
             validate=WV.WALLET,
         )
         subtensor = self.initialize_chain(network)
@@ -1412,7 +1431,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
         if not destination_hotkey_name:
@@ -1424,7 +1443,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             destination_hotkey_name,
-            ask_for=[WO.NAME, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
         self.initialize_chain(network)
@@ -1490,7 +1509,7 @@ class CLIManager:
             )
 
         # if all-wallets is entered, ask for path
-        ask_for = [WO.NAME] if not all_wallets else [WO.PATH]
+        ask_for = [WO.NAME, WO.PATH] if not all_wallets else [WO.PATH]
         validate = WV.WALLET if not all_wallets else WV.NONE
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
@@ -1579,7 +1598,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME],
+            ask_for=[WO.NAME, WO.PATH],
             validate=WV.WALLET,
         )
         return self._run_command(
@@ -1632,6 +1651,7 @@ class CLIManager:
             wallet_path = Prompt.ask(
                 "Enter the path for the wallets directory", default=defaults.wallet.path
             )
+            wallet_path = os.path.expanduser(wallet_path)
 
         if not wallet_name:
             wallet_name = Prompt.ask(
@@ -1685,6 +1705,7 @@ class CLIManager:
             wallet_path = Prompt.ask(
                 "Enter the path to the wallets directory", default=defaults.wallet.path
             )
+            wallet_path = os.path.expanduser(wallet_path)
 
         if not wallet_name:
             wallet_name = Prompt.ask(
@@ -1748,7 +1769,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET,
         )
         mnemonic, seed, json, json_password = get_creation_data(
@@ -1815,7 +1836,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET,
         )
         n_words = get_n_words(n_words)
@@ -1861,7 +1882,13 @@ class CLIManager:
                 "Enter the name of the new wallet", default=defaults.wallet.name
             )
 
-        wallet = Wallet(wallet_name, wallet_hotkey, wallet_path)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.NONE,
+        )
         n_words = get_n_words(n_words)
         return self._run_command(wallets.new_coldkey(wallet, n_words, use_password))
 
@@ -1933,7 +1960,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.NONE,
         )
         n_words = get_n_words(n_words)
@@ -1979,7 +2006,7 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
 
-        ask_for = [WO.PATH] if all_balances else [WO.NAME]
+        ask_for = [WO.PATH] if all_balances else [WO.NAME, WO.PATH]
         validate = WV.NONE if all_balances else WV.WALLET
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
@@ -2021,7 +2048,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME],
+            ask_for=[WO.NAME, WO.PATH],
             validate=WV.WALLET,
         )
         return self._run_command(wallets.wallet_history(wallet))
@@ -2122,7 +2149,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.HOTKEY, WO.NAME],
+            ask_for=[WO.HOTKEY, WO.PATH, WO.NAME],
             validate=WV.WALLET_AND_HOTKEY,
         )
 
@@ -2277,7 +2304,7 @@ class CLIManager:
                 default=False,
             )
 
-        ask_for = [WO.HOTKEY, WO.NAME] if use_hotkey else [WO.NAME]
+        ask_for = [WO.HOTKEY, WO.PATH, WO.NAME] if use_hotkey else [WO.NAME, WO.PATH]
         validate = WV.WALLET_AND_HOTKEY if use_hotkey else WV.WALLET
 
         wallet = self.wallet_ask(
@@ -2380,7 +2407,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.HOTKEY, WO.NAME],
+            ask_for=[WO.HOTKEY, WO.PATH, WO.NAME],
             validate=WV.WALLET_AND_HOTKEY,
         )
         self._run_command(
@@ -2471,7 +2498,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
         return self._run_command(
@@ -2512,7 +2539,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
         return self._run_command(
@@ -2562,7 +2589,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
         return self._run_command(
@@ -2617,7 +2644,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
         return self._run_command(
@@ -2686,7 +2713,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
 
@@ -2757,7 +2784,7 @@ class CLIManager:
                     )
 
         wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
         )
         return self._run_command(
             root.delegate_stake(
@@ -2827,7 +2854,7 @@ class CLIManager:
                     )
 
         wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
         )
         self._run_command(
             root.delegate_unstake(
@@ -2899,7 +2926,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=([WO.NAME] if not all_wallets else [WO.PATH]),
+            ask_for=([WO.NAME, WO.PATH] if not all_wallets else [WO.PATH]),
             validate=WV.WALLET if not all_wallets else WV.NONE,
         )
         self._run_command(
@@ -3013,7 +3040,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
         return self._run_command(
@@ -3083,7 +3110,7 @@ class CLIManager:
             )
         else:
             wallet = self.wallet_ask(
-                wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+                wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
             )
 
         return self._run_command(
@@ -3196,7 +3223,7 @@ class CLIManager:
             if is_valid_ss58_address(hotkey_or_ss58):
                 hotkey_ss58_address = hotkey_or_ss58
                 wallet = self.wallet_ask(
-                    wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+                    wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
                 )
             else:
                 wallet_hotkey = hotkey_or_ss58
@@ -3204,20 +3231,20 @@ class CLIManager:
                     wallet_name,
                     wallet_path,
                     wallet_hotkey,
-                    ask_for=[WO.NAME, WO.HOTKEY],
+                    ask_for=[WO.NAME, WO.HOTKEY, WO.PATH],
                     validate=WV.WALLET_AND_HOTKEY,
                 )
 
         elif all_hotkeys or include_hotkeys or exclude_hotkeys or hotkey_ss58_address:
             wallet = self.wallet_ask(
-                wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+                wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
             )
         else:
             wallet = self.wallet_ask(
                 wallet_name,
                 wallet_path,
                 wallet_hotkey,
-                ask_for=[WO.NAME, WO.HOTKEY],
+                ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
                 validate=WV.WALLET_AND_HOTKEY,
             )
 
@@ -3350,7 +3377,7 @@ class CLIManager:
             if is_valid_ss58_address(hotkey_or_ss58):
                 hotkey_ss58_address = hotkey_or_ss58
                 wallet = self.wallet_ask(
-                    wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+                    wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
                 )
             else:
                 wallet_hotkey = hotkey_or_ss58
@@ -3358,13 +3385,13 @@ class CLIManager:
                     wallet_name,
                     wallet_path,
                     wallet_hotkey,
-                    ask_for=[WO.NAME, WO.HOTKEY],
+                    ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
                     validate=WV.WALLET_AND_HOTKEY,
                 )
 
         elif all_hotkeys or include_hotkeys or exclude_hotkeys or hotkey_ss58_address:
             wallet = self.wallet_ask(
-                wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+                wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
             )
 
         else:
@@ -3372,7 +3399,7 @@ class CLIManager:
                 wallet_name,
                 wallet_path,
                 wallet_hotkey,
-                ask_for=[WO.NAME, WO.HOTKEY],
+                ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
                 validate=WV.WALLET_AND_HOTKEY,
             )
 
@@ -3443,7 +3470,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
 
@@ -3544,7 +3571,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
         return self._run_command(
@@ -3596,7 +3623,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
         if all_netuids and netuid:
@@ -3670,7 +3697,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
         if all_netuids and netuid:
@@ -3748,7 +3775,7 @@ class CLIManager:
             )
 
         wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
         )
         return self._run_command(
             sudo.sudo_set_hyperparameter(
@@ -3867,7 +3894,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
         return self._run_command(
@@ -3946,7 +3973,7 @@ class CLIManager:
                     wallet_name,
                     wallet_path,
                     wallet_hotkey,
-                    ask_for=[WO.NAME, WO.HOTKEY],
+                    ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
                     validate=WV.WALLET_AND_HOTKEY,
                 ),
                 self.initialize_chain(network),
@@ -3988,7 +4015,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
         return self._run_command(
@@ -4175,7 +4202,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
 
@@ -4271,7 +4298,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
         return self._run_command(

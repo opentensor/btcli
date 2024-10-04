@@ -1,5 +1,7 @@
+from time import sleep
+
 from bittensor_cli.src.bittensor.balances import Balance
-from tests.e2e_tests.utils import (
+from .utils import (
     extract_coldkey_balance,
     validate_wallet_inspect,
     validate_wallet_overview,
@@ -58,6 +60,8 @@ def test_wallet_overview_inspect(local_chain, wallet_setup):
     )
     assert f"✅ Registered subnetwork with netuid: {netuid}" in result.stdout
 
+    sleep(3)
+
     # List all the subnets in the network
     subnets_list = exec_command(
         command="subnets",
@@ -67,6 +71,8 @@ def test_wallet_overview_inspect(local_chain, wallet_setup):
             "ws://127.0.0.1:9945",
         ],
     )
+
+    sleep(3)
 
     # Assert using regex that the subnet is visible in subnets list
     assert verify_subnet_entry(subnets_list.stdout, netuid, keypair.ss58_address)
@@ -326,7 +332,7 @@ def test_wallet_transfer(local_chain, wallet_setup):
     )
 
     # This transfer is expected to fail due to low balance
-    assert "❌ Not enough balance" in result.stdout
+    assert "❌ Not enough balance" in result.stderr
     print("✅Passed wallet transfer, balance command")
 
 
