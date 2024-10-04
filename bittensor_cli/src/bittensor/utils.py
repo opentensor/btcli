@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 from bittensor_wallet import Wallet, Keypair
 from bittensor_wallet.utils import SS58_FORMAT
+from bittensor_wallet.errors import KeyFileError
 from bittensor_wallet import utils
 from jinja2 import Template
 from markupsafe import Markup
@@ -222,7 +223,8 @@ def get_hotkey_wallets_for_wallet(
         except (
             UnicodeDecodeError,
             AttributeError,
-            TypeError
+            TypeError,
+            KeyFileError,
         ):  # usually an unrelated file like .DS_Store
             continue
 
