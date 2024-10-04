@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Optional, Sequence, Union, cast
 
 from bittensor_wallet import Wallet
 from bittensor_wallet.errors import KeyFileError
-from rich.prompt import Confirm
+from rich.prompt import Confirm, FloatPrompt
 from rich.table import Table, Column
 import typer
 
@@ -1144,6 +1144,153 @@ async def show(
                 },
             ],
             0,
+        )
+
+
+async def stake_add_new(
+    wallet: Wallet,
+    subtensor: "SubtensorInterface",
+    netuid: Optional[int],
+    stake_all: bool,
+    amount: float,
+    staking_address_ss58: str,
+    delegate: bool,
+    prompt: bool,
+):
+    """
+
+    Args:
+        wallet: wallet object
+        subtensor: SubtensorInterface object
+        netuid: the netuid to stake to (None indicates all subnets)
+        stake_all: whether to stake all available balance
+        amount: specified amount of balance to stake
+        staking_address_ss58: the hotkey to use for the stake
+        delegate: whether to delegate stake
+        prompt: whether to prompt the user
+
+    Returns:
+
+    """
+    netuids = (
+        [netuid] if netuid is not None else await subtensor.get_all_subnet_netuids()
+    )
+    # Init the table.
+    table = Table(
+        title=f"[white]Staking operation from Coldkey SS58[/white]: [bold dark_green]{wallet.coldkeypub.ss58_address}[/bold dark_green]\n",
+        width=console.width - 5,
+        safe_box=True,
+        padding=(0, 1),
+        collapse_padding=False,
+        pad_edge=True,
+        expand=True,
+        show_header=True,
+        show_footer=True,
+        show_edge=False,
+        show_lines=False,
+        leading=0,
+        style="none",
+        row_styles=None,
+        header_style="bold",
+        footer_style="bold",
+        border_style="rgb(7,54,66)",
+        title_style="bold magenta",
+        title_justify="center",
+        highlight=False,
+    )
+
+    # Determine the amount we are staking.
+    rows = []
+    stake_amount_balance = []
+    current_stake_balances = []
+    current_wallet_balance_ = await subtensor.get_balance(
+        wallet.coldkeypub.ss58_address
+    )
+    current_wallet_balance = current_wallet_balance_[
+        wallet.coldkeypub.ss58_address
+    ].set_unit(0)
+    remaining_wallet_balance = current_wallet_balance
+    max_slippage = 0
+
+    for netuid in netuids:
+        # Check that the subnet exists.
+        # TODO gather this
+        dynamic_info = subtensor.get_subnet_dynamic_info(netuid)  # TODO add
+        if not dynamic_info:
+            err_console.print(f"Subnet with netuid: {netuid} does not exist.")
+            continue
+
+        # Get old staking balance.
+        # TODO gather this
+        current_stake_balance: Balance = (
+            subtensor.get_stake_for_coldkey_and_hotkey_on_netuid(  # TODO add/await
+                coldkey_ss58=wallet.coldkeypub.ss58_address,
+                hotkey_ss58=staking_address_ss58,
+                netuid=netuid,
+            ).set_unit(netuid)
+        )
+        current_stake_balances.append(current_stake_balance)
+
+        # Get the amount.
+        amount_to_stake_as_balance = None
+        if amount:
+            amount_to_stake_as_balance = Balance.from_tao(amount)
+        elif stake_all:
+            amount_to_stake_as_balance = current_wallet_balance / len(netuids)
+        elif (
+            not amount and not max_stake
+        ):  # TODO should this be an Option? Asked in Cortex channel https://discord.com/channels/799672011265015819/1176889593136693339/1291756735316365456
+            if Confirm.ask(f"Stake all: [bold]{remaining_wallet_balance}[/bold]?"):
+                amount_to_stake_as_balance = remaining_wallet_balance
+            else:
+                try:
+                    amount = FloatPrompt.ask(
+                        f"Enter amount to stake in {Balance.get_unit(0)} to subnet: {netuid}"
+                    )
+                    amount_to_stake_as_balance = Balance.from_tao(amount)
+                except ValueError:
+                    err_console.print(
+                        f":cross_mark:[red]Invalid amount: {amount}[/red]"
+                    )
+                    return False
+        stake_amount_balance.append(amount_to_stake_as_balance)
+
+        # Check enough to stake.
+        amount_to_stake_as_balance.set_unit(0)
+        if amount_to_stake_as_balance > remaining_wallet_balance:
+            err_console.print(
+                f"[red]Not enough stake[/red]:[bold white]\n wallet balance:{remaining_wallet_balance} < "
+                f"staking amount: {amount_to_stake_as_balance}[/bold white]"
+            )
+            return False
+        remaining_wallet_balance -= amount_to_stake_as_balance
+
+        # Slippage warning
+        received_amount, slippage = dynamic_info.tao_to_alpha_with_slippage(
+            amount_to_stake_as_balance
+        )
+        if dynamic_info.is_dynamic:
+            slippage_pct_float = (
+                100 * float(slippage) / float(slippage + received_amount)
+                if slippage + received_amount != 0
+                else 0
+            )
+            slippage_pct = f"{slippage_pct_float:.4f} %"
+        else:
+            slippage_pct_float = 0
+            slippage_pct = "N/A"
+        max_slippage = max(slippage_pct_float, max_slippage)
+        rows.append(
+            (
+                str(netuid),
+                # f"{staking_address_ss58[:3]}...{staking_address_ss58[-3:]}",
+                f"{staking_address_ss58}",
+                str(amount_to_stake_as_balance),
+                str(1 / float(dynamic_info.price))
+                + f" {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ",
+                str(received_amount.set_unit(netuid)),
+                str(slippage_pct),
+            )
         )
 
 

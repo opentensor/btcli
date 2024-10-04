@@ -46,20 +46,20 @@ async def select_delegate(subtensor: "SubtensorInterface", netuid: int):
     # List to store visible delegates
     visible_delegates = []
 
-    def get_user_input():
+    def get_user_input() -> str:
         return rich.prompt.Prompt.ask(
             'Press Enter to scroll, enter a number (1-N) to select, or type "h" for help: ',
-            choices=["h"] + [str(x) for x in range(1, len(delegates) - 1)],
+            choices=["", "h"] + [str(x) for x in range(1, len(delegates) - 1)],
             show_choices=True,
         )
 
     # TODO: Add pagination to handle large number of delegates more efficiently
     # Iterate through delegates and display their information
 
-    def loop_selections():
+    def loop_selections() -> Optional[int]:
         idx = 0
         selected_idx = None
-        while True:
+        while idx < len(delegates):
             if idx < len(delegates):
                 delegate = delegates[idx]
 
@@ -146,7 +146,7 @@ async def select_delegate(subtensor: "SubtensorInterface", netuid: int):
         selected_idx_ = loop_selections()
         if selected_idx_ is None:
             if not rich.prompt.Confirm.ask(
-                "You must make a selection. Loop through again?"
+                "You've reached the end of the list. You must make a selection. Loop through again?"
             ):
                 raise IndexError
             else:
