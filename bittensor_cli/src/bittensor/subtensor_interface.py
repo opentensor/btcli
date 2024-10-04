@@ -24,6 +24,7 @@ from bittensor_cli.src.bittensor.chain_data import (
     NeuronInfo,
     SubnetHyperparameters,
     decode_account_id,
+    DelegateInfoLite,
 )
 from bittensor_cli.src import DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance
@@ -1087,3 +1088,33 @@ class SubtensorInterface:
                     )
 
         return all_delegates_details
+
+    async def get_delegates_by_netuid_light(
+        self, netuid: int, block_hash: Optional[str] = None
+    ) -> list[DelegateInfoLite]:
+        """
+        Retrieves a list of all delegate neurons within the Bittensor network. This function provides an overview of the neurons that are actively involved in the network's delegation system.
+
+        Analyzing the delegate population offers insights into the network's governance dynamics and the distribution of trust and responsibility among participating neurons.
+
+        Args:
+            netuid: the netuid to query
+            block_hash: The hash of the blockchain block number for the query.
+
+        Returns:
+            A list of DelegateInfo objects detailing each delegate's characteristics.
+
+        """
+
+        params = [netuid] if not block_hash else [netuid, block_hash]
+        json_body = await self.substrate.rpc_request(
+            method="delegateInfo_getDelegatesLight",  # custom rpc method
+            params=params,
+        )
+
+        result = json_body["result"]
+
+        if result in (None, []):
+            return []
+
+        return DelegateInfoLite.list_from_vec_u8(result)  # TODO this won't work yet

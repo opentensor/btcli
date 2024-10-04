@@ -515,6 +515,7 @@ class DelegateInfo:
             results.append((delegate, Balance.from_rao(b)))
         return results
 
+
 @dataclass
 class DelegateInfoLite:
     """
@@ -546,9 +547,7 @@ class DelegateInfoLite:
             fixed_take = u16_normalized_float(decoded_take)
 
         return cls(
-            hotkey_ss58=ss58_encode(
-                decoded["delegate_ss58"], SS58_FORMAT
-            ),
+            hotkey_ss58=ss58_encode(decoded["delegate_ss58"], SS58_FORMAT),
             owner_ss58=ss58_encode(decoded["owner_ss58"], SS58_FORMAT),
             take=fixed_take,
             total_stake=Balance.from_rao(decoded["total_stake"]),
