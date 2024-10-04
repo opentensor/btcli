@@ -1,6 +1,6 @@
 # Changelog
 
-## 8.1.0 /2024-10-02
+## 8.1.0 /2024-10-03
 
 ## What's Changed
 * Allow for delegate take between 0 and 18% by @garrett-opentensor in https://github.com/opentensor/btcli/pull/123
