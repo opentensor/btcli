@@ -121,10 +121,10 @@ async def transfer_extrinsic(
         print_verbose("Fetching existential and fee", status)
         block_hash = await subtensor.substrate.get_chain_head()
         account_balance_, existential_deposit = await asyncio.gather(
-            subtensor.get_balance(wallet.coldkey.ss58_address, block_hash=block_hash),
+            subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash=block_hash),
             subtensor.get_existential_deposit(block_hash=block_hash),
         )
-        account_balance = account_balance_[wallet.coldkey.ss58_address]
+        account_balance = account_balance_[wallet.coldkeypub.ss58_address]
         fee = await get_transfer_fee()
 
     if not keep_alive:
@@ -176,7 +176,7 @@ async def transfer_extrinsic(
     if success:
         with console.status(":satellite: Checking Balance...", spinner="aesthetic"):
             new_balance = await subtensor.get_balance(
-                wallet.coldkey.ss58_address, reuse_block=False
+                wallet.coldkeypub.ss58_address, reuse_block=False
             )
             console.print(
                 f"Balance:\n"
