@@ -15,7 +15,6 @@ import rich
 import typer
 import numpy as np
 from bittensor_wallet import Wallet
-from git import Repo, GitError
 from rich import box
 from rich.prompt import Confirm, FloatPrompt, Prompt, IntPrompt
 from rich.table import Column, Table
@@ -48,6 +47,14 @@ from typing_extensions import Annotated
 from textwrap import dedent
 from websockets import ConnectionClosed
 from yaml import safe_dump, safe_load
+
+try:
+    from git import Repo, GitError
+except ImportError:
+
+    class GitError(Exception):
+        pass
+
 
 __version__ = "8.1.0"
 
@@ -368,7 +375,7 @@ def version_callback(value: bool):
                 f"{repo.active_branch.name}/"
                 f"{repo.commit()}"
             )
-        except GitError:
+        except (NameError, GitError):
             version = f"BTCLI version: {__version__}"
         typer.echo(version)
         raise typer.Exit()
