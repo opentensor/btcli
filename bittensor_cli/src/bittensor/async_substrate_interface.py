@@ -681,11 +681,8 @@ class Websocket:
         async with self._lock:
             try:
                 self._receiving_task.cancel()
-            except AttributeError:
-                pass
-            try:
                 await self._receiving_task
-            except asyncio.CancelledError:
+            except (AttributeError, asyncio.CancelledError):
                 pass
             await self.ws.close()
             self.ws = None
