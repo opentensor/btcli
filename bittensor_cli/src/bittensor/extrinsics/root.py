@@ -20,15 +20,15 @@ import hashlib
 import time
 from typing import Union, List, TYPE_CHECKING
 
-from bittensor_wallet import Wallet
+from bittensor_wallet import Wallet, Keypair
 from bittensor_wallet.errors import KeyFileError
 import numpy as np
 from numpy.typing import NDArray
 from rich.prompt import Confirm
 from rich.table import Table, Column
 from scalecodec import ScaleBytes, U16, Vec
+from substrateinterface.exceptions import SubstrateRequestException
 
-from bittensor_wallet import Keypair
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.extrinsics.registration import is_hotkey_registered
 from bittensor_cli.src.bittensor.utils import (
@@ -36,7 +36,7 @@ from bittensor_cli.src.bittensor.utils import (
     err_console,
     u16_normalized_float,
     print_verbose,
-    format_error_message
+    format_error_message,
 )
 
 if TYPE_CHECKING:
@@ -418,13 +418,13 @@ async def set_root_weights_extrinsic(
         else:
             return False, await response.error_message
 
-    my_uid = await subtensor.substrate.query(
-        "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
-    )
-
-    if my_uid is None:
-        err_console.print("Your hotkey is not registered to the root network")
-        return False
+    # my_uid = await subtensor.substrate.query(
+    #     "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
+    # )
+    #
+    # if my_uid is None:
+    #     err_console.print("Your hotkey is not registered to the root network")
+    #     return False
 
     try:
         wallet.unlock_coldkey()
@@ -494,6 +494,7 @@ async def set_root_weights_extrinsic(
                 err_console.print(f":cross_mark: [red]Failed[/red]: {fmt_err}")
                 return False
 
-    except Exception as e:
-        err_console.print(":cross_mark: [red]Failed[/red]: error:{}".format(e))
+    except SubstrateRequestException as e:
+        fmt_err = format_error_message(e, subtensor.substrate)
+        err_console.print(":cross_mark: [red]Failed[/red]: error:{}".format(fmt_err))
         return False

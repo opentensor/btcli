@@ -1,3 +1,4 @@
+import ast
 import math
 import os
 import sqlite3
@@ -452,14 +453,15 @@ def get_explorer_url_for_network(
 
 
 def format_error_message(
-    error_message: dict, substrate: "AsyncSubstrateInterface"
+    error_message: Union[dict, Exception], substrate: "AsyncSubstrateInterface"
 ) -> str:
     """
     Formats an error message from the Subtensor error information for use in extrinsics.
 
     Args:
-        error_message: A dictionary containing the error information from Subtensor.
-        substrate: The substrate interface to use.
+        error_message: A dictionary containing the error information from Subtensor, or a SubstrateRequestException
+                       containing dictionary literal args.
+        substrate: The initialised SubstrateInterface object to use.
 
     Returns:
         str: A formatted error message string.
@@ -467,6 +469,17 @@ def format_error_message(
     err_name = "UnknownError"
     err_type = "UnknownType"
     err_description = "Unknown Description"
+
+    if isinstance(error_message, Exception):
+        # generally gotten through SubstrateRequestException args
+        for arg in error_message.args:
+            try:
+                d = ast.literal_eval(arg)
+                if isinstance(d, dict):
+                    error_message = d["error"]
+                    break
+            except (ValueError, KeyError):
+                pass
 
     if isinstance(error_message, dict):
         # subtensor error structure
@@ -492,7 +505,7 @@ def format_error_message(
                         err_type = error_dict.get("message", err_type)
                         err_docs = error_dict.get("docs", [])
                         err_description = err_docs[0] if err_docs else err_description
-                    except AttributeError:
+                    except (AttributeError, IndexError):
                         err_console.print(
                             "Substrate pallets data unavailable. This is usually caused by an uninitialized substrate."
                         )
