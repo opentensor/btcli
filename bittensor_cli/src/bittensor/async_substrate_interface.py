@@ -679,7 +679,10 @@ class Websocket:
 
     async def shutdown(self):
         async with self._lock:
-            self._receiving_task.cancel()
+            try:
+                self._receiving_task.cancel()
+            except AttributeError:
+                pass
             try:
                 await self._receiving_task
             except asyncio.CancelledError:
