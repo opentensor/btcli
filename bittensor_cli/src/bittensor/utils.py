@@ -877,8 +877,8 @@ def validate_chain_endpoint(endpoint_url) -> tuple[bool, str]:
         )
     if not parsed.netloc:
         return False, "Invalid URL passed as the endpoint"
-    if not parsed.port:
-        return False, "No port specified in the URL"
+    # if not parsed.port:
+    #     return False, "No port specified in the URL"
     return True, ""
 
 
