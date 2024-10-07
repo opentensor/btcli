@@ -756,6 +756,13 @@ class CLIManager:
                         break
                     else:
                         network_ = item
+
+                not_selected_networks = [net for net in network if net != network_]
+                if not_selected_networks:
+                    console.print(
+                        f"Networks not selected: [dark_orange]{', '.join(not_selected_networks)}[/dark_orange]"
+                    )
+
                 self.subtensor = SubtensorInterface(network_)
             elif self.config["network"]:
                 self.subtensor = SubtensorInterface(self.config["network"])
