@@ -282,8 +282,22 @@ def get_n_words(n_words: Optional[int]) -> int:
     return n_words
 
 
+def parse_mnemonic(mnemonic: str) -> str:
+    if "-" in mnemonic:
+        items = sorted(
+            [tuple(item.split("-")) for item in mnemonic.split(" ")], key=lambda x: x[0]
+        )
+        response = " ".join(item[1] for item in items)
+    else:
+        response = mnemonic
+    return response
+
+
 def get_creation_data(
-    mnemonic: str, seed: str, json: str, json_password: str
+    mnemonic: Optional[str],
+    seed: Optional[str],
+    json: Optional[str],
+    json_password: Optional[str],
 ) -> tuple[str, str, str, str]:
     """
     Determines which of the key creation elements have been supplied, if any. If None have been supplied,
@@ -296,9 +310,11 @@ def get_creation_data(
         if prompt_answer.startswith("0x"):
             seed = prompt_answer
         elif len(prompt_answer.split(" ")) > 1:
-            mnemonic = prompt_answer
+            mnemonic = parse_mnemonic(prompt_answer)
         else:
             json = prompt_answer
+    elif mnemonic:
+        mnemonic = parse_mnemonic(mnemonic)
     if json and not json_password:
         json_password = Prompt.ask(
             "Enter the backup password for JSON file.", password=True
