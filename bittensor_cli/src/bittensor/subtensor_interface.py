@@ -931,7 +931,7 @@ class SubtensorInterface:
                     await response.error_message, substrate=self.substrate
                 )
         except SubstrateRequestException as e:
-            return False, e
+            return False, format_error_message(e, substrate=self.substrate)
 
     async def get_children(self, hotkey, netuid) -> tuple[bool, list, str]:
         """
