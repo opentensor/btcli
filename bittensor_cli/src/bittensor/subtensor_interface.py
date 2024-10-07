@@ -961,7 +961,7 @@ class SubtensorInterface:
             else:
                 return True, [], ""
         except SubstrateRequestException as e:
-            return False, [], str(e)
+            return False, [], format_error_message(e, self.substrate)
 
     async def get_subnet_hyperparameters(
         self, netuid: int, block_hash: Optional[str] = None
