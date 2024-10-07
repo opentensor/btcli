@@ -36,6 +36,7 @@ from bittensor_cli.src.bittensor.utils import (
     err_console,
     u16_normalized_float,
     print_verbose,
+    format_error_message
 )
 
 if TYPE_CHECKING:
@@ -481,7 +482,6 @@ async def set_root_weights_extrinsic(
             )
 
             success, error_message = await _do_set_weights()
-            console.print(success, error_message)
 
             if not wait_for_finalization and not wait_for_inclusion:
                 return True
@@ -490,7 +490,8 @@ async def set_root_weights_extrinsic(
                 console.print(":white_heavy_check_mark: [green]Finalized[/green]")
                 return True
             else:
-                err_console.print(f":cross_mark: [red]Failed[/red]: {error_message}")
+                fmt_err = format_error_message(error_message, subtensor.substrate)
+                err_console.print(f":cross_mark: [red]Failed[/red]: {fmt_err}")
                 return False
 
     except Exception as e:
