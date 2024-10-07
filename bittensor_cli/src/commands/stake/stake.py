@@ -14,6 +14,7 @@ import typer
 
 
 from bittensor_cli.src.bittensor.balances import Balance
+from bittensor_cli.src.bittensor.chain_data import StakeInfo
 from bittensor_cli.src.bittensor.utils import (
     console,
     create_table,
@@ -1604,3 +1605,31 @@ async def unstake(
                 wait_for_inclusion=True,
                 prompt=prompt,
             )
+
+
+async def stake_list(
+        wallet: Wallet,
+        subtensor: "SubtensorInterface"
+):
+    substakes = subtensor.get_stake_info_for_coldkeys(
+        coldkey_ss58_list=[wallet.coldkeypub.ss58_address]
+    )[wallet.coldkeypub.ss58_address]
+
+    # Get registered delegates details.
+    registered_delegate_info = await subtensor.get_delegate_identities()
+
+    # Token pricing info.
+    dynamic_info = await subtensor.get_all_subnet_dynamic_info()
+    emission_drain_tempo = int(await subtensor.substrate.query("SubtensorModule", "HotkeyEmissionTempo"))
+    balance = (await subtensor.get_balance(wallet.coldkeypub.ss58_address))[wallet.coldkeypub.ss58_address]
+
+    # Iterate over substakes and aggregate them by hotkey.
+    hotkeys_to_substakes: dict[str, list[StakeInfo]] = {}
+
+    for substake in substakes:
+        hotkey = substake.hotkey_ss58
+        if substake.stake.rao == 0:
+            continue
+        if hotkey not in hotkeys_to_substakes:
+            hotkeys_to_substakes[hotkey] = []
+        hotkeys_to_substakes[hotkey].append(substake)
