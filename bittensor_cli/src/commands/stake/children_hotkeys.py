@@ -18,6 +18,7 @@ from bittensor_cli.src.bittensor.utils import (
     u16_to_float,
     u64_to_float,
     is_valid_ss58_address,
+    format_error_message,
 )
 
 
@@ -208,8 +209,11 @@ async def set_childkey_take_extrinsic(
                 # )
                 return False, error_message
 
-        except Exception as e:
-            return False, f"Exception occurred while setting childkey take: {str(e)}"
+        except SubstrateRequestException as e:
+            return (
+                False,
+                f"Exception occurred while setting childkey take: {format_error_message(e, subtensor.substrate)}",
+            )
 
 
 async def get_childkey_take(subtensor, hotkey: str, netuid: int) -> Optional[int]:
@@ -232,7 +236,9 @@ async def get_childkey_take(subtensor, hotkey: str, netuid: int) -> Optional[int
             return int(childkey_take_.value)
 
     except SubstrateRequestException as e:
-        err_console.print(f"Error querying ChildKeys: {e}")
+        err_console.print(
+            f"Error querying ChildKeys: {format_error_message(e, subtensor.substrate)}"
+        )
         return None
 
 
