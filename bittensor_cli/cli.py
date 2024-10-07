@@ -285,8 +285,20 @@ def get_n_words(n_words: Optional[int]) -> int:
 def parse_mnemonic(mnemonic: str) -> str:
     if "-" in mnemonic:
         items = sorted(
-            [tuple(item.split("-")) for item in mnemonic.split(" ")], key=lambda x: x[0]
+            [tuple(item.split("-")) for item in mnemonic.split(" ")],
+            key=lambda x: int(x[0]),
         )
+        if int(items[0][0]) != 1:
+            err_console.print("Numbered mnemonics must begin with 1")
+            raise typer.Exit()
+        if [int(x[0]) for x in items] != list(
+            range(int(items[0][0]), int(items[-1][0]) + 1)
+        ):
+            err_console.print(
+                "Missing or duplicate numbers in a numbered mnemonic. "
+                "Double-check your numbered mnemonics and try again."
+            )
+            raise typer.Exit()
         response = " ".join(item[1] for item in items)
     else:
         response = mnemonic
