@@ -418,13 +418,13 @@ async def set_root_weights_extrinsic(
         else:
             return False, await response.error_message
 
-    # my_uid = await subtensor.substrate.query(
-    #     "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
-    # )
-    #
-    # if my_uid is None:
-    #     err_console.print("Your hotkey is not registered to the root network")
-    #     return False
+    my_uid = await subtensor.substrate.query(
+        "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
+    )
+
+    if my_uid is None:
+        err_console.print("Your hotkey is not registered to the root network")
+        return False
 
     try:
         wallet.unlock_coldkey()

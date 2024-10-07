@@ -3,6 +3,7 @@ import asyncio
 from bittensor_wallet import Wallet
 from bittensor_wallet.errors import KeyFileError
 from rich.prompt import Confirm
+from substrateinterface.exceptions import SubstrateRequestException
 
 from bittensor_cli.src import NETWORK_EXPLORER_MAP
 from bittensor_cli.src.bittensor.balances import Balance
@@ -59,11 +60,11 @@ async def transfer_extrinsic(
             payment_info = await subtensor.substrate.get_payment_info(
                 call=call, keypair=wallet.coldkeypub
             )
-        except Exception as e:
+        except SubstrateRequestException as e:
             payment_info = {"partialFee": int(2e7)}  # assume  0.02 Tao
             err_console.print(
                 f":cross_mark: [red]Failed to get payment info[/red]:[bold white]\n"
-                f"  {e}[/bold white]\n"
+                f"  {format_error_message(e, subtensor.substrate)}[/bold white]\n"
                 f"  Defaulting to default transfer fee: {payment_info['partialFee']}"
             )
 

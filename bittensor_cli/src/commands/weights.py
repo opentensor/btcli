@@ -7,6 +7,7 @@ from bittensor_wallet import Wallet
 import numpy as np
 from numpy.typing import NDArray
 from rich.prompt import Confirm
+from substrateinterface.exceptions import SubstrateRequestException
 
 from bittensor_cli.src.bittensor.utils import err_console, console, format_error_message
 from bittensor_cli.src.bittensor.extrinsics.root import (
@@ -132,8 +133,10 @@ class SetWeightsExtrinsic:
         # _logger.info("Commit Hash: {}".format(commit_hash))
         try:
             success, message = await self.do_commit_weights(commit_hash=commit_hash)
-        except Exception as e:
-            err_console.print(f"Error committing weights: {e}")
+        except SubstrateRequestException as e:
+            err_console.print(
+                f"Error committing weights: {format_error_message(e, self.subtensor.substrate)}"
+            )
             # bittensor.logging.error(f"Error committing weights: {e}")
             success = False
             message = "No attempt made. Perhaps it is too soon to commit weights!"
@@ -156,14 +159,11 @@ class SetWeightsExtrinsic:
             salt_length = 8
             self.salt = list(os.urandom(salt_length))
 
-        try:
-            # Attempt to commit the weights to the blockchain.
-            commit_success, commit_msg = await self.commit_weights(
-                uids=weight_uids,
-                weights=weight_vals,
-            )
-        except Exception as e:
-            commit_success, commit_msg = False, str(e)
+        # Attempt to commit the weights to the blockchain.
+        commit_success, commit_msg = await self.commit_weights(
+            uids=weight_uids,
+            weights=weight_vals,
+        )
 
         if commit_success:
             current_time = datetime.now().astimezone().replace(microsecond=0)
@@ -207,11 +207,8 @@ class SetWeightsExtrinsic:
             return False, f"Failed to commit weights hash. {commit_msg}"
 
     async def reveal(self, weight_uids, weight_vals) -> tuple[bool, str]:
-        try:
-            # Attempt to reveal the weights using the salt.
-            success, msg = await self.reveal_weights_extrinsic(weight_uids, weight_vals)
-        except Exception as e:
-            success, msg = False, str(e)
+        # Attempt to reveal the weights using the salt.
+        success, msg = await self.reveal_weights_extrinsic(weight_uids, weight_vals)
 
         if success:
             if not self.wait_for_finalization and not self.wait_for_inclusion:
@@ -253,11 +250,14 @@ class SetWeightsExtrinsic:
                 keypair=self.wallet.hotkey,
                 era={"period": 5},
             )
-            response = await self.subtensor.substrate.submit_extrinsic(
-                extrinsic,
-                wait_for_inclusion=self.wait_for_inclusion,
-                wait_for_finalization=self.wait_for_finalization,
-            )
+            try:
+                response = await self.subtensor.substrate.submit_extrinsic(
+                    extrinsic,
+                    wait_for_inclusion=self.wait_for_inclusion,
+                    wait_for_finalization=self.wait_for_finalization,
+                )
+            except SubstrateRequestException as e:
+                return False, format_error_message(e, self.subtensor.substrate)
             # We only wait here if we expect finalization.
             if not self.wait_for_finalization and not self.wait_for_inclusion:
                 return True, "Not waiting for finalization or inclusion."
@@ -273,24 +273,18 @@ class SetWeightsExtrinsic:
         with console.status(
             f":satellite: Setting weights on [white]{self.subtensor.network}[/white] ..."
         ):
-            try:
-                success, error_message = await _do_set_weights()
+            success, error_message = await _do_set_weights()
 
-                if not self.wait_for_finalization and not self.wait_for_inclusion:
-                    return True, "Not waiting for finalization or inclusion."
+            if not self.wait_for_finalization and not self.wait_for_inclusion:
+                return True, "Not waiting for finalization or inclusion."
 
-                if success:
-                    console.print(":white_heavy_check_mark: [green]Finalized[/green]")
-                    # bittensor.logging.success(prefix="Set weights", suffix="<green>Finalized: </green>" + str(success))
-                    return True, "Successfully set weights and finalized."
-                else:
-                    # bittensor.logging.error(msg=error_message, prefix="Set weights", suffix="<red>Failed: </red>")
-                    return False, error_message
-
-            except Exception as e:
-                err_console.print(":cross_mark: [red]Failed[/red]: error:{}".format(e))
-                # bittensor.logging.warning(prefix="Set weights", suffix="<red>Failed: </red>" + str(e))
-                return False, str(e)
+            if success:
+                console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                # bittensor.logging.success(prefix="Set weights", suffix="<green>Finalized: </green>" + str(success))
+                return True, "Successfully set weights and finalized."
+            else:
+                # bittensor.logging.error(msg=error_message, prefix="Set weights", suffix="<red>Failed: </red>")
+                return False, error_message
 
     async def reveal_weights_extrinsic(
         self, weight_uids, weight_vals
@@ -313,11 +307,14 @@ class SetWeightsExtrinsic:
             call=call,
             keypair=self.wallet.hotkey,
         )
-        response = await self.subtensor.substrate.submit_extrinsic(
-            extrinsic,
-            wait_for_inclusion=self.wait_for_inclusion,
-            wait_for_finalization=self.wait_for_finalization,
-        )
+        try:
+            response = await self.subtensor.substrate.submit_extrinsic(
+                extrinsic,
+                wait_for_inclusion=self.wait_for_inclusion,
+                wait_for_finalization=self.wait_for_finalization,
+            )
+        except SubstrateRequestException as e:
+            return False, format_error_message(e, self.subtensor.substrate)
 
         if not self.wait_for_finalization and not self.wait_for_inclusion:
             success, error_message = True, ""
