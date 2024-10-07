@@ -453,7 +453,7 @@ def get_explorer_url_for_network(
 
 
 def format_error_message(
-    error_message: Union[dict, Exception], substrate: "AsyncSubstrateInterface"
+    error_message: Union[dict, Exception, str], substrate: "AsyncSubstrateInterface"
 ) -> str:
     """
     Formats an error message from the Subtensor error information for use in extrinsics.
@@ -476,9 +476,13 @@ def format_error_message(
             try:
                 d = ast.literal_eval(arg)
                 if isinstance(d, dict):
-                    error_message = d["error"]
-                    break
-            except (ValueError, KeyError):
+                    if "error" in d:
+                        error_message = d["error"]
+                        break
+                    elif all(x in d for x in ["code", "message", "data"]):
+                        error_message = d
+                        break
+            except ValueError:
                 pass
 
     if isinstance(error_message, dict):
@@ -521,6 +525,9 @@ def format_error_message(
             err_name = error_message.get("name", err_name)
             err_docs = error_message.get("docs", [err_description])
             err_description = err_docs[0] if err_docs else err_description
+    elif isinstance(error_message, str):
+        # allows for passing str errors to this function
+        return f"Subtensor returned: {error_message}"
 
     return f"Subtensor returned `{err_name}({err_type})` error. This means: `{err_description}`."
 
