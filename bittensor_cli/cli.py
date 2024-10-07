@@ -15,7 +15,6 @@ import rich
 import typer
 import numpy as np
 from bittensor_wallet import Wallet
-from git import Repo, GitError
 from rich import box
 from rich.prompt import Confirm, FloatPrompt, Prompt, IntPrompt
 from rich.table import Column, Table
@@ -49,7 +48,16 @@ from textwrap import dedent
 from websockets import ConnectionClosed
 from yaml import safe_dump, safe_load
 
+try:
+    from git import Repo, GitError
+except ImportError:
+
+    class GitError(Exception):
+        pass
+
+
 __version__ = "8.1.1"
+
 
 _core_version = re.match(r"^\d+\.\d+\.\d+", __version__).group(0)
 _version_split = _core_version.split(".")
@@ -275,8 +283,34 @@ def get_n_words(n_words: Optional[int]) -> int:
     return n_words
 
 
+def parse_mnemonic(mnemonic: str) -> str:
+    if "-" in mnemonic:
+        items = sorted(
+            [tuple(item.split("-")) for item in mnemonic.split(" ")],
+            key=lambda x: int(x[0]),
+        )
+        if int(items[0][0]) != 1:
+            err_console.print("Numbered mnemonics must begin with 1")
+            raise typer.Exit()
+        if [int(x[0]) for x in items] != list(
+            range(int(items[0][0]), int(items[-1][0]) + 1)
+        ):
+            err_console.print(
+                "Missing or duplicate numbers in a numbered mnemonic. "
+                "Double-check your numbered mnemonics and try again."
+            )
+            raise typer.Exit()
+        response = " ".join(item[1] for item in items)
+    else:
+        response = mnemonic
+    return response
+
+
 def get_creation_data(
-    mnemonic: str, seed: str, json: str, json_password: str
+    mnemonic: Optional[str],
+    seed: Optional[str],
+    json: Optional[str],
+    json_password: Optional[str],
 ) -> tuple[str, str, str, str]:
     """
     Determines which of the key creation elements have been supplied, if any. If None have been supplied,
@@ -289,9 +323,11 @@ def get_creation_data(
         if prompt_answer.startswith("0x"):
             seed = prompt_answer
         elif len(prompt_answer.split(" ")) > 1:
-            mnemonic = prompt_answer
+            mnemonic = parse_mnemonic(prompt_answer)
         else:
             json = prompt_answer
+    elif mnemonic:
+        mnemonic = parse_mnemonic(mnemonic)
     if json and not json_password:
         json_password = Prompt.ask(
             "Enter the backup password for JSON file.", password=True
@@ -368,7 +404,7 @@ def version_callback(value: bool):
                 f"{repo.active_branch.name}/"
                 f"{repo.commit()}"
             )
-        except GitError:
+        except (NameError, GitError):
             version = f"BTCLI version: {__version__}"
         typer.echo(version)
         raise typer.Exit()
@@ -739,7 +775,7 @@ class CLIManager:
 
     def initialize_chain(
         self,
-        network: Optional[str] = None,
+        network: Optional[list[str]] = None,
     ) -> SubtensorInterface:
         """
         Intelligently initializes a connection to the chain, depending on the supplied (or in config) values. Sets the
@@ -750,7 +786,20 @@ class CLIManager:
         """
         if not self.subtensor:
             if network:
-                self.subtensor = SubtensorInterface(network)
+                for item in network:
+                    if item.startswith("ws"):
+                        network_ = item
+                        break
+                    else:
+                        network_ = item
+
+                not_selected_networks = [net for net in network if net != network_]
+                if not_selected_networks:
+                    console.print(
+                        f"Networks not selected: [dark_orange]{', '.join(not_selected_networks)}[/dark_orange]"
+                    )
+
+                self.subtensor = SubtensorInterface(network_)
             elif self.config["network"]:
                 self.subtensor = SubtensorInterface(self.config["network"])
                 console.print(
@@ -1227,7 +1276,7 @@ class CLIManager:
             "If left empty, all hotkeys, except those in the '--include-hotkeys', will be excluded.",
         ),
         netuids: str = Options.netuids,
-        network: str = Options.network,
+        network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -1354,7 +1403,7 @@ class CLIManager:
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
-        network: str = Options.network,
+        network: Optional[list[str]] = Options.network,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -1401,7 +1450,7 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         destination_hotkey_name: Optional[str] = typer.Argument(
             None, help="Destination hotkey name."
         ),
@@ -1463,7 +1512,7 @@ class CLIManager:
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
-        network: str = Options.network,
+        network: Optional[list[str]] = Options.network,
         netuids: str = Options.netuids,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -1529,7 +1578,7 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         # TODO add the following to config
         processors: Optional[int] = typer.Option(
             defaults.pow_register.num_processes,
@@ -1897,7 +1946,7 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -1983,7 +2032,7 @@ class CLIManager:
             "-a",
             help="Whether to display the balances for all the wallets.",
         ),
-        network: str = Options.network,
+        network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2058,7 +2107,7 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         display_name: str = typer.Option(
             "",
             "--display-name",
@@ -2238,7 +2287,7 @@ class CLIManager:
             help="The coldkey or hotkey ss58 address to query.",
             prompt=True,
         ),
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2317,7 +2366,7 @@ class CLIManager:
 
     def root_list(
         self,
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2341,7 +2390,7 @@ class CLIManager:
 
     def root_set_weights(
         self,
-        network: str = Options.network,
+        network: Optional[list[str]] = Options.network,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -2418,7 +2467,7 @@ class CLIManager:
 
     def root_get_weights(
         self,
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         limit_min_col: Optional[int] = typer.Option(
             None,
             "--limit-min-col",
@@ -2469,7 +2518,7 @@ class CLIManager:
 
     def root_boost(
         self,
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         wallet_name: str = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
@@ -2509,7 +2558,7 @@ class CLIManager:
 
     def root_slash(
         self,
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         wallet_name: str = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
@@ -2550,7 +2599,7 @@ class CLIManager:
 
     def root_senate_vote(
         self,
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
@@ -2600,7 +2649,7 @@ class CLIManager:
 
     def root_senate(
         self,
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2618,7 +2667,7 @@ class CLIManager:
 
     def root_register(
         self,
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
@@ -2653,7 +2702,7 @@ class CLIManager:
 
     def root_proposals(
         self,
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2671,7 +2720,7 @@ class CLIManager:
 
     def root_set_take(
         self,
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
@@ -2741,7 +2790,7 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -2816,7 +2865,7 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -2868,7 +2917,7 @@ class CLIManager:
 
     def root_my_delegates(
         self,
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
@@ -2935,7 +2984,7 @@ class CLIManager:
 
     def root_list_delegates(
         self,
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -3007,7 +3056,7 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3056,7 +3105,7 @@ class CLIManager:
             "-a",
             help="When set, the command checks all the coldkey wallets of the user instead of just the specified wallet.",
         ),
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         wallet_path: Optional[str] = Options.wallet_path,
@@ -3167,7 +3216,7 @@ class CLIManager:
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
-        network: str = Options.network,
+        network: Optional[list[str]] = Options.network,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3281,7 +3330,7 @@ class CLIManager:
 
     def stake_remove(
         self,
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -3439,7 +3488,7 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         wallet_path: Optional[str] = Options.wallet_path,
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         netuid: Optional[int] = typer.Option(
             None,
             help="The netuid of the subnet (e.g. 2)",
@@ -3500,7 +3549,7 @@ class CLIManager:
         wallet_name: str = Options.wallet_name,
         wallet_hotkey: str = Options.wallet_hotkey,
         wallet_path: str = Options.wallet_path,
-        network: str = Options.network,
+        network: Optional[list[str]] = Options.network,
         netuid: Optional[int] = typer.Option(
             None,
             help="The netuid of the subnet, (e.g. 4)",
@@ -3591,7 +3640,7 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         wallet_path: Optional[str] = Options.wallet_path,
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         netuid: Optional[int] = typer.Option(
             None,
             help="The netuid of the subnet, (e.g. 8)",
@@ -3650,7 +3699,7 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         wallet_path: Optional[str] = Options.wallet_path,
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         hotkey: Optional[str] = None,
         netuid: Optional[int] = typer.Option(
             None,
@@ -3724,7 +3773,7 @@ class CLIManager:
 
     def sudo_set(
         self,
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -3789,7 +3838,7 @@ class CLIManager:
 
     def sudo_get(
         self,
-        network: str = Options.network,
+        network: Optional[list[str]] = Options.network,
         netuid: int = Options.netuid,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3810,7 +3859,7 @@ class CLIManager:
 
     def subnets_list(
         self,
-        network: str = Options.network,
+        network: Optional[list[str]] = Options.network,
         reuse_last: bool = Options.reuse_last,
         html_output: bool = Options.html_output,
         quiet: bool = Options.quiet,
@@ -3856,7 +3905,7 @@ class CLIManager:
 
     def subnets_lock_cost(
         self,
-        network: str = Options.network,
+        network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -3877,7 +3926,7 @@ class CLIManager:
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
-        network: str = Options.network,
+        network: Optional[list[str]] = Options.network,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3906,7 +3955,7 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        network: Optional[str] = Options.network,
+        network: Optional[list[str]] = Options.network,
         netuid: int = Options.netuid,
         # TODO add the following to config
         processors: Optional[int] = typer.Option(
@@ -3993,7 +4042,7 @@ class CLIManager:
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
-        network: str = Options.network,
+        network: Optional[list[str]] = Options.network,
         netuid: int = Options.netuid,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
@@ -4034,7 +4083,7 @@ class CLIManager:
             help="The netuid of the subnet (e.g. 1). This option "
             "is ignored when used with `--reuse-last`.",
         ),
-        network: str = Options.network,
+        network: Optional[list[str]] = Options.network,
         reuse_last: bool = Options.reuse_last,
         html_output: bool = Options.html_output,
         quiet: bool = Options.quiet,
@@ -4124,7 +4173,7 @@ class CLIManager:
 
     def weights_reveal(
         self,
-        network: str = Options.network,
+        network: Optional[list[str]] = Options.network,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -4220,7 +4269,7 @@ class CLIManager:
 
     def weights_commit(
         self,
-        network: str = Options.network,
+        network: Optional[list[str]] = Options.network,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
