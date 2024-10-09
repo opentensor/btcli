@@ -1343,14 +1343,14 @@ The columns are as follows:
         if not Confirm.ask("Would you like to continue?"):
             return False
 
-    async def send_extrinsic(netuid_i, amount, current):
+    async def send_extrinsic(netuid_i, amount_, current):
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function="add_stake",
             call_params={
                 "hotkey": staking_address_ss58,
                 "netuid": netuid_i,
-                "amount_staked": amount.rao,
+                "amount_staked": amount_.rao,
             },
         )
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
@@ -1361,7 +1361,7 @@ The columns are as follows:
         )
         if not prompt:  # TODO verbose?
             console.print(
-                f":white_heavy_check_mark: [green]Submitted {amount} to {netuid_i}[/green]"
+                f":white_heavy_check_mark: [green]Submitted {amount_} to {netuid_i}[/green]"
             )
         else:
             await response.process_events()
