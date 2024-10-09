@@ -224,12 +224,12 @@ async def wallet_balance(
     wallet: Optional[Wallet],
     subtensor: SubtensorInterface,
     all_balances: bool,
-    ss58_address: Optional[str] = None,
+    ss58_addresses: Optional[str] = None,
 ):
     """Retrieves the current balance of the specified wallet"""
-    if ss58_address:
-        coldkeys = ss58_address
-        wallet_names = [f"Provided Address {i + 1}" for i in range(len(ss58_address))]
+    if ss58_addresses:
+        coldkeys = ss58_addresses
+        wallet_names = [f"Provided Address {i + 1}" for i in range(len(ss58_addresses))]
 
     elif not all_balances:
         if not wallet.coldkeypub_file.exists_on_device():
@@ -237,8 +237,8 @@ async def wallet_balance(
             return
 
     with console.status("Retrieving balances", spinner="aesthetic") as status:
-        if ss58_address:
-            print_verbose(f"Fetching data for ss58 address: {ss58_address}", status)
+        if ss58_addresses:
+            print_verbose(f"Fetching data for ss58 address: {ss58_addresses}", status)
         elif all_balances:
             print_verbose("Fetching data for all wallets", status)
             coldkeys, wallet_names = _get_coldkey_ss58_addresses_for_path(wallet.path)

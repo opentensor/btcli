@@ -2028,7 +2028,7 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        ss58_address: Optional[list[str]] = Options.ss58_address,
+        ss58_addresses: Optional[list[str]] = Options.ss58_address,
         all_balances: Optional[bool] = typer.Option(
             False,
             "--all",
@@ -2058,18 +2058,18 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
 
-        if ss58_address:
+        if ss58_addresses:
             valid_ss58s = [
-                ss58 for ss58 in set(ss58_address) if is_valid_ss58_address(ss58)
+                ss58 for ss58 in set(ss58_addresses) if is_valid_ss58_address(ss58)
             ]
 
-            invalid_ss58s = set(ss58_address) - set(valid_ss58s)
+            invalid_ss58s = set(ss58_addresses) - set(valid_ss58s)
             for invalid_ss58 in invalid_ss58s:
                 print_error(f"Incorrect ss58 address: {invalid_ss58}. Skipping.")
 
             if valid_ss58s:
                 wallet = None
-                ss58_address = valid_ss58s
+                ss58_addresses = valid_ss58s
             else:
                 raise typer.Exit()
         else:
@@ -2084,7 +2084,7 @@ class CLIManager:
             )
         subtensor = self.initialize_chain(network)
         return self._run_command(
-            wallets.wallet_balance(wallet, subtensor, all_balances, ss58_address)
+            wallets.wallet_balance(wallet, subtensor, all_balances, ss58_addresses)
         )
 
     def wallet_history(
