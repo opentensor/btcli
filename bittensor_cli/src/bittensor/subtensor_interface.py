@@ -24,6 +24,8 @@ from bittensor_cli.src.bittensor.chain_data import (
     NeuronInfo,
     SubnetHyperparameters,
     decode_account_id,
+    DelegateInfoLite,
+    DynamicInfo,
 )
 from bittensor_cli.src import DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance
@@ -1087,3 +1089,56 @@ class SubtensorInterface:
                     )
 
         return all_delegates_details
+
+    async def get_delegates_by_netuid_light(
+        self, netuid: int, block_hash: Optional[str] = None
+    ) -> list[DelegateInfoLite]:
+        """
+        Retrieves a list of all delegate neurons within the Bittensor network. This function provides an overview of the neurons that are actively involved in the network's delegation system.
+
+        Analyzing the delegate population offers insights into the network's governance dynamics and the distribution of trust and responsibility among participating neurons.
+
+        Args:
+            netuid: the netuid to query
+            block_hash: The hash of the blockchain block number for the query.
+
+        Returns:
+            A list of DelegateInfo objects detailing each delegate's characteristics.
+
+        """
+
+        params = [netuid] if not block_hash else [netuid, block_hash]
+        json_body = await self.substrate.rpc_request(
+            method="delegateInfo_getDelegatesLight",  # custom rpc method
+            params=params,
+        )
+
+        result = json_body["result"]
+
+        if result in (None, []):
+            return []
+
+        return DelegateInfoLite.list_from_vec_u8(result)  # TODO this won't work yet
+
+    async def get_subnet_dynamic_info(self, netuid: int) -> Optional["DynamicInfo"]:
+        json = await self.substrate.rpc_request(
+            method="subnetInfo_getDynamicInfo", params=[netuid, None]
+        )
+        subnets = DynamicInfo.from_vec_u8(json["result"])
+        return subnets
+
+    async def get_stake_for_coldkey_and_hotkey_on_netuid(
+        self,
+        hotkey_ss58: str,
+        coldkey_ss58: str,
+        netuid: int,
+        block_hash: Optional[str] = None,
+    ) -> "Balance":
+        """Returns the stake under a coldkey - hotkey - netuid pairing"""
+        _result = await self.substrate.query(
+            "SubtensorModule", "Alpha", [hotkey_ss58, coldkey_ss58, netuid], block_hash
+        )
+        if _result is None:
+            return Balance(0).set_unit(netuid)
+        else:
+            return Balance.from_rao(_result).set_unit(int(netuid))
