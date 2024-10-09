@@ -2042,6 +2042,8 @@ class CLIManager:
         """
         Check the balance of the wallet. This command shows a detailed view of the wallet's coldkey balances, including free and staked balances.
 
+        You can also pass multiple ss58 addresses of coldkeys to check their balance (using --ss58).
+
         EXAMPLES:
 
         - To display the balance of a single wallet, use the command with the `--wallet-name` argument and provide the wallet name:
@@ -2055,6 +2057,11 @@ class CLIManager:
         - To display the balances of all your wallets, use the `--all` argument:
 
             [green]$[/green] btcli w balance --all
+
+        - To display the balances of ss58 addresses, use the `--ss58` argument:
+
+            [green]$[/green] btcli w balance --ss58 <ss58_address> --ss58 <ss58_address>
+
         """
         self.verbosity_handler(quiet, verbose)
 
