@@ -129,7 +129,9 @@ class Options:
         flag_value=False,
     )
     public_hex_key = typer.Option(None, help="The public key in hex format.")
-    ss58_address = typer.Option(None, help="The SS58 address of the coldkey.")
+    ss58_address = typer.Option(
+        None, "--ss58", "--ss58-address", help="The SS58 address of the coldkey."
+    )
     overwrite_coldkey = typer.Option(
         False,
         help="Overwrite the old coldkey with the newly generated coldkey.",
@@ -2026,6 +2028,7 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        ss58_address: Optional[str] = Options.ss58_address,
         all_balances: Optional[bool] = typer.Option(
             False,
             "--all",
@@ -2055,14 +2058,27 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
 
-        ask_for = [WO.PATH] if all_balances else [WO.NAME, WO.PATH]
-        validate = WV.NONE if all_balances else WV.WALLET
-        wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
-        )
+        if ss58_address:
+            if is_valid_ss58_address(ss58_address):
+                wallet = None
+            else:
+                print_error(
+                    "You have entered an incorrect ss58 address. Please try again"
+                )
+                raise typer.Exit()
+        else:
+            ask_for = [WO.PATH] if all_balances else [WO.NAME, WO.PATH]
+            validate = WV.NONE if all_balances else WV.WALLET
+            wallet = self.wallet_ask(
+                wallet_name,
+                wallet_path,
+                wallet_hotkey,
+                ask_for=ask_for,
+                validate=validate,
+            )
         subtensor = self.initialize_chain(network)
         return self._run_command(
-            wallets.wallet_balance(wallet, subtensor, all_balances)
+            wallets.wallet_balance(wallet, subtensor, all_balances, ss58_address)
         )
 
     def wallet_history(
