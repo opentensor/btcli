@@ -279,7 +279,7 @@ class Balance:
 
         :return: A Balance object representing the given amount.
         """
-        return Balance(amount)
+        return Balance(int(amount))
 
     @staticmethod
     def get_unit(netuid: int):
