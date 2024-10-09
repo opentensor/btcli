@@ -129,7 +129,9 @@ class Options:
         flag_value=False,
     )
     public_hex_key = typer.Option(None, help="The public key in hex format.")
-    ss58_address = typer.Option(None, help="The SS58 address of the coldkey.")
+    ss58_address = typer.Option(
+        None, "--ss58", "--ss58-address", help="The SS58 address of the coldkey."
+    )
     overwrite_coldkey = typer.Option(
         False,
         help="Overwrite the old coldkey with the newly generated coldkey.",
@@ -2026,6 +2028,7 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        ss58_addresses: Optional[list[str]] = Options.ss58_address,
         all_balances: Optional[bool] = typer.Option(
             False,
             "--all",
@@ -2038,6 +2041,8 @@ class CLIManager:
     ):
         """
         Check the balance of the wallet. This command shows a detailed view of the wallet's coldkey balances, including free and staked balances.
+
+        You can also pass multiple ss58 addresses of coldkeys to check their balance (using --ss58).
 
         EXAMPLES:
 
@@ -2052,17 +2057,41 @@ class CLIManager:
         - To display the balances of all your wallets, use the `--all` argument:
 
             [green]$[/green] btcli w balance --all
+
+        - To display the balances of ss58 addresses, use the `--ss58` argument:
+
+            [green]$[/green] btcli w balance --ss58 <ss58_address> --ss58 <ss58_address>
+
         """
         self.verbosity_handler(quiet, verbose)
 
-        ask_for = [WO.PATH] if all_balances else [WO.NAME, WO.PATH]
-        validate = WV.NONE if all_balances else WV.WALLET
-        wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
-        )
+        if ss58_addresses:
+            valid_ss58s = [
+                ss58 for ss58 in set(ss58_addresses) if is_valid_ss58_address(ss58)
+            ]
+
+            invalid_ss58s = set(ss58_addresses) - set(valid_ss58s)
+            for invalid_ss58 in invalid_ss58s:
+                print_error(f"Incorrect ss58 address: {invalid_ss58}. Skipping.")
+
+            if valid_ss58s:
+                wallet = None
+                ss58_addresses = valid_ss58s
+            else:
+                raise typer.Exit()
+        else:
+            ask_for = [WO.PATH] if all_balances else [WO.NAME, WO.PATH]
+            validate = WV.NONE if all_balances else WV.WALLET
+            wallet = self.wallet_ask(
+                wallet_name,
+                wallet_path,
+                wallet_hotkey,
+                ask_for=ask_for,
+                validate=validate,
+            )
         subtensor = self.initialize_chain(network)
         return self._run_command(
-            wallets.wallet_balance(wallet, subtensor, all_balances)
+            wallets.wallet_balance(wallet, subtensor, all_balances, ss58_addresses)
         )
 
     def wallet_history(
