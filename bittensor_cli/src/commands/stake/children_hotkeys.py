@@ -496,7 +496,7 @@ async def set_children_new(
     netuid: int,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
-    prompt: bool = True
+    prompt: bool = True,
 ):
     """Set children hotkeys."""
     # Validate children SS58 addresses

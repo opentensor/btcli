@@ -1157,6 +1157,10 @@ async def stake_add_new(
     staking_address_ss58: str,
     delegate: bool,
     prompt: bool,
+    max_stake: float,
+    include_hotkeys: list[str],
+    exclude_hotkeys: list[str],
+    hotkey_ss58: Optional[str] = None,
 ):
     """
 
@@ -1179,7 +1183,7 @@ async def stake_add_new(
     # Init the table.
     table = Table(
         title="[white]Staking operation from Coldkey SS58[/white]: "
-              f"[bold dark_green]{wallet.coldkeypub.ss58_address}[/bold dark_green]\n",
+        f"[bold dark_green]{wallet.coldkeypub.ss58_address}[/bold dark_green]\n",
         width=console.width - 5,
         safe_box=True,
         padding=(0, 1),
@@ -1214,10 +1218,12 @@ async def stake_add_new(
     remaining_wallet_balance = current_wallet_balance
     max_slippage = 0
 
-    for netuid in netuids:
+    all_dynamic_info = await asyncio.gather(
+        *[subtensor.get_subnet_dynamic_info(x) for x in netuids]
+    )
+
+    for netuid, dynamic_info in zip(netuids, all_dynamic_info):
         # Check that the subnet exists.
-        # TODO gather this
-        dynamic_info = subtensor.get_subnet_dynamic_info(netuid)  # TODO add
         if not dynamic_info:
             err_console.print(f"Subnet with netuid: {netuid} does not exist.")
             continue
@@ -1239,9 +1245,7 @@ async def stake_add_new(
             amount_to_stake_as_balance = Balance.from_tao(amount)
         elif stake_all:
             amount_to_stake_as_balance = current_wallet_balance / len(netuids)
-        elif (
-            not amount and not max_stake
-        ):  # TODO should this be an Option? Asked in Cortex channel https://discord.com/channels/799672011265015819/1176889593136693339/1291756735316365456
+        elif not amount and not max_stake:
             if Confirm.ask(f"Stake all: [bold]{remaining_wallet_balance}[/bold]?"):
                 amount_to_stake_as_balance = remaining_wallet_balance
             else:
@@ -1293,6 +1297,103 @@ async def stake_add_new(
                 str(received_amount.set_unit(netuid)),
                 str(slippage_pct),
             )
+        )
+    table.add_column("Netuid", justify="center", style="grey89")
+    table.add_column("Hotkey", justify="center", style="light_salmon3")
+    table.add_column(
+        f"Amount ({Balance.get_unit(0)})", justify="center", style="dark_sea_green"
+    )
+    table.add_column(
+        f"Rate ({Balance.get_unit(netuid)}/{Balance.get_unit(0)})",
+        justify="center",
+        style="light_goldenrod2",
+    )
+    table.add_column(
+        f"Recieved ({Balance.get_unit(netuid)})",
+        justify="center",
+        style="light_slate_blue",
+    )
+    table.add_column("Slippage", justify="center", style="rgb(220,50,47)")
+    for row in rows:
+        table.add_row(*row)
+    console.print(table)
+    message = ""
+    if max_slippage > 5:
+        message += "-------------------------------------------------------------------------------------------------------------------\n"
+        message += f"[bold][yellow]WARNING:[/yellow]\tThe slippage on one of your operations is high: [bold red]{max_slippage} %[/bold red], this may result in a loss of funds.[/bold] \n"
+        message += "-------------------------------------------------------------------------------------------------------------------\n"
+        console.print(message)
+    console.print(
+        """
+[bold white]Description[/bold white]:
+The table displays information about the stake operation you are about to perform.
+The columns are as follows:
+    - [bold white]Netuid[/bold white]: The netuid of the subnet you are staking to.
+    - [bold white]Hotkey[/bold white]: The ss58 address of the hotkey you are staking to. 
+    - [bold white]Amount[/bold white]: The TAO you are staking into this subnet onto this hotkey.
+    - [bold white]Rate[/bold white]: The rate of exchange between your TAO and the subnet's stake.
+    - [bold white]Received[/bold white]: The amount of stake you will receive on this subnet after slippage.
+    - [bold white]Slippage[/bold white]: The slippage percentage of the stake operation. (0% if the subnet is not dynamic i.e. root).
+"""
+    )
+    if prompt:
+        if not Confirm.ask("Would you like to continue?"):
+            return False
+
+    async def send_extrinsic(netuid_i, amount, current):
+        call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="add_stake",
+            call_params={
+                "hotkey": staking_address_ss58,
+                "netuid": netuid_i,
+                "amount_staked": amount.rao,
+            },
+        )
+        extrinsic = await subtensor.substrate.create_signed_extrinsic(
+            call=call, keypair=wallet.coldkey
+        )
+        response = await subtensor.substrate.submit_extrinsic(
+            extrinsic, wait_for_inclusion=True, wait_for_finalization=False
+        )
+        if not prompt:  # TODO verbose?
+            console.print(
+                f":white_heavy_check_mark: [green]Submitted {amount} to {netuid_i}[/green]"
+            )
+        else:
+            await response.process_events()
+            if not await response.is_success:
+                err_console.print(
+                    f":cross_mark: [red]Failed[/red] with error: {response.error_message}"
+                )
+            else:
+                new_balance_, new_stake_ = await asyncio.gather(
+                    subtensor.get_balance(wallet.coldkeypub.ss58_address),
+                    subtensor.get_stake_for_coldkey_and_hotkey_on_netuid(
+                        coldkey_ss58=wallet.coldkeypub.ss58_address,
+                        hotkey_ss58=staking_address_ss58,
+                        netuid=netuid_i,
+                    ),
+                )
+                new_balance = new_balance_[wallet.coldkeypub.ss58_address]
+                new_stake = new_stake_.set_unit(netuid_i)
+                console.print(
+                    f"Balance:\n  [blue]{current_wallet_balance}[/blue] :arrow_right: [green]{new_balance}[/green]"
+                )
+                console.print(
+                    f"Subnet: {netuid_i} Stake:\n  [blue]{current}[/blue] :arrow_right: [green]{new_stake}[/green]"
+                )
+
+    # Perform staking operation.
+    wallet.unlock_coldkey()
+    with console.status(f"\n:satellite: Staking on netuid: {netuids} ..."):
+        await asyncio.gather(
+            *[
+                send_extrinsic(ni, am, curr)
+                for (ni, am, curr) in zip(
+                    netuids, stake_amount_balance, current_stake_balances
+                )
+            ]
         )
 
 
@@ -1607,10 +1708,7 @@ async def unstake(
             )
 
 
-async def stake_list(
-        wallet: Wallet,
-        subtensor: "SubtensorInterface"
-):
+async def stake_list(wallet: Wallet, subtensor: "SubtensorInterface"):
     substakes = subtensor.get_stake_info_for_coldkeys(
         coldkey_ss58_list=[wallet.coldkeypub.ss58_address]
     )[wallet.coldkeypub.ss58_address]
@@ -1620,8 +1718,12 @@ async def stake_list(
 
     # Token pricing info.
     dynamic_info = await subtensor.get_all_subnet_dynamic_info()
-    emission_drain_tempo = int(await subtensor.substrate.query("SubtensorModule", "HotkeyEmissionTempo"))
-    balance = (await subtensor.get_balance(wallet.coldkeypub.ss58_address))[wallet.coldkeypub.ss58_address]
+    emission_drain_tempo = int(
+        await subtensor.substrate.query("SubtensorModule", "HotkeyEmissionTempo")
+    )
+    balance = (await subtensor.get_balance(wallet.coldkeypub.ss58_address))[
+        wallet.coldkeypub.ss58_address
+    ]
 
     # Iterate over substakes and aggregate them by hotkey.
     hotkeys_to_substakes: dict[str, list[StakeInfo]] = {}
