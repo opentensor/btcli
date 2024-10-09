@@ -25,6 +25,7 @@ from bittensor_cli.src.bittensor.chain_data import (
     SubnetHyperparameters,
     decode_account_id,
     DelegateInfoLite,
+    DynamicInfo,
 )
 from bittensor_cli.src import DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance
@@ -1118,3 +1119,26 @@ class SubtensorInterface:
             return []
 
         return DelegateInfoLite.list_from_vec_u8(result)  # TODO this won't work yet
+
+    async def get_subnet_dynamic_info(self, netuid: int) -> Optional["DynamicInfo"]:
+        json = await self.substrate.rpc_request(
+            method="subnetInfo_getDynamicInfo", params=[netuid, None]
+        )
+        subnets = DynamicInfo.from_vec_u8(json["result"])
+        return subnets
+
+    async def get_stake_for_coldkey_and_hotkey_on_netuid(
+        self,
+        hotkey_ss58: str,
+        coldkey_ss58: str,
+        netuid: int,
+        block_hash: Optional[str] = None,
+    ) -> Optional["Balance"]:
+        """Returns the stake under a coldkey - hotkey - netuid pairing"""
+        _result = await self.substrate.query(
+            "SubtensorModule", "Alpha", [hotkey_ss58, coldkey_ss58, netuid], block_hash
+        )
+        if _result is None:
+            return None
+        else:
+            return Balance.from_rao(_result).set_unit(int(netuid))
