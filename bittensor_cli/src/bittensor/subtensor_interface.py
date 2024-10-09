@@ -1133,12 +1133,12 @@ class SubtensorInterface:
         coldkey_ss58: str,
         netuid: int,
         block_hash: Optional[str] = None,
-    ) -> Optional["Balance"]:
+    ) -> "Balance":
         """Returns the stake under a coldkey - hotkey - netuid pairing"""
         _result = await self.substrate.query(
             "SubtensorModule", "Alpha", [hotkey_ss58, coldkey_ss58, netuid], block_hash
         )
         if _result is None:
-            return None
+            return Balance(0).set_unit(netuid)
         else:
             return Balance.from_rao(_result).set_unit(int(netuid))

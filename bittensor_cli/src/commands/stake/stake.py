@@ -1216,31 +1216,34 @@ async def stake_add_new(
         wallet.coldkeypub.ss58_address
     ].set_unit(0)
     remaining_wallet_balance = current_wallet_balance
-    max_slippage = 0
+    max_slippage = 0.0
 
-    all_dynamic_info = await asyncio.gather(
-        *[subtensor.get_subnet_dynamic_info(x) for x in netuids]
+    all_dynamic_info, initial_stake_balances = await asyncio.gather(
+        asyncio.gather(*[subtensor.get_subnet_dynamic_info(x) for x in netuids]),
+        asyncio.gather(
+            *[
+                subtensor.get_stake_for_coldkey_and_hotkey_on_netuid(
+                    coldkey_ss58=wallet.coldkeypub.ss58_address,
+                    hotkey_ss58=staking_address_ss58,
+                    netuid=x,
+                )
+                for x in netuids
+            ]
+        ),
     )
 
-    for netuid, dynamic_info in zip(netuids, all_dynamic_info):
+    for netuid, dynamic_info, current_stake_balance in zip(
+        netuids, all_dynamic_info, initial_stake_balances
+    ):
         # Check that the subnet exists.
         if not dynamic_info:
             err_console.print(f"Subnet with netuid: {netuid} does not exist.")
             continue
 
-        # Get old staking balance.
-        # TODO gather this
-        current_stake_balance: Balance = (
-            subtensor.get_stake_for_coldkey_and_hotkey_on_netuid(  # TODO add/await
-                coldkey_ss58=wallet.coldkeypub.ss58_address,
-                hotkey_ss58=staking_address_ss58,
-                netuid=netuid,
-            ).set_unit(netuid)
-        )
         current_stake_balances.append(current_stake_balance)
 
         # Get the amount.
-        amount_to_stake_as_balance = None
+        amount_to_stake_as_balance = Balance(0)
         if amount:
             amount_to_stake_as_balance = Balance.from_tao(amount)
         elif stake_all:
@@ -1309,7 +1312,7 @@ async def stake_add_new(
         style="light_goldenrod2",
     )
     table.add_column(
-        f"Recieved ({Balance.get_unit(netuid)})",
+        f"Received ({Balance.get_unit(netuid)})",
         justify="center",
         style="light_slate_blue",
     )
