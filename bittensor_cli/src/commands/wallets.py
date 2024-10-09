@@ -228,8 +228,8 @@ async def wallet_balance(
 ):
     """Retrieves the current balance of the specified wallet"""
     if ss58_address:
-        coldkeys = [ss58_address]
-        wallet_names = ["Provided Address"]
+        coldkeys = ss58_address
+        wallet_names = [f"Provided Address {i + 1}" for i in range(len(ss58_address))]
 
     elif not all_balances:
         if not wallet.coldkeypub_file.exists_on_device():
