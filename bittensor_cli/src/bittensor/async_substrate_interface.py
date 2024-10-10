@@ -1337,7 +1337,7 @@ class AsyncSubstrateInterface:
     ) -> Optional[dict]:
         """
         Retrieves a block and decodes its containing extrinsics and log digest items. If `block_hash` and `block_number`
-        is omitted the chain tip will be retrieve, or the finalized head if `finalized_only` is set to true.
+        is omitted the chain tip will be retrieve, or the finalized head if `finalized_only` is  set to true.
 
         Either `block_hash` or `block_number` should be set, or both omitted.
 

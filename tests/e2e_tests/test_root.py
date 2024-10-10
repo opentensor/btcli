@@ -1,4 +1,5 @@
 import time
+import asyncio
 
 from bittensor_cli.src.bittensor.balances import Balance
 from .utils import extract_coldkey_balance
@@ -46,6 +47,8 @@ def test_root_commands(local_chain, wallet_setup):
     keypair_bob, wallet_bob, wallet_path_bob, exec_command_bob = wallet_setup(
         wallet_path_bob
     )
+
+    wait_interval(360, local_chain)
 
     # Register Bob to the root network (0)
     root_register = exec_command_bob(
@@ -200,8 +203,11 @@ def test_root_commands(local_chain, wallet_setup):
 
     # TODO: Ask nucleus the rate limit and wait epoch
     # Sleep 120 seconds for rate limiting when unstaking
-    print("Waiting for interval for 2 minutes")
-    time.sleep(120)
+    # print("Waiting for interval for 2 minutes")
+    # time.sleep(120)
+    wait_interval(360, local_chain)
+
+    # wait_tx_limit(local_chain, "TxDelegateTakeRateLimit")
 
     # Unstake from Bob Delegate
     undelegate_alice = exec_command_alice(
@@ -221,8 +227,10 @@ def test_root_commands(local_chain, wallet_setup):
             "--no-prompt",
         ],
     )
-    time.sleep(10)
-    assert "✅ Finalized" in undelegate_alice.stdout
+    # time.sleep(10)
+    out = undelegate_alice.stdout
+    print(out)
+    assert "✅ Finalized" in out
 
     check_balance(
         exec_command=exec_command_alice,
@@ -237,7 +245,8 @@ def test_root_commands(local_chain, wallet_setup):
     # TODO: Ask nucleus the rate limit and wait epoch
     # Sleep 120 seconds for rate limiting when unstaking
     print("Waiting for interval for 2 minutes")
-    time.sleep(120)
+    # time.sleep(120)
+    wait_interval(360, local_chain)
 
     # Stake to delegate Bob from Alice
     stake_delegate = exec_command_alice(
@@ -278,7 +287,8 @@ def test_root_commands(local_chain, wallet_setup):
     # TODO: Ask nucleus the rate limit and wait epoch
     # Sleep 120 seconds for rate limiting when unstaking
     print("Waiting for interval for 2 minutes")
-    time.sleep(120)
+    # time.sleep(120)
+    wait_interval(360, local_chain)
 
     # Unstake from Bob Delegate
     undelegate_alice = exec_command_alice(
@@ -373,3 +383,34 @@ def check_balance(exec_command, wallet, expected_balance):
 
 def string_tao_to_float(alice_delegates_info: str) -> float:
     return float(alice_delegates_info.replace(",", "").strip("τ"))
+
+
+def get_curr_block_number(substrate):
+    # create corutine within function
+    # async with SubtensorInterface("test"):
+    #     chain_head = await subtensor.substrate.get_chain_head()
+    #     block_number = await subtensor.substrate.get_block_number(chain_head)
+
+    chain_head = asyncio.run(substrate.get_chain_head())
+    # chain_head = asyncio.create_task(substrate.get_chain_head()).cancel()
+    block_number = asyncio.run(substrate.get_block_number(chain_head))
+    # block_number = asyncio.create_task(substrate.get_block_number(chain_head)).cancel()
+    return block_number
+
+
+def wait_interval(tempo, substrate, netuid=1):
+    interval = tempo + 1
+    current_block = get_curr_block_number(substrate)
+    last_epoch = current_block - 1 - (current_block + netuid + 1) % interval
+    next_tempo_block_start = last_epoch + interval
+    last_reported = None
+    while current_block < next_tempo_block_start:
+        time.sleep(
+            1
+        )  # Wait for 1 second before checking the block number again
+        current_block = get_curr_block_number(substrate)
+        if last_reported is None or current_block - last_reported >= 10:
+            last_reported = current_block
+            print(
+                f"Current Block: {current_block}  Next tempo for netuid {netuid} at: {next_tempo_block_start}"
+            )
