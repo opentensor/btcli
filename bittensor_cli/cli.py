@@ -26,6 +26,7 @@ from bittensor_cli.src import (
     Constants,
 )
 from bittensor_cli.src.bittensor import utils
+from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.async_substrate_interface import (
     SubstrateRequestException,
 )
@@ -431,6 +432,7 @@ class CLIManager:
     root_app: typer.Typer
     subnets_app: typer.Typer
     weights_app: typer.Typer
+    utils_app = typer.Typer(epilog=_epilog)
 
     def __init__(self):
         self.config = {
@@ -554,6 +556,9 @@ class CLIManager:
         self.app.add_typer(
             self.weights_app, name="weight", hidden=True, no_args_is_help=True
         )
+
+        # utils app
+        self.app.add_typer(self.utils_app, name="utils", no_args_is_help=True)
 
         # config commands
         self.config_app.command("set")(self.set_config)
@@ -4390,6 +4395,37 @@ class CLIManager:
                 __version_as_int__,
             )
         )
+
+    @staticmethod
+    @utils_app.command("convert")
+    def convert(
+        from_rao: Optional[str] = typer.Option(
+            None, "--rao", help="Convert amount from Rao"
+        ),
+        from_tao: Optional[float] = typer.Option(
+            None, "--tao", help="Convert amount from Tao"
+        ),
+    ):
+        """
+        Allows for converting between tao and rao using the specified flags
+        """
+        if from_tao is None and from_rao is None:
+            err_console.print("Specify `--rao` and/or `--tao`.")
+            raise typer.Exit()
+        if from_rao is not None:
+            rao = int(float(from_rao))
+            console.print(
+                f"{rao}{Balance.rao_unit}",
+                "=",
+                Balance.from_rao(rao),
+            )
+        if from_tao is not None:
+            tao = float(from_tao)
+            console.print(
+                f"{Balance.unit}{tao}",
+                "=",
+                f"{Balance.from_tao(tao).rao}{Balance.rao_unit}",
+            )
 
     def run(self):
         self.app()
