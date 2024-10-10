@@ -721,7 +721,7 @@ async def root_list(subtensor: SubtensorInterface):
 
         rn: list[NeuronInfoLite] = await subtensor.neurons_lite(netuid=0)
         if not rn:
-            return None, None, None, None
+            return [], [], {}, {}
 
         di: dict[str, DelegatesDetails] = await subtensor.get_delegate_identities()
         ts: dict[str, ScaleType] = await subtensor.substrate.query_multiple(
