@@ -1,3 +1,4 @@
+import ast
 import math
 import os
 import sqlite3
@@ -26,6 +27,9 @@ from bittensor_cli.src.bittensor.balances import Balance
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
+    from bittensor_cli.src.bittensor.async_substrate_interface import (
+        AsyncSubstrateInterface,
+    )
 
 console = Console()
 err_console = Console(stderr=True)
@@ -448,24 +452,87 @@ def get_explorer_url_for_network(
     return explorer_urls
 
 
-def format_error_message(error_message: dict) -> str:
+def format_error_message(
+    error_message: Union[dict, Exception], substrate: "AsyncSubstrateInterface"
+) -> str:
     """
-    Formats an error message from the Subtensor error information to using in extrinsics.
+    Formats an error message from the Subtensor error information for use in extrinsics.
 
-    :param error_message: A dictionary containing the error information from Subtensor.
+    Args:
+        error_message: A dictionary containing the error information from Subtensor, or a SubstrateRequestException
+                       containing dictionary literal args.
+        substrate: The initialised SubstrateInterface object to use.
 
-    :return: A formatted error message string.
+    Returns:
+        str: A formatted error message string.
     """
-    err_type = "UnknownType"
     err_name = "UnknownError"
+    err_type = "UnknownType"
     err_description = "Unknown Description"
 
+    if isinstance(error_message, Exception):
+        # generally gotten through SubstrateRequestException args
+        new_error_message = None
+        for arg in error_message.args:
+            try:
+                d = ast.literal_eval(arg)
+                if isinstance(d, dict):
+                    if "error" in d:
+                        new_error_message = d["error"]
+                        break
+                    elif all(x in d for x in ["code", "message", "data"]):
+                        new_error_message = d
+                        break
+            except ValueError:
+                pass
+        if new_error_message is None:
+            return_val = " ".join(error_message.args)
+            return f"Subtensor returned: {return_val}"
+        else:
+            error_message = new_error_message
+
     if isinstance(error_message, dict):
-        err_type = error_message.get("type", err_type)
-        err_name = error_message.get("name", err_name)
-        err_docs = error_message.get("docs", [])
-        err_description = err_docs[0] if len(err_docs) > 0 else err_description
-    return f"Subtensor returned `{err_name} ({err_type})` error. This means: `{err_description}`"
+        # subtensor error structure
+        if (
+            error_message.get("code")
+            and error_message.get("message")
+            and error_message.get("data")
+        ):
+            err_name = "SubstrateRequestException"
+            err_type = error_message.get("message", "")
+            err_data = error_message.get("data", "")
+
+            # subtensor custom error marker
+            if err_data.startswith("Custom error:") and substrate:
+                if substrate.metadata:
+                    try:
+                        pallet = substrate.metadata.get_metadata_pallet(
+                            "SubtensorModule"
+                        )
+                        error_index = int(err_data.split("Custom error:")[-1])
+
+                        error_dict = pallet.errors[error_index].value
+                        err_type = error_dict.get("message", err_type)
+                        err_docs = error_dict.get("docs", [])
+                        err_description = err_docs[0] if err_docs else err_description
+                    except (AttributeError, IndexError):
+                        err_console.print(
+                            "Substrate pallets data unavailable. This is usually caused by an uninitialized substrate."
+                        )
+            else:
+                err_description = err_data
+
+        elif (
+            error_message.get("type")
+            and error_message.get("name")
+            and error_message.get("docs")
+        ):
+            err_type = error_message.get("type", err_type)
+            err_name = error_message.get("name", err_name)
+            err_docs = error_message.get("docs", [err_description])
+            err_description = err_docs[0] if err_docs else err_description
+
+    return f"Subtensor returned `{err_name}({err_type})` error. This means: `{err_description}`."
 
 
 def convert_blocks_to_time(blocks: int, block_time: int = 12) -> tuple[int, int, int]:
@@ -877,8 +944,6 @@ def validate_chain_endpoint(endpoint_url) -> tuple[bool, str]:
         )
     if not parsed.netloc:
         return False, "Invalid URL passed as the endpoint"
-    if not parsed.port:
-        return False, "No port specified in the URL"
     return True, ""
 
 

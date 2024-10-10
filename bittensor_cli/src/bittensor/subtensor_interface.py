@@ -927,9 +927,11 @@ class SubtensorInterface:
             if await response.is_success:
                 return True, ""
             else:
-                return False, format_error_message(await response.error_message)
+                return False, format_error_message(
+                    await response.error_message, substrate=self.substrate
+                )
         except SubstrateRequestException as e:
-            return False, e
+            return False, format_error_message(e, substrate=self.substrate)
 
     async def get_children(self, hotkey, netuid) -> tuple[bool, list, str]:
         """
@@ -959,7 +961,7 @@ class SubtensorInterface:
             else:
                 return True, [], ""
         except SubstrateRequestException as e:
-            return False, [], str(e)
+            return False, [], format_error_message(e, self.substrate)
 
     async def get_subnet_hyperparameters(
         self, netuid: int, block_hash: Optional[str] = None

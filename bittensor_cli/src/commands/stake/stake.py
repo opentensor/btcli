@@ -523,7 +523,7 @@ async def unstake_extrinsic(
         # Unstake it all.
         unstaking_balance = old_stake
     else:
-        unstaking_balance = amount
+        unstaking_balance = Balance.from_tao(amount)
 
     # Check enough to unstake.
     stake_on_uid = old_stake
@@ -561,7 +561,6 @@ async def unstake_extrinsic(
         f":satellite: Unstaking from chain: [white]{subtensor}[/white] ...",
         spinner="earth",
     ):
-        unstaking_balance = Balance.from_tao(unstaking_balance)
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function="remove_stake",
