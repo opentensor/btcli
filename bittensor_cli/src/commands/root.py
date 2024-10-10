@@ -11,9 +11,10 @@ from rich.prompt import Confirm
 from rich.table import Column, Table
 from rich.text import Text
 from scalecodec import GenericCall, ScaleType
+from substrateinterface.exceptions import SubstrateRequestException
 import typer
 
-from bittensor_cli.src import Constants, DelegatesDetails
+from bittensor_cli.src import DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import (
     DelegateInfo,
@@ -1539,16 +1540,24 @@ async def list_delegates(subtensor: SubtensorInterface):
             subtensor.get_delegates(block_hash=block_hash),
         )
 
-        # TODO keep an eye on this, was not working at one point
         print_verbose("Fetching previous delegates info from chain", status)
-        prev_block_hash = await subtensor.substrate.get_block_hash(
-            max(0, block_number - 1200)
-        )
-        prev_delegates = await subtensor.get_delegates(block_hash=prev_block_hash)
+
+        async def get_prev_delegates(fallback_offsets=(1200, 200)):
+            for offset in fallback_offsets:
+                try:
+                    prev_block_hash = await subtensor.substrate.get_block_hash(
+                        max(0, block_number - offset)
+                    )
+                    return await subtensor.get_delegates(block_hash=prev_block_hash)
+                except SubstrateRequestException:
+                    continue
+            return None
+
+        prev_delegates = await get_prev_delegates()
 
     if prev_delegates is None:
         err_console.print(
-            ":warning: [yellow]Could not fetch delegates history[/yellow]"
+            ":warning: [yellow]Could not fetch delegates history. [/yellow]"
         )
 
     delegates.sort(key=lambda d: d.total_stake, reverse=True)
