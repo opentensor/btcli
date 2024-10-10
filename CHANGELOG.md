@@ -1,5 +1,25 @@
 # Changelog
 
+## 8.2.0 /2024-10-10
+
+## What's Changed
+* Handle git not installed by @thewhaleking in https://github.com/opentensor/btcli/pull/164
+* Handle receiving task cancellation by @thewhaleking in https://github.com/opentensor/btcli/pull/166
+* Change network option to a list so that it can be correctly parsed if multiple options are given by @thewhaleking in https://github.com/opentensor/btcli/pull/165
+* Receiving task cancellation improvement by @thewhaleking in https://github.com/opentensor/btcli/pull/168
+* mnemonic change: support numbered mnemonic by @thewhaleking in https://github.com/opentensor/btcli/pull/167
+* Backmerge release 8.1.1 by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/169
+* Handle custom errors from subtensor by @thewhaleking in https://github.com/opentensor/btcli/pull/79
+* Removes check for port in chain endpoint by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/170
+* Shifts Tao conversion to correct place in stake remove by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/172
+* Adds support for ss58 addresses in wallet balance by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/171
+* Fixes network instantiation in root list-delegates by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/173
+* Utils App with convert command by @thewhaleking in https://github.com/opentensor/btcli/pull/174
+* Fixes for rpc request error handler, root list default empty values, prev delegate fetching by @thewhaleking in https://github.com/opentensor/btcli/pull/175
+* Bumps version, updates requirement for 8.1.2 by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/176
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v8.1.1...v8.2.0
+
 ## 8.1.1 /2024-10-04
 
 ## What's Changed
