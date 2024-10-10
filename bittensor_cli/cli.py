@@ -4348,20 +4348,25 @@ class CLIManager:
             None, "--tao", help="Convert amount from Tao"
         ),
     ):
+        """
+        Allows for converting between tao and rao using the specified flags
+        """
         if from_tao is None and from_rao is None:
             err_console.print("Specify `--rao` and/or `--tao`.")
             raise typer.Exit()
         if from_rao is not None:
+            rao = int(float(from_rao))
             console.print(
-                f"{from_rao}{Balance.rao_unit}",
+                f"{rao}{Balance.rao_unit}",
                 "=",
-                Balance.from_rao(int(float(from_rao))),
+                Balance.from_rao(rao),
             )
         if from_tao is not None:
+            tao = float(from_tao)
             console.print(
-                f"{Balance.unit}{from_tao}",
+                f"{Balance.unit}{tao}",
                 "=",
-                f"{Balance.from_tao(float(from_tao)).rao}{Balance.rao_unit}",
+                f"{Balance.from_tao(tao).rao}{Balance.rao_unit}",
             )
 
     def run(self):
