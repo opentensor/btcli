@@ -3067,14 +3067,14 @@ class CLIManager:
         self.verbosity_handler(quiet, verbose)
 
         if network:
-            if network == "finney":
-                network = "wss://archive.chain.opentensor.ai:443"
+            if "finney" in network:
+                network = ["wss://archive.chain.opentensor.ai:443"]
         elif (conf_net := self.config.get("network")) == "finney":
-            network = "wss://archive.chain.opentensor.ai:443"
+            network = ["wss://archive.chain.opentensor.ai:443"]
         elif conf_net:
-            network = conf_net
+            network = [conf_net]
         else:
-            network = "wss://archive.chain.opentensor.ai:443"
+            network = ["wss://archive.chain.opentensor.ai:443"]
 
         sub = self.initialize_chain(network)
         return self._run_command(root.list_delegates(sub))
