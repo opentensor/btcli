@@ -15,6 +15,7 @@ from bittensor_cli.src.bittensor.utils import (
     format_error_message,
     get_explorer_url_for_network,
     is_valid_bittensor_address_or_public_key,
+    print_error,
 )
 
 
@@ -139,6 +140,10 @@ async def transfer_extrinsic(
     # Check if we have enough balance.
     if transfer_all is True:
         amount = account_balance - fee - existential_deposit
+        if amount < Balance(0):
+            print_error("Not enough balance to transfer")
+            return False
+
     if account_balance < (amount + fee + existential_deposit):
         err_console.print(
             ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
