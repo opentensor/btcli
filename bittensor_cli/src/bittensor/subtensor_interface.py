@@ -1149,7 +1149,7 @@ class SubtensorInterface:
         coldkey_ss58: str,
         netuids: list[int],
         block_hash: Optional[str] = None,
-    ) -> dict[str, dict[str, "Balance"]]:
+    ) -> dict[str, dict[int, "Balance"]]:
         """
         Queries the stake for multiple hotkey - coldkey - netuid pairings.
 
@@ -1188,15 +1188,16 @@ class SubtensorInterface:
             for netuid in netuids
         ]
         batch_call = await self.substrate.query_multi(calls, block_hash=block_hash)
-        results = {}
+        results: dict[str, dict[int, "Balance"]] = {hk_ss58: {} for hk_ss58 in hotkey_ss58s}
         for idx, item in enumerate(batch_call):
-            if hotkey_ss58s[idx] not in results:
-                results[hotkey_ss58s[idx]] = {}
-            for netuid in netuids:
-                value = (
-                    Balance.from_rao(item).set_unit(netuid)
-                    if item is not None
-                    else Balance(0).set_unit(netuid)
-                )
-                results[hotkey_ss58s[idx]] = value
+            hotkey_idx = idx // len(netuids)
+            netuid_idx = idx % len(netuids)
+            hotkey_ss58 = hotkey_ss58s[hotkey_idx]
+            netuid = netuids[netuid_idx]
+            value = (
+                Balance.from_rao(item).set_unit(netuid)
+                if item is not None
+                else Balance(0).set_unit(netuid)
+            )
+            results[hotkey_ss58][netuid] = value
         return results
