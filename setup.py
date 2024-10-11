@@ -40,6 +40,7 @@ def read_requirements(path):
 
 requirements = read_requirements("requirements.txt")
 cuda_requirements = read_requirements("cuda_requirements.txt")
+btqs_requirements = read_requirements("btqs_requirements.txt")
 
 here = path.abspath(path.dirname(__file__))
 
@@ -76,10 +77,12 @@ setup(
     install_requires=requirements,
     extras_require={
         "cuda": cuda_requirements,
+        "btqs": btqs_requirements,
     },
     entry_points={
         "console_scripts": [
             "btcli=bittensor_cli.cli:main",
+            "btqs=btqs.btqs_cli:main",
         ],
     },
     classifiers=[
