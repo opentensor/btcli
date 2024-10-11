@@ -35,6 +35,8 @@ from .utils import (
     start_miner,
     subnet_exists,
     subnet_owner_exists,
+    attach_to_process_logs,
+    start_validator
 )
 
 
@@ -190,7 +192,7 @@ class BTQSManager:
         # Filter miners that are not running
         miners_not_running = []
         for entry in process_entries:
-            if entry["process"].startswith("Miner") and entry["status"] != "Running":
+            if (entry["process"].startswith("Miner") or entry["process"].startswith("Validator")) and entry["status"] != "Running":
                 miners_not_running.append(entry)
 
         if not miners_not_running:
@@ -536,28 +538,18 @@ class BTQSManager:
             console.print("[red]Process not found. The chain may have been stopped.")
             return
 
-        # Log file setup for Subtensor chain
+        # Paths to the log files
         log_dir = os.path.join(subtensor_path, "logs")
         alice_log = os.path.join(log_dir, "alice.log")
 
+        # Check if log file exists
         if not os.path.exists(alice_log):
             console.print("[red]Log files not found.")
             return
 
-        try:
-            console.print("[green]Reattaching to the local chain...")
-            console.print("[green]Press Ctrl+C to detach.")
-            with open(alice_log, "r") as alice_file:
-                alice_file.seek(0, os.SEEK_END)
-                while True:
-                    alice_line = alice_file.readline()
-                    if not alice_line:
-                        time.sleep(0.1)
-                        continue
-                    if alice_line:
-                        print(f"[Alice] {alice_line}", end="")
-        except KeyboardInterrupt:
-            console.print("\n[green]Detached from the local chain.")
+        # Reattach using attach_to_process_logs
+        attach_to_process_logs(alice_log, "Subtensor Chain (Alice)", pid)
+
 
     def setup_subnet(self):
         """
@@ -865,32 +857,29 @@ class BTQSManager:
 
     def run_neurons(self):
         """
-        Runs all neurons (miners).
+        Runs all neurons (miners and validators).
 
-        This command starts the miner processes for all configured miners, attaching to running miners if they are already running.
+        This command starts the processes for all configured neurons, attaching to
+        running processes if they are already running.
 
         USAGE
 
         [green]$[/green] btqs neurons run
 
-        [bold]Note[/bold]: The command will attach to running miners or start new ones as necessary. Press Ctrl+C to detach from a miner and move to the next.
+        [bold]Note[/bold]: The command will attach to running neurons or start new
+        ones as necessary. Press Ctrl+C to detach from a neuron and move to the next.
         """
-        if not os.path.exists(CONFIG_FILE_PATH):
-            console.print(
-                "[red]Config file not found. Please run `btqs chain start` first."
-            )
+        
+        config_data = load_config(
+            "A running Subtensor not found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
+        )
+
+        # Ensure neurons are configured
+        if not config_data.get("Miners") and not config_data.get("Owner"):
+            console.print("[red]No neurons found. Please run `btqs neurons setup` first.")
             return
 
-        with open(CONFIG_FILE_PATH, "r") as config_file:
-            config_data = yaml.safe_load(config_file) or {}
-
-        if not config_data.get("Miners"):
-            console.print(
-                "[red]Miners not found. Please run `btqs neurons setup` first."
-            )
-            return
-
-        # Subnet template setup
+        # Ensure subnet-template is available
         subnet_template_path = os.path.join(BTQS_DIRECTORY, "subnet-template")
         if not os.path.exists(subnet_template_path):
             console.print("[green]Cloning subnet-template repository...")
@@ -907,6 +896,27 @@ class BTQSManager:
                 repo.git.checkout(SUBNET_TEMPLATE_BRANCH)
 
         chain_pid = config_data.get("pid")
+
+        # Handle Validator
+        if config_data.get("Owner"):
+            owner_info = config_data["Owner"]
+            validator_pid = owner_info.get("pid")
+            validator_subtensor_pid = owner_info.get("subtensor_pid")
+
+            if validator_pid and psutil.pid_exists(validator_pid) and validator_subtensor_pid == chain_pid:
+                console.print("[green]Validator is already running. Attaching to the process...")
+                log_file_path = owner_info.get("log_file")
+                if log_file_path and os.path.exists(log_file_path):
+                    attach_to_process_logs(log_file_path, "Validator", validator_pid)
+                else:
+                    console.print("[red]Log file not found for validator. Cannot attach.")
+            else:
+                # Validator is not running, start it
+                success = start_validator(owner_info, subnet_template_path, config_data)
+                if not success:
+                    console.print("[red]Failed to start validator.")
+
+        # Handle Miners
         for wallet_name, wallet_info in config_data.get("Miners", {}).items():
             miner_pid = wallet_info.get("pid")
             miner_subtensor_pid = wallet_info.get("subtensor_pid")
@@ -921,31 +931,7 @@ class BTQSManager:
                 )
                 log_file_path = wallet_info.get("log_file")
                 if log_file_path and os.path.exists(log_file_path):
-                    try:
-                        with open(log_file_path, "r") as log_file:
-                            # Move to the end of the file
-                            log_file.seek(0, os.SEEK_END)
-                            console.print(
-                                f"[green]Attached to miner {wallet_name}. Press Ctrl+C to move to the next miner."
-                            )
-                            while True:
-                                line = log_file.readline()
-                                if not line:
-                                    # Check if the process is still running
-                                    if not psutil.pid_exists(miner_pid):
-                                        console.print(
-                                            f"\n[red]Miner process {wallet_name} has terminated."
-                                        )
-                                        break
-                                    time.sleep(0.1)
-                                    continue
-                                print(line, end="")
-                    except KeyboardInterrupt:
-                        console.print(f"\n[green]Detached from miner {wallet_name}.")
-                    except Exception as e:
-                        console.print(
-                            f"[red]Error attaching to miner {wallet_name}: {e}"
-                        )
+                    attach_to_process_logs(log_file_path, f"Miner {wallet_name}", miner_pid)
                 else:
                     console.print(
                         f"[red]Log file not found for miner {wallet_name}. Cannot attach."
@@ -960,6 +946,7 @@ class BTQSManager:
 
         with open(CONFIG_FILE_PATH, "w") as config_file:
             yaml.safe_dump(config_data, config_file)
+
 
     def stop_neurons(self):
         """
@@ -987,7 +974,7 @@ class BTQSManager:
         # Filter running miners
         running_miners = []
         for entry in process_entries:
-            if entry["process"].startswith("Miner") and entry["status"] == "Running":
+            if (entry["process"].startswith("Miner") or entry["process"].startswith("Validator")) and entry["status"] == "Running":
                 running_miners.append(entry)
 
         if not running_miners:
@@ -1022,7 +1009,7 @@ class BTQSManager:
         # Stop selected miners
         for miner in selected_miners:
             pid = int(miner["pid"])
-            wallet_name = miner["process"].split("Miner: ")[-1]
+            wallet_name = miner["process"].split("Miner: ")[-1] if "Miner" in miner["process"] else miner["process"].split("Validator: ")[-1]
             try:
                 process = psutil.Process(pid)
                 process.terminate()

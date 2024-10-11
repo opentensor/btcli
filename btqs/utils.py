@@ -416,6 +416,34 @@ def get_process_entries(
             }
         )
 
+    # Check status of Validators
+    if config_data.get("Owner"):
+        owner_data = config_data.get("Owner")
+        pid = owner_data.get("pid")
+        location = owner_data.get("path")
+        status, cpu_usage, memory_usage, uptime_str, cpu_percent, memory_percent = (
+            get_process_info(pid)
+        )
+
+        status_style = "green" if status == "Running" else "red"
+
+        if status == "Running":
+            cpu_usage_list.append(cpu_percent)
+            memory_usage_list.append(memory_percent)
+
+        process_entries.append(
+            {
+                "process": f"Validator: {owner_data.get("wallet_name")}",
+                "status": status,
+                "status_style": status_style,
+                "pid": str(pid),
+                "cpu_usage": cpu_usage,
+                "memory_usage": memory_usage,
+                "uptime_str": uptime_str,
+                "location": location,
+            }
+        )
+
     return process_entries, cpu_usage_list, memory_usage_list
 
 
@@ -573,23 +601,98 @@ def start_miner(
         config_data["Miners"][wallet_name] = wallet_info
 
         console.print(f"[green]Miner {wallet_name} started. Press Ctrl+C to proceed.")
-        try:
-            with open(log_file_path, "r") as log_file:
-                # Move to the end of the file
-                log_file.seek(0, os.SEEK_END)
-                while True:
-                    line = log_file.readline()
-                    if not line:
-                        if not psutil.pid_exists(process.pid):
-                            console.print("\n[red]Miner process has terminated.")
-                            break
-                        time.sleep(0.1)
-                        continue
-                    print(line, end="")
-        except KeyboardInterrupt:
-            console.print("\n[green]Detached from miner logs.")
+        attach_to_process_logs(log_file_path, f"Miner {wallet_name}", process.pid)
         return True
     except Exception as e:
         console.print(f"[red]Error starting miner {wallet_name}: {e}")
         log_file.close()
         return False
+
+
+def start_validator(
+    owner_info: Dict[str, Any], subnet_template_path: str, config_data: Dict[str, Any]
+) -> bool:
+    """Starts the validator process and displays logs until user presses Ctrl+C."""
+    wallet = Wallet(
+        path=owner_info["path"],
+        name=owner_info["wallet_name"],
+        hotkey=owner_info["hotkey"],
+    )
+    console.print("[green]Starting validator...")
+
+    env_variables = os.environ.copy()
+    env_variables["PYTHONUNBUFFERED"] = "1"
+    env_variables["BT_AXON_PORT"] = str(8100)
+
+    cmd = [
+        sys.executable,
+        "-u",
+        "./neurons/validator.py",
+        "--wallet.name",
+        wallet.name,
+        "--wallet.hotkey",
+        wallet.hotkey_str,
+        "--wallet.path",
+        BTQS_WALLETS_DIRECTORY,
+        "--subtensor.chain_endpoint",
+        "ws://127.0.0.1:9945",
+        "--netuid",
+        "1",
+        "--logging.trace",
+    ]
+
+    # Create log file paths
+    logs_dir = os.path.join(BTQS_DIRECTORY, "logs")
+    os.makedirs(logs_dir, exist_ok=True)
+    log_file_path = os.path.join(logs_dir, "validator.log")
+
+    log_file = open(log_file_path, "a")
+    try:
+        # Start the subprocess, redirecting stdout and stderr to the log file
+        process = subprocess.Popen(
+            cmd,
+            cwd=subnet_template_path,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            env=env_variables,
+            start_new_session=True,
+        )
+        owner_info["pid"] = process.pid
+        owner_info["log_file"] = log_file_path
+        log_file.close()
+
+        # Update config_data
+        config_data["Owner"] = owner_info
+
+        console.print("[green]Validator started. Press Ctrl+C to proceed.")
+        attach_to_process_logs(log_file_path, "Validator", process.pid)
+        return True
+    except Exception as e:
+        console.print(f"[red]Error starting validator: {e}")
+        log_file.close()
+        return False
+
+
+def attach_to_process_logs(log_file_path: str, process_name: str, pid: int = None):
+    """Attaches to the log file of a process and prints logs until user presses Ctrl+C or the process terminates."""
+    try:
+        with open(log_file_path, "r") as log_file:
+            # Move to the end of the file
+            log_file.seek(0, os.SEEK_END)
+            console.print(
+                f"[green]Attached to {process_name}. Press Ctrl+C to move to the next process."
+            )
+            while True:
+                line = log_file.readline()
+                if not line:
+                    # Check if the process is still running
+                    if pid and not psutil.pid_exists(pid):
+                        console.print(f"\n[red]{process_name} process has terminated.")
+                        break
+                    time.sleep(0.1)
+                    continue
+                print(line, end="")
+    except KeyboardInterrupt:
+        console.print(f"\n[green]Detached from {process_name}.")
+    except Exception as e:
+        console.print(f"[red]Error attaching to {process_name}: {e}")
