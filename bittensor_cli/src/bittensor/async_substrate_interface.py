@@ -1707,9 +1707,7 @@ class AsyncSubstrateInterface:
         )
         result = await self._make_rpc_request(payloads, runtime=runtime)
         if "error" in result[payload_id][0]:
-            raise SubstrateRequestException(
-                result[payload_id][0]["error"]["message"]
-            )
+            raise SubstrateRequestException(result[payload_id][0]["error"]["message"])
         if "result" in result[payload_id][0]:
             return result[payload_id][0]
         else:
