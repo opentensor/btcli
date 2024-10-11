@@ -1453,7 +1453,7 @@ class CLIManager:
             err_console.print("Cannot specify an amount and `--all`")
             raise typer.Exit()
         elif transfer_all:
-            amount = None
+            amount = 0
         elif not amount:
             amount = FloatPrompt.ask("Enter amount (in TAO) to transfer.")
         return self._run_command(
