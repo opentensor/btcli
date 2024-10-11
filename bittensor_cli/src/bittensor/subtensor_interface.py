@@ -1120,9 +1120,11 @@ class SubtensorInterface:
 
         return DelegateInfoLite.list_from_vec_u8(result)  # TODO this won't work yet
 
-    async def get_subnet_dynamic_info(self, netuid: int) -> Optional["DynamicInfo"]:
+    async def get_subnet_dynamic_info(
+        self, netuid: int, block_hash: Optional[str] = None
+    ) -> Optional["DynamicInfo"]:
         json = await self.substrate.rpc_request(
-            method="subnetInfo_getDynamicInfo", params=[netuid, None]
+            method="subnetInfo_getDynamicInfo", params=[netuid, block_hash]
         )
         subnets = DynamicInfo.from_vec_u8(json["result"])
         return subnets
@@ -1188,7 +1190,9 @@ class SubtensorInterface:
             for netuid in netuids
         ]
         batch_call = await self.substrate.query_multi(calls, block_hash=block_hash)
-        results: dict[str, dict[int, "Balance"]] = {hk_ss58: {} for hk_ss58 in hotkey_ss58s}
+        results: dict[str, dict[int, "Balance"]] = {
+            hk_ss58: {} for hk_ss58 in hotkey_ss58s
+        }
         for idx, item in enumerate(batch_call):
             hotkey_idx = idx // len(netuids)
             netuid_idx = idx % len(netuids)

@@ -1259,12 +1259,19 @@ async def stake_add(
         hotkey_ss58_or_name = wallet.hotkey.ss58_address
         hotkeys_to_stake_to = [(None, hotkey_ss58_or_name)]
 
+    starting_chain_head = await subtensor.substrate.get_chain_head()
     all_dynamic_info, initial_stake_balances = await asyncio.gather(
-        asyncio.gather(*[subtensor.get_subnet_dynamic_info(x) for x in netuids]),
+        asyncio.gather(
+            *[
+                subtensor.get_subnet_dynamic_info(x, starting_chain_head)
+                for x in netuids
+            ]
+        ),
         subtensor.multi_get_stake_for_coldkey_and_hotkey_on_netuid(
             hotkey_ss58s=[x[1] for x in hotkeys_to_stake_to],
             coldkey_ss58=wallet.coldkeypub.ss58_address,
             netuids=netuids,
+            block_hash=starting_chain_head,
         ),
     )
     for hk_name, hk_ss58 in hotkeys_to_stake_to:
