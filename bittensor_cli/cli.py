@@ -1450,7 +1450,7 @@ class CLIManager:
         )
         subtensor = self.initialize_chain(network)
         if transfer_all and amount:
-            err_console.print("Cannot specify an amount and `--all`")
+            print_error("Cannot specify an amount and '--all' flag.")
             raise typer.Exit()
         elif transfer_all:
             amount = 0
@@ -3284,7 +3284,7 @@ class CLIManager:
         self.verbosity_handler(quiet, verbose)
 
         if stake_all and amount:
-            err_console.print(
+            print_error(
                 "Cannot specify an amount and 'stake-all'. Choose one or the other."
             )
             raise typer.Exit()
