@@ -1142,3 +1142,61 @@ class SubtensorInterface:
             return Balance(0).set_unit(netuid)
         else:
             return Balance.from_rao(_result).set_unit(int(netuid))
+
+    async def multi_get_stake_for_coldkey_and_hotkey_on_netuid(
+        self,
+        hotkey_ss58s: list[str],
+        coldkey_ss58: str,
+        netuids: list[int],
+        block_hash: Optional[str] = None,
+    ) -> dict[str, dict[str, "Balance"]]:
+        """
+        Queries the stake for multiple hotkey - coldkey - netuid pairings.
+
+        Args:
+            hotkey_ss58s: list of hotkey ss58 addresses
+            coldkey_ss58: a single coldkey ss58 address
+            netuids: list of netuids
+            block_hash: hash of the blockchain block, if any
+
+        Returns:
+            {
+                hotkey_ss58_1: {
+                    netuid_1: netuid1_stake,
+                    netuid_2: netuid2_stake,
+                    ...
+                },
+                hotkey_ss58_2: {
+                    netuid_1: netuid1_stake,
+                    netuid_2: netuid2_stake,
+                    ...
+                },
+                ...
+            }
+
+        """
+        calls = [
+            (
+                await self.substrate.create_storage_key(
+                    "SubtensorModule",
+                    "Alpha",
+                    [hk_ss58, coldkey_ss58, netuid],
+                    block_hash=block_hash,
+                )
+            )
+            for hk_ss58 in hotkey_ss58s
+            for netuid in netuids
+        ]
+        batch_call = await self.substrate.query_multi(calls, block_hash=block_hash)
+        results = {}
+        for idx, item in enumerate(batch_call):
+            if hotkey_ss58s[idx] not in results:
+                results[hotkey_ss58s[idx]] = {}
+            for netuid in netuids:
+                value = (
+                    Balance.from_rao(item).set_unit(netuid)
+                    if item is not None
+                    else Balance(0).set_unit(netuid)
+                )
+                results[hotkey_ss58s[idx]] = value
+        return results

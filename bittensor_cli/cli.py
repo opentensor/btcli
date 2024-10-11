@@ -3225,14 +3225,11 @@ class CLIManager:
             "-m",
             help="Stake is sent to a hotkey only until the hotkey's total stake is less than or equal to this maximum staked TAO. If a hotkey already has stake greater than this amount, then stake is not added to this hotkey.",
         ),
-        hotkey_ss58_address: str = typer.Option(
-            "",
-            help="The ss58 address of the hotkey to stake to.",
-        ),
         include_hotkeys: str = typer.Option(
             "",
             "--include-hotkeys",
             "-in",
+            "--hotkey-ss58-address",
             help="Specifies hotkeys by name or ss58 address to stake to. For example, `-in hk1,hk2`",
         ),
         exclude_hotkeys: str = typer.Option(
@@ -3247,6 +3244,7 @@ class CLIManager:
             help="When set, this command stakes to all hotkeys associated with the wallet. Do not use if specifying "
             "hotkeys in `--include-hotkeys`.",
         ),
+        netuid: Optional[int] = Options.netuid,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -3294,12 +3292,7 @@ class CLIManager:
             )
             raise typer.Exit()
 
-        if (
-            not wallet_hotkey
-            and not all_hotkeys
-            and not include_hotkeys
-            and not hotkey_ss58_address
-        ):
+        if not wallet_hotkey and not all_hotkeys and not include_hotkeys:
             hotkey_or_ss58 = Prompt.ask(
                 "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to stake to",
             )
@@ -3308,6 +3301,7 @@ class CLIManager:
                 wallet = self.wallet_ask(
                     wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
                 )
+                include_hotkeys = hotkey_or_ss58
             else:
                 wallet_hotkey = hotkey_or_ss58
                 wallet = self.wallet_ask(
@@ -3317,8 +3311,9 @@ class CLIManager:
                     ask_for=[WO.NAME, WO.HOTKEY, WO.PATH],
                     validate=WV.WALLET_AND_HOTKEY,
                 )
+                include_hotkeys = wallet.hotkey.ss58_address
 
-        elif all_hotkeys or include_hotkeys or exclude_hotkeys or hotkey_ss58_address:
+        elif all_hotkeys or include_hotkeys or exclude_hotkeys:
             wallet = self.wallet_ask(
                 wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
             )
@@ -3332,33 +3327,38 @@ class CLIManager:
             )
 
         if include_hotkeys:
-            include_hotkeys = parse_to_list(
+            included_hotkeys = parse_to_list(
                 include_hotkeys,
                 str,
                 "Hotkeys must be a comma-separated list of ss58s, e.g., `--include-hotkeys 5Grw....,5Grw....`.",
                 is_ss58=True,
             )
+        else:
+            included_hotkeys = []
 
         if exclude_hotkeys:
-            exclude_hotkeys = parse_to_list(
+            excluded_hotkeys = parse_to_list(
                 exclude_hotkeys,
                 str,
                 "Hotkeys must be a comma-separated list of ss58s, e.g., `--exclude-hotkeys 5Grw....,5Grw....`.",
                 is_ss58=True,
             )
+        else:
+            excluded_hotkeys = []
 
         return self._run_command(
             stake.stake_add(
                 wallet,
                 self.initialize_chain(network),
-                amount,
+                netuid,
                 stake_all,
-                max_stake,
-                include_hotkeys,
-                exclude_hotkeys,
-                all_hotkeys,
+                amount,
+                False,
                 prompt,
-                hotkey_ss58_address,
+                max_stake,
+                all_hotkeys,
+                included_hotkeys,
+                excluded_hotkeys,
             )
         )
 
@@ -3372,7 +3372,7 @@ class CLIManager:
             False,
             "--unstake-all",
             "--all",
-            help="When set, this commmand unstakes all staked TAO from the specified hotkeys.",
+            help="When set, this command unstakes all staked TAO from the specified hotkeys.",
         ),
         amount: float = typer.Option(
             0.0, "--amount", "-a", help="The amount of TAO to unstake."
