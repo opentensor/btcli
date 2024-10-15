@@ -25,6 +25,8 @@ from websockets.exceptions import ConnectionClosed
 if TYPE_CHECKING:
     from websockets.asyncio.client import ClientConnection
 
+from .utils import bytes_from_hex_string_result
+
 ResultHandler = Callable[[dict, Any], Awaitable[tuple[dict, bool]]]
 
 
@@ -2242,10 +2244,9 @@ class AsyncSubstrateInterface:
         )
 
         # Decode result
-        result_obj = decode_by_type_string(
+        result_obj = self.decode_scale(
             runtime_call_def["type"],
-            self.registry,
-            bytes.fromhex(result_data["result"])
+            bytes_from_hex_string_result(result_data["result"]),
         )
 
         return result_obj

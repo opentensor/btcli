@@ -1216,3 +1216,9 @@ def get_subnet_name(subnet_info) -> str:
         and subnet_info.subnet_identity.subnet_name is not None
         else (subnet_info.subnet_name if subnet_info.subnet_name is not None else "")
     )
+
+def bytes_from_hex_string_result(hex_string_result: str) -> bytes:
+    if hex_string_result.startswith("0x"):
+        hex_string_result = hex_string_result[2:]
+
+    return bytes.fromhex(hex_string_result)
