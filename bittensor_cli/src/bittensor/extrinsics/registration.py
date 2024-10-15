@@ -16,6 +16,7 @@ import random
 import time
 import typing
 from typing import Optional
+import subprocess
 
 import backoff
 from bittensor_wallet import Wallet
@@ -1234,7 +1235,10 @@ def _terminate_workers_and_wait_for_exit(
         if isinstance(worker, Queue_Type):
             worker.join_thread()
         else:
-            worker.join(3.0)
+            try:
+                worker.join(3.0)
+            except subprocess.TimeoutExpired:
+                worker.terminate()
         try:
             worker.close()
         except ValueError:
