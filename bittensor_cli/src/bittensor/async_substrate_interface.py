@@ -21,6 +21,8 @@ from substrateinterface.exceptions import (
 from substrateinterface.storage import StorageKey
 import websockets
 
+from .utils import bytes_from_hex_string_result
+
 ResultHandler = Callable[[dict, Any], Awaitable[tuple[dict, bool]]]
 
 
@@ -1707,9 +1709,7 @@ class AsyncSubstrateInterface:
         )
         result = await self._make_rpc_request(payloads, runtime=runtime)
         if "error" in result[payload_id][0]:
-            raise SubstrateRequestException(
-                result[payload_id][0]["error"]["message"]
-            )
+            raise SubstrateRequestException(result[payload_id][0]["error"]["message"])
         if "result" in result[payload_id][0]:
             return result[payload_id][0]
         else:
@@ -2234,10 +2234,9 @@ class AsyncSubstrateInterface:
         )
 
         # Decode result
-        result_obj = decode_by_type_string(
+        result_obj = self.decode_scale(
             runtime_call_def["type"],
-            self.registry,
-            bytes.fromhex(result_data["result"])
+            bytes_from_hex_string_result(result_data["result"]),
         )
 
         return result_obj

@@ -974,3 +974,10 @@ def retry_prompt(
             return var
         else:
             err_console.print(rejection_text)
+
+
+def bytes_from_hex_string_result(hex_string_result: str) -> bytes:
+    if hex_string_result.startswith("0x"):
+        hex_string_result = hex_string_result[2:]
+
+    return bytes.fromhex(hex_string_result)
