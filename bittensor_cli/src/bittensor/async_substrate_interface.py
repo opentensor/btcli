@@ -2234,13 +2234,10 @@ class AsyncSubstrateInterface:
         )
 
         # Decode result
-        # TODO update this to use bt-decode
-        result_obj = runtime.runtime_config.create_scale_object(
-            runtime_call_def["type"]
-        )
-        result_obj.decode(
-            ScaleBytes(result_data["result"]),
-            check_remaining=self.config.get("strict_scale_decode"),
+        result_obj = decode_by_type_string(
+            runtime_call_def["type"],
+            self.registry,
+            bytes.fromhex(result_data["result"])
         )
 
         return result_obj
