@@ -1633,6 +1633,7 @@ async def swap_hotkey_extrinsic(
     try:
         wallet.unlock_coldkey()
     except KeyFileError:
+        err_console.print("Error decrypting coldkey (possibly incorrect password)")
         return False
 
     if prompt:
