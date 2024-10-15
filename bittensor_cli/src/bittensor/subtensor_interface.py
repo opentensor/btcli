@@ -1205,3 +1205,41 @@ class SubtensorInterface:
             )
             results[hotkey_ss58][netuid] = value
         return results
+
+    async def get_stake_info_for_coldkeys(
+        self, coldkey_ss58_list: list[str], block_hash: Optional[str] = None
+    ) -> Optional[dict[str, list[StakeInfo]]]:
+        """
+        Retrieves stake information for a list of coldkeys. This function aggregates stake data for multiple
+        accounts, providing a collective view of their stakes and delegations.
+
+        Args:
+            coldkey_ss58_list: A list of SS58 addresses of the accounts' coldkeys.
+            block_hash: The blockchain block number for the query.
+
+        Returns:
+            A dictionary mapping each coldkey to a list of its StakeInfo objects.
+
+        This function is useful for analyzing the stake distribution and delegation patterns of multiple
+        accounts simultaneously, offering a broader perspective on network participation and investment strategies.
+        """
+        encoded_coldkeys = [
+            ss58_to_vec_u8(coldkey_ss58) for coldkey_ss58 in coldkey_ss58_list
+        ]
+
+        hex_bytes_result = await self.query_runtime_api(
+            runtime_api="StakeInfoRuntimeApi",
+            method="get_stake_info_for_coldkeys",
+            params=encoded_coldkeys,
+            block_hash=block_hash,
+        )
+
+        if hex_bytes_result is None:
+            return None
+
+        if hex_bytes_result.startswith("0x"):
+            bytes_result = bytes.fromhex(hex_bytes_result[2:])
+        else:
+            bytes_result = bytes.fromhex(hex_bytes_result)
+
+        return StakeInfo.list_of_tuple_from_vec_u8(bytes_result)  # type: ignore
