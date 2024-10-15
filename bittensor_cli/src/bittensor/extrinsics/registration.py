@@ -1234,8 +1234,11 @@ def _terminate_workers_and_wait_for_exit(
         if isinstance(worker, Queue_Type):
             worker.join_thread()
         else:
-            worker.join()
-        worker.close()
+            worker.join(3.0)
+        try:
+            worker.close()
+        except ValueError:
+            worker.terminate()
 
 
 # TODO verify this works with async
