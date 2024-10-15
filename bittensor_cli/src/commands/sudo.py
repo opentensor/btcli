@@ -104,6 +104,7 @@ async def set_hyperparameter_extrinsic(
     try:
         wallet.unlock_coldkey()
     except KeyFileError:
+        err_console.print("Error decrypting coldkey (possibly incorrect password)")
         return False
 
     extrinsic = HYPERPARAMS.get(parameter)
