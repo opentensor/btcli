@@ -1619,6 +1619,7 @@ async def set_id(
     try:
         wallet.unlock_coldkey()
     except KeyFileError:
+        err_console.print("Error decrypting coldkey (possibly incorrect password)")
         return False
 
     with console.status(

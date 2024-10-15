@@ -283,6 +283,7 @@ async def burned_register_extrinsic(
     try:
         wallet.unlock_coldkey()
     except KeyFileError:
+        err_console.print("Error decrypting coldkey (possibly incorrect password)")
         return False
 
     with console.status(
@@ -539,6 +540,7 @@ async def delegate_extrinsic(
     try:
         wallet.unlock_coldkey()
     except KeyFileError:
+        err_console.print("Error decrypting coldkey (possibly incorrect password)")
         return False
 
     print_verbose("Checking if hotkey is a delegate")
@@ -1100,6 +1102,7 @@ async def senate_vote(
         wallet.unlock_hotkey()
         wallet.unlock_coldkey()
     except KeyFileError:
+        err_console.print("Error decrypting coldkey (possibly incorrect password)")
         return False
 
     console.print(f"Fetching proposals in [dark_orange]network: {subtensor.network}")
@@ -1323,6 +1326,7 @@ async def set_take(wallet: Wallet, subtensor: SubtensorInterface, take: float) -
         wallet.unlock_hotkey()
         wallet.unlock_coldkey()
     except KeyFileError:
+        err_console.print("Error decrypting coldkey (possibly incorrect password)")
         return False
 
     result_ = await _do_set_take()
@@ -1724,6 +1728,7 @@ async def nominate(wallet: Wallet, subtensor: SubtensorInterface, prompt: bool):
         wallet.unlock_hotkey()
         wallet.unlock_coldkey()
     except KeyFileError:
+        err_console.print("Error decrypting coldkey (possibly incorrect password)")
         return False
 
     print_verbose(f"Checking hotkey ({wallet.hotkey_str}) is a delegate")

@@ -111,6 +111,7 @@ async def transfer_extrinsic(
     try:
         wallet.unlock_coldkey()
     except KeyFileError:
+        err_console.print("Error decrypting coldkey (possibly incorrect password)")
         return False
 
     # Check balance.

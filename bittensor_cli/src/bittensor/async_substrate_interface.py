@@ -682,9 +682,9 @@ class Websocket:
             try:
                 self._receiving_task.cancel()
                 await self._receiving_task
+                await self.ws.close()
             except (AttributeError, asyncio.CancelledError):
                 pass
-            await self.ws.close()
             self.ws = None
             self._initialized = False
             self._receiving_task = None

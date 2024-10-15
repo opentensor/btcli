@@ -309,6 +309,7 @@ async def root_register_extrinsic(
     try:
         wallet.unlock_coldkey()
     except KeyFileError:
+        err_console.print("Error decrypting coldkey (possibly incorrect password)")
         return False
 
     print_verbose(f"Checking if hotkey ({wallet.hotkey_str}) is registered on root")
@@ -429,6 +430,7 @@ async def set_root_weights_extrinsic(
     try:
         wallet.unlock_coldkey()
     except KeyFileError:
+        err_console.print("Error decrypting coldkey (possibly incorrect password)")
         return False
 
     # First convert types.
