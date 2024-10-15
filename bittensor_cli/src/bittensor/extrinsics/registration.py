@@ -16,6 +16,7 @@ import random
 import time
 import typing
 from typing import Optional
+import subprocess
 
 import backoff
 from bittensor_wallet import Wallet
@@ -35,6 +36,7 @@ from bittensor_cli.src.bittensor.utils import (
     millify,
     get_human_readable,
     print_verbose,
+    print_error,
 )
 
 if typing.TYPE_CHECKING:
@@ -512,12 +514,13 @@ async def register_extrinsic(
     with console.status(
         f":satellite: Checking Account on [bold]subnet:{netuid}[/bold]...",
         spinner="aesthetic",
-    ):
+    ) as status:
         neuron = await get_neuron_for_pubkey_and_subnet()
         if not neuron.is_null:
-            # bittensor.logging.debug(
-            #     f"Wallet {wallet} is already registered on {neuron.netuid} with {neuron.uid}"
-            # )
+            print_error(
+                f"Wallet {wallet} is already registered on subnet {neuron.netuid} with uid {neuron.uid}",
+                status,
+            )
             return True
 
     if prompt:
@@ -611,7 +614,8 @@ async def register_extrinsic(
                         success, err_msg = True, ""
                     else:
                         await response.process_events()
-                        if not await response.is_success:
+                        success = await response.is_success
+                        if not success:
                             success, err_msg = (
                                 False,
                                 format_error_message(
@@ -619,23 +623,23 @@ async def register_extrinsic(
                                     substrate=subtensor.substrate,
                                 ),
                             )
+                            # Look error here
+                            # https://github.com/opentensor/subtensor/blob/development/pallets/subtensor/src/errors.rs
 
-                    if not success:
-                        # Look error here
-                        # https://github.com/opentensor/subtensor/blob/development/pallets/subtensor/src/errors.rs
-                        if "HotKeyAlreadyRegisteredInSubNet" in err_msg:
-                            console.print(
-                                f":white_heavy_check_mark: [green]Already Registered on "
-                                f"[bold]subnet:{netuid}[/bold][/green]"
+                            if "HotKeyAlreadyRegisteredInSubNet" in err_msg:
+                                console.print(
+                                    f":white_heavy_check_mark: [green]Already Registered on "
+                                    f"[bold]subnet:{netuid}[/bold][/green]"
+                                )
+                                return True
+                            err_console.print(
+                                f":cross_mark: [red]Failed[/red]: {err_msg}"
                             )
-                            return True
-
-                        err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
-                        await asyncio.sleep(0.5)
+                            await asyncio.sleep(0.5)
 
                     # Successful registration, final check for neuron and pubkey
-                    else:
-                        console.print(":satellite: Checking Balance...")
+                    if success:
+                        console.print(":satellite: Checking Registration status...")
                         is_registered = await is_hotkey_registered(
                             subtensor,
                             netuid=netuid,
@@ -1231,8 +1235,14 @@ def _terminate_workers_and_wait_for_exit(
         if isinstance(worker, Queue_Type):
             worker.join_thread()
         else:
-            worker.join()
-        worker.close()
+            try:
+                worker.join(3.0)
+            except subprocess.TimeoutExpired:
+                worker.terminate()
+        try:
+            worker.close()
+        except ValueError:
+            worker.terminate()
 
 
 # TODO verify this works with async
