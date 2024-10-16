@@ -72,14 +72,14 @@ def start(config_data, workspace_path, branch):
         env=env_variables,
     )
 
-    console.print("[green]Starting local chain. This may take a few minutes...")
+    console.print("[green]Compiling and starting local chain. This may take a few minutes... (Timeout at 20 minutes)")
 
     # Paths to subtensor log files
     log_dir = os.path.join(subtensor_path, "logs")
     alice_log = os.path.join(log_dir, "alice.log")
 
     # Waiting for chain compilation
-    timeout = 360  # 6 minutes
+    timeout = 1200  # 17 minutes
     start_time = time.time()
     while not os.path.exists(alice_log):
         if time.time() - start_time > timeout:
