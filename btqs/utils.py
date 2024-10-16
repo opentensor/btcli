@@ -574,7 +574,7 @@ def get_process_entries(
 
         process_entries.append(
             {
-                "process": f"Validator: {owner_data.get("wallet_name")}",
+                "process": f"Validator: {owner_data.get('wallet_name')}",
                 "status": status,
                 "status_style": status_style,
                 "pid": str(pid),
