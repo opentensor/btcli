@@ -1404,8 +1404,11 @@ class CLIManager:
             None,
             "--amount",
             "-a",
-            prompt=True,
+            prompt=False,
             help="Amount (in TAO) to transfer.",
+        ),
+        transfer_all: bool = typer.Option(
+            False, "--all", prompt=False, help="Transfer all available balance."
         ),
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
@@ -1446,9 +1449,21 @@ class CLIManager:
             validate=WV.WALLET,
         )
         subtensor = self.initialize_chain(network)
+        if transfer_all and amount:
+            print_error("Cannot specify an amount and '--all' flag.")
+            raise typer.Exit()
+        elif transfer_all:
+            amount = 0
+        elif not amount:
+            amount = FloatPrompt.ask("Enter amount (in TAO) to transfer.")
         return self._run_command(
             wallets.transfer(
-                wallet, subtensor, destination_ss58_address, amount, prompt
+                wallet,
+                subtensor,
+                destination_ss58_address,
+                amount,
+                transfer_all,
+                prompt,
             )
         )
 
@@ -3269,7 +3284,7 @@ class CLIManager:
         self.verbosity_handler(quiet, verbose)
 
         if stake_all and amount:
-            err_console.print(
+            print_error(
                 "Cannot specify an amount and 'stake-all'. Choose one or the other."
             )
             raise typer.Exit()

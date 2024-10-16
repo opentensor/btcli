@@ -1256,11 +1256,17 @@ async def transfer(
     subtensor: SubtensorInterface,
     destination: str,
     amount: float,
+    transfer_all: bool,
     prompt: bool,
 ):
     """Transfer token of amount to destination."""
     await transfer_extrinsic(
-        subtensor, wallet, destination, Balance.from_tao(amount), prompt=prompt
+        subtensor,
+        wallet,
+        destination,
+        Balance.from_tao(amount),
+        transfer_all,
+        prompt=prompt,
     )
 
 
