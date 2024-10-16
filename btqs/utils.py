@@ -4,7 +4,7 @@ import subprocess
 import sys
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import psutil
 import typer
@@ -23,10 +23,9 @@ from .config import (
 
 console = Console()
 
-
 def load_config(
     error_message: Optional[str] = None, exit_if_missing: bool = True
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Loads the configuration file.
 
@@ -48,34 +47,10 @@ def load_config(
                 console.print("[red]Configuration file not found.")
             raise typer.Exit()
         else:
-            return {}  # Return an empty config if not exiting
+            return {}
     with open(CONFIG_FILE_PATH, "r") as config_file:
         config_data = yaml.safe_load(config_file) or {}
     return config_data
-
-
-def load_config_data() -> Optional[Dict[str, Any]]:
-    """
-    Load configuration data from the config file.
-
-    Returns:
-    - dict: The loaded configuration data if successful.
-    - None: If the config file doesn't exist or can't be loaded.
-    """
-    if not os.path.exists(CONFIG_FILE_PATH):
-        console.print(
-            "[red]Config file not found. Please run `btqs chain start` first."
-        )
-        return None
-
-    try:
-        with open(CONFIG_FILE_PATH, "r") as config_file:
-            config_data = yaml.safe_load(config_file) or {}
-        return config_data
-    except Exception as e:
-        console.print(f"[red]Error loading config file: {e}")
-        return None
-
 
 def remove_ansi_escape_sequences(text: str) -> str:
     """
@@ -103,12 +78,11 @@ def remove_ansi_escape_sequences(text: str) -> str:
     )
     return ansi_escape.sub("", text)
 
-
 def exec_command(
     command: str,
     sub_command: str,
-    extra_args: Optional[List[str]] = None,
-    inputs: Optional[List[str]] = None,
+    extra_args: Optional[list[str]] = None,
+    inputs: Optional[list[str]] = None,
     internal_command: bool = False,
 ) -> typer.testing.Result:
     """
@@ -146,7 +120,6 @@ def exec_command(
     )
     return result
 
-
 def is_chain_running(config_file_path: str) -> bool:
     """
     Checks if the local chain is running by verifying the PID in the config file.
@@ -169,7 +142,6 @@ def is_chain_running(config_file_path: str) -> bool:
         return process.is_running()
     except psutil.NoSuchProcess:
         return False
-
 
 def subnet_owner_exists(config_file_path: str) -> Tuple[bool, dict]:
     """
@@ -195,66 +167,10 @@ def subnet_owner_exists(config_file_path: str) -> Tuple[bool, dict]:
 
     return False, {}
 
-
-def verify_subnet_entry(output_text: str, netuid: str, ss58_address: str) -> bool:
+def subnet_exists(ss58_address: str, netuid: int) -> bool:
     """
-    Verifies the presence of a specific subnet entry in the subnets list output.
-
-    Args:
-        output_text (str): Output of execution command.
-        netuid (str): The netuid to look for.
-        ss58_address (str): The SS58 address of the subnet owner.
-
-    Returns:
-        bool: True if the entry is found, False otherwise.
+    Checks if a subnet exists by verifying the subnet list output.
     """
-    # Remove ANSI escape sequences
-    output_text = remove_ansi_escape_sequences(output_text)
-    lines = output_text.split("\n")
-
-    # Flag to start processing data rows after the headers
-    data_started = False
-
-    for line in lines:
-        line = line.strip()
-        # Skip empty lines
-        if not line:
-            continue
-
-        # Identify the header line
-        if "NETUID" in line:
-            data_started = True
-            continue
-
-        # Skip lines before the data starts
-        if not data_started:
-            continue
-
-        # Skip separator lines
-        if set(line) <= {"━", "╇", "┼", "─", "╈", "═", "║", "╬", "╣", "╠"}:
-            continue
-
-        # Split the line into columns using the separator '│' or '|'
-        columns = re.split(r"│|\|", line)
-        # Remove leading and trailing whitespace from each column
-        columns = [col.strip() for col in columns]
-
-        # Check if columns have enough entries
-        if len(columns) < 8:
-            continue
-
-        # Extract netuid and ss58_address from columns
-        netuid_col = columns[0]
-        ss58_address_col = columns[-1]
-
-        # Compare with the given netuid and ss58_address
-        if netuid_col == str(netuid) and ss58_address_col == ss58_address:
-            return True
-
-    return False
-
-
-def subnet_exists(ss58_address: str, netuid: str) -> bool:
     subnets_list = exec_command(
         command="subnets",
         sub_command="list",
@@ -269,16 +185,66 @@ def subnet_exists(ss58_address: str, netuid: str) -> bool:
     )
     return exists
 
+def verify_subnet_entry(output_text: str, netuid: int, ss58_address: str) -> bool:
+    """
+    Verifies the presence of a specific subnet entry in the subnets list output.
+
+    Args:
+        output_text (str): Output of execution command.
+        netuid (str): The netuid to look for.
+        ss58_address (str): The SS58 address of the subnet owner.
+
+    Returns:
+        bool: True if the entry is found, False otherwise.
+    """
+    output_text = remove_ansi_escape_sequences(output_text)
+    lines = output_text.split("\n")
+
+    data_started = False
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+
+        if "NETUID" in line:
+            data_started = True
+            continue
+
+        if not data_started:
+            continue
+
+        if set(line) <= {"━", "╇", "┼", "─", "╈", "═", "║", "╬", "╣", "╠"}:
+            continue
+
+        columns = re.split(r"│|\|", line)
+        columns = [col.strip() for col in columns]
+
+        if len(columns) < 8:
+            continue
+
+        netuid_col = columns[0]
+        ss58_address_col = columns[-1]
+
+        if netuid_col == str(netuid) and ss58_address_col == ss58_address:
+            return True
+
+    return False
 
 def get_btcli_version() -> str:
+    """
+    Gets the version of btcli.
+    """
     try:
         result = subprocess.run(["btcli", "--version"], capture_output=True, text=True)
         return result.stdout.strip()
     except Exception:
         return "Not installed or not found"
 
-
 def get_bittensor_wallet_version() -> str:
+    """
+    Gets the version of bittensor-wallet.
+    """
     try:
         result = subprocess.run(
             ["pip", "show", "bittensor-wallet"], capture_output=True, text=True
@@ -289,16 +255,22 @@ def get_bittensor_wallet_version() -> str:
     except Exception:
         return "Not installed or not found"
 
-
 def get_python_version() -> str:
+    """
+    Gets the Python version.
+    """
     return sys.version.split()[0]
 
-
 def get_python_path() -> str:
+    """
+    Gets the Python executable path.
+    """
     return sys.executable
 
-
 def get_process_info(pid: int) -> Tuple[str, str, str, str, float, float]:
+    """
+    Retrieves process information.
+    """
     if pid and psutil.pid_exists(pid):
         try:
             process = psutil.Process(pid)
@@ -309,7 +281,7 @@ def get_process_info(pid: int) -> Tuple[str, str, str, str, float, float]:
             memory_usage = f"{memory_percent:.1f}%"
             create_time = datetime.fromtimestamp(process.create_time())
             uptime = datetime.now() - create_time
-            uptime_str = str(uptime).split(".")[0]  # Remove microseconds
+            uptime_str = str(uptime).split(".")[0]
             return (
                 status,
                 cpu_usage,
@@ -329,10 +301,12 @@ def get_process_info(pid: int) -> Tuple[str, str, str, str, float, float]:
     pid = "N/A"
     return status, cpu_usage, memory_usage, uptime_str, cpu_percent, memory_percent
 
-
 def get_process_entries(
     config_data: Dict[str, Any],
-) -> Tuple[List[Dict[str, str]], List[float], List[float]]:
+) -> Tuple[list[Dict[str, str]], list[float], list[float]]:
+    """
+    Gets process entries for display.
+    """
     cpu_usage_list = []
     memory_usage_list = []
     process_entries = []
@@ -416,9 +390,9 @@ def get_process_entries(
             }
         )
 
-    # Check status of Validators
-    if config_data.get("Owner"):
-        owner_data = config_data.get("Owner")
+    # Check status of Validator
+    owner_data = config_data.get("Owner")
+    if owner_data:
         pid = owner_data.get("pid")
         location = owner_data.get("path")
         status, cpu_usage, memory_usage, uptime_str, cpu_percent, memory_percent = (
@@ -433,7 +407,7 @@ def get_process_entries(
 
         process_entries.append(
             {
-                "process": f"Validator: {owner_data.get("wallet_name")}",
+                "process": "Validator",
                 "status": status,
                 "status_style": status_style,
                 "pid": str(pid),
@@ -446,12 +420,14 @@ def get_process_entries(
 
     return process_entries, cpu_usage_list, memory_usage_list
 
-
 def display_process_status_table(
-    process_entries: List[Dict[str, str]],
-    cpu_usage_list: List[float],
-    memory_usage_list: List[float],
+    process_entries: list[Dict[str, str]],
+    cpu_usage_list: list[float],
+    memory_usage_list: list[float],
 ) -> None:
+    """
+    Displays the process status table.
+    """
     table = Table(
         title="[underline dark_orange]BTQS Process Manager[/underline dark_orange]\n",
         show_footer=True,
@@ -518,6 +494,8 @@ def display_process_status_table(
             process_style = "cyan"
         elif entry["process"].startswith("Miner"):
             process_style = "magenta"
+        elif entry["process"].startswith("Validator"):
+            process_style = "yellow"
         else:
             process_style = "white"
 
@@ -543,14 +521,15 @@ def display_process_status_table(
     # Display the table
     console.print(table)
 
-
 def start_miner(
     wallet_name: str,
     wallet_info: Dict[str, Any],
     subnet_template_path: str,
     config_data: Dict[str, Any],
 ) -> bool:
-    """Starts a single miner and displays logs until user presses Ctrl+C."""
+    """
+    Starts a single miner and displays logs until user presses Ctrl+C.
+    """
     wallet = Wallet(
         path=wallet_info["path"],
         name=wallet_name,
@@ -578,41 +557,41 @@ def start_miner(
     ]
 
     # Create log file paths
-    logs_dir = os.path.join(BTQS_DIRECTORY, "logs")
+    logs_dir = os.path.join(config_data["base_path"], "logs")
     os.makedirs(logs_dir, exist_ok=True)
     log_file_path = os.path.join(logs_dir, f"miner_{wallet_name}.log")
 
-    log_file = open(log_file_path, "a")
-    try:
-        # Start the subprocess, redirecting stdout and stderr to the log file
-        process = subprocess.Popen(
-            cmd,
-            cwd=subnet_template_path,
-            stdout=log_file,
-            stderr=subprocess.STDOUT,
-            env=env_variables,
-            start_new_session=True,
-        )
-        wallet_info["pid"] = process.pid
-        wallet_info["log_file"] = log_file_path
-        log_file.close()
+    with open(log_file_path, "a") as log_file:
+        try:
+            # Start the subprocess, redirecting stdout and stderr to the log file
+            process = subprocess.Popen(
+                cmd,
+                cwd=subnet_template_path,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                env=env_variables,
+                start_new_session=True,
+            )
+            wallet_info["pid"] = process.pid
+            wallet_info["log_file"] = log_file_path
 
-        # Update config_data
-        config_data["Miners"][wallet_name] = wallet_info
+            # Update config_data
+            config_data["Miners"][wallet_name] = wallet_info
 
-        console.print(f"[green]Miner {wallet_name} started. Press Ctrl+C to proceed.")
-        attach_to_process_logs(log_file_path, f"Miner {wallet_name}", process.pid)
-        return True
-    except Exception as e:
-        console.print(f"[red]Error starting miner {wallet_name}: {e}")
-        log_file.close()
-        return False
-
-
+            console.print(f"[green]Miner {wallet_name} started. Press Ctrl+C to proceed.")
+            attach_to_process_logs(log_file_path, f"Miner {wallet_name}", process.pid)
+            return True
+        except Exception as e:
+            console.print(f"[red]Error starting miner {wallet_name}: {e}")
+            return False
 def start_validator(
-    owner_info: Dict[str, Any], subnet_template_path: str, config_data: Dict[str, Any]
+    owner_info: Dict[str, Any],
+    subnet_template_path: str,
+    config_data: Dict[str, Any],
 ) -> bool:
-    """Starts the validator process and displays logs until user presses Ctrl+C."""
+    """
+    Starts the validator process and displays logs until user presses Ctrl+C.
+    """
     wallet = Wallet(
         path=owner_info["path"],
         name=owner_info["wallet_name"],
@@ -642,39 +621,37 @@ def start_validator(
     ]
 
     # Create log file paths
-    logs_dir = os.path.join(BTQS_DIRECTORY, "logs")
+    logs_dir = os.path.join(config_data["base_path"], "logs")
     os.makedirs(logs_dir, exist_ok=True)
     log_file_path = os.path.join(logs_dir, "validator.log")
 
-    log_file = open(log_file_path, "a")
-    try:
-        # Start the subprocess, redirecting stdout and stderr to the log file
-        process = subprocess.Popen(
-            cmd,
-            cwd=subnet_template_path,
-            stdout=log_file,
-            stderr=subprocess.STDOUT,
-            env=env_variables,
-            start_new_session=True,
-        )
-        owner_info["pid"] = process.pid
-        owner_info["log_file"] = log_file_path
-        log_file.close()
+    with open(log_file_path, "a") as log_file:
+        try:
+            # Start the subprocess, redirecting stdout and stderr to the log file
+            process = subprocess.Popen(
+                cmd,
+                cwd=subnet_template_path,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                env=env_variables,
+                start_new_session=True,
+            )
+            owner_info["pid"] = process.pid
+            owner_info["log_file"] = log_file_path
 
-        # Update config_data
-        config_data["Owner"] = owner_info
+            # Update config_data
+            config_data["Owner"] = owner_info
 
-        console.print("[green]Validator started. Press Ctrl+C to proceed.")
-        attach_to_process_logs(log_file_path, "Validator", process.pid)
-        return True
-    except Exception as e:
-        console.print(f"[red]Error starting validator: {e}")
-        log_file.close()
-        return False
-
-
+            console.print("[green]Validator started. Press Ctrl+C to proceed.")
+            attach_to_process_logs(log_file_path, "Validator", process.pid)
+            return True
+        except Exception as e:
+            console.print(f"[red]Error starting validator: {e}")
+            return False
 def attach_to_process_logs(log_file_path: str, process_name: str, pid: int = None):
-    """Attaches to the log file of a process and prints logs until user presses Ctrl+C or the process terminates."""
+    """
+    Attaches to the log file of a process and prints logs until user presses Ctrl+C or the process terminates.
+    """
     try:
         with open(log_file_path, "r") as log_file:
             # Move to the end of the file

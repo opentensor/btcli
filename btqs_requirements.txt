@@ -1,2 +1,3 @@
 psutil
 GitPython
+tdqm

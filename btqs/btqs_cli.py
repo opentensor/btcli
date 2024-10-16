@@ -2,8 +2,13 @@ import os
 import platform
 import subprocess
 import time
-from time import sleep
+import time
+import threading
+import sys
+from tqdm import tqdm
 
+from typing import Any, Dict, Optional
+from time import sleep
 import psutil
 import typer
 import yaml
@@ -33,12 +38,13 @@ from .utils import (
     load_config,
     remove_ansi_escape_sequences,
     start_miner,
+    start_validator,
     subnet_exists,
     subnet_owner_exists,
     attach_to_process_logs,
-    start_validator
 )
 
+from btqs.src.commands import chain, neurons
 
 class BTQSManager:
     """
@@ -68,7 +74,7 @@ class BTQSManager:
         self.chain_app.command(name="stop")(self.stop_chain)
         self.chain_app.command(name="reattach")(self.reattach_chain)
 
-        # Setup commands
+        # Subnet commands
         self.subnet_app.command(name="setup")(self.setup_subnet)
 
         # Neuron commands
@@ -77,25 +83,66 @@ class BTQSManager:
         self.neurons_app.command(name="stop")(self.stop_neurons)
         self.neurons_app.command(name="reattach")(self.reattach_neurons)
         self.neurons_app.command(name="status")(self.status_neurons)
+        self.neurons_app.command(name="live")(self.display_live_metagraph)
         self.neurons_app.command(name="start")(self.start_neurons)
+        self.neurons_app.command(name="stake")(self.add_stake)
 
         self.app.command(name="run-all", help="Create entire setup")(self.run_all)
+        self.app.command(name="status", help="Current status of bittensor quick start")(
+            self.status_neurons
+        )
+
+    def display_live_metagraph(self):
+        def clear_screen():
+            os.system("cls" if os.name == "nt" else "clear")
+
+        def get_metagraph():
+            result = exec_command(
+                command="subnets",
+                sub_command="metagraph",
+                extra_args=[
+                    "--netuid",
+                    "1",
+                    "--chain",
+                    "ws://127.0.0.1:9945",
+                ],
+                internal_command=True
+            )
+            # clear_screen()
+            return result.stdout
+
+        print("Starting live metagraph view. Press 'Ctrl + C' to exit.")
+        config_data = load_config(
+            "A running Subtensor not found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
+        )
+
+        def input_thread():
+            while True:
+                if input() == "q":
+                    print("Exiting live view...")
+                    sys.exit(0)
+
+        threading.Thread(target=input_thread, daemon=True).start()
+
+        try:
+            while True:
+                metagraph = get_metagraph()
+                process_entries, cpu_usage_list, memory_usage_list = get_process_entries(config_data)
+                clear_screen()
+                print(metagraph)
+                display_process_status_table(process_entries, cpu_usage_list, memory_usage_list)
+
+                # Create a progress bar for 5 seconds
+                print("\n")
+                for _ in tqdm(range(5), desc="Refreshing", unit="s", total=5):
+                    time.sleep(1)
+
+        except KeyboardInterrupt:
+            print("Exiting live view...")
 
     def run_all(self):
         """
         Runs all commands in sequence to set up and start the local chain, subnet, and neurons.
-
-        This command automates the entire setup process, including starting the local Subtensor chain,
-        setting up a subnet, creating and registering miner wallets, and running the miners.
-
-        USAGE
-
-        Run this command to perform all steps necessary to start the local chain and miners:
-
-        [green]$[/green] btqs run-all
-
-        [bold]Note[/bold]: This command is useful for quickly setting up the entire environment.
-        It will prompt for inputs as needed.
         """
         text = Text("Starting Local Subtensor\n", style="bold light_goldenrod2")
         sign = Text("🔗 ", style="bold yellow")
@@ -137,7 +184,7 @@ class BTQSManager:
         # Set up the neurons (miners)
         self.setup_neurons()
 
-        console.print("\nNext command will: 1. Start all miners processes")
+        console.print("\nNext command will: 1. Start all miner processes")
         console.print("Press any key to continue..\n")
         input()
 
@@ -164,101 +211,64 @@ class BTQSManager:
         )
         print(subnets_list.stdout, end="")
 
-    def start_neurons(self):
-        """
-        Starts selected neurons.
-
-        This command allows you to start specific miners that are not currently running.
-
-        USAGE
-
-        [green]$[/green] btqs neurons start
-
-        [bold]Note[/bold]: You can select which miners to start or start all that are not running.
-        """
-        config_data = load_config(
-            "A running Subtensor not found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
+        self.add_stake()
+        console.print("[dark_green]\nViewing Metagraph for Subnet 1")
+        subnets_list = exec_command(
+            command="subnets",
+            sub_command="metagraph",
+            extra_args=[
+                "--netuid",
+                "1",
+                "--chain",
+                "ws://127.0.0.1:9945",
+            ],
         )
-        if not config_data.get("Miners"):
-            console.print(
-                "[red]Miners not found. Please run `btqs neurons setup` first."
+        print(subnets_list.stdout, end="")
+        self.display_live_metagraph()
+
+    def add_stake(self):
+        subnet_owner, owner_data = subnet_owner_exists(CONFIG_FILE_PATH)
+        if subnet_owner:
+            owner_wallet = Wallet(
+                name=owner_data.get("wallet_name"),
+                path=owner_data.get("path"),
+                hotkey=owner_data.get("hotkey"),
             )
-            return
-
-        # Get process entries
-        process_entries, _, _ = get_process_entries(config_data)
-        display_process_status_table(process_entries, [], [])
-
-        # Filter miners that are not running
-        miners_not_running = []
-        for entry in process_entries:
-            if (entry["process"].startswith("Miner") or entry["process"].startswith("Validator")) and entry["status"] != "Running":
-                miners_not_running.append(entry)
-
-        if not miners_not_running:
-            console.print("[green]All miners are already running.")
-            return
-
-        # Display the list of miners not running
-        console.print("\nMiners not running:")
-        for idx, miner in enumerate(miners_not_running, start=1):
-            console.print(f"{idx}. {miner['process']}")
-
-        # Prompt user to select miners to start
-        selection = typer.prompt(
-            "Enter miner numbers to start (comma-separated), or 'all' to start all",
-            default="all",
-        )
-
-        if selection.lower() == "all":
-            selected_miners = miners_not_running
-        else:
-            selected_indices = [
-                int(i.strip()) for i in selection.split(",") if i.strip().isdigit()
-            ]
-            selected_miners = [
-                miners_not_running[i - 1]
-                for i in selected_indices
-                if 1 <= i <= len(miners_not_running)
-            ]
-
-        if not selected_miners:
-            console.print("[red]No valid miners selected.")
-            return
-
-        # TODO: Make this configurable
-        # Subnet template setup
-        subnet_template_path = os.path.join(BTQS_DIRECTORY, "subnet-template")
-        if not os.path.exists(subnet_template_path):
-            console.print("[green]Cloning subnet-template repository...")
-            repo = Repo.clone_from(
-                SUBNET_TEMPLATE_REPO_URL,
-                subnet_template_path,
+            add_stake = exec_command(
+                command="stake",
+                sub_command="add",
+                extra_args=[
+                    "--amount",
+                    1000,
+                    "--wallet-path",
+                    BTQS_WALLETS_DIRECTORY,
+                    "--chain",
+                    "ws://127.0.0.1:9945",
+                    "--wallet-name",
+                    owner_wallet.name,
+                    "--no-prompt",
+                    "--wallet-hotkey",
+                    owner_wallet.hotkey_str,
+                ],
             )
-            repo.git.checkout(SUBNET_TEMPLATE_BRANCH)
-        else:
-            console.print("[green]Using existing subnet-template repository.")
-            repo = Repo(subnet_template_path)
-            current_branch = repo.active_branch.name
-            if current_branch != SUBNET_TEMPLATE_BRANCH:
-                repo.git.checkout(SUBNET_TEMPLATE_BRANCH)
 
-        # TODO: Add ability for users to define their own flags, entry point etc
-        # Start selected miners
-        for miner in selected_miners:
-            wallet_name = miner["process"].split("Miner: ")[-1]
-            wallet_info = config_data["Miners"][wallet_name]
-            success = start_miner(
-                wallet_name, wallet_info, subnet_template_path, config_data
-            )
-            if success:
-                console.print(f"[green]Miner {wallet_name} started.")
+            clean_stdout = remove_ansi_escape_sequences(add_stake.stdout)
+            if "✅ Finalized" in clean_stdout:
+                text = Text(
+                    f"Stake added successfully by Validator ({owner_wallet})\n",
+                    style="bold light_goldenrod2",
+                )
+                sign = Text("📈 ", style="bold yellow")
+                console.print(sign, text)
             else:
-                console.print(f"[red]Failed to start miner {wallet_name}.")
+                console.print("\n[red] Failed to add stake. Command output:\n")
+                print(add_stake.stdout, end="")
 
-        # Update the config file
-        with open(CONFIG_FILE_PATH, "w") as config_file:
-            yaml.safe_dump(config_data, config_file)
+        else:
+            console.print(
+                "[red]Subnet netuid 1 registered to the owner not found. Run `btqs subnet setup` first"
+            )
+            return
 
     def start_chain(self):
         """
@@ -280,143 +290,8 @@ class BTQSManager:
             )
             return
 
-        config_data = load_config(exit_if_missing=False)
-        if config_data:
-            console.print("[green] Refreshing config file")
-            config_data = {}
-
-        directory = typer.prompt(
-            "Enter the directory to clone the subtensor repository",
-            default=os.path.expanduser("~/Desktop/Bittensor_quick_start"),
-            show_default=True,
-        )
-        os.makedirs(directory, exist_ok=True)
-
-        subtensor_path = os.path.join(directory, "subtensor")
-        repo_url = "https://github.com/opentensor/subtensor.git"
-
-        # Clone or update the repository
-        if os.path.exists(subtensor_path) and os.listdir(subtensor_path):
-            update = typer.confirm(
-                "Subtensor is already cloned. Do you want to update it?"
-            )
-            if update:
-                try:
-                    repo = Repo(subtensor_path)
-                    origin = repo.remotes.origin
-                    origin.pull()
-                    console.print("[green]Repository updated successfully.")
-                except GitCommandError as e:
-                    console.print(f"[red]Error updating repository: {e}")
-                    return
-            else:
-                console.print(
-                    "[green]Using existing subtensor repository without updating."
-                )
-        else:
-            try:
-                console.print("[green]Cloning subtensor repository...")
-                Repo.clone_from(repo_url, subtensor_path)
-                console.print("[green]Repository cloned successfully.")
-            except GitCommandError as e:
-                console.print(f"[red]Error cloning repository: {e}")
-                return
-
-        localnet_path = os.path.join(subtensor_path, "scripts", "localnet.sh")
-
-        # Running localnet.sh
-        process = subprocess.Popen(
-            ["bash", localnet_path],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.STDOUT,
-            cwd=subtensor_path,
-            start_new_session=True,
-        )
-
-        console.print("[green]Starting local chain. This may take a few minutes...")
-
-        # Paths to subtensor log files
-        log_dir = os.path.join(subtensor_path, "logs")
-        alice_log = os.path.join(log_dir, "alice.log")
-
-        # Waiting for chain compilation
-        timeout = 360  # 6 minutes
-        start_time = time.time()
-        while not os.path.exists(alice_log):
-            if time.time() - start_time > timeout:
-                console.print("[red]Timeout: Log files were not created.")
-                return
-            time.sleep(1)
-
-        chain_ready = False
-        try:
-            with open(alice_log, "r") as log_file:
-                log_file.seek(0, os.SEEK_END)
-                while True:
-                    line = log_file.readline()
-                    if line:
-                        console.print(line, end="")
-                        if "Imported #" in line:
-                            chain_ready = True
-                            break
-                    else:
-                        if time.time() - start_time > timeout:
-                            console.print(
-                                "[red]Timeout: Chain did not compile in time."
-                            )
-                            break
-                        time.sleep(0.1)
-        except Exception as e:
-            console.print(f"[red]Error reading log files: {e}")
-            return
-
-        if chain_ready:
-            text = Text(
-                "Local chain is running. You can now use it for development and testing.\n",
-                style="bold light_goldenrod2",
-            )
-            sign = Text("\n⚙️ ", style="bold yellow")
-            console.print(sign, text)
-
-            try:
-                # Fetch PIDs of 2 substrate nodes spawned
-                result = subprocess.run(
-                    ["pgrep", "-f", "node-subtensor"], capture_output=True, text=True
-                )
-                substrate_pids = [int(pid) for pid in result.stdout.strip().split()]
-
-                config_data.update(
-                    {
-                        "pid": process.pid,
-                        "substrate_pid": substrate_pids,
-                        "subtensor_path": subtensor_path,
-                        "base_path": directory,
-                    }
-                )
-            except ValueError:
-                console.print("[red]Failed to get the PID of the Subtensor process.")
-                return
-
-            config_data.update(
-                {
-                    "pid": process.pid,
-                    "subtensor_path": subtensor_path,
-                    "base_path": directory,
-                }
-            )
-
-            # Save config data
-            try:
-                os.makedirs(os.path.dirname(CONFIG_FILE_PATH), exist_ok=True)
-                with open(CONFIG_FILE_PATH, "w") as config_file:
-                    yaml.safe_dump(config_data, config_file)
-                console.print(
-                    "[green]Local chain started successfully and config file updated."
-                )
-            except Exception as e:
-                console.print(f"[red]Failed to write to the config file: {e}")
-        else:
-            console.print("[red]Failed to start local chain.")
+        config_data = load_config(exit_if_missing=False) or {}
+        chain.start_chain(config_data)
 
     def stop_chain(self):
         """
@@ -433,76 +308,7 @@ class BTQSManager:
         config_data = load_config(
             "No running chain found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
         )
-
-        pid = config_data.get("pid")
-        if not pid:
-            console.print("[red]No running chain found.")
-            return
-
-        console.print("[red]Stopping the local chain...")
-
-        try:
-            process = psutil.Process(pid)
-            process.terminate()
-            process.wait(timeout=10)
-            console.print("[green]Local chain stopped successfully.")
-
-        except psutil.NoSuchProcess:
-            console.print(
-                "[red]Process not found. The chain may have already been stopped."
-            )
-
-        except psutil.TimeoutExpired:
-            console.print("[red]Timeout while stopping the chain. Forcing stop...")
-            process.kill()
-
-        # Check for running miners
-        process_entries, _, _ = get_process_entries(config_data)
-
-        # Filter running miners
-        running_miners = []
-        for entry in process_entries:
-            if entry["process"].startswith("Miner") and entry["status"] == "Running":
-                running_miners.append(entry)
-
-        if running_miners:
-            console.print(
-                "[yellow]\nSome miners are still running. Terminating them..."
-            )
-
-            for miner in running_miners:
-                pid = int(miner["pid"])
-                wallet_name = miner["process"].split("Miner: ")[-1]
-                try:
-                    miner_process = psutil.Process(pid)
-                    miner_process.terminate()
-                    miner_process.wait(timeout=10)
-                    console.print(f"[green]Miner {wallet_name} stopped.")
-
-                except psutil.NoSuchProcess:
-                    console.print(f"[yellow]Miner {wallet_name} process not found.")
-
-                except psutil.TimeoutExpired:
-                    console.print(
-                        f"[red]Timeout stopping miner {wallet_name}. Forcing stop."
-                    )
-                    miner_process.kill()
-
-                config_data["Miners"][wallet_name]["pid"] = None
-
-            with open(CONFIG_FILE_PATH, "w") as config_file:
-                yaml.safe_dump(config_data, config_file)
-        else:
-            console.print("[green]No miners were running.")
-
-        # Refresh data
-        refresh_config = typer.confirm(
-            "\nConfig data is outdated. Press Y to refresh it?"
-        )
-        if refresh_config:
-            if os.path.exists(CONFIG_FILE_PATH):
-                os.remove(CONFIG_FILE_PATH)
-                console.print("[green]Configuration file removed.")
+        chain.stop_chain(config_data)
 
     def reattach_chain(self):
         """
@@ -519,37 +325,7 @@ class BTQSManager:
         config_data = load_config(
             "A running Subtensor not found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
         )
-
-        pid = config_data.get("pid")
-        subtensor_path = config_data.get("subtensor_path")
-        if not pid or not subtensor_path:
-            console.print("[red]No running chain found.")
-            return
-
-        # Check if the process is still running
-        try:
-            process = psutil.Process(pid)
-            if not process.is_running():
-                console.print(
-                    "[red]Process not running. The chain may have been stopped."
-                )
-                return
-        except psutil.NoSuchProcess:
-            console.print("[red]Process not found. The chain may have been stopped.")
-            return
-
-        # Paths to the log files
-        log_dir = os.path.join(subtensor_path, "logs")
-        alice_log = os.path.join(log_dir, "alice.log")
-
-        # Check if log file exists
-        if not os.path.exists(alice_log):
-            console.print("[red]Log files not found.")
-            return
-
-        # Reattach using attach_to_process_logs
-        attach_to_process_logs(alice_log, "Subtensor Chain (Alice)", pid)
-
+        chain.reattach_chain(config_data)
 
     def setup_subnet(self):
         """
@@ -591,47 +367,18 @@ class BTQSManager:
 
             console.print(warning_sign, warning_text)
             console.print(wallet_info)
-
         else:
-            text = Text(
-                "Creating subnet owner wallet.\n", style="bold light_goldenrod2"
-            )
-            sign = Text("👑 ", style="bold yellow")
-            console.print(sign, text)
-
-            owner_wallet_name = typer.prompt(
-                "Enter subnet owner wallet name", default="owner", show_default=True
-            )
-            owner_hotkey_name = typer.prompt(
-                "Enter subnet owner hotkey name", default="default", show_default=True
+            self._create_subnet_owner_wallet(config_data)
+            config_data = load_config(
+                "A running Subtensor not found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
             )
 
-            uri = "//Alice"
-            keypair = Keypair.create_from_uri(uri)
-            owner_wallet = Wallet(
-                path=BTQS_WALLETS_DIRECTORY,
-                name=owner_wallet_name,
-                hotkey=owner_hotkey_name,
-            )
-            owner_wallet.set_coldkey(keypair=keypair, encrypt=False, overwrite=True)
-            owner_wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=True)
-            owner_wallet.set_hotkey(keypair=keypair, encrypt=False, overwrite=True)
-
-            console.print(
-                "Executed command: [dark_orange] btcli wallet create --wallet-name",
-                f"[dark_orange]{owner_hotkey_name} --wallet-hotkey {owner_wallet_name} --wallet-path {BTQS_WALLETS_DIRECTORY}",
-            )
-
-            with open(CONFIG_FILE_PATH, "r") as config_file:
-                config_data = yaml.safe_load(config_file)
-            config_data["Owner"] = {
-                "wallet_name": owner_wallet_name,
-                "path": BTQS_WALLETS_DIRECTORY,
-                "hotkey": owner_hotkey_name,
-                "subtensor_pid": config_data["pid"],
-            }
-            with open(CONFIG_FILE_PATH, "w") as config_file:
-                yaml.safe_dump(config_data, config_file)
+        owner_data = config_data["Owner"]
+        owner_wallet = Wallet(
+            name=owner_data.get("wallet_name"),
+            path=owner_data.get("path"),
+            hotkey=owner_data.get("hotkey"),
+        )
 
         if subnet_exists(owner_wallet.coldkeypub.ss58_address, 1):
             warning_text = Text(
@@ -649,58 +396,7 @@ class BTQSManager:
             console.print(wallet_info)
             console.print(sudo_info)
         else:
-            text = Text(
-                "Creating a subnet with Netuid 1.\n", style="bold light_goldenrod2"
-            )
-            sign = Text("\n💻 ", style="bold yellow")
-            console.print(sign, text)
-
-            create_subnet = exec_command(
-                command="subnets",
-                sub_command="create",
-                extra_args=[
-                    "--wallet-path",
-                    BTQS_WALLETS_DIRECTORY,
-                    "--chain",
-                    "ws://127.0.0.1:9945",
-                    "--wallet-name",
-                    owner_wallet.name,
-                    "--no-prompt",
-                    "--wallet-hotkey",
-                    owner_wallet.hotkey_str,
-                ],
-            )
-            clean_stdout = remove_ansi_escape_sequences(create_subnet.stdout)
-            if "✅ Registered subnetwork with netuid: 1" in clean_stdout:
-                console.print("[dark_green] Subnet created successfully with netuid 1")
-
-            text = Text(
-                f"Registering Owner ({owner_wallet.name}) to Netuid 1\n",
-                style="bold light_goldenrod2",
-            )
-            sign = Text("\n📝 ", style="bold yellow")
-            console.print(sign, text)
-
-            register_subnet = exec_command(
-                command="subnets",
-                sub_command="register",
-                extra_args=[
-                    "--wallet-path",
-                    BTQS_WALLETS_DIRECTORY,
-                    "--wallet-name",
-                    owner_wallet.name,
-                    "--wallet-hotkey",
-                    owner_wallet.hotkey_str,
-                    "--netuid",
-                    "1",
-                    "--chain",
-                    "ws://127.0.0.1:9945",
-                    "--no-prompt",
-                ],
-            )
-            clean_stdout = remove_ansi_escape_sequences(register_subnet.stdout)
-            if "✅ Registered" in clean_stdout:
-                console.print("[green] Registered the owner to subnet 1")
+            self._create_subnet(owner_wallet)
 
         console.print("[dark_green]\nListing all subnets")
         subnets_list = exec_command(
@@ -716,14 +412,6 @@ class BTQSManager:
     def setup_neurons(self):
         """
         Sets up neurons (miners) for the subnet.
-
-        This command creates miner wallets and registers them to the subnet.
-
-        USAGE
-
-        [green]$[/green] btqs neurons setup
-
-        [bold]Note[/bold]: This command will prompt for wallet names and hotkey names for each miner.
         """
         if not is_chain_running(CONFIG_FILE_PATH):
             console.print(
@@ -734,126 +422,7 @@ class BTQSManager:
         config_data = load_config(
             "A running Subtensor not found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
         )
-        subnet_owner, owner_data = subnet_owner_exists(CONFIG_FILE_PATH)
-        if subnet_owner:
-            owner_wallet = Wallet(
-                name=owner_data.get("wallet_name"),
-                path=owner_data.get("path"),
-                hotkey=owner_data.get("hotkey"),
-            )
-        else:
-            console.print(
-                "[red]Subnet netuid 1 registered to the owner not found. Run `btqs subnet setup` first"
-            )
-            return
-
-        config_data.setdefault("Miners", {})
-        miners = config_data.get("Miners", {})
-
-        if miners and all(
-            miner_info.get("subtensor_pid") == config_data.get("pid")
-            for miner_info in miners.values()
-        ):
-            console.print(
-                "[green]Miner wallets associated with this subtensor instance already present. Proceeding..."
-            )
-        else:
-            uris = [
-                "//Bob",
-                "//Charlie",
-            ]
-            ports = [8100, 8101, 8102, 8103]
-            for i, uri in enumerate(uris, start=0):
-                console.print(f"Miner {i+1}:")
-                wallet_name = typer.prompt(
-                    f"Enter wallet name for miner {i+1}", default=f"{uri.strip('//')}"
-                )
-                hotkey_name = typer.prompt(
-                    f"Enter hotkey name for miner {i+1}", default="default"
-                )
-
-                keypair = Keypair.create_from_uri(uri)
-                wallet = Wallet(
-                    path=BTQS_WALLETS_DIRECTORY, name=wallet_name, hotkey=hotkey_name
-                )
-                wallet.set_coldkey(keypair=keypair, encrypt=False, overwrite=True)
-                wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=True)
-                wallet.set_hotkey(keypair=keypair, encrypt=False, overwrite=True)
-
-                config_data["Miners"][wallet_name] = {
-                    "path": BTQS_WALLETS_DIRECTORY,
-                    "hotkey": hotkey_name,
-                    "uri": uri,
-                    "pid": None,
-                    "subtensor_pid": config_data["pid"],
-                    "port": ports[i],
-                }
-
-            with open(CONFIG_FILE_PATH, "w") as config_file:
-                yaml.safe_dump(config_data, config_file)
-
-            console.print("[green]All wallets are created.")
-
-        for wallet_name, wallet_info in config_data["Miners"].items():
-            wallet = Wallet(
-                path=wallet_info["path"],
-                name=wallet_name,
-                hotkey=wallet_info["hotkey"],
-            )
-
-            text = Text(
-                f"Registering Miner ({wallet_name}) to Netuid 1\n",
-                style="bold light_goldenrod2",
-            )
-            sign = Text("\n📝 ", style="bold yellow")
-            console.print(sign, text)
-
-            miner_registered = exec_command(
-                command="subnets",
-                sub_command="register",
-                extra_args=[
-                    "--wallet-path",
-                    wallet.path,
-                    "--wallet-name",
-                    wallet.name,
-                    "--hotkey",
-                    wallet.hotkey_str,
-                    "--netuid",
-                    "1",
-                    "--chain",
-                    "ws://127.0.0.1:9945",
-                    "--no-prompt",
-                ],
-            )
-            clean_stdout = remove_ansi_escape_sequences(miner_registered.stdout)
-
-            if "✅ Registered" in clean_stdout:
-                text = Text(
-                    f"Registered miner ({wallet.name}) to Netuid 1\n",
-                    style="bold light_goldenrod2",
-                )
-                sign = Text("🏆 ", style="bold yellow")
-                console.print(sign, text)
-            else:
-                print(clean_stdout)
-                console.print(
-                    f"[red]Failed to register miner ({wallet.name}). Please register the miner manually using the following command:"
-                )
-                command = f"btcli subnets register --wallet-path {wallet.path} --wallet-name {wallet.name} --hotkey {wallet.hotkey_str} --netuid 1 --chain ws://127.0.0.1:9945 --no-prompt"
-                console.print(f"[bold yellow]{command}\n")
-
-        console.print("[dark_green]\nViewing Metagraph for Subnet 1")
-        subnets_list = exec_command(
-            command="subnets",
-            sub_command="metagraph",
-            extra_args=[
-                "--netuid",
-                "1",
-                "--chain",
-                "ws://127.0.0.1:9945",
-            ],
-        )
-        print(subnets_list.stdout, end="")
+        neurons.setup_neurons(config_data)
 
     def run_neurons(self):
         """
@@ -869,84 +438,18 @@ class BTQSManager:
         [bold]Note[/bold]: The command will attach to running neurons or start new
         ones as necessary. Press Ctrl+C to detach from a neuron and move to the next.
         """
-        
         config_data = load_config(
             "A running Subtensor not found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
         )
 
         # Ensure neurons are configured
         if not config_data.get("Miners") and not config_data.get("Owner"):
-            console.print("[red]No neurons found. Please run `btqs neurons setup` first.")
-            return
-
-        # Ensure subnet-template is available
-        subnet_template_path = os.path.join(BTQS_DIRECTORY, "subnet-template")
-        if not os.path.exists(subnet_template_path):
-            console.print("[green]Cloning subnet-template repository...")
-            repo = Repo.clone_from(
-                SUBNET_TEMPLATE_REPO_URL,
-                subnet_template_path,
+            console.print(
+                "[red]No neurons found. Please run `btqs neurons setup` first."
             )
-            repo.git.checkout(SUBNET_TEMPLATE_BRANCH)
-        else:
-            console.print("[green]Using existing subnet-template repository.")
-            repo = Repo(subnet_template_path)
-            current_branch = repo.active_branch.name
-            if current_branch != SUBNET_TEMPLATE_BRANCH:
-                repo.git.checkout(SUBNET_TEMPLATE_BRANCH)
-
-        chain_pid = config_data.get("pid")
-
-        # Handle Validator
-        if config_data.get("Owner"):
-            owner_info = config_data["Owner"]
-            validator_pid = owner_info.get("pid")
-            validator_subtensor_pid = owner_info.get("subtensor_pid")
-
-            if validator_pid and psutil.pid_exists(validator_pid) and validator_subtensor_pid == chain_pid:
-                console.print("[green]Validator is already running. Attaching to the process...")
-                log_file_path = owner_info.get("log_file")
-                if log_file_path and os.path.exists(log_file_path):
-                    attach_to_process_logs(log_file_path, "Validator", validator_pid)
-                else:
-                    console.print("[red]Log file not found for validator. Cannot attach.")
-            else:
-                # Validator is not running, start it
-                success = start_validator(owner_info, subnet_template_path, config_data)
-                if not success:
-                    console.print("[red]Failed to start validator.")
-
-        # Handle Miners
-        for wallet_name, wallet_info in config_data.get("Miners", {}).items():
-            miner_pid = wallet_info.get("pid")
-            miner_subtensor_pid = wallet_info.get("subtensor_pid")
-            # Check if miner process is running and associated with the current chain
-            if (
-                miner_pid
-                and psutil.pid_exists(miner_pid)
-                and miner_subtensor_pid == chain_pid
-            ):
-                console.print(
-                    f"[green]Miner {wallet_name} is already running. Attaching to the process..."
-                )
-                log_file_path = wallet_info.get("log_file")
-                if log_file_path and os.path.exists(log_file_path):
-                    attach_to_process_logs(log_file_path, f"Miner {wallet_name}", miner_pid)
-                else:
-                    console.print(
-                        f"[red]Log file not found for miner {wallet_name}. Cannot attach."
-                    )
-            else:
-                # Miner is not running, start it
-                success = start_miner(
-                    wallet_name, wallet_info, subnet_template_path, config_data
-                )
-                if not success:
-                    console.print(f"[red]Failed to start miner {wallet_name}.")
-
-        with open(CONFIG_FILE_PATH, "w") as config_file:
-            yaml.safe_dump(config_data, config_file)
-
+            return
+        
+        neurons.run_neurons(config_data)
 
     def stop_neurons(self):
         """
@@ -964,70 +467,57 @@ class BTQSManager:
             console.print("[red]Config file not found.")
             return
 
-        with open(CONFIG_FILE_PATH, "r") as config_file:
-            config_data = yaml.safe_load(config_file) or {}
+        config_data = load_config()
 
-        # Get process entries
+        neurons.stop_neurons(config_data)
+
+    def start_neurons(self):
+        """
+        Starts the stopped neurons.
+
+        This command starts the miner processes for the selected or all stopped miners.
+
+        USAGE
+
+        [green]$[/green] btqs neurons start
+
+        [bold]Note[/bold]: You can choose which stopped miners to start or start all of them.
+        """
+        if not os.path.exists(CONFIG_FILE_PATH):
+            console.print("[red]Config file not found.")
+            return
+
+        config_data = load_config()
+
+        neurons.start_neurons(config_data)
+
+    def _start_selected_neurons(
+        self, config_data: Dict[str, Any], selected_neurons: list[Dict[str, Any]]
+    ):
+        """Starts the selected neurons."""
+        subnet_template_path = self._ensure_subnet_template(config_data)
+
+        for neuron in selected_neurons:
+            neuron_name = neuron["process"]
+            if neuron_name.startswith("Validator"):
+                success = start_validator(
+                    config_data["Owner"], subnet_template_path, config_data
+                )
+            elif neuron_name.startswith("Miner"):
+                wallet_name = neuron_name.split("Miner: ")[-1]
+                wallet_info = config_data["Miners"][wallet_name]
+                success = start_miner(
+                    wallet_name, wallet_info, subnet_template_path, config_data
+                )
+
+            if success:
+                console.print(f"[green]{neuron_name} started successfully.")
+            else:
+                console.print(f"[red]Failed to start {neuron_name}.")
+
+        # Update the process entries after starting neurons
         process_entries, _, _ = get_process_entries(config_data)
         display_process_status_table(process_entries, [], [])
-
-        # Filter running miners
-        running_miners = []
-        for entry in process_entries:
-            if (entry["process"].startswith("Miner") or entry["process"].startswith("Validator")) and entry["status"] == "Running":
-                running_miners.append(entry)
-
-        if not running_miners:
-            console.print("[red]No running miners to stop.")
-            return
-
-        console.print("\nSelect miners to stop:")
-        for idx, miner in enumerate(running_miners, start=1):
-            console.print(f"{idx}. {miner['process']} (PID: {miner['pid']})")
-
-        selection = typer.prompt(
-            "Enter miner numbers to stop (comma-separated), or 'all' to stop all",
-            default="all",
-        )
-
-        if selection.lower() == "all":
-            selected_miners = running_miners
-        else:
-            selected_indices = [
-                int(i.strip()) for i in selection.split(",") if i.strip().isdigit()
-            ]
-            selected_miners = [
-                running_miners[i - 1]
-                for i in selected_indices
-                if 1 <= i <= len(running_miners)
-            ]
-
-        if not selected_miners:
-            console.print("[red]No valid miners selected.")
-            return
-
-        # Stop selected miners
-        for miner in selected_miners:
-            pid = int(miner["pid"])
-            wallet_name = miner["process"].split("Miner: ")[-1] if "Miner" in miner["process"] else miner["process"].split("Validator: ")[-1]
-            try:
-                process = psutil.Process(pid)
-                process.terminate()
-                process.wait(timeout=10)
-                console.print(f"[green]Miner {wallet_name} stopped.")
-
-            except psutil.NoSuchProcess:
-                console.print(f"[yellow]Miner {wallet_name} process not found.")
-
-            except psutil.TimeoutExpired:
-                console.print(
-                    f"[red]Timeout stopping miner {wallet_name}. Forcing stop."
-                )
-                process.kill()
-
-            config_data["Miners"][wallet_name]["pid"] = None
-        with open(CONFIG_FILE_PATH, "w") as config_file:
-            yaml.safe_dump(config_data, config_file)
 
     def reattach_neurons(self):
         """
@@ -1045,13 +535,12 @@ class BTQSManager:
             console.print("[red]Config file not found.")
             return
 
-        with open(CONFIG_FILE_PATH, "r") as config_file:
-            config_data = yaml.safe_load(config_file) or {}
+        config_data = load_config()
 
         # Choose which neuron to reattach to
         all_neurons = {
-            **config_data.get("Validators", {}),
             **config_data.get("Miners", {}),
+            "Validator": config_data.get("Owner", {}),
         }
         neuron_names = list(all_neurons.keys())
         if not neuron_names:
@@ -1081,27 +570,7 @@ class BTQSManager:
             f"[green]Reattaching to neuron {neuron_choice}. Press Ctrl+C to exit."
         )
 
-        try:
-            with open(log_file_path, "r") as log_file:
-                # Move to the end of the file
-                log_file.seek(0, os.SEEK_END)
-                while True:
-                    line = log_file.readline()
-                    if not line:
-                        if not psutil.pid_exists(pid):
-                            console.print(
-                                f"\n[red]Neuron process {neuron_choice} has terminated."
-                            )
-                            break
-                        time.sleep(0.1)
-                        continue
-                    print(line, end="")
-
-        except KeyboardInterrupt:
-            console.print("\n[green]Detached from neuron logs.")
-
-        except Exception as e:
-            console.print(f"[red]Error reattaching to neuron: {e}")
+        attach_to_process_logs(log_file_path, neuron_choice, pid)
 
     def status_neurons(self):
         """
@@ -1172,9 +641,409 @@ class BTQSManager:
 
         console.print("\n")
         console.print(layout)
+        return layout
 
     def run(self):
         self.app()
+
+    # TODO: See if we can further streamline these. Or change location if needed
+    # ------------------------ Helper Methods ------------------------
+
+    def _wait_for_chain_ready(
+        self, alice_log: str, start_time: float, timeout: int
+    ) -> bool:
+        """Waits for the chain to be ready by monitoring the alice.log file."""
+        chain_ready = False
+        try:
+            with open(alice_log, "r") as log_file:
+                log_file.seek(0, os.SEEK_END)
+                while True:
+                    line = log_file.readline()
+                    if line:
+                        console.print(line, end="")
+                        if "Imported #" in line:
+                            chain_ready = True
+                            break
+                    else:
+                        if time.time() - start_time > timeout:
+                            console.print(
+                                "[red]Timeout: Chain did not compile in time."
+                            )
+                            break
+                        time.sleep(0.1)
+        except Exception as e:
+            console.print(f"[red]Error reading log files: {e}")
+        return chain_ready
+
+    def _get_substrate_pids(self) -> Optional[list[int]]:
+        """Fetches the PIDs of the substrate nodes."""
+        try:
+            result = subprocess.run(
+                ["pgrep", "-f", "node-subtensor"], capture_output=True, text=True
+            )
+            substrate_pids = [int(pid) for pid in result.stdout.strip().split()]
+            return substrate_pids
+        except ValueError:
+            console.print("[red]Failed to get the PID of the Subtensor process.")
+            return None
+
+    def _stop_running_neurons(self, config_data: Dict[str, Any]):
+        """Stops any running neurons."""
+        process_entries, _, _ = get_process_entries(config_data)
+
+        # Filter running neurons
+        running_neurons = [
+            entry
+            for entry in process_entries
+            if (
+                entry["process"].startswith("Miner")
+                or entry["process"].startswith("Validator")
+            )
+            and entry["status"] == "Running"
+        ]
+
+        if running_neurons:
+            console.print(
+                "[yellow]\nSome neurons are still running. Terminating them..."
+            )
+
+            for neuron in running_neurons:
+                pid = int(neuron["pid"])
+                neuron_name = neuron["process"]
+                try:
+                    neuron_process = psutil.Process(pid)
+                    neuron_process.terminate()
+                    neuron_process.wait(timeout=10)
+                    console.print(f"[green]{neuron_name} stopped.")
+                except psutil.NoSuchProcess:
+                    console.print(f"[yellow]{neuron_name} process not found.")
+                except psutil.TimeoutExpired:
+                    console.print(f"[red]Timeout stopping {neuron_name}. Forcing stop.")
+                    neuron_process.kill()
+
+                if neuron["process"].startswith("Miner"):
+                    wallet_name = neuron["process"].split("Miner: ")[-1]
+                    config_data["Miners"][wallet_name]["pid"] = None
+                elif neuron["process"].startswith("Validator"):
+                    config_data["Owner"]["pid"] = None
+
+            with open(CONFIG_FILE_PATH, "w") as config_file:
+                yaml.safe_dump(config_data, config_file)
+        else:
+            console.print("[green]No neurons were running.")
+
+    def _is_process_running(self, pid: int) -> bool:
+        """Checks if a process with the given PID is running."""
+        try:
+            process = psutil.Process(pid)
+            if not process.is_running():
+                console.print(
+                    "[red]Process not running. The chain may have been stopped."
+                )
+                return False
+            return True
+        except psutil.NoSuchProcess:
+            console.print("[red]Process not found. The chain may have been stopped.")
+            return False
+
+    def _create_subnet_owner_wallet(self, config_data: Dict[str, Any]):
+        """Creates a subnet owner wallet."""
+        console.print(
+            Text("Creating subnet owner wallet.\n", style="bold light_goldenrod2"),
+            style="bold yellow",
+        )
+
+        owner_wallet_name = typer.prompt(
+            "Enter subnet owner wallet name", default="owner", show_default=True
+        )
+        owner_hotkey_name = typer.prompt(
+            "Enter subnet owner hotkey name", default="default", show_default=True
+        )
+
+        uri = "//Alice"
+        keypair = Keypair.create_from_uri(uri)
+        owner_wallet = Wallet(
+            path=BTQS_WALLETS_DIRECTORY,
+            name=owner_wallet_name,
+            hotkey=owner_hotkey_name,
+        )
+        owner_wallet.set_coldkey(keypair=keypair, encrypt=False, overwrite=True)
+        owner_wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=True)
+        owner_wallet.set_hotkey(keypair=keypair, encrypt=False, overwrite=True)
+
+        console.print(
+            "Executed command: [dark_orange] btcli wallet create --wallet-name",
+            f"[dark_orange]{owner_hotkey_name} --wallet-hotkey {owner_wallet_name} --wallet-path {BTQS_WALLETS_DIRECTORY}",
+        )
+
+        config_data["Owner"] = {
+            "wallet_name": owner_wallet_name,
+            "path": BTQS_WALLETS_DIRECTORY,
+            "hotkey": owner_hotkey_name,
+            "subtensor_pid": config_data["pid"],
+        }
+        with open(CONFIG_FILE_PATH, "w") as config_file:
+            yaml.safe_dump(config_data, config_file)
+
+    def _create_subnet(self, owner_wallet: Wallet):
+        """Creates a subnet with netuid 1 and registers the owner."""
+        console.print(
+            Text("Creating a subnet with Netuid 1.\n", style="bold light_goldenrod2"),
+            style="bold yellow",
+        )
+
+        create_subnet = exec_command(
+            command="subnets",
+            sub_command="create",
+            extra_args=[
+                "--wallet-path",
+                BTQS_WALLETS_DIRECTORY,
+                "--chain",
+                "ws://127.0.0.1:9945",
+                "--wallet-name",
+                owner_wallet.name,
+                "--no-prompt",
+                "--wallet-hotkey",
+                owner_wallet.hotkey_str,
+            ],
+        )
+        clean_stdout = remove_ansi_escape_sequences(create_subnet.stdout)
+        if "✅ Registered subnetwork with netuid: 1" in clean_stdout:
+            console.print("[dark_green] Subnet created successfully with netuid 1")
+
+        console.print(
+            Text(
+                f"Registering Owner ({owner_wallet.name}) to Netuid 1\n",
+                style="bold light_goldenrod2",
+            ),
+            style="bold yellow",
+        )
+
+        register_subnet = exec_command(
+            command="subnets",
+            sub_command="register",
+            extra_args=[
+                "--wallet-path",
+                BTQS_WALLETS_DIRECTORY,
+                "--wallet-name",
+                owner_wallet.name,
+                "--wallet-hotkey",
+                owner_wallet.hotkey_str,
+                "--netuid",
+                "1",
+                "--chain",
+                "ws://127.0.0.1:9945",
+                "--no-prompt",
+            ],
+        )
+        clean_stdout = remove_ansi_escape_sequences(register_subnet.stdout)
+        if "✅ Registered" in clean_stdout:
+            console.print("[green] Registered the owner to subnet 1")
+
+    def _create_miner_wallets(self, config_data: Dict[str, Any]):
+        """Creates miner wallets."""
+        uris = ["//Bob", "//Charlie"]
+        ports = [8101, 8102, 8103]
+        for i, uri in enumerate(uris):
+            console.print(f"Miner {i+1}:")
+            wallet_name = typer.prompt(
+                f"Enter wallet name for miner {i+1}", default=f"{uri.strip('//')}"
+            )
+            hotkey_name = typer.prompt(
+                f"Enter hotkey name for miner {i+1}", default="default"
+            )
+
+            keypair = Keypair.create_from_uri(uri)
+            wallet = Wallet(
+                path=BTQS_WALLETS_DIRECTORY, name=wallet_name, hotkey=hotkey_name
+            )
+            wallet.set_coldkey(keypair=keypair, encrypt=False, overwrite=True)
+            wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=True)
+            wallet.set_hotkey(keypair=keypair, encrypt=False, overwrite=True)
+
+            config_data["Miners"][wallet_name] = {
+                "path": BTQS_WALLETS_DIRECTORY,
+                "hotkey": hotkey_name,
+                "uri": uri,
+                "pid": None,
+                "subtensor_pid": config_data["pid"],
+                "port": ports[i],
+            }
+
+        with open(CONFIG_FILE_PATH, "w") as config_file:
+            yaml.safe_dump(config_data, config_file)
+
+        console.print("[green]All wallets are created.")
+
+    def _register_miners(self, config_data: Dict[str, Any]):
+        """Registers miners to the subnet."""
+        for wallet_name, wallet_info in config_data["Miners"].items():
+            wallet = Wallet(
+                path=wallet_info["path"],
+                name=wallet_name,
+                hotkey=wallet_info["hotkey"],
+            )
+
+            console.print(
+                Text(
+                    f"Registering Miner ({wallet_name}) to Netuid 1\n",
+                    style="bold light_goldenrod2",
+                ),
+                style="bold yellow",
+            )
+
+            miner_registered = exec_command(
+                command="subnets",
+                sub_command="register",
+                extra_args=[
+                    "--wallet-path",
+                    wallet.path,
+                    "--wallet-name",
+                    wallet.name,
+                    "--hotkey",
+                    wallet.hotkey_str,
+                    "--netuid",
+                    "1",
+                    "--chain",
+                    "ws://127.0.0.1:9945",
+                    "--no-prompt",
+                ],
+            )
+            clean_stdout = remove_ansi_escape_sequences(miner_registered.stdout)
+
+            if "✅ Registered" in clean_stdout:
+                console.print(f"[green]Registered miner ({wallet.name}) to Netuid 1")
+            else:
+                console.print(
+                    f"[red]Failed to register miner ({wallet.name}). Please register the miner manually."
+                )
+                command = (
+                    f"btcli subnets register --wallet-path {wallet.path} --wallet-name "
+                    f"{wallet.name} --hotkey {wallet.hotkey_str} --netuid 1 --chain "
+                    f"ws://127.0.0.1:9945 --no-prompt"
+                )
+                console.print(f"[bold yellow]{command}\n")
+
+    def _ensure_subnet_template(self, config_data: Dict[str, Any]):
+        """Ensures that the subnet-template repository is available."""
+        base_path = config_data.get("base_path")
+        if not base_path:
+            console.print("[red]Base path not found in the configuration file.")
+            return
+
+        subnet_template_path = os.path.join(base_path, "subnet-template")
+
+        if not os.path.exists(subnet_template_path):
+            console.print("[green]Cloning subnet-template repository...")
+            try:
+                repo = Repo.clone_from(
+                    SUBNET_TEMPLATE_REPO_URL,
+                    subnet_template_path,
+                )
+                repo.git.checkout(SUBNET_TEMPLATE_BRANCH)
+                console.print("[green]Cloned subnet-template repository successfully.")
+            except GitCommandError as e:
+                console.print(f"[red]Error cloning subnet-template repository: {e}")
+        else:
+            console.print("[green]Using existing subnet-template repository.")
+            repo = Repo(subnet_template_path)
+            current_branch = repo.active_branch.name
+            if current_branch != SUBNET_TEMPLATE_BRANCH:
+                try:
+                    repo.git.checkout(SUBNET_TEMPLATE_BRANCH)
+                    console.print(
+                        f"[green]Switched to branch '{SUBNET_TEMPLATE_BRANCH}'."
+                    )
+                except GitCommandError as e:
+                    console.print(
+                        f"[red]Error switching to branch '{SUBNET_TEMPLATE_BRANCH}': {e}"
+                    )
+
+        return subnet_template_path
+
+    def _handle_validator(
+        self, config_data: Dict[str, Any], subnet_template_path: str, chain_pid: int
+    ):
+        """Handles the validator process."""
+        owner_info = config_data["Owner"]
+        validator_pid = owner_info.get("pid")
+        validator_subtensor_pid = owner_info.get("subtensor_pid")
+
+        if (
+            validator_pid
+            and psutil.pid_exists(validator_pid)
+            and validator_subtensor_pid == chain_pid
+        ):
+            console.print(
+                "[green]Validator is already running. Attaching to the process..."
+            )
+            log_file_path = owner_info.get("log_file")
+            if log_file_path and os.path.exists(log_file_path):
+                attach_to_process_logs(log_file_path, "Validator", validator_pid)
+            else:
+                console.print("[red]Log file not found for validator. Cannot attach.")
+        else:
+            # Validator is not running, start it
+            success = start_validator(owner_info, subnet_template_path, config_data)
+            if not success:
+                console.print("[red]Failed to start validator.")
+
+    def _handle_miners(
+        self, config_data: Dict[str, Any], subnet_template_path: str, chain_pid: int
+    ):
+        """Handles the miner processes."""
+        for wallet_name, wallet_info in config_data.get("Miners", {}).items():
+            miner_pid = wallet_info.get("pid")
+            miner_subtensor_pid = wallet_info.get("subtensor_pid")
+            # Check if miner process is running and associated with the current chain
+            if (
+                miner_pid
+                and psutil.pid_exists(miner_pid)
+                and miner_subtensor_pid == chain_pid
+            ):
+                console.print(
+                    f"[green]Miner {wallet_name} is already running. Attaching to the process..."
+                )
+                log_file_path = wallet_info.get("log_file")
+                if log_file_path and os.path.exists(log_file_path):
+                    attach_to_process_logs(
+                        log_file_path, f"Miner {wallet_name}", miner_pid
+                    )
+                else:
+                    console.print(
+                        f"[red]Log file not found for miner {wallet_name}. Cannot attach."
+                    )
+            else:
+                # Miner is not running, start it
+                success = start_miner(
+                    wallet_name, wallet_info, subnet_template_path, config_data
+                )
+                if not success:
+                    console.print(f"[red]Failed to start miner {wallet_name}.")
+
+    def _stop_selected_neurons(
+        self, config_data: Dict[str, Any], selected_neurons: list[Dict[str, Any]]
+    ):
+        """Stops the selected neurons."""
+        for neuron in selected_neurons:
+            pid = int(neuron["pid"])
+            neuron_name = neuron["process"]
+            try:
+                process = psutil.Process(pid)
+                process.terminate()
+                process.wait(timeout=10)
+                console.print(f"[green]{neuron_name} stopped.")
+            except psutil.NoSuchProcess:
+                console.print(f"[yellow]{neuron_name} process not found.")
+            except psutil.TimeoutExpired:
+                console.print(f"[red]Timeout stopping {neuron_name}. Forcing stop.")
+                process.kill()
+
+            if neuron["process"].startswith("Miner"):
+                wallet_name = neuron["process"].split("Miner: ")[-1]
+                config_data["Miners"][wallet_name]["pid"] = None
+            elif neuron["process"].startswith("Validator"):
+                config_data["Owner"]["pid"] = None
 
 
 def main():
