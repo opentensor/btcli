@@ -121,7 +121,13 @@ def display_live_metagraph():
 
             # Create a progress bar for 5 seconds
             print("\n")
-            for _ in tqdm(range(5), desc="Refreshing", unit="s", total=5):
+            console.print("[green] Live view active: Press Ctrl + C to exit\n")
+            for _ in tqdm(range(5), 
+              desc="Refreshing", 
+              bar_format="{desc}: {bar}",
+              ascii=" ▖▘▝▗▚▞",
+              ncols=20,
+              colour="green"):
                 time.sleep(1)
 
     except KeyboardInterrupt:
@@ -189,9 +195,9 @@ def setup_subnet(config_data):
     print(subnets_list.stdout, end="")
 
 def create_subnet_owner_wallet(config_data):
-    console.print(
-        Text("Creating subnet owner wallet.\n", style="bold light_goldenrod2"),
-    )
+    text = Text("Creating subnet owner wallet.\n", style="bold light_goldenrod2")
+    sign = Text("\nℹ️ ", style="bold yellow")
+    console.print(sign, text)
 
     owner_wallet_name = typer.prompt(
         "Enter subnet owner wallet name", default="owner", show_default=True
@@ -225,10 +231,9 @@ def create_subnet_owner_wallet(config_data):
         yaml.safe_dump(config_data, config_file)
 
 def create_subnet(owner_wallet):
-    console.print(
-        Text("Creating a subnet with Netuid 1.\n", style="bold light_goldenrod2"),
-        style="bold yellow",
-    )
+    text = Text("\nCreating a subnet with Netuid 1.\n", style="bold light_goldenrod2")
+    sign = Text("\nℹ️ ", style="bold yellow")
+    console.print(sign, text)
 
     create_subnet = exec_command(
         command="subnets",
@@ -249,13 +254,9 @@ def create_subnet(owner_wallet):
     if "✅ Registered subnetwork with netuid: 1" in clean_stdout:
         console.print("[dark_green] Subnet created successfully with netuid 1")
 
-    console.print(
-        Text(
-            f"Registering Owner ({owner_wallet.name}) to Netuid 1\n",
-            style="bold light_goldenrod2",
-        ),
-        style="bold yellow",
-    )
+    text = Text(f"\nRegistering Owner ({owner_wallet}) to Netuid 1\n", style="bold light_goldenrod2")
+    sign = Text("\nℹ️ ", style="bold yellow")
+    console.print(sign, text)
 
     register_subnet = exec_command(
         command="subnets",

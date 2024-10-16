@@ -656,7 +656,7 @@ def attach_to_process_logs(log_file_path: str, process_name: str, pid: int = Non
             # Move to the end of the file
             log_file.seek(0, os.SEEK_END)
             console.print(
-                f"[green]Attached to {process_name}. Press Ctrl+C to move to the next process."
+                f"[green]Attached to {process_name}. Press Ctrl+C to move on."
             )
             while True:
                 line = log_file.readline()

@@ -160,7 +160,7 @@ class BTQSManager:
         print(subnets_list.stdout, end="")
 
         text = Text("Adding stake by Validator\n", style="bold light_goldenrod2")
-        sign = Text("🪙 ", style="bold yellow")
+        sign = Text("\n🪙 ", style="bold yellow")
         console.print(sign, text)
         time.sleep(2)
 
@@ -394,6 +394,8 @@ class BTQSManager:
             return
 
         config_data = load_config()
+        process_entries, cpu_usage_list, memory_usage_list = get_process_entries(config_data)
+        display_process_status_table(process_entries, cpu_usage_list, memory_usage_list)
         neurons.reattach_neurons(config_data)
 
     def status_neurons(self):

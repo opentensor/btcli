@@ -3,7 +3,6 @@ import subprocess
 import time
 
 import psutil
-import typer
 import yaml
 from git import GitCommandError, Repo
 from rich.console import Console

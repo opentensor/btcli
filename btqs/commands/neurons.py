@@ -2,7 +2,6 @@ import os
 import psutil
 import typer
 import yaml
-from rich.console import Console
 from bittensor_wallet import Wallet, Keypair
 from git import Repo, GitCommandError
 
@@ -185,28 +184,48 @@ def start_neurons(config_data):
 
 
 def reattach_neurons(config_data):
-
-    # Choose which neuron to reattach to
+    # Fetch all available neurons
     all_neurons = {
         **config_data.get("Miners", {}),
         "Validator": config_data.get("Owner", {}),
     }
-    neuron_names = list(all_neurons.keys())
-    if not neuron_names:
-        console.print("[red]No neurons found.")
+
+    neuron_entries = [
+        {"name": name, "info": info}
+        for name, info in all_neurons.items()
+        if info and psutil.pid_exists(info.get("pid", 0)) and info.get("log_file")
+    ]
+
+    if not neuron_entries:
+        console.print("[red]No neurons found or none are running.")
         return
 
-    neuron_choice = typer.prompt(
-        f"Which neuron do you want to reattach to? {neuron_names}",
-        default=neuron_names[0],
+    # Display a list of neurons for the user to choose from
+    console.print("\nSelect neuron to reattach to:")
+    for idx, neuron in enumerate(neuron_entries, start=1):
+        console.print(f"{idx}. {neuron['name']} (PID: {neuron['info']['pid']})")
+
+    selection = typer.prompt(
+        "Enter neuron number to reattach to, or 'q' to quit",
+        default="1",
     )
-    if neuron_choice not in all_neurons:
-        console.print("[red]Invalid neuron name.")
+
+    if selection.lower() == 'q':
+        console.print("[yellow]Reattach aborted.")
         return
 
-    wallet_info = all_neurons[neuron_choice]
+    if not selection.isdigit() or int(selection) < 1 or int(selection) > len(neuron_entries):
+        console.print("[red]Invalid selection.")
+        return
+
+    # Get the selected neuron based on user input
+    selected_neuron = neuron_entries[int(selection) - 1]
+    neuron_choice = selected_neuron['name']
+    wallet_info = selected_neuron['info']
     pid = wallet_info.get("pid")
     log_file_path = wallet_info.get("log_file")
+
+    # Ensure the neuron process is running
     if not pid or not psutil.pid_exists(pid):
         console.print("[red]Neuron process not running.")
         return
@@ -216,9 +235,10 @@ def reattach_neurons(config_data):
         return
 
     console.print(
-        f"[green]Reattaching to neuron {neuron_choice}. Press Ctrl+C to exit."
+        f"[green]Reattaching to neuron {neuron_choice}."
     )
 
+    # Attach to the process logs
     attach_to_process_logs(log_file_path, neuron_choice, pid)
 
 
