@@ -16,7 +16,6 @@ from rich.table import Table
 from typer.testing import CliRunner
 
 from .config import (
-    BTQS_DIRECTORY,
     BTQS_WALLETS_DIRECTORY,
     CONFIG_FILE_PATH,
 )
@@ -120,7 +119,7 @@ def exec_command(
     )
     return result
 
-def is_chain_running(config_file_path: str) -> bool:
+def is_chain_running(config_file_path: str = CONFIG_FILE_PATH) -> bool:
     """
     Checks if the local chain is running by verifying the PID in the config file.
 
@@ -557,7 +556,7 @@ def start_miner(
     ]
 
     # Create log file paths
-    logs_dir = os.path.join(config_data["base_path"], "logs")
+    logs_dir = os.path.join(config_data["workspace_path"], "logs")
     os.makedirs(logs_dir, exist_ok=True)
     log_file_path = os.path.join(logs_dir, f"miner_{wallet_name}.log")
 
@@ -621,7 +620,7 @@ def start_validator(
     ]
 
     # Create log file paths
-    logs_dir = os.path.join(config_data["base_path"], "logs")
+    logs_dir = os.path.join(config_data["workspace_path"], "logs")
     os.makedirs(logs_dir, exist_ok=True)
     log_file_path = os.path.join(logs_dir, "validator.log")
 

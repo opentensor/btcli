@@ -11,6 +11,8 @@ from btqs.config import (
     BTQS_WALLETS_DIRECTORY,
     SUBNET_TEMPLATE_REPO_URL,
     SUBNET_TEMPLATE_BRANCH,
+    WALLET_URIS,
+    MINER_PORTS
 )
 from btqs.utils import (
     console,
@@ -23,6 +25,7 @@ from btqs.utils import (
     attach_to_process_logs,
     subnet_owner_exists,
 )
+
 
 def setup_neurons(config_data):
     subnet_owner, owner_data = subnet_owner_exists(CONFIG_FILE_PATH)
@@ -60,19 +63,19 @@ def setup_neurons(config_data):
     )
     print(subnets_list.stdout, end="")
 
+
 def run_neurons(config_data):
-    # Ensure subnet-template is available
-    subnet_template_path = _ensure_subnet_template(config_data)
+    subnet_template_path = _add_subnet_template(config_data)
 
     chain_pid = config_data.get("pid")
     config_data["subnet_path"] = subnet_template_path
 
     # Handle Validator
     if config_data.get("Owner"):
-        _handle_validator(config_data, subnet_template_path, chain_pid)
+        _run_validator(config_data, subnet_template_path, chain_pid)
 
     # Handle Miners
-    _handle_miners(config_data, subnet_template_path, chain_pid)
+    _run_miners(config_data, subnet_template_path, chain_pid)
 
     with open(CONFIG_FILE_PATH, "w") as config_file:
         yaml.safe_dump(config_data, config_file)
@@ -128,6 +131,7 @@ def stop_neurons(config_data):
     with open(CONFIG_FILE_PATH, "w") as config_file:
         yaml.safe_dump(config_data, config_file)
 
+
 def start_neurons(config_data):
     # Get process entries
     process_entries, _, _ = get_process_entries(config_data)
@@ -179,12 +183,49 @@ def start_neurons(config_data):
     with open(CONFIG_FILE_PATH, "w") as config_file:
         yaml.safe_dump(config_data, config_file)
 
+
+def reattach_neurons(config_data):
+
+    # Choose which neuron to reattach to
+    all_neurons = {
+        **config_data.get("Miners", {}),
+        "Validator": config_data.get("Owner", {}),
+    }
+    neuron_names = list(all_neurons.keys())
+    if not neuron_names:
+        console.print("[red]No neurons found.")
+        return
+
+    neuron_choice = typer.prompt(
+        f"Which neuron do you want to reattach to? {neuron_names}",
+        default=neuron_names[0],
+    )
+    if neuron_choice not in all_neurons:
+        console.print("[red]Invalid neuron name.")
+        return
+
+    wallet_info = all_neurons[neuron_choice]
+    pid = wallet_info.get("pid")
+    log_file_path = wallet_info.get("log_file")
+    if not pid or not psutil.pid_exists(pid):
+        console.print("[red]Neuron process not running.")
+        return
+
+    if not log_file_path or not os.path.exists(log_file_path):
+        console.print("[red]Log file not found for this neuron.")
+        return
+
+    console.print(
+        f"[green]Reattaching to neuron {neuron_choice}. Press Ctrl+C to exit."
+    )
+
+    attach_to_process_logs(log_file_path, neuron_choice, pid)
+
+
 # Helper functions
 
 def _create_miner_wallets(config_data):
-    uris = ["//Bob", "//Charlie"]
-    ports = [8101, 8102, 8103]
-    for i, uri in enumerate(uris):
+    for i, uri in enumerate(WALLET_URIS):
         console.print(f"Miner {i+1}:")
         wallet_name = typer.prompt(
             f"Enter wallet name for miner {i+1}", default=f"{uri.strip('//')}"
@@ -207,13 +248,13 @@ def _create_miner_wallets(config_data):
             "uri": uri,
             "pid": None,
             "subtensor_pid": config_data["pid"],
-            "port": ports[i],
+            "port": MINER_PORTS[i],
         }
 
     with open(CONFIG_FILE_PATH, "w") as config_file:
         yaml.safe_dump(config_data, config_file)
 
-    console.print("[green]All wallets are created.")
+    console.print("[green]Miner wallets are created.")
 
 def _register_miners(config_data):
     for wallet_name, wallet_info in config_data["Miners"].items():
@@ -248,10 +289,10 @@ def _register_miners(config_data):
         clean_stdout = remove_ansi_escape_sequences(miner_registered.stdout)
 
         if "✅ Registered" in clean_stdout:
-            console.print(f"[green]Registered miner ({wallet.name}) to Netuid 1")
+            console.print(f"[green]Registered miner ({wallet.name}) to Netuid 1\n")
         else:
             console.print(
-                f"[red]Failed to register miner ({wallet.name}). Please register the miner manually."
+                f"[red]Failed to register miner ({wallet.name}). You can register the miner manually using:"
             )
             command = (
                 f"btcli subnets register --wallet-path {wallet.path} --wallet-name "
@@ -260,13 +301,14 @@ def _register_miners(config_data):
             )
             console.print(f"[bold yellow]{command}\n")
 
-def _ensure_subnet_template(config_data):
-    base_path = config_data.get("base_path")
-    if not base_path:
+
+def _add_subnet_template(config_data):
+    workspace_path = config_data.get("workspace_path")
+    if not workspace_path:
         console.print("[red]Base path not found in the configuration file.")
         return
 
-    subnet_template_path = os.path.join(base_path, "subnet-template")
+    subnet_template_path = os.path.join(workspace_path, "subnet-template")
 
     if not os.path.exists(subnet_template_path):
         console.print("[green]Cloning subnet-template repository...")
@@ -286,9 +328,6 @@ def _ensure_subnet_template(config_data):
         if current_branch != SUBNET_TEMPLATE_BRANCH:
             try:
                 repo.git.checkout(SUBNET_TEMPLATE_BRANCH)
-                console.print(
-                    f"[green]Switched to branch '{SUBNET_TEMPLATE_BRANCH}'."
-                )
             except GitCommandError as e:
                 console.print(
                     f"[red]Error switching to branch '{SUBNET_TEMPLATE_BRANCH}': {e}"
@@ -296,7 +335,8 @@ def _ensure_subnet_template(config_data):
 
     return subnet_template_path
 
-def _handle_validator(config_data, subnet_template_path, chain_pid):
+
+def _run_validator(config_data, subnet_template_path, chain_pid):
     owner_info = config_data["Owner"]
     validator_pid = owner_info.get("pid")
     validator_subtensor_pid = owner_info.get("subtensor_pid")
@@ -320,7 +360,8 @@ def _handle_validator(config_data, subnet_template_path, chain_pid):
         if not success:
             console.print("[red]Failed to start validator.")
 
-def _handle_miners(config_data, subnet_template_path, chain_pid):
+
+def _run_miners(config_data, subnet_template_path, chain_pid):
     for wallet_name, wallet_info in config_data.get("Miners", {}).items():
         miner_pid = wallet_info.get("pid")
         miner_subtensor_pid = wallet_info.get("subtensor_pid")
@@ -335,9 +376,7 @@ def _handle_miners(config_data, subnet_template_path, chain_pid):
             )
             log_file_path = wallet_info.get("log_file")
             if log_file_path and os.path.exists(log_file_path):
-                attach_to_process_logs(
-                    log_file_path, f"Miner {wallet_name}", miner_pid
-                )
+                attach_to_process_logs(log_file_path, f"Miner {wallet_name}", miner_pid)
             else:
                 console.print(
                     f"[red]Log file not found for miner {wallet_name}. Cannot attach."
@@ -349,6 +388,7 @@ def _handle_miners(config_data, subnet_template_path, chain_pid):
             )
             if not success:
                 console.print(f"[red]Failed to start miner {wallet_name}.")
+
 
 def _stop_selected_neurons(config_data, selected_neurons):
     for neuron in selected_neurons:
@@ -371,8 +411,9 @@ def _stop_selected_neurons(config_data, selected_neurons):
         elif neuron["process"].startswith("Validator"):
             config_data["Owner"]["pid"] = None
 
+
 def _start_selected_neurons(config_data, selected_neurons):
-    subnet_template_path = _ensure_subnet_template(config_data)
+    subnet_template_path = _add_subnet_template(config_data)
 
     for neuron in selected_neurons:
         neuron_name = neuron["process"]

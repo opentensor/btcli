@@ -9,30 +9,29 @@ from git import GitCommandError, Repo
 from rich.console import Console
 from rich.text import Text
 
-from btqs.config import CONFIG_FILE_PATH
+from btqs.config import CONFIG_FILE_PATH, SUBTENSOR_REPO_URL
 from btqs.utils import attach_to_process_logs, get_process_entries
+from rich.prompt import Confirm
 
 console = Console()
 
 
-def start_chain(config_data):
-    directory = typer.prompt(
-        "Enter the directory to clone the subtensor repository",
-        default=os.path.expanduser("~/Desktop/Bittensor_quick_start"),
-        show_default=True,
-    )
-    os.makedirs(directory, exist_ok=True)
-
-    subtensor_path = os.path.join(directory, "subtensor")
-    repo_url = "https://github.com/opentensor/subtensor.git"
+def start(config_data, workspace_path, branch):
+    os.makedirs(workspace_path, exist_ok=True)
+    subtensor_path = os.path.join(workspace_path, "subtensor")
 
     # Clone or update the repository
     if os.path.exists(subtensor_path) and os.listdir(subtensor_path):
-        update = typer.confirm("Subtensor is already cloned. Do you want to update it?")
+        update = Confirm.ask(
+            "[blue]Subtensor is already cloned. Do you want to update it?",
+            default=False,
+            show_default=True,
+        )
         if update:
             try:
                 repo = Repo(subtensor_path)
                 origin = repo.remotes.origin
+                repo.git.checkout(branch)
                 origin.pull()
                 console.print("[green]Repository updated successfully.")
             except GitCommandError as e:
@@ -45,14 +44,15 @@ def start_chain(config_data):
     else:
         try:
             console.print("[green]Cloning subtensor repository...")
-            Repo.clone_from(repo_url, subtensor_path)
+            repo = Repo.clone_from(SUBTENSOR_REPO_URL, subtensor_path)
+            if branch:
+                repo.git.checkout(branch)
             console.print("[green]Repository cloned successfully.")
         except GitCommandError as e:
             console.print(f"[red]Error cloning repository: {e}")
             return
 
     localnet_path = os.path.join(subtensor_path, "scripts", "localnet.sh")
-
     # Running localnet.sh
     process = subprocess.Popen(
         ["bash", localnet_path],
@@ -77,15 +77,11 @@ def start_chain(config_data):
             return
         time.sleep(1)
 
-    chain_ready = wait_for_chain_ready(alice_log, start_time, timeout)
+    chain_ready = wait_for_chain_compilation(alice_log, start_time, timeout)
     if chain_ready:
-        console.print(
-            Text(
-                "Local chain is running. You can now use it for development and testing.\n",
-                style="bold light_goldenrod2",
-            ),
-            style="bold yellow",
-        )
+        text = Text("Local chain is running. You can now use it for development and testing.\n", style="bold light_goldenrod2")
+        sign = Text("\nℹ️ ", style="bold yellow")
+        console.print(sign, text)
 
         # Fetch PIDs of substrate nodes
         substrate_pids = get_substrate_pids()
@@ -97,7 +93,7 @@ def start_chain(config_data):
                 "pid": process.pid,
                 "substrate_pid": substrate_pids,
                 "subtensor_path": subtensor_path,
-                "base_path": directory,
+                "workspace_path": workspace_path,
             }
         )
 
@@ -107,7 +103,7 @@ def start_chain(config_data):
             with open(CONFIG_FILE_PATH, "w") as config_file:
                 yaml.safe_dump(config_data, config_file)
             console.print(
-                "[green]Local chain started successfully and config file updated."
+                "[green]Config file updated."
             )
         except Exception as e:
             console.print(f"[red]Failed to write to the config file: {e}")
@@ -115,7 +111,7 @@ def start_chain(config_data):
         console.print("[red]Failed to start local chain.")
 
 
-def stop_chain(config_data):
+def stop(config_data):
     pid = config_data.get("pid")
     if not pid:
         console.print("[red]No running chain found.")
@@ -140,14 +136,18 @@ def stop_chain(config_data):
     stop_running_neurons(config_data)
 
     # Refresh data
-    refresh_config = typer.confirm("\nConfig data is outdated. Press Y to refresh it?")
+    refresh_config = Confirm.ask(
+        "\n[blue]Config data is outdated. Do you want to refresh it?",
+        default=True,
+        show_default=True,
+    )
     if refresh_config:
         if os.path.exists(CONFIG_FILE_PATH):
             os.remove(CONFIG_FILE_PATH)
-            console.print("[green]Configuration file removed.")
+            console.print("[green]Configuration file refreshed.")
 
 
-def reattach_chain(config_data):
+def reattach(config_data):
     pid = config_data.get("pid")
     subtensor_path = config_data.get("subtensor_path")
     if not pid or not subtensor_path:
@@ -171,7 +171,7 @@ def reattach_chain(config_data):
     attach_to_process_logs(alice_log, "Subtensor Chain (Alice)", pid)
 
 
-def wait_for_chain_ready(alice_log, start_time, timeout):
+def wait_for_chain_compilation(alice_log, start_time, timeout):
     chain_ready = False
     try:
         with open(alice_log, "r") as log_file:
