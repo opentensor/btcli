@@ -14,6 +14,7 @@ DEFAULT_SUBTENSOR_BRANCH = "abe/temp/logging-dirs-for-nodes"
 WALLET_URIS = ["//Bob", "//Charlie"]
 VALIDATOR_URI = "//Alice"
 MINER_PORTS = [8101, 8102, 8103]
+VALIDATOR_PORT = 8100
 
 EPILOG = "Made with [bold red]:heart:[/bold red] by The Openτensor Foundaτion"
 

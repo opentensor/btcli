@@ -18,6 +18,8 @@ from typer.testing import CliRunner
 
 from .config import (
     CONFIG_FILE_PATH,
+    VALIDATOR_PORT,
+    LOCALNET_ENDPOINT
 )
 
 console = Console()
@@ -326,7 +328,7 @@ def subnet_exists(ss58_address: str, netuid: int) -> bool:
         sub_command="list",
         extra_args=[
             "--chain",
-            "ws://127.0.0.1:9945",
+            LOCALNET_ENDPOINT,
         ],
         internal_command=True,
     )
@@ -732,7 +734,7 @@ def start_miner(
         "--wallet.path",
         config_data["wallets_path"],
         "--subtensor.chain_endpoint",
-        "ws://127.0.0.1:9945",
+        LOCALNET_ENDPOINT,
         "--logging.trace",
     ]
 
@@ -783,7 +785,7 @@ def start_validator(
 
     env_variables = os.environ.copy()
     env_variables["PYTHONUNBUFFERED"] = "1"
-    env_variables["BT_AXON_PORT"] = str(8100)
+    env_variables["BT_AXON_PORT"] = str(VALIDATOR_PORT)
 
     cmd = [
         venv_python,
@@ -796,7 +798,7 @@ def start_validator(
         "--wallet.path",
         config_data["wallets_path"],
         "--subtensor.chain_endpoint",
-        "ws://127.0.0.1:9945",
+        LOCALNET_ENDPOINT,
         "--netuid",
         "1",
         "--logging.trace",

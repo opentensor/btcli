@@ -245,7 +245,7 @@ class BTQSManager:
                 "--netuid",
                 "1",
                 "--chain",
-                "ws://127.0.0.1:9945",
+                LOCALNET_ENDPOINT,
             ],
         )
         print(subnets_list.stdout, end="")

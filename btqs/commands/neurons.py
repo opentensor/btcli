@@ -11,6 +11,7 @@ from btqs.config import (
     SUBNET_TEMPLATE_BRANCH,
     WALLET_URIS,
     MINER_PORTS,
+    LOCALNET_ENDPOINT
 )
 from btqs.utils import (
     console,
@@ -58,7 +59,7 @@ def setup_neurons(config_data):
             "--netuid",
             "1",
             "--chain",
-            "ws://127.0.0.1:9945",
+            LOCALNET_ENDPOINT,
         ],
     )
     print(subnets_list.stdout, end="")
@@ -310,7 +311,7 @@ def _register_miners(config_data):
                 "--netuid",
                 "1",
                 "--chain",
-                "ws://127.0.0.1:9945",
+                LOCALNET_ENDPOINT,
                 "--no-prompt",
             ],
         )
@@ -325,7 +326,7 @@ def _register_miners(config_data):
             command = (
                 f"btcli subnets register --wallet-path {wallet.path} --wallet-name "
                 f"{wallet.name} --hotkey {wallet.hotkey_str} --netuid 1 --chain "
-                f"ws://127.0.0.1:9945 --no-prompt"
+                f"{LOCALNET_ENDPOINT} --no-prompt"
             )
             console.print(f"[bold yellow]{command}\n")
 
