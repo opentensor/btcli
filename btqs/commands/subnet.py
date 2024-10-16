@@ -273,7 +273,7 @@ def create_subnet_owner_wallet(config_data):
 
     console.print(
         "Executed command: [dark_orange] btcli wallet create --wallet-name",
-        f"[dark_orange]{owner_hotkey_name} --wallet-hotkey {owner_wallet_name} --wallet-path {config_data["wallets_path"]}",
+        f"[dark_orange]{owner_hotkey_name} --wallet-hotkey {owner_wallet_name} --wallet-path {config_data['wallets_path']}",
     )
 
     config_data["Owner"] = {
