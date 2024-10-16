@@ -21,6 +21,8 @@ from substrateinterface.exceptions import (
 from substrateinterface.storage import StorageKey
 import websockets
 
+from .utils import bytes_from_hex_string_result
+
 ResultHandler = Callable[[dict, Any], Awaitable[tuple[dict, bool]]]
 
 
@@ -2232,13 +2234,9 @@ class AsyncSubstrateInterface:
         )
 
         # Decode result
-        # TODO update this to use bt-decode
-        result_obj = runtime.runtime_config.create_scale_object(
-            runtime_call_def["type"]
-        )
-        result_obj.decode(
-            ScaleBytes(result_data["result"]),
-            check_remaining=self.config.get("strict_scale_decode"),
+        result_obj = self.decode_scale(
+            runtime_call_def["type"],
+            bytes_from_hex_string_result(result_data["result"]),
         )
 
         return result_obj
