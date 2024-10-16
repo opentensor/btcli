@@ -17,7 +17,6 @@ from rich.table import Table
 from typer.testing import CliRunner
 
 from .config import (
-    BTQS_WALLETS_DIRECTORY,
     CONFIG_FILE_PATH,
 )
 
@@ -533,7 +532,6 @@ def get_process_entries(
     miners = config_data.get("Miners", {})
     for wallet_name, wallet_info in miners.items():
         pid = wallet_info.get("pid")
-        location = BTQS_WALLETS_DIRECTORY
         status, cpu_usage, memory_usage, uptime_str, cpu_percent, memory_percent = (
             get_process_info(pid)
         )
@@ -562,7 +560,6 @@ def get_process_entries(
     owner_data = config_data.get("Owner")
     if owner_data:
         pid = owner_data.get("pid")
-        location = BTQS_WALLETS_DIRECTORY
         status, cpu_usage, memory_usage, uptime_str, cpu_percent, memory_percent = (
             get_process_info(pid)
         )
@@ -651,7 +648,7 @@ def display_process_status_table(
         justify="right",
         footer_style="bold white",
     )
-
+    subtensor_venv, neurons_venv = None, None
     for entry in process_entries:
         if entry["process"] == "Subtensor":
             subtensor_venv = entry["venv_path"]
@@ -688,7 +685,7 @@ def display_process_status_table(
 
     if config_data:
         print("\n")
-        wallet_path = config_data.get("wallet_path", "")
+        wallet_path = config_data.get("wallets_path", "")
         if wallet_path:
             console.print("[dark_orange]Wallet Path", wallet_path)
         subnet_path = config_data.get("subnet_path", "")
@@ -714,7 +711,7 @@ def start_miner(
     Starts a single miner and displays logs until user presses Ctrl+C.
     """
     wallet = Wallet(
-        path=BTQS_WALLETS_DIRECTORY,
+        path=config_data["wallets_path"],
         name=wallet_name,
         hotkey=wallet_info["hotkey"],
     )
@@ -733,7 +730,7 @@ def start_miner(
         "--wallet.hotkey",
         wallet.hotkey_str,
         "--wallet.path",
-        BTQS_WALLETS_DIRECTORY,
+        config_data["wallets_path"],
         "--subtensor.chain_endpoint",
         "ws://127.0.0.1:9945",
         "--logging.trace",
@@ -778,7 +775,7 @@ def start_validator(
     Starts the validator process and displays logs until user presses Ctrl+C.
     """
     wallet = Wallet(
-        path=BTQS_WALLETS_DIRECTORY,
+        path=config_data["wallets_path"],
         name=owner_info["wallet_name"],
         hotkey=owner_info["hotkey"],
     )
@@ -797,7 +794,7 @@ def start_validator(
         "--wallet.hotkey",
         wallet.hotkey_str,
         "--wallet.path",
-        BTQS_WALLETS_DIRECTORY,
+        config_data["wallets_path"],
         "--subtensor.chain_endpoint",
         "ws://127.0.0.1:9945",
         "--netuid",

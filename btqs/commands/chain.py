@@ -104,6 +104,9 @@ def start(config_data, workspace_path, branch):
                 "substrate_pid": substrate_pids,
                 "subtensor_path": subtensor_path,
                 "workspace_path": workspace_path,
+                "venv_subtensor": venv_subtensor_path,
+                "wallets_path": os.path.join(workspace_path, "wallets"),
+                "subnet_path": os.path.join(workspace_path, "subnet-template")
             }
         )
 

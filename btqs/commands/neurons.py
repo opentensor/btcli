@@ -7,12 +7,10 @@ from git import Repo, GitCommandError
 
 from btqs.config import (
     CONFIG_FILE_PATH,
-    BTQS_WALLETS_DIRECTORY,
     SUBNET_TEMPLATE_REPO_URL,
     SUBNET_TEMPLATE_BRANCH,
     WALLET_URIS,
     MINER_PORTS,
-    DEFAULT_SUBNET_PATH,
 )
 from btqs.utils import (
     console,
@@ -267,7 +265,7 @@ def _create_miner_wallets(config_data):
 
         keypair = Keypair.create_from_uri(uri)
         wallet = Wallet(
-            path=BTQS_WALLETS_DIRECTORY, name=wallet_name, hotkey=hotkey_name
+            path=config_data["wallets_path"], name=wallet_name, hotkey=hotkey_name
         )
         wallet.set_coldkey(keypair=keypair, encrypt=False, overwrite=True)
         wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=True)
@@ -289,7 +287,7 @@ def _create_miner_wallets(config_data):
 def _register_miners(config_data):
     for wallet_name, wallet_info in config_data["Miners"].items():
         wallet = Wallet(
-            path=BTQS_WALLETS_DIRECTORY,
+            path=config_data["wallets_path"],
             name=wallet_name,
             hotkey=wallet_info["hotkey"],
         )
@@ -338,8 +336,8 @@ def _add_subnet_template(config_data):
         console.print("[red]Base path not found in the configuration file.")
         return
 
-    subnet_template_path = DEFAULT_SUBNET_PATH
-    if not os.path.exists(DEFAULT_SUBNET_PATH):
+    subnet_template_path = config_data["subnet_path"]
+    if not os.path.exists(subnet_template_path):
         console.print("[green]Cloning subnet-template repository...")
         try:
             repo = Repo.clone_from(

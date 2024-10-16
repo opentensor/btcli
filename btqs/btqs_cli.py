@@ -63,11 +63,13 @@ class BTQSManager:
         self.app.command(name="steps", help="Display steps for subnet setup")(
             self.setup_steps
         )
+        self.app.command(name="live")(self.display_live_metagraph)
 
         # Chain commands
         self.chain_app.command(name="start")(self.start_chain)
         self.chain_app.command(name="stop")(self.stop_chain)
         self.chain_app.command(name="reattach")(self.reattach_chain)
+        self.chain_app.command(name="status")(self.status_neurons)
 
         # Subnet commands
         self.subnet_app.command(name="setup")(self.setup_subnet)
@@ -81,95 +83,6 @@ class BTQSManager:
         self.neurons_app.command(name="reattach")(self.reattach_neurons)
         self.neurons_app.command(name="status")(self.status_neurons)
         self.neurons_app.command(name="start")(self.start_neurons)
-
-    def display_live_metagraph(self):
-        config_data = load_config(
-            "A running Subtensor not found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
-        )
-        subnet.display_live_metagraph(config_data)
-
-    def setup_steps(self):
-        subnet.steps()
-
-    def run_all(self):
-        """
-        Runs all commands in sequence to set up and start the local chain, subnet, and neurons.
-        """
-        text = Text("Starting Local Subtensor\n", style="bold light_goldenrod2")
-        sign = Text("🔗 ", style="bold yellow")
-        console.print(sign, text)
-        sleep(3)
-
-        # Start the local chain
-        self.start_chain(workspace_path=None, branch=None)
-
-        text = Text("Checking chain status\n", style="bold light_goldenrod2")
-        sign = Text("\n🔎 ", style="bold yellow")
-        console.print(sign, text)
-        sleep(3)
-
-        self.status_neurons()
-
-        console.print(
-            "\nNext command will: 1. Create a subnet owner wallet 2. Create a Subnet 3. Register to the subnet"
-        )
-        console.print("Press any key to continue..\n")
-        input()
-
-        # Set up the subnet
-        text = Text("Setting up subnet\n", style="bold light_goldenrod2")
-        sign = Text("📡 ", style="bold yellow")
-        console.print(sign, text)
-        self.setup_subnet()
-
-        text = Text("Adding stake by Validator\n", style="bold light_goldenrod2")
-        sign = Text("\n🪙 ", style="bold yellow")
-        console.print(sign, text)
-        time.sleep(2)
-
-        self.add_stake()
-
-        console.print(
-            "\nNext command will: 1. Create miner wallets 2. Register them to Netuid 1"
-        )
-        console.print("Press any key to continue..\n")
-        input()
-
-        text = Text("Setting up miners\n", style="bold light_goldenrod2")
-        sign = Text("\n⚒️ ", style="bold yellow")
-        console.print(sign, text)
-
-        # Set up the neurons (miners)
-        self.setup_neurons()
-
-        console.print("\nNext command will: 1. Start all miner processes")
-        console.print("Press any key to continue..\n")
-        input()
-
-        text = Text("Running miners\n", style="bold light_goldenrod2")
-        sign = Text("🏃 ", style="bold yellow")
-        console.print(sign, text)
-        time.sleep(2)
-
-        # Run the neurons
-        self.run_neurons()
-
-        # Check status after running the neurons
-        self.status_neurons()
-        console.print("[dark_green]\nViewing Metagraph for Subnet 1")
-        subnets_list = exec_command(
-            command="subnets",
-            sub_command="metagraph",
-            extra_args=[
-                "--netuid",
-                "1",
-                "--chain",
-                "ws://127.0.0.1:9945",
-            ],
-        )
-        print(subnets_list.stdout, end="")
-
-        self.display_live_metagraph()
 
     def start_chain(
         self,
@@ -185,14 +98,6 @@ class BTQSManager:
     ):
         """
         Starts the local Subtensor chain.
-
-        This command initializes and starts a local instance of the Subtensor blockchain.
-
-        USAGE
-
-        [green]$[/green] btqs chain start
-
-        [bold]Note[/bold]: This command may take several minutes to complete during the Subtensor compilation process.
         """
         config_data = load_config(exit_if_missing=False)
         if is_chain_running():
@@ -203,7 +108,7 @@ class BTQSManager:
         if not workspace_path:
             if config_data.get("workspace_path"):
                 reuse_config_path = Confirm.ask(
-                    f"[blue]Previously saved workspace_path found: [green]({config_data.get("workspace_path")}) \n[blue]Do you want to re-use it?",
+                    f"[blue]Previously saved workspace_path found: [green]({config_data.get('workspace_path')}) \n[blue]Do you want to re-use it?",
                     default=True,
                     show_default=True,
                 )
@@ -261,8 +166,111 @@ class BTQSManager:
         )
         chain.reattach(config_data)
 
+    def run_all(self):
+        """
+        Runs all commands in sequence to set up and start the local chain, subnet, and neurons.
+        """
+        text = Text("Starting Local Subtensor\n", style="bold light_goldenrod2")
+        sign = Text("🔗 ", style="bold yellow")
+        console.print(sign, text)
+        sleep(3)
+
+        # Start the local chain
+        self.start_chain(workspace_path=None, branch=None)
+
+        text = Text("Checking chain status\n", style="bold light_goldenrod2")
+        sign = Text("\n🔎 ", style="bold yellow")
+        console.print(sign, text)
+        sleep(3)
+
+        self.status_neurons()
+
+        console.print(
+            "\nNext command will: 1. Create a subnet owner wallet 2. Create a Subnet 3. Register to the subnet"
+        )
+        console.print("Press any key to continue..\n")
+        input()
+
+        # Set up the subnet
+        text = Text("Setting up subnet\n", style="bold light_goldenrod2")
+        sign = Text("📡 ", style="bold yellow")
+        console.print(sign, text)
+        self.setup_subnet()
+
+        text = Text("Adding stake by Validator\n", style="bold light_goldenrod2")
+        sign = Text("\n🪙 ", style="bold yellow")
+        console.print(sign, text)
+        time.sleep(2)
+
+        console.print(
+            "\nNext command will: 1. Add stake to the validator 2. Register the validator to the root network (netuid 0)"
+        )
+        console.print("Press any key to continue..\n")
+        input()
+
+        self.add_stake()
+
+        console.print(
+            "\nNext command will: 1. Create miner wallets 2. Register them to Netuid 1"
+        )
+        console.print("Press any key to continue..\n")
+        input()
+
+        text = Text("Setting up miners\n", style="bold light_goldenrod2")
+        sign = Text("\n⚒️ ", style="bold yellow")
+        console.print(sign, text)
+
+        # Set up the neurons (miners)
+        self.setup_neurons()
+
+        console.print("\nNext command will: 1. Start all miner processes")
+        console.print("Press any key to continue..\n")
+        input()
+
+        text = Text("Running miners\n", style="bold light_goldenrod2")
+        sign = Text("🏃 ", style="bold yellow")
+        console.print(sign, text)
+        time.sleep(2)
+
+        # Run the neurons
+        self.run_neurons()
+
+        # Check status after running the neurons
+        self.status_neurons()
+        console.print("[dark_green]\nViewing Metagraph for Subnet 1")
+        subnets_list = exec_command(
+            command="subnets",
+            sub_command="metagraph",
+            extra_args=[
+                "--netuid",
+                "1",
+                "--chain",
+                "ws://127.0.0.1:9945",
+            ],
+        )
+        print(subnets_list.stdout, end="")
+
+        console.print(
+            "\nNext command will start a live view of the metagraph to monitor the subnet and its status\nPress Ctrl + C to exit the live view"
+        )
+        console.print("Press any key to continue..\n")
+        input()
+        self.display_live_metagraph()
+
+    def display_live_metagraph(self):
+        config_data = load_config(
+            "A running Subtensor not found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
+        )
+        subnet.display_live_metagraph(config_data)
+
+    def setup_steps(self):
+        subnet.steps()
+
     def add_stake(self):
-        subnet.add_stake()
+        config_data = load_config(
+            "A running Subtensor not found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
+        )
+        subnet.add_stake(config_data)
 
     def setup_subnet(self):
         """

@@ -7,7 +7,6 @@ from rich.text import Text
 from rich.table import Table
 from bittensor_wallet import Wallet, Keypair
 from btqs.config  import (
-    BTQS_WALLETS_DIRECTORY,
     CONFIG_FILE_PATH,
     VALIDATOR_URI,
 )
@@ -22,12 +21,12 @@ from btqs.utils import (
     load_config,
 )
 
-def add_stake(config_data = None):
+def add_stake(config_data):
     subnet_owner, owner_data = subnet_owner_exists(CONFIG_FILE_PATH)
     if subnet_owner:
         owner_wallet = Wallet(
             name=owner_data.get("wallet_name"),
-            path=BTQS_WALLETS_DIRECTORY,
+            path=config_data["wallets_path"],
             hotkey=owner_data.get("hotkey"),
         )
 
@@ -45,7 +44,7 @@ def add_stake(config_data = None):
                 "--amount",
                 1000,
                 "--wallet-path",
-                BTQS_WALLETS_DIRECTORY,
+                config_data["wallets_path"],
                 "--chain",
                 "ws://127.0.0.1:9945",
                 "--wallet-name",
@@ -94,7 +93,7 @@ def add_stake(config_data = None):
             sub_command="register",
             extra_args=[
                 "--wallet-path",
-                BTQS_WALLETS_DIRECTORY,
+                config_data["wallets_path"],
                 "--chain",
                 "ws://127.0.0.1:9945",
                 "--wallet-name",
@@ -190,12 +189,12 @@ def display_live_metagraph(config_data):
         print("Exiting live view...")
 
 def setup_subnet(config_data):
-    os.makedirs(BTQS_WALLETS_DIRECTORY, exist_ok=True)
+    os.makedirs(config_data["wallets_path"], exist_ok=True)
     subnet_owner, owner_data = subnet_owner_exists(CONFIG_FILE_PATH)
     if subnet_owner:
         owner_wallet = Wallet(
             name=owner_data.get("wallet_name"),
-            path=BTQS_WALLETS_DIRECTORY,
+            path=config_data["wallets_path"],
             hotkey=owner_data.get("hotkey"),
         )
 
@@ -217,7 +216,7 @@ def setup_subnet(config_data):
     owner_data = config_data["Owner"]
     owner_wallet = Wallet(
         name=owner_data.get("wallet_name"),
-        path=BTQS_WALLETS_DIRECTORY,
+        path=config_data["wallets_path"],
         hotkey=owner_data.get("hotkey"),
     )
 
@@ -237,7 +236,7 @@ def setup_subnet(config_data):
         console.print(wallet_info)
         console.print(sudo_info)
     else:
-        create_subnet(owner_wallet)
+        create_subnet(owner_wallet, config_data)
 
     console.print("[dark_green]\nListing all subnets")
     subnets_list = exec_command(
@@ -264,7 +263,7 @@ def create_subnet_owner_wallet(config_data):
 
     keypair = Keypair.create_from_uri(VALIDATOR_URI)
     owner_wallet = Wallet(
-        path=BTQS_WALLETS_DIRECTORY,
+        path=config_data["wallets_path"],
         name=owner_wallet_name,
         hotkey=owner_hotkey_name,
     )
@@ -274,7 +273,7 @@ def create_subnet_owner_wallet(config_data):
 
     console.print(
         "Executed command: [dark_orange] btcli wallet create --wallet-name",
-        f"[dark_orange]{owner_hotkey_name} --wallet-hotkey {owner_wallet_name} --wallet-path {BTQS_WALLETS_DIRECTORY}",
+        f"[dark_orange]{owner_hotkey_name} --wallet-hotkey {owner_wallet_name} --wallet-path {config_data["wallets_path"]}",
     )
 
     config_data["Owner"] = {
@@ -285,7 +284,7 @@ def create_subnet_owner_wallet(config_data):
     with open(CONFIG_FILE_PATH, "w") as config_file:
         yaml.safe_dump(config_data, config_file)
 
-def create_subnet(owner_wallet):
+def create_subnet(owner_wallet, config_data):
     text = Text("Creating a subnet with Netuid 1.\n", style="bold light_goldenrod2")
     sign = Text("\nℹ️ ", style="bold yellow")
     console.print(sign, text)
@@ -295,7 +294,7 @@ def create_subnet(owner_wallet):
         sub_command="create",
         extra_args=[
             "--wallet-path",
-            BTQS_WALLETS_DIRECTORY,
+            config_data["wallets_path"],
             "--chain",
             "ws://127.0.0.1:9945",
             "--wallet-name",
@@ -318,7 +317,7 @@ def create_subnet(owner_wallet):
         sub_command="register",
         extra_args=[
             "--wallet-path",
-            BTQS_WALLETS_DIRECTORY,
+            config_data["wallets_path"],
             "--wallet-name",
             owner_wallet.name,
             "--wallet-hotkey",
@@ -346,16 +345,16 @@ def steps():
             "description": "This command creates a subnet owner's wallet, creates a new subnet, and registers the subnet owner to the subnet. Ensure the local chain is running before executing this command.",
         },
         {
+            "command": "btqs subnet stake",
+            "description": "Add stake to the subnet and register to root. This command stakes Tao to the validator's own hotkey and registers to root network",
+        },
+        {
             "command": "btqs neurons setup",
             "description": "This command creates miner wallets and registers them to the subnet.",
         },
         {
             "command": "btqs neurons run",
             "description": "Run all neurons (miners and validators). This command starts the processes for all configured neurons, attaching to running processes if they are already running.",
-        },
-        {
-            "command": "btqs subnet stake",
-            "description": "Add stake to the subnet. This command allows the subnet owner to stake tokens to the subnet.",
         },
         {
             "command": "btqs subnet live",
