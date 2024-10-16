@@ -664,9 +664,6 @@ class CLIManager:
 
         # stake commands
         self.stake_app.command(
-            "show", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
-        )(self.stake_show)
-        self.stake_app.command(
             "add", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
         )(self.stake_add)
         self.stake_app.command(
@@ -3130,81 +3127,23 @@ class CLIManager:
             root.nominate(wallet, self.initialize_chain(network), prompt)
         )
 
-    def stake_show(
+    def stake_list(
         self,
-        all_wallets: bool = typer.Option(
-            False,
-            "--all",
-            "--all-wallets",
-            "-a",
-            help="When set, the command checks all the coldkey wallets of the user instead of just the specified wallet.",
-        ),
         network: Optional[list[str]] = Options.network,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         wallet_path: Optional[str] = Options.wallet_path,
-        reuse_last: bool = Options.reuse_last,
-        html_output: bool = Options.html_output,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        # TODO add: all-wallets, reuse_last, html_output
     ):
-        """
-        Lists all the stake accounts associated with a user's wallet.
-
-        This command provides a comprehensive view of the stakes associated with the user's coldkeys. It shows both the user's own hotkeys and also the hotkeys of the delegates to which this user has staked.
-
-        The command lists all the stake accounts for a specified wallet or all wallets in the user's configuration directory. It displays the coldkey, balance, hotkey details (own hotkey and delegate hotkey), stake amount, and the rate of return.
-
-        The command shows a table with the below columns:
-
-        - Coldkey: The coldkey associated with the wallet.
-
-        - Balance: The balance of the coldkey.
-
-        - Hotkey: The names of the coldkey's own hotkeys and the delegate hotkeys to which this coldkey has staked.
-
-        - Stake: The amount of TAO staked to all the hotkeys.
-
-        - Rate: The rate of return on the stake, shown in TAO per day.
-
-        EXAMPLE
-
-        [green]$[/green] btcli stake show --all
-        """
+        """List all stake accounts for wallet."""
         self.verbosity_handler(quiet, verbose)
-        if (reuse_last or html_output) and self.config.get("use_cache") is False:
-            err_console.print(
-                "Unable to use `--reuse-last` or `--html` when config 'no-cache' is set to 'True'. "
-                "Please change the config to 'False' using `btcli config set`"
-            )
-            raise typer.Exit()
-        if not reuse_last:
-            subtensor = self.initialize_chain(network)
-        else:
-            subtensor = None
-
-        if all_wallets:
-            wallet = self.wallet_ask(
-                wallet_name,
-                wallet_path,
-                wallet_hotkey,
-                ask_for=[WO.PATH],
-                validate=WV.NONE,
-            )
-        else:
-            wallet = self.wallet_ask(
-                wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
-            )
-
+        wallet = self.wallet_ask(
+            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
+        )
         return self._run_command(
-            stake.show(
-                wallet,
-                subtensor,
-                all_wallets,
-                reuse_last,
-                html_output,
-                not self.config.get("use_cache", True),
-            )
+            stake.stake_list(wallet, self.initialize_chain(network))
         )
 
     def stake_add(

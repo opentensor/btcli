@@ -1243,3 +1243,10 @@ class SubtensorInterface:
             bytes_result = bytes.fromhex(hex_bytes_result)
 
         return StakeInfo.list_of_tuple_from_vec_u8(bytes_result)  # type: ignore
+
+    async def get_all_subnet_dynamic_info(self) -> list["DynamicInfo"]:
+        json = await self.substrate.rpc_request(
+            method="subnetInfo_getAllDynamicInfo", params=[None]
+        )
+        subnets = DynamicInfo.list_from_vec_u8(json["result"])
+        return subnets

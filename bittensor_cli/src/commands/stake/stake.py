@@ -825,328 +825,6 @@ async def unstake_multiple_extrinsic(
 
 
 # Commands
-
-
-async def show(
-    wallet: Wallet,
-    subtensor: Optional["SubtensorInterface"],
-    all_wallets: bool,
-    reuse_last: bool,
-    html_output: bool,
-    no_cache: bool,
-):
-    """Show all stake accounts."""
-
-    async def get_stake_accounts(
-        wallet_, block_hash: str
-    ) -> dict[str, Union[str, Balance, dict[str, Union[str, Balance]]]]:
-        """Get stake account details for the given wallet.
-
-        :param wallet_: The wallet object to fetch the stake account details for.
-
-        :return: A dictionary mapping SS58 addresses to their respective stake account details.
-        """
-
-        wallet_stake_accounts = {}
-
-        # Get this wallet's coldkey balance.
-        cold_balance_, stakes_from_hk, stakes_from_d = await asyncio.gather(
-            subtensor.get_balance(
-                wallet_.coldkeypub.ss58_address, block_hash=block_hash
-            ),
-            get_stakes_from_hotkeys(wallet_, block_hash=block_hash),
-            get_stakes_from_delegates(wallet_),
-        )
-
-        cold_balance = cold_balance_[wallet_.coldkeypub.ss58_address]
-
-        # Populate the stake accounts with local hotkeys data.
-        wallet_stake_accounts.update(stakes_from_hk)
-
-        # Populate the stake accounts with delegations data.
-        wallet_stake_accounts.update(stakes_from_d)
-
-        return {
-            "name": wallet_.name,
-            "balance": cold_balance,
-            "accounts": wallet_stake_accounts,
-        }
-
-    async def get_stakes_from_hotkeys(
-        wallet_, block_hash: str
-    ) -> dict[str, dict[str, Union[str, Balance]]]:
-        """Fetch stakes from hotkeys for the provided wallet.
-
-        :param wallet_: The wallet object to fetch the stakes for.
-
-        :return: A dictionary of stakes related to hotkeys.
-        """
-
-        async def get_all_neurons_for_pubkey(hk):
-            netuids = await subtensor.get_netuids_for_hotkey(hk, block_hash=block_hash)
-            uid_query = await asyncio.gather(
-                *[
-                    subtensor.substrate.query(
-                        module="SubtensorModule",
-                        storage_function="Uids",
-                        params=[netuid, hk],
-                        block_hash=block_hash,
-                    )
-                    for netuid in netuids
-                ]
-            )
-            uids = [_result for _result in uid_query]
-            neurons = await asyncio.gather(
-                *[
-                    subtensor.neuron_for_uid(uid, net)
-                    for (uid, net) in zip(uids, netuids)
-                ]
-            )
-            return neurons
-
-        async def get_emissions_and_stake(hk: str):
-            neurons, stake = await asyncio.gather(
-                get_all_neurons_for_pubkey(hk),
-                subtensor.substrate.query(
-                    module="SubtensorModule",
-                    storage_function="Stake",
-                    params=[hk, wallet_.coldkeypub.ss58_address],
-                    block_hash=block_hash,
-                ),
-            )
-            emission_ = sum([n.emission for n in neurons]) if neurons else 0.0
-            return emission_, Balance.from_rao(stake) if stake else Balance(0)
-
-        hotkeys = cast(list[Wallet], get_hotkey_wallets_for_wallet(wallet_))
-        stakes = {}
-        query = await asyncio.gather(
-            *[get_emissions_and_stake(hot.hotkey.ss58_address) for hot in hotkeys]
-        )
-        for hot, (emission, hotkey_stake) in zip(hotkeys, query):
-            stakes[hot.hotkey.ss58_address] = {
-                "name": hot.hotkey_str,
-                "stake": hotkey_stake,
-                "rate": emission,
-            }
-        return stakes
-
-    async def get_stakes_from_delegates(
-        wallet_,
-    ) -> dict[str, dict[str, Union[str, Balance]]]:
-        """Fetch stakes from delegates for the provided wallet.
-
-        :param wallet_: The wallet object to fetch the stakes for.
-
-        :return: A dictionary of stakes related to delegates.
-        """
-        delegates = await subtensor.get_delegated(
-            coldkey_ss58=wallet_.coldkeypub.ss58_address, block_hash=None
-        )
-        stakes = {}
-        for dele, staked in delegates:
-            for nom in dele.nominators:
-                if nom[0] == wallet_.coldkeypub.ss58_address:
-                    delegate_name = (
-                        registered_delegate_info[dele.hotkey_ss58].display
-                        if dele.hotkey_ss58 in registered_delegate_info
-                        else None
-                    )
-                    stakes[dele.hotkey_ss58] = {
-                        "name": delegate_name if delegate_name else dele.hotkey_ss58,
-                        "stake": nom[1],
-                        "rate": dele.total_daily_return.tao
-                        * (nom[1] / dele.total_stake.tao),
-                    }
-        return stakes
-
-    async def get_all_wallet_accounts(
-        block_hash: str,
-    ) -> list[dict[str, Union[str, Balance, dict[str, Union[str, Balance]]]]]:
-        """Fetch stake accounts for all provided wallets using a ThreadPool.
-
-        :param block_hash: The block hash to fetch the stake accounts for.
-
-        :return: A list of dictionaries, each dictionary containing stake account details for each wallet.
-        """
-
-        accounts_ = await asyncio.gather(
-            *[get_stake_accounts(w, block_hash=block_hash) for w in wallets]
-        )
-        return accounts_
-
-    if not reuse_last:
-        cast("SubtensorInterface", subtensor)
-        if all_wallets:
-            wallets = get_coldkey_wallets_for_path(wallet.path)
-            valid_wallets, invalid_wallets = validate_coldkey_presence(wallets)
-            wallets = valid_wallets
-            for invalid_wallet in invalid_wallets:
-                print_error(f"No coldkeypub found for wallet: ({invalid_wallet.name})")
-        else:
-            wallets = [wallet]
-
-        with console.status(
-            ":satellite: Retrieving account data...", spinner="aesthetic"
-        ):
-            block_hash_ = await subtensor.substrate.get_chain_head()
-            registered_delegate_info = await subtensor.get_delegate_identities(
-                block_hash=block_hash_
-            )
-            accounts = await get_all_wallet_accounts(block_hash=block_hash_)
-
-        total_stake: float = 0.0
-        total_balance: float = 0.0
-        total_rate: float = 0.0
-        rows = []
-        db_rows = []
-        for acc in accounts:
-            cast(str, acc["name"])
-            cast(Balance, acc["balance"])
-            rows.append([acc["name"], str(acc["balance"]), "", "", ""])
-            db_rows.append(
-                [acc["name"], float(acc["balance"]), None, None, None, None, 0]
-            )
-            total_balance += cast(Balance, acc["balance"]).tao
-            for key, value in cast(dict, acc["accounts"]).items():
-                if value["name"] and value["name"] != key:
-                    account_display_name = f"{value['name']}"
-                else:
-                    account_display_name = "(~)"
-                rows.append(
-                    [
-                        "",
-                        "",
-                        account_display_name,
-                        key,
-                        str(value["stake"]),
-                        str(value["rate"]),
-                    ]
-                )
-                db_rows.append(
-                    [
-                        acc["name"],
-                        None,
-                        value["name"],
-                        float(value["stake"]),
-                        float(value["rate"]),
-                        key,
-                        1,
-                    ]
-                )
-                total_stake += cast(Balance, value["stake"]).tao
-                total_rate += float(value["rate"])
-        metadata = {
-            "total_stake": "\u03c4{:.5f}".format(total_stake),
-            "total_balance": "\u03c4{:.5f}".format(total_balance),
-            "total_rate": "\u03c4{:.5f}/d".format(total_rate),
-            "rows": json.dumps(rows),
-        }
-        if not no_cache:
-            create_table(
-                "stakeshow",
-                [
-                    ("COLDKEY", "TEXT"),
-                    ("BALANCE", "REAL"),
-                    ("ACCOUNT", "TEXT"),
-                    ("STAKE", "REAL"),
-                    ("RATE", "REAL"),
-                    ("HOTKEY", "TEXT"),
-                    ("CHILD", "INTEGER"),
-                ],
-                db_rows,
-            )
-            update_metadata_table("stakeshow", metadata)
-    else:
-        try:
-            metadata = get_metadata_table("stakeshow")
-            rows = json.loads(metadata["rows"])
-        except sqlite3.OperationalError:
-            err_console.print(
-                "[red]Error[/red] Unable to retrieve table data. This is usually caused by attempting to use "
-                "`--reuse-last` before running the command a first time. In rare cases, this could also be due to "
-                "a corrupted database. Re-run the command (do not use `--reuse-last`) and see if that resolves your "
-                "issue."
-            )
-            return
-    if not html_output:
-        table = Table(
-            Column("[bold white]Coldkey", style="dark_orange", ratio=1),
-            Column(
-                "[bold white]Balance",
-                metadata["total_balance"],
-                style="dark_sea_green",
-                ratio=1,
-            ),
-            Column("[bold white]Account", style="bright_cyan", ratio=3),
-            Column("[bold white]Hotkey", ratio=7, no_wrap=True, style="bright_magenta"),
-            Column(
-                "[bold white]Stake",
-                metadata["total_stake"],
-                style="light_goldenrod2",
-                ratio=1,
-            ),
-            Column(
-                "[bold white]Rate /d",
-                metadata["total_rate"],
-                style="rgb(42,161,152)",
-                ratio=1,
-            ),
-            title=f"[underline dark_orange]Stake Show[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}\n",
-            show_footer=True,
-            show_edge=False,
-            expand=False,
-            border_style="bright_black",
-        )
-
-        for i, row in enumerate(rows):
-            is_last_row = i + 1 == len(rows)
-            table.add_row(*row)
-
-            # If last row or new coldkey starting next
-            if is_last_row or (rows[i + 1][0] != ""):
-                table.add_row(end_section=True)
-        console.print(table)
-
-    else:
-        render_tree(
-            "stakeshow",
-            f"Stakes | Total Balance: {metadata['total_balance']} - Total Stake: {metadata['total_stake']} "
-            f"Total Rate: {metadata['total_rate']}",
-            [
-                {"title": "Coldkey", "field": "COLDKEY"},
-                {
-                    "title": "Balance",
-                    "field": "BALANCE",
-                    "formatter": "money",
-                    "formatterParams": {"symbol": "τ", "precision": 5},
-                },
-                {
-                    "title": "Account",
-                    "field": "ACCOUNT",
-                    "width": 425,
-                },
-                {
-                    "title": "Stake",
-                    "field": "STAKE",
-                    "formatter": "money",
-                    "formatterParams": {"symbol": "τ", "precision": 5},
-                },
-                {
-                    "title": "Daily Rate",
-                    "field": "RATE",
-                    "formatter": "money",
-                    "formatterParams": {"symbol": "τ", "precision": 5},
-                },
-                {
-                    "title": "Hotkey",
-                    "field": "HOTKEY",
-                    "width": 425,
-                },
-            ],
-            0,
-        )
-
-
 async def stake_add(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
@@ -1389,7 +1067,7 @@ The columns are as follows:
         if not Confirm.ask("Would you like to continue?"):
             return False
 
-    async def send_extrinsic(netuid_i, amount_, current):
+    async def send_extrinsic(netuid_i, amount_, current, staking_address_ss58):
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function="add_stake",
@@ -1437,10 +1115,11 @@ The columns are as follows:
     wallet.unlock_coldkey()
     with console.status(f"\n:satellite: Staking on netuid(s): {netuids} ..."):
         extrinsics_coroutines = [
-            send_extrinsic(ni, am, curr)
+            send_extrinsic(ni, am, curr, staking_address)
             for (ni, am, curr) in zip(
                 netuids, stake_amount_balance, current_stake_balances
             )
+            for _, staking_address in hotkeys_to_stake_to
         ]
         if len(extrinsics_coroutines) == 1:
             await asyncio.gather(*extrinsics_coroutines)
@@ -1601,9 +1280,11 @@ async def unstake(
 
 
 async def stake_list(wallet: Wallet, subtensor: "SubtensorInterface"):
-    sub_stakes = (await subtensor.get_stake_info_for_coldkeys(
-        coldkey_ss58_list=[wallet.coldkeypub.ss58_address]
-    ))[wallet.coldkeypub.ss58_address]
+    sub_stakes = (
+        await subtensor.get_stake_info_for_coldkeys(
+            coldkey_ss58_list=[wallet.coldkeypub.ss58_address]
+        )
+    )[wallet.coldkeypub.ss58_address]
 
     # Get registered delegates details.
     registered_delegate_info = await subtensor.get_delegate_identities()
@@ -1620,6 +1301,167 @@ async def stake_list(wallet: Wallet, subtensor: "SubtensorInterface"):
     # Iterate over substakes and aggregate them by hotkey.
     hotkeys_to_substakes: dict[str, list[StakeInfo]] = {}
 
+    def table_substakes(hotkey_: str, substakes: list[StakeInfo]):
+        # Create table structure.
+        name = (
+            f"{registered_delegate_info[hotkey_].display} ({hotkey_})"
+            if hotkey_ in registered_delegate_info
+            else hotkey_
+        )
+        rows = []
+        total_global_tao = Balance(0)
+        total_tao_value = Balance(0)
+        for substake_ in substakes:
+            netuid = substake_.netuid
+            pool = dynamic_info[netuid]
+            symbol = f"{Balance.get_unit(netuid)}"
+            # TODO: what is this price var for?
+            price = (
+                "{:.4f}{}".format(
+                    pool.price.__float__(), f" τ/{Balance.get_unit(netuid)}\u200e"
+                )
+                if pool.is_dynamic
+                else (f" 1.0000 τ/{symbol} ")
+            )
+            alpha_value = Balance.from_rao(int(substake_.stake.rao)).set_unit(netuid)
+            locked_value = Balance.from_rao(int(substake_.locked.rao)).set_unit(netuid)
+            tao_value = pool.alpha_to_tao(alpha_value)
+            total_tao_value += tao_value
+            swapped_tao_value, slippage = pool.alpha_to_tao_with_slippage(
+                substake_.stake
+            )
+            if pool.is_dynamic:
+                slippage_percentage_ = (
+                    100 * float(slippage) / float(slippage + swapped_tao_value)
+                    if slippage + swapped_tao_value != 0
+                    else 0
+                )
+                slippage_percentage = (
+                    f"[dark_red]{slippage_percentage_:.3f}%[/dark_red]"
+                )
+            else:
+                slippage_percentage = "0.000%"
+            tao_locked = pool.tao_in
+            issuance = pool.alpha_out if pool.is_dynamic else tao_locked
+            per_block_emission = substake_.emission.tao / (
+                (emission_drain_tempo / pool.tempo) * pool.tempo
+            )
+            if alpha_value.tao > 0.00009:
+                if issuance.tao != 0:
+                    alpha_ownership = "{:.4f}".format(
+                        (alpha_value.tao / issuance.tao) * 100
+                    )
+                    tao_ownership = Balance.from_tao(
+                        (alpha_value.tao / issuance.tao) * tao_locked.tao
+                    )
+                    total_global_tao += tao_ownership
+                else:
+                    # TODO what's this var for?
+                    alpha_ownership = "0.0000"
+                    tao_ownership = "0.0000"
+                rows.append(
+                    [
+                        str(netuid),  # Number
+                        symbol,  # Symbol
+                        # f"[medium_purple]{tao_ownership}[/medium_purple] ([light_salmon3]{ alpha_ownership }[/light_salmon3][white]%[/white])", # Tao ownership.
+                        f"[medium_purple]{tao_ownership}[/medium_purple]",  # Tao ownership.
+                        # f"[dark_sea_green]{ alpha_value }", # Alpha value
+                        f"{substake_.stake.tao:,.4f} {symbol}",
+                        f"{pool.price.tao:.4f} τ/{symbol}",
+                        f"[light_slate_blue]{tao_value}[/light_slate_blue]",  # Tao equiv
+                        f"[cadet_blue]{swapped_tao_value}[/cadet_blue] ({slippage_percentage})",  # Swap amount.
+                        # f"[light_salmon3]{ alpha_ownership }%[/light_salmon3]",  # Ownership.
+                        "[bold cadet_blue]YES[/bold cadet_blue]"
+                        if substake_.is_registered
+                        else "[dark_red]NO[/dark_red]",
+                        # Registered.
+                        str(Balance.from_tao(per_block_emission).set_unit(netuid))
+                        if substake_.is_registered
+                        else "[dark_red]N/A[/dark_red]",  # emission per block.
+                        f"[light_slate_blue]{locked_value}[/light_slate_blue]",  # Locked value
+                    ]
+                )
+        # table = Table(show_footer=True, pad_edge=False, box=None, expand=False, title=f"{name}")
+        table = Table(
+            title=f"[white]hotkey:[/white] [light_salmon3]{name}[/light_salmon3]\n",
+            width=console.width - 5,
+            safe_box=True,
+            padding=(0, 1),
+            collapse_padding=False,
+            pad_edge=True,
+            expand=True,
+            show_header=True,
+            show_footer=True,
+            show_edge=False,
+            show_lines=False,
+            leading=0,
+            style="none",
+            row_styles=None,
+            header_style="bold",
+            footer_style="bold",
+            border_style="rgb(7,54,66)",
+            title_style="bold magenta",
+            title_justify="center",
+            highlight=False,
+        )
+        table.add_column("[white]Netuid", footer_style="overline white", style="grey89")
+        table.add_column(
+            "[white]Symbol",
+            footer_style="white",
+            style="light_goldenrod1",
+            justify="right",
+            width=5,
+            no_wrap=True,
+        )
+        table.add_column(
+            f"[white]TAO({Balance.unit})",
+            style="aquamarine3",
+            justify="right",
+            footer=f"{total_global_tao}",
+        )
+        table.add_column(
+            f"[white]Stake({Balance.get_unit(1)})",
+            footer_style="overline white",
+            style="green",
+            justify="right",
+        )
+        table.add_column(
+            f"[white]Rate({Balance.unit}/{Balance.get_unit(1)})",
+            footer_style="white",
+            style="light_goldenrod2",
+            justify="center",
+        )
+        table.add_column(
+            f"[white]Value({Balance.get_unit(1)} x {Balance.unit}/{Balance.get_unit(1)})",
+            footer_style="overline white",
+            style="blue",
+            justify="right",
+            footer=f"{total_tao_value}",
+        )
+        table.add_column(
+            f"[white]Swap({Balance.get_unit(1)}) -> {Balance.unit}",
+            footer_style="overline white",
+            style="white",
+            justify="right",
+        )
+        # table.add_column(f"[white]Control({bittensor.Balance.get_unit(1)})", style="aquamarine3", justify="right")
+        table.add_column("[white]Registered", style="red", justify="right")
+        table.add_column(
+            f"[white]Emission({Balance.get_unit(1)}/block)",
+            style="aquamarine3",
+            justify="right",
+        )
+        table.add_column(
+            f"[white]Locked({Balance.get_unit(1)})",
+            footer_style="overline white",
+            style="green",
+            justify="right",
+        )
+        for row in rows:
+            table.add_row(*row)
+        console.print(table)
+        return total_global_tao, total_tao_value
+
     for substake in sub_stakes:
         hotkey = substake.hotkey_ss58
         if substake.stake.rao == 0:
@@ -1627,108 +1469,6 @@ async def stake_list(wallet: Wallet, subtensor: "SubtensorInterface"):
         if hotkey not in hotkeys_to_substakes:
             hotkeys_to_substakes[hotkey] = []
         hotkeys_to_substakes[hotkey].append(substake)
-
-        def table_substakes(hotkey: str, substakes: list[StakeInfo]):
-            # Create table structure.
-            name = registered_delegate_info[
-                       hotkey].name + f" ({hotkey})" if hotkey in registered_delegate_info else hotkey
-            rows = []
-            total_global_tao = Balance(0)
-            total_tao_value = Balance(0)
-            for substake in substakes:
-                netuid = substake.netuid
-                pool = dynamic_info[netuid]
-                symbol = f"{bittensor.Balance.get_unit(netuid)}"
-                price = "{:.4f}{}".format(pool.price.__float__(),
-                                          f" τ/{Balance.get_unit(netuid)}\u200E") if pool.is_dynamic else (
-                    f" 1.0000 τ/{symbol} ")
-                alpha_value = Balance.from_rao(int(substake.stake.rao)).set_unit(netuid)
-                locked_value = Balance.from_rao(int(substake.locked.rao)).set_unit(netuid)
-                tao_value = pool.alpha_to_tao(alpha_value)
-                total_tao_value += tao_value
-                swapped_tao_value, slippage = pool.alpha_to_tao_with_slippage(substake.stake)
-                if pool.is_dynamic:
-                    slippage_percentage = 100 * float(slippage) / float(
-                        slippage + swapped_tao_value) if slippage + swapped_tao_value != 0 else 0
-                    slippage_percentage = f"[dark_red]{slippage_percentage:.3f}%[/dark_red]"
-                else:
-                    slippage_percentage = '0.000%'
-                tao_locked = pool.tao_in
-                issuance = pool.alpha_out if pool.is_dynamic else tao_locked
-                per_block_emission = substake.emission.tao / ((emission_drain_tempo / pool.tempo) * pool.tempo)
-                if alpha_value.tao > 0.00009:
-                    if issuance.tao != 0:
-                        alpha_ownership = "{:.4f}".format((alpha_value.tao / issuance.tao) * 100)
-                        tao_ownership = bittensor.Balance.from_tao((alpha_value.tao / issuance.tao) * tao_locked.tao)
-                        total_global_tao += tao_ownership
-                    else:
-                        alpha_ownership = "0.0000"
-                        tao_ownership = "0.0000"
-                    rows.append([
-                        str(netuid),  # Number
-                        symbol,  # Symbol
-                        # f"[medium_purple]{tao_ownership}[/medium_purple] ([light_salmon3]{ alpha_ownership }[/light_salmon3][white]%[/white])", # Tao ownership.
-                        f"[medium_purple]{tao_ownership}[/medium_purple]",  # Tao ownership.
-                        # f"[dark_sea_green]{ alpha_value }", # Alpha value
-                        f"{substake.stake.tao:,.4f} {symbol}",
-                        f"{pool.price.tao:.4f} τ/{symbol}",
-                        f"[light_slate_blue]{tao_value}[/light_slate_blue]",  # Tao equiv
-                        f"[cadet_blue]{swapped_tao_value}[/cadet_blue] ({slippage_percentage})",  # Swap amount.
-                        # f"[light_salmon3]{ alpha_ownership }%[/light_salmon3]",  # Ownership.
-                        f"[bold cadet_blue]YES[/bold cadet_blue]" if substake.is_registered else f"[dark_red]NO[/dark_red]",
-                        # Registered.
-                        str(bittensor.Balance.from_tao(per_block_emission).set_unit(
-                            netuid)) if substake.is_registered else "[dark_red]N/A[/dark_red]",  # emission per block.
-                        f"[light_slate_blue]{locked_value}[/light_slate_blue]",  # Locked value
-                    ])
-            # table = Table(show_footer=True, pad_edge=False, box=None, expand=False, title=f"{name}")
-            table = Table(
-                title=f"[white]hotkey:[/white] [light_salmon3]{name}[/light_salmon3]\n",
-                width=bittensor.__console__.width - 5,
-                safe_box=True,
-                padding=(0, 1),
-                collapse_padding=False,
-                pad_edge=True,
-                expand=True,
-                show_header=True,
-                show_footer=True,
-                show_edge=False,
-                show_lines=False,
-                leading=0,
-                style="none",
-                row_styles=None,
-                header_style="bold",
-                footer_style="bold",
-                border_style="rgb(7,54,66)",
-                title_style="bold magenta",
-                title_justify="center",
-                highlight=False,
-            )
-            table.add_column("[white]Netuid", footer_style="overline white", style="grey89")
-            table.add_column("[white]Symbol", footer_style="white", style="light_goldenrod1", justify="right",
-                             width=5,
-                             no_wrap=True)
-            table.add_column(f"[white]TAO({Balance.unit})", style="aquamarine3", justify="right",
-                             footer=f"{total_global_tao}")
-            table.add_column(f"[white]Stake({Balance.get_unit(1)})", footer_style="overline white",
-                             style="green", justify="right")
-            table.add_column(f"[white]Rate({Balance.unit}/{Balance.get_unit(1)})",
-                             footer_style="white", style="light_goldenrod2", justify="center")
-            table.add_column(
-                f"[white]Value({bittensor.Balance.get_unit(1)} x {Balance.unit}/{Balance.get_unit(1)})",
-                footer_style="overline white", style="blue", justify="right", footer=f"{total_tao_value}")
-            table.add_column(f"[white]Swap({Balance.get_unit(1)}) -> {Balance.unit}",
-                             footer_style="overline white", style="white", justify="right")
-            # table.add_column(f"[white]Control({bittensor.Balance.get_unit(1)})", style="aquamarine3", justify="right")
-            table.add_column("[white]Registered", style="red", justify="right")
-            table.add_column(f"[white]Emission({Balance.get_unit(1)}/block)", style="aquamarine3",
-                             justify="right")
-            table.add_column(f"[white]Locked({Balance.get_unit(1)})", footer_style="overline white",
-                             style="green", justify="right")
-            for row in rows:
-                table.add_row(*row)
-            console.print(table)
-            return total_global_tao, total_tao_value
 
         # Iterate over each hotkey and make a table
         all_hotkeys_total_global_tao = Balance(0)
@@ -1740,7 +1480,12 @@ async def stake_list(wallet: Wallet, subtensor: "SubtensorInterface"):
 
         console.print("\n\n")
         console.print(
-            f"Wallet:\n  Coldkey SS58: [bold dark_green]{cli.config.coldkey_address}[/bold dark_green]\n  Free Balance: [aquamarine3]{balance}[/aquamarine3]\n  Total TAO ({bittensor.Balance.unit}): [aquamarine3]{all_hotkeys_total_global_tao}[/aquamarine3]\n  Total Value ({bittensor.Balance.unit}): [aquamarine3]{all_hotkeys_total_tao_value}[/aquamarine3]")
+            f"Wallet:\n"
+            f"  Coldkey SS58: [bold dark_green]{wallet.coldkeypub.ss58_address}[/bold dark_green]\n"
+            f"  Free Balance: [aquamarine3]{balance}[/aquamarine3]\n"
+            f"  Total TAO ({Balance.unit}): [aquamarine3]{all_hotkeys_total_global_tao}[/aquamarine3]\n"
+            f"  Total Value ({Balance.unit}): [aquamarine3]{all_hotkeys_total_tao_value}[/aquamarine3]"
+        )
         console.print(
             """
 [bold white]Description[/bold white]:
