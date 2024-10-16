@@ -17,6 +17,7 @@ from .config import (
     EPILOG,
     LOCALNET_ENDPOINT,
     DEFAULT_WORKSPACE_DIRECTORY,
+    DEFAULT_SUBTENSOR_BRANCH,
 )
 from .utils import (
     console,
@@ -25,10 +26,9 @@ from .utils import (
     get_bittensor_wallet_version,
     get_btcli_version,
     get_process_entries,
-    get_python_path,
-    get_python_version,
     is_chain_running,
     load_config,
+    get_bittensor_version,
 )
 
 
@@ -83,7 +83,10 @@ class BTQSManager:
         self.neurons_app.command(name="start")(self.start_neurons)
 
     def display_live_metagraph(self):
-        subnet.display_live_metagraph()
+        config_data = load_config(
+            "A running Subtensor not found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
+        )
+        subnet.display_live_metagraph(config_data)
 
     def setup_steps(self):
         subnet.steps()
@@ -118,6 +121,13 @@ class BTQSManager:
         sign = Text("📡 ", style="bold yellow")
         console.print(sign, text)
         self.setup_subnet()
+
+        text = Text("Adding stake by Validator\n", style="bold light_goldenrod2")
+        sign = Text("\n🪙 ", style="bold yellow")
+        console.print(sign, text)
+        time.sleep(2)
+
+        self.add_stake()
 
         console.print(
             "\nNext command will: 1. Create miner wallets 2. Register them to Netuid 1"
@@ -159,24 +169,6 @@ class BTQSManager:
         )
         print(subnets_list.stdout, end="")
 
-        text = Text("Adding stake by Validator\n", style="bold light_goldenrod2")
-        sign = Text("\n🪙 ", style="bold yellow")
-        console.print(sign, text)
-        time.sleep(2)
-
-        self.add_stake()
-        console.print("[dark_green]\nViewing Metagraph for Subnet 1")
-        subnets_list = exec_command(
-            command="subnets",
-            sub_command="metagraph",
-            extra_args=[
-                "--netuid",
-                "1",
-                "--chain",
-                "ws://127.0.0.1:9945",
-            ],
-        )
-        print(subnets_list.stdout, end="")
         self.display_live_metagraph()
 
     def start_chain(
@@ -229,7 +221,7 @@ class BTQSManager:
         if not branch:
             branch = typer.prompt(
                 typer.style("Enter Subtensor branch", fg="blue"),
-                default="testnet",
+                default=DEFAULT_SUBTENSOR_BRANCH,
             )
 
         console.print("[dark_orange]Starting the local chain...")
@@ -394,8 +386,12 @@ class BTQSManager:
             return
 
         config_data = load_config()
-        process_entries, cpu_usage_list, memory_usage_list = get_process_entries(config_data)
-        display_process_status_table(process_entries, cpu_usage_list, memory_usage_list)
+        process_entries, cpu_usage_list, memory_usage_list = get_process_entries(
+            config_data
+        )
+        display_process_status_table(
+            process_entries, cpu_usage_list, memory_usage_list, config_data
+        )
         neurons.reattach_neurons(config_data)
 
     def status_neurons(self):
@@ -420,7 +416,9 @@ class BTQSManager:
         process_entries, cpu_usage_list, memory_usage_list = get_process_entries(
             config_data
         )
-        display_process_status_table(process_entries, cpu_usage_list, memory_usage_list)
+        display_process_status_table(
+            process_entries, cpu_usage_list, memory_usage_list, config_data
+        )
 
         spec_table = Table(
             title="[underline dark_orange]Machine Specifications[/underline dark_orange]",
@@ -457,8 +455,9 @@ class BTQSManager:
         version_table.add_row(
             "bittensor-wallet version:", get_bittensor_wallet_version()
         )
-        version_table.add_row("Python version:", get_python_version())
-        version_table.add_row("Python path:", get_python_path())
+        version_table.add_row(
+            "bittensor version:", get_bittensor_version()
+        )
 
         layout = Table.grid(expand=True)
         layout.add_column(justify="left")

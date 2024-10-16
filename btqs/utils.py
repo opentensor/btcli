@@ -1,8 +1,9 @@
 import os
 import re
-import subprocess
 import sys
+import subprocess
 import time
+import platform
 from datetime import datetime
 from typing import Any, Dict, Optional, Tuple
 
@@ -50,6 +51,157 @@ def load_config(
     with open(CONFIG_FILE_PATH, "r") as config_file:
         config_data = yaml.safe_load(config_file) or {}
     return config_data
+
+def is_package_installed(package_name: str) -> bool:
+    """
+    Checks if a system package is installed.
+
+    Args:
+        package_name (str): The name of the package to check.
+
+    Returns:
+        bool: True if installed, False otherwise.
+    """
+    try:
+        if platform.system() == 'Linux':
+            result = subprocess.run(['dpkg', '-l', package_name], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            return package_name in result.stdout
+        elif platform.system() == 'Darwin':  # macOS check
+            result = subprocess.run(['brew', 'list', package_name], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            return package_name in result.stdout
+        else:
+            console.print(f"[red]Unsupported operating system: {platform.system()}")
+            return False
+    except Exception as e:
+        console.print(f"[red]Error checking package {package_name}: {e}")
+        return False
+
+
+def is_rust_installed(required_version: str) -> bool:
+    """
+    Checks if Rust is installed and matches the required version.
+
+    Args:
+        required_version (str): The required Rust version.
+
+    Returns:
+        bool: True if Rust is installed and matches the required version, False otherwise.
+    """
+    try:
+        result = subprocess.run(['rustc', '--version'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        installed_version = result.stdout.strip().split()[1]
+        print(installed_version, required_version, result.stdout.strip().split()[1])
+        return installed_version == required_version
+    except Exception:
+        return False
+    
+
+def create_virtualenv(venv_path: str) -> str:
+    """
+    Creates a virtual environment at the specified path.
+
+    Args:
+        venv_path (str): The path where the virtual environment should be created.
+
+    Returns:
+        str: The path to the Python executable within the virtual environment.
+    """
+    if not os.path.exists(venv_path):
+        console.print(f"[green]Creating virtual environment at {venv_path}...")
+        subprocess.run([sys.executable, '-m', 'venv', venv_path], check=True)
+        console.print("[green]Virtual environment created.")
+        # Print activation snippet
+        activate_command = f"source {os.path.join(venv_path, 'bin', 'activate')}"
+        console.print(
+            f"[yellow]To activate the virtual environment manually, run:\n[bold cyan]{activate_command}\n"
+        )
+    else:
+        console.print(f"[green]Using existing virtual environment at {venv_path}.")
+
+    # Get the path to the Python executable in the virtual environment
+    venv_python = os.path.join(venv_path, 'bin', 'python')
+    return venv_python
+
+def install_subtensor_dependencies() -> None:
+    """
+    Installs subtensor dependencies, including system-level dependencies and Rust.
+    """
+    console.print("[green]Installing subtensor system dependencies...")
+
+    # Install required system dependencies
+    system_dependencies = [
+        'clang',
+        'curl',
+        'libssl-dev',
+        'llvm',
+        'libudev-dev',
+        'protobuf-compiler',
+    ]
+    missing_packages = []
+
+    if platform.system() == 'Linux':
+        for package in system_dependencies:
+            if not is_package_installed(package):
+                missing_packages.append(package)
+
+        if missing_packages:
+            console.print(f"[yellow]Installing missing system packages: {', '.join(missing_packages)}")
+            subprocess.run(['sudo', 'apt-get', 'update'], check=True)
+            subprocess.run(['sudo', 'apt-get', 'install', '-y'] + missing_packages, check=True)
+        else:
+            console.print("[green]All required system packages are already installed.")
+    
+    elif platform.system() == 'Darwin':  # macOS check
+        macos_dependencies = ['protobuf']
+        missing_packages = []
+        for package in macos_dependencies:
+            if not is_package_installed(package):
+                missing_packages.append(package)
+
+        if missing_packages:
+            console.print(f"[yellow]Installing missing macOS system packages: {', '.join(missing_packages)}")
+            subprocess.run(['brew', 'update'], check=True)
+            subprocess.run(['brew', 'install'] + missing_packages, check=True)
+        else:
+            console.print("[green]All required macOS system packages are already installed.")
+
+    else:
+        console.print("[red]Unsupported operating system for automatic system dependency installation.")
+        return
+
+    # Install Rust globally
+    console.print("[green]Checking Rust installation...")
+
+    installation_version = 'nightly-2024-03-05'
+    check_version = 'rustc 1.78.0-nightly'
+
+    if not is_rust_installed(check_version):
+        console.print(f"[yellow]Installing Rust {installation_version} globally...")
+        subprocess.run(['curl', '--proto', '=https', '--tlsv1.2', '-sSf', 'https://sh.rustup.rs', '-o', 'rustup.sh'], check=True)
+        subprocess.run(['sh', 'rustup.sh', '-y', '--default-toolchain', installation_version], check=True)
+    else:
+        console.print(f"[green]Required Rust version {check_version} is already installed.")
+
+    # Add necessary Rust targets
+    console.print("[green]Configuring Rust toolchain...")
+    subprocess.run(['rustup', 'target', 'add', 'wasm32-unknown-unknown', '--toolchain', 'stable'], check=True)
+    subprocess.run(['rustup', 'component', 'add', 'rust-src', '--toolchain', 'stable'], check=True)
+
+    console.print("[green]Subtensor dependencies installed.")
+
+
+def install_neuron_dependencies(venv_python: str, cwd: str) -> None:
+    """
+    Installs neuron dependencies into the virtual environment.
+
+    Args:
+        venv_python (str): Path to the Python executable in the virtual environment.
+        cwd (str): Current working directory where the setup should run.
+    """
+    console.print("[green]Installing neuron dependencies...")
+    subprocess.run([venv_python, '-m', 'pip', 'install', '--upgrade', 'pip'], cwd=cwd, check=True)
+    subprocess.run([venv_python, '-m', 'pip', 'install', '-e', '.'], cwd=cwd, check=True)
+    console.print("[green]Neuron dependencies installed.")
 
 def remove_ansi_escape_sequences(text: str) -> str:
     """
@@ -254,6 +406,20 @@ def get_bittensor_wallet_version() -> str:
     except Exception:
         return "Not installed or not found"
 
+def get_bittensor_version() -> str:
+    """
+    Gets the version of bittensor-wallet.
+    """
+    try:
+        result = subprocess.run(
+            ["pip", "show", "bittensor"], capture_output=True, text=True
+        )
+        for line in result.stdout.split("\n"):
+            if line.startswith("Version:"):
+                return line.split(":")[1].strip()
+    except Exception:
+        return "Not installed or not found"
+
 def get_python_version() -> str:
     """
     Gets the Python version.
@@ -333,6 +499,7 @@ def get_process_entries(
             "memory_usage": memory_usage,
             "uptime_str": uptime_str,
             "location": subtensor_path,
+            "venv_path": config_data.get("venv_subtensor")
         }
     )
 
@@ -358,6 +525,7 @@ def get_process_entries(
                 "memory_usage": memory_usage,
                 "uptime_str": uptime_str,
                 "location": subtensor_path,
+                "venv_path": "~"
             }
         )
 
@@ -365,7 +533,7 @@ def get_process_entries(
     miners = config_data.get("Miners", {})
     for wallet_name, wallet_info in miners.items():
         pid = wallet_info.get("pid")
-        location = wallet_info.get("path")
+        location = BTQS_WALLETS_DIRECTORY
         status, cpu_usage, memory_usage, uptime_str, cpu_percent, memory_percent = (
             get_process_info(pid)
         )
@@ -385,7 +553,8 @@ def get_process_entries(
                 "cpu_usage": cpu_usage,
                 "memory_usage": memory_usage,
                 "uptime_str": uptime_str,
-                "location": location,
+                "location": config_data.get("subnet_path"),
+                "venv_path": wallet_info.get("venv")
             }
         )
 
@@ -393,7 +562,7 @@ def get_process_entries(
     owner_data = config_data.get("Owner")
     if owner_data:
         pid = owner_data.get("pid")
-        location = owner_data.get("path")
+        location = BTQS_WALLETS_DIRECTORY
         status, cpu_usage, memory_usage, uptime_str, cpu_percent, memory_percent = (
             get_process_info(pid)
         )
@@ -406,14 +575,15 @@ def get_process_entries(
 
         process_entries.append(
             {
-                "process": "Validator",
+                "process": f"Validator: {owner_data.get("wallet_name")}",
                 "status": status,
                 "status_style": status_style,
                 "pid": str(pid),
                 "cpu_usage": cpu_usage,
                 "memory_usage": memory_usage,
                 "uptime_str": uptime_str,
-                "location": location,
+                "location": config_data.get("subnet_path"),
+                "venv_path": owner_data.get("venv")
             }
         )
 
@@ -423,12 +593,13 @@ def display_process_status_table(
     process_entries: list[Dict[str, str]],
     cpu_usage_list: list[float],
     memory_usage_list: list[float],
+    config_data = None
 ) -> None:
     """
     Displays the process status table.
     """
     table = Table(
-        title="[underline dark_orange]BTQS Process Manager[/underline dark_orange]\n",
+        title="\n[underline dark_orange]BTQS Process Manager[/underline dark_orange]\n",
         show_footer=True,
         show_edge=False,
         header_style="bold white",
@@ -481,18 +652,14 @@ def display_process_status_table(
         footer_style="bold white",
     )
 
-    table.add_column(
-        "[bold white]Location",
-        style="white",
-        overflow="fold",
-        footer_style="bold white",
-    )
-
     for entry in process_entries:
+        if entry["process"] == "Subtensor":
+            subtensor_venv = entry["venv_path"]
         if entry["process"].startswith("Subtensor"):
             process_style = "cyan"
         elif entry["process"].startswith("Miner"):
             process_style = "magenta"
+            neurons_venv = entry["venv_path"]
         elif entry["process"].startswith("Validator"):
             process_style = "yellow"
         else:
@@ -505,7 +672,6 @@ def display_process_status_table(
             entry["cpu_usage"],
             entry["memory_usage"],
             entry["uptime_str"],
-            entry["location"],
         )
 
     # Compute total CPU and Memory usage
@@ -520,17 +686,35 @@ def display_process_status_table(
     # Display the table
     console.print(table)
 
+    if config_data:
+        print("\n")
+        wallet_path = config_data.get("wallet_path", "")
+        if wallet_path:
+            console.print("[dark_orange]Wallet Path", wallet_path)
+        subnet_path = config_data.get("subnet_path", "")
+        if subnet_path:
+            console.print("[dark_orange]Subnet Path", subnet_path)
+
+        workspace_path = config_data.get("workspace_path", "")
+        if workspace_path:
+            console.print("[dark_orange]Workspace Path", workspace_path)
+        if subtensor_venv:
+            console.print("[dark_orange]Subtensor virtual environment", subtensor_venv)
+        if neurons_venv:
+            console.print("[dark_orange]Neurons virtual environment", neurons_venv)
+
 def start_miner(
     wallet_name: str,
     wallet_info: Dict[str, Any],
     subnet_template_path: str,
     config_data: Dict[str, Any],
+    venv_python: str,
 ) -> bool:
     """
     Starts a single miner and displays logs until user presses Ctrl+C.
     """
     wallet = Wallet(
-        path=wallet_info["path"],
+        path=BTQS_WALLETS_DIRECTORY,
         name=wallet_name,
         hotkey=wallet_info["hotkey"],
     )
@@ -541,7 +725,7 @@ def start_miner(
     env_variables["PYTHONUNBUFFERED"] = "1"
 
     cmd = [
-        sys.executable,
+        venv_python,
         "-u",
         "./neurons/miner.py",
         "--wallet.name",
@@ -583,16 +767,18 @@ def start_miner(
         except Exception as e:
             console.print(f"[red]Error starting miner {wallet_name}: {e}")
             return False
+        
 def start_validator(
     owner_info: Dict[str, Any],
     subnet_template_path: str,
     config_data: Dict[str, Any],
+    venv_python: str,
 ) -> bool:
     """
     Starts the validator process and displays logs until user presses Ctrl+C.
     """
     wallet = Wallet(
-        path=owner_info["path"],
+        path=BTQS_WALLETS_DIRECTORY,
         name=owner_info["wallet_name"],
         hotkey=owner_info["hotkey"],
     )
@@ -603,7 +789,7 @@ def start_validator(
     env_variables["BT_AXON_PORT"] = str(8100)
 
     cmd = [
-        sys.executable,
+        venv_python,
         "-u",
         "./neurons/validator.py",
         "--wallet.name",
@@ -672,3 +858,37 @@ def attach_to_process_logs(log_file_path: str, process_name: str, pid: int = Non
         console.print(f"\n[green]Detached from {process_name}.")
     except Exception as e:
         console.print(f"[red]Error attaching to {process_name}: {e}")
+
+
+# def activate_venv(workspace_path):
+#     venv_path = os.path.join(workspace_path, 'venv')
+#     if not os.path.exists(venv_path):
+#         console.print("[green]Creating virtual environment for subnet-template...")
+#         subprocess.run([sys.executable, '-m', 'venv', 'venv'], cwd=workspace_path)
+#         console.print("[green]Virtual environment created.")
+#         # Print activation snippet
+#         activate_command = (
+#             f"source {os.path.join(venv_path, 'bin', 'activate')}"
+#             if os.name != 'nt'
+#             else f"{os.path.join(venv_path, 'Scripts', 'activate')}"
+#         )
+#         console.print(
+#             f"[yellow]To activate the virtual environment manually, run:\n[bold cyan]{activate_command}\n"
+#         )
+#         # Install dependencies
+#         venv_python = (
+#             os.path.join(venv_path, 'bin', 'python')
+#             if os.name != 'nt'
+#             else os.path.join(venv_path, 'Scripts', 'python.exe')
+#         )
+#         console.print("[green]Installing subnet-template dependencies...")
+#         subprocess.run([venv_python, '-m', 'pip', 'install', '--upgrade', 'pip'], cwd=workspace_path)
+#         subprocess.run([venv_python, '-m', 'pip', 'install', '-e', '.'], cwd=workspace_path)
+#         console.print("[green]Dependencies installed.")
+#     else:
+#         console.print("[green]Using existing virtual environment for subnet-template.")
+#         venv_python = (
+#             os.path.join(venv_path, 'bin', 'python')
+#             if os.name != 'nt'
+#             else os.path.join(venv_path, 'Scripts', 'python.exe')
+#         )

@@ -86,6 +86,7 @@ async def register_subnetwork_extrinsic(
 
     print_verbose("Fetching lock_cost")
     burn_cost = await lock_cost(subtensor)
+    print(burn_cost)
     if burn_cost > your_balance:
         err_console.print(
             f"Your balance of: [green]{your_balance}[/green] is not enough to pay the subnet lock cost of: "
@@ -363,7 +364,7 @@ async def lock_cost(subtensor: "SubtensorInterface") -> Optional[Balance]:
             method="get_network_registration_cost",
             params=[],
         )
-    if lc:
+    if lc is not None:
         lock_cost_ = Balance(lc)
         console.print(f"Subnet lock cost: [green]{lock_cost_}[/green]")
         return lock_cost_

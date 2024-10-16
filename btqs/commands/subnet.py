@@ -1,7 +1,5 @@
 import os
-import sys
 import time
-import threading
 from tqdm import tqdm
 import typer
 import yaml
@@ -29,9 +27,17 @@ def add_stake(config_data = None):
     if subnet_owner:
         owner_wallet = Wallet(
             name=owner_data.get("wallet_name"),
-            path=owner_data.get("path"),
+            path=BTQS_WALLETS_DIRECTORY,
             hotkey=owner_data.get("hotkey"),
         )
+
+        text = Text(
+                f"Validator is adding stake to own hotkey ({owner_wallet})\n",
+                style="bold light_goldenrod2",
+            )
+        sign = Text("🔖", style="bold yellow")
+        console.print(sign, text)
+
         add_stake = exec_command(
             command="stake",
             sub_command="add",
@@ -58,9 +64,70 @@ def add_stake(config_data = None):
             )
             sign = Text("📈 ", style="bold yellow")
             console.print(sign, text)
+
+            console.print("[dark_green]\nViewing Metagraph for Subnet 1")
+            subnets_list = exec_command(
+                command="subnets",
+                sub_command="metagraph",
+                extra_args=[
+                    "--netuid",
+                    "1",
+                    "--chain",
+                    "ws://127.0.0.1:9945",
+                ],
+            )
+            print(subnets_list.stdout, end="")
+            
         else:
             console.print("\n[red] Failed to add stake. Command output:\n")
             print(add_stake.stdout, end="")
+
+        text = Text(
+                f"Validator is registering to root ({owner_wallet})\n",
+                style="bold light_goldenrod2",
+            )
+        sign = Text("\n🍀 ", style="bold yellow")
+        console.print(sign, text)
+        
+        register_root = exec_command(
+            command="root",
+            sub_command="register",
+            extra_args=[
+                "--wallet-path",
+                BTQS_WALLETS_DIRECTORY,
+                "--chain",
+                "ws://127.0.0.1:9945",
+                "--wallet-name",
+                owner_wallet.name,
+                "--no-prompt",
+                "--wallet-hotkey",
+                owner_wallet.hotkey_str,
+            ],
+        )
+        clean_stdout = remove_ansi_escape_sequences(register_root.stdout)
+        if "✅ Registered" in clean_stdout:
+            text = Text(
+                "Successfully registered to root (Netuid 0)\n",
+                style="bold light_goldenrod2",
+            )
+            sign = Text("🌟 ", style="bold yellow")
+            console.print(sign, text)
+        elif "✅ Already registered on root network" in clean_stdout:
+            console.print("[bold light_goldenrod2]✅ Validator is already registered to Root network")
+        else:
+            console.print("\n[red] Failed to register to root. Command output:\n")
+            print(register_root.stdout, end="")
+
+        console.print("[dark_green]\nViewing Root list")
+        subnets_list = exec_command(
+            command="root",
+            sub_command="list",
+            extra_args=[
+                "--chain",
+                "ws://127.0.0.1:9945",
+            ],
+        )
+        print(subnets_list.stdout, end="")
 
     else:
         console.print(
@@ -69,7 +136,7 @@ def add_stake(config_data = None):
         return
     
 
-def display_live_metagraph():
+def display_live_metagraph(config_data):
     """
     Displays a live view of the metagraph for subnet 1.
 
@@ -99,17 +166,6 @@ def display_live_metagraph():
         return result.stdout
 
     print("Starting live metagraph view. Press 'Ctrl + C' to exit.")
-    config_data = load_config(
-        "A running Subtensor not found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
-    )
-
-    def input_thread():
-        while True:
-            if input() == "q":
-                print("Exiting live view...")
-                sys.exit(0)
-
-    threading.Thread(target=input_thread, daemon=True).start()
 
     try:
         while True:
@@ -117,7 +173,7 @@ def display_live_metagraph():
             process_entries, cpu_usage_list, memory_usage_list = get_process_entries(config_data)
             clear_screen()
             print(metagraph)
-            display_process_status_table(process_entries, cpu_usage_list, memory_usage_list)
+            display_process_status_table(process_entries, cpu_usage_list, memory_usage_list, config_data)
 
             # Create a progress bar for 5 seconds
             print("\n")
@@ -139,7 +195,7 @@ def setup_subnet(config_data):
     if subnet_owner:
         owner_wallet = Wallet(
             name=owner_data.get("wallet_name"),
-            path=owner_data.get("path"),
+            path=BTQS_WALLETS_DIRECTORY,
             hotkey=owner_data.get("hotkey"),
         )
 
@@ -161,7 +217,7 @@ def setup_subnet(config_data):
     owner_data = config_data["Owner"]
     owner_wallet = Wallet(
         name=owner_data.get("wallet_name"),
-        path=owner_data.get("path"),
+        path=BTQS_WALLETS_DIRECTORY,
         hotkey=owner_data.get("hotkey"),
     )
 
@@ -223,7 +279,6 @@ def create_subnet_owner_wallet(config_data):
 
     config_data["Owner"] = {
         "wallet_name": owner_wallet_name,
-        "path": BTQS_WALLETS_DIRECTORY,
         "hotkey": owner_hotkey_name,
         "subtensor_pid": config_data["pid"],
     }
@@ -231,7 +286,7 @@ def create_subnet_owner_wallet(config_data):
         yaml.safe_dump(config_data, config_file)
 
 def create_subnet(owner_wallet):
-    text = Text("\nCreating a subnet with Netuid 1.\n", style="bold light_goldenrod2")
+    text = Text("Creating a subnet with Netuid 1.\n", style="bold light_goldenrod2")
     sign = Text("\nℹ️ ", style="bold yellow")
     console.print(sign, text)
 
@@ -254,7 +309,7 @@ def create_subnet(owner_wallet):
     if "✅ Registered subnetwork with netuid: 1" in clean_stdout:
         console.print("[dark_green] Subnet created successfully with netuid 1")
 
-    text = Text(f"\nRegistering Owner ({owner_wallet}) to Netuid 1\n", style="bold light_goldenrod2")
+    text = Text(f"Registering Owner ({owner_wallet}) to Netuid 1\n", style="bold light_goldenrod2")
     sign = Text("\nℹ️ ", style="bold yellow")
     console.print(sign, text)
 

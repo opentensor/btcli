@@ -11,7 +11,8 @@ from btqs.config import (
     SUBNET_TEMPLATE_REPO_URL,
     SUBNET_TEMPLATE_BRANCH,
     WALLET_URIS,
-    MINER_PORTS
+    MINER_PORTS,
+    DEFAULT_SUBNET_PATH,
 )
 from btqs.utils import (
     console,
@@ -23,6 +24,8 @@ from btqs.utils import (
     start_miner,
     attach_to_process_logs,
     subnet_owner_exists,
+    create_virtualenv,
+    install_neuron_dependencies,
 )
 
 
@@ -69,12 +72,20 @@ def run_neurons(config_data):
     chain_pid = config_data.get("pid")
     config_data["subnet_path"] = subnet_template_path
 
+    venv_neurons_path = os.path.join(config_data["workspace_path"], 'venv_neurons')
+    venv_python = create_virtualenv(venv_neurons_path)
+    install_neuron_dependencies(venv_python, subnet_template_path)
+
     # Handle Validator
     if config_data.get("Owner"):
-        _run_validator(config_data, subnet_template_path, chain_pid)
+        config_data["Owner"]["venv"] = venv_python
+        _run_validator(config_data, subnet_template_path, chain_pid, venv_python)
 
     # Handle Miners
-    _run_miners(config_data, subnet_template_path, chain_pid)
+    for wallet_name, wallet_info in config_data.get("Miners", {}).items():
+        config_data["Miners"][wallet_name]["venv"] = venv_python
+
+    _run_miners(config_data, subnet_template_path, chain_pid, venv_python)
 
     with open(CONFIG_FILE_PATH, "w") as config_file:
         yaml.safe_dump(config_data, config_file)
@@ -263,7 +274,6 @@ def _create_miner_wallets(config_data):
         wallet.set_hotkey(keypair=keypair, encrypt=False, overwrite=True)
 
         config_data["Miners"][wallet_name] = {
-            "path": BTQS_WALLETS_DIRECTORY,
             "hotkey": hotkey_name,
             "uri": uri,
             "pid": None,
@@ -279,7 +289,7 @@ def _create_miner_wallets(config_data):
 def _register_miners(config_data):
     for wallet_name, wallet_info in config_data["Miners"].items():
         wallet = Wallet(
-            path=wallet_info["path"],
+            path=BTQS_WALLETS_DIRECTORY,
             name=wallet_name,
             hotkey=wallet_info["hotkey"],
         )
@@ -328,9 +338,8 @@ def _add_subnet_template(config_data):
         console.print("[red]Base path not found in the configuration file.")
         return
 
-    subnet_template_path = os.path.join(workspace_path, "subnet-template")
-
-    if not os.path.exists(subnet_template_path):
+    subnet_template_path = DEFAULT_SUBNET_PATH
+    if not os.path.exists(DEFAULT_SUBNET_PATH):
         console.print("[green]Cloning subnet-template repository...")
         try:
             repo = Repo.clone_from(
@@ -356,7 +365,7 @@ def _add_subnet_template(config_data):
     return subnet_template_path
 
 
-def _run_validator(config_data, subnet_template_path, chain_pid):
+def _run_validator(config_data, subnet_template_path, chain_pid, venv_python):
     owner_info = config_data["Owner"]
     validator_pid = owner_info.get("pid")
     validator_subtensor_pid = owner_info.get("subtensor_pid")
@@ -376,12 +385,12 @@ def _run_validator(config_data, subnet_template_path, chain_pid):
             console.print("[red]Log file not found for validator. Cannot attach.")
     else:
         # Validator is not running, start it
-        success = start_validator(owner_info, subnet_template_path, config_data)
+        success = start_validator(owner_info, subnet_template_path, config_data, venv_python)
         if not success:
             console.print("[red]Failed to start validator.")
 
 
-def _run_miners(config_data, subnet_template_path, chain_pid):
+def _run_miners(config_data, subnet_template_path, chain_pid, venv_python):
     for wallet_name, wallet_info in config_data.get("Miners", {}).items():
         miner_pid = wallet_info.get("pid")
         miner_subtensor_pid = wallet_info.get("subtensor_pid")
@@ -404,7 +413,7 @@ def _run_miners(config_data, subnet_template_path, chain_pid):
         else:
             # Miner is not running, start it
             success = start_miner(
-                wallet_name, wallet_info, subnet_template_path, config_data
+                wallet_name, wallet_info, subnet_template_path, config_data, venv_python
             )
             if not success:
                 console.print(f"[red]Failed to start miner {wallet_name}.")
@@ -439,7 +448,7 @@ def _start_selected_neurons(config_data, selected_neurons):
         neuron_name = neuron["process"]
         if neuron_name.startswith("Validator"):
             success = start_validator(
-                config_data["Owner"], subnet_template_path, config_data
+                config_data["Owner"], subnet_template_path, config_data, config_data["Owner"]["venv"]
             )
         elif neuron_name.startswith("Miner"):
             wallet_name = neuron_name.split("Miner: ")[-1]

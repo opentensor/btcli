@@ -3,13 +3,14 @@ import subprocess
 import time
 
 import psutil
+
 import yaml
 from git import GitCommandError, Repo
 from rich.console import Console
 from rich.text import Text
 
 from btqs.config import CONFIG_FILE_PATH, SUBTENSOR_REPO_URL
-from btqs.utils import attach_to_process_logs, get_process_entries
+from btqs.utils import attach_to_process_logs, get_process_entries, create_virtualenv, install_neuron_dependencies, install_subtensor_dependencies
 from rich.prompt import Confirm
 
 console = Console()
@@ -50,15 +51,25 @@ def start(config_data, workspace_path, branch):
         except GitCommandError as e:
             console.print(f"[red]Error cloning repository: {e}")
             return
+    
+    venv_subtensor_path = os.path.join(workspace_path, 'venv_subtensor')
+    venv_python = create_virtualenv(venv_subtensor_path)
+    install_subtensor_dependencies()
 
+    config_data['venv_subtensor'] = venv_subtensor_path
+
+    # Running localnet.sh using the virtual environment's Python
     localnet_path = os.path.join(subtensor_path, "scripts", "localnet.sh")
-    # Running localnet.sh
+
+    env_variables = os.environ.copy()
+    env_variables["PATH"] = os.path.dirname(venv_python) + os.pathsep + env_variables["PATH"]
     process = subprocess.Popen(
-        ["bash", localnet_path],
+        [localnet_path],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.STDOUT,
         cwd=subtensor_path,
         start_new_session=True,
+        env=env_variables,
     )
 
     console.print("[green]Starting local chain. This may take a few minutes...")
