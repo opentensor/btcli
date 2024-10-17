@@ -3034,8 +3034,8 @@ class CLIManager:
     def subnets_list(
         self,
         network: Optional[list[str]] = Options.network,
-        reuse_last: bool = Options.reuse_last,
-        html_output: bool = Options.html_output,
+        # reuse_last: bool = Options.reuse_last,
+        # html_output: bool = Options.html_output,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -3058,21 +3058,21 @@ class CLIManager:
         [green]$[/green] btcli subnets list
         """
         self.verbosity_handler(quiet, verbose)
-        if (reuse_last or html_output) and self.config.get("use_cache") is False:
-            err_console.print(
-                "Unable to use `--reuse-last` or `--html` when config 'no-cache' is set to 'True'. "
-                "Change the config to 'False' using `btcli config set`."
-            )
-            raise typer.Exit()
-        if reuse_last:
-            subtensor = None
-        else:
-            subtensor = self.initialize_chain(network)
+        # if (reuse_last or html_output) and self.config.get("use_cache") is False:
+        #     err_console.print(
+        #         "Unable to use `--reuse-last` or `--html` when config 'no-cache' is set to 'True'. "
+        #         "Change the config to 'False' using `btcli config set`."
+        #     )
+        #     raise typer.Exit()
+        # if reuse_last:
+        #     subtensor = None
+        # else:
+        subtensor = self.initialize_chain(network)
         return self._run_command(
             subnets.subnets_list(
                 subtensor,
-                reuse_last,
-                html_output,
+                False,  # reuse-last
+                False,  # html-output
                 not self.config.get("use_cache", True),
             )
         )

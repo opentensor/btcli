@@ -153,204 +153,112 @@ async def subnets_list(
     subtensor: "SubtensorInterface", reuse_last: bool, html_output: bool, no_cache: bool
 ):
     """List all subnet netuids in the network."""
+    # TODO add reuse-last and html-output and no-cache
 
-    async def _get_all_subnets_info():
-        hex_bytes_result = await subtensor.query_runtime_api(
-            runtime_api="SubnetInfoRuntimeApi", method="get_subnets_info", params=[]
-        )
-        try:
-            bytes_result = bytes.fromhex(hex_bytes_result[2:])
-        except ValueError:
-            bytes_result = bytes.fromhex(hex_bytes_result)
-
-        return SubnetInfo.list_from_vec_u8(bytes_result)
-
-    if not reuse_last:
-        subnets: list[SubnetInfo]
-        delegate_info: dict[str, DelegatesDetails]
-
-        print_verbose("Fetching subnet and delegate information")
-        subnets, delegate_info = await asyncio.gather(
-            _get_all_subnets_info(),
-            subtensor.get_delegate_identities(),
-        )
-
-        if not subnets:
-            err_console.print("[red]No subnets found[/red]")
-            return
-
-        rows = []
-        db_rows = []
-        total_neurons = 0
-        max_neurons = 0
-
-        for subnet in subnets:
-            total_neurons += subnet.subnetwork_n
-            max_neurons += subnet.max_n
-            rows.append(
-                (
-                    str(subnet.netuid),
-                    str(subnet.subnetwork_n),
-                    str(millify(subnet.max_n)),
-                    f"{subnet.emission_value / RAO_PER_TAO * 100:0.2f}%",
-                    str(subnet.tempo),
-                    f"{subnet.burn!s:8.8}",
-                    str(millify(subnet.difficulty)),
-                    str(
-                        delegate_info[subnet.owner_ss58].display
-                        if subnet.owner_ss58 in delegate_info
-                        else subnet.owner_ss58
-                    ),
-                )
-            )
-            db_rows.append(
-                [
-                    int(subnet.netuid),
-                    int(subnet.subnetwork_n),
-                    int(subnet.max_n),  # millified in HTML table
-                    float(
-                        subnet.emission_value / RAO_PER_TAO * 100
-                    ),  # shown as percentage in HTML table
-                    int(subnet.tempo),
-                    float(subnet.burn),
-                    int(subnet.difficulty),  # millified in HTML table
-                    str(
-                        delegate_info[subnet.owner_ss58].display
-                        if subnet.owner_ss58 in delegate_info
-                        else subnet.owner_ss58
-                    ),
-                ]
-            )
-        metadata = {
-            "network": subtensor.network,
-            "netuid_count": len(subnets),
-            "N": total_neurons,
-            "MAX_N": max_neurons,
-            "rows": json.dumps(rows),
-        }
-        if not no_cache:
-            create_table(
-                "subnetslist",
-                [
-                    ("NETUID", "INTEGER"),
-                    ("N", "INTEGER"),
-                    ("MAX_N", "BLOB"),
-                    ("EMISSION", "REAL"),
-                    ("TEMPO", "INTEGER"),
-                    ("RECYCLE", "REAL"),
-                    ("DIFFICULTY", "BLOB"),
-                    ("SUDO", "TEXT"),
-                ],
-                db_rows,
-            )
-            update_metadata_table("subnetslist", values=metadata)
-    else:
-        try:
-            metadata = get_metadata_table("subnetslist")
-            rows = json.loads(metadata["rows"])
-        except sqlite3.OperationalError:
-            err_console.print(
-                "[red]Error[/red] Unable to retrieve table data. This is usually caused by attempting to use "
-                "`--reuse-last` before running the command a first time. In rare cases, this could also be due to "
-                "a corrupted database. Re-run the command (do not use `--reuse-last`) and see if that resolves your "
-                "issue."
-            )
-            return
-    if not html_output:
-        table = Table(
-            title=f"[underline dark_orange]Subnets[/underline dark_orange]\n[dark_orange]Network: {metadata['network']}[/dark_orange]\n",
-            show_footer=True,
-            show_edge=False,
-            header_style="bold white",
-            border_style="bright_black",
-            style="bold",
-            title_justify="center",
-            show_lines=False,
-            pad_edge=True,
-        )
-
-        table.add_column(
-            "[bold white]NETUID",
-            footer=f"[white]{metadata['netuid_count']}[/white]",
-            style="white",
-            justify="center",
-        )
-        table.add_column(
-            "[bold white]N",
-            footer=f"[white]{metadata['N']}[/white]",
-            style="bright_cyan",
-            justify="right",
-        )
-        table.add_column(
-            "[bold white]MAX_N",
-            footer=f"[white]{metadata['MAX_N']}[/white]",
-            style="bright_cyan",
-            justify="right",
-        )
-        table.add_column(
-            "[bold white]EMISSION", style="light_goldenrod2", justify="right"
-        )
-        table.add_column("[bold white]TEMPO", style="rgb(42,161,152)", justify="right")
-        table.add_column("[bold white]RECYCLE", style="light_salmon3", justify="right")
-        table.add_column("[bold white]POW", style="medium_purple", justify="right")
-        table.add_column(
-            "[bold white]SUDO", style="bright_magenta", justify="right", overflow="fold"
-        )
-
-        for row in rows:
-            table.add_row(*row)
-
-        console.print(table)
-        console.print(
-            dedent(
-                """
-            Description:
-                The table displays the list of subnets registered in the Bittensor network.
-                    - NETUID: The network identifier of the subnet.
-                    - N: The current UIDs registered to the network. 
-                    - MAX_N: The total UIDs allowed on the network.
-                    - EMISSION: The emission accrued by this subnet in the network.
-                    - TEMPO: A duration of a number of blocks. Several subnet events occur at the end of every tempo period.
-                    - RECYCLE: Cost to register to the subnet.
-                    - POW: Proof of work metric of the subnet.
-                    - SUDO: Owner's identity.
-            """
+    # Initialize variables to store aggregated data
+    rows = []
+    subnets = await subtensor.get_all_subnet_dynamic_info()
+    for subnet in subnets:
+        symbol = f"{subnet.symbol}\u200e"
+        rows.append(
+            (
+                str(subnet.netuid),
+                f"[light_goldenrod1]{subnet.symbol}[light_goldenrod1]",
+                f"τ {subnet.emission.tao:.4f}",
+                # f"P( τ {subnet.tao_in.tao:,.4f},",
+                f"τ {subnet.tao_in.tao:,.4f}",
+                # f"{subnet.alpha_in.tao:,.4f} {subnet.symbol} )",
+                f"{subnet.alpha_out.tao:,.4f} {symbol}",
+                f"{subnet.price.tao:.4f} τ/{symbol}",
+                str(subnet.blocks_since_last_step) + "/" + str(subnet.tempo),
+                # f"{subnet.owner_locked}" + "/" + f"{subnet.total_locked}",
+                # f"{subnet.owner[:3]}...{subnet.owner[-3:]}",
             )
         )
-    else:
-        render_table(
-            "subnetslist",
-            f"Subnets List | Network: {metadata['network']} - "
-            f"Netuids: {metadata['netuid_count']} - N: {metadata['N']}",
-            columns=[
-                {"title": "NetUID", "field": "NETUID"},
-                {"title": "N", "field": "N"},
-                {"title": "MAX_N", "field": "MAX_N", "customFormatter": "millify"},
-                {
-                    "title": "EMISSION",
-                    "field": "EMISSION",
-                    "formatter": "money",
-                    "formatterParams": {
-                        "symbolAfter": "p",
-                        "symbol": "%",
-                        "precision": 2,
-                    },
-                },
-                {"title": "Tempo", "field": "TEMPO"},
-                {
-                    "title": "Recycle",
-                    "field": "RECYCLE",
-                    "formatter": "money",
-                    "formatterParams": {"symbol": "τ", "precision": 5},
-                },
-                {
-                    "title": "Difficulty",
-                    "field": "DIFFICULTY",
-                    "customFormatter": "millify",
-                },
-                {"title": "sudo", "field": "SUDO"},
-            ],
-        )
+
+    # Define table properties
+    console_width = console.width - 5
+    table = Table(
+        title="Subnet Info",
+        width=console_width,
+        safe_box=True,
+        padding=(0, 1),
+        collapse_padding=False,
+        pad_edge=True,
+        expand=True,
+        show_header=True,
+        show_footer=True,
+        show_edge=False,
+        show_lines=False,
+        leading=0,
+        style="none",
+        row_styles=None,
+        header_style="bold",
+        footer_style="bold",
+        border_style="rgb(7,54,66)",
+        title_style="bold magenta",
+        title_justify="center",
+        highlight=False,
+    )
+    table.title = f"[white]Subnets - {subtensor.network}\n"
+
+    # Add columns to the table
+    # price_total = f"τ{total_price.tao:.2f}/{bt.Balance.from_rao(dynamic_emission).tao:.2f}"
+    # above_price_threshold = total_price.tao > bt.Balance.from_rao(dynamic_emission).tao
+
+    table.add_column("Netuid", style="rgb(253,246,227)", no_wrap=True, justify="center")
+    table.add_column("Symbol", style="rgb(211,54,130)", no_wrap=True, justify="center")
+    table.add_column(
+        f"Emission ({Balance.get_unit(0)})",
+        style="rgb(38,139,210)",
+        no_wrap=True,
+        justify="right",
+    )
+    table.add_column(
+        f"TAO({Balance.get_unit(0)})",
+        style="medium_purple",
+        no_wrap=True,
+        justify="right",
+    )
+    # table.add_column(f"{bt.Balance.get_unit(1)})", style="rgb(42,161,152)", no_wrap=True, justify="left")
+    table.add_column(
+        f"Stake({Balance.get_unit(1)})", style="green", no_wrap=True, justify="right"
+    )
+    table.add_column(
+        f"Rate ({Balance.get_unit(1)}/{Balance.get_unit(0)})",
+        style="light_goldenrod2",
+        no_wrap=True,
+        justify="center",
+    )
+    table.add_column(
+        "Tempo (k/n)", style="light_salmon3", no_wrap=True, justify="center"
+    )
+    # table.add_column(f"Locked ({bt.Balance.get_unit(1)})", style="rgb(38,139,210)", no_wrap=True, justify="center")
+    # table.add_column("Owner", style="rgb(38,139,210)", no_wrap=True, justify="center")
+
+    # Sort rows by subnet.emission.tao, keeping the first subnet in the first position
+    sorted_rows = [rows[0]] + sorted(rows[1:], key=lambda x: x[2], reverse=True)
+
+    # Add rows to the table
+    for row in sorted_rows:
+        table.add_row(*row)
+
+    # Print the table
+    console.print(table)
+    console.print(
+        """
+[bold white]Description[/bold white]:
+The table displays relevant information about each subnet on the network. 
+The columns are as follows:
+    - [bold white]Netuid[/bold white]: The unique identifier for the subnet (its index).
+    - [bold white]Symbol[/bold white]: The symbol representing the subnet's stake.
+    - [bold white]Emission[/bold white]: The amount of TAO added to the subnet every block. Calculated by dividing the TAO (t) column values by the sum of the TAO (t) column.
+    - [bold white]TAO[/bold white]: The TAO staked into the subnet ( which dynamically changes during stake, unstake and emission events ).
+    - [bold white]Stake[/bold white]: The outstanding supply of stake across all staking accounts on this subnet.
+    - [bold white]Rate[/bold white]: The rate of conversion between TAO and the subnet's staking unit.
+    - [bold white]Tempo[/bold white]: The number of blocks between epochs. Represented as (k/n) where k is the blocks since the last epoch and n is the total blocks in the epoch.
+"""
+    )
 
 
 async def lock_cost(subtensor: "SubtensorInterface") -> Optional[Balance]:
