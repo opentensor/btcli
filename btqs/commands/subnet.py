@@ -6,10 +6,8 @@ import yaml
 from rich.text import Text
 from rich.table import Table
 from bittensor_wallet import Wallet, Keypair
-from btqs.config  import (
-    CONFIG_FILE_PATH,
-    VALIDATOR_URI,
-)
+from rich.progress import Progress, BarColumn, TimeRemainingColumn
+from btqs.config import CONFIG_FILE_PATH, VALIDATOR_URI, LOCALNET_ENDPOINT
 from btqs.utils import (
     console,
     exec_command,
@@ -21,6 +19,7 @@ from btqs.utils import (
     load_config,
 )
 
+
 def add_stake(config_data):
     subnet_owner, owner_data = subnet_owner_exists(CONFIG_FILE_PATH)
     if subnet_owner:
@@ -31,9 +30,9 @@ def add_stake(config_data):
         )
 
         text = Text(
-                f"Validator is adding stake to own hotkey ({owner_wallet})\n",
-                style="bold light_goldenrod2",
-            )
+            f"Validator is adding stake to own hotkey ({owner_wallet})\n",
+            style="bold light_goldenrod2",
+        )
         sign = Text("🔖", style="bold yellow")
         console.print(sign, text)
 
@@ -46,7 +45,7 @@ def add_stake(config_data):
                 "--wallet-path",
                 config_data["wallets_path"],
                 "--chain",
-                "ws://127.0.0.1:9945",
+                LOCALNET_ENDPOINT,
                 "--wallet-name",
                 owner_wallet.name,
                 "--no-prompt",
@@ -72,22 +71,22 @@ def add_stake(config_data):
                     "--netuid",
                     "1",
                     "--chain",
-                    "ws://127.0.0.1:9945",
+                    LOCALNET_ENDPOINT,
                 ],
             )
             print(subnets_list.stdout, end="")
-            
+
         else:
             console.print("\n[red] Failed to add stake. Command output:\n")
             print(add_stake.stdout, end="")
 
         text = Text(
-                f"Validator is registering to root ({owner_wallet})\n",
-                style="bold light_goldenrod2",
-            )
+            f"Validator is registering to root ({owner_wallet})\n",
+            style="bold light_goldenrod2",
+        )
         sign = Text("\n🍀 ", style="bold yellow")
         console.print(sign, text)
-        
+
         register_root = exec_command(
             command="root",
             sub_command="register",
@@ -95,7 +94,7 @@ def add_stake(config_data):
                 "--wallet-path",
                 config_data["wallets_path"],
                 "--chain",
-                "ws://127.0.0.1:9945",
+                LOCALNET_ENDPOINT,
                 "--wallet-name",
                 owner_wallet.name,
                 "--no-prompt",
@@ -112,7 +111,9 @@ def add_stake(config_data):
             sign = Text("🌟 ", style="bold yellow")
             console.print(sign, text)
         elif "✅ Already registered on root network" in clean_stdout:
-            console.print("[bold light_goldenrod2]✅ Validator is already registered to Root network")
+            console.print(
+                "[bold light_goldenrod2]✅ Validator is already registered to Root network"
+            )
         else:
             console.print("\n[red] Failed to register to root. Command output:\n")
             print(register_root.stdout, end="")
@@ -123,7 +124,7 @@ def add_stake(config_data):
             sub_command="list",
             extra_args=[
                 "--chain",
-                "ws://127.0.0.1:9945",
+                LOCALNET_ENDPOINT,
             ],
         )
         print(subnets_list.stdout, end="")
@@ -133,20 +134,113 @@ def add_stake(config_data):
             "[red]Subnet netuid 1 registered to the owner not found. Run `btqs subnet setup` first"
         )
         return
-    
+
+
+def add_weights(config_data):
+    subnet_owner, owner_data = subnet_owner_exists(CONFIG_FILE_PATH)
+    if subnet_owner:
+        owner_wallet = Wallet(
+            name=owner_data.get("wallet_name"),
+            path=config_data["wallets_path"],
+            hotkey=owner_data.get("hotkey"),
+        )
+        text = Text(
+            "Validator is now setting weights on root network\n",
+            style="bold light_goldenrod2",
+        )
+        sign = Text("\n🏋️ ", style="bold yellow")
+        console.print(sign, text)
+
+        max_retries = 5
+        attempt = 0
+        wait_time = 30
+
+        while attempt < max_retries:
+            try:
+                set_weights = exec_command(
+                    command="root",
+                    sub_command="set-weights",
+                    extra_args=[
+                        "--wallet-path",
+                        config_data["wallets_path"],
+                        "--chain",
+                        LOCALNET_ENDPOINT,
+                        "--wallet-name",
+                        owner_wallet.name,
+                        "--no-prompt",
+                        "--wallet-hotkey",
+                        owner_wallet.hotkey_str,
+                        "--netuid",
+                        1,
+                        "--weights",
+                        1,
+                    ],
+                )
+                clean_stdout = remove_ansi_escape_sequences(set_weights.stdout)
+
+                if "✅ Finalized" in clean_stdout:
+                    text = Text(
+                        "Successfully set weights to Netuid 1\n",
+                        style="bold light_goldenrod2",
+                    )
+                    sign = Text("🌟 ", style="bold yellow")
+                    console.print(sign, text)
+                    break
+
+                elif "Transaction has a bad signature" in clean_stdout:
+                    attempt += 1
+                    if attempt < max_retries:
+                        console.print(
+                            f"[red]Attempt {attempt}/{max_retries}: Transaction has a bad signature. Retrying in {wait_time} seconds..."
+                        )
+
+                        with Progress(
+                            "[progress.percentage]{task.percentage:>3.0f}%",
+                            BarColumn(),
+                            TimeRemainingColumn(),
+                            console=console,
+                            transient=True,
+                        ) as progress:
+                            task = progress.add_task("Waiting...", total=wait_time)
+                            while not progress.finished:
+                                progress.update(task, advance=1)
+                                time.sleep(1)
+                    else:
+                        console.print(
+                            f"[red]Attempt {attempt}/{max_retries}: Transaction has a bad signature. Maximum retries reached."
+                        )
+                        console.print(
+                            "\n[red]Failed to set weights after multiple attempts. Please try again later\n"
+                        )
+                else:
+                    console.print("\n[red]Failed to set weights. Command output:\n")
+                    print(set_weights.stdout, end="")
+                    break
+
+            except KeyboardInterrupt:
+                console.print("\n[yellow]Process interrupted by user. Exiting...")
+                return
+
+            except Exception as e:
+                console.print(f"[red]An unexpected error occurred: {e}")
+                break
+
+        else:
+            console.print(
+                "[red]All retry attempts exhausted. Unable to set weights on the root network."
+            )
+    else:
+        console.print(
+            "[red]Subnet netuid 1 registered to the owner not found. Run `btqs subnet setup` first"
+        )
+        return
+
 
 def display_live_metagraph(config_data):
     """
-    Displays a live view of the metagraph for subnet 1.
-
-    This command shows real-time updates of the metagraph and neuron statuses.
-
-    USAGE
-
-    [green]$[/green] btqs subnet live
-
-    [bold]Note[/bold]: Press Ctrl+C to exit the live view.
+    Displays a live view of the metagraph.
     """
+
     def clear_screen():
         os.system("cls" if os.name == "nt" else "clear")
 
@@ -160,7 +254,7 @@ def display_live_metagraph(config_data):
                 "--chain",
                 "ws://127.0.0.1:9945",
             ],
-            internal_command=True
+            internal_command=True,
         )
         return result.stdout
 
@@ -169,24 +263,31 @@ def display_live_metagraph(config_data):
     try:
         while True:
             metagraph = get_metagraph()
-            process_entries, cpu_usage_list, memory_usage_list = get_process_entries(config_data)
+            process_entries, cpu_usage_list, memory_usage_list = get_process_entries(
+                config_data
+            )
             clear_screen()
             print(metagraph)
-            display_process_status_table(process_entries, cpu_usage_list, memory_usage_list, config_data)
+            display_process_status_table(
+                process_entries, cpu_usage_list, memory_usage_list, config_data
+            )
 
             # Create a progress bar for 5 seconds
             print("\n")
             console.print("[green] Live view active: Press Ctrl + C to exit\n")
-            for _ in tqdm(range(5), 
-              desc="Refreshing", 
-              bar_format="{desc}: {bar}",
-              ascii=" ▖▘▝▗▚▞",
-              ncols=20,
-              colour="green"):
+            for _ in tqdm(
+                range(5),
+                desc="Refreshing",
+                bar_format="{desc}: {bar}",
+                ascii=" ▖▘▝▗▚▞",
+                ncols=20,
+                colour="green",
+            ):
                 time.sleep(1)
 
     except KeyboardInterrupt:
         print("Exiting live view...")
+
 
 def setup_subnet(config_data):
     os.makedirs(config_data["wallets_path"], exist_ok=True)
@@ -249,6 +350,7 @@ def setup_subnet(config_data):
     )
     print(subnets_list.stdout, end="")
 
+
 def create_subnet_owner_wallet(config_data):
     text = Text("Creating subnet owner wallet.\n", style="bold light_goldenrod2")
     sign = Text("\nℹ️ ", style="bold yellow")
@@ -284,6 +386,7 @@ def create_subnet_owner_wallet(config_data):
     with open(CONFIG_FILE_PATH, "w") as config_file:
         yaml.safe_dump(config_data, config_file)
 
+
 def create_subnet(owner_wallet, config_data):
     text = Text("Creating a subnet with Netuid 1.\n", style="bold light_goldenrod2")
     sign = Text("\nℹ️ ", style="bold yellow")
@@ -308,7 +411,10 @@ def create_subnet(owner_wallet, config_data):
     if "✅ Registered subnetwork with netuid: 1" in clean_stdout:
         console.print("[dark_green] Subnet created successfully with netuid 1")
 
-    text = Text(f"Registering Owner ({owner_wallet}) to Netuid 1\n", style="bold light_goldenrod2")
+    text = Text(
+        f"Registering Owner ({owner_wallet}) to Netuid 1\n",
+        style="bold light_goldenrod2",
+    )
     sign = Text("\nℹ️ ", style="bold yellow")
     console.print(sign, text)
 
@@ -357,6 +463,10 @@ def steps():
             "description": "Run all neurons (miners and validators). This command starts the processes for all configured neurons, attaching to running processes if they are already running.",
         },
         {
+            "command": "btqs subnet add-weight",
+            "description": "Add weight to netuid 1 through the validator",
+        },
+        {
             "command": "btqs subnet live",
             "description": "Display the live metagraph of the subnet. This is used to monitor neuron performance and changing variables.",
         },
@@ -378,5 +488,7 @@ def steps():
 
     console.print(table)
 
-    console.print("\n[dark_orange] You can run an automated script covering all the steps using:\n")
+    console.print(
+        "\n[dark_orange] You can run an automated script covering all the steps using:\n"
+    )
     console.print("[blue]$ [green]btqs run-all")

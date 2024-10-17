@@ -75,6 +75,7 @@ class BTQSManager:
         self.subnet_app.command(name="setup")(self.setup_subnet)
         self.subnet_app.command(name="live")(self.display_live_metagraph)
         self.subnet_app.command(name="stake")(self.add_stake)
+        self.subnet_app.command(name="add-weights")(self.add_weights)
 
         # Neuron commands
         self.neurons_app.command(name="setup")(self.setup_neurons)
@@ -197,17 +198,15 @@ class BTQSManager:
         console.print(sign, text)
         self.setup_subnet()
 
-        text = Text("Adding stake by Validator\n", style="bold light_goldenrod2")
-        sign = Text("\n🪙 ", style="bold yellow")
-        console.print(sign, text)
-        time.sleep(2)
-
         console.print(
             "\nNext command will: 1. Add stake to the validator 2. Register the validator to the root network (netuid 0)"
         )
         console.print("Press any key to continue..\n")
         input()
-
+        text = Text("Adding stake by Validator\n", style="bold light_goldenrod2")
+        sign = Text("\n🪙 ", style="bold yellow")
+        console.print(sign, text)
+        time.sleep(2)
         self.add_stake()
 
         console.print(
@@ -251,6 +250,13 @@ class BTQSManager:
         print(subnets_list.stdout, end="")
 
         console.print(
+            "\nNext command will set weights to Netuid 1 through the Validator"
+        )
+        console.print("Press any key to continue..\n")
+        input()
+        self.add_weights()
+
+        console.print(
             "\nNext command will start a live view of the metagraph to monitor the subnet and its status\nPress Ctrl + C to exit the live view"
         )
         console.print("Press any key to continue..\n")
@@ -271,6 +277,12 @@ class BTQSManager:
             "A running Subtensor not found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
         )
         subnet.add_stake(config_data)
+
+    def add_weights(self):
+        config_data = load_config(
+            "A running Subtensor not found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
+        )
+        subnet.add_weights(config_data)
 
     def setup_subnet(self):
         """
@@ -463,9 +475,7 @@ class BTQSManager:
         version_table.add_row(
             "bittensor-wallet version:", get_bittensor_wallet_version()
         )
-        version_table.add_row(
-            "bittensor version:", get_bittensor_version()
-        )
+        version_table.add_row("bittensor version:", get_bittensor_version())
 
         layout = Table.grid(expand=True)
         layout.add_column(justify="left")
