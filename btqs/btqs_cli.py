@@ -1,34 +1,34 @@
 import os
 import platform
-import time
-from time import sleep
 from typing import Optional
-
 
 import psutil
 from rich.prompt import Confirm
 import typer
 from btqs.commands import chain, neurons, subnet
 from rich.table import Table
-from rich.text import Text
 
 from .config import (
     CONFIG_FILE_PATH,
     EPILOG,
     LOCALNET_ENDPOINT,
     DEFAULT_WORKSPACE_DIRECTORY,
-    DEFAULT_SUBTENSOR_BRANCH,
+    SUBTENSOR_BRANCH,
 )
 from .utils import (
     console,
     display_process_status_table,
-    exec_command,
     get_bittensor_wallet_version,
     get_btcli_version,
     get_process_entries,
     is_chain_running,
     load_config,
     get_bittensor_version,
+    print_info,
+    print_step,
+    print_success,
+    print_warning,
+    print_info_box,
 )
 
 
@@ -85,6 +85,51 @@ class BTQSManager:
         self.neurons_app.command(name="status")(self.status_neurons)
         self.neurons_app.command(name="start")(self.start_neurons)
 
+        self.steps = [
+            {
+                "title": "Start Local Subtensor",
+                "description": "Initialize and start the local Subtensor blockchain. This may take several minutes due to the compilation process.",
+                "info": "🔗 **Subtensor** is the underlying blockchain network that facilitates decentralized activities. Starting the local chain sets up your personal development environment for experimenting with Bittensor.",
+                "action": lambda: self.start_chain(workspace_path=None, branch=None),
+            },
+            {
+                "title": "Check Chain Status",
+                "description": "Verify that the local chain is running correctly.",
+                "info": "📊 **Chain Nodes**: During your local Subtensor setup, two blockchain nodes are initiated. These nodes communicate and collaborate to reach consensus, ensuring the integrity and synchronization of your blockchain network.",
+                "action": lambda: self.status_neurons(),
+            },
+            {
+                "title": "Set Up Subnet",
+                "description": "Create a subnet owner wallet, establish a new subnet, and register the owner to the subnet.",
+                "info": "🔑 **Wallets** in Bittensor are essential for managing your stake, interacting with the network, and running validators or miners. Each wallet has a unique name and associated hotkey that serves as your identity within the network.",
+                "action": lambda: self.setup_subnet(),
+            },
+            {
+                "title": "Add Stake by Validator",
+                "description": "Stake Tao to the validator's hotkey and register to the root network.",
+                "info": "💰 **Staking Tao** to your hotkey is the process of committing your tokens to support your role as a validator in the subnet. Your wallet can potentially earn rewards based on your performance and the subnet's incentive mechanism.",
+                "action": lambda: self.add_stake(),
+            },
+            {
+                "title": "Set Up Miners",
+                "description": "Create miner wallets and register them to the subnet.",
+                "info": "⚒️  **Miners** are responsible for performing computations and contributing to the subnet's tasks. Setting up miners involves creating dedicated wallets for each miner entity and registering them to the subnet.",
+                "action": lambda: self.setup_neurons(),
+            },
+            {
+                "title": "Run Miners",
+                "description": "Start all miner processes.",
+                "info": "🏃 This step starts and runs your miner processes so they can start contributing to the network",
+                "action": lambda: self.run_neurons(),
+            },
+            {
+                "title": "Add Weights to Netuid 1",
+                "description": "Configure weights for Netuid 1 through the validator.",
+                "info": "🏋️ Setting **Root weights** in Bittensor means assigning relative importance to different subnets within the network, which directly influences their share of network rewards and resources.",
+                "action": lambda: self.add_weights(),
+            },
+        ]
+
     def start_chain(
         self,
         workspace_path: Optional[str] = typer.Option(
@@ -127,10 +172,10 @@ class BTQSManager:
         if not branch:
             branch = typer.prompt(
                 typer.style("Enter Subtensor branch", fg="blue"),
-                default=DEFAULT_SUBTENSOR_BRANCH,
+                default=SUBTENSOR_BRANCH,
             )
 
-        console.print("[dark_orange]Starting the local chain...")
+        console.print("🔗 [dark_orange]Starting the local chain...")
         chain.start(config_data, workspace_path, branch)
 
     def stop_chain(self):
@@ -171,97 +216,36 @@ class BTQSManager:
         """
         Runs all commands in sequence to set up and start the local chain, subnet, and neurons.
         """
-        text = Text("Starting Local Subtensor\n", style="bold light_goldenrod2")
-        sign = Text("🔗 ", style="bold yellow")
-        console.print(sign, text)
-        sleep(3)
-
-        # Start the local chain
-        self.start_chain(workspace_path=None, branch=None)
-
-        text = Text("Checking chain status\n", style="bold light_goldenrod2")
-        sign = Text("\n🔎 ", style="bold yellow")
-        console.print(sign, text)
-        sleep(3)
-
-        self.status_neurons()
-
+        console.clear()
+        print_info("Welcome to the Bittensor Quick Start Tutorial", emoji="🚀")
         console.print(
-            "\nNext command will: 1. Create a subnet owner wallet 2. Create a Subnet 3. Register to the subnet"
+            "\nThis tutorial will guide you through setting up the local chain, subnet, and neurons (miners + validators).\n",
+            style="magenta",
         )
-        console.print("Press any key to continue..\n")
-        input()
 
-        # Set up the subnet
-        text = Text("Setting up subnet\n", style="bold light_goldenrod2")
-        sign = Text("📡 ", style="bold yellow")
-        console.print(sign, text)
-        self.setup_subnet()
+        for idx, step in enumerate(self.steps, start=1):
+            if "info" in step:
+                print_info_box(step["info"], title="Info")
+            print_step(step["title"], step["description"], idx)
 
+            console.print(
+                "[bold blue]Press [yellow]Enter[/yellow] to continue to the next step or [yellow]Ctrl+C[/yellow] to exit.\n"
+            )
+            try:
+                input()
+            except KeyboardInterrupt:
+                print_warning("Tutorial interrupted by user. Exiting...")
+                return
+
+            # Execute the action
+            step["action"]()
+
+        print_success(
+            "Your local chain, subnet, and neurons are up and running", emoji="🎉"
+        )
         console.print(
-            "\nNext command will: 1. Add stake to the validator 2. Register the validator to the root network (netuid 0)"
+            "[green]Next, execute the following command to get a live view of all the progress through the metagraph: [dark_green]$ [dark_orange]btqs live"
         )
-        console.print("Press any key to continue..\n")
-        input()
-        text = Text("Adding stake by Validator\n", style="bold light_goldenrod2")
-        sign = Text("\n🪙 ", style="bold yellow")
-        console.print(sign, text)
-        time.sleep(2)
-        self.add_stake()
-
-        console.print(
-            "\nNext command will: 1. Create miner wallets 2. Register them to Netuid 1"
-        )
-        console.print("Press any key to continue..\n")
-        input()
-
-        text = Text("Setting up miners\n", style="bold light_goldenrod2")
-        sign = Text("\n⚒️ ", style="bold yellow")
-        console.print(sign, text)
-
-        # Set up the neurons (miners)
-        self.setup_neurons()
-
-        console.print("\nNext command will: 1. Start all miner processes")
-        console.print("Press any key to continue..\n")
-        input()
-
-        text = Text("Running miners\n", style="bold light_goldenrod2")
-        sign = Text("🏃 ", style="bold yellow")
-        console.print(sign, text)
-        time.sleep(2)
-
-        # Run the neurons
-        self.run_neurons()
-
-        # Check status after running the neurons
-        self.status_neurons()
-        console.print("[dark_green]\nViewing Metagraph for Subnet 1")
-        subnets_list = exec_command(
-            command="subnets",
-            sub_command="metagraph",
-            extra_args=[
-                "--netuid",
-                "1",
-                "--chain",
-                LOCALNET_ENDPOINT,
-            ],
-        )
-        print(subnets_list.stdout, end="")
-
-        console.print(
-            "\nNext command will set weights to Netuid 1 through the Validator"
-        )
-        console.print("Press any key to continue..\n")
-        input()
-        self.add_weights()
-
-        console.print(
-            "\nNext command will start a live view of the metagraph to monitor the subnet and its status\nPress Ctrl + C to exit the live view"
-        )
-        console.print("Press any key to continue..\n")
-        input()
-        self.display_live_metagraph()
 
     def display_live_metagraph(self):
         config_data = load_config(
@@ -426,7 +410,7 @@ class BTQSManager:
 
         [bold]Note[/bold]: Use this command to monitor the health and status of your local chain and miners.
         """
-        console.print("[green]Checking status of Subtensor and neurons...")
+        print_info("Checking status of Subtensor and neurons...", emoji="🔍 ")
 
         config_data = load_config(
             "A running Subtensor not found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."

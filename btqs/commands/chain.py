@@ -3,14 +3,19 @@ import subprocess
 import time
 
 import psutil
-
 import yaml
+from btqs.config import CONFIG_FILE_PATH, SUBTENSOR_REPO_URL
+from btqs.utils import (
+    attach_to_process_logs,
+    create_virtualenv,
+    get_process_entries,
+    install_subtensor_dependencies,
+    print_info,
+    print_success,
+    print_error,
+)
 from git import GitCommandError, Repo
 from rich.console import Console
-from rich.text import Text
-
-from btqs.config import CONFIG_FILE_PATH, SUBTENSOR_REPO_URL
-from btqs.utils import attach_to_process_logs, get_process_entries, create_virtualenv, install_neuron_dependencies, install_subtensor_dependencies
 from rich.prompt import Confirm
 
 console = Console()
@@ -33,36 +38,38 @@ def start(config_data, workspace_path, branch):
                 origin = repo.remotes.origin
                 repo.git.checkout(branch)
                 origin.pull()
-                console.print("[green]Repository updated successfully.")
+                print_info("Repository updated successfully.", emoji="📦")
             except GitCommandError as e:
-                console.print(f"[red]Error updating repository: {e}")
+                print_error(f"Error updating repository: {e}")
                 return
         else:
-            console.print(
-                "[green]Using existing subtensor repository without updating."
+            print_info(
+                "Using existing subtensor repository without updating.", emoji="📦"
             )
     else:
         try:
-            console.print("[green]Cloning subtensor repository...")
+            print_info("Cloning subtensor repository...", emoji="📦")
             repo = Repo.clone_from(SUBTENSOR_REPO_URL, subtensor_path)
             if branch:
                 repo.git.checkout(branch)
-            console.print("[green]Repository cloned successfully.")
+            print_success("Repository cloned successfully.", emoji="🏷")
         except GitCommandError as e:
-            console.print(f"[red]Error cloning repository: {e}")
+            print_error(f"Error cloning repository: {e}")
             return
-    
-    venv_subtensor_path = os.path.join(workspace_path, 'venv_subtensor')
+
+    venv_subtensor_path = os.path.join(workspace_path, "venv_subtensor")
     venv_python = create_virtualenv(venv_subtensor_path)
     install_subtensor_dependencies()
 
-    config_data['venv_subtensor'] = venv_subtensor_path
+    config_data["venv_subtensor"] = venv_python
 
     # Running localnet.sh using the virtual environment's Python
     localnet_path = os.path.join(subtensor_path, "scripts", "localnet.sh")
 
     env_variables = os.environ.copy()
-    env_variables["PATH"] = os.path.dirname(venv_python) + os.pathsep + env_variables["PATH"]
+    env_variables["PATH"] = (
+        os.path.dirname(venv_python) + os.pathsep + env_variables["PATH"]
+    )
     process = subprocess.Popen(
         [localnet_path],
         stdout=subprocess.DEVNULL,
@@ -74,7 +81,10 @@ def start(config_data, workspace_path, branch):
         # universal_newlines=True,
     )
 
-    console.print("[green]Compiling and starting local chain. This may take a few minutes... (Timeout at 20 minutes)")
+    print_info(
+        "Compiling and starting local chain. This may take a few minutes... (Timeout at 20 minutes)",
+        emoji="🛠️ ",
+    )
 
     # for line in process.stdout:
     #     console.print(line, end="")
@@ -91,15 +101,16 @@ def start(config_data, workspace_path, branch):
     start_time = time.time()
     while not os.path.exists(alice_log):
         if time.time() - start_time > timeout:
-            console.print("[red]Timeout: Log files were not created.")
+            print_error("Timeout: Log files were not created.")
             return
         time.sleep(1)
 
     chain_ready = wait_for_chain_compilation(alice_log, start_time, timeout)
     if chain_ready:
-        text = Text("Local chain is running. You can now use it for development and testing.\n", style="bold light_goldenrod2")
-        sign = Text("\nℹ️ ", style="bold yellow")
-        console.print(sign, text)
+        print_info(
+            "Local chain is running. You can now use it for development and testing.\n",
+            emoji="\n🚀",
+        )
 
         # Fetch PIDs of substrate nodes
         substrate_pids = get_substrate_pids()
@@ -114,7 +125,7 @@ def start(config_data, workspace_path, branch):
                 "workspace_path": workspace_path,
                 "venv_subtensor": venv_subtensor_path,
                 "wallets_path": os.path.join(workspace_path, "wallets"),
-                "subnet_path": os.path.join(workspace_path, "subnet-template")
+                "subnet_path": os.path.join(workspace_path, "subnet-template"),
             }
         )
 
@@ -123,13 +134,11 @@ def start(config_data, workspace_path, branch):
             os.makedirs(os.path.dirname(CONFIG_FILE_PATH), exist_ok=True)
             with open(CONFIG_FILE_PATH, "w") as config_file:
                 yaml.safe_dump(config_data, config_file)
-            console.print(
-                "[green]Config file updated."
-            )
+            print_info("Config file updated.", emoji="📝 ")
         except Exception as e:
-            console.print(f"[red]Failed to write to the config file: {e}")
+            print_error(f"Failed to write to the config file: {e}")
     else:
-        console.print("[red]Failed to start local chain.")
+        print_error("Failed to start local chain.")
 
 
 def stop(config_data):
@@ -144,7 +153,7 @@ def stop(config_data):
         process = psutil.Process(pid)
         process.terminate()
         process.wait(timeout=10)
-        console.print("[green]Local chain stopped successfully.")
+        print_info("Local chain stopped successfully.", emoji="🛑 ")
     except psutil.NoSuchProcess:
         console.print(
             "[red]Process not found. The chain may have already been stopped."
@@ -165,7 +174,7 @@ def stop(config_data):
     if refresh_config:
         if os.path.exists(CONFIG_FILE_PATH):
             os.remove(CONFIG_FILE_PATH)
-            console.print("[green]Configuration file refreshed.")
+            print_info("Configuration file refreshed.", emoji="🔄 ")
 
 
 def reattach(config_data):
@@ -242,7 +251,7 @@ def stop_running_neurons(config_data):
     ]
 
     if running_neurons:
-        console.print("[yellow]\nSome neurons are still running. Terminating them...")
+        print_info("Some neurons are still running. Terminating them...", emoji="\n🧨 ")
 
         for neuron in running_neurons:
             pid = int(neuron["pid"])
@@ -251,7 +260,7 @@ def stop_running_neurons(config_data):
                 neuron_process = psutil.Process(pid)
                 neuron_process.terminate()
                 neuron_process.wait(timeout=10)
-                console.print(f"[green]{neuron_name} stopped.")
+                print_info(f"{neuron_name} stopped.", emoji="🛑 ")
             except psutil.NoSuchProcess:
                 console.print(f"[yellow]{neuron_name} process not found.")
             except psutil.TimeoutExpired:
@@ -267,7 +276,7 @@ def stop_running_neurons(config_data):
         with open(CONFIG_FILE_PATH, "w") as config_file:
             yaml.safe_dump(config_data, config_file)
     else:
-        console.print("[green]No neurons were running.")
+        print_info("No neurons were running.", emoji="✅ ")
 
 
 def is_process_running(pid):

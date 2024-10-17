@@ -17,6 +17,8 @@ from btqs.utils import (
     get_process_entries,
     display_process_status_table,
     load_config,
+    print_info,
+    print_error,
 )
 
 
@@ -28,13 +30,10 @@ def add_stake(config_data):
             path=config_data["wallets_path"],
             hotkey=owner_data.get("hotkey"),
         )
-
-        text = Text(
-            f"Validator is adding stake to own hotkey ({owner_wallet})\n",
-            style="bold light_goldenrod2",
+        print_info(
+            f"Validator is adding stake to its own hotkey: {owner_wallet}\n",
+            emoji="🔖 ",
         )
-        sign = Text("🔖", style="bold yellow")
-        console.print(sign, text)
 
         add_stake = exec_command(
             command="stake",
@@ -56,14 +55,9 @@ def add_stake(config_data):
 
         clean_stdout = remove_ansi_escape_sequences(add_stake.stdout)
         if "✅ Finalized" in clean_stdout:
-            text = Text(
-                f"Stake added successfully by Validator ({owner_wallet})\n",
-                style="bold light_goldenrod2",
-            )
-            sign = Text("📈 ", style="bold yellow")
-            console.print(sign, text)
+            print_info("Stake added by Validator", emoji="📈 ")
 
-            console.print("[dark_green]\nViewing Metagraph for Subnet 1")
+            print_info("Viewing Metagraph for Subnet 1", emoji="\n🔎 ")
             subnets_list = exec_command(
                 command="subnets",
                 sub_command="metagraph",
@@ -77,15 +71,13 @@ def add_stake(config_data):
             print(subnets_list.stdout, end="")
 
         else:
-            console.print("\n[red] Failed to add stake. Command output:\n")
+            print_error("\nFailed to add stake. Command output:\n")
             print(add_stake.stdout, end="")
 
-        text = Text(
-            f"Validator is registering to root ({owner_wallet})\n",
-            style="bold light_goldenrod2",
+        print_info(
+            f"Validator is registering to root network (netuid 0) ({owner_wallet})\n",
+            emoji="\n🫚 ",
         )
-        sign = Text("\n🍀 ", style="bold yellow")
-        console.print(sign, text)
 
         register_root = exec_command(
             command="root",
@@ -104,21 +96,14 @@ def add_stake(config_data):
         )
         clean_stdout = remove_ansi_escape_sequences(register_root.stdout)
         if "✅ Registered" in clean_stdout:
-            text = Text(
-                "Successfully registered to root (Netuid 0)\n",
-                style="bold light_goldenrod2",
-            )
-            sign = Text("🌟 ", style="bold yellow")
-            console.print(sign, text)
+            print_info("Successfully registered to the root network\n", emoji="✅ ")
         elif "✅ Already registered on root network" in clean_stdout:
-            console.print(
-                "[bold light_goldenrod2]✅ Validator is already registered to Root network"
-            )
+            print_info("Validator is already registered to Root network\n", emoji="✅ ")
         else:
-            console.print("\n[red] Failed to register to root. Command output:\n")
+            print_error("\nFailed to register to root. Command output:\n")
             print(register_root.stdout, end="")
 
-        console.print("[dark_green]\nViewing Root list")
+        print_info("Viewing Root list\n", emoji="🔎 ")
         subnets_list = exec_command(
             command="root",
             sub_command="list",
@@ -130,8 +115,8 @@ def add_stake(config_data):
         print(subnets_list.stdout, end="")
 
     else:
-        console.print(
-            "[red]Subnet netuid 1 registered to the owner not found. Run `btqs subnet setup` first"
+        print_error(
+            "Subnet netuid 1 registered to the owner not found. Run `btqs subnet setup` first"
         )
         return
 
@@ -144,16 +129,15 @@ def add_weights(config_data):
             path=config_data["wallets_path"],
             hotkey=owner_data.get("hotkey"),
         )
-        text = Text(
-            "Validator is now setting weights on root network\n",
-            style="bold light_goldenrod2",
+        print_info(
+            "Validator is now setting weights of subnet 1 on the root network\n",
+            emoji="🏋️ ",
         )
-        sign = Text("\n🏋️ ", style="bold yellow")
-        console.print(sign, text)
 
         max_retries = 5
         attempt = 0
         wait_time = 30
+        retry_patterns = ["ancient birth block", "Transaction has a bad signature"]
 
         while attempt < max_retries:
             try:
@@ -187,11 +171,11 @@ def add_weights(config_data):
                     console.print(sign, text)
                     break
 
-                elif "Transaction has a bad signature" in clean_stdout:
+                elif any(pattern in clean_stdout for pattern in retry_patterns):
                     attempt += 1
                     if attempt < max_retries:
                         console.print(
-                            f"[red]Attempt {attempt}/{max_retries}: Transaction has a bad signature. Retrying in {wait_time} seconds..."
+                            f"[red]Attempt {attempt}/{max_retries}: Failed to set weights. \nError: {clean_stdout} Retrying in {wait_time} seconds..."
                         )
 
                         with Progress(
@@ -207,7 +191,7 @@ def add_weights(config_data):
                                 time.sleep(1)
                     else:
                         console.print(
-                            f"[red]Attempt {attempt}/{max_retries}: Transaction has a bad signature. Maximum retries reached."
+                            f"[red]Attempt {attempt}/{max_retries}: Maximum retries reached."
                         )
                         console.print(
                             "\n[red]Failed to set weights after multiple attempts. Please try again later\n"
@@ -339,7 +323,7 @@ def setup_subnet(config_data):
     else:
         create_subnet(owner_wallet, config_data)
 
-    console.print("[dark_green]\nListing all subnets")
+    print_info("\nListing all subnets\n", emoji="📋 ")
     subnets_list = exec_command(
         command="subnets",
         sub_command="list",
@@ -352,9 +336,7 @@ def setup_subnet(config_data):
 
 
 def create_subnet_owner_wallet(config_data):
-    text = Text("Creating subnet owner wallet.\n", style="bold light_goldenrod2")
-    sign = Text("\nℹ️ ", style="bold yellow")
-    console.print(sign, text)
+    print_info("Creating subnet owner wallet.\n", emoji="🗂️ ")
 
     owner_wallet_name = typer.prompt(
         "Enter subnet owner wallet name", default="owner", show_default=True
@@ -388,9 +370,7 @@ def create_subnet_owner_wallet(config_data):
 
 
 def create_subnet(owner_wallet, config_data):
-    text = Text("Creating a subnet with Netuid 1.\n", style="bold light_goldenrod2")
-    sign = Text("\nℹ️ ", style="bold yellow")
-    console.print(sign, text)
+    print_info("Creating a subnet with Netuid 1\n", emoji="\n🌎 ")
 
     create_subnet = exec_command(
         command="subnets",
@@ -409,14 +389,9 @@ def create_subnet(owner_wallet, config_data):
     )
     clean_stdout = remove_ansi_escape_sequences(create_subnet.stdout)
     if "✅ Registered subnetwork with netuid: 1" in clean_stdout:
-        console.print("[dark_green] Subnet created successfully with netuid 1")
+        print_info("Subnet created successfully with netuid 1\n", emoji="🥇 ")
 
-    text = Text(
-        f"Registering Owner ({owner_wallet}) to Netuid 1\n",
-        style="bold light_goldenrod2",
-    )
-    sign = Text("\nℹ️ ", style="bold yellow")
-    console.print(sign, text)
+    print_info(f"Registering Owner ({owner_wallet}) to Netuid 1\n", emoji="📝 ")
 
     register_subnet = exec_command(
         command="subnets",
@@ -437,7 +412,7 @@ def create_subnet(owner_wallet, config_data):
     )
     clean_stdout = remove_ansi_escape_sequences(register_subnet.stdout)
     if "✅ Registered" in clean_stdout:
-        console.print("[green] Registered the owner to subnet 1")
+        print_info("Registered the owner's wallet to subnet 1", emoji="✅ ")
 
 
 def steps():

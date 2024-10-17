@@ -7,11 +7,11 @@ from git import Repo, GitCommandError
 
 from btqs.config import (
     CONFIG_FILE_PATH,
-    SUBNET_TEMPLATE_REPO_URL,
-    SUBNET_TEMPLATE_BRANCH,
+    SUBNET_REPO_URL,
+    SUBNET_REPO_BRANCH,
     WALLET_URIS,
     MINER_PORTS,
-    LOCALNET_ENDPOINT
+    LOCALNET_ENDPOINT,
 )
 from btqs.utils import (
     console,
@@ -25,6 +25,7 @@ from btqs.utils import (
     subnet_owner_exists,
     create_virtualenv,
     install_neuron_dependencies,
+    print_info,
 )
 
 
@@ -51,7 +52,7 @@ def setup_neurons(config_data):
 
     _register_miners(config_data)
 
-    console.print("[dark_green]\nViewing Metagraph for Subnet 1")
+    print_info("Viewing Metagraph for Subnet 1\n", emoji="📊 ")
     subnets_list = exec_command(
         command="subnets",
         sub_command="metagraph",
@@ -71,7 +72,7 @@ def run_neurons(config_data):
     chain_pid = config_data.get("pid")
     config_data["subnet_path"] = subnet_template_path
 
-    venv_neurons_path = os.path.join(config_data["workspace_path"], 'venv_neurons')
+    venv_neurons_path = os.path.join(config_data["workspace_path"], "venv_neurons")
     venv_python = create_virtualenv(venv_neurons_path)
     install_neuron_dependencies(venv_python, subnet_template_path)
 
@@ -88,6 +89,7 @@ def run_neurons(config_data):
 
     with open(CONFIG_FILE_PATH, "w") as config_file:
         yaml.safe_dump(config_data, config_file)
+
 
 def stop_neurons(config_data):
     # Get process entries
@@ -220,18 +222,22 @@ def reattach_neurons(config_data):
         default="1",
     )
 
-    if selection.lower() == 'q':
+    if selection.lower() == "q":
         console.print("[yellow]Reattach aborted.")
         return
 
-    if not selection.isdigit() or int(selection) < 1 or int(selection) > len(neuron_entries):
+    if (
+        not selection.isdigit()
+        or int(selection) < 1
+        or int(selection) > len(neuron_entries)
+    ):
         console.print("[red]Invalid selection.")
         return
 
     # Get the selected neuron based on user input
     selected_neuron = neuron_entries[int(selection) - 1]
-    neuron_choice = selected_neuron['name']
-    wallet_info = selected_neuron['info']
+    neuron_choice = selected_neuron["name"]
+    wallet_info = selected_neuron["info"]
     pid = wallet_info.get("pid")
     log_file_path = wallet_info.get("log_file")
 
@@ -244,15 +250,14 @@ def reattach_neurons(config_data):
         console.print("[red]Log file not found for this neuron.")
         return
 
-    console.print(
-        f"[green]Reattaching to neuron {neuron_choice}."
-    )
+    console.print(f"[green]Reattaching to neuron {neuron_choice}.")
 
     # Attach to the process logs
     attach_to_process_logs(log_file_path, neuron_choice, pid)
 
 
 # Helper functions
+
 
 def _create_miner_wallets(config_data):
     for i, uri in enumerate(WALLET_URIS):
@@ -283,7 +288,8 @@ def _create_miner_wallets(config_data):
     with open(CONFIG_FILE_PATH, "w") as config_file:
         yaml.safe_dump(config_data, config_file)
 
-    console.print("[green]Miner wallets are created.")
+    print_info("Miner wallets are created.\n", emoji="🗂️ ")
+
 
 def _register_miners(config_data):
     for wallet_name, wallet_info in config_data["Miners"].items():
@@ -292,11 +298,7 @@ def _register_miners(config_data):
             name=wallet_name,
             hotkey=wallet_info["hotkey"],
         )
-
-        console.print(
-            f"Registering Miner ({wallet_name}) to Netuid 1\n",
-            style="bold light_goldenrod2",
-        )
+        print_info(f"Registering Miner ({wallet_name}) to Netuid 1\n", emoji="🔧 ")
 
         miner_registered = exec_command(
             command="subnets",
@@ -318,7 +320,7 @@ def _register_miners(config_data):
         clean_stdout = remove_ansi_escape_sequences(miner_registered.stdout)
 
         if "✅ Registered" in clean_stdout:
-            console.print(f"[green]Registered miner ({wallet.name}) to Netuid 1\n")
+            print_info(f"Registered miner: ({wallet.name}) to Netuid 1\n", emoji="✅ ")
         else:
             console.print(
                 f"[red]Failed to register miner ({wallet.name}). You can register the miner manually using:"
@@ -342,23 +344,23 @@ def _add_subnet_template(config_data):
         console.print("[green]Cloning subnet-template repository...")
         try:
             repo = Repo.clone_from(
-                SUBNET_TEMPLATE_REPO_URL,
+                SUBNET_REPO_URL,
                 subnet_template_path,
             )
-            repo.git.checkout(SUBNET_TEMPLATE_BRANCH)
-            console.print("[green]Cloned subnet-template repository successfully.")
+            repo.git.checkout(SUBNET_REPO_BRANCH)
+            print_info("Cloned subnet-template repository successfully.", emoji="📦 ")
         except GitCommandError as e:
             console.print(f"[red]Error cloning subnet-template repository: {e}")
     else:
-        console.print("[green]Using existing subnet-template repository.")
+        print_info("Using existing subnet-template repository.", emoji="📦 ")
         repo = Repo(subnet_template_path)
         current_branch = repo.active_branch.name
-        if current_branch != SUBNET_TEMPLATE_BRANCH:
+        if current_branch != SUBNET_REPO_BRANCH:
             try:
-                repo.git.checkout(SUBNET_TEMPLATE_BRANCH)
+                repo.git.checkout(SUBNET_REPO_BRANCH)
             except GitCommandError as e:
                 console.print(
-                    f"[red]Error switching to branch '{SUBNET_TEMPLATE_BRANCH}': {e}"
+                    f"[red]Error switching to branch '{SUBNET_REPO_BRANCH}': {e}"
                 )
 
     return subnet_template_path
@@ -384,7 +386,9 @@ def _run_validator(config_data, subnet_template_path, chain_pid, venv_python):
             console.print("[red]Log file not found for validator. Cannot attach.")
     else:
         # Validator is not running, start it
-        success = start_validator(owner_info, subnet_template_path, config_data, venv_python)
+        success = start_validator(
+            owner_info, subnet_template_path, config_data, venv_python
+        )
         if not success:
             console.print("[red]Failed to start validator.")
 
@@ -447,7 +451,10 @@ def _start_selected_neurons(config_data, selected_neurons):
         neuron_name = neuron["process"]
         if neuron_name.startswith("Validator"):
             success = start_validator(
-                config_data["Owner"], subnet_template_path, config_data, config_data["Owner"]["venv"]
+                config_data["Owner"],
+                subnet_template_path,
+                config_data,
+                config_data["Owner"]["venv"],
             )
         elif neuron_name.startswith("Miner"):
             wallet_name = neuron_name.split("Miner: ")[-1]
