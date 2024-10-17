@@ -65,22 +65,22 @@ def start(config_data, workspace_path, branch):
     env_variables["PATH"] = os.path.dirname(venv_python) + os.pathsep + env_variables["PATH"]
     process = subprocess.Popen(
         [localnet_path],
-        # stdout=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        # stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         cwd=subtensor_path,
         start_new_session=True,
         env=env_variables,
-        universal_newlines=True,
+        # universal_newlines=True,
     )
 
     console.print("[green]Compiling and starting local chain. This may take a few minutes... (Timeout at 20 minutes)")
 
-    for line in process.stdout:
-        console.print(line, end="")
-        if "Imported #" in line:
-            console.print("[green] Chain comp")
-            continue
+    # for line in process.stdout:
+    #     console.print(line, end="")
+    #     if "Imported #" in line:
+    #         console.print("[green] Chain comp")
+    #         continue
 
     # Paths to subtensor log files
     log_dir = os.path.join(subtensor_path, "logs")
@@ -189,7 +189,7 @@ def reattach(config_data):
         return
 
     # Reattach using attach_to_process_logs
-    attach_to_process_logs(alice_log, "Subtensor Chain (Alice)", pid)
+    attach_to_process_logs(alice_log, "Subtensor Chain", pid)
 
 
 def wait_for_chain_compilation(alice_log, start_time, timeout):
