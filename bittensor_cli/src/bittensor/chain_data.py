@@ -87,7 +87,7 @@ class SubnetHyperparameters:
     max_validators: int
     adjustment_alpha: int
     difficulty: int
-    commit_reveal_weights_interval: int
+    commit_reveal_periods: int
     commit_reveal_weights_enabled: bool
     alpha_high: int
     alpha_low: int
@@ -119,7 +119,7 @@ class SubnetHyperparameters:
             max_validators=decoded.max_validators,
             adjustment_alpha=decoded.adjustment_alpha,
             difficulty=decoded.difficulty,
-            commit_reveal_weights_interval=decoded.commit_reveal_weights_interval,
+            commit_reveal_periods=decoded.commit_reveal_periods,
             commit_reveal_weights_enabled=decoded.commit_reveal_weights_enabled,
             alpha_high=decoded.alpha_high,
             alpha_low=decoded.alpha_low,
@@ -721,7 +721,7 @@ custom_rpc_type_registry = {
                 ["max_validators", "Compact<u16>"],
                 ["adjustment_alpha", "Compact<u64>"],
                 ["difficulty", "Compact<u64>"],
-                ["commit_reveal_weights_interval", "Compact<u64>"],
+                ["commit_reveal_periods", "Compact<u64>"],
                 ["commit_reveal_weights_enabled", "bool"],
                 ["alpha_high", "Compact<u16>"],
                 ["alpha_low", "Compact<u16>"],
