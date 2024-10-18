@@ -154,7 +154,11 @@ def add_weights(config_data):
         )
         max_retries = 60
         attempt = 0
-        retry_patterns = ["ancient birth block", "Transaction has a bad signature", "SettingWeightsTooFast"]
+        retry_patterns = [
+            "ancient birth block",
+            "Transaction has a bad signature",
+            "SettingWeightsTooFast",
+        ]
 
         while attempt < max_retries:
             try:
