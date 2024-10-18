@@ -149,12 +149,12 @@ def add_weights(config_data):
             hotkey=owner_data.get("hotkey"),
         )
         print_info(
-            "Validator is now setting weights of subnet 1 on the root network.\n Please wait... (Timeout: 60 seconds)",
+            "Validator is now setting weights of subnet 1 on the root network.\n Please wait... (Timeout: ~ 120 seconds)",
             emoji="🏋️ ",
         )
-        max_retries = 30
+        max_retries = 60
         attempt = 0
-        retry_patterns = ["ancient birth block", "Transaction has a bad signature"]
+        retry_patterns = ["ancient birth block", "Transaction has a bad signature", "SettingWeightsTooFast"]
 
         while attempt < max_retries:
             try:
