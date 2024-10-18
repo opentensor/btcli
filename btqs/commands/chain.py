@@ -1,3 +1,4 @@
+import sys
 import os
 import subprocess
 import time
@@ -209,7 +210,7 @@ async def sudo_set_tempo(
         return await response.is_success
 
 
-def start(config_data, workspace_path, branch, fast_blocks=True, verbose=False):
+def start(config_data, workspace_path, branch, fast_blocks=True, verbose=False, skip_rust=False):
     os.makedirs(workspace_path, exist_ok=True)
     subtensor_path = os.path.join(workspace_path, "subtensor")
 
@@ -250,11 +251,17 @@ def start(config_data, workspace_path, branch, fast_blocks=True, verbose=False):
     else:
         print_info("Fast blocks are Off", emoji="🐌 ")
 
-    venv_subtensor_path = os.path.join(workspace_path, "venv_subtensor")
-    venv_python = create_virtualenv(venv_subtensor_path)
-    install_subtensor_dependencies(verbose)
-
-    config_data["venv_subtensor"] = venv_python
+    if skip_rust:
+        venv_python = sys.executable
+        print_info("Skipping Rust installation", emoji="🦘 ")
+        config_data["venv_subtensor"] = "None"
+        venv_subtensor_path = "None"
+    else:
+        venv_subtensor_path = os.path.join(workspace_path, "venv_subtensor")
+        venv_python = create_virtualenv(venv_subtensor_path)
+        install_subtensor_dependencies(verbose)
+        print_info("Virtual environment created and dependencies installed.", emoji="🐍 ")
+        config_data["venv_subtensor"] = venv_python
 
     # Running localnet.sh using the virtual environment's Python
     localnet_path = os.path.join(subtensor_path, "scripts", "localnet.sh")

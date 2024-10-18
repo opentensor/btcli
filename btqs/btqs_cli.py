@@ -89,6 +89,7 @@ class BTQSManager:
         self.fast_blocks = True
         self.workspace_path = None
         self.subtensor_branch = None
+        self.skip_rust = None
         self.steps = [
             {
                 "title": "Start Local Subtensor",
@@ -100,6 +101,7 @@ class BTQSManager:
                     branch=self.subtensor_branch,
                     fast_blocks=self.fast_blocks,
                     verbose=self.verbose,
+                    skip_rust=self.skip_rust,
                 ),
             },
             {
@@ -141,6 +143,9 @@ class BTQSManager:
         ),
         verbose: bool = typer.Option(
             False, "--verbose", "-v", help="Enable verbose output"
+        ),
+        skip_rust: bool = typer.Option(
+            False, "--skip-rust", help="Skip Rust installation"
         ),
     ):
         """
@@ -187,6 +192,7 @@ class BTQSManager:
             branch,
             fast_blocks=fast_blocks,
             verbose=verbose,
+            skip_rust=skip_rust,
         )
 
     def stop_chain(self):
@@ -237,6 +243,9 @@ class BTQSManager:
         verbose: bool = typer.Option(
             False, "--verbose", "-v", help="Enable verbose output"
         ),
+        skip_rust: bool = typer.Option(
+            False, "--skip-rust", help="Skip Rust installation"
+        ),
     ):
         """
         Runs all commands in sequence to set up and start the local chain, subnet, and neurons.
@@ -245,6 +254,7 @@ class BTQSManager:
         self.workspace_path = workspace_path
         self.fast_blocks = fast_blocks
         self.verbose = verbose
+        self.skip_rust = skip_rust
 
         console.clear()
         print_info("Welcome to the Bittensor Quick Start Tutorial", emoji="🚀")
