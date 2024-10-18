@@ -24,6 +24,8 @@ from bittensor_cli.src.bittensor.chain_data import (
     NeuronInfo,
     SubnetHyperparameters,
     decode_account_id,
+    DelegateInfoLite,
+    DynamicInfo,
 )
 from bittensor_cli.src import DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance
@@ -1087,3 +1089,164 @@ class SubtensorInterface:
                     )
 
         return all_delegates_details
+
+    async def get_delegates_by_netuid_light(
+        self, netuid: int, block_hash: Optional[str] = None
+    ) -> list[DelegateInfoLite]:
+        """
+        Retrieves a list of all delegate neurons within the Bittensor network. This function provides an overview of the neurons that are actively involved in the network's delegation system.
+
+        Analyzing the delegate population offers insights into the network's governance dynamics and the distribution of trust and responsibility among participating neurons.
+
+        Args:
+            netuid: the netuid to query
+            block_hash: The hash of the blockchain block number for the query.
+
+        Returns:
+            A list of DelegateInfo objects detailing each delegate's characteristics.
+
+        """
+
+        params = [netuid] if not block_hash else [netuid, block_hash]
+        json_body = await self.substrate.rpc_request(
+            method="delegateInfo_getDelegatesLight",  # custom rpc method
+            params=params,
+        )
+
+        result = json_body["result"]
+
+        if result in (None, []):
+            return []
+
+        return DelegateInfoLite.list_from_vec_u8(result)  # TODO this won't work yet
+
+    async def get_subnet_dynamic_info(
+        self, netuid: int, block_hash: Optional[str] = None
+    ) -> Optional["DynamicInfo"]:
+        json = await self.substrate.rpc_request(
+            method="subnetInfo_getDynamicInfo", params=[netuid, block_hash]
+        )
+        subnets = DynamicInfo.from_vec_u8(json["result"])
+        return subnets
+
+    async def get_stake_for_coldkey_and_hotkey_on_netuid(
+        self,
+        hotkey_ss58: str,
+        coldkey_ss58: str,
+        netuid: int,
+        block_hash: Optional[str] = None,
+    ) -> "Balance":
+        """Returns the stake under a coldkey - hotkey - netuid pairing"""
+        _result = await self.substrate.query(
+            "SubtensorModule", "Alpha", [hotkey_ss58, coldkey_ss58, netuid], block_hash
+        )
+        if _result is None:
+            return Balance(0).set_unit(netuid)
+        else:
+            return Balance.from_rao(_result).set_unit(int(netuid))
+
+    async def multi_get_stake_for_coldkey_and_hotkey_on_netuid(
+        self,
+        hotkey_ss58s: list[str],
+        coldkey_ss58: str,
+        netuids: list[int],
+        block_hash: Optional[str] = None,
+    ) -> dict[str, dict[int, "Balance"]]:
+        """
+        Queries the stake for multiple hotkey - coldkey - netuid pairings.
+
+        Args:
+            hotkey_ss58s: list of hotkey ss58 addresses
+            coldkey_ss58: a single coldkey ss58 address
+            netuids: list of netuids
+            block_hash: hash of the blockchain block, if any
+
+        Returns:
+            {
+                hotkey_ss58_1: {
+                    netuid_1: netuid1_stake,
+                    netuid_2: netuid2_stake,
+                    ...
+                },
+                hotkey_ss58_2: {
+                    netuid_1: netuid1_stake,
+                    netuid_2: netuid2_stake,
+                    ...
+                },
+                ...
+            }
+
+        """
+        calls = [
+            (
+                await self.substrate.create_storage_key(
+                    "SubtensorModule",
+                    "Alpha",
+                    [hk_ss58, coldkey_ss58, netuid],
+                    block_hash=block_hash,
+                )
+            )
+            for hk_ss58 in hotkey_ss58s
+            for netuid in netuids
+        ]
+        batch_call = await self.substrate.query_multi(calls, block_hash=block_hash)
+        results: dict[str, dict[int, "Balance"]] = {
+            hk_ss58: {} for hk_ss58 in hotkey_ss58s
+        }
+        for idx, item in enumerate(batch_call):
+            hotkey_idx = idx // len(netuids)
+            netuid_idx = idx % len(netuids)
+            hotkey_ss58 = hotkey_ss58s[hotkey_idx]
+            netuid = netuids[netuid_idx]
+            value = (
+                Balance.from_rao(item).set_unit(netuid)
+                if item is not None
+                else Balance(0).set_unit(netuid)
+            )
+            results[hotkey_ss58][netuid] = value
+        return results
+
+    async def get_stake_info_for_coldkeys(
+        self, coldkey_ss58_list: list[str], block_hash: Optional[str] = None
+    ) -> Optional[dict[str, list[StakeInfo]]]:
+        """
+        Retrieves stake information for a list of coldkeys. This function aggregates stake data for multiple
+        accounts, providing a collective view of their stakes and delegations.
+
+        Args:
+            coldkey_ss58_list: A list of SS58 addresses of the accounts' coldkeys.
+            block_hash: The blockchain block number for the query.
+
+        Returns:
+            A dictionary mapping each coldkey to a list of its StakeInfo objects.
+
+        This function is useful for analyzing the stake distribution and delegation patterns of multiple
+        accounts simultaneously, offering a broader perspective on network participation and investment strategies.
+        """
+        encoded_coldkeys = [
+            ss58_to_vec_u8(coldkey_ss58) for coldkey_ss58 in coldkey_ss58_list
+        ]
+
+        hex_bytes_result = await self.query_runtime_api(
+            runtime_api="StakeInfoRuntimeApi",
+            method="get_stake_info_for_coldkeys",
+            params=encoded_coldkeys,
+            block_hash=block_hash,
+        )
+
+        if hex_bytes_result is None:
+            return None
+
+        if hex_bytes_result.startswith("0x"):
+            bytes_result = bytes.fromhex(hex_bytes_result[2:])
+        else:
+            bytes_result = bytes.fromhex(hex_bytes_result)
+
+        return StakeInfo.list_of_tuple_from_vec_u8(bytes_result)  # type: ignore
+
+    async def get_all_subnet_dynamic_info(self) -> list["DynamicInfo"]:
+        json = await self.substrate.rpc_request(
+            method="subnetInfo_getAllDynamicInfo", params=[None]
+        )
+        subnets = DynamicInfo.list_from_vec_u8(json["result"])
+        return subnets
