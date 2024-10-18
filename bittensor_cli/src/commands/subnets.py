@@ -12,9 +12,11 @@ from rich.table import Column, Table
 from bittensor_cli.src import DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import SubnetInfo
-from bittensor_cli.src.bittensor.extrinsics.registration import register_extrinsic
+from bittensor_cli.src.bittensor.extrinsics.registration import (
+    register_extrinsic,
+    burned_register_extrinsic,
+)
 from bittensor_cli.src.bittensor.minigraph import MiniGraph
-from bittensor_cli.src.commands.root import burned_register_extrinsic
 from bittensor_cli.src.commands.wallets import set_id, set_id_prompts
 from bittensor_cli.src.bittensor.utils import (
     RAO_PER_TAO,
@@ -176,6 +178,7 @@ async def subnets_list(
             )
         )
 
+    # TODO make this a reusable function
     # Define table properties
     console_width = console.width - 5
     table = Table(
@@ -359,6 +362,58 @@ async def register(
         return
 
     if prompt:
+        # TODO make this a reusable function, also used in subnets list
+        # Show creation table.
+        console_width = console.width - 5
+        table = Table(
+            title="Subnet Info",
+            width=console_width,
+            safe_box=True,
+            padding=(0, 1),
+            collapse_padding=False,
+            pad_edge=True,
+            expand=True,
+            show_header=True,
+            show_footer=True,
+            show_edge=False,
+            show_lines=False,
+            leading=0,
+            style="none",
+            row_styles=None,
+            header_style="bold",
+            footer_style="bold",
+            border_style="rgb(7,54,66)",
+            title_style="bold magenta",
+            title_justify="center",
+            highlight=False,
+        )
+        table.title = f"[white]Register - {subtensor.network}\n"
+        table.add_column(
+            "Netuid", style="rgb(253,246,227)", no_wrap=True, justify="center"
+        )
+        table.add_column(
+            "Symbol", style="rgb(211,54,130)", no_wrap=True, justify="center"
+        )
+        table.add_column(
+            f"Cost ({Balance.get_unit(0)})",
+            style="rgb(38,139,210)",
+            no_wrap=True,
+            justify="right",
+        )
+        table.add_column(
+            "Hotkey", style="light_salmon3", no_wrap=True, justify="center"
+        )
+        table.add_column(
+            "Coldkey", style="bold dark_green", no_wrap=True, justify="center"
+        )
+        table.add_row(
+            str(netuid),
+            f"[light_goldenrod1]{Balance.get_unit(netuid)}[light_goldenrod1]",
+            f"τ {current_recycle.tao:.4f}",
+            f"{wallet.hotkey.ss58_address}",
+            f"{wallet.coldkeypub.ss58_address}",
+        )
+        console.print(table)
         if not (
             Confirm.ask(
                 f"Your balance is: [bold green]{balance}[/bold green]\nThe cost to register by recycle is "
@@ -373,7 +428,6 @@ async def register(
         wallet=wallet,
         netuid=netuid,
         prompt=False,
-        recycle_amount=current_recycle,
         old_balance=balance,
     )
 

@@ -29,6 +29,7 @@ from rich.status import Status
 from substrateinterface.exceptions import SubstrateRequestException
 
 from bittensor_cli.src.bittensor.chain_data import NeuronInfo
+from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
@@ -671,6 +672,117 @@ async def register_extrinsic(
         else:
             # Failed to register after max attempts.
             err_console.print("[red]No more attempts.[/red]")
+            return False
+
+
+async def burned_register_extrinsic(
+    subtensor: SubtensorInterface,
+    wallet: Wallet,
+    netuid: int,
+    old_balance: Balance,
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = True,
+    prompt: bool = False,
+) -> bool:
+    """Registers the wallet to chain by recycling TAO.
+
+    :param subtensor: The SubtensorInterface object to use for the call, initialized
+    :param wallet: Bittensor wallet object.
+    :param netuid: The `netuid` of the subnet to register on.
+    :param old_balance: The wallet balance prior to the registration burn.
+    :param wait_for_inclusion: If set, waits for the extrinsic to enter a block before returning `True`, or returns
+                               `False` if the extrinsic fails to enter the block within the timeout.
+    :param wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `True`,
+                                  or returns `False` if the extrinsic fails to be finalized within the timeout.
+    :param prompt: If `True`, the call waits for confirmation from the user before proceeding.
+
+    :return: Flag is `True` if extrinsic was finalized or included in the block. If we did not wait for
+             finalization/inclusion, the response is `True`.
+    """
+
+    try:
+        wallet.unlock_coldkey()
+    except KeyFileError:
+        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+        return False
+
+    with console.status(
+        f":satellite: Checking Account on [bold]subnet:{netuid}[/bold]...",
+        spinner="aesthetic",
+    ) as status:
+        my_uid = await subtensor.substrate.query(
+            "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
+        )
+
+        print_verbose("Checking if already registered", status)
+        neuron = await subtensor.neuron_for_uid(
+            uid=my_uid,
+            netuid=netuid,
+            block_hash=subtensor.substrate.last_block_hash,
+        )
+
+    if not neuron.is_null:
+        console.print(
+            ":white_heavy_check_mark: [green]Already Registered[/green]:\n"
+            f"uid: [bold white]{neuron.uid}[/bold white]\n"
+            f"netuid: [bold white]{neuron.netuid}[/bold white]\n"
+            f"hotkey: [bold white]{neuron.hotkey}[/bold white]\n"
+            f"coldkey: [bold white]{neuron.coldkey}[/bold white]"
+        )
+        return True
+
+    with console.status(
+        ":satellite: Recycling TAO for Registration...", spinner="aesthetic"
+    ):
+        call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="burned_register",
+            call_params={
+                "netuid": netuid,
+                "hotkey": wallet.hotkey.ss58_address,
+            },
+        )
+        success, err_msg = await subtensor.sign_and_send_extrinsic(
+            call, wallet, wait_for_inclusion, wait_for_finalization
+        )
+
+    if not success:
+        err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+        await asyncio.sleep(0.5)
+        return False
+    # Successful registration, final check for neuron and pubkey
+    else:
+        with console.status(":satellite: Checking Balance...", spinner="aesthetic"):
+            block_hash = await subtensor.substrate.get_chain_head()
+            new_balance, netuids_for_hotkey, my_uid = await asyncio.gather(
+                subtensor.get_balance(
+                    wallet.coldkeypub.ss58_address,
+                    block_hash=block_hash,
+                    reuse_block=False,
+                ),
+                subtensor.get_netuids_for_hotkey(
+                    wallet.hotkey.ss58_address, block_hash=block_hash
+                ),
+                subtensor.substrate.query(
+                    "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
+                ),
+            )
+
+        console.print(
+            "Balance:\n"
+            f"  [blue]{old_balance}[/blue] :arrow_right: [green]{new_balance[wallet.coldkey.ss58_address]}[/green]"
+        )
+
+        if len(netuids_for_hotkey) > 0:
+            console.print(
+                f":white_heavy_check_mark: [green]Registered on netuid {netuid} with UID {my_uid}[/green]"
+            )
+            return True
+        else:
+            # neuron not found, try again
+            err_console.print(
+                ":cross_mark: [red]Unknown error. Neuron not found.[/red]"
+            )
             return False
 
 
