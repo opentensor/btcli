@@ -334,7 +334,7 @@ HYPERPARAMS = {
     "kappa": "sudo_set_kappa",
     "difficulty": "sudo_set_difficulty",
     "bonds_moving_avg": "sudo_set_bonds_moving_average",
-    "commit_reveal_weights_interval": "sudo_set_commit_reveal_weights_interval",
+    "commit_reveal_periods": "sudo_set_commit_reveal_weights_periods",
     "commit_reveal_weights_enabled": "sudo_set_commit_reveal_weights_enabled",
     "alpha_values": "sudo_set_alpha_values",
     "liquid_alpha_enabled": "sudo_set_liquid_alpha_enabled",
