@@ -209,7 +209,7 @@ def create_virtualenv(venv_path: str) -> str:
     return venv_python
 
 
-def install_subtensor_dependencies(verbose) -> None:
+def install_subtensor_dependencies(verbose, skip_rust) -> None:
     """
     Installs subtensor dependencies, including system-level dependencies and Rust.
     """
