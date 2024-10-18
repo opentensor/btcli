@@ -6,8 +6,7 @@ import yaml
 from rich.text import Text
 from rich.table import Table
 from bittensor_wallet import Wallet, Keypair
-from rich.progress import Progress, BarColumn, TimeRemainingColumn
-from btqs.config import CONFIG_FILE_PATH, VALIDATOR_URI, LOCALNET_ENDPOINT
+from btqs.config import BTQS_LOCK_CONFIG_FILE_PATH, VALIDATOR_URI, LOCALNET_ENDPOINT
 from btqs.utils import (
     console,
     exec_command,
@@ -19,11 +18,18 @@ from btqs.utils import (
     load_config,
     print_info,
     print_error,
+    print_info_box,
 )
 
 
 def add_stake(config_data):
-    subnet_owner, owner_data = subnet_owner_exists(CONFIG_FILE_PATH)
+    print_info_box(
+        "💰 You stake **TAO** to your hotkey to become a validator in a subnet. Your hotkey can potentially earn rewards based on your validating performance.",
+        title="Info: Staking to become a Validator",
+    )
+    print("\n")
+
+    subnet_owner, owner_data = subnet_owner_exists(BTQS_LOCK_CONFIG_FILE_PATH)
     if subnet_owner:
         owner_wallet = Wallet(
             name=owner_data.get("wallet_name"),
@@ -31,7 +37,7 @@ def add_stake(config_data):
             hotkey=owner_data.get("hotkey"),
         )
         print_info(
-            f"Validator is adding stake to its own hotkey: {owner_wallet}\n",
+            f"Validator is adding stake to its own hotkey\n{owner_wallet}\n",
             emoji="🔖 ",
         )
 
@@ -56,7 +62,10 @@ def add_stake(config_data):
         clean_stdout = remove_ansi_escape_sequences(add_stake.stdout)
         if "✅ Finalized" in clean_stdout:
             print_info("Stake added by Validator", emoji="📈 ")
-
+            print_info_box(
+                "Metagraph contains important information on a subnet. Displaying a metagraph is a useful way to see a snapshot of a subnet.",
+                title="Info: Metagraph",
+            )
             print_info("Viewing Metagraph for Subnet 1", emoji="\n🔎 ")
             subnets_list = exec_command(
                 command="subnets",
@@ -73,6 +82,12 @@ def add_stake(config_data):
         else:
             print_error("\nFailed to add stake. Command output:\n")
             print(add_stake.stdout, end="")
+
+        print("\n")
+        print_info_box(
+            "The validator's hotkey must be registered in the root network (netuid 0) to set root weights.",
+            title="Root network registration",
+        )
 
         print_info(
             f"Validator is registering to root network (netuid 0) ({owner_wallet})\n",
@@ -122,7 +137,11 @@ def add_stake(config_data):
 
 
 def add_weights(config_data):
-    subnet_owner, owner_data = subnet_owner_exists(CONFIG_FILE_PATH)
+    print_info_box(
+        "🏋️ Setting **Root weights** in Bittensor means assigning relative importance to different subnets within the network, which directly influences their share of network rewards and resources.",
+        title="Info: Setting Root weights",
+    )
+    subnet_owner, owner_data = subnet_owner_exists(BTQS_LOCK_CONFIG_FILE_PATH)
     if subnet_owner:
         owner_wallet = Wallet(
             name=owner_data.get("wallet_name"),
@@ -130,13 +149,11 @@ def add_weights(config_data):
             hotkey=owner_data.get("hotkey"),
         )
         print_info(
-            "Validator is now setting weights of subnet 1 on the root network\n",
+            "Validator is now setting weights of subnet 1 on the root network.\n Please wait... (Timeout: 60 seconds)",
             emoji="🏋️ ",
         )
-
-        max_retries = 5
+        max_retries = 30
         attempt = 0
-        wait_time = 30
         retry_patterns = ["ancient birth block", "Transaction has a bad signature"]
 
         while attempt < max_retries:
@@ -159,6 +176,7 @@ def add_weights(config_data):
                         "--weights",
                         1,
                     ],
+                    internal_command=True,
                 )
                 clean_stdout = remove_ansi_escape_sequences(set_weights.stdout)
 
@@ -174,25 +192,8 @@ def add_weights(config_data):
                 elif any(pattern in clean_stdout for pattern in retry_patterns):
                     attempt += 1
                     if attempt < max_retries:
-                        console.print(
-                            f"[red]Attempt {attempt}/{max_retries}: Failed to set weights. \nError: {clean_stdout} Retrying in {wait_time} seconds..."
-                        )
-
-                        with Progress(
-                            "[progress.percentage]{task.percentage:>3.0f}%",
-                            BarColumn(),
-                            TimeRemainingColumn(),
-                            console=console,
-                            transient=True,
-                        ) as progress:
-                            task = progress.add_task("Waiting...", total=wait_time)
-                            while not progress.finished:
-                                progress.update(task, advance=1)
-                                time.sleep(1)
+                        time.sleep(1)
                     else:
-                        console.print(
-                            f"[red]Attempt {attempt}/{max_retries}: Maximum retries reached."
-                        )
                         console.print(
                             "\n[red]Failed to set weights after multiple attempts. Please try again later\n"
                         )
@@ -253,7 +254,7 @@ def display_live_metagraph(config_data):
             clear_screen()
             print(metagraph)
             display_process_status_table(
-                process_entries, cpu_usage_list, memory_usage_list, config_data
+                process_entries, cpu_usage_list, memory_usage_list
             )
 
             # Create a progress bar for 5 seconds
@@ -275,13 +276,14 @@ def display_live_metagraph(config_data):
 
 def setup_subnet(config_data):
     os.makedirs(config_data["wallets_path"], exist_ok=True)
-    subnet_owner, owner_data = subnet_owner_exists(CONFIG_FILE_PATH)
+    subnet_owner, owner_data = subnet_owner_exists(BTQS_LOCK_CONFIG_FILE_PATH)
     if subnet_owner:
         owner_wallet = Wallet(
             name=owner_data.get("wallet_name"),
             path=config_data["wallets_path"],
             hotkey=owner_data.get("hotkey"),
         )
+        input()
 
         warning_text = Text(
             "A Subnet Owner associated with this setup already exists",
@@ -295,7 +297,7 @@ def setup_subnet(config_data):
     else:
         create_subnet_owner_wallet(config_data)
         config_data = load_config(
-            "A running Subtensor not found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
+            "A running Subtensor not found. Please run `btqs chain start` first."
         )
 
     owner_data = config_data["Owner"]
@@ -323,7 +325,12 @@ def setup_subnet(config_data):
     else:
         create_subnet(owner_wallet, config_data)
 
-    print_info("\nListing all subnets\n", emoji="📋 ")
+    print_info("Listing all subnets\n", emoji="\n📋 ")
+    print_info_box(
+        "In the below table, the netuid 0 shown is root network that is automatically created when the local blockchain starts",
+        title="Info: Root network (netuid 0)",
+    )
+    print("\n")
     subnets_list = exec_command(
         command="subnets",
         sub_command="list",
@@ -336,10 +343,12 @@ def setup_subnet(config_data):
 
 
 def create_subnet_owner_wallet(config_data):
-    print_info("Creating subnet owner wallet.\n", emoji="🗂️ ")
+    print_info(
+        "Creating a wallet (coldkey) and a hotkey to create a subnet.\n", emoji="🗂️ "
+    )
 
     owner_wallet_name = typer.prompt(
-        "Enter subnet owner wallet name", default="owner", show_default=True
+        "Enter subnet owner wallet name", default="Alice", show_default=True
     )
     owner_hotkey_name = typer.prompt(
         "Enter subnet owner hotkey name", default="default", show_default=True
@@ -365,12 +374,12 @@ def create_subnet_owner_wallet(config_data):
         "hotkey": owner_hotkey_name,
         "subtensor_pid": config_data["pid"],
     }
-    with open(CONFIG_FILE_PATH, "w") as config_file:
+    with open(BTQS_LOCK_CONFIG_FILE_PATH, "w") as config_file:
         yaml.safe_dump(config_data, config_file)
 
 
 def create_subnet(owner_wallet, config_data):
-    print_info("Creating a subnet with Netuid 1\n", emoji="\n🌎 ")
+    print_info("Creating a subnet.\n", emoji="\n🌎 ")
 
     create_subnet = exec_command(
         command="subnets",
@@ -391,7 +400,16 @@ def create_subnet(owner_wallet, config_data):
     if "✅ Registered subnetwork with netuid: 1" in clean_stdout:
         print_info("Subnet created successfully with netuid 1\n", emoji="🥇 ")
 
-    print_info(f"Registering Owner ({owner_wallet}) to Netuid 1\n", emoji="📝 ")
+    print_info_box(
+        "🔑 Creating a subnet involves signing with your *coldkey*, which is the permanent keypair associated with your account. "
+        "It is typically used for long-term ownership and higher-value operations.\n\n"
+        "🔥 When registering to a subnet, your *hotkey* is used. The hotkey is a more frequently used keypair "
+        "designed for day-to-day interactions with the network."
+    )
+
+    print_info(
+        f"Registering the subnet owner to Netuid 1\n{owner_wallet}\n", emoji="\n📝 "
+    )
 
     register_subnet = exec_command(
         command="subnets",
@@ -412,58 +430,4 @@ def create_subnet(owner_wallet, config_data):
     )
     clean_stdout = remove_ansi_escape_sequences(register_subnet.stdout)
     if "✅ Registered" in clean_stdout:
-        print_info("Registered the owner's wallet to subnet 1", emoji="✅ ")
-
-
-def steps():
-    steps = [
-        {
-            "command": "btqs chain start",
-            "description": "Start and initialize a local Subtensor blockchain. It may take several minutes to complete during the Subtensor compilation process. This is the entry point of the tutorial",
-        },
-        {
-            "command": "btqs subnet setup",
-            "description": "This command creates a subnet owner's wallet, creates a new subnet, and registers the subnet owner to the subnet. Ensure the local chain is running before executing this command.",
-        },
-        {
-            "command": "btqs subnet stake",
-            "description": "Add stake to the subnet and register to root. This command stakes Tao to the validator's own hotkey and registers to root network",
-        },
-        {
-            "command": "btqs neurons setup",
-            "description": "This command creates miner wallets and registers them to the subnet.",
-        },
-        {
-            "command": "btqs neurons run",
-            "description": "Run all neurons (miners and validators). This command starts the processes for all configured neurons, attaching to running processes if they are already running.",
-        },
-        {
-            "command": "btqs subnet add-weight",
-            "description": "Add weight to netuid 1 through the validator",
-        },
-        {
-            "command": "btqs subnet live",
-            "description": "Display the live metagraph of the subnet. This is used to monitor neuron performance and changing variables.",
-        },
-    ]
-
-    table = Table(
-        title="[bold dark_orange]Subnet Setup Steps",
-        header_style="dark_orange",
-        leading=True,
-        show_edge=False,
-        border_style="bright_black",
-    )
-    table.add_column("Step", style="cyan", width=12, justify="center")
-    table.add_column("Command", justify="left", style="green")
-    table.add_column("Description", justify="left", style="white")
-
-    for index, step in enumerate(steps, start=1):
-        table.add_row(str(index), step["command"], step["description"])
-
-    console.print(table)
-
-    console.print(
-        "\n[dark_orange] You can run an automated script covering all the steps using:\n"
-    )
-    console.print("[blue]$ [green]btqs run-all")
+        print_info("Registered the owner's hotkey to subnet 1", emoji="✅ ")

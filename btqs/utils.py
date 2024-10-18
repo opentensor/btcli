@@ -22,7 +22,7 @@ from rich.align import Align
 from typer.testing import CliRunner
 
 from .config import (
-    CONFIG_FILE_PATH,
+    BTQS_LOCK_CONFIG_FILE_PATH,
     VALIDATOR_PORT,
     LOCALNET_ENDPOINT,
     DEFAULT_MINER_COMMAND,
@@ -35,6 +35,20 @@ from .config import (
 )
 
 console = Console()
+
+messages = [
+    "🔧 [cyan]Polishing the blocks[/cyan]",
+    "🛢️  [yellow]Oiling up the chain[/yellow]",
+    "⚙️  [green]Calibrating gears[/green]",
+    "🔌 [magenta]Plugging in nodes[/magenta]",
+    "🧰 [blue]Gathering tools[/blue]",
+    "📰  [cyan]Mapping the network[/cyan]",
+    "🔭 [yellow]Aligning dependencies[/yellow]",
+    "🧪 [green]Mixing tempos[/green]",
+    "📡 [magenta]Tuning frequencies[/magenta]",
+    "🚀 [red]Preparing for launch[/red]",
+    "🙌  [dark_orange]Bittensor on 3! 1, 2, 3!",
+]
 
 
 def print_info(message: str, emoji: str = "", style: str = "yellow"):
@@ -60,7 +74,7 @@ def print_error(message: str, emoji: str = "❌"):
 def print_step(title: str, description: str, step_number: int):
     panel = Panel.fit(
         Align.left(f"[bold]{step_number}. {title}[/bold]\n{description}"),
-        title=f"Step {step_number}",
+        title=f"[dark_orange]Step {step_number}",
         border_style="bright_black",
         padding=(1, 2),
     )
@@ -96,7 +110,7 @@ def load_config(
     Raises:
         typer.Exit: If the config file is not found and exit_if_missing is True.
     """
-    if not os.path.exists(CONFIG_FILE_PATH):
+    if not os.path.exists(BTQS_LOCK_CONFIG_FILE_PATH):
         if exit_if_missing:
             if error_message:
                 print_error(f"{error_message}")
@@ -105,7 +119,7 @@ def load_config(
             raise typer.Exit()
         else:
             return {}
-    with open(CONFIG_FILE_PATH, "r") as config_file:
+    with open(BTQS_LOCK_CONFIG_FILE_PATH, "r") as config_file:
         config_data = yaml.safe_load(config_file) or {}
     return config_data
 
@@ -163,9 +177,6 @@ def is_rust_installed(required_version: str) -> bool:
             text=True,
         )
         installed_version = result.stdout.strip().split()[1]
-        print_info(
-            installed_version, required_version, result.stdout.strip().split()[1]
-        )
         return installed_version == required_version
     except Exception:
         return False
@@ -198,11 +209,13 @@ def create_virtualenv(venv_path: str) -> str:
     return venv_python
 
 
-def install_subtensor_dependencies() -> None:
+def install_subtensor_dependencies(verbose) -> None:
     """
     Installs subtensor dependencies, including system-level dependencies and Rust.
     """
     print_info("Installing subtensor system dependencies...", emoji="⚙️ ")
+
+    stdout = None if verbose else subprocess.DEVNULL
 
     # Install required system dependencies
     missing_packages = []
@@ -215,9 +228,17 @@ def install_subtensor_dependencies() -> None:
             console.print(
                 f"[yellow]Installing missing system packages: {', '.join(missing_packages)}"
             )
-            subprocess.run(["sudo", "apt-get", "update"], check=True)
             subprocess.run(
-                ["sudo", "apt-get", "install", "-y"] + missing_packages, check=True
+                ["sudo", "apt-get", "update"],
+                check=True,
+                stdout=stdout,
+                stderr=stdout,
+            )
+            subprocess.run(
+                ["sudo", "apt-get", "install", "-y"] + missing_packages,
+                check=True,
+                stdout=stdout,
+                stderr=stdout,
             )
         else:
             print_info("All required system packages are already installed.")
@@ -232,8 +253,18 @@ def install_subtensor_dependencies() -> None:
             console.print(
                 f"[yellow]Installing missing macOS system packages: {', '.join(missing_packages)}"
             )
-            subprocess.run(["brew", "update"], check=True)
-            subprocess.run(["brew", "install"] + missing_packages, check=True)
+            subprocess.run(
+                ["brew", "update"],
+                check=True,
+                stdout=stdout,
+                stderr=stdout,
+            )
+            subprocess.run(
+                ["brew", "install"] + missing_packages,
+                check=True,
+                stdout=stdout,
+                stderr=stdout,
+            )
         else:
             print_info(
                 "All required macOS system packages are already installed.", emoji="🔔"
@@ -262,10 +293,14 @@ def install_subtensor_dependencies() -> None:
                 "rustup.sh",
             ],
             check=True,
+            stdout=stdout,
+            stderr=stdout,
         )
         subprocess.run(
             ["sh", "rustup.sh", "-y", "--default-toolchain", RUST_INSTALLATION_VERSION],
             check=True,
+            stdout=stdout,
+            stderr=stdout,
         )
     else:
         console.print(
@@ -275,12 +310,17 @@ def install_subtensor_dependencies() -> None:
     # Add necessary Rust targets
     print_info("Configuring Rust toolchain...", emoji="🛠️ ")
     for target in RUST_TARGETS:
-        subprocess.run(target, check=True)
+        subprocess.run(
+            target,
+            check=True,
+            stdout=stdout,
+            stderr=stdout,
+        )
 
-    print_info("Subtensor dependencies installed.", emoji="🧰 ")
+    print_info("Subtensor dependencies installed.\n", emoji="🧰 ")
 
 
-def install_neuron_dependencies(venv_python: str, cwd: str) -> None:
+def install_neuron_dependencies(venv_python: str, cwd: str, verbose: bool) -> None:
     """
     Installs neuron dependencies into the virtual environment.
 
@@ -288,14 +328,23 @@ def install_neuron_dependencies(venv_python: str, cwd: str) -> None:
         venv_python (str): Path to the Python executable in the virtual environment.
         cwd (str): Current working directory where the setup should run.
     """
-    print_info("Installing neuron dependencies...", emoji="⚙️ ")
+    stdout = None if verbose else subprocess.DEVNULL
+    print_info("Installing neuron dependencies...", emoji="⚙️ ", style="bold green")
     subprocess.run(
-        [venv_python, "-m", "pip", "install", "--upgrade", "pip"], cwd=cwd, check=True
+        [venv_python, "-m", "pip", "install", "--upgrade", "pip"],
+        cwd=cwd,
+        check=True,
+        stdout=stdout,
+        stderr=stdout,
     )
     subprocess.run(
-        [venv_python, "-m", "pip", "install", "-e", "."], cwd=cwd, check=True
+        [venv_python, "-m", "pip", "install", "-e", "."],
+        cwd=cwd,
+        check=True,
+        stdout=stdout,
+        stderr=stdout,
     )
-    print_info("Neuron dependencies installed.", emoji="🖥️ ")
+    print_info("Neuron dependencies installed.", emoji="🖥️ ", style="bold green")
 
 
 def remove_ansi_escape_sequences(text: str) -> str:
@@ -368,7 +417,7 @@ def exec_command(
     return result
 
 
-def is_chain_running(config_file_path: str = CONFIG_FILE_PATH) -> bool:
+def is_chain_running(config_file_path: str = BTQS_LOCK_CONFIG_FILE_PATH) -> bool:
     """
     Checks if the local chain is running by verifying the PID in the config file.
 
@@ -814,6 +863,7 @@ def start_miner(
     subnet_template_path: str,
     config_data: Dict[str, Any],
     venv_python: str,
+    verbose=False,
 ) -> bool:
     """
     Starts a single miner and displays logs until user presses Ctrl+C.
@@ -823,8 +873,6 @@ def start_miner(
         name=wallet_name,
         hotkey=wallet_info["hotkey"],
     )
-    print_info(f"Starting miner: {wallet}...\nPress any key to continue.", emoji="🏁 ")
-    input()
 
     miner_command = get_miner_command(wallet_name, config_data)
     base_args = [
@@ -853,6 +901,11 @@ def start_miner(
 
     with open(log_file_path, "a") as log_file:
         try:
+            if verbose:
+                console.print(
+                    "🏁 [bold yellow]Starting a miner...Press any key to start a miner [bold dark_orange]and wait for 3 to 5 seconds and press Ctrl + C to start the next neuron.\n"
+                )
+                input()
             process = subprocess.Popen(
                 cmd,
                 cwd=subnet_template_path,
@@ -866,7 +919,12 @@ def start_miner(
 
             # Update config_data
             config_data["Miners"][wallet_name] = wallet_info
-            attach_to_process_logs(log_file_path, f"Miner {wallet_name}", process.pid)
+            if verbose:
+                attach_to_process_logs(
+                    log_file_path, f"Miner {wallet_name}", process.pid
+                )
+            else:
+                console.print("[green]🎬 Started miner process!\n")
             return True
         except Exception as e:
             console.print(f"[red]Error starting miner {wallet_name}: {e}")
@@ -878,6 +936,7 @@ def start_validator(
     subnet_template_path: str,
     config_data: Dict[str, Any],
     venv_python: str,
+    verbose=False,
 ) -> bool:
     """
     Starts the validator process and displays logs until user presses Ctrl+C.
@@ -887,8 +946,6 @@ def start_validator(
         name=owner_info["wallet_name"],
         hotkey=owner_info["hotkey"],
     )
-    print_info("Starting validator...\nPress any key to continue.", emoji="🏁 ")
-    input()
 
     validator_command = get_validator_command(config_data)
     base_args = [
@@ -913,6 +970,12 @@ def start_validator(
     os.makedirs(logs_dir, exist_ok=True)
     log_file_path = os.path.join(logs_dir, "validator.log")
 
+    if verbose:
+        print_info(
+            "Starting a validator...\nAfter the validator starts press Ctrl + C to start the next neuron.\nPress any key to continue...",
+            emoji="🏁 ",
+        )
+        input()
     with open(log_file_path, "a") as log_file:
         try:
             process = subprocess.Popen(
@@ -928,8 +991,10 @@ def start_validator(
 
             # Update config_data
             config_data["Owner"] = owner_info
-
-            attach_to_process_logs(log_file_path, "Validator", process.pid)
+            if verbose:
+                attach_to_process_logs(log_file_path, "Validator", process.pid)
+            else:
+                console.print("[green]🚓 Started validator process!\n")
             return True
         except Exception as e:
             console.print(f"[red]Error starting validator: {e}")

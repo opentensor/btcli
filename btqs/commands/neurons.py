@@ -1,15 +1,17 @@
 import os
 import psutil
 import typer
+import click
+import asyncio
 import yaml
 from bittensor_wallet import Wallet, Keypair
 from git import Repo, GitCommandError
 
 from btqs.config import (
-    CONFIG_FILE_PATH,
+    BTQS_LOCK_CONFIG_FILE_PATH,
     SUBNET_REPO_URL,
     SUBNET_REPO_BRANCH,
-    WALLET_URIS,
+    MINER_URIS,
     MINER_PORTS,
     LOCALNET_ENDPOINT,
 )
@@ -26,16 +28,25 @@ from btqs.utils import (
     create_virtualenv,
     install_neuron_dependencies,
     print_info,
+    print_warning,
+)
+from bittensor_cli.src.bittensor.async_substrate_interface import (
+    AsyncSubstrateInterface,
 )
 
 
 def setup_neurons(config_data):
-    subnet_owner, owner_data = subnet_owner_exists(CONFIG_FILE_PATH)
+    subnet_owner, owner_data = subnet_owner_exists(BTQS_LOCK_CONFIG_FILE_PATH)
     if not subnet_owner:
         console.print(
             "[red]Subnet netuid 1 registered to the owner not found. Run `btqs subnet setup` first"
         )
         return
+    owner_wallet = Wallet(
+        name=owner_data.get("wallet_name"),
+        path=config_data["wallets_path"],
+        hotkey=owner_data.get("hotkey"),
+    )
 
     config_data.setdefault("Miners", {})
     miners = config_data.get("Miners", {})
@@ -50,9 +61,21 @@ def setup_neurons(config_data):
     else:
         _create_miner_wallets(config_data)
 
+    print_info("Preparing for miner registrations. Please wait...\n", emoji="⏱️ ")
+    local_chain = AsyncSubstrateInterface(chain_endpoint=LOCALNET_ENDPOINT)
+    success = asyncio.run(
+        sudo_set_target_registrations_per_interval(local_chain, owner_wallet, 1, 1000)
+    )
+    if success:
+        print_info("Proceeding with the miner registrations.\n", emoji="🛣️ ")
+    else:
+        print_warning("All neurons might not be able to register at once.")
+
     _register_miners(config_data)
 
-    print_info("Viewing Metagraph for Subnet 1\n", emoji="📊 ")
+    print_info("All registrations are complete.\n", emoji="📚 ")
+
+    print_info("Viewing Metagraph for Subnet 1.\n", emoji="📊 ")
     subnets_list = exec_command(
         command="subnets",
         sub_command="metagraph",
@@ -66,7 +89,7 @@ def setup_neurons(config_data):
     print(subnets_list.stdout, end="")
 
 
-def run_neurons(config_data):
+def run_neurons(config_data, verbose=False):
     subnet_template_path = _add_subnet_template(config_data)
 
     chain_pid = config_data.get("pid")
@@ -74,20 +97,22 @@ def run_neurons(config_data):
 
     venv_neurons_path = os.path.join(config_data["workspace_path"], "venv_neurons")
     venv_python = create_virtualenv(venv_neurons_path)
-    install_neuron_dependencies(venv_python, subnet_template_path)
+    install_neuron_dependencies(venv_python, subnet_template_path, verbose)
 
     # Handle Validator
     if config_data.get("Owner"):
         config_data["Owner"]["venv"] = venv_python
-        _run_validator(config_data, subnet_template_path, chain_pid, venv_python)
+        _run_validator(
+            config_data, subnet_template_path, chain_pid, venv_python, verbose
+        )
 
     # Handle Miners
     for wallet_name, wallet_info in config_data.get("Miners", {}).items():
         config_data["Miners"][wallet_name]["venv"] = venv_python
 
-    _run_miners(config_data, subnet_template_path, chain_pid, venv_python)
+    _run_miners(config_data, subnet_template_path, chain_pid, venv_python, verbose)
 
-    with open(CONFIG_FILE_PATH, "w") as config_file:
+    with open(BTQS_LOCK_CONFIG_FILE_PATH, "w") as config_file:
         yaml.safe_dump(config_data, config_file)
 
 
@@ -139,11 +164,11 @@ def stop_neurons(config_data):
     # Stop selected neurons
     _stop_selected_neurons(config_data, selected_neurons)
 
-    with open(CONFIG_FILE_PATH, "w") as config_file:
+    with open(BTQS_LOCK_CONFIG_FILE_PATH, "w") as config_file:
         yaml.safe_dump(config_data, config_file)
 
 
-def start_neurons(config_data):
+def start_neurons(config_data, verbose=False):
     # Get process entries
     process_entries, _, _ = get_process_entries(config_data)
     display_process_status_table(process_entries, [], [])
@@ -189,9 +214,9 @@ def start_neurons(config_data):
         return
 
     # Start selected neurons
-    _start_selected_neurons(config_data, selected_neurons)
+    _start_selected_neurons(config_data, selected_neurons, verbose)
 
-    with open(CONFIG_FILE_PATH, "w") as config_file:
+    with open(BTQS_LOCK_CONFIG_FILE_PATH, "w") as config_file:
         yaml.safe_dump(config_data, config_file)
 
 
@@ -260,7 +285,21 @@ def reattach_neurons(config_data):
 
 
 def _create_miner_wallets(config_data):
-    for i, uri in enumerate(WALLET_URIS):
+    max_miners = len(MINER_URIS)
+
+    total_miners = typer.prompt(
+        f"How many miners do you want to run? (Choose between 1 and {max_miners})",
+        type=click.IntRange(1, max_miners),
+        default=3,
+        show_default=True,
+    )
+
+    # Ensure that the total number of miners doesn't exceed the available URIs
+    if total_miners > max_miners:
+        total_miners = max_miners
+        console.print(f"Limiting the number of miners to {max_miners}.")
+
+    for i, uri in enumerate(MINER_URIS[:total_miners]):
         console.print(f"Miner {i+1}:")
         wallet_name = typer.prompt(
             f"Enter wallet name for miner {i+1}", default=f"{uri.strip('//')}"
@@ -285,10 +324,10 @@ def _create_miner_wallets(config_data):
             "port": MINER_PORTS[i],
         }
 
-    with open(CONFIG_FILE_PATH, "w") as config_file:
+    with open(BTQS_LOCK_CONFIG_FILE_PATH, "w") as config_file:
         yaml.safe_dump(config_data, config_file)
 
-    print_info("Miner wallets are created.\n", emoji="🗂️ ")
+    print_info("Miner wallets are created.\n", emoji="\n🗂️ ")
 
 
 def _register_miners(config_data):
@@ -298,7 +337,7 @@ def _register_miners(config_data):
             name=wallet_name,
             hotkey=wallet_info["hotkey"],
         )
-        print_info(f"Registering Miner ({wallet_name}) to Netuid 1\n", emoji="🔧 ")
+        print_info(f"Registering Miner ({wallet_name}) to Netuid 1\n", emoji="⚒️ ")
 
         miner_registered = exec_command(
             command="subnets",
@@ -366,11 +405,12 @@ def _add_subnet_template(config_data):
     return subnet_template_path
 
 
-def _run_validator(config_data, subnet_template_path, chain_pid, venv_python):
+def _run_validator(
+    config_data, subnet_template_path, chain_pid, venv_python, verbose=False
+):
     owner_info = config_data["Owner"]
     validator_pid = owner_info.get("pid")
     validator_subtensor_pid = owner_info.get("subtensor_pid")
-
     if (
         validator_pid
         and psutil.pid_exists(validator_pid)
@@ -387,13 +427,15 @@ def _run_validator(config_data, subnet_template_path, chain_pid, venv_python):
     else:
         # Validator is not running, start it
         success = start_validator(
-            owner_info, subnet_template_path, config_data, venv_python
+            owner_info, subnet_template_path, config_data, venv_python, verbose
         )
         if not success:
             console.print("[red]Failed to start validator.")
 
 
-def _run_miners(config_data, subnet_template_path, chain_pid, venv_python):
+def _run_miners(
+    config_data, subnet_template_path, chain_pid, venv_python, verbose=False
+):
     for wallet_name, wallet_info in config_data.get("Miners", {}).items():
         miner_pid = wallet_info.get("pid")
         miner_subtensor_pid = wallet_info.get("subtensor_pid")
@@ -416,7 +458,12 @@ def _run_miners(config_data, subnet_template_path, chain_pid, venv_python):
         else:
             # Miner is not running, start it
             success = start_miner(
-                wallet_name, wallet_info, subnet_template_path, config_data, venv_python
+                wallet_name,
+                wallet_info,
+                subnet_template_path,
+                config_data,
+                venv_python,
+                verbose,
             )
             if not success:
                 console.print(f"[red]Failed to start miner {wallet_name}.")
@@ -444,7 +491,7 @@ def _stop_selected_neurons(config_data, selected_neurons):
             config_data["Owner"]["pid"] = None
 
 
-def _start_selected_neurons(config_data, selected_neurons):
+def _start_selected_neurons(config_data, selected_neurons, verbose):
     subnet_template_path = _add_subnet_template(config_data)
 
     for neuron in selected_neurons:
@@ -455,12 +502,18 @@ def _start_selected_neurons(config_data, selected_neurons):
                 subnet_template_path,
                 config_data,
                 config_data["Owner"]["venv"],
+                verbose,
             )
         elif neuron_name.startswith("Miner"):
             wallet_name = neuron_name.split("Miner: ")[-1]
             wallet_info = config_data["Miners"][wallet_name]
             success = start_miner(
-                wallet_name, wallet_info, subnet_template_path, config_data
+                wallet_name,
+                wallet_info,
+                subnet_template_path,
+                config_data,
+                config_data["Miners"][wallet_name]["venv"],
+                verbose,
             )
 
         if success:
@@ -471,3 +524,36 @@ def _start_selected_neurons(config_data, selected_neurons):
     # Update the process entries after starting neurons
     process_entries, _, _ = get_process_entries(config_data)
     display_process_status_table(process_entries, [], [])
+
+
+async def sudo_set_target_registrations_per_interval(
+    substrate: "AsyncSubstrateInterface",
+    wallet: Wallet,
+    netuid: int,
+    target_registrations_per_interval: int,
+) -> bool:
+    async with substrate:
+        registration_call = await substrate.compose_call(
+            call_module="AdminUtils",
+            call_function="sudo_set_target_registrations_per_interval",
+            call_params={
+                "netuid": netuid,
+                "target_registrations_per_interval": target_registrations_per_interval,
+            },
+        )
+        sudo_call = await substrate.compose_call(
+            call_module="Sudo",
+            call_function="sudo",
+            call_params={"call": registration_call},
+        )
+        extrinsic = await substrate.create_signed_extrinsic(
+            call=sudo_call, keypair=wallet.coldkey
+        )
+        response = await substrate.submit_extrinsic(
+            extrinsic,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+        )
+
+        await response.process_events()
+        return await response.is_success

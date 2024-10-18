@@ -9,7 +9,7 @@ from btqs.commands import chain, neurons, subnet
 from rich.table import Table
 
 from .config import (
-    CONFIG_FILE_PATH,
+    BTQS_LOCK_CONFIG_FILE_PATH,
     EPILOG,
     LOCALNET_ENDPOINT,
     DEFAULT_WORKSPACE_DIRECTORY,
@@ -74,8 +74,8 @@ class BTQSManager:
         # Subnet commands
         self.subnet_app.command(name="setup")(self.setup_subnet)
         self.subnet_app.command(name="live")(self.display_live_metagraph)
-        self.subnet_app.command(name="stake")(self.add_stake)
-        self.subnet_app.command(name="add-weights")(self.add_weights)
+        self.subnet_app.command(name="stake", hidden=True)(self.add_stake)
+        self.subnet_app.command(name="add-weights", hidden=True)(self.add_weights)
 
         # Neuron commands
         self.neurons_app.command(name="setup")(self.setup_neurons)
@@ -85,48 +85,43 @@ class BTQSManager:
         self.neurons_app.command(name="status")(self.status_neurons)
         self.neurons_app.command(name="start")(self.start_neurons)
 
+        self.verbose = False
+        self.fast_blocks = True
+        self.workspace_path = None
+        self.subtensor_branch = None
         self.steps = [
             {
                 "title": "Start Local Subtensor",
+                "command": "btqs chain start",
                 "description": "Initialize and start the local Subtensor blockchain. This may take several minutes due to the compilation process.",
                 "info": "🔗 **Subtensor** is the underlying blockchain network that facilitates decentralized activities. Starting the local chain sets up your personal development environment for experimenting with Bittensor.",
-                "action": lambda: self.start_chain(workspace_path=None, branch=None),
-            },
-            {
-                "title": "Check Chain Status",
-                "description": "Verify that the local chain is running correctly.",
-                "info": "📊 **Chain Nodes**: During your local Subtensor setup, two blockchain nodes are initiated. These nodes communicate and collaborate to reach consensus, ensuring the integrity and synchronization of your blockchain network.",
-                "action": lambda: self.status_neurons(),
+                "action": lambda: self.start_chain(
+                    workspace_path=self.workspace_path,
+                    branch=self.subtensor_branch,
+                    fast_blocks=self.fast_blocks,
+                    verbose=self.verbose,
+                ),
             },
             {
                 "title": "Set Up Subnet",
-                "description": "Create a subnet owner wallet, establish a new subnet, and register the owner to the subnet.",
-                "info": "🔑 **Wallets** in Bittensor are essential for managing your stake, interacting with the network, and running validators or miners. Each wallet has a unique name and associated hotkey that serves as your identity within the network.",
+                "command": "btqs subnet setup",
+                "description": "Create a subnet owner wallet, establish a new subnet, and register the owner to the subnet. Register to root, add stake, and set weights.",
+                "info": "🔑 **Wallets** (coldkeys) in Bittensor are essential for managing your stake, interacting with the network, and running validators or miners. Each wallet (coldkey) has a unique name and an associated hotkey that serves as your identity within the network.",
                 "action": lambda: self.setup_subnet(),
             },
             {
-                "title": "Add Stake by Validator",
-                "description": "Stake Tao to the validator's hotkey and register to the root network.",
-                "info": "💰 **Staking Tao** to your hotkey is the process of committing your tokens to support your role as a validator in the subnet. Your wallet can potentially earn rewards based on your performance and the subnet's incentive mechanism.",
-                "action": lambda: self.add_stake(),
-            },
-            {
-                "title": "Set Up Miners",
+                "title": "Set Up Neurons (Miners)",
+                "command": "btqs neurons setup",
                 "description": "Create miner wallets and register them to the subnet.",
-                "info": "⚒️  **Miners** are responsible for performing computations and contributing to the subnet's tasks. Setting up miners involves creating dedicated wallets for each miner entity and registering them to the subnet.",
+                "info": "⚒️  **Miners** perform tasks that are given to them by validators. A miner can be registered into a subnet with a coldkey and a hotkey pair.",
                 "action": lambda: self.setup_neurons(),
             },
             {
-                "title": "Run Miners",
-                "description": "Start all miner processes.",
-                "info": "🏃 This step starts and runs your miner processes so they can start contributing to the network",
-                "action": lambda: self.run_neurons(),
-            },
-            {
-                "title": "Add Weights to Netuid 1",
-                "description": "Configure weights for Netuid 1 through the validator.",
-                "info": "🏋️ Setting **Root weights** in Bittensor means assigning relative importance to different subnets within the network, which directly influences their share of network rewards and resources.",
-                "action": lambda: self.add_weights(),
+                "title": "Run Neurons",
+                "command": "btqs neurons run",
+                "description": "Start all neuron (miner & validator) processes.",
+                "info": "🏃 Running neurons means starting one or more validator processes and one or more miner processes. In practice validators and miners are subnet-specific.\nHowever, in this tutorial we will use simple validator and miner modules. Configure your own setup using btqs_config.py.",  # Add path
+                "action": lambda: self.run_neurons(verbose=self.verbose),
             },
         ]
 
@@ -140,6 +135,12 @@ class BTQSManager:
         ),
         branch: Optional[str] = typer.Option(
             None, "--subtensor_branch", help="Subtensor branch to checkout"
+        ),
+        fast_blocks: bool = typer.Option(
+            True, "--fast/--slow", help="Enable or disable fast blocks"
+        ),
+        verbose: bool = typer.Option(
+            False, "--verbose", "-v", help="Enable verbose output"
         ),
     ):
         """
@@ -161,9 +162,13 @@ class BTQSManager:
                 if reuse_config_path:
                     workspace_path = config_data.get("workspace_path")
             else:
+                print_info(
+                    "The development working directory will host subnet and subtensor repos, logs, and wallets created during the quick start.",
+                    emoji="💡 ",
+                )
                 workspace_path = typer.prompt(
                     typer.style(
-                        "Enter path to create Bittensor development workspace",
+                        "Enter path to the development working directory (Press Enter for default)",
                         fg="blue",
                     ),
                     default=DEFAULT_WORKSPACE_DIRECTORY,
@@ -171,12 +176,18 @@ class BTQSManager:
 
         if not branch:
             branch = typer.prompt(
-                typer.style("Enter Subtensor branch", fg="blue"),
+                typer.style(
+                    "Enter Subtensor branch (press Enter for default)", fg="blue"
+                ),
                 default=SUBTENSOR_BRANCH,
             )
-
-        console.print("🔗 [dark_orange]Starting the local chain...")
-        chain.start(config_data, workspace_path, branch)
+        chain.start(
+            config_data,
+            workspace_path,
+            branch,
+            fast_blocks=fast_blocks,
+            verbose=verbose,
+        )
 
     def stop_chain(self):
         """
@@ -191,7 +202,7 @@ class BTQSManager:
         [bold]Note[/bold]: Use this command to gracefully shut down the local chain. It will also stop any running miner processes.
         """
         config_data = load_config(
-            "No running chain found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
+            "No running chain found. Please run `btqs chain start` first."
         )
         chain.stop(config_data)
 
@@ -208,14 +219,33 @@ class BTQSManager:
         [bold]Note[/bold]: Press Ctrl+C to detach from the chain logs.
         """
         config_data = load_config(
-            "A running Subtensor not found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
+            "A running Subtensor not found. Please run `btqs chain start` first."
         )
         chain.reattach(config_data)
 
-    def run_all(self):
+    def run_all(
+        self,
+        workspace_path: Optional[str] = typer.Option(
+            None,
+            "--path",
+            "--workspace",
+            help="Path to Bittensor's quick start workspace",
+        ),
+        fast_blocks: bool = typer.Option(
+            True, "--fast/--slow", help="Enable or disable fast blocks"
+        ),
+        verbose: bool = typer.Option(
+            False, "--verbose", "-v", help="Enable verbose output"
+        ),
+    ):
         """
         Runs all commands in sequence to set up and start the local chain, subnet, and neurons.
         """
+
+        self.workspace_path = workspace_path
+        self.fast_blocks = fast_blocks
+        self.verbose = verbose
+
         console.clear()
         print_info("Welcome to the Bittensor Quick Start Tutorial", emoji="🚀")
         console.print(
@@ -224,12 +254,12 @@ class BTQSManager:
         )
 
         for idx, step in enumerate(self.steps, start=1):
+            print_step(step["title"], step["description"], idx)
             if "info" in step:
                 print_info_box(step["info"], title="Info")
-            print_step(step["title"], step["description"], idx)
 
             console.print(
-                "[bold blue]Press [yellow]Enter[/yellow] to continue to the next step or [yellow]Ctrl+C[/yellow] to exit.\n"
+                f"[blue]Press [yellow]Enter[/yellow] to continue to the [dark_orange]Step {idx}[/dark_orange] or [yellow]Ctrl+C[/yellow] to exit.\n"
             )
             try:
                 input()
@@ -239,6 +269,7 @@ class BTQSManager:
 
             # Execute the action
             step["action"]()
+            console.print(f"\n🏁 Step {idx} has finished!\n")
 
         print_success(
             "Your local chain, subnet, and neurons are up and running", emoji="🎉"
@@ -249,22 +280,54 @@ class BTQSManager:
 
     def display_live_metagraph(self):
         config_data = load_config(
-            "A running Subtensor not found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
+            "A running Subtensor not found. Please run `btqs chain start` first."
         )
         subnet.display_live_metagraph(config_data)
 
     def setup_steps(self):
-        subnet.steps()
+        """
+        Display the steps for subnet setup.
+        """
+        table = Table(
+            title="[bold dark_orange]Setup Steps",
+            header_style="dark_orange",
+            leading=True,
+            show_edge=False,
+            border_style="bright_black",
+        )
+        table.add_column("Step", style="cyan", width=5, justify="center")
+        table.add_column(
+            "Command", justify="left"
+        )  # Removed 'style' to allow inline styling
+        table.add_column("Title", justify="left", style="white")
+        table.add_column("Description", justify="left", style="white")
+
+        for idx, step in enumerate(self.steps, start=1):
+            command_with_prefix = (
+                f"[blue]$[/blue] [green]{step.get('command', '')}[/green]"
+            )
+            table.add_row(
+                str(idx),
+                command_with_prefix,
+                step["title"],
+                step["description"],
+            )
+
+        console.print(table)
+        console.print(
+            "\n[dark_orange]You can run an automated script covering all the steps using:\n"
+        )
+        console.print("[blue]$ [green]btqs run-all")
 
     def add_stake(self):
         config_data = load_config(
-            "A running Subtensor not found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
+            "A running Subtensor not found. Please run `btqs chain start` first."
         )
         subnet.add_stake(config_data)
 
     def add_weights(self):
         config_data = load_config(
-            "A running Subtensor not found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
+            "A running Subtensor not found. Please run `btqs chain start` first."
         )
         subnet.add_weights(config_data)
 
@@ -280,33 +343,46 @@ class BTQSManager:
 
         [bold]Note[/bold]: Ensure the local chain is running before executing this command.
         """
-        if not is_chain_running(CONFIG_FILE_PATH):
+        if not is_chain_running(BTQS_LOCK_CONFIG_FILE_PATH):
             console.print(
                 "[red]Local chain is not running. Please start the chain first."
             )
             return
 
         config_data = load_config(
-            "A running Subtensor not found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
+            "A running Subtensor not found. Please run `btqs chain start` first."
         )
         subnet.setup_subnet(config_data)
+        console.print(
+            "🎊 Subnet setup is complete! Press any key to continue adding stake...\n"
+        )
+        input()
+        subnet.add_stake(config_data)
+        console.print("\n👏 Added stake! Press any key to continue adding weights...\n")
+        input()
+        subnet.add_weights(config_data)
 
     def setup_neurons(self):
         """
         Sets up neurons (miners) for the subnet.
         """
-        if not is_chain_running(CONFIG_FILE_PATH):
+        if not is_chain_running(BTQS_LOCK_CONFIG_FILE_PATH):
             console.print(
                 "[red]Local chain is not running. Please start the chain first."
             )
             return
 
         config_data = load_config(
-            "A running Subtensor not found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
+            "A running Subtensor not found. Please run `btqs chain start` first."
         )
         neurons.setup_neurons(config_data)
 
-    def run_neurons(self):
+    def run_neurons(
+        self,
+        verbose: bool = typer.Option(
+            False, "--verbose", "-v", help="Enable verbose output"
+        ),
+    ):
         """
         Runs all neurons (miners and validators).
 
@@ -321,7 +397,7 @@ class BTQSManager:
         ones as necessary. Press Ctrl+C to detach from a neuron and move to the next.
         """
         config_data = load_config(
-            "A running Subtensor not found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
+            "A running Subtensor not found. Please run `btqs chain start` first."
         )
 
         # Ensure neurons are configured
@@ -331,7 +407,7 @@ class BTQSManager:
             )
             return
 
-        neurons.run_neurons(config_data)
+        neurons.run_neurons(config_data, verbose)
 
     def stop_neurons(self):
         """
@@ -345,7 +421,7 @@ class BTQSManager:
 
         [bold]Note[/bold]: You can choose which miners to stop or stop all of them.
         """
-        if not os.path.exists(CONFIG_FILE_PATH):
+        if not os.path.exists(BTQS_LOCK_CONFIG_FILE_PATH):
             console.print("[red]Config file not found.")
             return
 
@@ -353,7 +429,12 @@ class BTQSManager:
 
         neurons.stop_neurons(config_data)
 
-    def start_neurons(self):
+    def start_neurons(
+        self,
+        verbose: bool = typer.Option(
+            False, "--verbose", "-v", help="Enable verbose output"
+        ),
+    ):
         """
         Starts the stopped neurons.
 
@@ -365,13 +446,13 @@ class BTQSManager:
 
         [bold]Note[/bold]: You can choose which stopped miners to start or start all of them.
         """
-        if not os.path.exists(CONFIG_FILE_PATH):
+        if not os.path.exists(BTQS_LOCK_CONFIG_FILE_PATH):
             console.print("[red]Config file not found.")
             return
 
         config_data = load_config()
 
-        neurons.start_neurons(config_data)
+        neurons.start_neurons(config_data, verbose)
 
     def reattach_neurons(self):
         """
@@ -385,7 +466,7 @@ class BTQSManager:
 
         [bold]Note[/bold]: Press Ctrl+C to detach from the miner logs.
         """
-        if not os.path.exists(CONFIG_FILE_PATH):
+        if not os.path.exists(BTQS_LOCK_CONFIG_FILE_PATH):
             console.print("[red]Config file not found.")
             return
 
@@ -413,7 +494,7 @@ class BTQSManager:
         print_info("Checking status of Subtensor and neurons...", emoji="🔍 ")
 
         config_data = load_config(
-            "A running Subtensor not found. Please run [dark_orange]`btqs chain start`[/dark_orange] first."
+            "A running Subtensor not found. Please run `btqs chain start` first."
         )
 
         # Get process data
@@ -457,9 +538,9 @@ class BTQSManager:
         # Add version
         version_table.add_row("btcli version:", get_btcli_version())
         version_table.add_row(
-            "bittensor-wallet version:", get_bittensor_wallet_version()
+            "bittensor-wallet sdk version:", get_bittensor_wallet_version()
         )
-        version_table.add_row("bittensor version:", get_bittensor_version())
+        version_table.add_row("bittensor-sdk version:", get_bittensor_version())
 
         layout = Table.grid(expand=True)
         layout.add_column(justify="left")
