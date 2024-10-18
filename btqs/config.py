@@ -11,7 +11,7 @@ DEFAULT_MINER_COMMAND = "./neurons/miner.py"
 DEFAULT_VALIDATOR_COMMAND = "./neurons/validator.py"
 
 SUBTENSOR_REPO_URL = "https://github.com/opentensor/subtensor.git"
-SUBTENSOR_BRANCH = "cam/junius/feat-localnet-improve"
+SUBTENSOR_BRANCH = "junius/feat-localnet-improve"
 RUST_INSTALLATION_VERSION = "nightly-2024-03-05"
 RUST_CHECK_VERSION = "rustc 1.78.0-nightly"
 RUST_TARGETS = [

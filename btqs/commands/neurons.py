@@ -61,15 +61,16 @@ def setup_neurons(config_data):
     else:
         _create_miner_wallets(config_data)
 
-    print_info("Preparing for miner registrations. Please wait...\n", emoji="⏱️ ")
-    local_chain = AsyncSubstrateInterface(chain_endpoint=LOCALNET_ENDPOINT)
-    success = asyncio.run(
-        sudo_set_target_registrations_per_interval(local_chain, owner_wallet, 1, 1000)
-    )
-    if success:
-        print_info("Proceeding with the miner registrations.\n", emoji="🛣️ ")
-    else:
-        print_warning("All neurons might not be able to register at once.")
+    # In-case target regs are not correct
+    # print_info("Preparing for miner registrations. Please wait...\n", emoji="⏱️ ")
+    # local_chain = AsyncSubstrateInterface(chain_endpoint=LOCALNET_ENDPOINT)
+    # success = asyncio.run(
+    #     sudo_set_target_registrations_per_interval(local_chain, owner_wallet, 1, 1000)
+    # )
+    # if success:
+    #     print_info("Proceeding with the miner registrations.\n", emoji="🛣️ ")
+    # else:
+    #     print_warning("All neurons might not be able to register at once.")
 
     _register_miners(config_data)
 

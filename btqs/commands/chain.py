@@ -226,21 +226,21 @@ def start(config_data, workspace_path, branch, fast_blocks=True, verbose=False):
                 origin = repo.remotes.origin
                 repo.git.checkout(branch)
                 origin.pull()
-                print_info("Repository updated successfully.", emoji="📦")
+                print_info("Repository updated successfully.", emoji="📦 ")
             except GitCommandError as e:
                 print_error(f"Error updating repository: {e}")
                 return
         else:
             print_info(
-                "Using existing subtensor repository without updating.", emoji="📦"
+                "Using existing subtensor repository without updating.", emoji="📦 "
             )
     else:
         try:
-            print_info("Cloning subtensor repository...", emoji="📦")
+            print_info("Cloning subtensor repository...", emoji="📦 ")
             repo = Repo.clone_from(SUBTENSOR_REPO_URL, subtensor_path)
             if branch:
                 repo.git.checkout(branch)
-            print_success("Repository cloned successfully.", emoji="🏷")
+            print_success("Repository cloned successfully.", emoji="🏷 ")
         except GitCommandError as e:
             print_error(f"Error cloning repository: {e}")
             return
