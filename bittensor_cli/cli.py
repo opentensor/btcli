@@ -3077,6 +3077,24 @@ class CLIManager:
             )
         )
 
+    def subnets_show(
+        self,
+        network: Optional[list[str]] = Options.network,
+        netuid: int = Options.netuid,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        prompt: bool = Options.prompt,
+    ):
+        self.verbosity_handler(quiet, verbose)
+        subtensor = self.initialize_chain(network)
+        return self._run_command(
+            subnets.show(
+                subtensor,
+                netuid,
+                prompt=prompt,
+            )
+        )
+
     def subnets_lock_cost(
         self,
         network: Optional[list[str]] = Options.network,
