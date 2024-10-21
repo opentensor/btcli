@@ -676,7 +676,7 @@ async def register_extrinsic(
 
 
 async def burned_register_extrinsic(
-    subtensor: SubtensorInterface,
+    subtensor: "SubtensorInterface",
     wallet: Wallet,
     netuid: int,
     old_balance: Balance,
