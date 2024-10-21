@@ -1145,6 +1145,7 @@ async def unstake(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
     hotkey_ss58_address: str,
+    netuid: Optional[int],
     all_hotkeys: bool,
     include_hotkeys: list[str],
     exclude_hotkeys: list[str],
@@ -1154,7 +1155,9 @@ async def unstake(
     prompt: bool,
 ):
     """Unstake token of amount from hotkey(s)."""
-
+    netuids = (
+        [netuid] if netuid is not None else await subtensor.get_all_subnet_netuids()
+    )
     # Get the hotkey_names (if any) and the hotkey_ss58s.
     hotkeys_to_unstake_from: list[tuple[Optional[str], str]] = []
     if hotkey_ss58_address:

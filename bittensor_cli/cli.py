@@ -159,10 +159,22 @@ class Options:
         "-n",
         help="Set the netuid(s) to exclude. Separate multiple netuids with a comma, for example: `-n 0,1,2`.",
     )
-    netuid = typer.Option(
+    netuid = (
+        typer.Option(
+            None,
+            help="The netuid of the subnet in the root network, (e.g. 1).",
+            prompt=True,
+        ),
+    )
+    netuid_not_req = typer.Option(
         None,
         help="The netuid of the subnet in the root network, (e.g. 1).",
-        prompt=True,
+        prompt=False,
+    )
+    all_netuids = typer.Option(
+        False,
+        help="Use all netuids",
+        prompt=False,
     )
     weights = typer.Option(
         None,
@@ -268,6 +280,25 @@ def verbosity_console_handler(verbosity_level: int = 1) -> None:
         console.quiet = False
         err_console.quiet = False
         verbose_console.quiet = False
+
+
+def get_optional_netuid(netuid: Optional[int], all_netuids: bool) -> Optional[int]:
+    """
+    Parses options to determine if the user wants to use a specific netuid or all netuids (None)
+
+    Returns:
+        None if using all netuids, otherwise int for the netuid to use
+    """
+    if netuid is None and all_netuids is True:
+        return None
+    elif netuid is None and all_netuids is False:
+        return typer.prompt(
+            "Enter the netuid to use. Leave blank for all netuids.",
+            default=None,
+            show_default=False,
+        )
+    else:
+        return netuid
 
 
 def get_n_words(n_words: Optional[int]) -> int:
@@ -2384,7 +2415,8 @@ class CLIManager:
             help="When set, this command stakes to all hotkeys associated with the wallet. Do not use if specifying "
             "hotkeys in `--include-hotkeys`.",
         ),
-        netuid: Optional[int] = Options.netuid,
+        netuid: Optional[int] = Options.netuid_not_req,
+        all_netuids: bool = Options.all_netuids,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -2405,6 +2437,7 @@ class CLIManager:
         [green]$[/green] btcli stake add --amount 100 --wallet-name <my_wallet> --wallet-hotkey <my_hotkey>
         """
         self.verbosity_handler(quiet, verbose)
+        netuid = get_optional_netuid(netuid, all_netuids)
 
         if stake_all and amount:
             err_console.print(
@@ -2508,6 +2541,8 @@ class CLIManager:
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
+        netuid: Optional[int] = Options.netuid_not_req,
+        all_netuids: bool = Options.all_netuids,
         unstake_all: bool = typer.Option(
             False,
             "--unstake-all",
@@ -2561,6 +2596,7 @@ class CLIManager:
         [blue bold]Note[/blue bold]: This command is for users who wish to reallocate their stake or withdraw them from the network. It allows for flexible management of TAO stake across different neurons (hotkeys) on the network.
         """
         self.verbosity_handler(quiet, verbose)
+        netuid = get_optional_netuid(netuid, all_netuids)
 
         if all_hotkeys and include_hotkeys:
             err_console.print(
@@ -2627,29 +2663,34 @@ class CLIManager:
             )
 
         if include_hotkeys:
-            include_hotkeys = parse_to_list(
+            included_hotkeys = parse_to_list(
                 include_hotkeys,
                 str,
                 "Hotkeys must be a comma-separated list of ss58s, e.g., `--include-hotkeys 5Grw....,5Grw....`.",
                 is_ss58=True,
             )
+        else:
+            included_hotkeys = []
 
         if exclude_hotkeys:
-            exclude_hotkeys = parse_to_list(
+            excluded_hotkeys = parse_to_list(
                 exclude_hotkeys,
                 str,
                 "Hotkeys must be a comma-separated list of ss58s, e.g., `--exclude-hotkeys 5Grw....,5Grw....`.",
                 is_ss58=True,
             )
+        else:
+            excluded_hotkeys = []
 
         return self._run_command(
             stake.unstake(
                 wallet,
                 self.initialize_chain(network),
                 hotkey_ss58_address,
+                netuid,
                 all_hotkeys,
-                include_hotkeys,
-                exclude_hotkeys,
+                included_hotkeys,
+                excluded_hotkeys,
                 amount,
                 keep_stake,
                 unstake_all,
