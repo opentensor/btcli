@@ -5,6 +5,7 @@ from bittensor_wallet import Wallet
 from bittensor_wallet.errors import KeyFileError
 from rich import box
 from rich.table import Column, Table
+from scalecodec import GenericCall
 
 from bittensor_cli.src import HYPERPARAMS, DelegatesDetails
 from bittensor_cli.src.bittensor.chain_data import decode_account_id
@@ -17,7 +18,10 @@ from bittensor_cli.src.bittensor.utils import (
 )
 
 if TYPE_CHECKING:
-    from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
+    from bittensor_cli.src.bittensor.subtensor_interface import (
+        SubtensorInterface,
+        ProposalVoteData,
+    )
 
 
 # helpers and extrinsics
@@ -167,6 +171,110 @@ async def set_hyperparameter_extrinsic(
             return True
 
 
+async def _get_senate_members(
+    subtensor: "SubtensorInterface", block_hash: Optional[str] = None
+) -> list[str]:
+    """
+    Gets all members of the senate on the given subtensor's network
+
+    :param subtensor: SubtensorInterface object to use for the query
+
+    :return: list of the senate members' ss58 addresses
+    """
+    senate_members = await subtensor.substrate.query(
+        module="SenateMembers",
+        storage_function="Members",
+        params=None,
+        block_hash=block_hash,
+    )
+    try:
+        return [
+            decode_account_id(i[x][0]) for i in senate_members for x in range(len(i))
+        ]
+    except (IndexError, TypeError):
+        err_console.print("Unable to retrieve senate members.")
+        return []
+
+
+async def _get_proposals(
+    subtensor: "SubtensorInterface", block_hash: str
+) -> dict[str, tuple[dict, "ProposalVoteData"]]:
+    async def get_proposal_call_data(p_hash: str) -> Optional[GenericCall]:
+        proposal_data = await subtensor.substrate.query(
+            module="Triumvirate",
+            storage_function="ProposalOf",
+            block_hash=block_hash,
+            params=[p_hash],
+        )
+        return proposal_data
+
+    ph = await subtensor.substrate.query(
+        module="Triumvirate",
+        storage_function="Proposals",
+        params=None,
+        block_hash=block_hash,
+    )
+
+    try:
+        proposal_hashes: list[str] = [
+            f"0x{bytes(ph[0][x][0]).hex()}" for x in range(len(ph[0]))
+        ]
+    except (IndexError, TypeError):
+        err_console.print("Unable to retrieve proposal vote data")
+        return {}
+
+    call_data_, vote_data_ = await asyncio.gather(
+        asyncio.gather(*[get_proposal_call_data(h) for h in proposal_hashes]),
+        asyncio.gather(*[subtensor.get_vote_data(h) for h in proposal_hashes]),
+    )
+    return {
+        proposal_hash: (cd, vd)
+        for cd, vd, proposal_hash in zip(call_data_, vote_data_, proposal_hashes)
+    }
+
+
+def display_votes(
+    vote_data: "ProposalVoteData", delegate_info: dict[str, DelegatesDetails]
+) -> str:
+    vote_list = list()
+
+    for address in vote_data.ayes:
+        vote_list.append(
+            "{}: {}".format(
+                delegate_info[address].display if address in delegate_info else address,
+                "[bold green]Aye[/bold green]",
+            )
+        )
+
+    for address in vote_data.nays:
+        vote_list.append(
+            "{}: {}".format(
+                delegate_info[address].display if address in delegate_info else address,
+                "[bold red]Nay[/bold red]",
+            )
+        )
+
+    return "\n".join(vote_list)
+
+
+def format_call_data(call_data: dict) -> str:
+    # Extract the module and call details
+    module, call_details = next(iter(call_data.items()))
+
+    # Extract the call function name and arguments
+    call_info = call_details[0]
+    call_function, call_args = next(iter(call_info.items()))
+
+    # Extract the argument, handling tuple values
+    formatted_args = ", ".join(
+        str(arg[0]) if isinstance(arg, tuple) else str(arg)
+        for arg in call_args.values()
+    )
+
+    # Format the final output string
+    return f"{call_function}({formatted_args})"
+
+
 # commands
 
 
@@ -282,26 +390,54 @@ async def get_senate(subtensor: "SubtensorInterface"):
     return console.print(table)
 
 
-async def _get_senate_members(
-    subtensor: "SubtensorInterface", block_hash: Optional[str] = None
-) -> list[str]:
-    """
-    Gets all members of the senate on the given subtensor's network
-
-    :param subtensor: SubtensorInterface object to use for the query
-
-    :return: list of the senate members' ss58 addresses
-    """
-    senate_members = await subtensor.substrate.query(
-        module="SenateMembers",
-        storage_function="Members",
-        params=None,
-        block_hash=block_hash,
+async def proposals(subtensor: "SubtensorInterface"):
+    console.print(
+        ":satellite: Syncing with chain: [white]{}[/white] ...".format(
+            subtensor.network
+        )
     )
-    try:
-        return [
-            decode_account_id(i[x][0]) for i in senate_members for x in range(len(i))
-        ]
-    except (IndexError, TypeError):
-        err_console.print("Unable to retrieve senate members.")
-        return []
+    print_verbose("Fetching senate members & proposals")
+    block_hash = await subtensor.substrate.get_chain_head()
+    senate_members, all_proposals = await asyncio.gather(
+        _get_senate_members(subtensor, block_hash),
+        _get_proposals(subtensor, block_hash),
+    )
+
+    print_verbose("Fetching member information from Chain")
+    registered_delegate_info: dict[
+        str, DelegatesDetails
+    ] = await subtensor.get_delegate_identities()
+
+    table = Table(
+        Column(
+            "[white]HASH",
+            style="light_goldenrod2",
+            no_wrap=True,
+        ),
+        Column("[white]THRESHOLD", style="rgb(42,161,152)"),
+        Column("[white]AYES", style="green"),
+        Column("[white]NAYS", style="red"),
+        Column(
+            "[white]VOTES",
+            style="rgb(50,163,219)",
+        ),
+        Column("[white]END", style="bright_cyan"),
+        Column("[white]CALLDATA", style="dark_sea_green"),
+        title=f"\n[dark_orange]Proposals\t\t\nActive Proposals: {len(all_proposals)}\t\tSenate Size: {len(senate_members)}\nNetwork: {subtensor.network}",
+        show_footer=True,
+        box=box.SIMPLE_HEAVY,
+        pad_edge=False,
+        width=None,
+        border_style="bright_black",
+    )
+    for hash_, (call_data, vote_data) in all_proposals.items():
+        table.add_row(
+            hash_,
+            str(vote_data.threshold),
+            str(len(vote_data.ayes)),
+            str(len(vote_data.nays)),
+            display_votes(vote_data, registered_delegate_info),
+            str(vote_data.end),
+            format_call_data(call_data),
+        )
+    return console.print(table)

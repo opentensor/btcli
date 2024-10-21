@@ -673,6 +673,9 @@ class CLIManager:
         self.sudo_app.command(
             "senate", rich_help_panel=HELP_PANELS["SUDO"]["GOVERNANCE"]
         )(self.sudo_senate)
+        self.sudo_app.command(
+            "proposals", rich_help_panel=HELP_PANELS["SUDO"]["GOVERNANCE"]
+        )(self.sudo_proposals)
 
         # subnets commands
         self.subnets_app.command(
@@ -3124,10 +3127,27 @@ class CLIManager:
         This command lists the delegates involved in the decision-making process of the Bittensor network, showing their names and wallet addresses. This information is crucial for understanding who holds governance roles within the network.
 
         EXAMPLE
-        [green]$[/green] btcli root senate
+        [green]$[/green] btcli sudo senate
         """
         self.verbosity_handler(quiet, verbose)
         return self._run_command(sudo.get_senate(self.initialize_chain(network)))
+
+    def sudo_proposals(
+        self,
+        network: Optional[list[str]] = Options.network,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        View active proposals for the senate in the Bittensor's governance protocol.
+
+        This command displays the details of ongoing proposals, including proposal hashes, votes, thresholds, and proposal data.
+
+        EXAMPLE
+        [green]$[/green] btcli sudo proposals
+        """
+        self.verbosity_handler(quiet, verbose)
+        return self._run_command(sudo.proposals(self.initialize_chain(network)))
 
     def subnets_list(
         self,
