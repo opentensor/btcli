@@ -2698,6 +2698,43 @@ class CLIManager:
             )
         )
 
+    def stake_move(
+        self,
+        network=Options.network,
+        wallet_name=Options.wallet_name,
+        wallet_path=Options.wallet_path,
+        wallet_hotkey=Options.wallet_hotkey,
+        origin_netuid: int = typer.Option(help="Origin netuid", prompt=True),
+        destination_netuid: int = typer.Option(help="Destination netuid", prompt=True),
+        destination_hotkey: str = typer.Option(  # TODO also accept name
+            help="Destination hotkey", prompt=True
+        ),
+        amount: Optional[float] = typer.Option(help="Amount", prompt=False),
+        stake_all: bool = typer.Option(
+            False, "--stake-all", "--all", help="Stake all", prompt=False
+        ),
+        prompt: bool = Options.prompt,
+    ):
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
+        return self._run_command(
+            stake.move_stake(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                origin_netuid=origin_netuid,
+                destination_netuid=destination_netuid,
+                destination_hotkey=destination_hotkey,
+                amount=amount,
+                stake_all=stake_all,
+                prompt=prompt,
+            )
+        )
+
     def stake_get_children(
         self,
         wallet_name: Optional[str] = Options.wallet_name,

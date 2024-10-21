@@ -1377,7 +1377,7 @@ The columns are as follows:
         for netuid_i, amount, current in list(
             zip(non_zero_netuids, unstake_amount_balance, current_stake_balances)
         ):
-            call = subtensor.substrate.compose_call(
+            call = await subtensor.substrate.compose_call(
                 call_module="SubtensorModule",
                 call_function="remove_stake",
                 call_params={
@@ -1386,17 +1386,17 @@ The columns are as follows:
                     "amount_unstaked": amount.rao,
                 },
             )
-            extrinsic = subtensor.substrate.create_signed_extrinsic(
+            extrinsic = await subtensor.substrate.create_signed_extrinsic(
                 call=call, keypair=wallet.coldkey
             )
-            response = subtensor.substrate.submit_extrinsic(
+            response = await subtensor.substrate.submit_extrinsic(
                 extrinsic, wait_for_inclusion=True, wait_for_finalization=False
             )
             if not prompt:
                 console.print(":white_heavy_check_mark: [green]Sent[/green]")
             else:
-                response.process_events()
-                if not response.is_success:
+                await response.process_events()
+                if not await response.is_success:
                     err_console.print(
                         f":cross_mark: [red]Failed[/red] with error: "
                         f"{format_error_message(response.error_message, subtensor.substrate)}"
@@ -1646,3 +1646,221 @@ async def stake_list(wallet: Wallet, subtensor: "SubtensorInterface"):
         - [bold white]Locked[/bold white]: The total amount of stake locked (not able to be unstaked).
 """
         )
+
+
+async def move_stake(
+    subtensor: "SubtensorInterface",
+    wallet: Wallet,
+    origin_netuid: int,
+    destination_netuid: int,
+    destination_hotkey: str,
+    amount: float,
+    stake_all: bool,
+    prompt: bool = True,
+):
+    origin_hotkey_ss58 = wallet.hotkey.ss58_address
+    # Get the wallet stake balances.
+    origin_stake_balance: Balance = (
+        await subtensor.get_stake_for_coldkey_and_hotkey_on_netuid(
+            coldkey_ss58=wallet.coldkeypub.ss58_address,
+            hotkey_ss58=origin_hotkey_ss58,
+            netuid=origin_netuid,
+        )
+    ).set_unit(origin_netuid)
+
+    destination_stake_balance: Balance = (
+        await subtensor.get_stake_for_coldkey_and_hotkey_on_netuid(
+            coldkey_ss58=wallet.coldkeypub.ss58_address,
+            hotkey_ss58=destination_hotkey,
+            netuid=destination_netuid,
+        )
+    ).set_unit(destination_netuid)
+
+    # Determine the amount we are moving.
+    amount_to_move_as_balance = None
+    if amount:
+        amount_to_move_as_balance = Balance.from_tao(amount)
+    elif stake_all:
+        amount_to_move_as_balance = origin_stake_balance
+    else:  # max_stake
+        # TODO improve this
+        if Confirm.ask(f"Move all: [bold]{origin_stake_balance}[/bold]?"):
+            amount_to_move_as_balance = origin_stake_balance
+        else:
+            try:
+                amount = float(
+                    Prompt.ask(
+                        f"Enter amount to move in {Balance.get_unit(origin_netuid)}"
+                    )
+                )
+                amount_to_move_as_balance = Balance.from_tao(amount)
+            except ValueError:
+                err_console.print(f":cross_mark:[red]Invalid amount: {amount}[/red]")
+                return False
+
+    # Check enough to move.
+    amount_to_move_as_balance.set_unit(origin_netuid)
+    if amount_to_move_as_balance > origin_stake_balance:
+        err_console.print(
+            f"[red]Not enough stake[/red]:[bold white]\n stake balance:{origin_stake_balance} < moving amount: {amount_to_move_as_balance}[/bold white]"
+        )
+        return False
+
+    # Slippage warning
+    if prompt:
+        if origin_netuid == destination_netuid:
+            received_amount_destination = amount_to_move_as_balance
+            slippage_pct_float = 0
+            slippage_pct = f"{slippage_pct_float}%"
+            price = Balance.from_tao(1).set_unit(origin_netuid)
+            price_str = (
+                str(float(price.tao))
+                + f"{Balance.get_unit(origin_netuid)}/{Balance.get_unit(origin_netuid)}"
+            )
+        else:
+            dynamic_origin, dynamic_destination = await asyncio.gather(
+                subtensor.get_subnet_dynamic_info(origin_netuid),
+                subtensor.get_subnet_dynamic_info(destination_netuid),
+            )
+            price = float(dynamic_origin.price) * 1 / float(dynamic_destination.price)
+            received_amount_tao, slippage = dynamic_origin.alpha_to_tao_with_slippage(
+                amount_to_move_as_balance
+            )
+            received_amount_destination, slippage = (
+                dynamic_destination.tao_to_alpha_with_slippage(received_amount_tao)
+            )
+            received_amount_destination.set_unit(destination_netuid)
+            slippage_pct_float = (
+                100 * float(slippage) / float(slippage + received_amount_destination)
+                if slippage + received_amount_destination != 0
+                else 0
+            )
+            slippage_pct = f"{slippage_pct_float:.4f} %"
+            price_str = (
+                str(float(price))
+                + f"{Balance.get_unit(destination_netuid)}/{Balance.get_unit(origin_netuid)}"
+            )
+
+        table = Table(
+            title="[white]Move Stake",
+            width=console.width - 5,
+            safe_box=True,
+            padding=(0, 1),
+            collapse_padding=False,
+            pad_edge=True,
+            expand=True,
+            show_header=True,
+            show_footer=True,
+            show_edge=False,
+            show_lines=False,
+            leading=0,
+            style="none",
+            row_styles=None,
+            header_style="bold",
+            footer_style="bold",
+            border_style="rgb(7,54,66)",
+            title_style="bold magenta",
+            title_justify="center",
+            highlight=False,
+        )
+        table.add_column("origin netuid", justify="center", style="rgb(133,153,0)")
+        table.add_column("origin hotkey", justify="center", style="rgb(38,139,210)")
+        table.add_column("dest netuid", justify="center", style="rgb(133,153,0)")
+        table.add_column("dest hotkey", justify="center", style="rgb(38,139,210)")
+        table.add_column(
+            f"amount ({Balance.get_unit(origin_netuid)})",
+            justify="center",
+            style="rgb(38,139,210)",
+        )
+        table.add_column(
+            f"rate ({Balance.get_unit(destination_netuid)}/{Balance.get_unit(origin_netuid)})",
+            justify="center",
+            style="rgb(42,161,152)",
+        )
+        table.add_column(
+            f"received ({Balance.get_unit(destination_netuid)})",
+            justify="center",
+            style="rgb(220,50,47)",
+        )
+        table.add_column("slippage", justify="center", style="rgb(181,137,0)")
+
+        table.add_row(
+            f"{Balance.get_unit(origin_netuid)}({origin_netuid})",
+            f"{origin_hotkey_ss58[:3]}...{origin_hotkey_ss58[-3:]}",
+            # TODO f-strings
+            Balance.get_unit(destination_netuid) + "(" + str(destination_netuid) + ")",
+            f"{destination_hotkey[:3]}...{destination_hotkey[-3:]}",
+            str(amount_to_move_as_balance),
+            price_str,
+            str(received_amount_destination.set_unit(destination_netuid)),
+            str(slippage_pct),
+        )
+
+        console.print(table)
+        message = ""
+        if slippage_pct_float > 5:
+            message += "\t-------------------------------------------------------------------------------------------------------------------\n"
+            message += f"\t[bold][yellow]WARNING:[/yellow]\tSlippage is high: [bold red]{slippage_pct}[/bold red], this may result in a loss of funds.[/bold] \n"
+            message += "\t-------------------------------------------------------------------------------------------------------------------\n"
+            console.print(message)
+        if not Confirm.ask("Would you like to continue?"):
+            return True
+
+    # Perform staking operation.
+    wallet.unlock_coldkey()
+    with console.status(
+        f"\n:satellite: Moving {amount_to_move_as_balance} from {origin_hotkey_ss58} on netuid: {origin_netuid} to "
+        f"{destination_hotkey} on netuid: {destination_netuid} ..."
+    ):
+        call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="move_stake",
+            call_params={
+                "origin_hotkey": origin_hotkey_ss58,
+                "origin_netuid": origin_netuid,
+                "destination_hotkey": destination_hotkey,
+                "destination_netuid": destination_netuid,
+                "amount_moved": amount_to_move_as_balance.rao,
+            },
+        )
+        extrinsic = await subtensor.substrate.create_signed_extrinsic(
+            call=call, keypair=wallet.coldkey
+        )
+        response = await subtensor.substrate.submit_extrinsic(
+            extrinsic, wait_for_inclusion=True, wait_for_finalization=False
+        )
+        if not prompt:
+            console.print(":white_heavy_check_mark: [green]Sent[/green]")
+            return True
+        else:
+            await response.process_events()
+            if not await response.is_success:
+                err_console.print(
+                    f":cross_mark: [red]Failed[/red] with error:"
+                    f" {format_error_message(response.error_message, subtensor.substrate)}"
+                )
+                return
+            else:
+                new_origin_stake_balance: Balance = (
+                    await subtensor.get_stake_for_coldkey_and_hotkey_on_netuid(
+                        coldkey_ss58=wallet.coldkeypub.ss58_address,
+                        hotkey_ss58=origin_hotkey_ss58,
+                        netuid=origin_netuid,
+                    )
+                ).set_unit(origin_netuid)
+                new_destination_stake_balance: Balance = (
+                    await subtensor.get_stake_for_coldkey_and_hotkey_on_netuid(
+                        coldkey_ss58=wallet.coldkeypub.ss58_address,
+                        hotkey_ss58=destination_hotkey,
+                        netuid=destination_netuid,
+                    )
+                ).set_unit(destination_netuid)
+                console.print(
+                    f"Origin Stake:\n  [blue]{origin_stake_balance}[/blue] :arrow_right: "
+                    f"[green]{new_origin_stake_balance}[/green]"
+                )
+                console.print(
+                    f"Destination Stake:\n  [blue]{destination_stake_balance}[/blue] :arrow_right: "
+                    f"[green]{new_destination_stake_balance}[/green]"
+                )
+                return

@@ -1122,7 +1122,7 @@ class SubtensorInterface:
 
     async def get_subnet_dynamic_info(
         self, netuid: int, block_hash: Optional[str] = None
-    ) -> Optional["DynamicInfo"]:
+    ) -> "DynamicInfo":
         json = await self.substrate.rpc_request(
             method="subnetInfo_getDynamicInfo", params=[netuid, block_hash]
         )
