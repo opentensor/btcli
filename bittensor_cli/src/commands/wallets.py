@@ -253,6 +253,7 @@ async def wallet_balance(
             subtensor.get_total_stake_for_coldkey(*coldkeys, block_hash=block_hash),
         )
 
+
     total_free_balance = sum(free_balances.values())
     total_staked_balance = sum(staked_balances.values())
 

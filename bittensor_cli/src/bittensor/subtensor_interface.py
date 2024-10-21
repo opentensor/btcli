@@ -381,21 +381,42 @@ class SubtensorInterface:
 
         :return: {address: Balance objects}
         """
-        calls = [
-            (
-                await self.substrate.create_storage_key(
-                    "SubtensorModule",
-                    "TotalColdkeyStake",
-                    [address],
-                    block_hash=block_hash,
-                )
-            )
-            for address in ss58_addresses
-        ]
-        batch_call = await self.substrate.query_multi(calls, block_hash=block_hash)
+        sub_stakes = await self.get_stake_info_for_coldkeys(
+            ss58_addresses, block_hash=block_hash
+        )
+
+        # Token pricing info
+        dynamic_info = await self.get_all_subnet_dynamic_info()
+
         results = {}
-        for item in batch_call:
-            results.update({item[0].params[0]: Balance.from_rao(item[1] or 0)})
+
+        for ss58, stake_info_list in sub_stakes.items():
+            all_staked_tao = 0
+
+            for sub_stake in stake_info_list:
+                if sub_stake.stake.rao == 0:
+                    continue
+                netuid = sub_stake.netuid
+                pool = dynamic_info[netuid]
+
+                alpha_value = Balance.from_rao(int(sub_stake.stake.rao)).set_unit(
+                    netuid
+                )
+
+                tao_locked = pool.tao_in
+
+                issuance = pool.alpha_out if pool.is_dynamic else tao_locked
+                tao_ownership = 0
+
+                if alpha_value.tao > 0.00009 and issuance.tao != 0:
+                    tao_ownership = Balance.from_tao(
+                        (alpha_value.tao / issuance.tao) * tao_locked.tao
+                    )
+
+                all_staked_tao += tao_ownership.rao
+
+            results[ss58] = Balance.from_rao(all_staked_tao)
+
         return results
 
     async def get_total_stake_for_hotkey(
@@ -1230,7 +1251,7 @@ class SubtensorInterface:
         hex_bytes_result = await self.query_runtime_api(
             runtime_api="StakeInfoRuntimeApi",
             method="get_stake_info_for_coldkeys",
-            params=encoded_coldkeys,
+            params=[encoded_coldkeys],
             block_hash=block_hash,
         )
 
