@@ -446,12 +446,6 @@ UNITS = [
     "\u1684",  # ᚄ (Sail, willow, 94)
     "\u1685",  # ᚅ (Nion, ash, 95)
     "\u169b",  # ᚛ (Forfeda, 96)
-    # Brahmi Script TODO verify these https://discord.com/channels/799672011265015819/1176889593136693339/1288500713625878558
-    "\u11000",  # 𑀀 (A, 122)
-    "\u11001",  # 𑀁 (Aa, 123)
-    "\u11002",  # 𑀂 (I, 124)
-    "\u11003",  # 𑀃 (Ii, 125)
-    "\u11005",  # 𑀅 (U, 126)
     # Tifinagh Alphabet
     "\u2d30",  # ⴰ (Ya, 127)
     "\u2d31",  # ⴱ (Yab, 128)
