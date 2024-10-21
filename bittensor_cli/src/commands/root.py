@@ -39,7 +39,6 @@ from bittensor_cli.src.bittensor.utils import (
     print_verbose,
     get_metadata_table,
     render_table,
-    ss58_to_vec_u8,
     update_metadata_table,
     group_subnets,
 )
@@ -393,15 +392,17 @@ async def set_take_extrinsic(
 
     async def _get_delegate_by_hotkey(ss58: str) -> Optional[DelegateInfo]:
         """Retrieves the delegate info for a given hotkey's ss58 address"""
-        encoded_hotkey = ss58_to_vec_u8(ss58)
-        json_body = await subtensor.substrate.rpc_request(
-            method="delegateInfo_getDelegate",  # custom rpc method
-            params=([encoded_hotkey, subtensor.substrate.last_block_hash]),
+        result = await subtensor.query_runtime_api(
+            runtime_api="DelegateInfoRuntimeApi",
+            method="get_delegate",
+            params=[ss58],
+            block_hash=subtensor.substrate.last_block_hash,
         )
-        if not (result := json_body.get("result", None)):
+
+        if result is None:
             return None
-        else:
-            return DelegateInfo.from_vec_u8(bytes(result))
+
+        return DelegateInfo.from_any(result)
 
     # Calculate u16 representation of the take
     take_u16 = int(take * 0xFFFF)
@@ -1135,9 +1136,9 @@ async def get_senate(subtensor: SubtensorInterface):
         senate_members = await _get_senate_members(subtensor)
 
     print_verbose("Fetching member details from Github")
-    delegate_info: dict[
-        str, DelegatesDetails
-    ] = await subtensor.get_delegate_identities()
+    delegate_info: dict[str, DelegatesDetails] = (
+        await subtensor.get_delegate_identities()
+    )
 
     table = Table(
         Column(
@@ -1234,9 +1235,9 @@ async def proposals(subtensor: SubtensorInterface):
     )
 
     print_verbose("Fetching member information from Chain")
-    registered_delegate_info: dict[
-        str, DelegatesDetails
-    ] = await subtensor.get_delegate_identities()
+    registered_delegate_info: dict[str, DelegatesDetails] = (
+        await subtensor.get_delegate_identities()
+    )
 
     table = Table(
         Column(

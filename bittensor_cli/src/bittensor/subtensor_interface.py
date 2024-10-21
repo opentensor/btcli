@@ -7,8 +7,6 @@ from bittensor_wallet import Wallet
 from bittensor_wallet.utils import SS58_FORMAT
 import scalecodec
 from scalecodec import GenericCall
-from scalecodec.base import RuntimeConfiguration
-from scalecodec.type_registry import load_type_registry_preset
 from substrateinterface.exceptions import SubstrateRequestException
 import typer
 
@@ -18,7 +16,6 @@ from bittensor_cli.src.bittensor.async_substrate_interface import (
 )
 from bittensor_cli.src.bittensor.chain_data import (
     DelegateInfo,
-    custom_rpc_type_registry,
     StakeInfo,
     NeuronInfoLite,
     NeuronInfo,
@@ -29,7 +26,6 @@ from bittensor_cli.src import DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src import Constants, defaults, TYPE_REGISTRY
 from bittensor_cli.src.bittensor.utils import (
-    ss58_to_vec_u8,
     format_error_message,
     console,
     err_console,
@@ -206,21 +202,14 @@ class SubtensorInterface:
 
         :return: List of DelegateInfo objects, or an empty list if there are no delegates.
         """
-        hex_bytes_result = await self.query_runtime_api(
+        result = await self.query_runtime_api(
             runtime_api="DelegateInfoRuntimeApi",
             method="get_delegates",
             params=[],
             block_hash=block_hash,
         )
-        if hex_bytes_result is not None:
-            try:
-                bytes_result = bytes.fromhex(hex_bytes_result[2:])
-            except ValueError:
-                bytes_result = bytes.fromhex(hex_bytes_result)
 
-            return DelegateInfo.list_from_vec_u8(bytes_result)
-        else:
-            return []
+        return DelegateInfo.list_from_any(result) if result is not None else []
 
     async def get_stake_info_for_coldkey(
         self,
@@ -241,25 +230,18 @@ class SubtensorInterface:
         Stake information is vital for account holders to assess their investment and participation
         in the network's delegation and consensus processes.
         """
-        encoded_coldkey = ss58_to_vec_u8(coldkey_ss58)
-
-        hex_bytes_result = await self.query_runtime_api(
+        result = await self.query_runtime_api(
             runtime_api="StakeInfoRuntimeApi",
             method="get_stake_info_for_coldkey",
-            params=[encoded_coldkey],
+            params=[coldkey_ss58],
             block_hash=block_hash,
             reuse_block=reuse_block,
         )
 
-        if hex_bytes_result is None:
+        if result is None:
             return []
 
-        try:
-            bytes_result = bytes.fromhex(hex_bytes_result[2:])
-        except ValueError:
-            bytes_result = bytes.fromhex(hex_bytes_result)
-
-        return StakeInfo.list_from_vec_u8(bytes_result)
+        return StakeInfo.list_from_any(result)
 
     async def get_stake_for_coldkey_and_hotkey(
         self, hotkey_ss58: str, coldkey_ss58: str, block_hash: Optional[str]
@@ -286,7 +268,7 @@ class SubtensorInterface:
         params: Optional[Union[list[list[int]], dict[str, int]]],
         block_hash: Optional[str] = None,
         reuse_block: Optional[bool] = False,
-    ) -> Optional[str]:
+    ) -> Optional[Any]:
         """
         Queries the runtime API of the Bittensor blockchain, providing a way to interact with the underlying
         runtime and retrieve data encoded in Scale Bytes format. This function is essential for advanced users
@@ -298,43 +280,16 @@ class SubtensorInterface:
         :param block_hash: The hash of the blockchain block number at which to perform the query.
         :param reuse_block: Whether to reuse the last-used block hash.
 
-        :return: The Scale Bytes encoded result from the runtime API call, or ``None`` if the call fails.
+        :return: The decoded result from the runtime API call, or ``None`` if the call fails.
 
         This function enables access to the deeper layers of the Bittensor blockchain, allowing for detailed
         and specific interactions with the network's runtime environment.
         """
-        call_definition = TYPE_REGISTRY["runtime_api"][runtime_api]["methods"][method]
-
-        data = (
-            "0x"
-            if params is None
-            else await self.encode_params(
-                call_definition=call_definition, params=params
-            )
-        )
-        api_method = f"{runtime_api}_{method}"
-
-        json_result = await self.substrate.rpc_request(
-            method="state_call",
-            params=[api_method, data, block_hash] if block_hash else [api_method, data],
+        result = await self.substrate.runtime_call(
+            runtime_api, method, params, block_hash
         )
 
-        if json_result is None:
-            return None
-
-        return_type = call_definition["type"]
-
-        as_scale_bytes = scalecodec.ScaleBytes(json_result["result"])  # type: ignore
-
-        rpc_runtime_config = RuntimeConfiguration()
-        rpc_runtime_config.update_type_registry(load_type_registry_preset("legacy"))
-        rpc_runtime_config.update_type_registry(custom_rpc_type_registry)
-
-        obj = rpc_runtime_config.create_scale_object(return_type, as_scale_bytes)
-        if obj.data.to_hex() == "0x0400":  # RPC returned None result
-            return None
-
-        return obj.decode()
+        return result
 
     async def get_balance(
         self,
@@ -641,7 +596,7 @@ class SubtensorInterface:
         This function offers a quick overview of the neuron population within a subnet, facilitating
         efficient analysis of the network's decentralized structure and neuron dynamics.
         """
-        hex_bytes_result = await self.query_runtime_api(
+        result = await self.query_runtime_api(
             runtime_api="NeuronInfoRuntimeApi",
             method="get_neurons_lite",
             params=[
@@ -651,15 +606,7 @@ class SubtensorInterface:
             reuse_block=reuse_block,
         )
 
-        if hex_bytes_result is None:
-            return []
-
-        try:
-            bytes_result = bytes.fromhex(hex_bytes_result[2:])
-        except ValueError:
-            bytes_result = bytes.fromhex(hex_bytes_result)
-
-        return NeuronInfoLite.list_from_vec_u8(bytes_result)
+        return NeuronInfoLite.list_from_any(result)
 
     async def neuron_for_uid(
         self, uid: Optional[int], netuid: int, block_hash: Optional[str] = None
@@ -682,17 +629,20 @@ class SubtensorInterface:
         if uid is None:
             return NeuronInfo.get_null_neuron()
 
-        params = [netuid, uid, block_hash] if block_hash else [netuid, uid]
-        json_body = await self.substrate.rpc_request(
-            method="neuronInfo_getNeuron",
-            params=params,  # custom rpc method
+        result = await self.query_runtime_api(
+            runtime_api="NeuronInfoRuntimeApi",
+            method="get_neuron",
+            params=[
+                netuid,
+                uid,
+            ],  # TODO check to see if this can accept more than one at a time
+            block_hash=block_hash,
         )
 
-        if not (result := json_body.get("result", None)):
+        if not result:
             return NeuronInfo.get_null_neuron()
 
-        bytes_result = bytes(result)
-        return NeuronInfo.from_vec_u8(bytes_result)
+        return NeuronInfo.from_any(result)
 
     async def get_delegated(
         self,
@@ -719,16 +669,18 @@ class SubtensorInterface:
             if block_hash
             else (self.substrate.last_block_hash if reuse_block else None)
         )
-        encoded_coldkey = ss58_to_vec_u8(coldkey_ss58)
-        json_body = await self.substrate.rpc_request(
-            method="delegateInfo_getDelegated",
-            params=([block_hash, encoded_coldkey] if block_hash else [encoded_coldkey]),
+
+        result = await self.query_runtime_api(
+            runtime_api="DelegateInfoRuntimeApi",
+            method="get_delegated",
+            params=[coldkey_ss58],
+            block_hash=block_hash,
         )
 
-        if not (result := json_body.get("result")):
+        if not result:
             return []
 
-        return DelegateInfo.delegated_list_from_vec_u8(bytes(result))
+        return DelegateInfo.delegated_list_from_any(result)
 
     async def query_identity(
         self,
@@ -978,22 +930,17 @@ class SubtensorInterface:
         Understanding the hyperparameters is crucial for comprehending how subnets are configured and
         managed, and how they interact with the network's consensus and incentive mechanisms.
         """
-        hex_bytes_result = await self.query_runtime_api(
+        result = await self.query_runtime_api(
             runtime_api="SubnetInfoRuntimeApi",
             method="get_subnet_hyperparams",
             params=[netuid],
             block_hash=block_hash,
         )
 
-        if hex_bytes_result is None:
+        if not result:
             return []
 
-        if hex_bytes_result.startswith("0x"):
-            bytes_result = bytes.fromhex(hex_bytes_result[2:])
-        else:
-            bytes_result = bytes.fromhex(hex_bytes_result)
-
-        return SubnetHyperparameters.from_vec_u8(bytes_result)
+        return SubnetHyperparameters.from_any(result)
 
     async def get_vote_data(
         self,

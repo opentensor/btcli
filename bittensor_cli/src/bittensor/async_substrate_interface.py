@@ -4,6 +4,7 @@ import random
 from collections import defaultdict
 from dataclasses import dataclass
 from hashlib import blake2b
+from types import SimpleNamespace
 from typing import Optional, Any, Union, Callable, Awaitable, cast
 
 from bt_decode import PortableRegistry, decode as decode_by_type_string, MetadataV15
@@ -820,6 +821,58 @@ class AsyncSubstrateInterface:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         pass
 
+    @staticmethod
+    def _type_registry_to_scale_info_types(
+        registry_types: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        scale_info_types = []
+        for type_entry in registry_types:
+            new_type_entry = {}
+            if (
+                "variant" in type_entry["type"]["def"]
+                and len(type_entry["type"]["def"]["variant"]) == 0
+            ):
+                type_entry["type"]["def"]["variant"] = {
+                    "variants": []
+                }  # add empty variants field to variant type if empty
+
+            for key, value in type_entry.items():
+                new_type_entry[key] = SimpleNamespace(value=value)
+            scale_info_types.append(new_type_entry)
+
+        return scale_info_types
+
+    def _type_id_to_name(self, ty_id: int) -> str:
+        type_string = f"scale_info::{ty_id}"
+
+        return type_string
+
+    def _type_registry_apis_to_runtime_api(
+        self, apis: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        runtime_api = {}
+        for api in apis:
+            api_name = api["name"]
+            methods = api["methods"]
+
+            runtime_api[api_name] = {
+                "methods": {
+                    method["name"]: {
+                        "description": "\n".join(method["docs"]),
+                        "params": [
+                            {
+                                "name": input["name"],
+                                "type": self._type_id_to_name(input["ty"]),
+                            }
+                            for input in method["inputs"]
+                        ],
+                        "type": self._type_id_to_name(method["output"]),
+                    }
+                    for method in methods
+                }
+            }
+        return runtime_api
+
     @property
     def chain(self):
         """
@@ -854,6 +907,7 @@ class AsyncSubstrateInterface:
         metadata_option_bytes = bytes.fromhex(metadata_option_hex_str[2:])
         metadata_v15 = MetadataV15.decode_from_metadata_option(metadata_option_bytes)
         self.registry = PortableRegistry.from_metadata_v15(metadata_v15)
+        self.metadata_v15 = metadata_v15
 
     async def decode_scale(
         self, type_string, scale_bytes: bytes, return_scale_obj=False
@@ -980,6 +1034,17 @@ class AsyncSubstrateInterface:
             if self.implements_scaleinfo:
                 # self.debug_message('Add PortableRegistry from metadata to type registry')
                 self.runtime_config.add_portable_registry(self.metadata)
+
+            if self.metadata_v15:
+                metadata_v15 = self.metadata_v15.value()
+                self.runtime_config.update_from_scale_info_types(
+                    self._type_registry_to_scale_info_types(
+                        metadata_v15["types"]["types"]
+                    )
+                )
+                self.runtime_config.type_registry["runtime_api"].update(
+                    self._type_registry_apis_to_runtime_api(metadata_v15["apis"])
+                )
 
             # Set active runtime version
             self.runtime_config.set_active_spec_version_id(self.runtime_version)
@@ -2234,7 +2299,7 @@ class AsyncSubstrateInterface:
         )
 
         # Decode result
-        result_obj = self.decode_scale(
+        result_obj = await self.decode_scale(
             runtime_call_def["type"],
             bytes_from_hex_string_result(result_data["result"]),
         )
