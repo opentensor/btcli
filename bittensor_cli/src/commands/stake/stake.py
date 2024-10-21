@@ -1274,6 +1274,7 @@ async def unstake(
                     amount_to_unstake_as_balance = current_stake_balance
                 else:
                     try:
+                        # TODO improve this
                         amount = float(
                             Prompt.ask(
                                 f"Enter amount to unstake in {Balance.get_unit(netuid)} from subnet: {netuid}"
@@ -1282,7 +1283,7 @@ async def unstake(
                         amount_to_unstake_as_balance = Balance.from_tao(amount)
                     except ValueError:
                         err_console.print(
-                            ":cross_mark:[red]Invalid amount Please use `--amount` with `--no_prompt`.[/red]"
+                            ":cross_mark:[red]Invalid amount Please use `--amount` with `--no-prompt`.[/red]"
                         )
                         return False
             unstake_amount_balance.append(amount_to_unstake_as_balance)
