@@ -513,6 +513,7 @@ HELP_PANELS = {
     },
     "SUDO": {
         "CONFIG": "Subnet Configuration",
+        "GOVERNANCE": "Governance"
     },
     "SUBNETS": {
         "INFO": "Subnet Information",

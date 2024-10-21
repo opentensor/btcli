@@ -670,6 +670,9 @@ class CLIManager:
         self.sudo_app.command("get", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(
             self.sudo_get
         )
+        self.sudo_app.command(
+            "senate", rich_help_panel=HELP_PANELS["SUDO"]["GOVERNANCE"]
+        )(self.sudo_senate)
 
         # subnets commands
         self.subnets_app.command(
@@ -3108,6 +3111,23 @@ class CLIManager:
         return self._run_command(
             sudo.get_hyperparameters(self.initialize_chain(network), netuid)
         )
+
+    def sudo_senate(
+        self,
+        network: Optional[list[str]] = Options.network,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Shows the Senate members of the Bittensor's governance protocol.
+
+        This command lists the delegates involved in the decision-making process of the Bittensor network, showing their names and wallet addresses. This information is crucial for understanding who holds governance roles within the network.
+
+        EXAMPLE
+        [green]$[/green] btcli root senate
+        """
+        self.verbosity_handler(quiet, verbose)
+        return self._run_command(sudo.get_senate(self.initialize_chain(network)))
 
     def subnets_list(
         self,

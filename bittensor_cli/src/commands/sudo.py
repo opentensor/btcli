@@ -1,12 +1,12 @@
 import asyncio
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Union, Optional
 
 from bittensor_wallet import Wallet
 from bittensor_wallet.errors import KeyFileError
 from rich import box
 from rich.table import Column, Table
 
-from bittensor_cli.src import HYPERPARAMS
+from bittensor_cli.src import HYPERPARAMS, DelegatesDetails
 from bittensor_cli.src.bittensor.chain_data import decode_account_id
 from bittensor_cli.src.bittensor.utils import (
     console,
@@ -234,3 +234,74 @@ async def get_hyperparameters(subtensor: "SubtensorInterface", netuid: int):
 
     console.print(table)
     return True
+
+
+async def get_senate(subtensor: "SubtensorInterface"):
+    """View Bittensor's senate memebers"""
+    with console.status(
+        f":satellite: Syncing with chain: [white]{subtensor}[/white] ...",
+        spinner="aesthetic",
+    ) as status:
+        print_verbose("Fetching senate members", status)
+        senate_members = await _get_senate_members(subtensor)
+
+    print_verbose("Fetching member details from Github and on-chain identities")
+    delegate_info: dict[
+        str, DelegatesDetails
+    ] = await subtensor.get_delegate_identities()
+
+    table = Table(
+        Column(
+            "[bold white]NAME",
+            style="bright_cyan",
+            no_wrap=True,
+        ),
+        Column(
+            "[bold white]ADDRESS",
+            style="bright_magenta",
+            no_wrap=True,
+        ),
+        title=f"[underline dark_orange]Senate[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}\n",
+        show_footer=True,
+        show_edge=False,
+        expand=False,
+        border_style="bright_black",
+        leading=True,
+    )
+
+    for ss58_address in senate_members:
+        table.add_row(
+            (
+                delegate_info[ss58_address].display
+                if ss58_address in delegate_info
+                else "~"
+            ),
+            ss58_address,
+        )
+
+    return console.print(table)
+
+
+async def _get_senate_members(
+    subtensor: "SubtensorInterface", block_hash: Optional[str] = None
+) -> list[str]:
+    """
+    Gets all members of the senate on the given subtensor's network
+
+    :param subtensor: SubtensorInterface object to use for the query
+
+    :return: list of the senate members' ss58 addresses
+    """
+    senate_members = await subtensor.substrate.query(
+        module="SenateMembers",
+        storage_function="Members",
+        params=None,
+        block_hash=block_hash,
+    )
+    try:
+        return [
+            decode_account_id(i[x][0]) for i in senate_members for x in range(len(i))
+        ]
+    except (IndexError, TypeError):
+        err_console.print("Unable to retrieve senate members.")
+        return []
