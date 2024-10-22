@@ -4,8 +4,9 @@ import random
 from collections import defaultdict
 from dataclasses import dataclass
 from hashlib import blake2b
-from types import SimpleNamespace
+from munch import munchify, Munch
 from typing import Optional, Any, Union, Callable, Awaitable, cast
+from types import SimpleNamespace
 
 from bt_decode import PortableRegistry, decode as decode_by_type_string, MetadataV15
 from async_property import async_property
@@ -33,6 +34,33 @@ class TimeoutException(Exception):
 
 def timeout_handler(signum, frame):
     raise TimeoutException("Operation timed out")
+
+
+class DictWithValue(dict):
+    value: Any
+
+    def __init__(self, value: Any = None):
+        super().__init__()
+        self.value = value
+
+    def __getitem__(self, key: Union[str, int]):
+        result = super().get(key)
+        if not result and isinstance(key, int):
+            # if the key is not found, return the key at the given index
+            return list(self.keys())[key]
+        return result
+
+    @classmethod
+    def from_dict(cls, dict_: dict):
+        inst = cls()
+        # recursively convert all values to DictWithValue
+        for key, value in dict_.items():
+            if isinstance(value, dict):
+                value = cls.from_dict(value)
+            inst[key] = value
+        inst.value = dict_
+
+        return inst
 
 
 class ExtrinsicReceipt:
@@ -827,7 +855,7 @@ class AsyncSubstrateInterface:
     ) -> list[dict[str, Any]]:
         scale_info_types = []
         for type_entry in registry_types:
-            new_type_entry = {}
+            new_type_entry = DictWithValue(value=type_entry)
             if (
                 "variant" in type_entry["type"]["def"]
                 and len(type_entry["type"]["def"]["variant"]) == 0
@@ -837,7 +865,12 @@ class AsyncSubstrateInterface:
                 }  # add empty variants field to variant type if empty
 
             for key, value in type_entry.items():
-                new_type_entry[key] = SimpleNamespace(value=value)
+                if isinstance(value, dict):
+                    entry = DictWithValue.from_dict(value)
+                else:
+                    entry = SimpleNamespace(value=value)
+                new_type_entry[key] = entry
+
             scale_info_types.append(new_type_entry)
 
         return scale_info_types
