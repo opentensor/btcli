@@ -340,7 +340,7 @@ async def get_children(
 
     async def _render_table(
         parent_hotkey: str,
-        netuid_children_tuples: list[tuple[int, list[tuple[int, str]]]],
+        netuid_children_: list[tuple[int, list[tuple[int, str]]]],
     ):
         """
         Retrieves and renders children hotkeys and their details for a given parent hotkey.
@@ -363,10 +363,11 @@ async def get_children(
             "Current Stake Weight", style="bold red", no_wrap=True, justify="right"
         )
 
-        if not netuid_children_tuples:
+        if not netuid_children_:
             console.print(table)
             console.print(
-                f"[bold red]There are currently no child hotkeys with parent hotkey: {wallet.name} ({parent_hotkey}).[/bold red]"
+                f"[bold red]There are currently no child hotkeys with parent hotkey: "
+                f"{wallet.name} ({parent_hotkey}).[/bold red]"
             )
             return
 
@@ -374,15 +375,15 @@ async def get_children(
         total_proportion = 0
         total_stake_weight = 0
 
-        netuid_children_tuples.sort(
+        netuid_children_.sort(
             key=lambda x: x[0]
         )  # Sort by netuid in ascending order
 
-        for index, (netuid, children_) in enumerate(netuid_children_tuples):
+        for index, (netuid_, children_) in enumerate(netuid_children_):
             # calculate totals
             total_proportion_per_netuid = 0
             total_stake_weight_per_netuid = 0
-            avg_take_per_netuid = 0
+            avg_take_per_netuid = 0.0
 
             hotkey_stake_dict = await subtensor.get_total_stake_for_hotkey(
                 parent_hotkey
@@ -427,7 +428,7 @@ async def get_children(
 
                 hotkey = Text(hotkey, style="italic red" if proportion == 0 else "")
                 table.add_row(
-                    str(netuid),
+                    str(netuid_),
                     hotkey,
                     proportion_str,
                     take_str,
@@ -451,7 +452,7 @@ async def get_children(
             total_stake_weight += total_stake_weight_per_netuid
 
             # Add a dividing line if there are more than one netuid
-            if len(netuid_children_tuples) > 1:
+            if len(netuid_children_) > 1:
                 table.add_section()
 
         console.print(table)
