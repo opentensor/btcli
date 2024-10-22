@@ -16,6 +16,7 @@ from bittensor_cli.src.bittensor.utils import (
     print_error,
     print_verbose,
     normalize_hyperparameters,
+    u16_normalized_float,
 )
 
 if TYPE_CHECKING:
@@ -375,6 +376,79 @@ async def vote_senate_extrinsic(
                 return False
 
 
+async def set_take_extrinsic(
+    subtensor: "SubtensorInterface",
+    wallet: Wallet,
+    delegate_ss58: str,
+    take: float = 0.0,
+) -> bool:
+    """
+    Set delegate hotkey take
+
+    :param subtensor: SubtensorInterface (initialized)
+    :param wallet: The wallet containing the hotkey to be nominated.
+    :param delegate_ss58:  Hotkey
+    :param take: Delegate take on subnet ID
+
+    :return: `True` if the process is successful, `False` otherwise.
+
+    This function is a key part of the decentralized governance mechanism of Bittensor, allowing for the
+    dynamic selection and participation of validators in the network's consensus process.
+    """
+
+    # Calculate u16 representation of the take
+    take_u16 = int(take * 0xFFFF)
+
+    print_verbose("Checking current take")
+    # Check if the new take is greater or lower than existing take or if existing is set
+    current_take = await get_current_take(subtensor, wallet)
+    current_take_u16 = int(float(current_take) * 0xFFFF)
+
+    if take_u16 == current_take_u16:
+        console.print("Nothing to do, take hasn't changed")
+        return True
+
+    if current_take_u16 < take_u16:
+        console.print(
+            f"Current take is [dark_orange]{current_take * 100.:.2f}%[/dark_orange]. Increasing to [dark_orange]{take * 100:.2f}%."
+        )
+        with console.status(
+            f":satellite: Sending decrease_take_extrinsic call on [white]{subtensor}[/white] ..."
+        ):
+            call = await subtensor.substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function="increase_take",
+                call_params={
+                    "hotkey": delegate_ss58,
+                    "take": take_u16,
+                },
+            )
+            success, err = await subtensor.sign_and_send_extrinsic(call, wallet)
+
+    else:
+        console.print(
+            f"Current take is [dark_orange]{current_take * 100.:.2f}%[/dark_orange]. Decreasing to [dark_orange]{take * 100:.2f}%."
+        )
+        with console.status(
+            f":satellite: Sending increase_take_extrinsic call on [white]{subtensor}[/white] ..."
+        ):
+            call = await subtensor.substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function="decrease_take",
+                call_params={
+                    "hotkey": delegate_ss58,
+                    "take": take_u16,
+                },
+            )
+            success, err = await subtensor.sign_and_send_extrinsic(call, wallet)
+
+    if not success:
+        err_console.print(err)
+    else:
+        console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+    return success
+
+
 # commands
 
 
@@ -595,3 +669,56 @@ async def senate_vote(
     )
 
     return success
+
+
+async def get_current_take(subtensor: "SubtensorInterface", wallet: Wallet):
+    current_take = await subtensor.current_take(wallet.hotkey.ss58_address)
+    return current_take
+
+
+async def set_take(
+    wallet: Wallet, subtensor: "SubtensorInterface", take: float
+) -> bool:
+    """Set delegate take."""
+
+    async def _do_set_take() -> bool:
+        if take > 0.18 or take < 0:
+            err_console.print("ERROR: Take value should not exceed 18% or be below 0%")
+            return False
+
+        block_hash = await subtensor.substrate.get_chain_head()
+        netuids_registered = await subtensor.get_netuids_for_hotkey(
+            wallet.hotkey.ss58_address, block_hash=block_hash
+        )
+        if not len(netuids_registered) > 0:
+            err_console.print(
+                f"Hotkey [dark_orange]{wallet.hotkey.ss58_address}[/dark_orange] is not registered to any subnet. Please register using [dark_orange]`btcli subnets register`[/dark_orange] and try again."
+            )
+            return False
+
+        result: bool = await set_take_extrinsic(
+            subtensor=subtensor,
+            wallet=wallet,
+            delegate_ss58=wallet.hotkey.ss58_address,
+            take=take,
+        )
+
+        if not result:
+            err_console.print("Could not set the take")
+            return False
+        else:
+            new_take = await get_current_take(subtensor, wallet)
+            console.print(f"New take is [dark_orange]{new_take * 100.:.2f}%")
+            return True
+
+    console.print(f"Setting take on [dark_orange]network: {subtensor.network}")
+
+    try:
+        wallet.unlock_hotkey()
+        wallet.unlock_coldkey()
+    except KeyFileError:
+        return False
+
+    result_ = await _do_set_take()
+
+    return result_

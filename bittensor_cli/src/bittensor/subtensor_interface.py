@@ -10,6 +10,7 @@ from scalecodec import GenericCall
 from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
 from substrateinterface.exceptions import SubstrateRequestException
+from bittensor_cli.src.bittensor.utils import SS58_FORMAT, u16_normalized_float
 import typer
 
 from bittensor_cli.src.bittensor.async_substrate_interface import (
@@ -442,6 +443,35 @@ class SubtensorInterface:
             reuse_block_hash=reuse_block,
         )
         return {k: Balance.from_rao(r or 0) for (k, r) in results.items()}
+
+    async def current_take(
+        self,
+        hotkey_ss58: int,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> bool:
+        """
+        Retrieves the delegate 'take' percentage for a neuron identified by its hotkey. The 'take'
+        represents the percentage of rewards that the delegate claims from its nominators' stakes.
+
+        Args:
+            hotkey_ss58 (str): The ``SS58`` address of the neuron's hotkey.
+            block (Optional[int], optional): The blockchain block number for the query.
+
+        Returns:
+            Optional[float]: The delegate take percentage, None if not available.
+
+        The delegate take is a critical parameter in the network's incentive structure, influencing
+        the distribution of rewards among neurons and their nominators.
+        """
+        result = await self.substrate.query(
+            module="SubtensorModule",
+            storage_function="Delegates",
+            params=[hotkey_ss58],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+        return u16_normalized_float(result)
 
     async def get_netuids_for_hotkey(
         self,

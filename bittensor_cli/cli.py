@@ -679,6 +679,9 @@ class CLIManager:
         self.sudo_app.command(
             "senate-vote", rich_help_panel=HELP_PANELS["SUDO"]["GOVERNANCE"]
         )(self.sudo_senate_vote)
+        self.sudo_app.command("set-take", rich_help_panel=HELP_PANELS["SUDO"]["TAKE"])(
+            self.sudo_set_take
+        )
 
         # subnets commands
         self.subnets_app.command(
@@ -3184,6 +3187,60 @@ class CLIManager:
             sudo.senate_vote(
                 wallet, self.initialize_chain(network), proposal, vote, prompt
             )
+        )
+
+    def sudo_set_take(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        take: float = typer.Option(None, help="The new take value."),
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Allows users to change their delegate take percentage.
+
+        This command can be used to update the delegate takes individually for every subnet. To run the command, the user must have a configured wallet with both hotkey and coldkey.
+        The command makes sure the new take value is within 0-18% range.
+
+        EXAMPLE
+        [green]$[/green] btcli sudo set_take --wallet-name my_wallet --wallet-hotkey my_hotkey
+        """
+        max_value = 0.18
+        min_value = 0.00
+        self.verbosity_handler(quiet, verbose)
+
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
+
+        current_take = self._run_command(
+            sudo.get_current_take(self.initialize_chain(network), wallet)
+        )
+        console.print(f"Current take is [dark_orange]{current_take * 100.:.2f}%")
+
+        if not take:
+            max_value_style = typer.style(f"Max: {max_value}", fg="magenta")
+            min_value_style = typer.style(f"Min: {min_value}", fg="magenta")
+            prompt_text = typer.style(
+                "Enter take value (0.18 for 18%)", fg="bright_cyan", bold=True
+            )
+            take = FloatPrompt.ask(f"{prompt_text} {min_value_style} {max_value_style}")
+
+        if not (min_value <= take <= max_value):
+            print_error(
+                f"Take value must be between {min_value} and {max_value}. Provided value: {take}"
+            )
+            raise typer.Exit()
+
+        return self._run_command(
+            sudo.set_take(wallet, self.initialize_chain(network), take)
         )
 
     def subnets_list(
