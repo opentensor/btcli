@@ -4,6 +4,7 @@ import random
 from collections import defaultdict
 from dataclasses import dataclass
 from hashlib import blake2b
+from itertools import chain
 from munch import munchify, Munch
 from typing import Optional, Any, Union, Callable, Awaitable, cast
 from types import SimpleNamespace
@@ -47,7 +48,7 @@ class DictWithValue(dict):
         result = super().get(key)
         if not result and isinstance(key, int):
             # if the key is not found, return the key at the given index
-            return list(self.keys())[key]
+            return list(chain.from_iterable(self.items()))[key]
         return result
 
     @classmethod
