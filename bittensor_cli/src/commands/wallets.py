@@ -15,6 +15,7 @@ from rich.table import Column, Table
 from rich.tree import Tree
 from rich.padding import Padding
 from scalecodec import ScaleBytes
+from rich.prompt import IntPrompt
 import typer
 
 from bittensor_cli.src import COLOR_PALETTE
@@ -1030,34 +1031,44 @@ def _map_hotkey_to_neurons(
 
 async def _fetch_neuron_for_netuid(
     netuid: int, subtensor: SubtensorInterface
-) -> tuple[int, dict[str, list[ScaleBytes]]]:
+) -> tuple[int, tuple[str, bytes]]:
     """
     Retrieves all neurons for a specified netuid
 
     :param netuid: the netuid to query
     :param subtensor: the SubtensorInterface to make the query
 
-    :return: the original netuid, and a mapping of the neurons to their NeuronInfoLite objects
+    :return: the original netuid, and a tuple of the runtime call type and the result bytes
     """
 
-    async def neurons_lite_for_uid(uid: int) -> dict[Any, Any]:
+    async def neurons_lite_for_netuid(netuid: int) -> dict[Any, Any]:
         block_hash = subtensor.substrate.last_block_hash
-        hex_bytes_result = await subtensor.query_runtime_api(
+        result = await subtensor.query_runtime_api_wait_to_decode(
             runtime_api="NeuronInfoRuntimeApi",
             method="get_neurons_lite",
-            params=[uid],
+            params=[netuid],
             block_hash=block_hash,
         )
 
-        return hex_bytes_result
+        return result
 
-    neurons = await neurons_lite_for_uid(uid=netuid)
+    neurons = await neurons_lite_for_netuid(netuid=netuid)
     return netuid, neurons
+
+
+def _decode_neurons(
+    args: tuple[str, bytes], type_registry: dict[str, Any]
+) -> list[NeuronInfoLite]:
+    runtime_call_type, result_bytes = args
+    result_obj = utils.decode_scale_bytes(
+        runtime_call_type, result_bytes, type_registry
+    )
+    return NeuronInfoLite.list_from_any(result_obj)
 
 
 async def _fetch_all_neurons(
     netuids: list[int], subtensor
-) -> list[tuple[int, list[ScaleBytes]]]:
+) -> list[tuple[int, list[NeuronInfoLite]]]:
     """Retrieves all neurons for each of the specified netuids"""
     return list(
         await asyncio.gather(

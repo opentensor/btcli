@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 from functools import partial
 import re
 
+import bt_decode
 from bittensor_wallet import Wallet, Keypair
 from bittensor_wallet.utils import SS58_FORMAT
 from bittensor_wallet.errors import KeyFileError
@@ -375,15 +376,36 @@ def is_valid_bittensor_address_or_public_key(address: Union[str, bytes]) -> bool
         return False
 
 
-def decode_scale_bytes(return_type, scale_bytes, custom_rpc_type_registry):
-    """Decodes a ScaleBytes object using our type registry and return type"""
-    rpc_runtime_config = RuntimeConfiguration()
-    rpc_runtime_config.update_type_registry(load_type_registry_preset("legacy"))
-    rpc_runtime_config.update_type_registry(custom_rpc_type_registry)
-    obj = rpc_runtime_config.create_scale_object(return_type, scale_bytes)
-    if obj.data.to_hex() == "0x0400":  # RPC returned None result
+def decode_scale_bytes(
+    return_type: str,
+    scale_bytes: Union["scalecodec.ScaleBytes", bytes],
+    custom_rpc_type_registry: Union[str, "bt_decode.PortableRegistry"],
+) -> Any:
+    """
+    Decodes a ScaleBytes object using our type registry and return type
+
+    :param return_type: the type string to decode the scale bytes to
+    :param scale_bytes: the scale bytes to decode (either a scalecodec.ScaleBytes or bytes)
+    :param custom_rpc_type_registry: contains the type registry
+
+    :return: the decoded object
+    """
+    if isinstance(custom_rpc_type_registry, str):
+        portable_registry = bt_decode.PortableRegistry.from_json(
+            custom_rpc_type_registry
+        )
+    else:
+        portable_registry = custom_rpc_type_registry
+
+    if isinstance(scale_bytes, scalecodec.ScaleBytes):
+        as_bytes = bytes(scale_bytes.data)
+    else:
+        as_bytes = bytes(scale_bytes)
+
+    if as_bytes.hex() == "0x0400":  # RPC returned None result
         return None
-    return obj.decode()
+
+    return bt_decode.decode(return_type, portable_registry, as_bytes)
 
 
 def ss58_address_to_bytes(ss58_address: str) -> bytes:
