@@ -373,14 +373,14 @@ def is_valid_bittensor_address_or_public_key(address: Union[str, bytes]) -> bool
 
 def decode_scale_bytes(
     return_type: str,
-    scale_bytes: "scalecodec.ScaleBytes",
+    scale_bytes: Union["scalecodec.ScaleBytes", bytes],
     custom_rpc_type_registry: Union[str, "bt_decode.PortableRegistry"],
 ) -> Any:
     """
     Decodes a ScaleBytes object using our type registry and return type
 
     :param return_type: the type string to decode the scale bytes to
-    :param scale_bytes: the scale bytes to decode
+    :param scale_bytes: the scale bytes to decode (either a scalecodec.ScaleBytes or bytes)
     :param custom_rpc_type_registry: contains the type registry
 
     :return: the decoded object
@@ -392,10 +392,15 @@ def decode_scale_bytes(
     else:
         portable_registry = custom_rpc_type_registry
 
-    if scale_bytes.data.to_hex() == "0x0400":  # RPC returned None result
+    if isinstance(scale_bytes, scalecodec.ScaleBytes):
+        as_bytes = bytes(scale_bytes.data)
+    else:
+        as_bytes = bytes(scale_bytes)
+
+    if as_bytes.hex() == "0x0400":  # RPC returned None result
         return None
 
-    return bt_decode.decode(return_type, portable_registry, scale_bytes.data)
+    return bt_decode.decode(return_type, portable_registry, as_bytes)
 
 
 def ss58_address_to_bytes(ss58_address: str) -> bytes:

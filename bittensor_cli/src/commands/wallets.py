@@ -21,11 +21,8 @@ from rich.table import Column, Table
 from rich.tree import Tree
 from rich.padding import Padding
 from rich.prompt import IntPrompt
-from scalecodec import ScaleBytes
-import scalecodec
 import typer
 
-from bittensor_cli.src import TYPE_REGISTRY
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import (
@@ -1100,44 +1097,63 @@ def _map_hotkey_to_neurons(
 
 async def _fetch_neurons_for_netuid(
     netuid: int, subtensor: SubtensorInterface
-) -> tuple[int, dict[str, list[NeuronInfoLite]]]:
+) -> tuple[int, tuple[str, bytes]]:
     """
     Retrieves all neurons for a specified netuid
 
     :param netuid: the netuid to query
     :param subtensor: the SubtensorInterface to make the query
 
-    :return: the original netuid, and a mapping of the neurons to their NeuronInfoLite objects
+    :return: the original netuid, and a tuple of the runtime call type and the result bytes
     """
 
-    async def neurons_lite_for_uid(uid: int) -> dict[Any, Any]:
-        result = await subtensor.query_runtime_api(
+    async def neurons_lite_for_netuid(netuid: int) -> dict[Any, Any]:
+        result = await subtensor.query_runtime_api_wait_to_decode(
             runtime_api="NeuronInfoRuntimeApi",
             method="get_neurons_lite",
-            params=[uid],
+            params=[netuid],
             block_hash=subtensor.substrate.last_block_hash,
             reuse_block=True,
         )
 
-        return NeuronInfoLite.list_from_any(result)
+        return result
 
-    neurons = await neurons_lite_for_uid(uid=netuid)
+    neurons = await neurons_lite_for_netuid(netuid=netuid)
     return netuid, neurons
 
 
+def _decode_neurons(
+    args: tuple[str, bytes], type_registry: dict[str, Any]
+) -> list[NeuronInfoLite]:
+    runtime_call_type, result_bytes = args
+    result_obj = utils.decode_scale_bytes(
+        runtime_call_type, result_bytes, type_registry
+    )
+    return NeuronInfoLite.list_from_any(result_obj)
+
+
 async def _fetch_all_neurons(
-    netuids: list[int], subtensor
+    netuids: list[int], subtensor: SubtensorInterface
 ) -> list[tuple[int, list[NeuronInfoLite]]]:
     """Retrieves all neurons for each of the specified netuids"""
 
+    all_futures = []
     with ProcessPoolExecutor() as executor:
-        results = list(
-            executor.map(
-                lambda netuid: _fetch_neurons_for_netuid(netuid, subtensor), netuids
+        for corout in asyncio.as_completed(
+            [_fetch_neurons_for_netuid(netuid, subtensor) for netuid in netuids]
+        ):
+            netuid, result = await corout
+            future = executor.submit(
+                partial(
+                    _decode_neurons, type_registry=subtensor.substrate.registry.registry
+                ),
+                result,
             )
-        )
+            all_futures.append((netuid, future))
 
-    all_results = [(netuid, result) for netuid, result in results]
+    all_results = [  # Wait for all futures to complete
+        (netuid, future.result()) for netuid, future in all_futures
+    ]
 
     return all_results
 
