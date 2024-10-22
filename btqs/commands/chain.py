@@ -289,7 +289,7 @@ def start(config_data, workspace_path, branch, fast_blocks=True, verbose=False, 
     alice_log = os.path.join(log_dir, "alice.log")
 
     # Waiting for chain compilation
-    timeout = 1200  # 17 minutes
+    timeout = 3000 
     start_time = time.time()
     while not os.path.exists(alice_log):
         if time.time() - start_time > timeout:
