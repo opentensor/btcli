@@ -511,10 +511,7 @@ HELP_PANELS = {
         "STAKE_MGMT": "Stake Management",
         "CHILD": "Child Hotkeys",
     },
-    "SUDO": {
-        "CONFIG": "Subnet Configuration",
-        "GOVERNANCE": "Governance"
-    },
+    "SUDO": {"CONFIG": "Subnet Configuration", "GOVERNANCE": "Governance"},
     "SUBNETS": {
         "INFO": "Subnet Information",
         "CREATION": "Subnet Creation & Management",

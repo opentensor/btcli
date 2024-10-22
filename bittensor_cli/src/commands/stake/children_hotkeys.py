@@ -375,9 +375,7 @@ async def get_children(
         total_proportion = 0
         total_stake_weight = 0
 
-        netuid_children_.sort(
-            key=lambda x: x[0]
-        )  # Sort by netuid in ascending order
+        netuid_children_.sort(key=lambda x: x[0])  # Sort by netuid in ascending order
 
         for index, (netuid_, children_) in enumerate(netuid_children_):
             # calculate totals
@@ -488,19 +486,20 @@ async def get_children(
         return children
 
 
-async def set_children_new(
+async def set_children(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
     children: list[str],
     proportions: list[float],
-    hotkey: str,
-    netuid: int,
+    netuid: Optional[int],
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
     prompt: bool = True,
 ):
     """Set children hotkeys."""
     # Validate children SS58 addresses
+    # TODO check to see if this should be allowed to be specified by user instead of pulling from wallet
+    hotkey = wallet.hotkey.ss58_address
     for child in children:
         if not is_valid_ss58_address(child):
             err_console.print(f":cross_mark:[red] Invalid SS58 address: {child}[/red]")
@@ -516,7 +515,7 @@ async def set_children_new(
             f"Proposed sum of proportions is {total_proposed}."
         )
     children_with_proportions = list(zip(proportions, children))
-    if netuid:
+    if netuid is not None:
         success, message = await set_children_extrinsic(
             subtensor=subtensor,
             wallet=wallet,
@@ -553,78 +552,6 @@ async def set_children_new(
                 hotkey=hotkey,
                 children_with_proportions=children_with_proportions,
                 prompt=prompt,
-                wait_for_inclusion=True,
-                wait_for_finalization=False,
-            )
-        console.print(
-            ":white_heavy_check_mark: [green]Sent set children request for all subnets.[/green]"
-        )
-
-
-async def set_children(
-    wallet: Wallet,
-    subtensor: "SubtensorInterface",
-    children: list[str],
-    proportions: list[float],
-    netuid: Optional[int] = None,
-    wait_for_inclusion: bool = True,
-    wait_for_finalization: bool = True,
-):
-    """Set children hotkeys."""
-    # Validate children SS58 addresses
-    for child in children:
-        if not is_valid_ss58_address(child):
-            err_console.print(f":cross_mark:[red] Invalid SS58 address: {child}[/red]")
-            return
-        if child == wallet.hotkey.ss58_address:
-            err_console.print(":cross_mark:[red] Cannot set yourself as a child.[/red]")
-            return
-
-    total_proposed = sum(proportions)
-    if total_proposed > 1:
-        raise ValueError(
-            f"Invalid proportion: The sum of all proportions cannot be greater than 1. "
-            f"Proposed sum of proportions is {total_proposed}."
-        )
-
-    children_with_proportions = list(zip(proportions, children))
-    if netuid:
-        success, message = await set_children_extrinsic(
-            subtensor=subtensor,
-            wallet=wallet,
-            netuid=netuid,
-            hotkey=wallet.hotkey.ss58_address,
-            children_with_proportions=children_with_proportions,
-            prompt=True,
-            wait_for_inclusion=wait_for_inclusion,
-            wait_for_finalization=wait_for_finalization,
-        )
-        # Result
-        if success:
-            if wait_for_inclusion and wait_for_finalization:
-                console.print("New Status:")
-                await get_children(wallet, subtensor, netuid)
-            console.print(
-                ":white_heavy_check_mark: [green]Set children hotkeys.[/green]"
-            )
-        else:
-            console.print(
-                f":cross_mark:[red] Unable to set children hotkeys.[/red] {message}"
-            )
-    else:
-        # set children on all subnets that parent is registered on
-        netuids = await subtensor.get_all_subnet_netuids()
-        for netuid in netuids:
-            if netuid == 0:  # dont include root network
-                continue
-            console.print(f"Setting children on netuid {netuid}.")
-            await set_children_extrinsic(
-                subtensor=subtensor,
-                wallet=wallet,
-                netuid=netuid,
-                hotkey=wallet.hotkey.ss58_address,
-                children_with_proportions=children_with_proportions,
-                prompt=False,
                 wait_for_inclusion=True,
                 wait_for_finalization=False,
             )

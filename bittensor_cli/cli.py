@@ -2814,18 +2814,8 @@ class CLIManager:
         wallet_hotkey: str = Options.wallet_hotkey,
         wallet_path: str = Options.wallet_path,
         network: Optional[list[str]] = Options.network,
-        netuid: Optional[int] = typer.Option(
-            None,
-            help="The netuid of the subnet, (e.g. 4)",
-            prompt=False,
-        ),
-        all_netuids: bool = typer.Option(
-            False,
-            "--all-netuids",
-            "--all",
-            "--allnetuids",
-            help="When this flag is used it sets child hotkeys on all subnets.",
-        ),
+        netuid: Optional[int] = Options.netuid_not_req,
+        all_netuids: bool = Options.all_netuids,
         proportions: list[float] = typer.Option(
             [],
             "--proportions",
@@ -2851,15 +2841,8 @@ class CLIManager:
         [green]$[/green] btcli stake child set -c 5FCL3gmjtQV4xxxxuEPEFQVhyyyyqYgNwX7drFLw7MSdBnxP -c 5Hp5dxxxxtGg7pu8dN2btyyyyVA1vELmM9dy8KQv3LxV8PA7 --hotkey default --netuid 1 -p 0.3 -p 0.7
         """
         self.verbosity_handler(quiet, verbose)
-        if all_netuids and netuid:
-            err_console.print("Specify either a netuid or `--all`, not both.")
-            raise typer.Exit()
-        if all_netuids:
-            netuid = None
-        elif not netuid:
-            netuid = IntPrompt.ask(
-                "Enter a netuid (leave blank for all)", default=None, show_default=True
-            )
+        netuid = get_optional_netuid(netuid, all_netuids)
+
         children = list_prompt(
             children,
             str,
