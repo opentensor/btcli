@@ -2277,13 +2277,13 @@ class AsyncSubstrateInterface:
 
             return response.get("result")
 
-    async def runtime_call(
+    async def runtime_call_wait_to_decode(
         self,
         api: str,
         method: str,
         params: Optional[Union[list, dict]] = None,
         block_hash: Optional[str] = None,
-    ) -> ScaleType:
+    ) -> tuple[str, bytes]:
         """
         Calls a runtime API method
 
@@ -2292,7 +2292,7 @@ class AsyncSubstrateInterface:
         :param params: List of parameters needed to call the runtime API
         :param block_hash: Hash of the block at which to make the runtime API call
 
-        :return: ScaleType from the runtime call
+        :return: Tuple of the runtime call type and the result bytes
         """
         await self.init_runtime()
 
@@ -2341,11 +2341,34 @@ class AsyncSubstrateInterface:
             "state_call", [f"{api}_{method}", str(param_data), block_hash]
         )
 
-        # Decode result
-        result_obj = await self.decode_scale(
-            runtime_call_def["type"],
-            bytes_from_hex_string_result(result_data["result"]),
+        return runtime_call_def["type"], bytes_from_hex_string_result(
+            result_data["result"]
         )
+
+    async def runtime_call(
+        self,
+        api: str,
+        method: str,
+        params: Optional[Union[list, dict]] = None,
+        block_hash: Optional[str] = None,
+    ) -> ScaleType:
+        """
+        Calls a runtime API method
+
+        :param api: Name of the runtime API e.g. 'TransactionPaymentApi'
+        :param method: Name of the method e.g. 'query_fee_details'
+        :param params: List of parameters needed to call the runtime API
+        :param block_hash: Hash of the block at which to make the runtime API call
+
+        :return: ScaleType from the runtime call
+        """
+        # Get the runtime call type and result bytes
+        runtime_call_type, result_bytes = await self.runtime_call_wait_to_decode(
+            api, method, params, block_hash
+        )
+
+        # Decode the result bytes
+        result_obj = await self.decode_scale(runtime_call_type, result_bytes)
 
         return result_obj
 

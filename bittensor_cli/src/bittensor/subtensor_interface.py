@@ -296,6 +296,34 @@ class SubtensorInterface:
 
         return result
 
+    async def query_runtime_api_wait_to_decode(
+        self,
+        runtime_api: str,
+        method: str,
+        params: Optional[Union[list[list[int]], dict[str, int]]],
+        block_hash: Optional[str] = None,
+        reuse_block: Optional[bool] = False,
+    ) -> tuple[str, bytes]:
+        """
+        Queries the runtime API of the Bittensor blockchain, providing a way to interact with the underlying
+        runtime and retrieve data encoded in Scale Bytes format. This function is essential for advanced users
+        who need to interact with specific runtime methods and decode complex data types.
+
+        :param runtime_api: The name of the runtime API to query.
+        :param method: The specific method within the runtime API to call.
+        :param params: The parameters to pass to the method call.
+        :param block_hash: The hash of the blockchain block number at which to perform the query.
+        :param reuse_block: Whether to reuse the last-used block hash.
+
+        :return: Tuple of the runtime call type and the result bytes
+
+        This function enables access to the deeper layers of the Bittensor blockchain, allowing for detailed
+        and specific interactions with the network's runtime environment.
+        """
+        return await self.substrate.runtime_call_wait_to_decode(
+            runtime_api, method, params, block_hash
+        )
+
     async def get_balance(
         self,
         *addresses: str,
