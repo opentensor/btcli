@@ -10,7 +10,6 @@ from scalecodec import GenericCall
 from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
 from substrateinterface.exceptions import SubstrateRequestException
-from bittensor_cli.src.bittensor.utils import SS58_FORMAT, u16_normalized_float
 import typer
 
 from bittensor_cli.src.bittensor.async_substrate_interface import (
@@ -38,6 +37,7 @@ from bittensor_cli.src.bittensor.utils import (
     err_console,
     decode_hex_identity_dict,
     validate_chain_endpoint,
+    u16_normalized_float,
 )
 
 

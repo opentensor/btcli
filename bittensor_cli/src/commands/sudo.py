@@ -16,7 +16,6 @@ from bittensor_cli.src.bittensor.utils import (
     print_error,
     print_verbose,
     normalize_hyperparameters,
-    u16_normalized_float,
 )
 
 if TYPE_CHECKING:

@@ -682,6 +682,9 @@ class CLIManager:
         self.sudo_app.command("set-take", rich_help_panel=HELP_PANELS["SUDO"]["TAKE"])(
             self.sudo_set_take
         )
+        self.sudo_app.command("get-take", rich_help_panel=HELP_PANELS["SUDO"]["TAKE"])(
+            self.sudo_get_take
+        )
 
         # subnets commands
         self.subnets_app.command(
@@ -755,6 +758,8 @@ class CLIManager:
 
         # Sudo
         self.sudo_app.command("senate_vote", hidden=True)(self.sudo_senate_vote)
+        self.sudo_app.command("get_take", hidden=True)(self.sudo_get_take)
+        self.sudo_app.command("set_take", hidden=True)(self.sudo_set_take)
 
     def initialize_chain(
         self,
@@ -3202,11 +3207,11 @@ class CLIManager:
         """
         Allows users to change their delegate take percentage.
 
-        This command can be used to update the delegate takes individually for every subnet. To run the command, the user must have a configured wallet with both hotkey and coldkey.
+        This command can be used to update the delegate takes. To run the command, the user must have a configured wallet with both hotkey and coldkey.
         The command makes sure the new take value is within 0-18% range.
 
         EXAMPLE
-        [green]$[/green] btcli sudo set_take --wallet-name my_wallet --wallet-hotkey my_hotkey
+        [green]$[/green] btcli sudo set-take --wallet-name my_wallet --wallet-hotkey my_hotkey
         """
         max_value = 0.18
         min_value = 0.00
@@ -3242,6 +3247,38 @@ class CLIManager:
         return self._run_command(
             sudo.set_take(wallet, self.initialize_chain(network), take)
         )
+
+    def sudo_get_take(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Allows users to check their delegate take percentage.
+
+        This command can be used to fetch the delegate take of your hotkey.
+
+        EXAMPLE
+        [green]$[/green] btcli sudo get-take --wallet-name my_wallet --wallet-hotkey my_hotkey
+        """
+        self.verbosity_handler(quiet, verbose)
+
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
+
+        current_take = self._run_command(
+            sudo.get_current_take(self.initialize_chain(network), wallet)
+        )
+        console.print(f"Current take is [dark_orange]{current_take * 100.:.2f}%")
 
     def subnets_list(
         self,
