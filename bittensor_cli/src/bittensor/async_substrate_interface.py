@@ -785,6 +785,7 @@ class Websocket:
 class AsyncSubstrateInterface:
     runtime = None
     registry: Optional[PortableRegistry] = None
+    metadata_v15: Optional[MetadataV15] = None
 
     def __init__(
         self,
@@ -830,6 +831,7 @@ class AsyncSubstrateInterface:
         self.transaction_version = None
         self.metadata = None
         self.metadata_version_hex = "0x0f000000"  # v15
+        self.metadata_v15 = None
 
     async def __aenter__(self):
         await self.initialize()
