@@ -676,6 +676,9 @@ class CLIManager:
         self.sudo_app.command(
             "proposals", rich_help_panel=HELP_PANELS["SUDO"]["GOVERNANCE"]
         )(self.sudo_proposals)
+        self.sudo_app.command(
+            "senate-vote", rich_help_panel=HELP_PANELS["SUDO"]["GOVERNANCE"]
+        )(self.sudo_senate_vote)
 
         # subnets commands
         self.subnets_app.command(
@@ -746,6 +749,9 @@ class CLIManager:
         # Subnets
         self.subnets_app.command("lock_cost", hidden=True)(self.subnets_lock_cost)
         self.subnets_app.command("pow_register", hidden=True)(self.subnets_pow_register)
+
+        # Sudo
+        self.sudo_app.command("senate_vote", hidden=True)(self.sudo_senate_vote)
 
     def initialize_chain(
         self,
@@ -3148,6 +3154,54 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
         return self._run_command(sudo.proposals(self.initialize_chain(network)))
+
+    def sudo_senate_vote(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        proposal: str = typer.Option(
+            None,
+            "--proposal",
+            "--proposal-hash",
+            prompt="Enter the proposal hash",
+            help="The hash of the proposal to vote on.",
+        ),
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        vote: bool = typer.Option(
+            None,
+            "--vote-aye/--vote-nay",
+            prompt="Enter y to vote Aye, or enter n to vote Nay",
+            help="The vote casted on the proposal",
+        ),
+    ):
+        """
+        Cast a vote on an active proposal in Bittensor's governance protocol.
+
+        This command is used by Senate members to vote on various proposals that shape the network's future. Use `btcli sudo proposals` to see the active proposals and their hashes.
+
+        USAGE
+        The user must specify the hash of the proposal they want to vote on. The command then allows the Senate member to cast a 'Yes' or 'No' vote, contributing to the decision-making process on the proposal. This command is crucial for Senate members to exercise their voting rights on key proposals. It plays a vital role in the governance and evolution of the Bittensor network.
+
+        EXAMPLE
+        [green]$[/green] btcli sudo senate_vote --proposal <proposal_hash>
+        """
+        self.verbosity_handler(quiet, verbose)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
+        return self._run_command(
+            sudo.senate_vote(
+                wallet, self.initialize_chain(network), proposal, vote, prompt
+            )
+        )
 
     def subnets_list(
         self,

@@ -5,6 +5,7 @@ from bittensor_wallet import Wallet
 from bittensor_wallet.errors import KeyFileError
 from rich import box
 from rich.table import Column, Table
+from rich.prompt import Confirm
 from scalecodec import GenericCall
 
 from bittensor_cli.src import HYPERPARAMS, DelegatesDetails
@@ -275,6 +276,105 @@ def format_call_data(call_data: dict) -> str:
     return f"{call_function}({formatted_args})"
 
 
+def _validate_proposal_hash(proposal_hash: str) -> bool:
+    if proposal_hash[0:2] != "0x" or len(proposal_hash) != 66:
+        return False
+    else:
+        return True
+
+
+async def _is_senate_member(subtensor: "SubtensorInterface", hotkey_ss58: str) -> bool:
+    """
+    Checks if a given neuron (identified by its hotkey SS58 address) is a member of the Bittensor senate.
+    The senate is a key governance body within the Bittensor network, responsible for overseeing and
+    approving various network operations and proposals.
+
+    :param subtensor: SubtensorInterface object to use for the query
+    :param hotkey_ss58: The `SS58` address of the neuron's hotkey.
+
+    :return: `True` if the neuron is a senate member at the given block, `False` otherwise.
+
+    This function is crucial for understanding the governance dynamics of the Bittensor network and for
+    identifying the neurons that hold decision-making power within the network.
+    """
+
+    senate_members = await _get_senate_members(subtensor)
+
+    if not hasattr(senate_members, "count"):
+        return False
+
+    return senate_members.count(hotkey_ss58) > 0
+
+
+async def vote_senate_extrinsic(
+    subtensor: "SubtensorInterface",
+    wallet: Wallet,
+    proposal_hash: str,
+    proposal_idx: int,
+    vote: bool,
+    wait_for_inclusion: bool = False,
+    wait_for_finalization: bool = True,
+    prompt: bool = False,
+) -> bool:
+    """Votes ayes or nays on proposals.
+
+    :param subtensor: The SubtensorInterface object to use for the query
+    :param wallet: Bittensor wallet object, with coldkey and hotkey unlocked.
+    :param proposal_hash: The hash of the proposal for which voting data is requested.
+    :param proposal_idx: The index of the proposal to vote.
+    :param vote: Whether to vote aye or nay.
+    :param wait_for_inclusion: If set, waits for the extrinsic to enter a block before returning `True`, or returns
+                               `False` if the extrinsic fails to enter the block within the timeout.
+    :param wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `True`,
+                                  or returns `False` if the extrinsic fails to be finalized within the timeout.
+    :param prompt: If `True`, the call waits for confirmation from the user before proceeding.
+
+    :return: Flag is `True` if extrinsic was finalized or included in the block. If we did not wait for
+             finalization/inclusion, the response is `True`.
+    """
+
+    if prompt:
+        # Prompt user for confirmation.
+        if not Confirm.ask(f"Cast a vote of {vote}?"):
+            return False
+
+    with console.status(":satellite: Casting vote..", spinner="aesthetic"):
+        call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="vote",
+            call_params={
+                "hotkey": wallet.hotkey.ss58_address,
+                "proposal": proposal_hash,
+                "index": proposal_idx,
+                "approve": vote,
+            },
+        )
+        success, err_msg = await subtensor.sign_and_send_extrinsic(
+            call, wallet, wait_for_inclusion, wait_for_finalization
+        )
+        if not success:
+            err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+            await asyncio.sleep(0.5)
+            return False
+        # Successful vote, final check for data
+        else:
+            if vote_data := await subtensor.get_vote_data(proposal_hash):
+                if (
+                    vote_data.ayes.count(wallet.hotkey.ss58_address) > 0
+                    or vote_data.nays.count(wallet.hotkey.ss58_address) > 0
+                ):
+                    console.print(":white_heavy_check_mark: [green]Vote cast.[/green]")
+                    return True
+                else:
+                    # hotkey not found in ayes/nays
+                    err_console.print(
+                        ":cross_mark: [red]Unknown error. Couldn't find vote.[/red]"
+                    )
+                    return False
+            else:
+                return False
+
+
 # commands
 
 
@@ -441,3 +541,57 @@ async def proposals(subtensor: "SubtensorInterface"):
             format_call_data(call_data),
         )
     return console.print(table)
+
+
+async def senate_vote(
+    wallet: Wallet,
+    subtensor: "SubtensorInterface",
+    proposal_hash: str,
+    vote: bool,
+    prompt: bool,
+) -> bool:
+    """Vote in Bittensor's governance protocol proposals"""
+
+    if not proposal_hash:
+        err_console.print(
+            "Aborting: Proposal hash not specified. View all proposals with the `proposals` command."
+        )
+        return False
+    elif not _validate_proposal_hash(proposal_hash):
+        err_console.print(
+            "Aborting. Proposal hash is invalid. Proposal hashes should start with '0x' and be 32 bytes long"
+        )
+        return False
+
+    print_verbose(f"Fetching senate status of {wallet.hotkey_str}")
+    if not await _is_senate_member(subtensor, hotkey_ss58=wallet.hotkey.ss58_address):
+        err_console.print(
+            f"Aborting: Hotkey {wallet.hotkey.ss58_address} isn't a senate member."
+        )
+        return False
+
+    # Unlock the wallet.
+    try:
+        wallet.unlock_hotkey()
+        wallet.unlock_coldkey()
+    except KeyFileError:
+        return False
+
+    console.print(f"Fetching proposals in [dark_orange]network: {subtensor.network}")
+    vote_data = await subtensor.get_vote_data(proposal_hash, reuse_block=True)
+    if not vote_data:
+        err_console.print(":cross_mark: [red]Failed[/red]: Proposal not found.")
+        return False
+
+    success = await vote_senate_extrinsic(
+        subtensor=subtensor,
+        wallet=wallet,
+        proposal_hash=proposal_hash,
+        proposal_idx=vote_data.index,
+        vote=vote,
+        wait_for_inclusion=True,
+        wait_for_finalization=False,
+        prompt=prompt,
+    )
+
+    return success
