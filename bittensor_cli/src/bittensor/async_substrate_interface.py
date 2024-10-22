@@ -875,7 +875,8 @@ class AsyncSubstrateInterface:
 
         return scale_info_types
 
-    def _type_id_to_name(self, ty_id: int) -> str:
+    @staticmethod
+    def _type_id_to_name(ty_id: int) -> str:
         type_string = f"scale_info::{ty_id}"
 
         return type_string
