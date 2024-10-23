@@ -472,7 +472,9 @@ class CLIManager:
             "use_cache": True,
             "metagraph_cols": {
                 "UID": True,
-                "STAKE": True,
+                "GLOBAL_STAKE": True,
+                "LOCAL_STAKE": True,
+                "STAKE_WEIGHT": True,
                 "RANK": True,
                 "TRUST": True,
                 "CONSENSUS": True,
@@ -838,15 +840,33 @@ class CLIManager:
         """
         Command line interface (CLI) for Bittensor. Uses the values in the configuration file. These values can be overriden by passing them explicitly in the command line.
         """
-        # create config file if it does not exist
-        if not os.path.exists(self.config_path):
+
+        # Load or create the config file
+        if os.path.exists(self.config_path):
+            with open(self.config_path, "r") as f:
+                config = safe_load(f)
+        else:
             directory_path = Path(self.config_base_path)
             directory_path.mkdir(exist_ok=True, parents=True)
-            with open(self.config_path, "w+") as f:
-                safe_dump(defaults.config.dictionary, f)
-        # check config
-        with open(self.config_path, "r") as f:
-            config = safe_load(f)
+            config = defaults.config.dictionary.copy()
+            with open(self.config_path, "w") as f:
+                safe_dump(config, f)
+
+        # Update missing values
+        updated = False
+        for key, value in defaults.config.dictionary.items():
+            if key not in config:
+                config[key] = value
+                updated = True
+            elif isinstance(value, dict):
+                for sub_key, sub_value in value.items():
+                    if sub_key not in config[key]:
+                        config[key][sub_key] = sub_value
+                        updated = True
+        if updated:
+            with open(self.config_path, "w") as f:
+                safe_dump(config, f)
+
         for k, v in config.items():
             if k in self.config.keys():
                 self.config[k] = v

@@ -752,6 +752,7 @@ async def register(
     )
 
 
+# TODO: Confirm emissions, incentive, Dividends are to be fetched from subnet_state or keep NeuronInfo
 async def metagraph_cmd(
     subtensor: Optional["SubtensorInterface"],
     netuid: Optional[int],
@@ -788,15 +789,27 @@ async def metagraph_cmd(
                 ),
                 subtensor.substrate.get_block_number(block_hash=block_hash),
             )
+            subnet_state: "SubnetState" = SubnetState.from_vec_u8(
+                (
+                    await subtensor.substrate.rpc_request(
+                        method="subnetInfo_getSubnetState", params=[netuid, None]
+                    )
+                )["result"]
+            )
 
         difficulty = int(difficulty_)
         total_issuance = Balance.from_rao(total_issuance_)
         metagraph = MiniGraph(
-            netuid=netuid, neurons=neurons, subtensor=subtensor, block=block
+            netuid=netuid,
+            neurons=neurons,
+            subtensor=subtensor,
+            subnet_state=subnet_state,
+            block=block,
         )
         table_data = []
         db_table = []
-        total_stake = 0.0
+        total_global_stake = 0.0
+        total_local_stake = 0.0
         total_rank = 0.0
         total_validator_trust = 0.0
         total_trust = 0.0
@@ -809,7 +822,9 @@ async def metagraph_cmd(
             ep = metagraph.axons[uid]
             row = [
                 str(neuron.uid),
-                "{:.5f}".format(metagraph.total_stake[uid]),
+                "{:.4f}".format(metagraph.global_stake[uid]),
+                "{:.4f}".format(metagraph.local_stake[uid]),
+                "{:.4f}".format(metagraph.stake_weights[uid]),
                 "{:.5f}".format(metagraph.ranks[uid]),
                 "{:.5f}".format(metagraph.trust[uid]),
                 "{:.5f}".format(metagraph.consensus[uid]),
@@ -830,7 +845,9 @@ async def metagraph_cmd(
             ]
             db_row = [
                 neuron.uid,
-                float(metagraph.total_stake[uid]),
+                float(metagraph.global_stake[uid]),
+                float(metagraph.local_stake[uid]),
+                float(metagraph.stake_weights[uid]),
                 float(metagraph.ranks[uid]),
                 float(metagraph.trust[uid]),
                 float(metagraph.consensus[uid]),
@@ -846,7 +863,8 @@ async def metagraph_cmd(
                 ep.coldkey[:10],
             ]
             db_table.append(db_row)
-            total_stake += metagraph.total_stake[uid]
+            total_global_stake += metagraph.global_stake[uid]
+            total_local_stake += metagraph.local_stake[uid]
             total_rank += metagraph.ranks[uid]
             total_validator_trust += metagraph.validator_trust[uid]
             total_trust += metagraph.trust[uid]
@@ -856,8 +874,9 @@ async def metagraph_cmd(
             total_emission += int(metagraph.emission[uid] * 1000000000)
             table_data.append(row)
         metadata_info = {
-            "stake": str(Balance.from_tao(total_stake)),
-            "total_stake": "\u03c4{:.5f}".format(total_stake),
+            "total_global_stake": "\u03c4 {:.5f}".format(total_global_stake),
+            "total_local_stake": f"{Balance.get_unit(netuid)} "
+            + "{:.5f}".format(total_local_stake),
             "rank": "{:.5f}".format(total_rank),
             "validator_trust": "{:.5f}".format(total_validator_trust),
             "trust": "{:.5f}".format(total_trust),
@@ -881,7 +900,9 @@ async def metagraph_cmd(
                 "metagraph",
                 columns=[
                     ("UID", "INTEGER"),
-                    ("STAKE", "REAL"),
+                    ("GLOBAL_STAKE", "REAL"),
+                    ("LOCAL_STAKE", "REAL"),
+                    ("STAKE_WEIGHT", "REAL"),
                     ("RANK", "REAL"),
                     ("TRUST", "REAL"),
                     ("CONSENSUS", "REAL"),
@@ -925,10 +946,22 @@ async def metagraph_cmd(
                 columns=[
                     {"title": "UID", "field": "UID"},
                     {
-                        "title": "Stake",
-                        "field": "STAKE",
+                        "title": "Global Stake",
+                        "field": "GLOBAL_STAKE",
                         "formatter": "money",
                         "formatterParams": {"symbol": "τ", "precision": 5},
+                    },
+                    {
+                        "title": "Local Stake",
+                        "field": "LOCAL_STAKE",
+                        "formatter": "money",
+                        "formatterParams": {"symbol": f"{Balance.get_unit(netuid)}", "precision": 5},
+                    },
+                    {
+                        "title": "Stake Weight",
+                        "field": "STAKE_WEIGHT",
+                        "formatter": "money",
+                        "formatterParams": {"precision": 5},
                     },
                     {
                         "title": "Rank",
@@ -993,19 +1026,40 @@ async def metagraph_cmd(
                     ratio=0.75,
                 ),
             ),
-            "STAKE": (
+            "GLOBAL_STAKE": (
                 1,
                 Column(
-                    "[bold white]STAKE(\u03c4)",
-                    footer=metadata_info["total_stake"],
+                    "[bold white]GLOBAL STAKE(\u03c4)",
+                    footer=metadata_info["total_global_stake"],
                     style="bright_cyan",
+                    justify="right",
+                    no_wrap=True,
+                    ratio=1.6,
+                ),
+            ),
+            "LOCAL_STAKE": (
+                2,
+                Column(
+                    f"[bold white]LOCAL STAKE({Balance.get_unit(netuid)})",
+                    footer=metadata_info["total_local_stake"],
+                    style="bright_green",
                     justify="right",
                     no_wrap=True,
                     ratio=1.5,
                 ),
             ),
+            "STAKE_WEIGHT": (
+                3,
+                Column(
+                    f"[bold white]WEIGHT (\u03c4x{Balance.get_unit(netuid)})",
+                    style="purple",
+                    justify="right",
+                    no_wrap=True,
+                    ratio=1.3,
+                ),
+            ),
             "RANK": (
-                2,
+                4,
                 Column(
                     "[bold white]RANK",
                     footer=metadata_info["rank"],
@@ -1016,7 +1070,7 @@ async def metagraph_cmd(
                 ),
             ),
             "TRUST": (
-                3,
+                5,
                 Column(
                     "[bold white]TRUST",
                     footer=metadata_info["trust"],
@@ -1027,7 +1081,7 @@ async def metagraph_cmd(
                 ),
             ),
             "CONSENSUS": (
-                4,
+                6,
                 Column(
                     "[bold white]CONSENSUS",
                     footer=metadata_info["consensus"],
@@ -1038,7 +1092,7 @@ async def metagraph_cmd(
                 ),
             ),
             "INCENTIVE": (
-                5,
+                7,
                 Column(
                     "[bold white]INCENTIVE",
                     footer=metadata_info["incentive"],
@@ -1049,7 +1103,7 @@ async def metagraph_cmd(
                 ),
             ),
             "DIVIDENDS": (
-                6,
+                8,
                 Column(
                     "[bold white]DIVIDENDS",
                     footer=metadata_info["dividends"],
@@ -1060,7 +1114,7 @@ async def metagraph_cmd(
                 ),
             ),
             "EMISSION": (
-                7,
+                9,
                 Column(
                     "[bold white]EMISSION(\u03c1)",
                     footer=metadata_info["emission"],
@@ -1071,7 +1125,7 @@ async def metagraph_cmd(
                 ),
             ),
             "VTRUST": (
-                8,
+                10,
                 Column(
                     "[bold white]VTRUST",
                     footer=metadata_info["validator_trust"],
@@ -1082,21 +1136,21 @@ async def metagraph_cmd(
                 ),
             ),
             "VAL": (
-                9,
+                11,
                 Column(
                     "[bold white]VAL",
                     justify="center",
                     style="bright_white",
                     no_wrap=True,
-                    ratio=0.4,
+                    ratio=0.7,
                 ),
             ),
             "UPDATED": (
-                10,
+                12,
                 Column("[bold white]UPDATED", justify="right", no_wrap=True, ratio=1),
             ),
             "ACTIVE": (
-                11,
+                13,
                 Column(
                     "[bold white]ACTIVE",
                     justify="center",
@@ -1106,7 +1160,7 @@ async def metagraph_cmd(
                 ),
             ),
             "AXON": (
-                12,
+                14,
                 Column(
                     "[bold white]AXON",
                     justify="left",
@@ -1116,7 +1170,7 @@ async def metagraph_cmd(
                 ),
             ),
             "HOTKEY": (
-                13,
+                15,
                 Column(
                     "[bold white]HOTKEY",
                     justify="center",
@@ -1126,7 +1180,7 @@ async def metagraph_cmd(
                 ),
             ),
             "COLDKEY": (
-                14,
+                16,
                 Column(
                     "[bold white]COLDKEY",
                     justify="center",
@@ -1159,7 +1213,7 @@ async def metagraph_cmd(
                 f"Net: [bright_cyan]{metadata_info['net']}[/bright_cyan], "
                 f"Block: [bright_cyan]{metadata_info['block']}[/bright_cyan], "
                 f"N: [bright_green]{metadata_info['N0']}[/bright_green]/[bright_red]{metadata_info['N1']}[/bright_red], "
-                f"Stake: [dark_orange]{metadata_info['stake']}[/dark_orange], "
+                f"Total Local Stake: [dark_orange]{metadata_info['total_local_stake']}[/dark_orange], "
                 f"Issuance: [bright_blue]{metadata_info['issuance']}[/bright_blue], "
                 f"Difficulty: [bright_cyan]{metadata_info['difficulty']}[/bright_cyan]\n"
             ),

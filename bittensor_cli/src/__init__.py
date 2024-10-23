@@ -77,7 +77,9 @@ class Defaults:
             "use_cache": True,
             "metagraph_cols": {
                 "UID": True,
-                "STAKE": True,
+                "GLOBAL_STAKE": True,
+                "LOCAL_STAKE": True,
+                "STAKE_WEIGHT": True,
                 "RANK": True,
                 "TRUST": True,
                 "CONSENSUS": True,
