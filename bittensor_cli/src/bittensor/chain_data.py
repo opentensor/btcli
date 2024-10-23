@@ -1,13 +1,74 @@
 from dataclasses import dataclass
+from enum import Enum
 from typing import Optional, Any, Union
 
 import bt_decode
 import netaddr
+from scalecodec import ScaleBytes
+from scalecodec.base import RuntimeConfiguration
+from scalecodec.type_registry import load_type_registry_preset
 from scalecodec.utils.ss58 import ss58_encode
 
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.networking import int_to_ip
 from bittensor_cli.src.bittensor.utils import SS58_FORMAT, u16_normalized_float
+
+
+class ChainDataType(Enum):
+    NeuronInfo = 1
+    SubnetInfoV2 = 2
+    DelegateInfo = 3
+    NeuronInfoLite = 4
+    DelegatedInfo = 5
+    StakeInfo = 6
+    IPInfo = 7
+    SubnetHyperparameters = 8
+    SubstakeElements = 9
+    DynamicPoolInfoV2 = 10
+    DelegateInfoLite = 11
+    DynamicInfo = 12
+    ScheduledColdkeySwapInfo = 13
+    SubnetInfo = 14
+    SubnetState = 15
+
+
+def from_scale_encoding_using_type_string(
+    input_: Union[list[int], bytes, ScaleBytes], type_string: str
+) -> Optional[dict]:
+    if isinstance(input_, ScaleBytes):
+        as_scale_bytes = input_
+    else:
+        if isinstance(input_, list) and all([isinstance(i, int) for i in input_]):
+            vec_u8 = input_
+            as_bytes = bytes(vec_u8)
+        elif isinstance(input_, bytes):
+            as_bytes = input_
+        else:
+            raise TypeError("input must be a List[int], bytes, or ScaleBytes")
+        as_scale_bytes = ScaleBytes(as_bytes)
+    rpc_runtime_config = RuntimeConfiguration()
+    rpc_runtime_config.update_type_registry(load_type_registry_preset("legacy"))
+    rpc_runtime_config.update_type_registry(custom_rpc_type_registry)
+    obj = rpc_runtime_config.create_scale_object(type_string, data=as_scale_bytes)
+    return obj.decode()
+
+
+def from_scale_encoding(
+    input_: Union[list[int], bytes, ScaleBytes],
+    type_name: ChainDataType,
+    is_vec: bool = False,
+    is_option: bool = False,
+) -> Optional[dict]:
+    type_string = type_name.name
+    if type_name == ChainDataType.DelegatedInfo:
+        # DelegatedInfo is a tuple of (DelegateInfo, Compact<u64>)
+        type_string = f"({ChainDataType.DelegateInfo.name}, Compact<u64>)"
+    if is_option:
+        type_string = f"Option<{type_string}>"
+    if is_vec:
+        type_string = f"Vec<{type_string}>"
+
+    return from_scale_encoding_using_type_string(input_, type_string)
 
 
 def decode_account_id(account_id_bytes: tuple):
@@ -728,6 +789,40 @@ class SubnetInfoV2:
         decoded = [cls.fix_decoded_values(d) for d in decoded]
 
         return decoded
+
+    @classmethod
+    def fix_decoded_values(cls, decoded: dict) -> "SubnetInfoV2":
+        """Returns a SubnetInfoV2 object from a decoded SubnetInfoV2 dictionary."""
+        # init dynamic pool object
+        pool_info = decoded["dynamic_pool"]
+        if pool_info:
+            pool = DynamicPool(
+                True,
+                pool_info["netuid"],
+                pool_info["alpha_issuance"],
+                pool_info["alpha_outstanding"],
+                pool_info["alpha_reserve"],
+                pool_info["tao_reserve"],
+                pool_info["k"],
+            )
+        else:
+            pool = DynamicPool(False, decoded["netuid"], 0, 0, 0, 0, 0)
+
+        return SubnetInfoV2(
+            netuid=decoded["netuid"],
+            owner_ss58=ss58_encode(decoded["owner"], SS58_FORMAT),
+            max_allowed_validators=decoded["max_allowed_validators"],
+            scaling_law_power=decoded["scaling_law_power"],
+            subnetwork_n=decoded["subnetwork_n"],
+            max_n=decoded["max_allowed_uids"],
+            blocks_since_epoch=decoded["blocks_since_last_step"],
+            modality=decoded["network_modality"],
+            emission_value=decoded["emission_values"],
+            burn=Balance.from_rao(decoded["burn"]),
+            tao_locked=Balance.from_rao(decoded["tao_locked"]),
+            hyperparameters=decoded["hyperparameters"],
+            dynamic_pool=pool,
+        )
 
 
 @dataclass

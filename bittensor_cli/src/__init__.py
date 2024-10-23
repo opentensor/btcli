@@ -514,7 +514,7 @@ HELP_PANELS = {
     "SUDO": {
         "CONFIG": "Subnet Configuration",
         "GOVERNANCE": "Governance",
-        "TAKE": "Delegate take configuration"
+        "TAKE": "Delegate take configuration",
     },
     "SUBNETS": {
         "INFO": "Subnet Information",
