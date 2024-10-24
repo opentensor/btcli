@@ -730,17 +730,23 @@ class SubtensorInterface:
         """
         if uid is None:
             return NeuronInfo.get_null_neuron()
-
-        params = [netuid, uid, block_hash] if block_hash else [netuid, uid]
-        json_body = await self.substrate.rpc_request(
-            method="neuronInfo_getNeuron",
-            params=params,  # custom rpc method
+        
+        hex_bytes_result = await self.query_runtime_api(
+            runtime_api="NeuronInfoRuntimeApi",
+            method="get_neuron",
+            params=[netuid, uid],
+            block_hash=block_hash,
         )
 
-        if not (result := json_body.get("result", None)):
+
+        if not (result := hex_bytes_result):
             return NeuronInfo.get_null_neuron()
 
-        bytes_result = bytes(result)
+        if result.startswith("0x"):
+            bytes_result = bytes.fromhex(result[2:])
+        else:
+            bytes_result = bytes.fromhex(result)
+
         return NeuronInfo.from_vec_u8(bytes_result)
 
     async def get_delegated(
