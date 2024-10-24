@@ -278,8 +278,25 @@ TYPE_REGISTRY = {
                     "params": [],
                     "type": "Vec<u8>",
                 },
+                "get_subnet_info_v2": {
+                    "params": [
+                        {
+                            "name": "netuid",
+                            "type": "u16",
+                        },
+                    ],
+                    "type": "Vec<u8>",
+                },
+                "get_subnets_info_v2": {
+                    "params": [],
+                    "type": "Vec<u8>",
+                },
                 "get_all_dynamic_info": {
                     "params": [],
+                    "type": "Vec<u8>",
+                },
+                "get_dynamic_info": {
+                    "params": [{"name": "netuid", "type": "u16"}],
                     "type": "Vec<u8>",
                 },
             }
