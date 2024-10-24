@@ -955,7 +955,10 @@ async def metagraph_cmd(
                         "title": "Local Stake",
                         "field": "LOCAL_STAKE",
                         "formatter": "money",
-                        "formatterParams": {"symbol": f"{Balance.get_unit(netuid)}", "precision": 5},
+                        "formatterParams": {
+                            "symbol": f"{Balance.get_unit(netuid)}",
+                            "precision": 5,
+                        },
                     },
                     {
                         "title": "Stake Weight",

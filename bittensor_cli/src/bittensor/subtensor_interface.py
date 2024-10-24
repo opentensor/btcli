@@ -1244,14 +1244,14 @@ class SubtensorInterface:
         results: dict[str, dict[int, "Balance"]] = {
             hk_ss58: {} for hk_ss58 in hotkey_ss58s
         }
-        for idx, item in enumerate(batch_call):
+        for idx, (_, val) in enumerate(batch_call):
             hotkey_idx = idx // len(netuids)
             netuid_idx = idx % len(netuids)
             hotkey_ss58 = hotkey_ss58s[hotkey_idx]
             netuid = netuids[netuid_idx]
             value = (
-                Balance.from_rao(item).set_unit(netuid)
-                if item is not None
+                Balance.from_rao(val).set_unit(netuid)
+                if val is not None
                 else Balance(0).set_unit(netuid)
             )
             results[hotkey_ss58][netuid] = value

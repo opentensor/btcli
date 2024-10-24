@@ -11,6 +11,7 @@ from bittensor_wallet.errors import KeyFileError
 from rich.prompt import Confirm, FloatPrompt, Prompt
 from rich.table import Table, Column
 import typer
+from substrateinterface.exceptions import SubstrateRequestException
 
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import StakeInfo
@@ -1069,6 +1070,9 @@ The columns are as follows:
             return False
 
     async def send_extrinsic(netuid_i, amount_, current, staking_address_ss58):
+        failure_prelude = (
+            f":cross_mark: [red]Failed[/red] to stake {amount} on Netuid {netuid_i}"
+        )
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function="add_stake",
@@ -1081,9 +1085,15 @@ The columns are as follows:
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
             call=call, keypair=wallet.coldkey
         )
-        response = await subtensor.substrate.submit_extrinsic(
-            extrinsic, wait_for_inclusion=True, wait_for_finalization=False
-        )
+        try:
+            response = await subtensor.substrate.submit_extrinsic(
+                extrinsic, wait_for_inclusion=True, wait_for_finalization=False
+            )
+        except SubstrateRequestException as e:
+            err_console.print(
+                f"\n{failure_prelude} with error: {format_error_message(e, subtensor.substrate)}"
+            )
+            return
         if not prompt:  # TODO verbose?
             console.print(
                 f":white_heavy_check_mark: [green]Submitted {amount_} to {netuid_i}[/green]"
@@ -1092,7 +1102,7 @@ The columns are as follows:
             await response.process_events()
             if not await response.is_success:
                 err_console.print(
-                    f":cross_mark: [red]Failed[/red] with error: {response.error_message}"
+                    f"\n{failure_prelude} with error: {response.error_message}"
                 )
             else:
                 new_balance_, new_stake_ = await asyncio.gather(
