@@ -155,15 +155,11 @@ async def subnets_list(
     """List all subnet netuids in the network."""
 
     async def _get_all_subnets_info():
-        hex_bytes_result = await subtensor.query_runtime_api(
+        result = await subtensor.query_runtime_api(
             runtime_api="SubnetInfoRuntimeApi", method="get_subnets_info", params=[]
         )
-        try:
-            bytes_result = bytes.fromhex(hex_bytes_result[2:])
-        except ValueError:
-            bytes_result = bytes.fromhex(hex_bytes_result)
 
-        return SubnetInfo.list_from_vec_u8(bytes_result)
+        return SubnetInfo.list_from_any(result)
 
     if not reuse_last:
         subnets: list[SubnetInfo]

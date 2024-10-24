@@ -11,6 +11,7 @@ from bittensor_wallet import Wallet, Keypair
 from bittensor_wallet.utils import SS58_FORMAT
 from bittensor_wallet.errors import KeyFileError
 from bittensor_wallet import utils
+import bt_decode
 from jinja2 import Template
 from markupsafe import Markup
 import numpy as np
@@ -370,15 +371,36 @@ def is_valid_bittensor_address_or_public_key(address: Union[str, bytes]) -> bool
         return False
 
 
-def decode_scale_bytes(return_type, scale_bytes, custom_rpc_type_registry):
-    """Decodes a ScaleBytes object using our type registry and return type"""
-    rpc_runtime_config = RuntimeConfiguration()
-    rpc_runtime_config.update_type_registry(load_type_registry_preset("legacy"))
-    rpc_runtime_config.update_type_registry(custom_rpc_type_registry)
-    obj = rpc_runtime_config.create_scale_object(return_type, scale_bytes)
-    if obj.data.to_hex() == "0x0400":  # RPC returned None result
+def decode_scale_bytes(
+    return_type: str,
+    scale_bytes: Union["scalecodec.ScaleBytes", bytes],
+    custom_rpc_type_registry: Union[str, "bt_decode.PortableRegistry"],
+) -> Any:
+    """
+    Decodes a ScaleBytes object using our type registry and return type
+
+    :param return_type: the type string to decode the scale bytes to
+    :param scale_bytes: the scale bytes to decode (either a scalecodec.ScaleBytes or bytes)
+    :param custom_rpc_type_registry: contains the type registry
+
+    :return: the decoded object
+    """
+    if isinstance(custom_rpc_type_registry, str):
+        portable_registry = bt_decode.PortableRegistry.from_json(
+            custom_rpc_type_registry
+        )
+    else:
+        portable_registry = custom_rpc_type_registry
+
+    if isinstance(scale_bytes, scalecodec.ScaleBytes):
+        as_bytes = bytes(scale_bytes.data)
+    else:
+        as_bytes = bytes(scale_bytes)
+
+    if as_bytes.hex() == "0x0400":  # RPC returned None result
         return None
-    return obj.decode()
+
+    return bt_decode.decode(return_type, portable_registry, as_bytes)
 
 
 def ss58_address_to_bytes(ss58_address: str) -> bytes:
@@ -974,3 +996,10 @@ def retry_prompt(
             return var
         else:
             err_console.print(rejection_text)
+
+
+def bytes_from_hex_string_result(hex_string_result: str) -> bytes:
+    if hex_string_result.startswith("0x"):
+        hex_string_result = hex_string_result[2:]
+
+    return bytes.fromhex(hex_string_result)
