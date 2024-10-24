@@ -278,6 +278,10 @@ TYPE_REGISTRY = {
                     "params": [],
                     "type": "Vec<u8>",
                 },
+                "get_all_dynamic_info": {
+                    "params": [],
+                    "type": "Vec<u8>",
+                },
             }
         },
         "SubnetRegistrationRuntimeApi": {

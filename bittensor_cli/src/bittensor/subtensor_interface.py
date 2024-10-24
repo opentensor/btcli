@@ -385,15 +385,12 @@ class SubtensorInterface:
         sub_stakes = await self.get_stake_info_for_coldkeys(
             ss58_addresses, block_hash=block_hash
         )
-
         # Token pricing info
         dynamic_info = await self.get_all_subnet_dynamic_info()
 
         results = {}
-
         for ss58, stake_info_list in sub_stakes.items():
             all_staked_tao = 0
-
             for sub_stake in stake_info_list:
                 if sub_stake.stake.rao == 0:
                     continue
@@ -417,7 +414,6 @@ class SubtensorInterface:
                 all_staked_tao += tao_ownership.rao
 
             results[ss58] = Balance.from_rao(all_staked_tao)
-
         return results
 
     async def get_total_stake_for_hotkey(
@@ -1296,8 +1292,9 @@ class SubtensorInterface:
         return StakeInfo.list_of_tuple_from_vec_u8(bytes_result)  # type: ignore
 
     async def get_all_subnet_dynamic_info(self) -> list["DynamicInfo"]:
-        json = await self.substrate.rpc_request(
-            method="subnetInfo_getAllDynamicInfo", params=[None]
+        query = await self.substrate.runtime_call(
+            "SubnetInfoRuntimeApi",
+            "get_all_dynamic_info",
         )
-        subnets = DynamicInfo.list_from_vec_u8(json["result"])
+        subnets = DynamicInfo.list_from_vec_u8(bytes.fromhex(query.decode()[2:]))
         return subnets

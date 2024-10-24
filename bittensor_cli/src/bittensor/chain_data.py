@@ -44,7 +44,9 @@ def from_scale_encoding_using_type_string(
         elif isinstance(input_, bytes):
             as_bytes = input_
         else:
-            raise TypeError("input must be a List[int], bytes, or ScaleBytes")
+            raise TypeError(
+                f"input must be a list[int], bytes, or ScaleBytes, not {type(input_)}"
+            )
         as_scale_bytes = ScaleBytes(as_bytes)
     rpc_runtime_config = RuntimeConfiguration()
     rpc_runtime_config.update_type_registry(load_type_registry_preset("legacy"))
@@ -853,7 +855,7 @@ class DynamicInfo:
         return DynamicInfo.fix_decoded_values(decoded)
 
     @classmethod
-    def list_from_vec_u8(cls, vec_u8: list[int]) -> list["DynamicInfo"]:
+    def list_from_vec_u8(cls, vec_u8: Union[list[int], bytes]) -> list["DynamicInfo"]:
         decoded = from_scale_encoding(
             vec_u8, ChainDataType.DynamicInfo, is_vec=True, is_option=True
         )
