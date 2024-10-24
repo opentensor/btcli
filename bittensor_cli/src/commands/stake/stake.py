@@ -1138,7 +1138,7 @@ The columns are as follows:
     if len(extrinsics_coroutines) == 1:
         with console.status(
             f"\n:satellite: Staking on netuid(s): {netuids} ..."
-        ) as status:
+        ):
             await extrinsics_coroutines[0]
     else:
         with console.status(":satellite: Checking transaction rate limit ..."):
@@ -1152,14 +1152,14 @@ The columns are as follows:
                 f"\n:satellite: Staking on netuid {ni} with hotkey {hk}... ..."
             ):
                 await item
-                if tx_rate_limit_blocks > 0:
-                    with console.status(
-                        f":hourglass: [yellow]Waiting for tx rate limit:"
-                        f" [white]{tx_rate_limit_blocks}[/white] blocks[/yellow]"
-                    ):
-                        await asyncio.sleep(
-                            tx_rate_limit_blocks * 12
-                        )  # 12 sec per block
+            if tx_rate_limit_blocks > 0:
+                with console.status(
+                    f":hourglass: [yellow]Waiting for tx rate limit:"
+                    f" [white]{tx_rate_limit_blocks}[/white] blocks[/yellow]"
+                ):
+                    await asyncio.sleep(
+                        tx_rate_limit_blocks * 12
+                    )  # 12 sec per block
 
 
 async def unstake(

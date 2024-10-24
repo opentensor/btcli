@@ -290,11 +290,15 @@ def get_optional_netuid(netuid: Optional[int], all_netuids: bool) -> Optional[in
     if netuid is None and all_netuids is True:
         return None
     elif netuid is None and all_netuids is False:
-        return Prompt.ask(
+        answer = Prompt.ask(
             "Enter the netuid to use. Leave blank for all netuids.",
             default=None,
             show_default=False,
         )
+        if answer is None:
+            return None
+        else:
+            return int(answer)
     else:
         return netuid
 
