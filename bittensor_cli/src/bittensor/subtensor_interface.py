@@ -775,15 +775,23 @@ class SubtensorInterface:
             else (self.substrate.last_block_hash if reuse_block else None)
         )
         encoded_coldkey = ss58_to_vec_u8(coldkey_ss58)
-        json_body = await self.substrate.rpc_request(
-            method="delegateInfo_getDelegated",
-            params=([block_hash, encoded_coldkey] if block_hash else [encoded_coldkey]),
+
+        hex_bytes_result = await self.query_runtime_api(
+            runtime_api="DelegateInfoRuntimeApi",
+            method="get_delegated",
+            params=[encoded_coldkey],
+            block_hash=block_hash,
         )
 
-        if not (result := json_body.get("result")):
+        if not (result := hex_bytes_result):
             return []
 
-        return DelegateInfo.delegated_list_from_vec_u8(bytes(result))
+        if result.startswith("0x"):
+            bytes_result = bytes.fromhex(result[2:])
+        else:
+            bytes_result = bytes.fromhex(result)
+
+        return DelegateInfo.delegated_list_from_vec_u8(bytes_result)
 
     async def query_identity(
         self,
