@@ -3,6 +3,7 @@ import copy
 import json
 import sqlite3
 from contextlib import suppress
+from functools import partial
 
 from typing import TYPE_CHECKING, Optional, Sequence, Union, cast
 
@@ -1069,7 +1070,10 @@ The columns are as follows:
         if not Confirm.ask("Would you like to continue?"):
             return False
 
-    async def send_extrinsic(netuid_i, amount_, current, staking_address_ss58):
+    async def send_extrinsic(
+        netuid_i, amount_, current, staking_address_ss58, status=None
+    ):
+        err_out = partial(print_error, status=status)
         failure_prelude = (
             f":cross_mark: [red]Failed[/red] to stake {amount} on Netuid {netuid_i}"
         )
@@ -1090,7 +1094,7 @@ The columns are as follows:
                 extrinsic, wait_for_inclusion=True, wait_for_finalization=False
             )
         except SubstrateRequestException as e:
-            err_console.print(
+            err_out(
                 f"\n{failure_prelude} with error: {format_error_message(e, subtensor.substrate)}"
             )
             return
@@ -1101,8 +1105,8 @@ The columns are as follows:
         else:
             await response.process_events()
             if not await response.is_success:
-                err_console.print(
-                    f"\n{failure_prelude} with error: {response.error_message}"
+                err_out(
+                    f"\n{failure_prelude} with error: {format_error_message(await response.error_message, subtensor.substrate)}"
                 )
             else:
                 new_balance_, new_stake_ = await asyncio.gather(
@@ -1124,23 +1128,31 @@ The columns are as follows:
 
     # Perform staking operation.
     wallet.unlock_coldkey()
-    with console.status(f"\n:satellite: Staking on netuid(s): {netuids} ..."):
-        extrinsics_coroutines = [
-            send_extrinsic(ni, am, curr, staking_address)
-            for (ni, am, curr) in zip(
-                netuids, stake_amount_balance, current_stake_balances
-            )
-            for _, staking_address in hotkeys_to_stake_to
-        ]
-        if len(extrinsics_coroutines) == 1:
-            await asyncio.gather(*extrinsics_coroutines)
-        else:
+    extrinsics_coroutines = [
+        send_extrinsic(ni, am, curr, staking_address)
+        for i, (ni, am, curr) in enumerate(
+            zip(netuids, stake_amount_balance, current_stake_balances)
+        )
+        for _, staking_address in hotkeys_to_stake_to
+    ]
+    if len(extrinsics_coroutines) == 1:
+        with console.status(
+            f"\n:satellite: Staking on netuid(s): {netuids} ..."
+        ) as status:
+            await extrinsics_coroutines[0]
+    else:
+        with console.status(":satellite: Checking transaction rate limit ..."):
             tx_rate_limit_blocks = await subtensor.substrate.query(
                 module="SubtensorModule", storage_function="TxRateLimit"
             )
-            if tx_rate_limit_blocks > 0:
-                for item in extrinsics_coroutines:
-                    await item
+        netuid_hk_pairs = [(ni, hk) for ni in netuids for hk in hotkeys_to_stake_to]
+        for item, kp in zip(extrinsics_coroutines, netuid_hk_pairs):
+            ni, hk = kp
+            with console.status(
+                f"\n:satellite: Staking on netuid {ni} with hotkey {hk}... ..."
+            ):
+                await item
+                if tx_rate_limit_blocks > 0:
                     with console.status(
                         f":hourglass: [yellow]Waiting for tx rate limit:"
                         f" [white]{tx_rate_limit_blocks}[/white] blocks[/yellow]"
@@ -1148,8 +1160,6 @@ The columns are as follows:
                         await asyncio.sleep(
                             tx_rate_limit_blocks * 12
                         )  # 12 sec per block
-            else:
-                await asyncio.gather(*extrinsics_coroutines)
 
 
 async def unstake(
