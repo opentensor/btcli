@@ -2569,27 +2569,27 @@ class CLIManager:
 
         # TODO: Ask amount for each subnet explicitly if more than one
         if not stake_all and not amount and not max_stake:
-            if netuid is not None:
-                free_balance, staked_balance = self._run_command(
-                    wallets.wallet_balance(
-                        wallet, self.initialize_chain(network), False, None
-                    )
+            free_balance, staked_balance = self._run_command(
+                wallets.wallet_balance(
+                    wallet, self.initialize_chain(network), False, None
                 )
-                if free_balance == Balance.from_tao(0):
-                    print_error("You dont have any balance to stake.")
-                    raise typer.Exit()
+            )
+            if free_balance == Balance.from_tao(0):
+                print_error("You dont have any balance to stake.")
+                raise typer.Exit()
+            if netuid is not None:
                 amount = FloatPrompt.ask(
                     "[dark_orange]Amount to stake (TAO τ)[/dark_orange]"
                 )
-                if Balance.from_tao(amount) > free_balance:
-                    print_error(
-                        f"You dont have enough balance to stake. Current free Balance: {free_balance}."
-                    )
-                    raise typer.Exit()
             else:
                 amount = FloatPrompt.ask(
                     "[dark_orange]Amount to stake to each netuid (TAO τ)[/dark_orange]"
                 )
+            if Balance.from_tao(amount) > free_balance:
+                print_error(
+                    f"You dont have enough balance to stake. Current free Balance: {free_balance}."
+                )
+                raise typer.Exit()
 
         return self._run_command(
             stake.stake_add(
