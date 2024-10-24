@@ -493,17 +493,23 @@ async def register_extrinsic(
         )
         if uid is None:
             return NeuronInfo.get_null_neuron()
+        
 
-        params = [netuid, uid]
-        json_body = await subtensor.substrate.rpc_request(
-            method="neuronInfo_getNeuron",
-            params=params,
+        hex_bytes_result = await subtensor.substrate.query_runtime_api(
+            runtime_api="NeuronInfoRuntimeApi",
+            method="get_neuron",
+            params=[netuid, uid],
         )
 
-        if not (result := json_body.get("result", None)):
+        if not (result := hex_bytes_result):
             return NeuronInfo.get_null_neuron()
+        
+        if result.startswith("0x"):
+            bytes_result = bytes.fromhex(result[2:])
+        else:
+            bytes_result = bytes.fromhex(result)
 
-        return NeuronInfo.from_vec_u8(bytes(result))
+        return NeuronInfo.from_vec_u8(bytes_result)
 
     print_verbose("Checking subnet status")
     if not await subtensor.subnet_exists(netuid):
