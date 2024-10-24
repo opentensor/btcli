@@ -860,7 +860,7 @@ async def stake_add(
 
     """
     netuids = (
-        [netuid] if netuid is not None else await subtensor.get_all_subnet_netuids()
+        [int(netuid)] if netuid is not None else await subtensor.get_all_subnet_netuids()
     )
     # Init the table.
     table = Table(
