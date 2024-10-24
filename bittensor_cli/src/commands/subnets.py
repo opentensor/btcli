@@ -492,24 +492,28 @@ async def show(subtensor: "SubtensorInterface", netuid: int, prompt: bool = True
                 for idx in range(len(subnet_state.emission))
             ]
         )
+        tao_sum = Balance(0)
+        stake_sum = Balance(0)
         for idx, hk in enumerate(subnet_state.hotkeys):
             hotkey_block_emission = (
                 subnet_state.emission[idx].tao / emission_sum
                 if emission_sum != 0
                 else 0
             )
+            tao_sum += subnet_state.global_stake[idx]
+            stake_sum += subnet_state.local_stake[idx]
             rows.append(
                 (
-                    str(idx),
-                    str(subnet_state.global_stake[idx]),
-                    f"{subnet_state.local_stake[idx].tao:.4f} {subnet_info.symbol}",
-                    f"{subnet_state.stake_weight[idx]:.4f}",
+                    str(idx),  # UID
+                    str(subnet_state.global_stake[idx]),  # TAO
+                    f"{subnet_state.local_stake[idx].tao:.4f} {subnet_info.symbol}",  # Stake
+                    f"{subnet_state.stake_weight[idx]:.4f}",  # Weight
                     # str(subnet_state.dividends[idx]),
-                    f"{str(Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao)} {subnet_info.symbol}",
-                    str(subnet_state.incentives[idx]),
-                    f"{str(Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao)} {subnet_info.symbol}",
-                    f"{subnet_state.hotkeys[idx]}",
-                    f"{subnet_state.coldkeys[idx]}",
+                    f"{str(Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao)} {subnet_info.symbol}",  # Dividends
+                    str(subnet_state.incentives[idx]),  # Incentive
+                    f"{str(Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao)} {subnet_info.symbol}",  # Emission
+                    f"{subnet_state.hotkeys[idx]}",  # Hotkey
+                    f"{subnet_state.coldkeys[idx]}",  # Coldkey
                 )
             )
             # Add columns to the table
@@ -519,12 +523,14 @@ async def show(subtensor: "SubtensorInterface", netuid: int, prompt: bool = True
             style="medium_purple",
             no_wrap=True,
             justify="right",
+            footer=str(tao_sum),
         )
         table.add_column(
             f"Stake({Balance.get_unit(netuid_)})",
             style="green",
             no_wrap=True,
             justify="right",
+            footer=f"{stake_sum.set_unit(subnet_info.netuid)}",
         )
         table.add_column(
             f"Weight({Balance.get_unit(0)}•{Balance.get_unit(netuid_)})",
@@ -543,6 +549,7 @@ async def show(subtensor: "SubtensorInterface", netuid: int, prompt: bool = True
             style="aquamarine3",
             no_wrap=True,
             justify="center",
+            footer=str(Balance.from_tao(emission_sum).set_unit(subnet_info.netuid)),
         )
         table.add_column(
             "Hotkey", style="light_salmon3", no_wrap=True, justify="center"
@@ -554,8 +561,8 @@ async def show(subtensor: "SubtensorInterface", netuid: int, prompt: bool = True
             table.add_row(*row)
 
         # Print the table
-        # bt.__console__.print("\n\n\n")
-        # bt.__console__.print(subnet_info_table)
+        # console.print("\n\n\n")
+        # console.print(subnet_info_table)
         console.print("\n\n")
         console.print(table)
         console.print("\n")
