@@ -1184,10 +1184,22 @@ class SubtensorInterface:
     async def get_subnet_dynamic_info(
         self, netuid: int, block_hash: Optional[str] = None
     ) -> "DynamicInfo":
-        json = await self.substrate.rpc_request(
-            method="subnetInfo_getDynamicInfo", params=[netuid, block_hash]
+        hex_bytes_result = await self.query_runtime_api(
+            runtime_api="SubnetInfoRuntimeApi",
+            method="get_dynamic_info",
+            params=[netuid],
+            block_hash=block_hash,
         )
-        subnets = DynamicInfo.from_vec_u8(json["result"])
+
+        if hex_bytes_result is None:
+            return None 
+
+        if hex_bytes_result.startswith("0x"):
+            bytes_result = bytes.fromhex(hex_bytes_result[2:])
+        else:
+            bytes_result = bytes.fromhex(hex_bytes_result)
+
+        subnets = DynamicInfo.from_vec_u8(bytes_result)
         return subnets
 
     async def get_stake_for_coldkey_and_hotkey_on_netuid(
