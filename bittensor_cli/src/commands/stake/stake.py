@@ -1272,7 +1272,7 @@ async def unstake(
             current_stake_balance: Balance = (
                 await subtensor.get_stake_for_coldkey_and_hotkey_on_netuid(
                     coldkey_ss58=wallet.coldkeypub.ss58_address,
-                    hotkey_ss58=hotkey_ss58_address,
+                    hotkey_ss58=staking_address_ss58,
                     netuid=netuid,
                 )
             )
