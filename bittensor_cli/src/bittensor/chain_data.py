@@ -1462,7 +1462,12 @@ custom_rpc_type_registry = {
             "type_mapping": [
                 ["hotkey", "AccountId"],
                 ["coldkey", "AccountId"],
+                ["netuid", "Compact<u16>"],
                 ["stake", "Compact<u64>"],
+                ["locked", "Compact<u64>"],
+                ["emission", "Compact<u64>"],
+                ["drain", "Compact<u64>"],
+                ["is_registered", "bool"],
             ],
         },
         "DynamicInfo": {

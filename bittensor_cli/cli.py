@@ -645,6 +645,9 @@ class CLIManager:
         self.stake_app.command(
             "remove", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
         )(self.stake_remove)
+        self.stake_app.command(
+            "list", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
+        )(self.stake_list)
 
         # stake-children commands
         children_app = typer.Typer()

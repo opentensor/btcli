@@ -1612,40 +1612,40 @@ async def stake_list(wallet: Wallet, subtensor: "SubtensorInterface"):
             hotkeys_to_substakes[hotkey] = []
         hotkeys_to_substakes[hotkey].append(substake)
 
-        # Iterate over each hotkey and make a table
-        all_hotkeys_total_global_tao = Balance(0)
-        all_hotkeys_total_tao_value = Balance(0)
-        for hotkey in hotkeys_to_substakes.keys():
-            stake, value = table_substakes(hotkey, hotkeys_to_substakes[hotkey])
-            all_hotkeys_total_global_tao += stake
-            all_hotkeys_total_tao_value += value
+    # Iterate over each hotkey and make a table
+    all_hotkeys_total_global_tao = Balance(0)
+    all_hotkeys_total_tao_value = Balance(0)
+    for hotkey in hotkeys_to_substakes.keys():
+        stake, value = table_substakes(hotkey, hotkeys_to_substakes[hotkey])
+        all_hotkeys_total_global_tao += stake
+        all_hotkeys_total_tao_value += value
 
-        console.print("\n\n")
-        console.print(
-            f"Wallet:\n"
-            f"  Coldkey SS58: [bold dark_green]{wallet.coldkeypub.ss58_address}[/bold dark_green]\n"
-            f"  Free Balance: [aquamarine3]{balance}[/aquamarine3]\n"
-            f"  Total TAO ({Balance.unit}): [aquamarine3]{all_hotkeys_total_global_tao}[/aquamarine3]\n"
-            f"  Total Value ({Balance.unit}): [aquamarine3]{all_hotkeys_total_tao_value}[/aquamarine3]"
-        )
-        console.print(
-            """
+    console.print("\n\n")
+    console.print(
+        f"Wallet:\n"
+        f"  Coldkey SS58: [bold dark_green]{wallet.coldkeypub.ss58_address}[/bold dark_green]\n"
+        f"  Free Balance: [aquamarine3]{balance}[/aquamarine3]\n"
+        f"  Total TAO ({Balance.unit}): [aquamarine3]{all_hotkeys_total_global_tao}[/aquamarine3]\n"
+        f"  Total Value ({Balance.unit}): [aquamarine3]{all_hotkeys_total_tao_value}[/aquamarine3]"
+    )
+    console.print(
+        """
 [bold white]Description[/bold white]:
-    Each table displays information about your coldkey's staking accounts with a hotkey. 
-    The header of the table displays the hotkey and the footer displays the total stake and total value of all your staking accounts. 
-    The columns of the table are as follows:
-        - [bold white]Netuid[/bold white]: The unique identifier for the subnet (its index).
-        - [bold white]Symbol[/bold white]: The symbol representing the subnet stake's unit.
-        - [bold white]TAO[/bold white]: The hotkey's TAO balance on this subnet. This is this hotkey's proportion of total TAO staked into the subnet divided by the hotkey's share of outstanding stake.
-        - [bold white]Stake[/bold white]: The hotkey's stake balance in subnets staking unit.
-        - [bold white]Rate[/bold white]: The rate of exchange between the subnet's staking unit and the subnet's TAO.
-        - [bold white]Value[/bold white]: The price of the hotkey's stake in TAO computed via the exchange rate.
-        - [bold white]Swap[/bold white]: The amount of TAO received when unstaking all of the hotkey's stake (with slippage).
-        - [bold white]Registered[/bold white]: Whether the hotkey is registered on this subnet.
-        - [bold white]Emission[/bold white]: If registered, the emission (in stake) attained by this hotkey on this subnet per block.
-        - [bold white]Locked[/bold white]: The total amount of stake locked (not able to be unstaked).
+Each table displays information about your coldkey's staking accounts with a hotkey. 
+The header of the table displays the hotkey and the footer displays the total stake and total value of all your staking accounts. 
+The columns of the table are as follows:
+    - [bold white]Netuid[/bold white]: The unique identifier for the subnet (its index).
+    - [bold white]Symbol[/bold white]: The symbol representing the subnet stake's unit.
+    - [bold white]TAO[/bold white]: The hotkey's TAO balance on this subnet. This is this hotkey's proportion of total TAO staked into the subnet divided by the hotkey's share of outstanding stake.
+    - [bold white]Stake[/bold white]: The hotkey's stake balance in subnets staking unit.
+    - [bold white]Rate[/bold white]: The rate of exchange between the subnet's staking unit and the subnet's TAO.
+    - [bold white]Value[/bold white]: The price of the hotkey's stake in TAO computed via the exchange rate.
+    - [bold white]Swap[/bold white]: The amount of TAO received when unstaking all of the hotkey's stake (with slippage).
+    - [bold white]Registered[/bold white]: Whether the hotkey is registered on this subnet.
+    - [bold white]Emission[/bold white]: If registered, the emission (in stake) attained by this hotkey on this subnet per block.
+    - [bold white]Locked[/bold white]: The total amount of stake locked (not able to be unstaked).
 """
-        )
+    )
 
 
 async def move_stake(
