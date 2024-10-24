@@ -860,7 +860,9 @@ async def stake_add(
 
     """
     netuids = (
-        [int(netuid)] if netuid is not None else await subtensor.get_all_subnet_netuids()
+        [int(netuid)]
+        if netuid is not None
+        else await subtensor.get_all_subnet_netuids()
     )
     # Init the table.
     table = Table(
@@ -1136,9 +1138,7 @@ The columns are as follows:
         for _, staking_address in hotkeys_to_stake_to
     ]
     if len(extrinsics_coroutines) == 1:
-        with console.status(
-            f"\n:satellite: Staking on netuid(s): {netuids} ..."
-        ):
+        with console.status(f"\n:satellite: Staking on netuid(s): {netuids} ..."):
             await extrinsics_coroutines[0]
     else:
         with console.status(":satellite: Checking transaction rate limit ..."):
@@ -1157,9 +1157,7 @@ The columns are as follows:
                     f":hourglass: [yellow]Waiting for tx rate limit:"
                     f" [white]{tx_rate_limit_blocks}[/white] blocks[/yellow]"
                 ):
-                    await asyncio.sleep(
-                        tx_rate_limit_blocks * 12
-                    )  # 12 sec per block
+                    await asyncio.sleep(tx_rate_limit_blocks * 12)  # 12 sec per block
 
 
 async def unstake(
@@ -1177,7 +1175,9 @@ async def unstake(
 ):
     """Unstake token of amount from hotkey(s)."""
     netuids = (
-        [int(netuid)] if netuid is not None else await subtensor.get_all_subnet_netuids()
+        [int(netuid)]
+        if netuid is not None
+        else await subtensor.get_all_subnet_netuids()
     )
     # Get the hotkey_names (if any) and the hotkey_ss58s.
     hotkeys_to_unstake_from: list[tuple[Optional[str], str]] = []
@@ -1394,51 +1394,53 @@ The columns are as follows:
     with console.status(
         f"\n:satellite: Unstaking {amount_to_unstake_as_balance} from {staking_address_name} on netuid: {netuid} ..."
     ):
-        for netuid_i, amount, current in list(
-            zip(non_zero_netuids, unstake_amount_balance, current_stake_balances)
-        ):
-            call = await subtensor.substrate.compose_call(
-                call_module="SubtensorModule",
-                call_function="remove_stake",
-                call_params={
-                    "hotkey": hotkey_ss58_address,
-                    "netuid": netuid_i,
-                    "amount_unstaked": amount.rao,
-                },
-            )
-            extrinsic = await subtensor.substrate.create_signed_extrinsic(
-                call=call, keypair=wallet.coldkey
-            )
-            response = await subtensor.substrate.submit_extrinsic(
-                extrinsic, wait_for_inclusion=True, wait_for_finalization=False
-            )
-            if not prompt:
-                console.print(":white_heavy_check_mark: [green]Sent[/green]")
-            else:
-                await response.process_events()
-                if not await response.is_success:
-                    err_console.print(
-                        f":cross_mark: [red]Failed[/red] with error: "
-                        f"{format_error_message(response.error_message, subtensor.substrate)}"
-                    )
+        for hotkey in hotkeys_to_unstake_from:
+            staking_address_name, staking_address_ss58 = hotkey
+            for netuid_i, amount, current in list(
+                zip(non_zero_netuids, unstake_amount_balance, current_stake_balances)
+            ):
+                call = await subtensor.substrate.compose_call(
+                    call_module="SubtensorModule",
+                    call_function="remove_stake",
+                    call_params={
+                        "hotkey": staking_address_ss58,
+                        "netuid": netuid_i,
+                        "amount_unstaked": amount.rao,
+                    },
+                )
+                extrinsic = await subtensor.substrate.create_signed_extrinsic(
+                    call=call, keypair=wallet.coldkey
+                )
+                response = await subtensor.substrate.submit_extrinsic(
+                    extrinsic, wait_for_inclusion=True, wait_for_finalization=False
+                )
+                if not prompt:
+                    console.print(":white_heavy_check_mark: [green]Sent[/green]")
                 else:
-                    new_balance_ = await subtensor.get_balance(
-                        wallet.coldkeypub.ss58_address
-                    )
-                    new_balance = new_balance_[wallet.coldkeypub.ss58_address]
-                    new_stake = (
-                        await subtensor.get_stake_for_coldkey_and_hotkey_on_netuid(
-                            coldkey_ss58=wallet.coldkeypub.ss58_address,
-                            hotkey_ss58=hotkey_ss58_address,
-                            netuid=netuid_i,
+                    await response.process_events()
+                    if not await response.is_success:
+                        err_console.print(
+                            f":cross_mark: [red]Failed[/red] with error: "
+                            f"{format_error_message(response.error_message, subtensor.substrate)}"
                         )
-                    ).set_unit(netuid_i)
-                    console.print(
-                        f"Balance:\n  [blue]{current_wallet_balance}[/blue] :arrow_right: [green]{new_balance}[/green]"
-                    )
-                    console.print(
-                        f"Subnet: {netuid_i} Stake:\n  [blue]{current}[/blue] :arrow_right: [green]{new_stake}[/green]"
-                    )
+                    else:
+                        new_balance_ = await subtensor.get_balance(
+                            wallet.coldkeypub.ss58_address
+                        )
+                        new_balance = new_balance_[wallet.coldkeypub.ss58_address]
+                        new_stake = (
+                            await subtensor.get_stake_for_coldkey_and_hotkey_on_netuid(
+                                coldkey_ss58=wallet.coldkeypub.ss58_address,
+                                hotkey_ss58=staking_address_ss58,
+                                netuid=netuid_i,
+                            )
+                        ).set_unit(netuid_i)
+                        console.print(
+                            f"Balance:\n  [blue]{current_wallet_balance}[/blue] :arrow_right: [green]{new_balance}[/green]"
+                        )
+                        console.print(
+                            f"Subnet: {netuid_i} Stake:\n  [blue]{current}[/blue] :arrow_right: [green]{new_stake}[/green]"
+                        )
 
 
 async def stake_list(wallet: Wallet, subtensor: "SubtensorInterface"):
