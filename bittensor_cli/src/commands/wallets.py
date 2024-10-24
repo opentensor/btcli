@@ -318,6 +318,7 @@ async def wallet_balance(
     )
     console.print(Padding(table, (0, 0, 0, 4)))
     await subtensor.substrate.close()
+    return total_free_balance, total_staked_balance
 
 
 async def get_wallet_transfers(wallet_address: str) -> list[dict]:

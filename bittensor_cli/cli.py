@@ -291,7 +291,7 @@ def get_optional_netuid(netuid: Optional[int], all_netuids: bool) -> Optional[in
         return None
     elif netuid is None and all_netuids is False:
         answer = Prompt.ask(
-            "Enter the netuid to use. Leave blank for all netuids.",
+            "[green]Enter the netuid to use. Leave blank for all netuids",
             default=None,
             show_default=False,
         )
@@ -2496,9 +2496,6 @@ class CLIManager:
             )
             raise typer.Exit()
 
-        if not stake_all and not amount and not max_stake:
-            amount = FloatPrompt.ask("[blue bold]Amount to stake (TAO τ)[/blue bold]")
-
         if stake_all and not amount:
             if not Confirm.ask("Stake all the available TAO tokens?", default=False):
                 raise typer.Exit()
@@ -2518,7 +2515,7 @@ class CLIManager:
 
         if not wallet_hotkey and not all_hotkeys and not include_hotkeys:
             hotkey_or_ss58 = Prompt.ask(
-                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to stake to",
+                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to stake to [Press Enter to use config values]",
             )
             if is_valid_ss58_address(hotkey_or_ss58):
                 hotkey_ss58_address = hotkey_or_ss58
@@ -2569,6 +2566,30 @@ class CLIManager:
             )
         else:
             excluded_hotkeys = []
+
+        # TODO: Ask amount for each subnet explicitly if more than one
+        if not stake_all and not amount and not max_stake:
+            if netuid is not None:
+                free_balance, staked_balance = self._run_command(
+                    wallets.wallet_balance(
+                        wallet, self.initialize_chain(network), False, None
+                    )
+                )
+                if free_balance == Balance.from_tao(0):
+                    print_error("You dont have any balance to stake.")
+                    raise typer.Exit()
+                amount = FloatPrompt.ask(
+                    "[dark_orange]Amount to stake (TAO τ)[/dark_orange]"
+                )
+                if Balance.from_tao(amount) > free_balance:
+                    print_error(
+                        f"You dont have enough balance to stake. Current free Balance: {free_balance}."
+                    )
+                    raise typer.Exit()
+            else:
+                amount = FloatPrompt.ask(
+                    "[dark_orange]Amount to stake to each netuid (TAO τ)[/dark_orange]"
+                )
 
         return self._run_command(
             stake.stake_add(
