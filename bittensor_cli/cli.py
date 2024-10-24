@@ -159,12 +159,10 @@ class Options:
         "-n",
         help="Set the netuid(s) to exclude. Separate multiple netuids with a comma, for example: `-n 0,1,2`.",
     )
-    netuid = (
-        typer.Option(
-            None,
-            help="The netuid of the subnet in the root network, (e.g. 1).",
-            prompt=True,
-        ),
+    netuid = typer.Option(
+        None,
+        help="The netuid of the subnet in the root network, (e.g. 1).",
+        prompt=True,
     )
     netuid_not_req = typer.Option(
         None,
@@ -710,6 +708,9 @@ class CLIManager:
         self.subnets_app.command(
             "metagraph", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
         )(self.subnets_metagraph)
+        self.subnets_app.command(
+            "show", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
+        )(self.subnets_show)
 
         # weights commands
         self.weights_app.command(
@@ -3354,6 +3355,13 @@ class CLIManager:
         verbose: bool = Options.verbose,
         prompt: bool = Options.prompt,
     ):
+        """
+        Displays detailed information about a subnet including participants and their state.
+
+        EXAMPLE
+
+        [green]$[/green] btcli subnets list
+        """
         self.verbosity_handler(quiet, verbose)
         subtensor = self.initialize_chain(network)
         return self._run_command(
