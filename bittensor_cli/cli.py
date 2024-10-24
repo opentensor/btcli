@@ -648,6 +648,9 @@ class CLIManager:
         self.stake_app.command(
             "list", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
         )(self.stake_list)
+        self.stake_app.command(
+            "move", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
+        )(self.stake_move)
 
         # stake-children commands
         children_app = typer.Typer()
@@ -2750,22 +2753,36 @@ class CLIManager:
         wallet_hotkey=Options.wallet_hotkey,
         origin_netuid: int = typer.Option(help="Origin netuid", prompt=True),
         destination_netuid: int = typer.Option(help="Destination netuid", prompt=True),
-        destination_hotkey: str = typer.Option(  # TODO also accept name
-            help="Destination hotkey", prompt=True
+        destination_hotkey: Optional[str] = typer.Option(
+            None, help="Destination hotkey", prompt=False
         ),
-        amount: Optional[float] = typer.Option(help="Amount", prompt=False),
+        amount: float = typer.Option(
+            0.0,
+            "--amount",
+            help="The amount of TAO to stake",
+            prompt=True,
+        ),
         stake_all: bool = typer.Option(
             False, "--stake-all", "--all", help="Stake all", prompt=False
         ),
         prompt: bool = Options.prompt,
     ):
+        # TODO: Improve logic of moving stake (dest hotkey)
+        ask_for = (
+            [WO.NAME, WO.PATH] if destination_hotkey else [WO.NAME, WO.HOTKEY, WO.PATH]
+        )
+        validate = WV.WALLET if destination_hotkey else WV.WALLET_AND_HOTKEY
+
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME],
-            validate=WV.WALLET_AND_HOTKEY,
+            ask_for=ask_for,
+            validate=validate,
         )
+        if not destination_hotkey:
+            destination_hotkey = wallet.hotkey.ss58_address
+
         return self._run_command(
             stake.move_stake(
                 subtensor=self.initialize_chain(network),
