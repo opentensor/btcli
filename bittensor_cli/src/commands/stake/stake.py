@@ -860,7 +860,7 @@ async def stake_add(
 
     """
     netuids = (
-        [netuid] if netuid is not None else await subtensor.get_all_subnet_netuids()
+        [int(netuid)] if netuid is not None else await subtensor.get_all_subnet_netuids()
     )
     # Init the table.
     table = Table(
@@ -1177,7 +1177,7 @@ async def unstake(
 ):
     """Unstake token of amount from hotkey(s)."""
     netuids = (
-        [netuid] if netuid is not None else await subtensor.get_all_subnet_netuids()
+        [int(netuid)] if netuid is not None else await subtensor.get_all_subnet_netuids()
     )
     # Get the hotkey_names (if any) and the hotkey_ss58s.
     hotkeys_to_unstake_from: list[tuple[Optional[str], str]] = []
@@ -1352,7 +1352,7 @@ async def unstake(
         f"Amount ({Balance.get_unit(1)})", justify="center", style="dark_sea_green"
     )
     table.add_column(
-        f"Rate ({Balance.get_unit(0)}/{bt.Balance.get_unit(1)})",
+        f"Rate ({Balance.get_unit(0)}/{Balance.get_unit(1)})",
         justify="center",
         style="light_goldenrod2",
     )
@@ -1365,7 +1365,7 @@ async def unstake(
     table.add_column("Slippage", justify="center", style="rgb(220,50,47)")
     for row in rows:
         table.add_row(*row)
-    bt.__console__.print(table)
+    console.print(table)
     message = ""
     if max_float_slippage > 5:
         message += f"-------------------------------------------------------------------------------------------------------------------\n"
