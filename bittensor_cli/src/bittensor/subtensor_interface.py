@@ -1167,7 +1167,7 @@ class SubtensorInterface:
             A list of DelegateInfo objects detailing each delegate's characteristics.
 
         """
-
+        # TODO (Ben): doesn't exist
         params = [netuid] if not block_hash else [netuid, block_hash]
         json_body = await self.substrate.rpc_request(
             method="delegateInfo_getDelegatesLight",  # custom rpc method
