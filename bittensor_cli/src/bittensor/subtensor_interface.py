@@ -431,10 +431,11 @@ class SubtensorInterface:
 
         :return: {address: Balance objects}
         """
+        netuids = await self.get_all_subnet_netuids(block_hash=block_hash)
         results = await self.substrate.query_multiple(
-            params=[s for s in ss58_addresses],
+            params=[p for p in zip(ss58_addresses, netuids)],
             module="SubtensorModule",
-            storage_function="TotalHotkeyStake",
+            storage_function="TotalHotkeyAlpha",
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
