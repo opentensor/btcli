@@ -1,8 +1,4 @@
 import asyncio
-import copy
-import json
-import sqlite3
-from contextlib import suppress
 from functools import partial
 
 from typing import TYPE_CHECKING, Optional, Sequence, Union, cast
@@ -10,13 +6,13 @@ from typing import TYPE_CHECKING, Optional, Sequence, Union, cast
 from bittensor_wallet import Wallet
 from bittensor_wallet.errors import KeyFileError
 from rich.prompt import Confirm, FloatPrompt, Prompt
-from rich.table import Table, Column
-import typer
+from rich.table import Table
 from substrateinterface.exceptions import SubstrateRequestException
 
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import StakeInfo
 from bittensor_cli.src.bittensor.utils import (
+    # TODO add back in caching
     console,
     create_table,
     err_console,

@@ -2,7 +2,6 @@
 import asyncio
 import binascii
 import curses
-from contextlib import suppress
 from functools import partial
 import os.path
 import re

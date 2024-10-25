@@ -3,7 +3,7 @@ import json
 import random
 from collections import defaultdict
 from dataclasses import dataclass
-from hashlib import blake2b, sha256
+from hashlib import blake2b
 from typing import Optional, Any, Union, Callable, Awaitable, cast, Iterable
 
 from bt_decode import PortableRegistry, decode as decode_by_type_string, MetadataV15
