@@ -432,14 +432,15 @@ class SubtensorInterface:
 
         :return: {address: Balance objects}
         """
-        results = await self.substrate.query_multiple(
-            params=[s for s in ss58_addresses],
+        netuids = await self.get_all_subnet_netuids(block_hash=block_hash)
+        results: dict[tuple[str, int], int] = await self.substrate.query_multiple(
+            params=[p for p in zip(ss58_addresses, netuids)],
             module="SubtensorModule",
-            storage_function="TotalHotkeyStake",
+            storage_function="TotalHotkeyAlpha",
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
-        return {k: Balance.from_rao(r or 0) for (k, r) in results.items()}
+        return {k[0]: Balance.from_rao(r or 0) for (k, r) in results.items()}
 
     async def current_take(
         self,
@@ -731,17 +732,23 @@ class SubtensorInterface:
         """
         if uid is None:
             return NeuronInfo.get_null_neuron()
-
-        params = [netuid, uid, block_hash] if block_hash else [netuid, uid]
-        json_body = await self.substrate.rpc_request(
-            method="neuronInfo_getNeuron",
-            params=params,  # custom rpc method
+        
+        hex_bytes_result = await self.query_runtime_api(
+            runtime_api="NeuronInfoRuntimeApi",
+            method="get_neuron",
+            params=[netuid, uid],
+            block_hash=block_hash,
         )
 
-        if not (result := json_body.get("result", None)):
+
+        if not (result := hex_bytes_result):
             return NeuronInfo.get_null_neuron()
 
-        bytes_result = bytes(result)
+        if result.startswith("0x"):
+            bytes_result = bytes.fromhex(result[2:])
+        else:
+            bytes_result = bytes.fromhex(result)
+
         return NeuronInfo.from_vec_u8(bytes_result)
 
     async def get_delegated(
@@ -770,15 +777,23 @@ class SubtensorInterface:
             else (self.substrate.last_block_hash if reuse_block else None)
         )
         encoded_coldkey = ss58_to_vec_u8(coldkey_ss58)
-        json_body = await self.substrate.rpc_request(
-            method="delegateInfo_getDelegated",
-            params=([block_hash, encoded_coldkey] if block_hash else [encoded_coldkey]),
+
+        hex_bytes_result = await self.query_runtime_api(
+            runtime_api="DelegateInfoRuntimeApi",
+            method="get_delegated",
+            params=[encoded_coldkey],
+            block_hash=block_hash,
         )
 
-        if not (result := json_body.get("result")):
+        if not (result := hex_bytes_result):
             return []
 
-        return DelegateInfo.delegated_list_from_vec_u8(bytes(result))
+        if result.startswith("0x"):
+            bytes_result = bytes.fromhex(result[2:])
+        else:
+            bytes_result = bytes.fromhex(result)
+
+        return DelegateInfo.delegated_list_from_vec_u8(bytes_result)
 
     async def query_identity(
         self,
@@ -1154,7 +1169,7 @@ class SubtensorInterface:
             A list of DelegateInfo objects detailing each delegate's characteristics.
 
         """
-
+        # TODO (Ben): doesn't exist
         params = [netuid] if not block_hash else [netuid, block_hash]
         json_body = await self.substrate.rpc_request(
             method="delegateInfo_getDelegatesLight",  # custom rpc method
@@ -1171,10 +1186,22 @@ class SubtensorInterface:
     async def get_subnet_dynamic_info(
         self, netuid: int, block_hash: Optional[str] = None
     ) -> "DynamicInfo":
-        json = await self.substrate.rpc_request(
-            method="subnetInfo_getDynamicInfo", params=[netuid, block_hash]
+        hex_bytes_result = await self.query_runtime_api(
+            runtime_api="SubnetInfoRuntimeApi",
+            method="get_dynamic_info",
+            params=[netuid],
+            block_hash=block_hash,
         )
-        subnets = DynamicInfo.from_vec_u8(json["result"])
+
+        if hex_bytes_result is None:
+            return None 
+
+        if hex_bytes_result.startswith("0x"):
+            bytes_result = bytes.fromhex(hex_bytes_result[2:])
+        else:
+            bytes_result = bytes.fromhex(hex_bytes_result)
+
+        subnets = DynamicInfo.from_vec_u8(bytes_result)
         return subnets
 
     async def get_stake_for_coldkey_and_hotkey_on_netuid(

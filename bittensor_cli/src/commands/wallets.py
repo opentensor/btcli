@@ -1114,17 +1114,12 @@ async def _fetch_neuron_for_netuid(
     """
 
     async def neurons_lite_for_uid(uid: int) -> dict[Any, Any]:
-        call_definition = TYPE_REGISTRY["runtime_api"]["NeuronInfoRuntimeApi"][
-            "methods"
-        ]["get_neurons_lite"]
-        data = await subtensor.encode_params(
-            call_definition=call_definition, params=[uid]
-        )
         block_hash = subtensor.substrate.last_block_hash
-        hex_bytes_result = await subtensor.substrate.rpc_request(
-            method="state_call",
-            params=["NeuronInfoRuntimeApi_get_neurons_lite", data, block_hash],
-            reuse_block_hash=True,
+        hex_bytes_result = await subtensor.query_runtime_api(
+            runtime_api="NeuronInfoRuntimeApi",
+            method="get_neurons_lite",
+            params=[uid],
+            block_hash=block_hash,
         )
 
         return hex_bytes_result
