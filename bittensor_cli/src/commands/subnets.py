@@ -341,7 +341,7 @@ async def show(subtensor: "SubtensorInterface", netuid: int, prompt: bool = True
                 str((pos + 1)),
                 str(root_state.global_stake[idx]),
                 str(root_state.local_stake[idx]),
-                str(total_emission_per_block),
+                f"{str(total_emission_per_block):.4f}",
                 f"{root_state.hotkeys[idx]}",
                 f"{root_state.coldkeys[idx]}",
             )
@@ -421,9 +421,9 @@ Description:
                     f"{subnet_state.local_stake[idx].tao:.4f} {subnet_info.symbol}",  # Stake
                     f"{subnet_state.stake_weight[idx]:.4f}",  # Weight
                     # str(subnet_state.dividends[idx]),
-                    f"{str(Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao)} {subnet_info.symbol}",  # Dividends
+                    f"{Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao:.5f} {subnet_info.symbol}",  # Dividents
                     str(subnet_state.incentives[idx]),  # Incentive
-                    f"{str(Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao)} {subnet_info.symbol}",  # Emission
+                    f"{Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao:.5f} {subnet_info.symbol}",  # Emission
                     f"{subnet_state.hotkeys[idx]}",  # Hotkey
                     f"{subnet_state.coldkeys[idx]}",  # Coldkey
                 )
