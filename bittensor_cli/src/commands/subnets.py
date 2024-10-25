@@ -280,54 +280,44 @@ async def show(subtensor: "SubtensorInterface", netuid: int, prompt: bool = True
             )
             return
 
-        console_width = console.width - 5
         table = Table(
-            title="[white]Root Network",
-            # width=console_width,
-            safe_box=True,
-            padding=(0, 1),
-            collapse_padding=False,
-            pad_edge=True,
-            # expand=True,
-            show_header=True,
+            title=f"[underline dark_orange]Root Network[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}[/dark_orange]\n",
             show_footer=True,
             show_edge=False,
-            show_lines=False,
-            leading=0,
-            style="none",
-            row_styles=None,
-            header_style="bold",
-            footer_style="bold",
-            border_style="rgb(7,54,66)",
-            title_style="bold magenta",
+            header_style="bold white",
+            border_style="bright_black",
+            style="bold",
             title_justify="center",
-            highlight=False,
+            show_lines=False,
+            pad_edge=True,
         )
-        # Add columns to the table
+        table.add_column("[bold white]Position", style="white", justify="center")
         table.add_column(
-            "Position", style="rgb(253,246,227)", no_wrap=True, justify="center"
-        )
-        table.add_column(
-            f"TAO ({Balance.get_unit(0)})",
+            f"[bold white] TAO ({Balance.get_unit(0)})",
             style="medium_purple",
-            no_wrap=True,
             justify="center",
         )
         table.add_column(
-            f"Stake ({Balance.get_unit(0)})",
-            style="dark_sea_green",
-            no_wrap=True,
-            justify="center",
-        )
-        table.add_column(
-            f"Emission ({Balance.get_unit(0)}/block)",
+            f"[bold white]Stake ({Balance.get_unit(0)})",
             style="rgb(42,161,152)",
-            no_wrap=True,
             justify="center",
         )
         table.add_column(
-            "Hotkey", style="light_salmon3", no_wrap=True, justify="center"
+            f"[bold white]Emission ({Balance.get_unit(0)}/block)",
+            style="light_goldenrod2",
+            justify="center",
         )
+        table.add_column(
+            "[bold white]Hotkey",
+            style="bright_magenta",
+            justify="center",
+        )
+        table.add_column(
+            "[bold white]Coldkey",
+            style="bright_magenta",
+            justify="center",
+        )
+
         sorted_hotkeys = sorted(
             enumerate(root_state.hotkeys),
             key=lambda x: root_state.global_stake[x[0]],
@@ -349,21 +339,22 @@ async def show(subtensor: "SubtensorInterface", netuid: int, prompt: bool = True
                 str(root_state.local_stake[idx]),
                 str(total_emission_per_block),
                 f"{root_state.hotkeys[idx]}",
+                f"{root_state.coldkeys[idx]}",
             )
 
         # Print the table
         console.print(table)
         console.print(
             """
-            Description:
-                The table displays the root subnet participants and their metrics.
-                The columns are as follows:
-                    - Position: The sorted position of the hotkey by total TAO.
-                    - TAO: The sum of all TAO balances for this hotkey accross all subnets. 
-                    - Stake: The stake balance of this hotkey on root (measured in TAO).
-                    - Emission: The emission accrued to this hotkey across all subnets every block measured in TAO.
-                    - Hotkey: The hotkey ss58 address.
-            """
+Description:
+    The table displays the root subnet participants and their metrics.
+    The columns are as follows:
+        - Position: The sorted position of the hotkey by total TAO.
+        - TAO: The sum of all TAO balances for this hotkey accross all subnets. 
+        - Stake: The stake balance of this hotkey on root (measured in TAO).
+        - Emission: The emission accrued to this hotkey across all subnets every block measured in TAO.
+        - Hotkey: The hotkey ss58 address.
+"""
         )
 
     async def show_subnet(netuid_: int):
@@ -385,101 +376,17 @@ async def show(subtensor: "SubtensorInterface", netuid: int, prompt: bool = True
             return
 
         # Define table properties
-        console_width = console.width - 5
         table = Table(
-            title=f"[white]Subnet {netuid_} Metagraph",
-            width=console_width,
-            safe_box=True,
-            padding=(0, 1),
-            collapse_padding=False,
-            pad_edge=True,
-            expand=True,
-            show_header=True,
+            title=f"[underline dark_orange]Subnet {netuid_}[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}[/dark_orange]\n",
             show_footer=True,
             show_edge=False,
-            show_lines=False,
-            leading=0,
-            style="none",
-            row_styles=None,
-            header_style="bold",
-            footer_style="bold",
-            border_style="rgb(7,54,66)",
-            title_style="bold magenta",
+            header_style="bold white",
+            border_style="bright_black",
+            style="bold",
             title_justify="center",
-            highlight=False,
-        )
-        subnet_info_table = Table(
-            width=console_width,
-            safe_box=True,
-            padding=(0, 1),
-            collapse_padding=False,
+            show_lines=False,
             pad_edge=True,
-            expand=True,
-            show_header=True,
-            show_footer=False,
-            show_edge=False,
-            show_lines=False,
-            leading=0,
-            style="none",
-            row_styles=None,
-            header_style="bold",
-            footer_style="bold",
-            border_style="rgb(7,54,66)",
-            title_style="bold magenta",
-            title_justify="center",
-            highlight=False,
         )
-
-        subnet_info_table.add_column(
-            "Index", style="grey89", no_wrap=True, justify="center"
-        )
-        subnet_info_table.add_column(
-            "Symbol", style="rgb(211,54,130)", no_wrap=True, justify="center"
-        )
-        subnet_info_table.add_column(
-            f"Emission ({Balance.get_unit(0)})",
-            style="rgb(38,139,210)",
-            no_wrap=True,
-            justify="center",
-        )
-        subnet_info_table.add_column(
-            f"P({Balance.get_unit(0)},",
-            style="rgb(108,113,196)",
-            no_wrap=True,
-            justify="right",
-        )
-        subnet_info_table.add_column(
-            f"{Balance.get_unit(1)})",
-            style="rgb(42,161,152)",
-            no_wrap=True,
-            justify="left",
-        )
-        subnet_info_table.add_column(
-            f"{Balance.get_unit(1)}",
-            style="rgb(133,153,0)",
-            no_wrap=True,
-            justify="center",
-        )
-        subnet_info_table.add_column(
-            f"Rate ({Balance.get_unit(1)}/{Balance.get_unit(0)})",
-            style="rgb(181,137,0)",
-            no_wrap=True,
-            justify="center",
-        )
-        subnet_info_table.add_column(
-            "Tempo", style="rgb(38,139,210)", no_wrap=True, justify="center"
-        )
-        subnet_info_table.add_row(
-            str(netuid_),
-            f"[light_goldenrod1]{str(subnet_info.symbol)}[light_goldenrod1]",
-            f"τ{subnet_info.emission.tao:.4f}",
-            f"P( τ{subnet_info.tao_in.tao:,.4f},",
-            f"{subnet_info.alpha_in.tao:,.4f}{subnet_info.symbol} )",
-            f"{subnet_info.alpha_out.tao:,.4f}{subnet_info.symbol}",
-            f"{subnet_info.price.tao:.4f}τ/{subnet_info.symbol}",
-            str(subnet_info.blocks_since_last_step) + "/" + str(subnet_info.tempo),
-        )
-
         rows = []
         emission_sum = sum(
             [
@@ -522,7 +429,7 @@ async def show(subtensor: "SubtensorInterface", netuid: int, prompt: bool = True
         )
         table.add_column(
             f"Stake({Balance.get_unit(netuid_)})",
-            style="green",
+            style="rgb(42,161,152)",
             no_wrap=True,
             justify="right",
             footer=f"{stake_sum.set_unit(subnet_info.netuid)}",
@@ -533,36 +440,30 @@ async def show(subtensor: "SubtensorInterface", netuid: int, prompt: bool = True
             no_wrap=True,
             justify="center",
         )
-        table.add_column(
-            "Dividends", style="rgb(181,137,0)", no_wrap=True, justify="center"
-        )
-        table.add_column(
-            "Incentive", style="rgb(220,50,47)", no_wrap=True, justify="center"
-        )
+        table.add_column("Dividends", style="#8787d7", no_wrap=True, justify="center")
+        table.add_column("Incentive", style="#5fd7ff", no_wrap=True, justify="center")
         table.add_column(
             f"Emission ({Balance.get_unit(netuid_)})",
-            style="aquamarine3",
+            style="light_goldenrod2",
             no_wrap=True,
             justify="center",
             footer=str(Balance.from_tao(emission_sum).set_unit(subnet_info.netuid)),
         )
         table.add_column(
-            "Hotkey", style="light_salmon3", no_wrap=True, justify="center"
+            "Hotkey", style="bright_magenta", no_wrap=True, justify="center"
         )
         table.add_column(
-            "Coldkey", style="bold dark_green", no_wrap=True, justify="center"
+            "Coldkey", style="bright_magenta", no_wrap=True, justify="center"
         )
         for row in rows:
             table.add_row(*row)
 
         # Print the table
-        # console.print("\n\n\n")
-        # console.print(subnet_info_table)
         console.print("\n\n")
         console.print(table)
         console.print("\n")
         console.print(
-            f"Subnet: {netuid_}:\n  Owner: [light_salmon3]{subnet_info.owner}[/light_salmon3]\n  Total Locked: [green]{subnet_info.total_locked}[/green]\n  Owner Locked: [green]{subnet_info.owner_locked}[/green]"
+            f"Subnet: {netuid_}:\n  Owner: [bold bright_magenta]{subnet_info.owner}[/bold bright_magenta]\n  Total Locked: [green]{subnet_info.total_locked}[/green]\n  Owner Locked: [green]{subnet_info.owner_locked}[/green]"
         )
         console.print(
             """
