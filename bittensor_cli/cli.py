@@ -291,11 +291,13 @@ def get_optional_netuid(netuid: Optional[int], all_netuids: bool) -> Optional[in
         return None
     elif netuid is None and all_netuids is False:
         answer = Prompt.ask(
-            "[green]Enter the netuid to use. Leave blank for all netuids",
+            "[green]Enter the netuid to use.[/green] Leave blank for all netuids",
             default=None,
             show_default=False,
         )
         if answer is None:
+            return None
+        if answer.lower() == "all":
             return None
         else:
             return int(answer)
@@ -2688,8 +2690,9 @@ class CLIManager:
             )
             raise typer.Exit()
 
-        if not unstake_all and not amount and not keep_stake:
-            amount = FloatPrompt.ask("[blue bold]Amount to unstake (TAO τ)[/blue bold]")
+        # TODO: We are prompting for amount for each subnet later - confirm this to be removed
+        # if not unstake_all and not amount and not keep_stake:
+        #     amount = FloatPrompt.ask("[blue bold]Amount to unstake (TAO τ)[/blue bold]")
 
         if unstake_all and not amount:
             if not Confirm.ask("Unstake all staked TAO tokens?", default=False):
@@ -2702,7 +2705,7 @@ class CLIManager:
             and not include_hotkeys
         ):
             hotkey_or_ss58 = Prompt.ask(
-                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake from"
+                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake from. [Press Enter to use config values]"
             )
             if is_valid_ss58_address(hotkey_or_ss58):
                 hotkey_ss58_address = hotkey_or_ss58
