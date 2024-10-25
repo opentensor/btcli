@@ -232,7 +232,7 @@ async def subnets_list(
         justify="right",
         overflow="fold",
     )
-    table.add_column("[bold white]Global weight (γ)", style="green", justify="right")
+    table.add_column("[bold white]Global weight (γ)", style="green", justify="center")
 
     # Sort rows by subnet.emission.tao, keeping the first subnet in the first position
     sorted_rows = [rows[0]] + sorted(rows[1:], key=lambda x: x[2], reverse=True)

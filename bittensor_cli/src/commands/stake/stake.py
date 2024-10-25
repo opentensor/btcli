@@ -1497,7 +1497,7 @@ async def stake_list(wallet: Wallet, subtensor: "SubtensorInterface"):
                     else 0
                 )
                 slippage_percentage = (
-                    f"[dark_red]{slippage_percentage_:.3f}%[/dark_red]"
+                    f"[salmon1]{slippage_percentage_:.3f}%[/salmon1]"
                 )
             else:
                 slippage_percentage = "0.000%"
@@ -1543,47 +1543,36 @@ async def stake_list(wallet: Wallet, subtensor: "SubtensorInterface"):
                 )
         # table = Table(show_footer=True, pad_edge=False, box=None, expand=False, title=f"{name}")
         table = Table(
-            title=f"[white]hotkey:[/white] [light_salmon3]{name}[/light_salmon3]\n",
-            width=console.width - 5,
-            safe_box=True,
-            padding=(0, 1),
-            collapse_padding=False,
-            pad_edge=True,
-            expand=True,
-            show_header=True,
+            title=f"\n[dark_orange]Hotkey: {name}[/dark_orange]\n[dark_orange]Network: {subtensor.network}[/dark_orange]\n",
             show_footer=True,
             show_edge=False,
-            show_lines=False,
-            leading=0,
-            style="none",
-            row_styles=None,
-            header_style="bold",
-            footer_style="bold",
-            border_style="rgb(7,54,66)",
-            title_style="bold magenta",
+            header_style="bold white",
+            border_style="bright_black",
+            style="bold",
             title_justify="center",
-            highlight=False,
+            show_lines=False,
+            pad_edge=True,
         )
         table.add_column("[white]Netuid", footer_style="overline white", style="grey89")
         table.add_column(
             "[white]Symbol",
             footer_style="white",
             style="light_goldenrod1",
-            justify="right",
+            justify="center",
             width=5,
             no_wrap=True,
         )
         table.add_column(
             f"[white]TAO({Balance.unit})",
-            style="aquamarine3",
+            style="medium_purple",
             justify="right",
             footer=f"{total_global_tao}",
         )
         table.add_column(
             f"[white]Stake({Balance.get_unit(1)})",
             footer_style="overline white",
-            style="green",
-            justify="right",
+            style="rgb(42,161,152)",
+            justify="center",
         )
         table.add_column(
             f"[white]Rate({Balance.unit}/{Balance.get_unit(1)})",
@@ -1608,7 +1597,7 @@ async def stake_list(wallet: Wallet, subtensor: "SubtensorInterface"):
         table.add_column("[white]Registered", style="red", justify="right")
         table.add_column(
             f"[white]Emission({Balance.get_unit(1)}/block)",
-            style="aquamarine3",
+            style="light_goldenrod2",
             justify="right",
         )
         table.add_column(
