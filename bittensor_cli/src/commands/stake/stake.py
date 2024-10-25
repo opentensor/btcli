@@ -1478,7 +1478,7 @@ async def stake_list(wallet: Wallet, subtensor: "SubtensorInterface"):
         for substake_ in substakes:
             netuid = substake_.netuid
             pool = dynamic_info[netuid]
-            symbol = f"{Balance.get_unit(netuid)}"
+            symbol = f"{Balance.get_unit(netuid)}\u200e"
             # TODO: what is this price var for?
             price = (
                 "{:.4f}{}".format(
