@@ -432,14 +432,14 @@ class SubtensorInterface:
         :return: {address: Balance objects}
         """
         netuids = await self.get_all_subnet_netuids(block_hash=block_hash)
-        results = await self.substrate.query_multiple(
+        results: dict[tuple[str, int], int] = await self.substrate.query_multiple(
             params=[p for p in zip(ss58_addresses, netuids)],
             module="SubtensorModule",
             storage_function="TotalHotkeyAlpha",
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
-        return {k: Balance.from_rao(r or 0) for (k, r) in results.items()}
+        return {k[0]: Balance.from_rao(r or 0) for (k, r) in results.items()}
 
     async def current_take(
         self,
