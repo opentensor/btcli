@@ -1492,7 +1492,6 @@ async def stake_list(wallet: Wallet, subtensor: "SubtensorInterface"):
                 else (f" 1.0000 τ/{symbol} ")
             )
             alpha_value = Balance.from_rao(int(substake_.stake.rao)).set_unit(netuid)
-            locked_value = Balance.from_rao(int(substake_.locked.rao)).set_unit(netuid)
             tao_value = pool.alpha_to_tao(alpha_value)
             total_tao_value += tao_value
             swapped_tao_value, slippage = pool.alpha_to_tao_with_slippage(
@@ -1544,7 +1543,7 @@ async def stake_list(wallet: Wallet, subtensor: "SubtensorInterface"):
                         str(Balance.from_tao(per_block_emission).set_unit(netuid))
                         if substake_.is_registered
                         else "[dark_red]N/A[/dark_red]",  # emission per block.
-                        f"[light_slate_blue]{locked_value}[/light_slate_blue]",  # Locked value
+                        # f"[light_slate_blue]{locked_value}[/light_slate_blue]",  # Locked value
                     ]
                 )
         # table = Table(show_footer=True, pad_edge=False, box=None, expand=False, title=f"{name}")
@@ -1604,12 +1603,6 @@ async def stake_list(wallet: Wallet, subtensor: "SubtensorInterface"):
         table.add_column(
             f"[white]Emission({Balance.get_unit(1)}/block)",
             style="light_goldenrod2",
-            justify="right",
-        )
-        table.add_column(
-            f"[white]Locked({Balance.get_unit(1)})",
-            footer_style="overline white",
-            style="green",
             justify="right",
         )
         for row in rows:
