@@ -38,6 +38,7 @@ from bittensor_cli.src.bittensor.utils import (
     decode_hex_identity_dict,
     validate_chain_endpoint,
     u16_normalized_float,
+    u64_normalized_float,
 )
 
 
@@ -1298,3 +1299,12 @@ class SubtensorInterface:
         )
         subnets = DynamicInfo.list_from_vec_u8(bytes.fromhex(query.decode()[2:]))
         return subnets
+
+    async def get_global_weight(self, netuid: int, block_hash: Optional[str] = None):
+        global_weight = await self.substrate.query(
+            module="SubtensorModule",
+            storage_function="GlobalWeight",
+            params=[netuid],
+            block_hash=block_hash,
+        )
+        return u64_normalized_float(global_weight)

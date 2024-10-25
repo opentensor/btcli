@@ -2792,6 +2792,15 @@ class CLIManager:
         ),
         prompt: bool = Options.prompt,
     ):
+        """
+        Move Staked TAO to a hotkey from one subnet to another.
+
+        THe move commands converts the origin subnet's dTao to Tao, and then converts Tao to destination subnet's dTao.
+
+        EXAMPLE
+
+        [green]$[/green] btcli stake move
+        """
         # TODO: Improve logic of moving stake (dest hotkey)
         ask_for = (
             [WO.NAME, WO.PATH] if destination_hotkey else [WO.NAME, WO.HOTKEY, WO.PATH]
