@@ -1125,7 +1125,11 @@ The columns are as follows:
                 )
 
     # Perform staking operation.
-    wallet.unlock_coldkey()
+    try:
+        wallet.unlock_coldkey()
+    except KeyFileError:
+        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+        return False
     extrinsics_coroutines = [
         send_extrinsic(ni, am, curr, staking_address)
         for i, (ni, am, curr) in enumerate(
@@ -1386,7 +1390,11 @@ The columns are as follows:
     )
 
     # Perform staking operation.
-    wallet.unlock_coldkey()
+    try:
+        wallet.unlock_coldkey()
+    except KeyFileError:
+        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+        return False
     with console.status(
         f"\n:satellite: Unstaking {amount_to_unstake_as_balance} from {staking_address_name} on netuid: {netuid} ..."
     ):
@@ -1812,7 +1820,11 @@ async def move_stake(
             return True
 
     # Perform staking operation.
-    wallet.unlock_coldkey()
+    try:
+        wallet.unlock_coldkey()
+    except KeyFileError:
+        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+        return False
     with console.status(
         f"\n:satellite: Moving {amount_to_move_as_balance} from {origin_hotkey_ss58} on netuid: {origin_netuid} to "
         f"{destination_hotkey} on netuid: {destination_netuid} ..."
