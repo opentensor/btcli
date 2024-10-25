@@ -1020,7 +1020,7 @@ async def stake_add(
                     # f"{staking_address_ss58[:3]}...{staking_address_ss58[-3:]}",
                     f"{hotkey[1]}",
                     str(amount_to_stake_as_balance),
-                    str(1 / float(dynamic_info.price) or 1)
+                    str(1 / (float(dynamic_info.price) or 1))
                     + f" {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ",
                     str(received_amount.set_unit(netuid)),
                     str(slippage_pct),
@@ -1496,9 +1496,7 @@ async def stake_list(wallet: Wallet, subtensor: "SubtensorInterface"):
                     if slippage + swapped_tao_value != 0
                     else 0
                 )
-                slippage_percentage = (
-                    f"[salmon1]{slippage_percentage_:.3f}%[/salmon1]"
-                )
+                slippage_percentage = f"[salmon1]{slippage_percentage_:.3f}%[/salmon1]"
             else:
                 slippage_percentage = "0.000%"
             tao_locked = pool.tao_in
