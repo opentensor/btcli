@@ -303,7 +303,7 @@ async def get_children(
         result = await subtensor.get_total_stake_for_hotkey(hotkey, reuse_block=True)
         result = result if result is not None else Balance(0)
         
-        _result = result[0]
+        _result = result[hotkey]
         stake = (
             _result
         )
