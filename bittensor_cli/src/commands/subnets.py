@@ -264,16 +264,22 @@ The columns are as follows:
 async def show(subtensor: "SubtensorInterface", netuid: int, prompt: bool = True):
     async def show_root():
         all_subnets = await subtensor.get_all_subnet_dynamic_info()
-        root_state: "SubnetState" = SubnetState.from_vec_u8(
-            (
-                await subtensor.substrate.rpc_request(
-                    method="subnetInfo_getSubnetState", params=[0, None]
-                )
-            )["result"]
+
+        hex_bytes_result = await subtensor.query_runtime_api(
+            runtime_api="SubnetInfoRuntimeApi",
+            method="get_subnet_state",
+            params=[0],
         )
-        if root_state is None:
+        if (bytes_result := hex_bytes_result) is None:
             err_console.print("The root subnet does not exist")
             return
+        
+        if bytes_result.startswith("0x"):
+            bytes_result = bytes.fromhex(bytes_result[2:])
+
+        root_state: "SubnetState" = SubnetState.from_vec_u8(
+           bytes_result
+        )
         if len(root_state.hotkeys) == 0:
             err_console.print(
                 "The root-subnet is currently empty with 0 UIDs registered."
@@ -359,12 +365,20 @@ Description:
 
     async def show_subnet(netuid_: int):
         subnet_info = await subtensor.get_subnet_dynamic_info(netuid_)
+        hex_bytes_result = await subtensor.query_runtime_api(
+            runtime_api="SubnetInfoRuntimeApi",
+            method="get_subnet_state",
+            params=[netuid_],
+        )
+        if (bytes_result := hex_bytes_result) is None:
+            err_console.print(f"Subnet {netuid_} does not exist")
+            return
+        
+        if bytes_result.startswith("0x"):
+            bytes_result = bytes.fromhex(bytes_result[2:])
+        
         subnet_state: "SubnetState" = SubnetState.from_vec_u8(
-            (
-                await subtensor.substrate.rpc_request(
-                    method="subnetInfo_getSubnetState", params=[netuid_, None]
-                )
-            )["result"]
+            bytes_result
         )
         if subnet_info is None:
             err_console.print(f"Subnet {netuid_} does not exist")
@@ -692,12 +706,21 @@ async def metagraph_cmd(
                 ),
                 subtensor.substrate.get_block_number(block_hash=block_hash),
             )
+
+            hex_bytes_result = await subtensor.query_runtime_api(
+                runtime_api="SubnetInfoRuntimeApi",
+                method="get_subnet_state",
+                params=[netuid],
+            )
+            if not (bytes_result := hex_bytes_result):
+                err_console.print(f"Subnet {netuid} does not exist")
+                return
+            
+            if bytes_result.startswith("0x"):
+                bytes_result = bytes.fromhex(bytes_result[2:])
+
             subnet_state: "SubnetState" = SubnetState.from_vec_u8(
-                (
-                    await subtensor.substrate.rpc_request(
-                        method="subnetInfo_getSubnetState", params=[netuid, None]
-                    )
-                )["result"]
+                bytes_result
             )
 
         difficulty = int(difficulty_)

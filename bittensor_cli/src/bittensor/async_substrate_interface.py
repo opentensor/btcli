@@ -4,7 +4,7 @@ import random
 from collections import defaultdict
 from dataclasses import dataclass
 from hashlib import blake2b
-from typing import Optional, Any, Union, Callable, Awaitable, cast
+from typing import Optional, Any, Union, Callable, Awaitable, cast, Iterable
 
 from bt_decode import PortableRegistry, decode as decode_by_type_string, MetadataV15
 from async_property import async_property
@@ -1792,7 +1792,7 @@ class AsyncSubstrateInterface:
         runtime = await self.init_runtime(block_hash=block_hash)
         preprocessed: tuple[Preprocessed] = await asyncio.gather(
             *[
-                self._preprocess([x], block_hash, storage_function, module)
+                self._preprocess([x] if not isinstance(x, Iterable) else list(x), block_hash, storage_function, module)
                 for x in params
             ]
         )
