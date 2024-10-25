@@ -300,16 +300,12 @@ async def get_children(
         Returns:
         - Balance: The total stake associated with the specified hotkey.
         """
-        _result = await subtensor.substrate.query(
-            module="SubtensorModule",
-            storage_function="TotalHotkeyStake",
-            params=[hotkey],
-            reuse_block_hash=True,
-        )
+        result = await subtensor.get_total_stake_for_hotkey(hotkey, reuse_block=True)
+        result = result if result is not None else Balance(0)
+        
+        _result = result[0]
         stake = (
-            Balance.from_rao(_result.value)
-            if getattr(_result, "value", None)
-            else Balance(0)
+            _result
         )
         if parent:
             console.print(
