@@ -1300,11 +1300,15 @@ class SubtensorInterface:
         subnets = DynamicInfo.list_from_vec_u8(bytes.fromhex(query.decode()[2:]))
         return subnets
 
-    async def get_global_weight(self, netuid: int, block_hash: Optional[str] = None):
-        global_weight = await self.substrate.query(
+    async def get_global_weights(
+        self, netuids: list[int], block_hash: Optional[str] = None
+    ):
+        result = await self.substrate.query_multiple(
             module="SubtensorModule",
             storage_function="GlobalWeight",
-            params=[netuid],
+            params=[netuid for netuid in netuids],
             block_hash=block_hash,
         )
-        return u64_normalized_float(global_weight)
+        return {
+            netuid: u64_normalized_float(weight) for (netuid, weight) in result.items()
+        }

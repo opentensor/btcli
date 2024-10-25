@@ -158,25 +158,16 @@ async def subnets_list(
 ):
     """List all subnet netuids in the network."""
     # TODO add reuse-last and html-output and no-cache
-    async def fetch_global_weight(netuid):
-        try:
-            return netuid, await subtensor.get_global_weight(netuid)
-        except Exception as e:
-            print(f"Error fetching global weight for netuid {netuid}: {e}")
-            return netuid, None
-
     rows = []
 
     subnets = await subtensor.get_all_subnet_dynamic_info()
-    netuids = [subnet.netuid for subnet in subnets]
-    
-    global_weight_tasks = [fetch_global_weight(netuid) for netuid in netuids]
-    global_weights = await asyncio.gather(*global_weight_tasks)
+    global_weights = await subtensor.get_global_weights(
+        [subnet.netuid for subnet in subnets]
+    )
 
-    global_weight_dict = {netuid: weight for netuid, weight in global_weights}
     for subnet in subnets:
         netuid = subnet.netuid
-        global_weight = global_weight_dict.get(netuid)
+        global_weight = global_weights.get(netuid)
         symbol = f"{subnet.symbol}\u200e"
 
         if netuid == 0:
@@ -196,7 +187,9 @@ async def subnets_list(
                 f"{global_weight:.4f}" if global_weight is not None else "N/A",
             )
         )
-    total_emissions = sum(float(subnet.emission.tao) for subnet in subnets if subnet.netuid != 0)
+    total_emissions = sum(
+        float(subnet.emission.tao) for subnet in subnets if subnet.netuid != 0
+    )
 
     table = Table(
         title=f"[underline dark_orange]Subnets[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}[/dark_orange]\n",
@@ -212,11 +205,33 @@ async def subnets_list(
 
     table.add_column("[bold white]NETUID", style="white", justify="center")
     table.add_column("[bold white]SYMBOL", style="bright_cyan", justify="right")
-    table.add_column(f"[bold white]EMISSION ({Balance.get_unit(0)})", style="light_goldenrod2", justify="right", footer=f"τ {total_emissions:.4f}")
-    table.add_column(f"[bold white]TAO ({Balance.get_unit(0)})", style="rgb(42,161,152)", justify="right")
-    table.add_column(f"[bold white]STAKE ({Balance.get_unit(1)})", style="light_salmon3", justify="right")
-    table.add_column(f"[bold white]RATE ({Balance.get_unit(1)}/{Balance.get_unit(0)})", style="medium_purple", justify="right")
-    table.add_column("[bold white]Tempo (k/n)", style="bright_magenta", justify="right", overflow="fold")
+    table.add_column(
+        f"[bold white]EMISSION ({Balance.get_unit(0)})",
+        style="light_goldenrod2",
+        justify="right",
+        footer=f"τ {total_emissions:.4f}",
+    )
+    table.add_column(
+        f"[bold white]TAO ({Balance.get_unit(0)})",
+        style="rgb(42,161,152)",
+        justify="right",
+    )
+    table.add_column(
+        f"[bold white]STAKE ({Balance.get_unit(1)})",
+        style="light_salmon3",
+        justify="right",
+    )
+    table.add_column(
+        f"[bold white]RATE ({Balance.get_unit(1)}/{Balance.get_unit(0)})",
+        style="medium_purple",
+        justify="right",
+    )
+    table.add_column(
+        "[bold white]Tempo (k/n)",
+        style="bright_magenta",
+        justify="right",
+        overflow="fold",
+    )
     table.add_column("[bold white]Global weight (γ)", style="green", justify="right")
 
     # Sort rows by subnet.emission.tao, keeping the first subnet in the first position
