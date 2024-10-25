@@ -1020,7 +1020,7 @@ async def stake_add(
                     # f"{staking_address_ss58[:3]}...{staking_address_ss58[-3:]}",
                     f"{hotkey[1]}",
                     str(amount_to_stake_as_balance),
-                    str(1 / float(dynamic_info.price))
+                    str(1 / float(dynamic_info.price) or 1)
                     + f" {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ",
                     str(received_amount.set_unit(netuid)),
                     str(slippage_pct),
