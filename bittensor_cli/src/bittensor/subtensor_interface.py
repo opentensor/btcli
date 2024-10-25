@@ -24,6 +24,8 @@ from bittensor_cli.src.bittensor.chain_data import (
     NeuronInfo,
     SubnetHyperparameters,
     decode_account_id,
+    DelegateInfoLite,
+    DynamicInfo,
 )
 from bittensor_cli.src import DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance
@@ -35,6 +37,8 @@ from bittensor_cli.src.bittensor.utils import (
     err_console,
     decode_hex_identity_dict,
     validate_chain_endpoint,
+    u16_normalized_float,
+    u64_normalized_float,
 )
 
 
@@ -379,21 +383,38 @@ class SubtensorInterface:
 
         :return: {address: Balance objects}
         """
-        calls = [
-            (
-                await self.substrate.create_storage_key(
-                    "SubtensorModule",
-                    "TotalColdkeyStake",
-                    [address],
-                    block_hash=block_hash,
-                )
-            )
-            for address in ss58_addresses
-        ]
-        batch_call = await self.substrate.query_multi(calls, block_hash=block_hash)
+        sub_stakes = await self.get_stake_info_for_coldkeys(
+            ss58_addresses, block_hash=block_hash
+        )
+        # Token pricing info
+        dynamic_info = await self.get_all_subnet_dynamic_info()
+
         results = {}
-        for item in batch_call:
-            results.update({item[0].params[0]: Balance.from_rao(item[1] or 0)})
+        for ss58, stake_info_list in sub_stakes.items():
+            all_staked_tao = 0
+            for sub_stake in stake_info_list:
+                if sub_stake.stake.rao == 0:
+                    continue
+                netuid = sub_stake.netuid
+                pool = dynamic_info[netuid]
+
+                alpha_value = Balance.from_rao(int(sub_stake.stake.rao)).set_unit(
+                    netuid
+                )
+
+                tao_locked = pool.tao_in
+
+                issuance = pool.alpha_out if pool.is_dynamic else tao_locked
+                tao_ownership = 0
+
+                if alpha_value.tao > 0.00009 and issuance.tao != 0:
+                    tao_ownership = Balance.from_tao(
+                        (alpha_value.tao / issuance.tao) * tao_locked.tao
+                    )
+
+                all_staked_tao += tao_ownership.rao
+
+            results[ss58] = Balance.from_rao(all_staked_tao)
         return results
 
     async def get_total_stake_for_hotkey(
@@ -419,6 +440,35 @@ class SubtensorInterface:
             reuse_block_hash=reuse_block,
         )
         return {k: Balance.from_rao(r or 0) for (k, r) in results.items()}
+
+    async def current_take(
+        self,
+        hotkey_ss58: int,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> bool:
+        """
+        Retrieves the delegate 'take' percentage for a neuron identified by its hotkey. The 'take'
+        represents the percentage of rewards that the delegate claims from its nominators' stakes.
+
+        Args:
+            hotkey_ss58 (str): The ``SS58`` address of the neuron's hotkey.
+            block (Optional[int], optional): The blockchain block number for the query.
+
+        Returns:
+            Optional[float]: The delegate take percentage, None if not available.
+
+        The delegate take is a critical parameter in the network's incentive structure, influencing
+        the distribution of rewards among neurons and their nominators.
+        """
+        result = await self.substrate.query(
+            module="SubtensorModule",
+            storage_function="Delegates",
+            params=[hotkey_ss58],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+        return u16_normalized_float(result)
 
     async def get_netuids_for_hotkey(
         self,
@@ -1087,3 +1137,178 @@ class SubtensorInterface:
                     )
 
         return all_delegates_details
+
+    async def get_delegates_by_netuid_light(
+        self, netuid: int, block_hash: Optional[str] = None
+    ) -> list[DelegateInfoLite]:
+        """
+        Retrieves a list of all delegate neurons within the Bittensor network. This function provides an overview of the neurons that are actively involved in the network's delegation system.
+
+        Analyzing the delegate population offers insights into the network's governance dynamics and the distribution of trust and responsibility among participating neurons.
+
+        Args:
+            netuid: the netuid to query
+            block_hash: The hash of the blockchain block number for the query.
+
+        Returns:
+            A list of DelegateInfo objects detailing each delegate's characteristics.
+
+        """
+
+        params = [netuid] if not block_hash else [netuid, block_hash]
+        json_body = await self.substrate.rpc_request(
+            method="delegateInfo_getDelegatesLight",  # custom rpc method
+            params=params,
+        )
+
+        result = json_body["result"]
+
+        if result in (None, []):
+            return []
+
+        return DelegateInfoLite.list_from_vec_u8(result)  # TODO this won't work yet
+
+    async def get_subnet_dynamic_info(
+        self, netuid: int, block_hash: Optional[str] = None
+    ) -> "DynamicInfo":
+        json = await self.substrate.rpc_request(
+            method="subnetInfo_getDynamicInfo", params=[netuid, block_hash]
+        )
+        subnets = DynamicInfo.from_vec_u8(json["result"])
+        return subnets
+
+    async def get_stake_for_coldkey_and_hotkey_on_netuid(
+        self,
+        hotkey_ss58: str,
+        coldkey_ss58: str,
+        netuid: int,
+        block_hash: Optional[str] = None,
+    ) -> "Balance":
+        """Returns the stake under a coldkey - hotkey - netuid pairing"""
+        _result = await self.substrate.query(
+            "SubtensorModule", "Alpha", [hotkey_ss58, coldkey_ss58, netuid], block_hash
+        )
+        if _result is None:
+            return Balance(0).set_unit(netuid)
+        else:
+            return Balance.from_rao(_result).set_unit(int(netuid))
+
+    async def multi_get_stake_for_coldkey_and_hotkey_on_netuid(
+        self,
+        hotkey_ss58s: list[str],
+        coldkey_ss58: str,
+        netuids: list[int],
+        block_hash: Optional[str] = None,
+    ) -> dict[str, dict[int, "Balance"]]:
+        """
+        Queries the stake for multiple hotkey - coldkey - netuid pairings.
+
+        Args:
+            hotkey_ss58s: list of hotkey ss58 addresses
+            coldkey_ss58: a single coldkey ss58 address
+            netuids: list of netuids
+            block_hash: hash of the blockchain block, if any
+
+        Returns:
+            {
+                hotkey_ss58_1: {
+                    netuid_1: netuid1_stake,
+                    netuid_2: netuid2_stake,
+                    ...
+                },
+                hotkey_ss58_2: {
+                    netuid_1: netuid1_stake,
+                    netuid_2: netuid2_stake,
+                    ...
+                },
+                ...
+            }
+
+        """
+        calls = [
+            (
+                await self.substrate.create_storage_key(
+                    "SubtensorModule",
+                    "Alpha",
+                    [hk_ss58, coldkey_ss58, netuid],
+                    block_hash=block_hash,
+                )
+            )
+            for hk_ss58 in hotkey_ss58s
+            for netuid in netuids
+        ]
+        batch_call = await self.substrate.query_multi(calls, block_hash=block_hash)
+        results: dict[str, dict[int, "Balance"]] = {
+            hk_ss58: {} for hk_ss58 in hotkey_ss58s
+        }
+        for idx, (_, val) in enumerate(batch_call):
+            hotkey_idx = idx // len(netuids)
+            netuid_idx = idx % len(netuids)
+            hotkey_ss58 = hotkey_ss58s[hotkey_idx]
+            netuid = netuids[netuid_idx]
+            value = (
+                Balance.from_rao(val).set_unit(netuid)
+                if val is not None
+                else Balance(0).set_unit(netuid)
+            )
+            results[hotkey_ss58][netuid] = value
+        return results
+
+    async def get_stake_info_for_coldkeys(
+        self, coldkey_ss58_list: list[str], block_hash: Optional[str] = None
+    ) -> Optional[dict[str, list[StakeInfo]]]:
+        """
+        Retrieves stake information for a list of coldkeys. This function aggregates stake data for multiple
+        accounts, providing a collective view of their stakes and delegations.
+
+        Args:
+            coldkey_ss58_list: A list of SS58 addresses of the accounts' coldkeys.
+            block_hash: The blockchain block number for the query.
+
+        Returns:
+            A dictionary mapping each coldkey to a list of its StakeInfo objects.
+
+        This function is useful for analyzing the stake distribution and delegation patterns of multiple
+        accounts simultaneously, offering a broader perspective on network participation and investment strategies.
+        """
+        encoded_coldkeys = [
+            ss58_to_vec_u8(coldkey_ss58) for coldkey_ss58 in coldkey_ss58_list
+        ]
+
+        hex_bytes_result = await self.query_runtime_api(
+            runtime_api="StakeInfoRuntimeApi",
+            method="get_stake_info_for_coldkeys",
+            params=[encoded_coldkeys],
+            block_hash=block_hash,
+        )
+
+        if hex_bytes_result is None:
+            return None
+
+        if hex_bytes_result.startswith("0x"):
+            bytes_result = bytes.fromhex(hex_bytes_result[2:])
+        else:
+            bytes_result = bytes.fromhex(hex_bytes_result)
+
+        return StakeInfo.list_of_tuple_from_vec_u8(bytes_result)  # type: ignore
+
+    async def get_all_subnet_dynamic_info(self) -> list["DynamicInfo"]:
+        query = await self.substrate.runtime_call(
+            "SubnetInfoRuntimeApi",
+            "get_all_dynamic_info",
+        )
+        subnets = DynamicInfo.list_from_vec_u8(bytes.fromhex(query.decode()[2:]))
+        return subnets
+
+    async def get_global_weights(
+        self, netuids: list[int], block_hash: Optional[str] = None
+    ):
+        result = await self.substrate.query_multiple(
+            module="SubtensorModule",
+            storage_function="GlobalWeight",
+            params=[netuid for netuid in netuids],
+            block_hash=block_hash,
+        )
+        return {
+            netuid: u64_normalized_float(weight) for (netuid, weight) in result.items()
+        }
