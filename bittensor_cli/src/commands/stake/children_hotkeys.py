@@ -288,7 +288,7 @@ async def get_children(
     - If netuid is not specified, generates and prints a summary table of all child hotkeys across all subnets.
     """
 
-    async def get_take(child: tuple) -> float:
+    async def get_take(child: tuple, netuid__: int) -> float:
         """
         Get the take value for a given subtensor, hotkey, and netuid.
 
@@ -299,7 +299,7 @@ async def get_children(
         """
         child_hotkey = child[1]
         take_u16 = await get_childkey_take(
-            subtensor=subtensor, hotkey=child_hotkey, netuid=netuid
+            subtensor=subtensor, hotkey=child_hotkey, netuid=netuid__
         )
         if take_u16:
             return u16_to_float(take_u16)
@@ -353,7 +353,6 @@ async def get_children(
             netuids=[n[0] for n in netuid_children_],
         )
         parent_total = sum(hotkey_stake_dict[parent_hotkey].values())
-        print("NETUID", netuid)
         insert_text = (
             " "
             if netuid is None
@@ -372,7 +371,9 @@ async def get_children(
             hotkey_stake: dict[int, Balance] = hotkey_stake_dict[parent_hotkey]
 
             children_info = []
-            child_takes = await asyncio.gather(*[get_take(c) for c in children_])
+            child_takes = await asyncio.gather(
+                *[get_take(c, netuid_) for c in children_]
+            )
             for child, child_take in zip(children_, child_takes):
                 proportion = child[0]
                 child_hotkey = child[1]
@@ -395,9 +396,11 @@ async def get_children(
                 key=lambda x: x[0], reverse=True
             )  # sorting by proportion (highest first)
 
-            for proportion, hotkey, stake, child_take in children_info:
-                proportion_percent = proportion * 100  # Proportion in percent
-                proportion_tao = hotkey_stake.tao * proportion  # Proportion in TAO
+            for proportion_, hotkey, stake, child_take in children_info:
+                proportion_percent = proportion_ * 100  # Proportion in percent
+                proportion_tao = (
+                    hotkey_stake[netuid_].tao * proportion_
+                )  # Proportion in TAO
 
                 total_proportion_per_netuid += proportion_percent
 
@@ -407,7 +410,7 @@ async def get_children(
                 total_stake_weight_per_netuid += stake_weight
                 take_str = f"{child_take * 100:.3f}%"
 
-                hotkey = Text(hotkey, style="italic red" if proportion == 0 else "")
+                hotkey = Text(hotkey, style="italic red" if proportion_ == 0 else "")
                 table.add_row(
                     str(netuid_),
                     hotkey,
