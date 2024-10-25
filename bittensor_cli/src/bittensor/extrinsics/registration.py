@@ -493,7 +493,6 @@ async def register_extrinsic(
         )
         if uid is None:
             return NeuronInfo.get_null_neuron()
-        
 
         hex_bytes_result = await subtensor.substrate.query_runtime_api(
             runtime_api="NeuronInfoRuntimeApi",
@@ -503,7 +502,7 @@ async def register_extrinsic(
 
         if not (result := hex_bytes_result):
             return NeuronInfo.get_null_neuron()
-        
+
         if result.startswith("0x"):
             bytes_result = bytes.fromhex(result[2:])
         else:

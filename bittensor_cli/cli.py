@@ -2,6 +2,7 @@
 import asyncio
 import binascii
 import curses
+from contextlib import suppress
 from functools import partial
 import os.path
 import re
@@ -832,7 +833,6 @@ class CLIManager:
                 raise typer.Exit()
             except SubstrateRequestException as e:
                 err_console.print(str(e))
-                asyncio.create_task(cmd).cancel()
                 raise typer.Exit()
 
         if sys.version_info < (3, 10):

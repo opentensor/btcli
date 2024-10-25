@@ -420,27 +420,52 @@ class SubtensorInterface:
     async def get_total_stake_for_hotkey(
         self,
         *ss58_addresses,
+        netuids: Optional[list[int]] = None,
         block_hash: Optional[str] = None,
         reuse_block: bool = False,
-    ) -> dict[str, Balance]:
+    ) -> dict[str, dict[int, "Balance"]]:
         """
         Returns the total stake held on a hotkey.
 
         :param ss58_addresses: The SS58 address(es) of the hotkey(s)
+        :param netuids: The netuids to retrieve the stake from. If not specified, will use all subnets.
         :param block_hash: The hash of the block number to retrieve the stake from.
         :param reuse_block: Whether to reuse the last-used block hash when retrieving info.
 
-        :return: {address: Balance objects}
+        :return:
+            {
+                hotkey_ss58_1: {
+                    netuid_1: netuid1_stake,
+                    netuid_2: netuid2_stake,
+                    ...
+                },
+                hotkey_ss58_2: {
+                    netuid_1: netuid1_stake,
+                    netuid_2: netuid2_stake,
+                    ...
+                },
+                ...
+            }
         """
-        netuids = await self.get_all_subnet_netuids(block_hash=block_hash)
-        results: dict[tuple[str, int], int] = await self.substrate.query_multiple(
-            params=[p for p in zip(ss58_addresses, netuids)],
+        netuids = netuids or await self.get_all_subnet_netuids(block_hash=block_hash)
+        query: dict[tuple[str, int], int] = await self.substrate.query_multiple(
+            params=[(ss58, netuid) for ss58 in ss58_addresses for netuid in netuids],
             module="SubtensorModule",
             storage_function="TotalHotkeyAlpha",
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
-        return {k[0]: Balance.from_rao(r or 0) for (k, r) in results.items()}
+        results: dict[str, dict[int, "Balance"]] = {
+            hk_ss58: {} for hk_ss58 in ss58_addresses
+        }
+        for idx, (_, val) in enumerate(query):
+            hotkey_ss58 = ss58_addresses[idx // len(netuids)]
+            netuid = netuids[idx % len(netuids)]
+            value = (Balance.from_rao(val) if val is not None else Balance(0)).set_unit(
+                netuid
+            )
+            results[hotkey_ss58][netuid] = value
+        return results
 
     async def current_take(
         self,
@@ -732,14 +757,13 @@ class SubtensorInterface:
         """
         if uid is None:
             return NeuronInfo.get_null_neuron()
-        
+
         hex_bytes_result = await self.query_runtime_api(
             runtime_api="NeuronInfoRuntimeApi",
             method="get_neuron",
             params=[netuid, uid],
             block_hash=block_hash,
         )
-
 
         if not (result := hex_bytes_result):
             return NeuronInfo.get_null_neuron()
@@ -1194,7 +1218,7 @@ class SubtensorInterface:
         )
 
         if hex_bytes_result is None:
-            return None 
+            return None
 
         if hex_bytes_result.startswith("0x"):
             bytes_result = bytes.fromhex(hex_bytes_result[2:])

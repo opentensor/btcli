@@ -3,7 +3,7 @@ import json
 import random
 from collections import defaultdict
 from dataclasses import dataclass
-from hashlib import blake2b
+from hashlib import blake2b, sha256
 from typing import Optional, Any, Union, Callable, Awaitable, cast, Iterable
 
 from bt_decode import PortableRegistry, decode as decode_by_type_string, MetadataV15
@@ -1603,7 +1603,6 @@ class AsyncSubstrateInterface:
         result_handler: Optional[ResultHandler] = None,
     ) -> RequestManager.RequestResults:
         request_manager = RequestManager(payloads)
-
         subscription_added = False
 
         async with self.ws as ws:
@@ -1786,13 +1785,23 @@ class AsyncSubstrateInterface:
         # By allowing for specifying the block hash, users, if they have multiple query types they want
         # to do, can simply query the block hash first, and then pass multiple query_subtensor calls
         # into an asyncio.gather, with the specified block hash
+        if len(params) != len(set(params)):
+            raise SubstrateRequestException(
+                "You are attempting to query multiple values, but you have duplicates."
+            )
+
         block_hash = await self._get_current_block_hash(block_hash, reuse_block_hash)
         if block_hash:
             self.last_block_hash = block_hash
         runtime = await self.init_runtime(block_hash=block_hash)
         preprocessed: tuple[Preprocessed] = await asyncio.gather(
             *[
-                self._preprocess([x] if not isinstance(x, Iterable) else list(x), block_hash, storage_function, module)
+                self._preprocess(
+                    [x] if not isinstance(x, Iterable) else list(x),
+                    block_hash,
+                    storage_function,
+                    module,
+                )
                 for x in params
             ]
         )
@@ -1800,10 +1809,10 @@ class AsyncSubstrateInterface:
             self.make_payload(item.queryable, item.method, item.params)
             for item in preprocessed
         ]
+
         # These will always be the same throughout the preprocessed list, so we just grab the first one
         value_scale_type = preprocessed[0].value_scale_type
         storage_item = preprocessed[0].storage_item
-
         responses = await self._make_rpc_request(
             all_info, value_scale_type, storage_item, runtime
         )
