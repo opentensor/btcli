@@ -405,7 +405,7 @@ class SubtensorInterface:
                 tao_locked = pool.tao_in
 
                 issuance = pool.alpha_out if pool.is_dynamic else tao_locked
-                tao_ownership = 0
+                tao_ownership = Balance(0)
 
                 if alpha_value.tao > 0.00009 and issuance.tao != 0:
                     tao_ownership = Balance.from_tao(
