@@ -1139,25 +1139,6 @@ async def _fetch_all_neurons(
     )
 
 
-def _partial_decode(args):
-    """
-    Helper function for passing to ProcessPoolExecutor that decodes scale bytes based on a set return type and
-    rpc type registry, passing this back to the Executor with its specified netuid for easier mapping
-
-    :param args: (return type, scale bytes object, custom rpc type registry, netuid)
-
-    :return: (original netuid, decoded object)
-    """
-    return_type, as_scale_bytes, custom_rpc_type_registry_, netuid_ = args
-    decoded = decode_scale_bytes(return_type, as_scale_bytes, custom_rpc_type_registry_)
-    if decoded.startswith("0x"):
-        bytes_result = bytes.fromhex(decoded[2:])
-    else:
-        bytes_result = bytes.fromhex(decoded)
-
-    return netuid_, NeuronInfoLite.list_from_vec_u8(bytes_result)
-
-
 def _process_neurons_for_netuids(
     netuids_with_all_neurons_hex_bytes: list[tuple[int, list[ScaleBytes]]],
 ) -> list[tuple[int, list[NeuronInfoLite]]]:
@@ -1167,22 +1148,10 @@ def _process_neurons_for_netuids(
     :param netuids_with_all_neurons_hex_bytes: netuids with hex-bytes neurons
     :return: netuids mapped to decoded neurons
     """
-
-    def make_map(res_):
-        netuid_, json_result = res_
-        hex_bytes_result = json_result["result"]
-        as_scale_bytes = scalecodec.ScaleBytes(hex_bytes_result)
-        return [return_type, as_scale_bytes, custom_rpc_type_registry, netuid_]
-
-    return_type = TYPE_REGISTRY["runtime_api"]["NeuronInfoRuntimeApi"]["methods"][
-        "get_neurons_lite"
-    ]["type"]
-
-    preprocessed = [make_map(r) for r in netuids_with_all_neurons_hex_bytes]
-    with ProcessPoolExecutor() as executor:
-        results = list(executor.map(_partial_decode, preprocessed))
-
-    all_results = [(netuid, result) for netuid, result in results]
+    all_results = [
+        (netuid, NeuronInfoLite.list_from_vec_u8(bytes.fromhex(result[2:])))
+        for netuid, result in netuids_with_all_neurons_hex_bytes
+    ]
     return all_results
 
 
@@ -1190,6 +1159,7 @@ async def _get_neurons_for_netuids(
     subtensor: SubtensorInterface, netuids: list[int], hot_wallets: list[str]
 ) -> list[tuple[int, list["NeuronInfoLite"], Optional[str]]]:
     all_neurons_hex_bytes = await _fetch_all_neurons(netuids, subtensor)
+    print(all_neurons_hex_bytes)
 
     all_processed_neurons = _process_neurons_for_netuids(all_neurons_hex_bytes)
     return [
