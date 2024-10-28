@@ -2784,10 +2784,10 @@ class CLIManager:
             None, help="Destination hotkey", prompt=False
         ),
         amount: float = typer.Option(
-            0.0,
+            None,
             "--amount",
             help="The amount of TAO to stake",
-            prompt=True,
+            prompt=False,
         ),
         stake_all: bool = typer.Option(
             False, "--stake-all", "--all", help="Stake all", prompt=False

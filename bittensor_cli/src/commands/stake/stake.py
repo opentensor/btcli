@@ -2,6 +2,7 @@ import asyncio
 from functools import partial
 
 from typing import TYPE_CHECKING, Optional, Sequence, Union, cast
+import typer
 
 from bittensor_wallet import Wallet
 from bittensor_wallet.errors import KeyFileError
@@ -1734,6 +1735,19 @@ async def move_stake(
         )
     ).set_unit(destination_netuid)
 
+    if origin_stake_balance == Balance.from_tao(0).set_unit(origin_netuid):
+        print_error(
+            f"Your balance is [dark_orange]0[/dark_orange] in Netuid: [dark_orange]{origin_netuid}[/dark_orange]"
+        )
+        raise typer.Exit()
+
+    console.print(
+        f"\nOrigin netuid: [dark_orange]{origin_netuid}[/dark_orange], Origin stake: [dark_orange]{origin_stake_balance}"
+    )
+    console.print(
+        f"Destination netuid: [dark_orange]{destination_netuid}[/dark_orange], Destination stake: [dark_orange]{destination_stake_balance}\n"
+    )
+
     # Determine the amount we are moving.
     amount_to_move_as_balance = None
     if amount:
@@ -1742,25 +1756,25 @@ async def move_stake(
         amount_to_move_as_balance = origin_stake_balance
     else:  # max_stake
         # TODO improve this
-        if Confirm.ask(f"Move all: [bold]{origin_stake_balance}[/bold]?"):
+        if Confirm.ask(f"Move all: [dark_orange]{origin_stake_balance}[/dark_orange]?"):
             amount_to_move_as_balance = origin_stake_balance
         else:
             try:
                 amount = float(
                     Prompt.ask(
-                        f"Enter amount to move in {Balance.get_unit(origin_netuid)}"
+                        f"Enter amount to move in [dark_orange]{Balance.get_unit(origin_netuid)}"
                     )
                 )
                 amount_to_move_as_balance = Balance.from_tao(amount)
             except ValueError:
-                err_console.print(f":cross_mark:[red]Invalid amount: {amount}[/red]")
+                print_error(f":cross_mark: Invalid amount: {amount}")
                 return False
 
     # Check enough to move.
     amount_to_move_as_balance.set_unit(origin_netuid)
     if amount_to_move_as_balance > origin_stake_balance:
         err_console.print(
-            f"[red]Not enough stake[/red]:[bold white]\n stake balance:{origin_stake_balance} < moving amount: {amount_to_move_as_balance}[/bold white]"
+            f"[red]Not enough stake[/red]:\n Stake balance:[dark_orange]{origin_stake_balance}[/dark_orange] < Moving amount: [dark_orange]{amount_to_move_as_balance}[/dark_orange]"
         )
         return False
 
