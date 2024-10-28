@@ -1159,7 +1159,6 @@ async def _get_neurons_for_netuids(
     subtensor: SubtensorInterface, netuids: list[int], hot_wallets: list[str]
 ) -> list[tuple[int, list["NeuronInfoLite"], Optional[str]]]:
     all_neurons_hex_bytes = await _fetch_all_neurons(netuids, subtensor)
-    print(all_neurons_hex_bytes)
 
     all_processed_neurons = _process_neurons_for_netuids(all_neurons_hex_bytes)
     return [
