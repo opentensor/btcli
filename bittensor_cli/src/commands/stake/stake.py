@@ -1702,7 +1702,6 @@ The columns of the table are as follows:
     - [bold white]Swap[/bold white]: The amount of TAO received when unstaking all of the hotkey's stake (with slippage).
     - [bold white]Registered[/bold white]: Whether the hotkey is registered on this subnet.
     - [bold white]Emission[/bold white]: If registered, the emission (in stake) attained by this hotkey on this subnet per block.
-    - [bold white]Locked[/bold white]: The total amount of stake locked (not able to be unstaked).
 """
     )
 
@@ -1781,7 +1780,7 @@ async def move_stake(
                 subtensor.get_subnet_dynamic_info(origin_netuid),
                 subtensor.get_subnet_dynamic_info(destination_netuid),
             )
-            price = float(dynamic_origin.price) * 1 / float(dynamic_destination.price)
+            price = float(dynamic_origin.price) * 1 / (float(dynamic_destination.price) or 1)
             received_amount_tao, slippage = dynamic_origin.alpha_to_tao_with_slippage(
                 amount_to_move_as_balance
             )
@@ -1822,26 +1821,37 @@ async def move_stake(
             title_justify="center",
             highlight=False,
         )
-        table.add_column("origin netuid", justify="center", style="rgb(133,153,0)")
-        table.add_column("origin hotkey", justify="center", style="rgb(38,139,210)")
-        table.add_column("dest netuid", justify="center", style="rgb(133,153,0)")
-        table.add_column("dest hotkey", justify="center", style="rgb(38,139,210)")
+        table = Table(
+        title=f"\n[dark_orange]Moving stake from: [light_goldenrod2]{Balance.get_unit(origin_netuid)}(Netuid: {origin_netuid})[/light_goldenrod2] to: [light_goldenrod2]{Balance.get_unit(destination_netuid)}(Netuid: {destination_netuid})[/light_goldenrod2]\nNetwork: {subtensor.network}[/dark_orange]\n",
+        show_footer=True,
+        show_edge=False,
+        header_style="bold white",
+        border_style="bright_black",
+        style="bold",
+        title_justify="center",
+        show_lines=False,
+        pad_edge=True,
+    )
+        table.add_column("origin netuid", justify="center", style="green")
+        table.add_column("origin hotkey", justify="center", style="bright_magenta")
+        table.add_column("dest netuid", justify="center", style="green")
+        table.add_column("dest hotkey", justify="center", style="bright_magenta")
         table.add_column(
             f"amount ({Balance.get_unit(origin_netuid)})",
             justify="center",
-            style="rgb(38,139,210)",
+            style="medium_purple",
         )
         table.add_column(
             f"rate ({Balance.get_unit(destination_netuid)}/{Balance.get_unit(origin_netuid)})",
             justify="center",
-            style="rgb(42,161,152)",
+            style="cyan",
         )
         table.add_column(
             f"received ({Balance.get_unit(destination_netuid)})",
             justify="center",
             style="rgb(220,50,47)",
         )
-        table.add_column("slippage", justify="center", style="rgb(181,137,0)")
+        table.add_column("slippage", justify="center", style="salmon1")
 
         table.add_row(
             f"{Balance.get_unit(origin_netuid)}({origin_netuid})",
@@ -1883,7 +1893,7 @@ async def move_stake(
                 "origin_netuid": origin_netuid,
                 "destination_hotkey": destination_hotkey,
                 "destination_netuid": destination_netuid,
-                "amount_moved": amount_to_move_as_balance.rao,
+                "alpha_amount": amount_to_move_as_balance.rao,
             },
         )
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
