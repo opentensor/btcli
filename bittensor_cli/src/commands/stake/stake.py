@@ -1780,7 +1780,11 @@ async def move_stake(
                 subtensor.get_subnet_dynamic_info(origin_netuid),
                 subtensor.get_subnet_dynamic_info(destination_netuid),
             )
-            price = float(dynamic_origin.price) * 1 / (float(dynamic_destination.price) or 1)
+            price = (
+                float(dynamic_origin.price)
+                * 1
+                / (float(dynamic_destination.price) or 1)
+            )
             received_amount_tao, slippage = dynamic_origin.alpha_to_tao_with_slippage(
                 amount_to_move_as_balance
             )
@@ -1800,38 +1804,16 @@ async def move_stake(
             )
 
         table = Table(
-            title="[white]Move Stake",
-            width=console.width - 5,
-            safe_box=True,
-            padding=(0, 1),
-            collapse_padding=False,
-            pad_edge=True,
-            expand=True,
-            show_header=True,
+            title=f"\n[dark_orange]Moving stake from: [light_goldenrod2]{Balance.get_unit(origin_netuid)}(Netuid: {origin_netuid})[/light_goldenrod2] to: [light_goldenrod2]{Balance.get_unit(destination_netuid)}(Netuid: {destination_netuid})[/light_goldenrod2]\nNetwork: {subtensor.network}[/dark_orange]\n",
             show_footer=True,
             show_edge=False,
-            show_lines=False,
-            leading=0,
-            style="none",
-            row_styles=None,
-            header_style="bold",
-            footer_style="bold",
-            border_style="rgb(7,54,66)",
-            title_style="bold magenta",
+            header_style="bold white",
+            border_style="bright_black",
+            style="bold",
             title_justify="center",
-            highlight=False,
+            show_lines=False,
+            pad_edge=True,
         )
-        table = Table(
-        title=f"\n[dark_orange]Moving stake from: [light_goldenrod2]{Balance.get_unit(origin_netuid)}(Netuid: {origin_netuid})[/light_goldenrod2] to: [light_goldenrod2]{Balance.get_unit(destination_netuid)}(Netuid: {destination_netuid})[/light_goldenrod2]\nNetwork: {subtensor.network}[/dark_orange]\n",
-        show_footer=True,
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        style="bold",
-        title_justify="center",
-        show_lines=False,
-        pad_edge=True,
-    )
         table.add_column("origin netuid", justify="center", style="green")
         table.add_column("origin hotkey", justify="center", style="bright_magenta")
         table.add_column("dest netuid", justify="center", style="green")
