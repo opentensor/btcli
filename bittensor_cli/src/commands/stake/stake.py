@@ -1109,7 +1109,7 @@ The columns are as follows:
                     f"Balance:\n  [blue]{current_wallet_balance}[/blue] :arrow_right: [green]{new_balance}[/green]"
                 )
                 console.print(
-                    f"Subnet: {netuid_i} Stake:\n  [blue]{current}[/blue] :arrow_right: [green]{new_stake}[/green]"
+                    f"Subnet: [dark_orange]{netuid_i}[/dark_orange] Stake:\n  [blue]{current}[/blue] :arrow_right: [green]{new_stake}[/green]"
                 )
 
     # Perform staking operation.
@@ -1495,7 +1495,7 @@ The columns are as follows:
                         f"Balance:\n  [blue]{current_wallet_balance}[/blue] :arrow_right: [green]{new_balance}[/green]"
                     )
                     console.print(
-                        f"Subnet: {netuid_i} Stake:\n  [blue]{current_stake_balance}[/blue] :arrow_right: [green]{new_stake}[/green]"
+                        f"Subnet: [dark_orange]{netuid_i}[/dark_orange] Stake:\n  [blue]{current_stake_balance}[/blue] :arrow_right: [green]{new_stake}[/green]"
                     )
     console.print("[green]Unstaking operations completed.[/green]")
 

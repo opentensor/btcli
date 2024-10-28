@@ -597,30 +597,17 @@ async def register(
     if prompt:
         # TODO make this a reusable function, also used in subnets list
         # Show creation table.
-        console_width = console.width - 5
         table = Table(
-            title="Subnet Info",
-            width=console_width,
-            safe_box=True,
-            padding=(0, 1),
-            collapse_padding=False,
-            pad_edge=True,
-            expand=True,
-            show_header=True,
+            title=f"\n[white]Register to netuid [dark_orange]{netuid}[/dark_orange]\nNetwork: [dark_orange]{subtensor.network}[/dark_orange]\n",
             show_footer=True,
             show_edge=False,
-            show_lines=False,
-            leading=0,
-            style="none",
-            row_styles=None,
-            header_style="bold",
-            footer_style="bold",
-            border_style="rgb(7,54,66)",
-            title_style="bold magenta",
+            header_style="bold white",
+            border_style="bright_black",
+            style="bold",
             title_justify="center",
-            highlight=False,
+            show_lines=False,
+            pad_edge=True,
         )
-        table.title = f"[white]Register - {subtensor.network}\n"
         table.add_column(
             "Netuid", style="rgb(253,246,227)", no_wrap=True, justify="center"
         )
@@ -629,15 +616,15 @@ async def register(
         )
         table.add_column(
             f"Cost ({Balance.get_unit(0)})",
-            style="rgb(38,139,210)",
+            style="light_goldenrod2",
             no_wrap=True,
-            justify="right",
+            justify="center",
         )
         table.add_column(
-            "Hotkey", style="light_salmon3", no_wrap=True, justify="center"
+            "Hotkey", style="bright_magenta", no_wrap=True, justify="center"
         )
         table.add_column(
-            "Coldkey", style="bold dark_green", no_wrap=True, justify="center"
+            "Coldkey", style="bold bright_magenta", no_wrap=True, justify="center"
         )
         table.add_row(
             str(netuid),
