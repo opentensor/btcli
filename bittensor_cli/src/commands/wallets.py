@@ -59,6 +59,13 @@ from bittensor_cli.src.bittensor.utils import (
 )
 
 
+class WalletLike:
+    def __init__(self, name=None, hotkey_ss58=None, hotkey_str=None):
+        self.name = name
+        self.hotkey_ss58 = hotkey_ss58
+        self.hotkey_str = hotkey_str
+
+
 async def regen_coldkey(
     wallet: Wallet,
     mnemonic: Optional[str],
@@ -697,9 +704,7 @@ async def overview(
                 de_registered_neurons.append(de_registered_neuron)
 
                 # Add this hotkey to the wallets dict
-                wallet_ = Wallet(name=wallet)
-                wallet_.hotkey_ss58 = hotkey_addr
-                wallet.hotkey_str = hotkey_addr[:5]  # Max length of 5 characters
+                wallet_ = WalletLike(name=wallet.name, hotkey_ss58=hotkey_addr, hotkey_str=hotkey_addr[:5])
                 # Indicates a hotkey not on local machine but exists in stake_info obj on-chain
                 if hotkey_coldkey_to_hotkey_wallet.get(hotkey_addr) is None:
                     hotkey_coldkey_to_hotkey_wallet[hotkey_addr] = {}
@@ -762,8 +767,7 @@ async def overview(
             if not hotwallet:
                 # Indicates a mismatch between what the chain says the coldkey
                 # is for this hotkey and the local wallet coldkey-hotkey pair
-                hotwallet = Wallet(name=nn.coldkey[:7])
-                hotwallet.hotkey_str = nn.hotkey[:7]
+                hotwallet = WalletLike(name=nn.coldkey[:7], hotkey_str=nn.hotkey[:7])
 
             nn: NeuronInfoLite
             uid = nn.uid
