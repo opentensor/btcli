@@ -862,27 +862,15 @@ async def stake_add(
     )
     # Init the table.
     table = Table(
-        title="[white]Staking operation from Coldkey SS58[/white]: "
-        f"[bold dark_green]{wallet.coldkeypub.ss58_address}[/bold dark_green]\n",
-        width=console.width - 5,
-        safe_box=True,
-        padding=(0, 1),
-        collapse_padding=False,
-        pad_edge=True,
-        expand=True,
-        show_header=True,
+        title=f"\n[dark_orange]Staking to: \nWallet: [light_goldenrod2]{wallet.name}[/light_goldenrod2], Coldkey ss58: [light_goldenrod2]{wallet.coldkeypub.ss58_address}[/light_goldenrod2]\nNetwork: {subtensor.network}[/dark_orange]\n",
         show_footer=True,
         show_edge=False,
-        show_lines=False,
-        leading=0,
-        style="none",
-        row_styles=None,
-        header_style="bold",
-        footer_style="bold",
-        border_style="rgb(7,54,66)",
-        title_style="bold magenta",
+        header_style="bold white",
+        border_style="bright_black",
+        style="bold",
         title_justify="center",
-        highlight=False,
+        show_lines=False,
+        pad_edge=True,
     )
 
     # Determine the amount we are staking.
@@ -1027,7 +1015,7 @@ async def stake_add(
                 )
             )
     table.add_column("Netuid", justify="center", style="grey89")
-    table.add_column("Hotkey", justify="center", style="light_salmon3")
+    table.add_column("Hotkey", justify="center", style="bright_magenta")
     table.add_column(
         f"Amount ({Balance.get_unit(0)})", justify="center", style="dark_sea_green"
     )
@@ -1048,7 +1036,7 @@ async def stake_add(
     message = ""
     if max_slippage > 5:
         message += "-------------------------------------------------------------------------------------------------------------------\n"
-        message += f"[bold][yellow]WARNING:[/yellow]\tThe slippage on one of your operations is high: [bold red]{max_slippage} %[/bold red], this may result in a loss of funds.[/bold] \n"
+        message += f"[bold][yellow]WARNING:[/yellow]  The slippage on one of your operations is high: [bold red]{max_slippage} %[/bold red], this may result in a loss of funds.[/bold] \n"
         message += "-------------------------------------------------------------------------------------------------------------------\n"
         console.print(message)
     console.print(
