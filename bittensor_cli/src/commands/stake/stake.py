@@ -1501,12 +1501,14 @@ The columns are as follows:
     console.print("[green]Unstaking operations completed.[/green]")
 
 
-async def stake_list(wallet: Wallet, subtensor: "SubtensorInterface"):
+async def stake_list(
+    wallet: Wallet, coldkey_ss58: str, subtensor: "SubtensorInterface"
+):
+    coldkey_address = coldkey_ss58 if coldkey_ss58 else wallet.coldkeypub.ss58_address
+
     sub_stakes = (
-        await subtensor.get_stake_info_for_coldkeys(
-            coldkey_ss58_list=[wallet.coldkeypub.ss58_address]
-        )
-    )[wallet.coldkeypub.ss58_address]
+        await subtensor.get_stake_info_for_coldkeys(coldkey_ss58_list=[coldkey_address])
+    )[coldkey_address]
 
     # Get registered delegates details.
     registered_delegate_info = await subtensor.get_delegate_identities()
@@ -1516,9 +1518,7 @@ async def stake_list(wallet: Wallet, subtensor: "SubtensorInterface"):
     emission_drain_tempo = int(
         await subtensor.substrate.query("SubtensorModule", "HotkeyEmissionTempo")
     )
-    balance = (await subtensor.get_balance(wallet.coldkeypub.ss58_address))[
-        wallet.coldkeypub.ss58_address
-    ]
+    balance = (await subtensor.get_balance(coldkey_address))[coldkey_address]
 
     # Iterate over substakes and aggregate them by hotkey.
     hotkeys_to_substakes: dict[str, list[StakeInfo]] = {}
@@ -1680,7 +1680,7 @@ async def stake_list(wallet: Wallet, subtensor: "SubtensorInterface"):
     console.print("\n\n")
     console.print(
         f"Wallet:\n"
-        f"  Coldkey SS58: [bold plum2]{wallet.coldkeypub.ss58_address}[/bold plum2]\n"
+        f"  Coldkey SS58: [bold plum2]{coldkey_address}[/bold plum2]\n"
         f"  Free Balance: [dark_sea_green]{balance}[/dark_sea_green]\n"
         f"  Total TAO ({Balance.unit}): [dark_sea_green]{all_hotkeys_total_global_tao}[/dark_sea_green]\n"
         f"  Total Value ({Balance.unit}): [dark_sea_green]{all_hotkeys_total_tao_value}[/dark_sea_green]"

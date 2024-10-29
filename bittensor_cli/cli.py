@@ -2417,17 +2417,40 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         wallet_path: Optional[str] = Options.wallet_path,
+        coldkey_ss58=typer.Option(
+            None,
+            "--ss58",
+            "--coldkey_ss58",
+            "--coldkey.ss58_address",
+            "--coldkey.ss58",
+            help="Coldkey address of the wallet",
+        ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         # TODO add: all-wallets, reuse_last, html_output
     ):
         """List all stake accounts for wallet."""
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
-        )
+
+        wallet = None
+        if coldkey_ss58:
+            if not is_valid_ss58_address(coldkey_ss58):
+                print_error("You entered an invalid ss58 address")
+                raise typer.Exit()
+        else:
+            coldkey_or_ss58 = Prompt.ask(
+                "Enter the [blue]wallet name[/blue] or [blue]coldkey ss58 address[/blue] [Press Enter to use config values]",
+            )
+            if is_valid_ss58_address(coldkey_or_ss58):
+                coldkey_ss58 = coldkey_or_ss58
+            else:
+                wallet_name = coldkey_or_ss58 if coldkey_or_ss58 else wallet_name
+                wallet = self.wallet_ask(
+                    wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
+                )
+
         return self._run_command(
-            stake.stake_list(wallet, self.initialize_chain(network))
+            stake.stake_list(wallet, coldkey_ss58, self.initialize_chain(network))
         )
 
     def stake_add(
