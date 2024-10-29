@@ -622,15 +622,15 @@ class CLIManager:
         self.wallet_app.command(
             "history", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"]
         )(self.wallet_history)
-        self.wallet_app.command(
-            "overview", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"]
-        )(self.wallet_overview)
+        # self.wallet_app.command(
+        #     "overview", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"]
+        # )(self.wallet_overview)
         self.wallet_app.command(
             "transfer", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"]
         )(self.wallet_transfer)
-        self.wallet_app.command(
-            "inspect", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"]
-        )(self.wallet_inspect)
+        # self.wallet_app.command(
+        #     "inspect", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"]
+        # )(self.wallet_inspect)
         self.wallet_app.command(
             "faucet", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"]
         )(self.wallet_faucet)
@@ -717,9 +717,9 @@ class CLIManager:
         self.subnets_app.command(
             "register", rich_help_panel=HELP_PANELS["SUBNETS"]["REGISTER"]
         )(self.subnets_register)
-        self.subnets_app.command(
-            "metagraph", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
-        )(self.subnets_metagraph)
+        # self.subnets_app.command(
+        #     "metagraph", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
+        # )(self.subnets_metagraph)
         self.subnets_app.command(
             "show", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
         )(self.subnets_show)
