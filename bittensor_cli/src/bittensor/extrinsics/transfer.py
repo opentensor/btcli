@@ -98,7 +98,7 @@ async def transfer_extrinsic(
             block_hash_ = response.block_hash
             return True, block_hash_, ""
         else:
-            return False, "", format_error_message(await response.error_message)
+            return False, "", format_error_message(await response.error_message, subtensor.substrate)
 
     # Validate destination address.
     if not is_valid_bittensor_address_or_public_key(destination):
