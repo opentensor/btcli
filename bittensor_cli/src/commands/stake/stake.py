@@ -1562,9 +1562,7 @@ async def stake_list(wallet: Wallet, subtensor: "SubtensorInterface"):
                 slippage_percentage = "0.000%"
             tao_locked = pool.tao_in
             issuance = pool.alpha_out if pool.is_dynamic else tao_locked
-            per_block_emission = substake_.emission.tao / (
-                (emission_drain_tempo / pool.tempo) * pool.tempo
-            )
+            per_block_emission = substake_.emission.tao / emission_drain_tempo
             if alpha_value.tao > 0.00009:
                 if issuance.tao != 0:
                     alpha_ownership = "{:.4f}".format(
