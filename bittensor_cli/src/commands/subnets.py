@@ -257,6 +257,7 @@ The columns are as follows:
     - [bold white]Stake[/bold white]: The outstanding supply of stake across all staking accounts on this subnet.
     - [bold white]Rate[/bold white]: The rate of conversion between TAO and the subnet's staking unit.
     - [bold white]Tempo[/bold white]: The number of blocks between epochs. Represented as (k/n) where k is the blocks since the last epoch and n is the total blocks in the epoch.
+    - [bold white]Global weight[/bold white]: The global weight of the subnet across all subnets.
 """
     )
 
@@ -341,7 +342,7 @@ async def show(subtensor: "SubtensorInterface", netuid: int, prompt: bool = True
                 str((pos + 1)),
                 str(root_state.global_stake[idx]),
                 str(root_state.local_stake[idx]),
-                f"{str(total_emission_per_block):.4f}",
+                f"{(total_emission_per_block)}",
                 f"{root_state.hotkeys[idx]}",
                 f"{root_state.coldkeys[idx]}",
             )
@@ -358,6 +359,7 @@ Description:
         - Stake: The stake balance of this hotkey on root (measured in TAO).
         - Emission: The emission accrued to this hotkey across all subnets every block measured in TAO.
         - Hotkey: The hotkey ss58 address.
+        - Coldkey: The coldkey ss58 address.
 """
         )
 
@@ -406,12 +408,14 @@ Description:
         )
         tao_sum = Balance(0)
         stake_sum = Balance(0)
+        relative_emissions_sum = 0
         for idx, hk in enumerate(subnet_state.hotkeys):
             hotkey_block_emission = (
                 subnet_state.emission[idx].tao / emission_sum
                 if emission_sum != 0
                 else 0
             )
+            relative_emissions_sum += hotkey_block_emission
             tao_sum += subnet_state.global_stake[idx]
             stake_sum += subnet_state.local_stake[idx]
             rows.append(
@@ -421,9 +425,10 @@ Description:
                     f"{subnet_state.local_stake[idx].tao:.4f} {subnet_info.symbol}",  # Stake
                     f"{subnet_state.stake_weight[idx]:.4f}",  # Weight
                     # str(subnet_state.dividends[idx]),
-                    f"{Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao:.5f} {subnet_info.symbol}",  # Dividents
+                    f"{Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao:.5f}",  # Dividends
                     str(subnet_state.incentives[idx]),  # Incentive
-                    f"{Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao:.5f} {subnet_info.symbol}",  # Emission
+                    # f"{Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao:.5f}",  # Emissions relative
+                    f"{Balance.from_tao(subnet_state.emission[idx].tao).set_unit(netuid_).tao:.5f} {subnet_info.symbol}",  # Emissions
                     f"{subnet_state.hotkeys[idx]}",  # Hotkey
                     f"{subnet_state.coldkeys[idx]}",  # Coldkey
                 )
@@ -450,10 +455,19 @@ Description:
             no_wrap=True,
             justify="center",
         )
-        table.add_column("Dividends", style="#8787d7", no_wrap=True, justify="center")
+        table.add_column("Dividends", style="#8787d7", no_wrap=True, justify="center", footer=f"{relative_emissions_sum:.3f}",)
         table.add_column("Incentive", style="#5fd7ff", no_wrap=True, justify="center")
+        
+        # Hiding relative emissions for now
+        # table.add_column(
+        #     "Emissions",
+        #     style="light_goldenrod2",
+        #     no_wrap=True,
+        #     justify="center",
+        #     footer=f"{relative_emissions_sum:.3f}",
+        # )
         table.add_column(
-            f"Emission ({Balance.get_unit(netuid_)})",
+            f"Emissions ({Balance.get_unit(netuid_)})",
             style="light_goldenrod2",
             no_wrap=True,
             justify="center",
@@ -488,6 +502,7 @@ Description:
         - Incentives: Mining incentives earned by the hotkey (always zero in the RAO demo.)
         - Emission: The emission accrued to this hokey on this subnet every block (in staking units).
         - Hotkey: The hotkey ss58 address.
+        - Coldkey: The coldkey ss58 address.
 """
         )
 

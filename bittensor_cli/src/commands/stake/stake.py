@@ -1618,7 +1618,6 @@ async def stake_list(wallet: Wallet, subtensor: "SubtensorInterface"):
             footer_style="white",
             style="light_goldenrod1",
             justify="center",
-            width=5,
             no_wrap=True,
         )
         table.add_column(
