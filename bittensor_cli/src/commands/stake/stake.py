@@ -1228,7 +1228,7 @@ async def unstake(
 
         if len(netuids) > 1:
             console.print(
-                "[green]Tip: Enter 'q' any time to stop going over remaining subnets and process current unstakes."
+                "[dark_sea_green3]Tip: Enter 'q' any time to stop going over remaining subnets and process current unstakes.\n"
             )
 
         for netuid in netuids:
@@ -1260,8 +1260,8 @@ async def unstake(
                 # Prompt the user for each subnet
                 while True:
                     response = Prompt.ask(
-                        f"Unstake all: [dark_orange]{current_stake_balance}[/dark_orange]"
-                        f" from [bright_magenta]{staking_address_name if staking_address_name else staking_address_ss58}[/bright_magenta] on netuid: [dark_orange]{netuid}? [y/n/q]",
+                        f"Unstake all: [dark_sea_green3]{current_stake_balance}[/dark_sea_green3]"
+                        f" from [dark_sea_green3]{staking_address_name if staking_address_name else staking_address_ss58}[/dark_sea_green3] on netuid: [dark_sea_green3]{netuid}? [y/n/q]",
                         choices=["y", "n", "q"],
                         default="n",
                         show_choices=True,
@@ -1277,7 +1277,7 @@ async def unstake(
                     elif response.lower() == "n":
                         while True:
                             amount_input = Prompt.ask(
-                                f"Enter amount to unstake in [dark_orange]{Balance.get_unit(netuid)}[/dark_orange] from subnet: [dark_orange]{netuid}[/dark_orange] (Max: [dark_orange]{current_stake_balance}[/dark_orange])"
+                                f"Enter amount to unstake in [dark_sea_green3]{Balance.get_unit(netuid)}[/dark_sea_green3] from subnet: [dark_sea_green3]{netuid}[/dark_sea_green3] (Max: [dark_sea_green3]{current_stake_balance}[/dark_sea_green3])"
                             )
                             if amount_input.lower() == "q":
                                 skip_remaining_subnets = True
@@ -1369,7 +1369,7 @@ async def unstake(
 
     # Build the table
     table = Table(
-        title=f"\n[dark_orange]Unstaking to: \nWallet: [light_goldenrod2]{wallet.name}[/light_goldenrod2], Coldkey ss58: [light_goldenrod2]{wallet.coldkeypub.ss58_address}[/light_goldenrod2]\nNetwork: {subtensor.network}[/dark_orange]\n",
+        title=f"\n[navajo_white1]Unstaking to: \nWallet: [dark_sea_green3]{wallet.name}[/dark_sea_green3], Coldkey ss58: [dark_sea_green3]{wallet.coldkeypub.ss58_address}[/dark_sea_green3]\nNetwork: {subtensor.network}[/navajo_white1]\n",
         show_footer=True,
         show_edge=False,
         header_style="bold white",
@@ -1380,7 +1380,7 @@ async def unstake(
         pad_edge=True,
     )
     table.add_column("Netuid", justify="center", style="grey89")
-    table.add_column("Hotkey", justify="center", style="bright_magenta")
+    table.add_column("Hotkey", justify="center", style="plum2")
     table.add_column(
         f"Amount ({Balance.get_unit(1)})", justify="center", style="dark_sea_green"
     )
@@ -1395,7 +1395,7 @@ async def unstake(
         style="light_slate_blue",
         footer=f"{total_received_amount}",
     )
-    table.add_column("Slippage", justify="center", style="rgb(220,50,47)")
+    table.add_column("Slippage", justify="center", style="light_salmon3")
 
     for op in unstake_operations:
         dynamic_info = op["dynamic_info"]
@@ -1559,7 +1559,7 @@ async def stake_list(wallet: Wallet, subtensor: "SubtensorInterface"):
                 )
                 slippage_percentage = f"[salmon1]{slippage_percentage_:.3f}%[/salmon1]"
             else:
-                slippage_percentage = "0.000%"
+                slippage_percentage = "[salmon1]0.000%[/salmon1]"
             tao_locked = pool.tao_in
             issuance = pool.alpha_out if pool.is_dynamic else tao_locked
             per_block_emission = substake_.emission.tao / emission_drain_tempo
@@ -1680,10 +1680,10 @@ async def stake_list(wallet: Wallet, subtensor: "SubtensorInterface"):
     console.print("\n\n")
     console.print(
         f"Wallet:\n"
-        f"  Coldkey SS58: [bold dark_green]{wallet.coldkeypub.ss58_address}[/bold dark_green]\n"
-        f"  Free Balance: [aquamarine3]{balance}[/aquamarine3]\n"
-        f"  Total TAO ({Balance.unit}): [aquamarine3]{all_hotkeys_total_global_tao}[/aquamarine3]\n"
-        f"  Total Value ({Balance.unit}): [aquamarine3]{all_hotkeys_total_tao_value}[/aquamarine3]"
+        f"  Coldkey SS58: [bold plum2]{wallet.coldkeypub.ss58_address}[/bold plum2]\n"
+        f"  Free Balance: [dark_sea_green]{balance}[/dark_sea_green]\n"
+        f"  Total TAO ({Balance.unit}): [dark_sea_green]{all_hotkeys_total_global_tao}[/dark_sea_green]\n"
+        f"  Total Value ({Balance.unit}): [dark_sea_green]{all_hotkeys_total_tao_value}[/dark_sea_green]"
     )
     console.print(
         """

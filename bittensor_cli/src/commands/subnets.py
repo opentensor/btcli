@@ -192,7 +192,7 @@ async def subnets_list(
     )
 
     table = Table(
-        title=f"[underline dark_orange]Subnets[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}[/dark_orange]\n",
+        title=f"\n[underline navajo_white1]Subnets[/underline navajo_white1]\n[navajo_white1]Network: {subtensor.network}[/navajo_white1]\n",
         show_footer=True,
         show_edge=False,
         header_style="bold white",
@@ -207,7 +207,7 @@ async def subnets_list(
     table.add_column("[bold white]SYMBOL", style="bright_cyan", justify="right")
     table.add_column(
         f"[bold white]EMISSION ({Balance.get_unit(0)})",
-        style="light_goldenrod2",
+        style="tan",
         justify="right",
         footer=f"τ {total_emissions:.4f}",
     )
@@ -228,11 +228,11 @@ async def subnets_list(
     )
     table.add_column(
         "[bold white]Tempo (k/n)",
-        style="bright_magenta",
+        style="plum2",
         justify="right",
         overflow="fold",
     )
-    table.add_column("[bold white]Global weight (γ)", style="green", justify="center")
+    table.add_column("[bold white]Global weight (γ)", style="dark_sea_green3", justify="center")
 
     # Sort rows by subnet.emission.tao, keeping the first subnet in the first position
     sorted_rows = [rows[0]] + sorted(rows[1:], key=lambda x: x[2], reverse=True)
@@ -309,17 +309,17 @@ async def show(subtensor: "SubtensorInterface", netuid: int, prompt: bool = True
         )
         table.add_column(
             f"[bold white]Emission ({Balance.get_unit(0)}/block)",
-            style="light_goldenrod2",
+            style="tan",
             justify="center",
         )
         table.add_column(
             "[bold white]Hotkey",
-            style="bright_magenta",
+            style="plum2",
             justify="center",
         )
         table.add_column(
             "[bold white]Coldkey",
-            style="bright_magenta",
+            style="plum2",
             justify="center",
         )
 
@@ -389,7 +389,7 @@ Description:
 
         # Define table properties
         table = Table(
-            title=f"[underline dark_orange]Subnet {netuid_}[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}[/dark_orange]\n",
+            title=f"[underline navajo_white1]Subnet {netuid_}[/underline navajo_white1]\n[navajo_white1]Network: {subtensor.network}[/navajo_white1]\n",
             show_footer=True,
             show_edge=False,
             header_style="bold white",
@@ -468,16 +468,16 @@ Description:
         # )
         table.add_column(
             f"Emissions ({Balance.get_unit(netuid_)})",
-            style="light_goldenrod2",
+            style="tan",
             no_wrap=True,
             justify="center",
             footer=str(Balance.from_tao(emission_sum).set_unit(subnet_info.netuid)),
         )
         table.add_column(
-            "Hotkey", style="bright_magenta", no_wrap=True, justify="center"
+            "Hotkey", style="plum2", no_wrap=True, justify="center"
         )
         table.add_column(
-            "Coldkey", style="bright_magenta", no_wrap=True, justify="center"
+            "Coldkey", style="plum2", no_wrap=True, justify="center"
         )
         for row in rows:
             table.add_row(*row)
@@ -487,7 +487,7 @@ Description:
         console.print(table)
         console.print("\n")
         console.print(
-            f"Subnet: {netuid_}:\n  Owner: [bold bright_magenta]{subnet_info.owner}[/bold bright_magenta]\n  Total Locked: [green]{subnet_info.total_locked}[/green]\n  Owner Locked: [green]{subnet_info.owner_locked}[/green]"
+            f"Subnet: {netuid_}:\n  Owner: [bold plum2]{subnet_info.owner}[/bold plum2]\n  Total Locked: [dark_sea_green]{subnet_info.total_locked}[/dark_sea_green]\n  Owner Locked: [dark_sea_green]{subnet_info.owner_locked}[/dark_sea_green]"
         )
         console.print(
             """
@@ -631,7 +631,7 @@ async def register(
         )
         table.add_column(
             f"Cost ({Balance.get_unit(0)})",
-            style="light_goldenrod2",
+            style="tan",
             no_wrap=True,
             justify="center",
         )

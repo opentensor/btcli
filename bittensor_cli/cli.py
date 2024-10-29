@@ -291,7 +291,7 @@ def get_optional_netuid(netuid: Optional[int], all_netuids: bool) -> Optional[in
         return None
     elif netuid is None and all_netuids is False:
         answer = Prompt.ask(
-            "[green]Enter the netuid to use.[/green] Leave blank for all netuids",
+            "[dark_sea_green3]Enter the netuid to use.[/dark_sea_green3] Leave blank for all netuids",
             default=None,
             show_default=False,
         )
@@ -2580,11 +2580,11 @@ class CLIManager:
                 raise typer.Exit()
             if netuid is not None:
                 amount = FloatPrompt.ask(
-                    "[dark_orange]Amount to stake (TAO τ)[/dark_orange]"
+                    "[dark_sea_green]Amount to stake (TAO τ)[/dark_sea_green]"
                 )
             else:
                 amount = FloatPrompt.ask(
-                    "[dark_orange]Amount to stake to each netuid (TAO τ)[/dark_orange]"
+                    "[dark_sea_green]Amount to stake to each netuid (TAO τ)[/dark_sea_green]"
                 )
             if Balance.from_tao(amount) > free_balance:
                 print_error(

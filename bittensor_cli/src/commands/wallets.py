@@ -269,13 +269,13 @@ async def wallet_balance(
         ),
         Column(
             "[white]Coldkey Address",
-            style="bright_magenta",
+            style="plum2",
             no_wrap=True,
         ),
         Column(
             "[white]Free Balance",
             justify="right",
-            style="light_goldenrod2",
+            style="tan",
             no_wrap=True,
         ),
         Column(
@@ -287,10 +287,10 @@ async def wallet_balance(
         Column(
             "[white]Total Balance",
             justify="right",
-            style="green",
+            style="dark_sea_green",
             no_wrap=True,
         ),
-        title=f"[underline dark_orange]Wallet Coldkey Balance[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}",
+        title=f"\n[underline navajo_white1]Wallet Coldkey Balance[/underline navajo_white1]\n[navajo_white1]Network: {subtensor.network}",
         show_footer=True,
         show_edge=False,
         border_style="bright_black",
