@@ -1524,7 +1524,7 @@ async def set_id(
             return False
 
     identified = (
-        wallet.hotkey.ss58_address if validator_id else wallet.coldkey.ss58_address
+        wallet.hotkey.ss58_address if validator_id else wallet.coldkeypub.ss58_address
     )
     encoded_id_dict = {
         "info": {
