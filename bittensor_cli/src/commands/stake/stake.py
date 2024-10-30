@@ -1226,7 +1226,7 @@ async def unstake(
 
         # Fetch dynamic info and stake balances
         chain_head = await subtensor.substrate.get_chain_head()
-        dynamic_info_list, stake_balances_dict = await asyncio.gather(
+        dynamic_info_list, stake_all_netuids = await asyncio.gather(
             asyncio.gather(
                 *[subtensor.get_subnet_dynamic_info(x, chain_head) for x in netuids]
             ),
@@ -1259,7 +1259,7 @@ async def unstake(
                 console.print(f"[red]Subnet: {netuid} does not exist.[/red]")
                 continue  # Skip to the next subnet
 
-            current_stake_balance = stake_balances_dict[staking_address_ss58][netuid]
+            current_stake_balance = stake_all_netuids[staking_address_ss58][netuid]
             if current_stake_balance.tao == 0:
                 continue  # No stake to unstake
 
