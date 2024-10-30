@@ -833,7 +833,11 @@ class CLIManager:
             except (ConnectionRefusedError, ssl.SSLError):
                 err_console.print(f"Unable to connect to the chain: {self.subtensor}")
                 raise typer.Exit()
-            except (ConnectionClosed, SubstrateRequestException, KeyboardInterrupt) as e:
+            except (
+                ConnectionClosed,
+                SubstrateRequestException,
+                KeyboardInterrupt,
+            ) as e:
                 if isinstance(e, SubstrateRequestException):
                     err_console.print(str(e))
                 raise typer.Exit()
