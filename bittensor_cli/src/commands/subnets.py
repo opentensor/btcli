@@ -179,12 +179,13 @@ async def subnets_list(
             (
                 str(netuid),
                 f"[light_goldenrod1]{subnet.symbol}[light_goldenrod1]",
-                f"τ {emission_tao:.4f}",
-                f"τ {subnet.tao_in.tao:,.4f}",
-                f"{subnet.alpha_out.tao:,.4f} {symbol}",
-                f"{subnet.price.tao:.4f} τ/{symbol}",
-                f"{subnet.blocks_since_last_step}/{subnet.tempo}",
-                f"{global_weight:.4f}" if global_weight is not None else "N/A",
+                f"τ {emission_tao:.4f}", # Emission (t)
+                f"{subnet.alpha_out.tao:,.4f} {symbol}", # Stake a_out
+                f"τ {subnet.tao_in.tao:,.4f}", # TAO Pool t_in
+                f"{subnet.alpha_in.tao:,.4f} {symbol}", # Alpha Pool a_in
+                f"{subnet.price.tao:.4f} τ/{symbol}", # Rate t_in/a_in
+                f"{subnet.blocks_since_last_step}/{subnet.tempo}", # Tempo k/n
+                f"{global_weight:.4f}" if global_weight is not None else "N/A", # Local weight coeff. (γ)
             )
         )
     total_emissions = sum(
@@ -212,17 +213,22 @@ async def subnets_list(
         footer=f"τ {total_emissions:.4f}",
     )
     table.add_column(
-        f"[bold white]TAO ({Balance.get_unit(0)})",
-        style="rgb(42,161,152)",
-        justify="right",
-    )
-    table.add_column(
-        f"[bold white]STAKE ({Balance.get_unit(1)})",
+        f"[bold white]STAKE ({Balance.get_unit(1)}_out)",
         style="light_salmon3",
         justify="right",
     )
     table.add_column(
-        f"[bold white]RATE ({Balance.get_unit(1)}/{Balance.get_unit(0)})",
+        f"[bold white]TAO Pool ({Balance.get_unit(0)}_in)",
+        style="rgb(42,161,152)",
+        justify="right",
+    )
+    table.add_column(
+        f"[bold white]Alpha Pool ({Balance.get_unit(1)}_in)",
+        style="rgb(42,161,152)",
+        justify="right",
+    )
+    table.add_column(
+        f"[bold white]RATE ({Balance.get_unit(0)}_in/{Balance.get_unit(1)}_in)",
         style="medium_purple",
         justify="right",
     )
@@ -232,7 +238,7 @@ async def subnets_list(
         justify="right",
         overflow="fold",
     )
-    table.add_column("[bold white]Global weight (γ)", style="dark_sea_green3", justify="center")
+    table.add_column("[bold white]Local weight coeff. (γ)", style="dark_sea_green3", justify="center")
 
     # Sort rows by subnet.emission.tao, keeping the first subnet in the first position
     sorted_rows = [rows[0]] + sorted(rows[1:], key=lambda x: x[2], reverse=True)
@@ -244,7 +250,7 @@ async def subnets_list(
     # Print the table
     console.print(table)
 
-    # TODO: Add description for global weights
+
     console.print(
         """
 [bold white]Description[/bold white]:
