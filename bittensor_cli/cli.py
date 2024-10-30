@@ -822,17 +822,18 @@ class CLIManager:
         """
 
         async def _run():
-            run_cmd = asyncio.create_task(cmd)
+            initiated = False
             try:
                 if self.subtensor:
                     async with self.subtensor:
-                        result = await run_cmd
+                        initiated = True
+                        result = await cmd
                 else:
-                    result = await run_cmd
+                    initiated = True
+                    result = await cmd
                 return result
             except (ConnectionRefusedError, ssl.SSLError):
                 err_console.print(f"Unable to connect to the chain: {self.subtensor}")
-                raise typer.Exit()
             except (
                 ConnectionClosed,
                 SubstrateRequestException,
@@ -840,9 +841,10 @@ class CLIManager:
             ) as e:
                 if isinstance(e, SubstrateRequestException):
                     err_console.print(str(e))
-                raise typer.Exit()
             finally:
-                run_cmd.cancel()
+                if initiated is False:
+                    asyncio.create_task(cmd).cancel()
+                raise typer.Exit()
 
         if sys.version_info < (3, 10):
             # For Python 3.9 or lower
