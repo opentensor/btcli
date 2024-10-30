@@ -622,15 +622,19 @@ class CLIManager:
         self.wallet_app.command(
             "history", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"]
         )(self.wallet_history)
-        # self.wallet_app.command(
-        #     "overview", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"]
-        # )(self.wallet_overview)
+        self.wallet_app.command(
+            "overview",
+            rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"],
+            hidden=True,
+        )(self.wallet_overview)
         self.wallet_app.command(
             "transfer", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"]
         )(self.wallet_transfer)
-        # self.wallet_app.command(
-        #     "inspect", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"]
-        # )(self.wallet_inspect)
+        self.wallet_app.command(
+            "inspect",
+            rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"],
+            hidden=True,
+        )(self.wallet_inspect)
         self.wallet_app.command(
             "faucet", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"]
         )(self.wallet_faucet)
