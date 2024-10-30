@@ -254,15 +254,13 @@ async def subnets_list(
     console.print(table)
 
     header = """
-[bold white]Description[/bold white]:
-The table displays relevant information about each subnet on the network.
-The columns are as follows:
+[bold white]Description[/bold white]: The table displays information about each subnet. The columns are as follows:
 """
     console.print(header)
     description_table = Table(show_header=False, box=None, show_edge=False, leading=2)
 
     fields = [
-        ("[bold tan]Netuid[/bold tan]", "The netuid of the subnet (its index).\n"),
+        ("[bold tan]Netuid[/bold tan]", "The netuid of the subnet.\n"),
         (
             "[bold tan]Symbol[/bold tan]",
             "The symbol for the subnet's dynamic TAO token.\n",
