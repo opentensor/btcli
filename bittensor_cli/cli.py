@@ -1166,13 +1166,9 @@ class CLIManager:
                     f"Using the wallet name from config:[bold cyan] {wallet_name}"
                 )
             else:
-                wallet_name = typer.prompt(
-                    typer.style("Enter the wallet name", fg="blue")
-                    + typer.style(
-                        " (Hint: You can set this with `btcli config set --wallet-name`)",
-                        fg="green",
-                        italic=True,
-                    ),
+                wallet_name = Prompt.ask(
+                    "Enter the [blue]wallet name[/blue]"
+                    + " [dark_sea_green3 italic](Hint: You can set this with `btcli config set --wallet-name`)[/dark_sea_green3 italic]",
                     default=defaults.wallet.name,
                 )
 
@@ -1183,13 +1179,9 @@ class CLIManager:
                     f"Using the wallet hotkey from config:[bold cyan] {wallet_hotkey}"
                 )
             else:
-                wallet_hotkey = typer.prompt(
-                    typer.style("Enter the wallet hotkey", fg="blue")
-                    + typer.style(
-                        " (Hint: You can set this with `btcli config set --wallet-hotkey`)",
-                        fg="green",
-                        italic=True,
-                    ),
+                wallet_hotkey = Prompt.ask(
+                    "Enter the [blue]wallet hotkey[/blue]"
+                    + " [dark_sea_green3 italic](Hint: You can set this with `btcli config set --wallet-hotkey`)[/dark_sea_green3 italic]",
                     default=defaults.wallet.hotkey,
                 )
         if wallet_path:
@@ -1203,13 +1195,9 @@ class CLIManager:
             )
 
         if WO.PATH in ask_for and not wallet_path:
-            wallet_path = typer.prompt(
-                typer.style("Enter the wallet path", fg="blue")
-                + typer.style(
-                    " (Hint: You can set this with `btcli config set --wallet-path`)",
-                    fg="green",
-                    italic=True,
-                ),
+            wallet_path = Prompt.ask(
+                "Enter the [blue]wallet path[/blue]"
+                + " [dark_sea_green3 italic](Hint: You can set this with `btcli config set --wallet-path`)[/dark_sea_green3 italic]",
                 default=defaults.wallet.path,
             )
         # Create the Wallet object
@@ -2439,7 +2427,8 @@ class CLIManager:
                 raise typer.Exit()
         else:
             coldkey_or_ss58 = Prompt.ask(
-                "Enter the [blue]wallet name[/blue] or [blue]coldkey ss58 address[/blue] [Press Enter to use config values]",
+                "Enter the [blue]wallet name[/blue] or [blue]coldkey ss58 address[/blue]",
+                default=self.config.get("wallet_name") or defaults.wallet.name,
             )
             if is_valid_ss58_address(coldkey_or_ss58):
                 coldkey_ss58 = coldkey_or_ss58
@@ -2538,11 +2527,16 @@ class CLIManager:
             raise typer.Exit()
 
         if not wallet_hotkey and not all_hotkeys and not include_hotkeys:
+            if not wallet_name:
+                wallet_name = Prompt.ask(
+                    "Enter the [blue]wallet name[/blue]",
+                    default=self.config.get("wallet_name") or defaults.wallet.name,
+                )
             hotkey_or_ss58 = Prompt.ask(
-                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to stake to [Press Enter to use config values]",
+                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to stake to",
+                default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
             )
             if is_valid_ss58_address(hotkey_or_ss58):
-                hotkey_ss58_address = hotkey_or_ss58
                 wallet = self.wallet_ask(
                     wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
                 )
@@ -2727,8 +2721,14 @@ class CLIManager:
             and not all_hotkeys
             and not include_hotkeys
         ):
+            if not wallet_name:
+                wallet_name = Prompt.ask(
+                    "Enter the [blue]wallet name[/blue]",
+                    default=self.config.get("wallet_name") or defaults.wallet.name,
+                )
             hotkey_or_ss58 = Prompt.ask(
-                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake from. [Press Enter to use config values]"
+                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to stake to",
+                default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
             )
             if is_valid_ss58_address(hotkey_or_ss58):
                 hotkey_ss58_address = hotkey_or_ss58
