@@ -30,7 +30,7 @@ from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.async_substrate_interface import (
     SubstrateRequestException,
 )
-from bittensor_cli.src.commands import root, subnets, sudo, wallets
+from bittensor_cli.src.commands import subnets, sudo, wallets
 from bittensor_cli.src.commands import weights as weights_cmds
 from bittensor_cli.src.commands.stake import children_hotkeys, stake
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
@@ -164,6 +164,16 @@ class Options:
         help="The netuid of the subnet in the root network, (e.g. 1).",
         prompt=True,
     )
+    netuid_not_req = typer.Option(
+        None,
+        help="The netuid of the subnet in the root network, (e.g. 1).",
+        prompt=False,
+    )
+    all_netuids = typer.Option(
+        False,
+        help="Use all netuids",
+        prompt=False,
+    )
     weights = typer.Option(
         None,
         "--weights",
@@ -268,6 +278,31 @@ def verbosity_console_handler(verbosity_level: int = 1) -> None:
         console.quiet = False
         err_console.quiet = False
         verbose_console.quiet = False
+
+
+def get_optional_netuid(netuid: Optional[int], all_netuids: bool) -> Optional[int]:
+    """
+    Parses options to determine if the user wants to use a specific netuid or all netuids (None)
+
+    Returns:
+        None if using all netuids, otherwise int for the netuid to use
+    """
+    if netuid is None and all_netuids is True:
+        return None
+    elif netuid is None and all_netuids is False:
+        answer = Prompt.ask(
+            "[dark_sea_green3]Enter the netuid to use.[/dark_sea_green3] Leave blank for all netuids",
+            default=None,
+            show_default=False,
+        )
+        if answer is None:
+            return None
+        if answer.lower() == "all":
+            return None
+        else:
+            return int(answer)
+    else:
+        return netuid
 
 
 def get_n_words(n_words: Optional[int]) -> int:
@@ -418,7 +453,6 @@ class CLIManager:
     :var app: the main CLI Typer app
     :var config_app: the Typer app as it relates to config commands
     :var wallet_app: the Typer app as it relates to wallet commands
-    :var root_app: the Typer app as it relates to root commands
     :var stake_app: the Typer app as it relates to stake commands
     :var sudo_app: the Typer app as it relates to sudo commands
     :var subnets_app: the Typer app as it relates to subnets commands
@@ -429,7 +463,6 @@ class CLIManager:
     app: typer.Typer
     config_app: typer.Typer
     wallet_app: typer.Typer
-    root_app: typer.Typer
     subnets_app: typer.Typer
     weights_app: typer.Typer
     utils_app = typer.Typer(epilog=_epilog)
@@ -443,7 +476,9 @@ class CLIManager:
             "use_cache": True,
             "metagraph_cols": {
                 "UID": True,
-                "STAKE": True,
+                "GLOBAL_STAKE": True,
+                "LOCAL_STAKE": True,
+                "STAKE_WEIGHT": True,
                 "RANK": True,
                 "TRUST": True,
                 "CONSENSUS": True,
@@ -471,7 +506,6 @@ class CLIManager:
         )
         self.config_app = typer.Typer(epilog=_epilog)
         self.wallet_app = typer.Typer(epilog=_epilog)
-        self.root_app = typer.Typer(epilog=_epilog)
         self.stake_app = typer.Typer(epilog=_epilog)
         self.sudo_app = typer.Typer(epilog=_epilog)
         self.subnets_app = typer.Typer(epilog=_epilog)
@@ -500,15 +534,6 @@ class CLIManager:
         self.app.add_typer(
             self.wallet_app, name="wallets", hidden=True, no_args_is_help=True
         )
-
-        # root aliases
-        self.app.add_typer(
-            self.root_app,
-            name="root",
-            short_help="Root commands, alias: `r`",
-            no_args_is_help=True,
-        )
-        self.app.add_typer(self.root_app, name="r", hidden=True, no_args_is_help=True)
 
         # stake aliases
         self.app.add_typer(
@@ -598,13 +623,17 @@ class CLIManager:
             "history", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"]
         )(self.wallet_history)
         self.wallet_app.command(
-            "overview", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"]
+            "overview",
+            rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"],
+            hidden=True,
         )(self.wallet_overview)
         self.wallet_app.command(
             "transfer", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"]
         )(self.wallet_transfer)
         self.wallet_app.command(
-            "inspect", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"]
+            "inspect",
+            rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"],
+            hidden=True,
         )(self.wallet_inspect)
         self.wallet_app.command(
             "faucet", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"]
@@ -619,59 +648,19 @@ class CLIManager:
             "sign", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"]
         )(self.wallet_sign)
 
-        # root commands
-        self.root_app.command("list")(self.root_list)
-        self.root_app.command(
-            "set-weights", rich_help_panel=HELP_PANELS["ROOT"]["WEIGHT_MGMT"]
-        )(self.root_set_weights)
-        self.root_app.command(
-            "get-weights", rich_help_panel=HELP_PANELS["ROOT"]["WEIGHT_MGMT"]
-        )(self.root_get_weights)
-        self.root_app.command(
-            "boost", rich_help_panel=HELP_PANELS["ROOT"]["WEIGHT_MGMT"]
-        )(self.root_boost)
-        self.root_app.command(
-            "slash", rich_help_panel=HELP_PANELS["ROOT"]["WEIGHT_MGMT"]
-        )(self.root_slash)
-        self.root_app.command(
-            "senate", rich_help_panel=HELP_PANELS["ROOT"]["GOVERNANCE"]
-        )(self.root_senate)
-        self.root_app.command(
-            "senate-vote", rich_help_panel=HELP_PANELS["ROOT"]["GOVERNANCE"]
-        )(self.root_senate_vote)
-        self.root_app.command("register")(self.root_register)
-        self.root_app.command(
-            "proposals", rich_help_panel=HELP_PANELS["ROOT"]["GOVERNANCE"]
-        )(self.root_proposals)
-        self.root_app.command(
-            "set-take", rich_help_panel=HELP_PANELS["ROOT"]["DELEGATION"]
-        )(self.root_set_take)
-        self.root_app.command(
-            "delegate-stake", rich_help_panel=HELP_PANELS["ROOT"]["DELEGATION"]
-        )(self.root_delegate_stake)
-        self.root_app.command(
-            "undelegate-stake", rich_help_panel=HELP_PANELS["ROOT"]["DELEGATION"]
-        )(self.root_undelegate_stake)
-        self.root_app.command(
-            "my-delegates", rich_help_panel=HELP_PANELS["ROOT"]["DELEGATION"]
-        )(self.root_my_delegates)
-        self.root_app.command(
-            "list-delegates", rich_help_panel=HELP_PANELS["ROOT"]["DELEGATION"]
-        )(self.root_list_delegates)
-        self.root_app.command(
-            "nominate", rich_help_panel=HELP_PANELS["ROOT"]["GOVERNANCE"]
-        )(self.root_nominate)
-
         # stake commands
-        self.stake_app.command(
-            "show", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
-        )(self.stake_show)
         self.stake_app.command(
             "add", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
         )(self.stake_add)
         self.stake_app.command(
             "remove", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
         )(self.stake_remove)
+        self.stake_app.command(
+            "list", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
+        )(self.stake_list)
+        self.stake_app.command(
+            "move", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
+        )(self.stake_move)
 
         # stake-children commands
         children_app = typer.Typer()
@@ -697,6 +686,21 @@ class CLIManager:
         self.sudo_app.command("get", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(
             self.sudo_get
         )
+        self.sudo_app.command(
+            "senate", rich_help_panel=HELP_PANELS["SUDO"]["GOVERNANCE"]
+        )(self.sudo_senate)
+        self.sudo_app.command(
+            "proposals", rich_help_panel=HELP_PANELS["SUDO"]["GOVERNANCE"]
+        )(self.sudo_proposals)
+        self.sudo_app.command(
+            "senate-vote", rich_help_panel=HELP_PANELS["SUDO"]["GOVERNANCE"]
+        )(self.sudo_senate_vote)
+        self.sudo_app.command("set-take", rich_help_panel=HELP_PANELS["SUDO"]["TAKE"])(
+            self.sudo_set_take
+        )
+        self.sudo_app.command("get-take", rich_help_panel=HELP_PANELS["SUDO"]["TAKE"])(
+            self.sudo_get_take
+        )
 
         # subnets commands
         self.subnets_app.command(
@@ -717,9 +721,12 @@ class CLIManager:
         self.subnets_app.command(
             "register", rich_help_panel=HELP_PANELS["SUBNETS"]["REGISTER"]
         )(self.subnets_register)
+        # self.subnets_app.command(
+        #     "metagraph", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
+        # )(self.subnets_metagraph)
         self.subnets_app.command(
-            "metagraph", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
-        )(self.subnets_metagraph)
+            "show", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
+        )(self.subnets_show)
 
         # weights commands
         self.weights_app.command(
@@ -764,21 +771,14 @@ class CLIManager:
             hidden=True,
         )(self.wallet_get_id)
 
-        # Root
-        self.root_app.command("set_weights", hidden=True)(self.root_set_weights)
-        self.root_app.command("get_weights", hidden=True)(self.root_get_weights)
-        self.root_app.command("senate_vote", hidden=True)(self.root_senate_vote)
-        self.root_app.command("set_take", hidden=True)(self.root_set_take)
-        self.root_app.command("delegate_stake", hidden=True)(self.root_delegate_stake)
-        self.root_app.command("undelegate_stake", hidden=True)(
-            self.root_undelegate_stake
-        )
-        self.root_app.command("my_delegates", hidden=True)(self.root_my_delegates)
-        self.root_app.command("list_delegates", hidden=True)(self.root_list_delegates)
-
         # Subnets
         self.subnets_app.command("lock_cost", hidden=True)(self.subnets_lock_cost)
         self.subnets_app.command("pow_register", hidden=True)(self.subnets_pow_register)
+
+        # Sudo
+        self.sudo_app.command("senate_vote", hidden=True)(self.sudo_senate_vote)
+        self.sudo_app.command("get_take", hidden=True)(self.sudo_get_take)
+        self.sudo_app.command("set_take", hidden=True)(self.sudo_set_take)
 
     def initialize_chain(
         self,
@@ -838,7 +838,6 @@ class CLIManager:
                 raise typer.Exit()
             except SubstrateRequestException as e:
                 err_console.print(str(e))
-                asyncio.create_task(cmd).cancel()
                 raise typer.Exit()
 
         if sys.version_info < (3, 10):
@@ -857,15 +856,33 @@ class CLIManager:
         """
         Command line interface (CLI) for Bittensor. Uses the values in the configuration file. These values can be overriden by passing them explicitly in the command line.
         """
-        # create config file if it does not exist
-        if not os.path.exists(self.config_path):
+
+        # Load or create the config file
+        if os.path.exists(self.config_path):
+            with open(self.config_path, "r") as f:
+                config = safe_load(f)
+        else:
             directory_path = Path(self.config_base_path)
             directory_path.mkdir(exist_ok=True, parents=True)
-            with open(self.config_path, "w+") as f:
-                safe_dump(defaults.config.dictionary, f)
-        # check config
-        with open(self.config_path, "r") as f:
-            config = safe_load(f)
+            config = defaults.config.dictionary.copy()
+            with open(self.config_path, "w") as f:
+                safe_dump(config, f)
+
+        # Update missing values
+        updated = False
+        for key, value in defaults.config.dictionary.items():
+            if key not in config:
+                config[key] = value
+                updated = True
+            elif isinstance(value, dict):
+                for sub_key, sub_value in value.items():
+                    if sub_key not in config[key]:
+                        config[key][sub_key] = sub_value
+                        updated = True
+        if updated:
+            with open(self.config_path, "w") as f:
+                safe_dump(config, f)
+
         for k, v in config.items():
             if k in self.config.keys():
                 self.config[k] = v
@@ -1153,13 +1170,9 @@ class CLIManager:
                     f"Using the wallet name from config:[bold cyan] {wallet_name}"
                 )
             else:
-                wallet_name = typer.prompt(
-                    typer.style("Enter the wallet name", fg="blue")
-                    + typer.style(
-                        " (Hint: You can set this with `btcli config set --wallet-name`)",
-                        fg="green",
-                        italic=True,
-                    ),
+                wallet_name = Prompt.ask(
+                    "Enter the [blue]wallet name[/blue]"
+                    + " [dark_sea_green3 italic](Hint: You can set this with `btcli config set --wallet-name`)[/dark_sea_green3 italic]",
                     default=defaults.wallet.name,
                 )
 
@@ -1170,13 +1183,9 @@ class CLIManager:
                     f"Using the wallet hotkey from config:[bold cyan] {wallet_hotkey}"
                 )
             else:
-                wallet_hotkey = typer.prompt(
-                    typer.style("Enter the wallet hotkey", fg="blue")
-                    + typer.style(
-                        " (Hint: You can set this with `btcli config set --wallet-hotkey`)",
-                        fg="green",
-                        italic=True,
-                    ),
+                wallet_hotkey = Prompt.ask(
+                    "Enter the [blue]wallet hotkey[/blue]"
+                    + " [dark_sea_green3 italic](Hint: You can set this with `btcli config set --wallet-hotkey`)[/dark_sea_green3 italic]",
                     default=defaults.wallet.hotkey,
                 )
         if wallet_path:
@@ -1190,13 +1199,9 @@ class CLIManager:
             )
 
         if WO.PATH in ask_for and not wallet_path:
-            wallet_path = typer.prompt(
-                typer.style("Enter the wallet path", fg="blue")
-                + typer.style(
-                    " (Hint: You can set this with `btcli config set --wallet-path`)",
-                    fg="green",
-                    italic=True,
-                ),
+            wallet_path = Prompt.ask(
+                "Enter the [blue]wallet path[/blue]"
+                + " [dark_sea_green3 italic](Hint: You can set this with `btcli config set --wallet-path`)[/dark_sea_green3 italic]",
                 default=defaults.wallet.path,
             )
         # Create the Wallet object
@@ -2321,8 +2326,8 @@ class CLIManager:
                 twitter_url,
                 info_,
                 validator_id,
-                prompt,
                 subnet_netuid,
+                prompt,
             )
         )
 
@@ -2413,813 +2418,47 @@ class CLIManager:
 
         return self._run_command(wallets.sign(wallet, message, use_hotkey))
 
-    def root_list(
+    def stake_list(
         self,
         network: Optional[list[str]] = Options.network,
-        quiet: bool = Options.quiet,
-        verbose: bool = Options.verbose,
-    ):
-        """
-        Show the neurons (root network validators) in the root network (netuid = 0).
-
-        USAGE
-
-        The command fetches and lists the neurons (root network validators) in the root network, showing their unique identifiers (UIDs), names, addresses, stakes, and whether they are part of the senate (network governance body).
-
-        This command is useful for understanding the composition and governance structure of the Bittensor network's root network. It provides insights into which neurons hold significant influence and responsibility within the Bittensor network.
-
-        EXAMPLE
-
-        [green]$[/green] btcli root list
-        """
-        self.verbosity_handler(quiet, verbose)
-        return self._run_command(
-            root.root_list(subtensor=self.initialize_chain(network))
-        )
-
-    def root_set_weights(
-        self,
-        network: Optional[list[str]] = Options.network,
-        wallet_name: str = Options.wallet_name,
-        wallet_path: str = Options.wallet_path,
-        wallet_hotkey: str = Options.wallet_hotkey,
-        netuids=typer.Option(
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        wallet_path: Optional[str] = Options.wallet_path,
+        coldkey_ss58=typer.Option(
             None,
-            "--netuids",
-            "--netuid",
-            "-n",
-            help="Set the netuid(s) to set weights to. Separate multiple netuids with a comma, for example: `-n 0,1,2`.",
+            "--ss58",
+            "--coldkey_ss58",
+            "--coldkey.ss58_address",
+            "--coldkey.ss58",
+            help="Coldkey address of the wallet",
         ),
-        weights: str = Options.weights,
-        prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        # TODO add: all-wallets, reuse_last, html_output
     ):
-        """
-        Set the weights for different subnets, by setting them in the root network.
-
-        To use this command, you should specify the netuids and corresponding weights you wish to assign. This command is used by validators registered to the root subnet to influence the distribution of subnet rewards and responsibilities.
-
-        You must have a comprehensive understanding of the dynamics of the subnets to use this command. It is a powerful tool that directly impacts the subnet's  operational mechanics and reward distribution.
-
-        EXAMPLE
-
-        With no spaces between the passed values:
-
-        [green]$[/green] btcli root set-weights --netuids 1,2 --weights 0.2,0.3
-
-        or
-
-        Include double quotes to include spaces between the passed values:
-
-        [green]$[/green] btcli root set-weights --netuids "1, 2" --weights "0.2, 0.3"
-        """
+        """List all stake accounts for wallet."""
         self.verbosity_handler(quiet, verbose)
 
-        if netuids:
-            netuids = parse_to_list(
-                netuids,
-                int,
-                "Netuids must be a comma-separated list of ints, e.g., `--netuid 1,2,3,4`.",
-            )
+        wallet = None
+        if coldkey_ss58:
+            if not is_valid_ss58_address(coldkey_ss58):
+                print_error("You entered an invalid ss58 address")
+                raise typer.Exit()
         else:
-            netuids = list_prompt(netuids, int, "Enter netuids (e.g: 1, 4, 6)")
-
-        if weights:
-            weights = parse_to_list(
-                weights,
-                float,
-                "Weights must be a comma-separated list of floats, e.g., `--weights 0.3,0.4,0.3`.",
+            coldkey_or_ss58 = Prompt.ask(
+                "Enter the [blue]wallet name[/blue] or [blue]coldkey ss58 address[/blue]",
+                default=self.config.get("wallet_name") or defaults.wallet.name,
             )
-        else:
-            weights = list_prompt(
-                weights, float, "Enter weights (e.g. 0.02, 0.03, 0.01)"
-            )
-
-        if len(netuids) != len(weights):
-            raise typer.BadParameter(
-                "The number of netuids and weights must be the same."
-            )
-
-        wallet = self.wallet_ask(
-            wallet_name,
-            wallet_path,
-            wallet_hotkey,
-            ask_for=[WO.HOTKEY, WO.PATH, WO.NAME],
-            validate=WV.WALLET_AND_HOTKEY,
-        )
-        self._run_command(
-            root.set_weights(
-                wallet, self.initialize_chain(network), netuids, weights, prompt
-            )
-        )
-
-    def root_get_weights(
-        self,
-        network: Optional[list[str]] = Options.network,
-        limit_min_col: Optional[int] = typer.Option(
-            None,
-            "--limit-min-col",
-            "--min",
-            help="Limit the left display of the table to this column.",
-        ),
-        limit_max_col: Optional[int] = typer.Option(
-            None,
-            "--limit-max-col",
-            "--max",
-            help="Limit the right display of the table to this column.",
-        ),
-        reuse_last: bool = Options.reuse_last,
-        html_output: bool = Options.html_output,
-        quiet: bool = Options.quiet,
-        verbose: bool = Options.verbose,
-    ):
-        """
-        Shows a table listing the weights assigned to each subnet in the root network.
-
-        This command provides visibility into how network responsibilities and rewards are distributed among various subnets. This information is crucial for understanding the current influence and reward distribution across different subnets. Use this command if you are interested in the governance and operational dynamics of the Bittensor network.
-
-        EXAMPLE
-
-        [green]$[/green] btcli root get_weights
-        """
-        self.verbosity_handler(quiet, verbose)
-        if (reuse_last or html_output) and self.config.get("use_cache") is False:
-            err_console.print(
-                "Unable to use `--reuse-last` or `--html` when config 'no-cache' is set to 'True'."
-                "Change it to 'False' using `btcli config set`."
-            )
-            raise typer.Exit()
-        if not reuse_last:
-            subtensor = self.initialize_chain(network)
-        else:
-            subtensor = None
-        return self._run_command(
-            root.get_weights(
-                subtensor,
-                limit_min_col,
-                limit_max_col,
-                reuse_last,
-                html_output,
-                not self.config.get("use_cache", True),
-            )
-        )
-
-    def root_boost(
-        self,
-        network: Optional[list[str]] = Options.network,
-        wallet_name: str = Options.wallet_name,
-        wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        netuid: int = Options.netuid,
-        amount: float = typer.Option(
-            None,
-            "--amount",
-            "--increase",
-            "-a",
-            prompt="Enter the boost amount (added to existing weight)",
-            help="Amount (float) to boost (added to the existing weight), (e.g. 0.01)",
-        ),
-        prompt: bool = Options.prompt,
-        quiet: bool = Options.quiet,
-        verbose: bool = Options.verbose,
-    ):
-        """
-        Increase (boost) the weights for a specific subnet in the root network. Any amount provided will be added to the subnet's existing weight.
-
-        EXAMPLE
-
-        [green]$[/green] btcli root boost --netuid 1 --increase 0.01
-        """
-        self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(
-            wallet_name,
-            wallet_path,
-            wallet_hotkey,
-            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
-            validate=WV.WALLET_AND_HOTKEY,
-        )
-        return self._run_command(
-            root.set_boost(
-                wallet, self.initialize_chain(network), netuid, amount, prompt
-            )
-        )
-
-    def root_slash(
-        self,
-        network: Optional[list[str]] = Options.network,
-        wallet_name: str = Options.wallet_name,
-        wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        netuid: int = Options.netuid,
-        amount: float = typer.Option(
-            None,
-            "--amount",
-            "--decrease",
-            "-a",
-            prompt="Enter the slash amount (subtracted from the existing weight)",
-            help="Amount (float) to slash (subtract from the existing weight), (e.g. 0.01)",
-        ),
-        prompt: bool = Options.prompt,
-        quiet: bool = Options.quiet,
-        verbose: bool = Options.verbose,
-    ):
-        """
-        Decrease (slash) the weights for a specific subnet in the root network. Any amount provided will be subtracted from the subnet's existing weight.
-
-        EXAMPLE
-
-        [green]$[/green] btcli root slash --netuid 1 --decrease 0.01
-
-        """
-        self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(
-            wallet_name,
-            wallet_path,
-            wallet_hotkey,
-            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
-            validate=WV.WALLET_AND_HOTKEY,
-        )
-        return self._run_command(
-            root.set_slash(
-                wallet, self.initialize_chain(network), netuid, amount, prompt
-            )
-        )
-
-    def root_senate_vote(
-        self,
-        network: Optional[list[str]] = Options.network,
-        wallet_name: Optional[str] = Options.wallet_name,
-        wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        proposal: str = typer.Option(
-            None,
-            "--proposal",
-            "--proposal-hash",
-            prompt="Enter the proposal hash",
-            help="The hash of the proposal to vote on.",
-        ),
-        prompt: bool = Options.prompt,
-        quiet: bool = Options.quiet,
-        verbose: bool = Options.verbose,
-        vote: bool = typer.Option(
-            None,
-            "--vote-aye/--vote-nay",
-            prompt="Enter y to vote Aye, or enter n to vote Nay",
-            help="The vote casted on the proposal",
-        ),
-    ):
-        """
-        Cast a vote on an active proposal in Bittensor's governance protocol.
-
-        This command is used by Senate members to vote on various proposals that shape the network's future. Use `btcli root proposals` to see the active proposals and their hashes.
-
-        USAGE
-
-        The user must specify the hash of the proposal they want to vote on. The command then allows the Senate member to cast a 'Yes' or 'No' vote, contributing to the decision-making process on the proposal. This command is crucial for Senate members to exercise their voting rights on key proposals. It plays a vital role in the governance and evolution of the Bittensor network.
-
-        EXAMPLE
-
-        [green]$[/green] btcli root senate_vote --proposal <proposal_hash>
-        """
-        self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(
-            wallet_name,
-            wallet_path,
-            wallet_hotkey,
-            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
-            validate=WV.WALLET_AND_HOTKEY,
-        )
-        return self._run_command(
-            root.senate_vote(
-                wallet, self.initialize_chain(network), proposal, vote, prompt
-            )
-        )
-
-    def root_senate(
-        self,
-        network: Optional[list[str]] = Options.network,
-        quiet: bool = Options.quiet,
-        verbose: bool = Options.verbose,
-    ):
-        """
-        Shows the Senate members of the Bittensor's governance protocol.
-
-        This command lists the delegates involved in the decision-making process of the Bittensor network, showing their names and wallet addresses. This information is crucial for understanding who holds governance roles within the network.
-
-        EXAMPLE
-
-        [green]$[/green] btcli root senate
-        """
-        self.verbosity_handler(quiet, verbose)
-        return self._run_command(root.get_senate(self.initialize_chain(network)))
-
-    def root_register(
-        self,
-        network: Optional[list[str]] = Options.network,
-        wallet_name: Optional[str] = Options.wallet_name,
-        wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        prompt: bool = Options.prompt,
-        quiet: bool = Options.quiet,
-        verbose: bool = Options.verbose,
-    ):
-        """
-        Register a neuron to the root subnet by recycling some TAO to cover for the registration cost.
-
-        This command adds a new neuron as a validator on the root network. This will allow the neuron owner to set subnet weights.
-
-        # Usage:
-
-        Before registering, the command checks if the specified subnet exists and whether the TAO balance in the user's wallet is sufficient to cover the registration cost. The registration cost is determined by the current recycle amount for the specified subnet. If the balance is insufficient or the subnet does not exist, the command will exit with an appropriate error message.
-
-        # Example usage:
-
-        [green]$[/green] btcli subnets register --netuid 1
-        """
-        self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(
-            wallet_name,
-            wallet_path,
-            wallet_hotkey,
-            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
-            validate=WV.WALLET_AND_HOTKEY,
-        )
-        return self._run_command(
-            root.register(wallet, self.initialize_chain(network), prompt)
-        )
-
-    def root_proposals(
-        self,
-        network: Optional[list[str]] = Options.network,
-        quiet: bool = Options.quiet,
-        verbose: bool = Options.verbose,
-    ):
-        """
-        View active proposals for the senate in the Bittensor's governance protocol.
-
-        This command displays the details of ongoing proposals, including proposal hashes, votes, thresholds, and proposal data.
-
-        EXAMPLE
-
-        [green]$[/green] btcli root proposals
-        """
-        self.verbosity_handler(quiet, verbose)
-        return self._run_command(root.proposals(self.initialize_chain(network)))
-
-    def root_set_take(
-        self,
-        network: Optional[list[str]] = Options.network,
-        wallet_name: Optional[str] = Options.wallet_name,
-        wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        take: float = typer.Option(None, help="The new take value."),
-        quiet: bool = Options.quiet,
-        verbose: bool = Options.verbose,
-    ):
-        """
-        Allows users to change their delegate take percentage.
-
-        This command can be used to update the delegate takes individually for every subnet. To run the command, the user must have a configured wallet with both hotkey and coldkey. The command performs the below checks:
-
-            1. The provided hotkey is already a delegate.
-            2. The new take value is within 0-18% range.
-
-        EXAMPLE
-
-        [green]$[/green] btcli root set_take --wallet-name my_wallet --wallet-hotkey my_hotkey
-        """
-        max_value = 0.18
-        min_value = 0.00
-        self.verbosity_handler(quiet, verbose)
-
-        if not take:
-            max_value_style = typer.style(f"Max: {max_value}", fg="magenta")
-            min_value_style = typer.style(f"Min: {min_value}", fg="magenta")
-            prompt_text = typer.style(
-                "Enter take value (0.18 for 18%)", fg="bright_cyan", bold=True
-            )
-            take = FloatPrompt.ask(f"{prompt_text} {min_value_style} {max_value_style}")
-
-        if not (min_value <= take <= max_value):
-            print_error(
-                f"Take value must be between {min_value} and {max_value}. Provided value: {take}"
-            )
-            raise typer.Exit()
-
-        wallet = self.wallet_ask(
-            wallet_name,
-            wallet_path,
-            wallet_hotkey,
-            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
-            validate=WV.WALLET_AND_HOTKEY,
-        )
-
-        return self._run_command(
-            root.set_take(wallet, self.initialize_chain(network), take)
-        )
-
-    def root_delegate_stake(
-        self,
-        delegate_ss58key: str = typer.Option(
-            None,
-            help="The ss58 address of the delegate hotkey to stake TAO to.",
-            prompt="Enter the hotkey ss58 address you want to delegate TAO to.",
-        ),
-        amount: Optional[float] = typer.Option(
-            None, help="The amount of TAO to stake. Do no specify if using `--all`"
-        ),
-        stake_all: Optional[bool] = typer.Option(
-            False,
-            "--all",
-            "-a",
-            help="If specified, the command stakes all available TAO. Do not specify if using"
-            " `--amount`",
-        ),
-        wallet_name: Optional[str] = Options.wallet_name,
-        wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        network: Optional[list[str]] = Options.network,
-        prompt: bool = Options.prompt,
-        quiet: bool = Options.quiet,
-        verbose: bool = Options.verbose,
-    ):
-        """
-        Stakes TAO to a specified delegate hotkey.
-
-        This command allocates the user's TAO to the specified hotkey of a delegate, potentially earning staking rewards in return. If the
-        `--all` flag is used, it delegates the entire TAO balance available in the user's wallet.
-
-        This command should be run by a TAO holder. Compare this command with "btcli stake add" that is typically run by a subnet validator to add stake to their own delegate hotkey.
-
-        EXAMPLE
-
-        [green]$[/green] btcli root delegate-stake --delegate_ss58key <SS58_ADDRESS> --amount <AMOUNT>
-
-        [green]$[/green] btcli root delegate-stake --delegate_ss58key <SS58_ADDRESS> --all
-
-        [blue bold]Note[/blue bold]: This command modifies the blockchain state and may incur transaction fees. The user should ensure the delegate's address and the amount to be staked are correct before executing the command.
-        """
-        self.verbosity_handler(quiet, verbose)
-        if amount and stake_all:
-            err_console.print(
-                "Both `--amount` and `--all` are specified. Choose one or the other."
-            )
-        if not stake_all and not amount:
-            while True:
-                amount = FloatPrompt.ask(
-                    "[blue bold]Amount to stake (TAO τ)[/blue bold]", console=console
+            if is_valid_ss58_address(coldkey_or_ss58):
+                coldkey_ss58 = coldkey_or_ss58
+            else:
+                wallet_name = coldkey_or_ss58 if coldkey_or_ss58 else wallet_name
+                wallet = self.wallet_ask(
+                    wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
                 )
-                confirmation = FloatPrompt.ask(
-                    "[blue bold]Confirm the amount to stake (TAO τ)[/blue bold]",
-                    console=console,
-                )
-                if amount == confirmation:
-                    break
-                else:
-                    err_console.print(
-                        "[red]The amounts do not match. Please try again.[/red]"
-                    )
-
-        wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
-        )
-        return self._run_command(
-            root.delegate_stake(
-                wallet,
-                self.initialize_chain(network),
-                amount,
-                delegate_ss58key,
-                prompt,
-            )
-        )
-
-    def root_undelegate_stake(
-        self,
-        delegate_ss58key: str = typer.Option(
-            None,
-            help="The ss58 address of the delegate to undelegate from.",
-            prompt="Enter the hotkey ss58 address you want to undelegate from",
-        ),
-        amount: Optional[float] = typer.Option(
-            None, help="The amount of TAO to unstake. Do no specify if using `--all`"
-        ),
-        unstake_all: Optional[bool] = typer.Option(
-            False,
-            "--all",
-            "-a",
-            help="If specified, the command undelegates all staked TAO from the delegate. Do not specify if using"
-            " `--amount`",
-        ),
-        wallet_name: Optional[str] = Options.wallet_name,
-        wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        network: Optional[list[str]] = Options.network,
-        prompt: bool = Options.prompt,
-        quiet: bool = Options.quiet,
-        verbose: bool = Options.verbose,
-    ):
-        """
-        Allows users to withdraw their staked TAO from a delegate.
-
-        The user must provide the delegate hotkey's ss58 address and the amount of TAO to undelegate. The function will then send a transaction to the blockchain to process the undelegation. This command can result in a change to the blockchain state and may incur transaction fees.
-
-        EXAMPLE
-
-        [green]$[/green] btcli undelegate --delegate_ss58key <SS58_ADDRESS> --amount <AMOUNT>
-
-        [green]$[/green] btcli undelegate --delegate_ss58key <SS58_ADDRESS> --all
-        """
-        self.verbosity_handler(quiet, verbose)
-        if amount and unstake_all:
-            err_console.print(
-                "Both `--amount` and `--all` are specified. Choose one or the other."
-            )
-        if not unstake_all and not amount:
-            while True:
-                amount = FloatPrompt.ask(
-                    "[blue bold]Amount to unstake (TAO τ)[/blue bold]", console=console
-                )
-                confirmation = FloatPrompt.ask(
-                    "[blue bold]Confirm the amount to unstake (TAO τ)[/blue bold]",
-                    console=console,
-                )
-                if amount == confirmation:
-                    break
-                else:
-                    err_console.print(
-                        "[red]The amounts do not match. Please try again.[/red]"
-                    )
-
-        wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
-        )
-        self._run_command(
-            root.delegate_unstake(
-                wallet,
-                self.initialize_chain(network),
-                amount,
-                delegate_ss58key,
-                prompt,
-            )
-        )
-
-    def root_my_delegates(
-        self,
-        network: Optional[list[str]] = Options.network,
-        wallet_name: Optional[str] = Options.wallet_name,
-        wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        all_wallets: bool = typer.Option(
-            False,
-            "--all-wallets",
-            "--all",
-            "-a",
-            help="If specified, the command aggregates information across all the wallets.",
-        ),
-        quiet: bool = Options.quiet,
-        verbose: bool = Options.verbose,
-    ):
-        """
-        Shows a table with the details on the user's delegates.
-
-        The table output includes the following columns:
-
-        - Wallet: The name of the user's wallet (coldkey).
-
-        - OWNER: The name of the delegate who owns the hotkey.
-
-        - SS58: The truncated SS58 address of the delegate's hotkey.
-
-        - Delegation: The amount of TAO staked by the user to the delegate.
-
-        - τ/24h: The earnings from the delegate to the user over the past 24 hours.
-
-        - NOMS: The number of nominators for the delegate.
-
-        - OWNER STAKE(τ): The stake amount owned by the delegate.
-
-        - TOTAL STAKE(τ): The total stake amount held by the delegate.
-
-        - SUBNETS: The list of subnets the delegate is a part of.
-
-        - VPERMIT: Validator permits held by the delegate for various subnets.
-
-        - 24h/kτ: Earnings per 1000 TAO staked over the last 24 hours.
-
-        - Desc: A description of the delegate.
-
-        The command also sums and prints the total amount of TAO delegated across all wallets.
-
-        EXAMPLE
-
-        [green]$[/green] btcli root my-delegates
-        [green]$[/green] btcli root my-delegates --all
-        [green]$[/green] btcli root my-delegates --wallet-name my_wallet
-
-        [blue bold]Note[/blue bold]: This command is not intended to be used directly in user code.
-        """
-        self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(
-            wallet_name,
-            wallet_path,
-            wallet_hotkey,
-            ask_for=([WO.NAME, WO.PATH] if not all_wallets else [WO.PATH]),
-            validate=WV.WALLET if not all_wallets else WV.NONE,
-        )
-        self._run_command(
-            root.my_delegates(wallet, self.initialize_chain(network), all_wallets)
-        )
-
-    def root_list_delegates(
-        self,
-        network: Optional[list[str]] = Options.network,
-        quiet: bool = Options.quiet,
-        verbose: bool = Options.verbose,
-    ):
-        """
-        Displays a table of Bittensor network-wide delegates, providing a comprehensive overview of delegate statistics and information.
-
-        This table helps users make informed decisions on which delegates to allocate their TAO stake.
-
-        The table columns include:
-
-        - INDEX: The delegate's index in the sorted list.
-
-        - DELEGATE: The name of the delegate.
-
-        - SS58: The delegate's unique ss58 address (truncated for display).
-
-        - NOMINATORS: The count of nominators backing the delegate.
-
-        - OWN STAKE(τ): The amount of delegate's own stake (not the TAO delegated from any nominators).
-
-        - TOTAL STAKE(τ): The delegate's total stake, i.e., the sum of delegate's own stake and nominators' stakes.
-
-        - CHANGE/(4h): The percentage change in the delegate's stake over the last four hours.
-
-        - SUBNETS: The subnets in which the delegate is registered.
-
-        - VPERMIT: Indicates the subnets in which the delegate has validator permits.
-
-        - NOMINATOR/(24h)/kτ: The earnings per 1000 τ staked by nominators in the last 24 hours.
-
-        - DELEGATE/(24h): The total earnings of the delegate in the last 24 hours.
-
-        - DESCRIPTION: A brief description of the delegate's purpose and operations.
-
-        [blue bold]NOTES:[/blue bold]
-
-            - Sorting is done based on the `TOTAL STAKE` column in descending order.
-            - Changes in stake are shown as: increases in green and decreases in red.
-            - Entries with no previous data are marked with `NA`.
-            - Each delegate's name is a hyperlink to more information, if available.
-
-        EXAMPLE
-
-        [green]$[/green] btcli root list_delegates
-
-        [green]$[/green] btcli root list_delegates --subtensor.network finney # can also be `test` or `local`
-
-        [blue bold]NOTE[/blue bold]: This command is intended for use within a
-        console application. It prints directly to the console and does not return any value.
-        """
-        self.verbosity_handler(quiet, verbose)
-
-        if network:
-            if "finney" in network:
-                network = ["wss://archive.chain.opentensor.ai:443"]
-        elif (conf_net := self.config.get("network")) == "finney":
-            network = ["wss://archive.chain.opentensor.ai:443"]
-        elif conf_net:
-            network = [conf_net]
-        else:
-            network = ["wss://archive.chain.opentensor.ai:443"]
-
-        sub = self.initialize_chain(network)
-        return self._run_command(root.list_delegates(sub))
-
-    # TODO: Confirm if we need a command for this - currently registering to root auto makes u delegate
-    def root_nominate(
-        self,
-        wallet_name: Optional[str] = Options.wallet_name,
-        wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        network: Optional[list[str]] = Options.network,
-        prompt: bool = Options.prompt,
-        quiet: bool = Options.quiet,
-        verbose: bool = Options.verbose,
-    ):
-        """
-        Enables a wallet's hotkey to become a delegate.
-
-        This command handles the nomination process, including wallet unlocking and verification of the hotkey's current delegate status.
-
-        The command performs several checks:
-
-            - Verifies that the hotkey is not already a delegate to prevent redundant nominations.
-
-            - Tries to nominate the wallet and reports success or failure.
-
-        Upon success, the wallet's hotkey is registered as a delegate on the network.
-
-        To run the command, the user must have a configured wallet with both hotkey and coldkey. If the wallet is not already nominated, this command will initiate the process.
-
-        EXAMPLE
-
-        [green]$[/green] btcli root nominate
-
-        [green]$[/green] btcli root nominate --wallet-name my_wallet --wallet-hotkey my_hotkey
-
-        [blue bold]Note[/blue bold]: This command prints the output directly to the console. It should not be called programmatically in user code due to its interactive nature and side effects on the network state.
-        """
-        self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(
-            wallet_name,
-            wallet_path,
-            wallet_hotkey,
-            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
-            validate=WV.WALLET_AND_HOTKEY,
-        )
-        return self._run_command(
-            root.nominate(wallet, self.initialize_chain(network), prompt)
-        )
-
-    def stake_show(
-        self,
-        all_wallets: bool = typer.Option(
-            False,
-            "--all",
-            "--all-wallets",
-            "-a",
-            help="When set, the command checks all the coldkey wallets of the user instead of just the specified wallet.",
-        ),
-        network: Optional[list[str]] = Options.network,
-        wallet_name: Optional[str] = Options.wallet_name,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        wallet_path: Optional[str] = Options.wallet_path,
-        reuse_last: bool = Options.reuse_last,
-        html_output: bool = Options.html_output,
-        quiet: bool = Options.quiet,
-        verbose: bool = Options.verbose,
-    ):
-        """
-        Lists all the stake accounts associated with a user's wallet.
-
-        This command provides a comprehensive view of the stakes associated with the user's coldkeys. It shows both the user's own hotkeys and also the hotkeys of the delegates to which this user has staked.
-
-        The command lists all the stake accounts for a specified wallet or all wallets in the user's configuration directory. It displays the coldkey, balance, hotkey details (own hotkey and delegate hotkey), stake amount, and the rate of return.
-
-        The command shows a table with the below columns:
-
-        - Coldkey: The coldkey associated with the wallet.
-
-        - Balance: The balance of the coldkey.
-
-        - Hotkey: The names of the coldkey's own hotkeys and the delegate hotkeys to which this coldkey has staked.
-
-        - Stake: The amount of TAO staked to all the hotkeys.
-
-        - Rate: The rate of return on the stake, shown in TAO per day.
-
-        EXAMPLE
-
-        [green]$[/green] btcli stake show --all
-        """
-        self.verbosity_handler(quiet, verbose)
-        if (reuse_last or html_output) and self.config.get("use_cache") is False:
-            err_console.print(
-                "Unable to use `--reuse-last` or `--html` when config 'no-cache' is set to 'True'. "
-                "Please change the config to 'False' using `btcli config set`"
-            )
-            raise typer.Exit()
-        if not reuse_last:
-            subtensor = self.initialize_chain(network)
-        else:
-            subtensor = None
-
-        if all_wallets:
-            wallet = self.wallet_ask(
-                wallet_name,
-                wallet_path,
-                wallet_hotkey,
-                ask_for=[WO.PATH],
-                validate=WV.NONE,
-            )
-        else:
-            wallet = self.wallet_ask(
-                wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
-            )
 
         return self._run_command(
-            stake.show(
-                wallet,
-                subtensor,
-                all_wallets,
-                reuse_last,
-                html_output,
-                not self.config.get("use_cache", True),
-            )
+            stake.stake_list(wallet, coldkey_ss58, self.initialize_chain(network))
         )
 
     def stake_add(
@@ -3240,14 +2479,11 @@ class CLIManager:
             "-m",
             help="Stake is sent to a hotkey only until the hotkey's total stake is less than or equal to this maximum staked TAO. If a hotkey already has stake greater than this amount, then stake is not added to this hotkey.",
         ),
-        hotkey_ss58_address: str = typer.Option(
-            "",
-            help="The ss58 address of the hotkey to stake to.",
-        ),
         include_hotkeys: str = typer.Option(
             "",
             "--include-hotkeys",
             "-in",
+            "--hotkey-ss58-address",
             help="Specifies hotkeys by name or ss58 address to stake to. For example, `-in hk1,hk2`",
         ),
         exclude_hotkeys: str = typer.Option(
@@ -3262,6 +2498,8 @@ class CLIManager:
             help="When set, this command stakes to all hotkeys associated with the wallet. Do not use if specifying "
             "hotkeys in `--include-hotkeys`.",
         ),
+        netuid: Optional[int] = Options.netuid_not_req,
+        all_netuids: bool = Options.all_netuids,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -3282,15 +2520,13 @@ class CLIManager:
         [green]$[/green] btcli stake add --amount 100 --wallet-name <my_wallet> --wallet-hotkey <my_hotkey>
         """
         self.verbosity_handler(quiet, verbose)
+        netuid = get_optional_netuid(netuid, all_netuids)
 
         if stake_all and amount:
             print_error(
                 "Cannot specify an amount and 'stake-all'. Choose one or the other."
             )
             raise typer.Exit()
-
-        if not stake_all and not amount and not max_stake:
-            amount = FloatPrompt.ask("[blue bold]Amount to stake (TAO τ)[/blue bold]")
 
         if stake_all and not amount:
             if not Confirm.ask("Stake all the available TAO tokens?", default=False):
@@ -3309,20 +2545,21 @@ class CLIManager:
             )
             raise typer.Exit()
 
-        if (
-            not wallet_hotkey
-            and not all_hotkeys
-            and not include_hotkeys
-            and not hotkey_ss58_address
-        ):
+        if not wallet_hotkey and not all_hotkeys and not include_hotkeys:
+            if not wallet_name:
+                wallet_name = Prompt.ask(
+                    "Enter the [blue]wallet name[/blue]",
+                    default=self.config.get("wallet_name") or defaults.wallet.name,
+                )
             hotkey_or_ss58 = Prompt.ask(
                 "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to stake to",
+                default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
             )
             if is_valid_ss58_address(hotkey_or_ss58):
-                hotkey_ss58_address = hotkey_or_ss58
                 wallet = self.wallet_ask(
                     wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
                 )
+                include_hotkeys = hotkey_or_ss58
             else:
                 wallet_hotkey = hotkey_or_ss58
                 wallet = self.wallet_ask(
@@ -3332,8 +2569,9 @@ class CLIManager:
                     ask_for=[WO.NAME, WO.HOTKEY, WO.PATH],
                     validate=WV.WALLET_AND_HOTKEY,
                 )
+                include_hotkeys = wallet.hotkey.ss58_address
 
-        elif all_hotkeys or include_hotkeys or exclude_hotkeys or hotkey_ss58_address:
+        elif all_hotkeys or include_hotkeys or exclude_hotkeys:
             wallet = self.wallet_ask(
                 wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
             )
@@ -3347,33 +2585,62 @@ class CLIManager:
             )
 
         if include_hotkeys:
-            include_hotkeys = parse_to_list(
+            included_hotkeys = parse_to_list(
                 include_hotkeys,
                 str,
                 "Hotkeys must be a comma-separated list of ss58s, e.g., `--include-hotkeys 5Grw....,5Grw....`.",
                 is_ss58=True,
             )
+        else:
+            included_hotkeys = []
 
         if exclude_hotkeys:
-            exclude_hotkeys = parse_to_list(
+            excluded_hotkeys = parse_to_list(
                 exclude_hotkeys,
                 str,
                 "Hotkeys must be a comma-separated list of ss58s, e.g., `--exclude-hotkeys 5Grw....,5Grw....`.",
                 is_ss58=True,
             )
+        else:
+            excluded_hotkeys = []
+
+        # TODO: Ask amount for each subnet explicitly if more than one
+        if not stake_all and not amount and not max_stake:
+            free_balance, staked_balance = self._run_command(
+                wallets.wallet_balance(
+                    wallet, self.initialize_chain(network), False, None
+                )
+            )
+            if free_balance == Balance.from_tao(0):
+                print_error("You dont have any balance to stake.")
+                raise typer.Exit()
+            if netuid is not None:
+                amount = FloatPrompt.ask(
+                    "[dark_sea_green]Amount to stake (TAO τ)[/dark_sea_green]"
+                )
+            else:
+                amount = FloatPrompt.ask(
+                    "[dark_sea_green]Amount to stake to each netuid (TAO τ)[/dark_sea_green]"
+                )
+            if Balance.from_tao(amount) > free_balance:
+                print_error(
+                    f"You dont have enough balance to stake. Current free Balance: {free_balance}."
+                )
+                raise typer.Exit()
 
         return self._run_command(
             stake.stake_add(
                 wallet,
                 self.initialize_chain(network),
-                amount,
+                netuid,
                 stake_all,
-                max_stake,
-                include_hotkeys,
-                exclude_hotkeys,
-                all_hotkeys,
+                amount,
+                False,
                 prompt,
-                hotkey_ss58_address,
+                max_stake,
+                all_hotkeys,
+                included_hotkeys,
+                excluded_hotkeys,
             )
         )
 
@@ -3383,11 +2650,13 @@ class CLIManager:
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
+        netuid: Optional[int] = Options.netuid_not_req,
+        all_netuids: bool = Options.all_netuids,
         unstake_all: bool = typer.Option(
             False,
             "--unstake-all",
             "--all",
-            help="When set, this commmand unstakes all staked TAO from the specified hotkeys.",
+            help="When set, this command unstakes all staked TAO from the specified hotkeys.",
         ),
         amount: float = typer.Option(
             0.0, "--amount", "-a", help="The amount of TAO to unstake."
@@ -3436,6 +2705,7 @@ class CLIManager:
         [blue bold]Note[/blue bold]: This command is for users who wish to reallocate their stake or withdraw them from the network. It allows for flexible management of TAO stake across different neurons (hotkeys) on the network.
         """
         self.verbosity_handler(quiet, verbose)
+        netuid = get_optional_netuid(netuid, all_netuids)
 
         if all_hotkeys and include_hotkeys:
             err_console.print(
@@ -3456,8 +2726,9 @@ class CLIManager:
             )
             raise typer.Exit()
 
-        if not unstake_all and not amount and not keep_stake:
-            amount = FloatPrompt.ask("[blue bold]Amount to unstake (TAO τ)[/blue bold]")
+        # TODO: We are prompting for amount for each subnet later - confirm this to be removed
+        # if not unstake_all and not amount and not keep_stake:
+        #     amount = FloatPrompt.ask("[blue bold]Amount to unstake (TAO τ)[/blue bold]")
 
         if unstake_all and not amount:
             if not Confirm.ask("Unstake all staked TAO tokens?", default=False):
@@ -3469,8 +2740,14 @@ class CLIManager:
             and not all_hotkeys
             and not include_hotkeys
         ):
+            if not wallet_name:
+                wallet_name = Prompt.ask(
+                    "Enter the [blue]wallet name[/blue]",
+                    default=self.config.get("wallet_name") or defaults.wallet.name,
+                )
             hotkey_or_ss58 = Prompt.ask(
-                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake from"
+                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to stake to",
+                default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
             )
             if is_valid_ss58_address(hotkey_or_ss58):
                 hotkey_ss58_address = hotkey_or_ss58
@@ -3502,33 +2779,98 @@ class CLIManager:
             )
 
         if include_hotkeys:
-            include_hotkeys = parse_to_list(
+            included_hotkeys = parse_to_list(
                 include_hotkeys,
                 str,
                 "Hotkeys must be a comma-separated list of ss58s, e.g., `--include-hotkeys 5Grw....,5Grw....`.",
                 is_ss58=True,
             )
+        else:
+            included_hotkeys = []
 
         if exclude_hotkeys:
-            exclude_hotkeys = parse_to_list(
+            excluded_hotkeys = parse_to_list(
                 exclude_hotkeys,
                 str,
                 "Hotkeys must be a comma-separated list of ss58s, e.g., `--exclude-hotkeys 5Grw....,5Grw....`.",
                 is_ss58=True,
             )
+        else:
+            excluded_hotkeys = []
 
         return self._run_command(
             stake.unstake(
                 wallet,
                 self.initialize_chain(network),
                 hotkey_ss58_address,
+                netuid,
                 all_hotkeys,
-                include_hotkeys,
-                exclude_hotkeys,
+                included_hotkeys,
+                excluded_hotkeys,
                 amount,
                 keep_stake,
                 unstake_all,
                 prompt,
+            )
+        )
+
+    def stake_move(
+        self,
+        network=Options.network,
+        wallet_name=Options.wallet_name,
+        wallet_path=Options.wallet_path,
+        wallet_hotkey=Options.wallet_hotkey,
+        origin_netuid: int = typer.Option(help="Origin netuid", prompt=True),
+        destination_netuid: int = typer.Option(help="Destination netuid", prompt=True),
+        destination_hotkey: Optional[str] = typer.Option(
+            None, help="Destination hotkey", prompt=False
+        ),
+        amount: float = typer.Option(
+            None,
+            "--amount",
+            help="The amount of TAO to stake",
+            prompt=False,
+        ),
+        stake_all: bool = typer.Option(
+            False, "--stake-all", "--all", help="Stake all", prompt=False
+        ),
+        prompt: bool = Options.prompt,
+    ):
+        """
+        Move Staked TAO to a hotkey from one subnet to another.
+
+        THe move commands converts the origin subnet's dTao to Tao, and then converts Tao to destination subnet's dTao.
+
+        EXAMPLE
+
+        [green]$[/green] btcli stake move
+        """
+        # TODO: Improve logic of moving stake (dest hotkey)
+        ask_for = (
+            [WO.NAME, WO.PATH] if destination_hotkey else [WO.NAME, WO.HOTKEY, WO.PATH]
+        )
+        validate = WV.WALLET if destination_hotkey else WV.WALLET_AND_HOTKEY
+
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=ask_for,
+            validate=validate,
+        )
+        if not destination_hotkey:
+            destination_hotkey = wallet.hotkey.ss58_address
+
+        return self._run_command(
+            stake.move_stake(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                origin_netuid=origin_netuid,
+                destination_netuid=destination_netuid,
+                destination_hotkey=destination_hotkey,
+                amount=amount,
+                stake_all=stake_all,
+                prompt=prompt,
             )
         )
 
@@ -3599,18 +2941,8 @@ class CLIManager:
         wallet_hotkey: str = Options.wallet_hotkey,
         wallet_path: str = Options.wallet_path,
         network: Optional[list[str]] = Options.network,
-        netuid: Optional[int] = typer.Option(
-            None,
-            help="The netuid of the subnet, (e.g. 4)",
-            prompt=False,
-        ),
-        all_netuids: bool = typer.Option(
-            False,
-            "--all-netuids",
-            "--all",
-            "--allnetuids",
-            help="When this flag is used it sets child hotkeys on all subnets.",
-        ),
+        netuid: Optional[int] = Options.netuid_not_req,
+        all_netuids: bool = Options.all_netuids,
         proportions: list[float] = typer.Option(
             [],
             "--proportions",
@@ -3636,15 +2968,8 @@ class CLIManager:
         [green]$[/green] btcli stake child set -c 5FCL3gmjtQV4xxxxuEPEFQVhyyyyqYgNwX7drFLw7MSdBnxP -c 5Hp5dxxxxtGg7pu8dN2btyyyyVA1vELmM9dy8KQv3LxV8PA7 --hotkey default --netuid 1 -p 0.3 -p 0.7
         """
         self.verbosity_handler(quiet, verbose)
-        if all_netuids and netuid:
-            err_console.print("Specify either a netuid or `--all`, not both.")
-            raise typer.Exit()
-        if all_netuids:
-            netuid = None
-        elif not netuid:
-            netuid = IntPrompt.ask(
-                "Enter a netuid (leave blank for all)", default=None, show_default=True
-            )
+        netuid = get_optional_netuid(netuid, all_netuids)
+
         children = list_prompt(
             children,
             str,
@@ -3906,11 +3231,179 @@ class CLIManager:
             sudo.get_hyperparameters(self.initialize_chain(network), netuid)
         )
 
+    def sudo_senate(
+        self,
+        network: Optional[list[str]] = Options.network,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Shows the Senate members of the Bittensor's governance protocol.
+
+        This command lists the delegates involved in the decision-making process of the Bittensor network, showing their names and wallet addresses. This information is crucial for understanding who holds governance roles within the network.
+
+        EXAMPLE
+        [green]$[/green] btcli sudo senate
+        """
+        self.verbosity_handler(quiet, verbose)
+        return self._run_command(sudo.get_senate(self.initialize_chain(network)))
+
+    def sudo_proposals(
+        self,
+        network: Optional[list[str]] = Options.network,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        View active proposals for the senate in the Bittensor's governance protocol.
+
+        This command displays the details of ongoing proposals, including proposal hashes, votes, thresholds, and proposal data.
+
+        EXAMPLE
+        [green]$[/green] btcli sudo proposals
+        """
+        self.verbosity_handler(quiet, verbose)
+        return self._run_command(sudo.proposals(self.initialize_chain(network)))
+
+    def sudo_senate_vote(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        proposal: str = typer.Option(
+            None,
+            "--proposal",
+            "--proposal-hash",
+            prompt="Enter the proposal hash",
+            help="The hash of the proposal to vote on.",
+        ),
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        vote: bool = typer.Option(
+            None,
+            "--vote-aye/--vote-nay",
+            prompt="Enter y to vote Aye, or enter n to vote Nay",
+            help="The vote casted on the proposal",
+        ),
+    ):
+        """
+        Cast a vote on an active proposal in Bittensor's governance protocol.
+
+        This command is used by Senate members to vote on various proposals that shape the network's future. Use `btcli sudo proposals` to see the active proposals and their hashes.
+
+        USAGE
+        The user must specify the hash of the proposal they want to vote on. The command then allows the Senate member to cast a 'Yes' or 'No' vote, contributing to the decision-making process on the proposal. This command is crucial for Senate members to exercise their voting rights on key proposals. It plays a vital role in the governance and evolution of the Bittensor network.
+
+        EXAMPLE
+        [green]$[/green] btcli sudo senate_vote --proposal <proposal_hash>
+        """
+        self.verbosity_handler(quiet, verbose)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
+        return self._run_command(
+            sudo.senate_vote(
+                wallet, self.initialize_chain(network), proposal, vote, prompt
+            )
+        )
+
+    def sudo_set_take(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        take: float = typer.Option(None, help="The new take value."),
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Allows users to change their delegate take percentage.
+
+        This command can be used to update the delegate takes. To run the command, the user must have a configured wallet with both hotkey and coldkey.
+        The command makes sure the new take value is within 0-18% range.
+
+        EXAMPLE
+        [green]$[/green] btcli sudo set-take --wallet-name my_wallet --wallet-hotkey my_hotkey
+        """
+        max_value = 0.18
+        min_value = 0.00
+        self.verbosity_handler(quiet, verbose)
+
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
+
+        current_take = self._run_command(
+            sudo.get_current_take(self.initialize_chain(network), wallet)
+        )
+        console.print(f"Current take is [dark_orange]{current_take * 100.:.2f}%")
+
+        if not take:
+            max_value_style = typer.style(f"Max: {max_value}", fg="magenta")
+            min_value_style = typer.style(f"Min: {min_value}", fg="magenta")
+            prompt_text = typer.style(
+                "Enter take value (0.18 for 18%)", fg="bright_cyan", bold=True
+            )
+            take = FloatPrompt.ask(f"{prompt_text} {min_value_style} {max_value_style}")
+
+        if not (min_value <= take <= max_value):
+            print_error(
+                f"Take value must be between {min_value} and {max_value}. Provided value: {take}"
+            )
+            raise typer.Exit()
+
+        return self._run_command(
+            sudo.set_take(wallet, self.initialize_chain(network), take)
+        )
+
+    def sudo_get_take(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Allows users to check their delegate take percentage.
+
+        This command can be used to fetch the delegate take of your hotkey.
+
+        EXAMPLE
+        [green]$[/green] btcli sudo get-take --wallet-name my_wallet --wallet-hotkey my_hotkey
+        """
+        self.verbosity_handler(quiet, verbose)
+
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
+
+        current_take = self._run_command(
+            sudo.get_current_take(self.initialize_chain(network), wallet)
+        )
+        console.print(f"Current take is [dark_orange]{current_take * 100.:.2f}%")
+
     def subnets_list(
         self,
         network: Optional[list[str]] = Options.network,
-        reuse_last: bool = Options.reuse_last,
-        html_output: bool = Options.html_output,
+        # reuse_last: bool = Options.reuse_last,
+        # html_output: bool = Options.html_output,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -3933,22 +3426,47 @@ class CLIManager:
         [green]$[/green] btcli subnets list
         """
         self.verbosity_handler(quiet, verbose)
-        if (reuse_last or html_output) and self.config.get("use_cache") is False:
-            err_console.print(
-                "Unable to use `--reuse-last` or `--html` when config 'no-cache' is set to 'True'. "
-                "Change the config to 'False' using `btcli config set`."
-            )
-            raise typer.Exit()
-        if reuse_last:
-            subtensor = None
-        else:
-            subtensor = self.initialize_chain(network)
+        # if (reuse_last or html_output) and self.config.get("use_cache") is False:
+        #     err_console.print(
+        #         "Unable to use `--reuse-last` or `--html` when config 'no-cache' is set to 'True'. "
+        #         "Change the config to 'False' using `btcli config set`."
+        #     )
+        #     raise typer.Exit()
+        # if reuse_last:
+        #     subtensor = None
+        # else:
+        subtensor = self.initialize_chain(network)
         return self._run_command(
             subnets.subnets_list(
                 subtensor,
-                reuse_last,
-                html_output,
+                False,  # reuse-last
+                False,  # html-output
                 not self.config.get("use_cache", True),
+            )
+        )
+
+    def subnets_show(
+        self,
+        network: Optional[list[str]] = Options.network,
+        netuid: int = Options.netuid,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        prompt: bool = Options.prompt,
+    ):
+        """
+        Displays detailed information about a subnet including participants and their state.
+
+        EXAMPLE
+
+        [green]$[/green] btcli subnets list
+        """
+        self.verbosity_handler(quiet, verbose)
+        subtensor = self.initialize_chain(network)
+        return self._run_command(
+            subnets.show(
+                subtensor,
+                netuid,
+                prompt=prompt,
             )
         )
 

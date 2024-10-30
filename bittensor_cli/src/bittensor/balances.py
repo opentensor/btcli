@@ -18,6 +18,7 @@
 # DEALINGS IN THE SOFTWARE.
 
 from typing import Union
+from bittensor_cli.src import UNITS
 
 
 class Balance:
@@ -72,7 +73,10 @@ class Balance:
         """
         Returns the Balance object as a string in the format "symbolvalue", where the value is in tao.
         """
-        return f"{self.unit}{float(self.tao):,.9f}"
+        if self.unit == UNITS[0]:
+            return f"{self.unit} {float(self.tao):,.4f}"
+        else:
+            return f"{float(self.tao):,.4f} {self.unit}\u200e"
 
     def __rich__(self):
         return "[green]{}[/green][green]{}[/green][green].[/green][dim green]{}[/dim green]".format(
@@ -278,4 +282,22 @@ class Balance:
 
         :return: A Balance object representing the given amount.
         """
-        return Balance(amount)
+        return Balance(int(amount))
+
+    @staticmethod
+    def get_unit(netuid: int):
+        units = UNITS
+        base = len(units)
+        if netuid < base:
+            return units[netuid]
+        else:
+            result = ""
+            while netuid > 0:
+                result = units[netuid % base] + result
+                netuid //= base
+            return result
+
+    def set_unit(self, netuid: int):
+        self.unit = Balance.get_unit(netuid)
+        self.rao_unit = Balance.get_unit(netuid)
+        return self

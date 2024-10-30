@@ -269,13 +269,13 @@ async def wallet_balance(
         ),
         Column(
             "[white]Coldkey Address",
-            style="bright_magenta",
+            style="plum2",
             no_wrap=True,
         ),
         Column(
             "[white]Free Balance",
             justify="right",
-            style="light_goldenrod2",
+            style="tan",
             no_wrap=True,
         ),
         Column(
@@ -287,10 +287,10 @@ async def wallet_balance(
         Column(
             "[white]Total Balance",
             justify="right",
-            style="green",
+            style="dark_sea_green",
             no_wrap=True,
         ),
-        title=f"[underline dark_orange]Wallet Coldkey Balance[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}",
+        title=f"\n[underline navajo_white1]Wallet Coldkey Balance[/underline navajo_white1]\n[navajo_white1]Network: {subtensor.network}",
         show_footer=True,
         show_edge=False,
         border_style="bright_black",
@@ -318,6 +318,7 @@ async def wallet_balance(
     )
     console.print(Padding(table, (0, 0, 0, 4)))
     await subtensor.substrate.close()
+    return total_free_balance, total_staked_balance
 
 
 async def get_wallet_transfers(wallet_address: str) -> list[dict]:
@@ -1113,17 +1114,12 @@ async def _fetch_neuron_for_netuid(
     """
 
     async def neurons_lite_for_uid(uid: int) -> dict[Any, Any]:
-        call_definition = TYPE_REGISTRY["runtime_api"]["NeuronInfoRuntimeApi"][
-            "methods"
-        ]["get_neurons_lite"]
-        data = await subtensor.encode_params(
-            call_definition=call_definition, params=[uid]
-        )
         block_hash = subtensor.substrate.last_block_hash
-        hex_bytes_result = await subtensor.substrate.rpc_request(
-            method="state_call",
-            params=["NeuronInfoRuntimeApi_get_neurons_lite", data, block_hash],
-            reuse_block_hash=True,
+        hex_bytes_result = await subtensor.query_runtime_api(
+            runtime_api="NeuronInfoRuntimeApi",
+            method="get_neurons_lite",
+            params=[uid],
+            block_hash=block_hash,
         )
 
         return hex_bytes_result
@@ -1143,25 +1139,6 @@ async def _fetch_all_neurons(
     )
 
 
-def _partial_decode(args):
-    """
-    Helper function for passing to ProcessPoolExecutor that decodes scale bytes based on a set return type and
-    rpc type registry, passing this back to the Executor with its specified netuid for easier mapping
-
-    :param args: (return type, scale bytes object, custom rpc type registry, netuid)
-
-    :return: (original netuid, decoded object)
-    """
-    return_type, as_scale_bytes, custom_rpc_type_registry_, netuid_ = args
-    decoded = decode_scale_bytes(return_type, as_scale_bytes, custom_rpc_type_registry_)
-    if decoded.startswith("0x"):
-        bytes_result = bytes.fromhex(decoded[2:])
-    else:
-        bytes_result = bytes.fromhex(decoded)
-
-    return netuid_, NeuronInfoLite.list_from_vec_u8(bytes_result)
-
-
 def _process_neurons_for_netuids(
     netuids_with_all_neurons_hex_bytes: list[tuple[int, list[ScaleBytes]]],
 ) -> list[tuple[int, list[NeuronInfoLite]]]:
@@ -1171,22 +1148,10 @@ def _process_neurons_for_netuids(
     :param netuids_with_all_neurons_hex_bytes: netuids with hex-bytes neurons
     :return: netuids mapped to decoded neurons
     """
-
-    def make_map(res_):
-        netuid_, json_result = res_
-        hex_bytes_result = json_result["result"]
-        as_scale_bytes = scalecodec.ScaleBytes(hex_bytes_result)
-        return [return_type, as_scale_bytes, custom_rpc_type_registry, netuid_]
-
-    return_type = TYPE_REGISTRY["runtime_api"]["NeuronInfoRuntimeApi"]["methods"][
-        "get_neurons_lite"
-    ]["type"]
-
-    preprocessed = [make_map(r) for r in netuids_with_all_neurons_hex_bytes]
-    with ProcessPoolExecutor() as executor:
-        results = list(executor.map(_partial_decode, preprocessed))
-
-    all_results = [(netuid, result) for netuid, result in results]
+    all_results = [
+        (netuid, NeuronInfoLite.list_from_vec_u8(bytes.fromhex(result[2:])))
+        for netuid, result in netuids_with_all_neurons_hex_bytes
+    ]
     return all_results
 
 
@@ -1565,7 +1530,7 @@ async def set_id(
             return False
 
     identified = (
-        wallet.hotkey.ss58_address if validator_id else wallet.coldkey.ss58_address
+        wallet.hotkey.ss58_address if validator_id else wallet.coldkeypub.ss58_address
     )
     encoded_id_dict = {
         "info": {
