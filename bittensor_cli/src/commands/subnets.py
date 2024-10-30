@@ -1,14 +1,7 @@
 import asyncio
 import json
 import sqlite3
-from textwrap import dedent
-from rich.panel import Panel
-from rich.markdown import Markdown
-from rich.text import Text
-from rich.style import Style
-import textwrap
 from typing import TYPE_CHECKING, Optional, cast
-from rich import box
 
 from bittensor_wallet import Wallet
 from bittensor_wallet.errors import KeyFileError
