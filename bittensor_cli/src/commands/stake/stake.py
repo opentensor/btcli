@@ -1212,13 +1212,32 @@ async def unstake(
         assert wallet.hotkey is not None
         hotkeys_to_unstake_from = [(wallet.hotkey_str, wallet.hotkey.ss58_address)]
 
-    # Prepare lists to store unstaking data per subnet
-    unstake_operations = []
-    total_received_amount = Balance.from_tao(0)
-    current_wallet_balance: Balance = (
-        await subtensor.get_balance(wallet.coldkeypub.ss58_address)
-    )[wallet.coldkeypub.ss58_address]
-    max_float_slippage = 0
+    with console.status(
+        f"Retrieving stake and subnet data from {subtensor.network}...",
+        spinner="earth",
+    ):
+        # Prepare lists to store unstaking data per subnet
+        unstake_operations = []
+        total_received_amount = Balance.from_tao(0)
+        current_wallet_balance: Balance = (
+            await subtensor.get_balance(wallet.coldkeypub.ss58_address)
+        )[wallet.coldkeypub.ss58_address]
+        max_float_slippage = 0
+
+        # Fetch dynamic info and stake balances
+        chain_head = await subtensor.substrate.get_chain_head()
+        dynamic_info_list, stake_balances_dict = await asyncio.gather(
+            asyncio.gather(
+                *[subtensor.get_subnet_dynamic_info(x, chain_head) for x in netuids]
+            ),
+            subtensor.multi_get_stake_for_coldkey_and_hotkey_on_netuid(
+                hotkey_ss58s=[hk[1] for hk in hotkeys_to_unstake_from],
+                coldkey_ss58=wallet.coldkeypub.ss58_address,
+                netuids=netuids,
+                block_hash=chain_head,
+            ),
+        )
+        dynamic_info_all_netuids = dict(zip(netuids, dynamic_info_list))
 
     # Iterate over hotkeys and netuids to collect unstake operations
     for hotkey in hotkeys_to_unstake_from:
@@ -1235,19 +1254,12 @@ async def unstake(
             if skip_remaining_subnets:
                 break  # Exit the loop over netuids
 
-            # Check that the subnet exists.
-            dynamic_info = await subtensor.get_subnet_dynamic_info(netuid)
+            dynamic_info = dynamic_info_all_netuids.get(netuid)
             if dynamic_info is None:
                 console.print(f"[red]Subnet: {netuid} does not exist.[/red]")
                 continue  # Skip to the next subnet
 
-            current_stake_balance: Balance = (
-                await subtensor.get_stake_for_coldkey_and_hotkey_on_netuid(
-                    coldkey_ss58=wallet.coldkeypub.ss58_address,
-                    hotkey_ss58=staking_address_ss58,
-                    netuid=netuid,
-                )
-            )
+            current_stake_balance = stake_balances_dict[staking_address_ss58][netuid]
             if current_stake_balance.tao == 0:
                 continue  # No stake to unstake
 
@@ -1369,7 +1381,7 @@ async def unstake(
 
     # Build the table
     table = Table(
-        title=f"\n[navajo_white1]Unstaking to: \nWallet: [dark_sea_green3]{wallet.name}[/dark_sea_green3], Coldkey ss58: [dark_sea_green3]{wallet.coldkeypub.ss58_address}[/dark_sea_green3]\nNetwork: {subtensor.network}[/navajo_white1]\n",
+        title=f"\n[tan]Unstaking to: \nWallet: [dark_sea_green3]{wallet.name}[/dark_sea_green3], Coldkey ss58: [dark_sea_green3]{wallet.coldkeypub.ss58_address}[/dark_sea_green3]\nNetwork: {subtensor.network}[/tan]\n",
         show_footer=True,
         show_edge=False,
         header_style="bold white",
