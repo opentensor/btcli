@@ -1698,12 +1698,19 @@ async def stake_list(
         hotkeys_to_substakes[hotkey].append(substake)
 
     # Iterate over each hotkey and make a table
+        counter = 0
+    num_hotkeys = len(hotkeys_to_substakes)
     all_hotkeys_total_global_tao = Balance(0)
     all_hotkeys_total_tao_value = Balance(0)
     for hotkey in hotkeys_to_substakes.keys():
+        counter += 1
         stake, value = table_substakes(hotkey, hotkeys_to_substakes[hotkey])
         all_hotkeys_total_global_tao += stake
         all_hotkeys_total_tao_value += value
+
+        if num_hotkeys > 1 and counter < num_hotkeys:
+            console.print("\nPress any key to continue to the next hotkey...")
+            input()
 
     console.print("\n\n")
     console.print(
@@ -1713,6 +1720,9 @@ async def stake_list(
         f"  Total TAO ({Balance.unit}): [dark_sea_green]{all_hotkeys_total_global_tao}[/dark_sea_green]\n"
         f"  Total Value ({Balance.unit}): [dark_sea_green]{all_hotkeys_total_tao_value}[/dark_sea_green]"
     )
+
+    console.print("\nPress any key to continue to column descriptions...")
+    input()
     header = """
 [bold white]Description[/bold white]: Each table displays information about stake associated with a hotkey. The columns are as follows:
 """
