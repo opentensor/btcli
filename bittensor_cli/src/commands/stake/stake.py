@@ -1717,17 +1717,15 @@ async def stake_list(
 [bold white]Description[/bold white]: Each table displays information about stake associated with a hotkey. The columns are as follows:
 """
     console.print(header)
-    description_table = Table(show_header=False, box=box.SIMPLE, show_edge=False, show_lines=True)
+    description_table = Table(
+        show_header=False, box=box.SIMPLE, show_edge=False, show_lines=True
+    )
 
     fields = [
         ("[bold tan]Netuid[/bold tan]", "The netuid of the subnet."),
         (
             "[bold tan]Symbol[/bold tan]",
             "The symbol for the subnet's dynamic TAO token.",
-        ),
-        (
-            "[bold tan]Emission (τ)[/bold tan]",
-            "Shows how the one τ/block emission is distributed among all the subnet pools. For each subnet, this fraction is first calculated by dividing the subnet's TAO Pool (τ_in) by the sum of all TAO Pool (τ_in) across all the subnets. This fraction is then added to the TAO Pool (τ_in) of the subnet. This can change every block. For more, see [link=https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo][blue]URL[/blue][/link].",
         ),
         (
             "[bold tan]Stake (α)[/bold tan]",
