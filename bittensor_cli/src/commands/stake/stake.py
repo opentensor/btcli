@@ -1729,19 +1729,19 @@ async def stake_list(
         ),
         (
             "[bold tan]Stake (α)[/bold tan]",
-            "Stake this hotkey holds in the subnet, expressed in subnet's dynamic TAO currency. This can change whenever staking or unstaking occurs on this hotkey in this subnet. For more, see [link=https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo][blue]URL[/blue][/link].",
+            "Stake this hotkey holds in the subnet, expressed in subnet's dynamic TAO currency. This can change whenever staking or unstaking occurs on this hotkey in this subnet. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
         ),
         (
             "[bold tan]TAO Pool (τ_in)[/bold tan]",
-            'Units of TAO in the TAO pool reserves for this subnet. Attached to every subnet is a subnet pool, containing a TAO reserve and the alpha reserve. See also "ALPHA Pool (α_in)" description. This can change every block when staking or unstaking or emissions occur on this subnet. For more, see [link=https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo][blue]URL[/blue][/link].',
+            'Units of TAO in the TAO pool reserves for this subnet. Attached to every subnet is a subnet pool, containing a TAO reserve and the alpha reserve. See also "ALPHA Pool (α_in)" description. This can change every block when staking or unstaking or emissions occur on this subnet. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
         ),
         (
             "[bold tan]Alpha Pool (α_in)[/bold tan]",
-            'Units of subnet dTAO token in the dTAO pool reserves for this subnet. This reserve, together with "TAO Pool(τ_in)", form the subnet pool for every subnet. This can change every block when staking or unstaking or emissions occur on this subnet. For more, see [link=https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo][blue]URL[/blue][/link].',
+            'Units of subnet dTAO token in the dTAO pool reserves for this subnet. This reserve, together with "TAO Pool(τ_in)", form the subnet pool for every subnet. This can change every block when staking or unstaking or emissions occur on this subnet. For more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
         ),
         (
             "[bold tan]RATE (τ_in/α_in)[/bold tan]",
-            "Exchange rate between TAO and subnet dTAO token. Calculated as (TAO Pool(τ_in) / ALPHA Pool (α_in)). This can change every block when staking or unstaking or emissions occur on this subnet. For more, see [link=https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo][blue]URL[/blue][/link].",
+            "Exchange rate between TAO and subnet dTAO token. Calculated as (TAO Pool(τ_in) / ALPHA Pool (α_in)). This can change every block when staking or unstaking or emissions occur on this subnet. For more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
         ),
         (
             "[bold tan]Alpha out (α_out)[/bold tan]",
