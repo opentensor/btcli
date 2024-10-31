@@ -7,6 +7,7 @@ from bittensor_wallet import Wallet
 from bittensor_wallet.errors import KeyFileError
 from rich.prompt import Confirm
 from rich.table import Column, Table
+from rich import box
 
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import SubnetState
@@ -194,7 +195,7 @@ async def subnets_list(
     )
 
     table = Table(
-        title=f"\n[underline navajo_white1]Subnets[/underline navajo_white1]\n[navajo_white1]Network: {subtensor.network}[/navajo_white1]\n",
+        title=f"\n[underline navajo_white1]Subnets[/underline navajo_white1]\n[navajo_white1]Network: {subtensor.network}[/navajo_white1]\n\nSee below for an explanation of the columns\n",
         show_footer=True,
         show_edge=False,
         header_style="bold white",
@@ -257,41 +258,43 @@ async def subnets_list(
 [bold white]Description[/bold white]: The table displays information about each subnet. The columns are as follows:
 """
     console.print(header)
-    description_table = Table(show_header=False, box=None, show_edge=False, leading=2)
+    description_table = Table(
+        show_header=False, box=box.SIMPLE, show_edge=False, show_lines=True
+    )
 
     fields = [
-        ("[bold tan]Netuid[/bold tan]", "The netuid of the subnet.\n"),
+        ("[bold tan]Netuid[/bold tan]", "The netuid of the subnet."),
         (
             "[bold tan]Symbol[/bold tan]",
-            "The symbol for the subnet's dynamic TAO token.\n",
+            "The symbol for the subnet's dynamic TAO token.",
         ),
         (
             "[bold tan]Emission (τ)[/bold tan]",
-            "Shows how the one τ/block emission is distributed among all the subnet pools. For each subnet, this fraction is first calculated by dividing the subnet's TAO Pool (τ_in) by the sum of all TAO Pool (τ_in) across all the subnets. This fraction is then added to the TAO Pool (τ_in) of the subnet. This can change every block. For more, see [link=https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo][blue]URL[/blue][/link].\n",
+            "Shows how the one τ/block emission is distributed among all the subnet pools. For each subnet, this fraction is first calculated by dividing the subnet's TAO Pool (τ_in) by the sum of all TAO Pool (τ_in) across all the subnets. This fraction is then added to the TAO Pool (τ_in) of the subnet. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
         ),
         (
             "[bold tan]STAKE (α_out)[/bold tan]",
-            "Total stake in the subnet, expressed in the subnet's dynamic TAO currency. This is the sum of all the stakes present in all the hotkeys in this subnet. This can change every block. For more, see [link=https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo][blue]URL[/blue][/link].\n",
+            "Total stake in the subnet, expressed in the subnet's dynamic TAO currency. This is the sum of all the stakes present in all the hotkeys in this subnet. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
         ),
         (
             "[bold tan]TAO Pool (τ_in)[/bold tan]",
-            'Units of TAO in the TAO pool reserves for this subnet. Attached to every subnet is a subnet pool, containing a TAO reserve and the alpha reserve. See also "Alpha Pool (α_in)" description. This can change every block. For more, see [link=https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo][blue]URL[/blue][/link].\n',
+            'Units of TAO in the TAO pool reserves for this subnet. Attached to every subnet is a subnet pool, containing a TAO reserve and the alpha reserve. See also "Alpha Pool (α_in)" description. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
         ),
         (
             "[bold tan]Alpha Pool (α_in)[/bold tan]",
-            "Units of subnet dTAO token in the dTAO pool reserves for this subnet. This reserve, together with 'TAO Pool (τ_in)', form the subnet pool for every subnet. This can change every block. For more, see [link=https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo][blue]URL[/blue][/link].\n",
+            "Units of subnet dTAO token in the dTAO pool reserves for this subnet. This reserve, together with 'TAO Pool (τ_in)', form the subnet pool for every subnet. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
         ),
         (
             "[bold tan]RATE (τ_in/α_in)[/bold tan]",
-            "Exchange rate between TAO and subnet dTAO token. Calculated as (TAO Pool (τ_in) / Alpha Pool (α_in)). This can change every block. For more, see [link=https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo][blue]URL[/blue][/link].\n",
+            "Exchange rate between TAO and subnet dTAO token. Calculated as (TAO Pool (τ_in) / Alpha Pool (α_in)). This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
         ),
         (
             "[bold tan]Tempo (k/n)[/bold tan]",
-            'The tempo status of the subnet. Represented as (k/n) where "k" is the number of blocks elapsed since the last tempo and "n" is the total number of blocks in the tempo. The number "n" is a subnet hyperparameter and does not change every block. For more, see [link=https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo][blue]URL[/blue][/link].\n',
+            'The tempo status of the subnet. Represented as (k/n) where "k" is the number of blocks elapsed since the last tempo and "n" is the total number of blocks in the tempo. The number "n" is a subnet hyperparameter and does not change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
         ),
         (
             "[bold tan]Local weight coeff (γ)[/bold tan]",
-            "A multiplication factor between 0 and 1, applied to the relative proportion of a validator's stake in this subnet. Applied as (γ) × (a validator's α stake in this subnet) / (Total α stake in this subnet, i.e., Stake (α_out)). This γ-weighted relative proportion is used, in addition to other factors, in determining the overall stake weight of a validator in this subnet. This is a subnet parameter. For more, see [link=https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo][blue]URL[/blue][/link].\n",
+            "A multiplication factor between 0 and 1, applied to the relative proportion of a validator's stake in this subnet. Applied as (γ) × (a validator's α stake in this subnet) / (Total α stake in this subnet, i.e., Stake (α_out)). This γ-weighted relative proportion is used, in addition to other factors, in determining the overall stake weight of a validator in this subnet. This is a subnet parameter. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
         ),
     ]
 

@@ -1605,15 +1605,15 @@ async def stake_list(
                         f"[cadet_blue]{swapped_tao_value}[/cadet_blue] ({slippage_percentage})",  # Swap(α) -> τ
                         "[bold cadet_blue]YES[/bold cadet_blue]"
                         if substake_.is_registered
-                        else "[dark_red]NO[/dark_red]",  # Registered
+                        else "[hot_pink3]NO[/hot_pink3]",  # Registered
                         str(Balance.from_tao(per_block_emission).set_unit(netuid))
                         if substake_.is_registered
-                        else "[dark_red]N/A[/dark_red]",  # Emission(α/block)
+                        else "[hot_pink3]N/A[/hot_pink3]",  # Emission(α/block)
                     ]
                 )
         # table = Table(show_footer=True, pad_edge=False, box=None, expand=False, title=f"{name}")
         table = Table(
-            title=f"\n[dark_orange]Hotkey: {name}[/dark_orange]\n[dark_orange]Network: {subtensor.network}[/dark_orange]\n",
+            title=f"\n[dark_orange]Hotkey: {name}[/dark_orange]\n[dark_orange]Network: {subtensor.network}[/dark_orange]\n\nSee below for an explanation of the columns\n",
             show_footer=True,
             show_edge=False,
             header_style="bold white",
@@ -1745,27 +1745,27 @@ async def stake_list(
         ),
         (
             "[bold tan]Alpha out (α_out)[/bold tan]",
-            "Total stake in the subnet, expressed in subnet's dynamic TAO currency. This is the sum of all the stakes present in all the hotkeys in this subnet. This can change every block. For more, see [link=https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo][blue]URL[/blue][/link].",
+            "Total stake in the subnet, expressed in subnet's dynamic TAO currency. This is the sum of all the stakes present in all the hotkeys in this subnet. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
         ),
         (
             "[bold tan]TAO Equiv (τ_in x α/α_out)[/bold tan]",
-            'TAO-equivalent value of the hotkeys stake α (i.e., Stake(α)). Calculated as (TAO Pool(τ_in) x (Stake(α) / ALPHA Out(α_out)). This value is weighted with (1-γ), where γ is the local weight coefficient, and used in determining the overall stake weight of the hotkey in this subnet. Also see the "Local weight coeff (γ)" column of "btcli subnet list" command output. This can change every block. For more, see [link=https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo][blue]URL[/blue][/link].',
+            'TAO-equivalent value of the hotkeys stake α (i.e., Stake(α)). Calculated as (TAO Pool(τ_in) x (Stake(α) / ALPHA Out(α_out)). This value is weighted with (1-γ), where γ is the local weight coefficient, and used in determining the overall stake weight of the hotkey in this subnet. Also see the "Local weight coeff (γ)" column of "btcli subnet list" command output. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
         ),
         (
             "[bold tan]Exchange Value (α x τ/α)[/bold tan]",
-            "This is the potential τ you will receive, without considering slippage, if you unstake from this hotkey now on this subnet. See Swap(α → τ) column description. Note: The TAO Equiv(τ_in x α/α_out) indicates validator stake weight while this Exchange Value shows τ you will receive if you unstake now. This can change every block. For more, see [link=https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo][blue]URL[/blue][/link].",
+            "This is the potential τ you will receive, without considering slippage, if you unstake from this hotkey now on this subnet. See Swap(α → τ) column description. Note: The TAO Equiv(τ_in x α/α_out) indicates validator stake weight while this Exchange Value shows τ you will receive if you unstake now. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
         ),
         (
             "[bold tan]Swap (α → τ)[/bold tan]",
-            "This is the actual τ you will receive, after factoring in the slippage charge, if you unstake from this hotkey now on this subnet. The slippage is calculated as 1 - (Swap(α → τ)/Exchange Value(α x τ/α)), and is displayed in brackets. This can change every block. For more, see [link=https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo][blue]URL[/blue][/link].",
+            "This is the actual τ you will receive, after factoring in the slippage charge, if you unstake from this hotkey now on this subnet. The slippage is calculated as 1 - (Swap(α → τ)/Exchange Value(α x τ/α)), and is displayed in brackets. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
         ),
         (
             "[bold tan]Registered[/bold tan]",
-            "Indicates if the hotkey is registered in this subnet or not. For more, see [link=https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo][blue]URL[/blue][/link].",
+            "Indicates if the hotkey is registered in this subnet or not. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
         ),
         (
             "[bold tan]Emission (α/block)[/bold tan]",
-            "Shows the portion of the one α/block emission into this subnet that is received by this hotkey, according to YC2 in this subnet. This can change every block. For more, see [link=https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo][blue]URL[/blue][/link].",
+            "Shows the portion of the one α/block emission into this subnet that is received by this hotkey, according to YC2 in this subnet. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
         ),
     ]
 
