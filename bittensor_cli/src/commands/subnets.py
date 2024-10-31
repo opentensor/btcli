@@ -254,6 +254,8 @@ async def subnets_list(
     # Print the table
     console.print(table)
 
+    console.print("\nPress Enter to continue to column descriptions...")
+    input()
     header = """
 [bold white]Description[/bold white]: The table displays information about each subnet. The columns are as follows:
 """

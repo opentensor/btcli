@@ -1709,7 +1709,7 @@ async def stake_list(
         all_hotkeys_total_tao_value += value
 
         if num_hotkeys > 1 and counter < num_hotkeys:
-            console.print("\nPress any key to continue to the next hotkey...")
+            console.print("\nPress Enter to continue to the next hotkey...")
             input()
 
     console.print("\n\n")
@@ -1721,7 +1721,7 @@ async def stake_list(
         f"  Total Value ({Balance.unit}): [dark_sea_green]{all_hotkeys_total_tao_value}[/dark_sea_green]"
     )
 
-    console.print("\nPress any key to continue to column descriptions...")
+    console.print("\nPress Enter to continue to column descriptions...")
     input()
     header = """
 [bold white]Description[/bold white]: Each table displays information about stake associated with a hotkey. The columns are as follows:
