@@ -1737,11 +1737,11 @@ async def stake_list(
         ),
         (
             "[bold tan]Alpha Pool (α_in)[/bold tan]",
-            'Units of subnet dTAO token in the dTAO pool reserves for this subnet. This reserve, together with "TAO Pool(τ_in)", form the subnet pool for every subnet. This can change every block when staking or unstaking or emissions occur on this subnet. For more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
+            'Units of subnet dTAO token in the dTAO pool reserves for this subnet. This reserve, together with "TAO Pool(τ_in)", form the subnet pool for every subnet. This can change every block when staking or unstaking or emissions occur on this subnet. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
         ),
         (
             "[bold tan]RATE (τ_in/α_in)[/bold tan]",
-            "Exchange rate between TAO and subnet dTAO token. Calculated as (TAO Pool(τ_in) / ALPHA Pool (α_in)). This can change every block when staking or unstaking or emissions occur on this subnet. For more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
+            "Exchange rate between TAO and subnet dTAO token. Calculated as (TAO Pool(τ_in) / ALPHA Pool (α_in)). This can change every block when staking or unstaking or emissions occur on this subnet. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
         ),
         (
             "[bold tan]Alpha out (α_out)[/bold tan]",
