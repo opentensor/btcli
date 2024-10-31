@@ -361,6 +361,25 @@ def test_wallet_identities(local_chain, wallet_setup):
         wallet_path_alice
     )
 
+    # Register Alice to the root network (0)
+    # Either root list neurons + subnet registered can set-id or subnet owners
+    root_register = exec_command_alice(
+        command="root",
+        sub_command="register",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--hotkey",
+            wallet_alice.hotkey_str,
+            "--no-prompt",
+        ],
+    )
+    assert "✅ Registered" in root_register.stdout
+
     # Register a subnet with sudo as Alice
     result = exec_command_alice(
         command="subnets",
