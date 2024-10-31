@@ -1717,7 +1717,7 @@ async def stake_list(
 [bold white]Description[/bold white]: Each table displays information about stake associated with a hotkey. The columns are as follows:
 """
     console.print(header)
-    description_table = Table(show_header=False, box=None, show_edge=False)
+    description_table = Table(show_header=False, box=box.SIMPLE, show_edge=False, show_lines=True)
 
     fields = [
         ("[bold tan]Netuid[/bold tan]", "The netuid of the subnet."),
