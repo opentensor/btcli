@@ -353,6 +353,7 @@ def test_wallet_identities(local_chain, wallet_setup):
     """
     print("Testing wallet set-id, get-id, sign command 🧪")
 
+    netuid = 1
     wallet_path_alice = "//Alice"
 
     # Create wallet for Alice
@@ -360,24 +361,41 @@ def test_wallet_identities(local_chain, wallet_setup):
         wallet_path_alice
     )
 
-    # Register Alice to the root network (0)
-    # Either root list neurons can set-id or subnet owners
-    root_register = exec_command_alice(
-        command="root",
+    # Register a subnet with sudo as Alice
+    result = exec_command_alice(
+        command="subnets",
+        sub_command="create",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--no-prompt",
+        ],
+    )
+    assert f"✅ Registered subnetwork with netuid: {netuid}" in result.stdout
+
+    # Register Alice in netuid = 1 using her hotkey
+    register_subnet = exec_command_alice(
+        command="subnets",
         sub_command="register",
         extra_args=[
             "--wallet-path",
             wallet_path_alice,
-            "--network",
-            "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet_alice.name,
             "--hotkey",
             wallet_alice.hotkey_str,
+            "--netuid",
+            netuid,
+            "--chain",
+            "ws://127.0.0.1:9945",
             "--no-prompt",
         ],
     )
-    assert "✅ Registered" in root_register.stdout
+    assert "✅ Registered" in register_subnet.stdout
 
     # Define values for Alice's identity
     alice_identity = {
