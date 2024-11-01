@@ -3990,7 +3990,6 @@ class CLIManager:
         self,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
-        wallet_hotkey: str = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
@@ -4007,9 +4006,9 @@ class CLIManager:
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
-            wallet_hotkey,
-            ask_for=[WO.NAME, WO.HOTKEY],
-            validate=WV.WALLET_AND_HOTKEY,
+            None,
+            ask_for=[WO.NAME],
+            validate=WV.WALLET,
         )
         return self._run_command(
             subnets.create(wallet, self.initialize_chain(network), prompt)
