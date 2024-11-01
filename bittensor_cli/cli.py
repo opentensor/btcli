@@ -4014,8 +4014,8 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
-            validate=WV.WALLET_AND_HOTKEY,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.WALLET,
         )
         return self._run_command(
             subnets.create(wallet, self.initialize_chain(network), prompt)
