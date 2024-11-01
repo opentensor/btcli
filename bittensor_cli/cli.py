@@ -3481,7 +3481,7 @@ class CLIManager:
         if not unstake_all and not amount and not keep_stake:
             amount = FloatPrompt.ask("[blue bold]Amount to unstake (TAO τ)[/blue bold]")
 
-        if unstake_all and not amount:
+        if unstake_all and not amount and prompt:
             if not Confirm.ask("Unstake all staked TAO tokens?", default=False):
                 raise typer.Exit()
 
