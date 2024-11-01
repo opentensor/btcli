@@ -101,7 +101,11 @@ async def transfer_extrinsic(
             block_hash_ = response.block_hash
             return True, block_hash_, ""
         else:
-            return False, "", format_error_message(await response.error_message)
+            return (
+                False,
+                "",
+                format_error_message(await response.error_message, subtensor.substrate),
+            )
 
     # Validate destination address.
     if not is_valid_bittensor_address_or_public_key(destination):
@@ -193,7 +197,7 @@ async def transfer_extrinsic(
             )
             console.print(
                 f"Balance:\n"
-                f"  [blue]{account_balance}[/blue] :arrow_right: [green]{new_balance[wallet.coldkey.ss58_address]}[/green]"
+                f"  [blue]{account_balance}[/blue] :arrow_right: [green]{new_balance[wallet.coldkeypub.ss58_address]}[/green]"
             )
             return True
 
