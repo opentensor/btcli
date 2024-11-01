@@ -2884,7 +2884,7 @@ class CLIManager:
         if not stake_all and not amount:
             while True:
                 amount = FloatPrompt.ask(
-                    "Amount to stake [blue](TAO τ)[/blue]", console=console
+                    "Amount to [blue]stake (TAO τ)[/blue]", console=console
                 )
                 confirmation = FloatPrompt.ask(
                     "Confirm the amount to stake [blue](TAO τ)[/blue]",
@@ -2954,7 +2954,7 @@ class CLIManager:
         if not unstake_all and not amount:
             while True:
                 amount = FloatPrompt.ask(
-                    "Amount to unstake [blue](TAO τ)[/blue]", console=console
+                    "Amount to [blue]unstake (TAO τ)[/blue]", console=console
                 )
                 confirmation = FloatPrompt.ask(
                     "Confirm the amount to unstake [blue](TAO τ)[/blue]",
@@ -3306,7 +3306,7 @@ class CLIManager:
             raise typer.Exit()
 
         if not stake_all and not amount and not max_stake:
-            amount = FloatPrompt.ask("Amount to stake [blue](TAO τ)[/blue]")
+            amount = FloatPrompt.ask("Amount to [blue]stake (TAO τ)[/blue]")
 
         if stake_all and not amount:
             if not Confirm.ask("Stake all the available TAO tokens?", default=False):
@@ -3473,7 +3473,7 @@ class CLIManager:
             raise typer.Exit()
 
         if not unstake_all and not amount and not keep_stake:
-            amount = FloatPrompt.ask("Amount to unstake [blue](TAO τ)[/blue]")
+            amount = FloatPrompt.ask("Amount to [blue]unstake (TAO τ)[/blue]")
 
         if unstake_all and not amount and prompt:
             if not Confirm.ask("Unstake all staked TAO tokens?", default=False):
