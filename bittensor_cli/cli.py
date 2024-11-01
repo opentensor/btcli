@@ -3224,7 +3224,7 @@ class CLIManager:
             )
         else:
             wallet = self.wallet_ask(
-                wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.PATH]
+                wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
             )
 
         return self._run_command(
