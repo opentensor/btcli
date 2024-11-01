@@ -816,7 +816,7 @@ class CLIManager:
                 self.subtensor = SubtensorInterface(defaults.subtensor.network)
         return self.subtensor
 
-    def _run_command(self, cmd: Coroutine) -> None:
+    def _run_command(self, cmd: Coroutine):
         """
         Runs the supplied coroutine with `asyncio.run`
         """
@@ -844,7 +844,7 @@ class CLIManager:
             finally:
                 if initiated is False:
                     asyncio.create_task(cmd).cancel()
-                raise typer.Exit()
+                    raise typer.Exit()
 
         if sys.version_info < (3, 10):
             # For Python 3.9 or lower
@@ -887,7 +887,7 @@ class CLIManager:
         if updated:
             with open(self.config_path, "w") as f:
                 safe_dump(config, f)
-                
+
         for k, v in config.items():
             if k in self.config.keys():
                 self.config[k] = v
