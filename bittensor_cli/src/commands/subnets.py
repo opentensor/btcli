@@ -6,6 +6,10 @@ from typing import TYPE_CHECKING, Optional, cast
 from bittensor_wallet import Wallet
 from bittensor_wallet.errors import KeyFileError
 from rich.prompt import Confirm
+from rich.console import Console, Group
+from rich.spinner import Spinner
+from rich.text import Text
+from rich.progress import Progress, BarColumn, TextColumn
 from rich.table import Column, Table
 from rich import box
 
@@ -15,6 +19,7 @@ from bittensor_cli.src.bittensor.extrinsics.registration import (
     register_extrinsic,
     burned_register_extrinsic,
 )
+from rich.live import Live
 from bittensor_cli.src.bittensor.minigraph import MiniGraph
 from bittensor_cli.src.commands.wallets import set_id, set_id_prompts
 from bittensor_cli.src.bittensor.utils import (
@@ -154,151 +159,368 @@ async def register_subnetwork_extrinsic(
 
 
 async def subnets_list(
-    subtensor: "SubtensorInterface", reuse_last: bool, html_output: bool, no_cache: bool
+    subtensor: "SubtensorInterface",
+    reuse_last: bool,
+    html_output: bool,
+    no_cache: bool,
+    live: bool,
 ):
     """List all subnet netuids in the network."""
-    # TODO add reuse-last and html-output and no-cache
-    rows = []
 
-    subnets = await subtensor.get_all_subnet_dynamic_info()
-    global_weights = await subtensor.get_global_weights(
-        [subnet.netuid for subnet in subnets]
-    )
-
-    for subnet in subnets:
-        netuid = subnet.netuid
-        global_weight = global_weights.get(netuid)
-        symbol = f"{subnet.symbol}\u200e"
-
-        if netuid == 0:
-            emission_tao = 0.0
-        else:
-            emission_tao = subnet.emission.tao
-
-        rows.append(
-            (
-                str(netuid),
-                f"[light_goldenrod1]{subnet.symbol}[light_goldenrod1]",
-                f"τ {emission_tao:.4f}",  # Emission (t)
-                f"{subnet.alpha_out.tao:,.4f} {symbol}",  # Stake a_out
-                f"τ {subnet.tao_in.tao:,.4f}",  # TAO Pool t_in
-                f"{subnet.alpha_in.tao:,.4f} {symbol}",  # Alpha Pool a_in
-                f"{subnet.price.tao:.4f} τ/{symbol}",  # Rate t_in/a_in
-                f"{subnet.blocks_since_last_step}/{subnet.tempo}",  # Tempo k/n
-                f"{global_weight:.4f}"
-                if global_weight is not None
-                else "N/A",  # Local weight coeff. (γ)
-            )
+    async def fetch_subnet_data():
+        subnets = await subtensor.get_all_subnet_dynamic_info()
+        global_weights = await subtensor.get_global_weights(
+            [subnet.netuid for subnet in subnets]
         )
-    total_emissions = sum(
-        float(subnet.emission.tao) for subnet in subnets if subnet.netuid != 0
-    )
+        return subnets, global_weights
 
-    table = Table(
-        title=f"\n[underline navajo_white1]Subnets[/underline navajo_white1]\n[navajo_white1]Network: {subtensor.network}[/navajo_white1]\n\nSee below for an explanation of the columns\n",
-        show_footer=True,
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        style="bold",
-        title_justify="center",
-        show_lines=False,
-        pad_edge=True,
-    )
+    def define_table(total_emissions: float):
+        table = Table(
+            title=f"\n[underline navajo_white1]Subnets[/underline navajo_white1]"
+            f"\n[navajo_white1]Network: {subtensor.network}[/navajo_white1]\n\n",
+            show_footer=True,
+            show_edge=False,
+            header_style="bold white",
+            border_style="bright_black",
+            style="bold",
+            title_justify="center",
+            show_lines=False,
+            pad_edge=True,
+        )
 
-    table.add_column("[bold white]NETUID", style="white", justify="center")
-    table.add_column("[bold white]SYMBOL", style="bright_cyan", justify="right")
-    table.add_column(
-        f"[bold white]EMISSION ({Balance.get_unit(0)})",
-        style="tan",
-        justify="right",
-        footer=f"τ {total_emissions:.4f}",
-    )
-    table.add_column(
-        f"[bold white]STAKE ({Balance.get_unit(1)}_out)",
-        style="light_salmon3",
-        justify="right",
-    )
-    table.add_column(
-        f"[bold white]TAO Pool ({Balance.get_unit(0)}_in)",
-        style="rgb(42,161,152)",
-        justify="right",
-    )
-    table.add_column(
-        f"[bold white]Alpha Pool ({Balance.get_unit(1)}_in)",
-        style="rgb(42,161,152)",
-        justify="right",
-    )
-    table.add_column(
-        f"[bold white]RATE ({Balance.get_unit(0)}_in/{Balance.get_unit(1)}_in)",
-        style="medium_purple",
-        justify="right",
-    )
-    table.add_column(
-        "[bold white]Tempo (k/n)",
-        style="plum2",
-        justify="right",
-        overflow="fold",
-    )
-    table.add_column(
-        "[bold white]Local weight coeff. (γ)", style="dark_sea_green3", justify="center"
-    )
+        table.add_column("[bold white]NETUID", style="white", justify="center")
+        table.add_column("[bold white]SYMBOL", style="bright_cyan", justify="right")
+        table.add_column(
+            f"[bold white]EMISSION ({Balance.get_unit(0)})",
+            style="tan",
+            justify="left",
+            footer=f"τ {total_emissions:.4f}",
+        )
+        table.add_column(
+            f"[bold white]STAKE ({Balance.get_unit(1)}_out)",
+            style="light_salmon3",
+            justify="left",
+        )
+        table.add_column(
+            f"[bold white]TAO Pool ({Balance.get_unit(0)}_in)",
+            style="rgb(42,161,152)",
+            justify="left",
+        )
+        table.add_column(
+            f"[bold white]Alpha Pool ({Balance.get_unit(1)}_in)",
+            style="rgb(42,161,152)",
+            justify="left",
+        )
+        table.add_column(
+            f"[bold white]RATE ({Balance.get_unit(0)}_in/{Balance.get_unit(1)}_in)",
+            style="medium_purple",
+            justify="left",
+        )
+        table.add_column(
+            "[bold white]Tempo (k/n)",
+            style="plum2",
+            justify="left",
+            overflow="fold",
+        )
+        table.add_column(
+            "[bold white]Local weight coeff. (γ)", style="steel_blue", justify="left"
+        )
+        return table
 
-    # Sort rows by subnet.emission.tao, keeping the first subnet in the first position
-    sorted_rows = [rows[0]] + sorted(rows[1:], key=lambda x: x[2], reverse=True)
+    # Non-live mode
+    def create_table(subnets, global_weights):
+        rows = []
+        for subnet in subnets:
+            netuid = subnet.netuid
+            global_weight = global_weights.get(netuid)
+            symbol = f"{subnet.symbol}\u200e"
 
-    # Add rows to the table
-    for row in sorted_rows:
-        table.add_row(*row)
+            if netuid == 0:
+                emission_tao = 0.0
+            else:
+                emission_tao = subnet.emission.tao
 
-    # Print the table
-    console.print(table)
+            # Prepare content
+            netuid_cell = str(netuid)
+            symbol_cell = f"{subnet.symbol}"
+            emission_cell = f"{emission_tao:,.4f}"
+            alpha_out_cell = f"{subnet.alpha_out.tao:,.5f} {symbol}"
+            tao_in_cell = f"{subnet.tao_in.tao:,.4f} τ"
+            alpha_in_cell = f"{subnet.alpha_in.tao:,.4f} {symbol}"
+            price_cell = f"{subnet.price.tao:.4f} τ/{symbol}"
+            tempo_cell = f"{subnet.blocks_since_last_step}/{subnet.tempo}"
+            global_weight_cell = (
+                f"{global_weight:.4f}" if global_weight is not None else "N/A"
+            )
 
-    console.print("\nPress Enter to continue to column descriptions...")
-    input()
-    header = """
+            rows.append(
+                (
+                    netuid_cell,  # Netuid
+                    symbol_cell,  # Symbol
+                    emission_cell,  # Emission (τ)
+                    alpha_out_cell,  # Stake α_out
+                    tao_in_cell,  # TAO Pool τ_in
+                    alpha_in_cell,  # Alpha Pool α_in
+                    price_cell,  # Rate τ_in/α_in
+                    tempo_cell,  # Tempo k/n
+                    global_weight_cell,  # Local weight coeff. (γ)
+                )
+            )
+
+        total_emissions = sum(
+            float(subnet.emission.tao) for subnet in subnets if subnet.netuid != 0
+        )
+
+        table = define_table(total_emissions)
+
+        # Sort rows by emission, keeping the root subnet in the first position
+        sorted_rows = [rows[0]] + sorted(
+            rows[1:], key=lambda x: float(str(x[2]).replace(",", "")), reverse=True
+        )
+
+        # Add rows to the table
+        for row in sorted_rows:
+            table.add_row(*row)
+        return table
+
+    # Live mode
+    def create_table_live(subnets, global_weights, previous_data):
+        def format_cell(value, previous_value, unit="", precision=4):
+            if previous_value is not None:
+                change = value - previous_value
+                if change > 0:
+                    change_text = (
+                        f" [pale_green3](+{change:.{precision}f}{unit})[/pale_green3]"
+                    )
+                elif change < 0:
+                    change_text = (
+                        f" [hot_pink3]({change:.{precision}f}{unit})[/hot_pink3]"
+                    )
+                else:
+                    change_text = ""
+            else:
+                change_text = ""
+            return f"{value:,.{precision}f}{unit}{change_text}"
+
+        rows = []
+        current_data = {}  # To store current values for comparison in the next update
+
+        for subnet in subnets:
+            netuid = subnet.netuid
+            global_weight = global_weights.get(netuid)
+            symbol = f"{subnet.symbol}\u200e"
+
+            if netuid == 0:
+                emission_tao = 0.0
+            else:
+                emission_tao = subnet.emission.tao
+
+            # Store current values for comparison
+            current_data[netuid] = {
+                "emission_tao": emission_tao,
+                "alpha_out": subnet.alpha_out.tao,
+                "tao_in": subnet.tao_in.tao,
+                "alpha_in": subnet.alpha_in.tao,
+                "price": subnet.price.tao,
+                "blocks_since_last_step": subnet.blocks_since_last_step,
+                "global_weight": global_weight,
+            }
+
+            # Retrieve previous data if available
+            prev = previous_data.get(netuid) if previous_data else {}
+
+            # Prepare content
+            netuid_cell = str(netuid)
+            symbol_cell = f"{subnet.symbol}"
+            emission_cell = format_cell(
+                emission_tao, prev.get("emission_tao"), unit="", precision=4
+            )
+            alpha_out_cell = format_cell(
+                subnet.alpha_out.tao,
+                prev.get("alpha_out"),
+                unit=f" {symbol}",
+                precision=5,
+            )
+            tao_in_cell = format_cell(
+                subnet.tao_in.tao, prev.get("tao_in"), unit=" τ", precision=4
+            )
+            alpha_in_cell = format_cell(
+                subnet.alpha_in.tao,
+                prev.get("alpha_in"),
+                unit=f" {symbol}",
+                precision=4,
+            )
+            price_cell = format_cell(
+                subnet.price.tao, prev.get("price"), unit=f" τ/{symbol}", precision=4
+            )
+
+            # Content: Blocks_since_last_step
+            prev_blocks_since_last_step = prev.get("blocks_since_last_step")
+            if prev_blocks_since_last_step is not None:
+                if subnet.blocks_since_last_step >= prev_blocks_since_last_step:
+                    block_change = (
+                        subnet.blocks_since_last_step - prev_blocks_since_last_step
+                    )
+                else:
+                    # Tempo restarted
+                    block_change = (
+                        subnet.blocks_since_last_step + subnet.tempo + 1
+                    ) - prev_blocks_since_last_step
+                if block_change > 0:
+                    block_change_text = f" [pale_green3](+{block_change})[/pale_green3]"
+                elif block_change < 0:
+                    block_change_text = f" [hot_pink3]({block_change})[/hot_pink3]"
+                else:
+                    block_change_text = ""
+            else:
+                block_change_text = ""
+            tempo_cell = (
+                f"{subnet.blocks_since_last_step}/{subnet.tempo}{block_change_text}"
+            )
+
+            # Content: Global_weight
+            prev_global_weight = prev.get("global_weight")
+            if prev_global_weight is not None and global_weight is not None:
+                weight_change = float(global_weight) - float(prev_global_weight)
+                if weight_change > 0:
+                    weight_change_text = (
+                        f" [pale_green3](+{weight_change:.6f})[/pale_green3]"
+                    )
+                elif weight_change < 0:
+                    weight_change_text = (
+                        f" [hot_pink3]({weight_change:.6f})[/hot_pink3]"
+                    )
+                else:
+                    weight_change_text = ""
+            else:
+                weight_change_text = ""
+
+            global_weight_cell = (
+                f"{global_weight:.4f}{weight_change_text}"
+                if global_weight is not None
+                else "N/A"
+            )
+
+            rows.append(
+                (
+                    netuid_cell,  # Netuid
+                    symbol_cell,  # Symbol
+                    emission_cell,  # Emission (τ)
+                    alpha_out_cell,  # Stake α_out
+                    tao_in_cell,  # TAO Pool τ_in
+                    alpha_in_cell,  # Alpha Pool α_in
+                    price_cell,  # Rate τ_in/α_in
+                    tempo_cell,  # Tempo k/n
+                    global_weight_cell,  # Local weight coeff. (γ)
+                )
+            )
+
+        total_emissions = sum(
+            float(subnet.emission.tao) for subnet in subnets if subnet.netuid != 0
+        )
+        table = define_table(total_emissions)
+
+        # Sort rows by emission, keeping the first subnet in the first position
+        sorted_rows = [rows[0]] + sorted(
+            rows[1:],
+            key=lambda x: float(str(x[2]).split()[0].replace(",", "")),
+            reverse=True,
+        )
+
+        # Add rows to the table
+        for row in sorted_rows:
+            table.add_row(*row)
+        return table, current_data
+
+    # Live mode
+    if live:
+        refresh_interval = 15  # seconds
+
+        progress = Progress(
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(bar_width=20, style="green", complete_style="green"),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            console=console,
+            auto_refresh=True,
+        )
+        progress_task = progress.add_task("Updating:", total=refresh_interval)
+
+        previous_data = None
+        with Live(console=console, screen=True, auto_refresh=True) as live:
+            try:
+                while True:
+                    subnets, global_weights = await fetch_subnet_data()
+                    table, current_data = create_table_live(
+                        subnets, global_weights, previous_data
+                    )
+                    previous_data = current_data
+                    progress.reset(progress_task)
+                    start_time = asyncio.get_event_loop().time()
+
+                    # Create the message
+                    message = "\nLive view active. Press [bold red]Ctrl + C[/bold red] to exit"
+
+                    # Include the message in the live render group
+                    live_render = Group(table, progress, message)
+                    live.update(live_render)
+                    while not progress.finished:
+                        await asyncio.sleep(0.1)
+                        elapsed = asyncio.get_event_loop().time() - start_time
+                        progress.update(progress_task, completed=elapsed)
+
+            except KeyboardInterrupt:
+                pass  # Ctrl + C
+    else:
+        # Non-live mode
+        subnets, global_weights = await fetch_subnet_data()
+        table = create_table(subnets, global_weights)
+        console.print(table)
+
+        console.print("\nPress Enter to continue to column descriptions...")
+        input()
+        header = """
 [bold white]Description[/bold white]: The table displays information about each subnet. The columns are as follows:
 """
-    console.print(header)
-    description_table = Table(
-        show_header=False, box=box.SIMPLE, show_edge=False, show_lines=True
-    )
+        console.print(header)
+        description_table = Table(
+            show_header=False, box=box.SIMPLE, show_edge=False, show_lines=True
+        )
 
-    fields = [
-        ("[bold tan]Netuid[/bold tan]", "The netuid of the subnet."),
-        (
-            "[bold tan]Symbol[/bold tan]",
-            "The symbol for the subnet's dynamic TAO token.",
-        ),
-        (
-            "[bold tan]Emission (τ)[/bold tan]",
-            "Shows how the one τ/block emission is distributed among all the subnet pools. For each subnet, this fraction is first calculated by dividing the subnet's TAO Pool (τ_in) by the sum of all TAO Pool (τ_in) across all the subnets. This fraction is then added to the TAO Pool (τ_in) of the subnet. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
-        ),
-        (
-            "[bold tan]STAKE (α_out)[/bold tan]",
-            "Total stake in the subnet, expressed in the subnet's dynamic TAO currency. This is the sum of all the stakes present in all the hotkeys in this subnet. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
-        ),
-        (
-            "[bold tan]TAO Pool (τ_in)[/bold tan]",
-            'Units of TAO in the TAO pool reserves for this subnet. Attached to every subnet is a subnet pool, containing a TAO reserve and the alpha reserve. See also "Alpha Pool (α_in)" description. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
-        ),
-        (
-            "[bold tan]Alpha Pool (α_in)[/bold tan]",
-            "Units of subnet dTAO token in the dTAO pool reserves for this subnet. This reserve, together with 'TAO Pool (τ_in)', form the subnet pool for every subnet. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
-        ),
-        (
-            "[bold tan]RATE (τ_in/α_in)[/bold tan]",
-            "Exchange rate between TAO and subnet dTAO token. Calculated as (TAO Pool (τ_in) / Alpha Pool (α_in)). This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
-        ),
-        (
-            "[bold tan]Tempo (k/n)[/bold tan]",
-            'The tempo status of the subnet. Represented as (k/n) where "k" is the number of blocks elapsed since the last tempo and "n" is the total number of blocks in the tempo. The number "n" is a subnet hyperparameter and does not change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
-        ),
-        (
-            "[bold tan]Local weight coeff (γ)[/bold tan]",
-            "A multiplication factor between 0 and 1, applied to the relative proportion of a validator's stake in this subnet. Applied as (γ) × (a validator's α stake in this subnet) / (Total α stake in this subnet, i.e., Stake (α_out)). This γ-weighted relative proportion is used, in addition to other factors, in determining the overall stake weight of a validator in this subnet. This is a subnet parameter. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
-        ),
-    ]
+        fields = [
+            ("[bold tan]Netuid[/bold tan]", "The netuid of the subnet."),
+            (
+                "[bold tan]Symbol[/bold tan]",
+                "The symbol for the subnet's dynamic TAO token.",
+            ),
+            (
+                "[bold tan]Emission (τ)[/bold tan]",
+                "Shows how the one τ/block emission is distributed among all the subnet pools. For each subnet, this fraction is first calculated by dividing the subnet's TAO Pool (τ_in) by the sum of all TAO Pool (τ_in) across all the subnets. This fraction is then added to the TAO Pool (τ_in) of the subnet. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
+            ),
+            (
+                "[bold tan]STAKE (α_out)[/bold tan]",
+                "Total stake in the subnet, expressed in the subnet's dynamic TAO currency. This is the sum of all the stakes present in all the hotkeys in this subnet. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
+            ),
+            (
+                "[bold tan]TAO Pool (τ_in)[/bold tan]",
+                'Units of TAO in the TAO pool reserves for this subnet. Attached to every subnet is a subnet pool, containing a TAO reserve and the alpha reserve. See also "Alpha Pool (α_in)" description. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
+            ),
+            (
+                "[bold tan]Alpha Pool (α_in)[/bold tan]",
+                "Units of subnet dTAO token in the dTAO pool reserves for this subnet. This reserve, together with 'TAO Pool (τ_in)', form the subnet pool for every subnet. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
+            ),
+            (
+                "[bold tan]RATE (τ_in/α_in)[/bold tan]",
+                "Exchange rate between TAO and subnet dTAO token. Calculated as (TAO Pool (τ_in) / Alpha Pool (α_in)). This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
+            ),
+            (
+                "[bold tan]Tempo (k/n)[/bold tan]",
+                'The tempo status of the subnet. Represented as (k/n) where "k" is the number of blocks elapsed since the last tempo and "n" is the total number of blocks in the tempo. The number "n" is a subnet hyperparameter and does not change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
+            ),
+            (
+                "[bold tan]Local weight coeff (γ)[/bold tan]",
+                "A multiplication factor between 0 and 1, applied to the relative proportion of a validator's stake in this subnet. Applied as (γ) × (a validator's α stake in this subnet) / (Total α stake in this subnet, i.e., Stake (α_out)). This γ-weighted relative proportion is used, in addition to other factors, in determining the overall stake weight of a validator in this subnet. This is a subnet parameter. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
+            ),
+        ]
 
     description_table.add_column("Field", no_wrap=True, style="bold tan")
     description_table.add_column("Description", overflow="fold")
