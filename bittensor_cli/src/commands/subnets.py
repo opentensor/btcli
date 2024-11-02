@@ -174,7 +174,7 @@ async def subnets_list(
         )
         return subnets, global_weights
 
-    def define_table(total_emissions: float):
+    def define_table(total_emissions: float, total_rate: float):
         table = Table(
             title=f"\n[underline navajo_white1]Subnets[/underline navajo_white1]"
             f"\n[navajo_white1]Network: {subtensor.network}[/navajo_white1]\n\n",
@@ -215,6 +215,7 @@ async def subnets_list(
             f"[bold white]RATE ({Balance.get_unit(0)}_in/{Balance.get_unit(1)}_in)",
             style="medium_purple",
             justify="left",
+            footer=f"τ {total_rate:.4f}",
         )
         table.add_column(
             "[bold white]Tempo (k/n)",
@@ -270,8 +271,10 @@ async def subnets_list(
         total_emissions = sum(
             float(subnet.emission.tao) for subnet in subnets if subnet.netuid != 0
         )
-
-        table = define_table(total_emissions)
+        total_rate = sum(
+            float(subnet.price.tao) for subnet in subnets if subnet.netuid != 0
+        )
+        table = define_table(total_emissions, total_rate)
 
         # Sort rows by emission, keeping the root subnet in the first position
         sorted_rows = [rows[0]] + sorted(
@@ -418,7 +421,10 @@ async def subnets_list(
         total_emissions = sum(
             float(subnet.emission.tao) for subnet in subnets if subnet.netuid != 0
         )
-        table = define_table(total_emissions)
+        total_rate = sum(
+            float(subnet.price.tao) for subnet in subnets if subnet.netuid != 0
+        )
+        table = define_table(total_emissions, total_rate)
 
         # Sort rows by emission, keeping the first subnet in the first position
         sorted_rows = [rows[0]] + sorted(
