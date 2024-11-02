@@ -8,6 +8,7 @@ from bittensor_wallet import Wallet
 from bittensor_wallet.errors import KeyFileError
 from rich.prompt import Confirm, FloatPrompt, Prompt
 from rich.table import Table
+from rich import box
 from substrateinterface.exceptions import SubstrateRequestException
 
 from bittensor_cli.src.bittensor.balances import Balance
@@ -1543,8 +1544,9 @@ async def stake_list(
             else hotkey_
         )
         rows = []
-        total_global_tao = Balance(0)
+        total_tao_ownership = Balance(0)
         total_tao_value = Balance(0)
+        total_swapped_tao_value = Balance(0)
         for substake_ in substakes:
             netuid = substake_.netuid
             pool = dynamic_info[netuid]
@@ -1563,6 +1565,7 @@ async def stake_list(
             swapped_tao_value, slippage = pool.alpha_to_tao_with_slippage(
                 substake_.stake
             )
+            total_swapped_tao_value += swapped_tao_value
             if pool.is_dynamic:
                 slippage_percentage_ = (
                     100 * float(slippage) / float(slippage + swapped_tao_value)
@@ -1583,7 +1586,7 @@ async def stake_list(
                     tao_ownership = Balance.from_tao(
                         (alpha_value.tao / issuance.tao) * tao_locked.tao
                     )
-                    total_global_tao += tao_ownership
+                    total_tao_ownership += tao_ownership
                 else:
                     # TODO what's this var for?
                     alpha_ownership = "0.0000"
@@ -1592,27 +1595,25 @@ async def stake_list(
                     [
                         str(netuid),  # Number
                         symbol,  # Symbol
-                        # f"[medium_purple]{tao_ownership}[/medium_purple] ([light_salmon3]{ alpha_ownership }[/light_salmon3][white]%[/white])", # Tao ownership.
-                        f"[medium_purple]{tao_ownership}[/medium_purple]",  # Tao ownership.
-                        # f"[dark_sea_green]{ alpha_value }", # Alpha value
-                        f"{substake_.stake.tao:,.4f} {symbol}",
-                        f"{pool.price.tao:.4f} τ/{symbol}",
-                        f"[light_slate_blue]{tao_value}[/light_slate_blue]",  # Tao equiv
-                        f"[cadet_blue]{swapped_tao_value}[/cadet_blue] ({slippage_percentage})",  # Swap amount.
-                        # f"[light_salmon3]{ alpha_ownership }%[/light_salmon3]",  # Ownership.
+                        f"{substake_.stake.tao:,.4f} {symbol}",  # Stake (a)
+                        f"{pool.tao_in.tao:,.4f} τ",  # TAO pool (t_in)
+                        f"{pool.alpha_in.tao:,.4f} {symbol}",  # Alpha Pool a_in
+                        f"{pool.price.tao:.4f} τ/{symbol}",  # Rate (t/a)
+                        f"{pool.alpha_out.tao:,.4f} {symbol}",  # Alpha out (a_out)
+                        f"[medium_purple]{tao_ownership}[/medium_purple]",  # TAO equiv
+                        f"[light_slate_blue]{tao_value}[/light_slate_blue]",  # Exchange Value (α x τ/α)
+                        f"[cadet_blue]{swapped_tao_value}[/cadet_blue] ({slippage_percentage})",  # Swap(α) -> τ
                         "[bold cadet_blue]YES[/bold cadet_blue]"
                         if substake_.is_registered
-                        else "[dark_red]NO[/dark_red]",
-                        # Registered.
+                        else "[hot_pink3]NO[/hot_pink3]",  # Registered
                         str(Balance.from_tao(per_block_emission).set_unit(netuid))
                         if substake_.is_registered
-                        else "[dark_red]N/A[/dark_red]",  # emission per block.
-                        # f"[light_slate_blue]{locked_value}[/light_slate_blue]",  # Locked value
+                        else "[hot_pink3]N/A[/hot_pink3]",  # Emission(α/block)
                     ]
                 )
         # table = Table(show_footer=True, pad_edge=False, box=None, expand=False, title=f"{name}")
         table = Table(
-            title=f"\n[dark_orange]Hotkey: {name}[/dark_orange]\n[dark_orange]Network: {subtensor.network}[/dark_orange]\n",
+            title=f"\n[dark_orange]Hotkey: {name}[/dark_orange]\n[dark_orange]Network: {subtensor.network}[/dark_orange]\n\nSee below for an explanation of the columns\n",
             show_footer=True,
             show_edge=False,
             header_style="bold white",
@@ -1631,47 +1632,62 @@ async def stake_list(
             no_wrap=True,
         )
         table.add_column(
-            f"[white]TAO({Balance.unit})",
-            style="medium_purple",
-            justify="right",
-            footer=f"{total_global_tao}",
-        )
-        table.add_column(
-            f"[white]Stake({Balance.get_unit(1)})",
+            f"[white]Stake ({Balance.get_unit(1)})",
             footer_style="overline white",
             style="rgb(42,161,152)",
             justify="center",
         )
         table.add_column(
-            f"[white]Rate({Balance.unit}/{Balance.get_unit(1)})",
+            f"[white]TAO pool ({Balance.unit}_in)",
+            style="medium_purple",
+            justify="right",
+        )
+        table.add_column(
+            f"[white]Alpha pool ({Balance.get_unit(1)}_in)",
+            style="medium_purple",
+            justify="right",
+        )
+        table.add_column(
+            f"[white]Rate \n({Balance.unit}_in/{Balance.get_unit(1)}_in)",
             footer_style="white",
             style="light_goldenrod2",
             justify="center",
         )
         table.add_column(
-            f"[white]Value({Balance.get_unit(1)} x {Balance.unit}/{Balance.get_unit(1)})",
+            f"[white]Alpha out ({Balance.get_unit(1)}_out)",
+            style="medium_purple",
+            justify="right",
+        )
+        table.add_column(
+            f"[white]TAO equiv \n({Balance.unit}_in x {Balance.get_unit(1)}/{Balance.get_unit(1)}_out)",
+            style="medium_purple",
+            justify="right",
+            footer=f"{total_tao_ownership}",
+        )
+        table.add_column(
+            f"[white]Exchange Value \n({Balance.get_unit(1)} x {Balance.unit}/{Balance.get_unit(1)})",
             footer_style="overline white",
             style="blue",
             justify="right",
             footer=f"{total_tao_value}",
         )
         table.add_column(
-            f"[white]Swap({Balance.get_unit(1)}) -> {Balance.unit}",
+            f"[white]Swap ({Balance.get_unit(1)} -> {Balance.unit})",
             footer_style="overline white",
             style="white",
             justify="right",
+            footer=f"{total_swapped_tao_value}",
         )
-        # table.add_column(f"[white]Control({bittensor.Balance.get_unit(1)})", style="aquamarine3", justify="right")
         table.add_column("[white]Registered", style="red", justify="right")
         table.add_column(
-            f"[white]Emission({Balance.get_unit(1)}/block)",
+            f"[white]Emission \n({Balance.get_unit(1)}/block)",
             style="light_goldenrod2",
             justify="right",
         )
         for row in rows:
             table.add_row(*row)
         console.print(table)
-        return total_global_tao, total_tao_value
+        return total_tao_ownership, total_tao_value
 
     for substake in sub_stakes:
         hotkey = substake.hotkey_ss58
@@ -1682,12 +1698,19 @@ async def stake_list(
         hotkeys_to_substakes[hotkey].append(substake)
 
     # Iterate over each hotkey and make a table
+        counter = 0
+    num_hotkeys = len(hotkeys_to_substakes)
     all_hotkeys_total_global_tao = Balance(0)
     all_hotkeys_total_tao_value = Balance(0)
     for hotkey in hotkeys_to_substakes.keys():
+        counter += 1
         stake, value = table_substakes(hotkey, hotkeys_to_substakes[hotkey])
         all_hotkeys_total_global_tao += stake
         all_hotkeys_total_tao_value += value
+
+        if num_hotkeys > 1 and counter < num_hotkeys:
+            console.print("\nPress Enter to continue to the next hotkey...")
+            input()
 
     console.print("\n\n")
     console.print(
@@ -1697,23 +1720,74 @@ async def stake_list(
         f"  Total TAO ({Balance.unit}): [dark_sea_green]{all_hotkeys_total_global_tao}[/dark_sea_green]\n"
         f"  Total Value ({Balance.unit}): [dark_sea_green]{all_hotkeys_total_tao_value}[/dark_sea_green]"
     )
-    console.print(
-        """
-[bold white]Description[/bold white]:
-Each table displays information about your coldkey's staking accounts with a hotkey. 
-The header of the table displays the hotkey and the footer displays the total stake and total value of all your staking accounts. 
-The columns of the table are as follows:
-    - [bold white]Netuid[/bold white]: The unique identifier for the subnet (its index).
-    - [bold white]Symbol[/bold white]: The symbol representing the subnet stake's unit.
-    - [bold white]TAO[/bold white]: The hotkey's TAO balance on this subnet. This is this hotkey's proportion of total TAO staked into the subnet divided by the hotkey's share of outstanding stake.
-    - [bold white]Stake[/bold white]: The hotkey's stake balance in subnets staking unit.
-    - [bold white]Rate[/bold white]: The rate of exchange between the subnet's staking unit and the subnet's TAO.
-    - [bold white]Value[/bold white]: The price of the hotkey's stake in TAO computed via the exchange rate.
-    - [bold white]Swap[/bold white]: The amount of TAO received when unstaking all of the hotkey's stake (with slippage).
-    - [bold white]Registered[/bold white]: Whether the hotkey is registered on this subnet.
-    - [bold white]Emission[/bold white]: If registered, the emission (in stake) attained by this hotkey on this subnet per block.
+
+    console.print("\nPress Enter to continue to column descriptions...")
+    input()
+    header = """
+[bold white]Description[/bold white]: Each table displays information about stake associated with a hotkey. The columns are as follows:
 """
+    console.print(header)
+    description_table = Table(
+        show_header=False, box=box.SIMPLE, show_edge=False, show_lines=True
     )
+
+    fields = [
+        ("[bold tan]Netuid[/bold tan]", "The netuid of the subnet."),
+        (
+            "[bold tan]Symbol[/bold tan]",
+            "The symbol for the subnet's dynamic TAO token.",
+        ),
+        (
+            "[bold tan]Stake (α)[/bold tan]",
+            "Stake this hotkey holds in the subnet, expressed in subnet's dynamic TAO currency. This can change whenever staking or unstaking occurs on this hotkey in this subnet. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
+        ),
+        (
+            "[bold tan]TAO Pool (τ_in)[/bold tan]",
+            'Units of TAO in the TAO pool reserves for this subnet. Attached to every subnet is a subnet pool, containing a TAO reserve and the alpha reserve. See also "ALPHA Pool (α_in)" description. This can change every block when staking or unstaking or emissions occur on this subnet. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
+        ),
+        (
+            "[bold tan]Alpha Pool (α_in)[/bold tan]",
+            'Units of subnet dTAO token in the dTAO pool reserves for this subnet. This reserve, together with "TAO Pool(τ_in)", form the subnet pool for every subnet. This can change every block when staking or unstaking or emissions occur on this subnet. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
+        ),
+        (
+            "[bold tan]RATE (τ_in/α_in)[/bold tan]",
+            "Exchange rate between TAO and subnet dTAO token. Calculated as (TAO Pool(τ_in) / ALPHA Pool (α_in)). This can change every block when staking or unstaking or emissions occur on this subnet. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
+        ),
+        (
+            "[bold tan]Alpha out (α_out)[/bold tan]",
+            "Total stake in the subnet, expressed in subnet's dynamic TAO currency. This is the sum of all the stakes present in all the hotkeys in this subnet. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
+        ),
+        (
+            "[bold tan]TAO Equiv (τ_in x α/α_out)[/bold tan]",
+            'TAO-equivalent value of the hotkeys stake α (i.e., Stake(α)). Calculated as (TAO Pool(τ_in) x (Stake(α) / ALPHA Out(α_out)). This value is weighted with (1-γ), where γ is the local weight coefficient, and used in determining the overall stake weight of the hotkey in this subnet. Also see the "Local weight coeff (γ)" column of "btcli subnet list" command output. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
+        ),
+        (
+            "[bold tan]Exchange Value (α x τ/α)[/bold tan]",
+            "This is the potential τ you will receive, without considering slippage, if you unstake from this hotkey now on this subnet. See Swap(α → τ) column description. Note: The TAO Equiv(τ_in x α/α_out) indicates validator stake weight while this Exchange Value shows τ you will receive if you unstake now. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
+        ),
+        (
+            "[bold tan]Swap (α → τ)[/bold tan]",
+            "This is the actual τ you will receive, after factoring in the slippage charge, if you unstake from this hotkey now on this subnet. The slippage is calculated as 1 - (Swap(α → τ)/Exchange Value(α x τ/α)), and is displayed in brackets. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
+        ),
+        (
+            "[bold tan]Registered[/bold tan]",
+            "Indicates if the hotkey is registered in this subnet or not. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
+        ),
+        (
+            "[bold tan]Emission (α/block)[/bold tan]",
+            "Shows the portion of the one α/block emission into this subnet that is received by this hotkey, according to YC2 in this subnet. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
+        ),
+    ]
+
+    description_table.add_column(
+        "Field",
+        no_wrap=True,
+        style="bold tan",
+    )
+    description_table.add_column("Description", overflow="fold")
+    for field_name, description in fields:
+        description_table.add_row(field_name, description)
+    console.print(description_table)
 
 
 async def move_stake(

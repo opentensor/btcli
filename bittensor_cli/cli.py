@@ -218,6 +218,11 @@ class Options:
         "--quiet",
         help="Display only critical information on the console.",
     )
+    live = typer.Option(
+        False,
+        "--live",
+        help="Display live view of the table",
+    )
 
 
 def list_prompt(init_var: list, list_type: type, help_text: str) -> list:
@@ -3391,6 +3396,7 @@ class CLIManager:
         # html_output: bool = Options.html_output,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        live_mode: bool = Options.live,
     ):
         """
         List all subnets and their detailed information.
@@ -3427,6 +3433,7 @@ class CLIManager:
                 False,  # reuse-last
                 False,  # html-output
                 not self.config.get("use_cache", True),
+                live_mode,
             )
         )
 
