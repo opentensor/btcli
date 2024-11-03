@@ -602,6 +602,8 @@ async def register_extrinsic(
                     extrinsic = await subtensor.substrate.create_signed_extrinsic(
                         call=call, keypair=wallet.hotkey
                     )
+                    success = False
+                    err_msg = ""
                     response = await subtensor.substrate.submit_extrinsic(
                         extrinsic,
                         wait_for_inclusion=wait_for_inclusion,
