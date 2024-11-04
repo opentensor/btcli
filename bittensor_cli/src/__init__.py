@@ -88,6 +88,7 @@ class Defaults:
                 "HOTKEY": True,
                 "COLDKEY": True,
             },
+            "quickdial": {},
         }
 
     class subtensor:

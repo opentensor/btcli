@@ -3,6 +3,7 @@ import asyncio
 import binascii
 import curses
 from functools import partial
+import inspect
 import os.path
 import re
 import ssl
@@ -433,6 +434,7 @@ class CLIManager:
     subnets_app: typer.Typer
     weights_app: typer.Typer
     utils_app = typer.Typer(epilog=_epilog)
+    quickdial_app = typer.Typer()
 
     def __init__(self):
         self.config = {
@@ -458,6 +460,7 @@ class CLIManager:
                 "HOTKEY": True,
                 "COLDKEY": True,
             },
+            "quickdial": {},
         }
         self.subtensor = None
         self.config_base_path = os.path.expanduser(defaults.config.base_path)
@@ -559,6 +562,12 @@ class CLIManager:
 
         # utils app
         self.app.add_typer(self.utils_app, name="utils", no_args_is_help=True)
+
+        # quickdial app
+        self.app.add_typer(self.quickdial_app, name="quickdial", no_args_is_help=True)
+        self.app.add_typer(
+            self.quickdial_app, name="q", hidden=True, no_args_is_help=True
+        )
 
         # config commands
         self.config_app.command("set")(self.set_config)
@@ -728,6 +737,11 @@ class CLIManager:
         self.weights_app.command(
             "commit", rich_help_panel=HELP_PANELS["WEIGHTS"]["COMMIT_REVEAL"]
         )(self.weights_commit)
+
+        # quickdial
+        self.quickdial_app.command("run")(self.quickdial_run)
+        self.quickdial_app.command("show")(self.quickdial_show)
+        self.quickdial_app.command("set")(self.quickdial_set)
 
         # Sub command aliases
         # Weights
@@ -4463,6 +4477,105 @@ class CLIManager:
                 "=",
                 f"{Balance.from_tao(tao).rao}{Balance.rao_unit}",
             )
+
+    def quickdial_run(
+        self,
+        cmd: str = typer.Argument(
+            help="The quickdial command to run. See 'btcli q show' for a list of available options."
+        ),
+    ):
+        # TODO we'll have to examine the way we handle self.network since we can allow multiple networks in multiple commands
+        qd = self.config.get("quickdial", {})
+        groups = self.app.registered_groups
+        # for g in groups:
+        #     if g.name == "weights":
+        #         for command in g.typer_instance.registered_commands:
+        #             if command.name == "reveal":
+        #                 print(dir(inspect))
+        #                 print(inspect.getfullargspec(command.callback))
+        try:
+            for execution in qd[cmd]["executions"]:
+                for g in groups:
+                    if g.name == execution["app"]:
+                        for command in g.typer_instance.registered_commands:
+                            if command.name == execution["command"]:
+                                command.callback(**execution["args"])
+        except KeyError:
+            err_console.print(f"Quickdial command '{cmd}' not found.")
+            raise typer.Exit()
+
+    def quickdial_show(self):
+        table = rich.table.Table(
+            rich.table.Column("Command"), rich.table.Column("Description")
+        )
+        for item in (qd := self.config.get("quickdial", {})).keys():
+            table.add_row(item, str(qd[item]["description"]))
+        console.print(table)
+
+    def quickdial_set(self):
+        qd = self.config.get("quickdial", {})
+        app_groups = {
+            g.name: g.typer_instance for g in self.app.registered_groups if not g.hidden
+        }
+        console.print("Welcome to Quickdial Set. Let's add a new quickdial command.")
+        qd_name = Prompt.ask("What would you like to name your quickdial command?")
+        if qd_name in qd.keys():
+            if not Confirm.ask(
+                f"Quickdial '{qd_name}' already exists. Do you want to overwrite it?"
+            ):
+                raise typer.Exit()
+        qd_description = Prompt.ask(
+            "Give a short description for your quickdial command."
+        )
+
+        def get_inputs():
+            qd_app = Prompt.ask(
+                "Which main command would you like to use?",
+                choices=list(app_groups.keys()),
+                show_choices=True,
+            )
+            commands = {
+                c.name: c.callback for c in app_groups[qd_app].registered_commands
+            }
+            qd_cmd_name = Prompt.ask(
+                "Which subcommand would you like to use?",
+                choices=list(commands.keys()),
+                show_choices=True,
+            )
+            qd_cmd = commands[qd_cmd_name]
+            inspection = inspect.getfullargspec(qd_cmd)
+            qd_cmd_args_names = [arg for arg in inspection.args if arg != "self"]
+            annotations = inspection.annotations
+            qd_cmd_args = {n: None for n in qd_cmd_args_names}
+            for idx, arg in enumerate(qd_cmd_args_names):
+                arg_val = Prompt.ask(
+                    f"Value for {arg}?\nHint: type is {annotations[arg]}\n"
+                    f"default is {inspection.defaults[idx].default}\n",
+                    default=inspection.defaults[idx].default,
+                    show_default=True,
+                )
+                qd_cmd_args[arg] = arg_val
+
+            return {
+                "app": qd_app,
+                "command": qd_cmd_name,
+                "args": qd_cmd_args,
+            }
+
+        executions = [get_inputs()]
+
+        while Confirm.ask(
+            f"Would you like to add another command execution for the '{qd_name}' quickdial command?",
+            default=False,
+        ):
+            executions.append(get_inputs())
+
+        with open(self.config_path, "r") as f:
+            config = safe_load(f)
+            config["quickdial"][qd_name] = {"description": qd_description, "executions": executions}
+        with open(self.config_path, "w") as f:
+            safe_dump(config, f)
+        console.print(f"Updated config for {qd_name}")
 
     def run(self):
         self.app()
