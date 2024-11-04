@@ -1596,8 +1596,8 @@ async def stake_list(
                         str(netuid),  # Number
                         symbol,  # Symbol
                         f"{substake_.stake.tao:,.4f} {symbol}",  # Stake (a)
-                        f"{pool.tao_in.tao:,.4f} τ",  # TAO pool (t_in)
-                        f"{pool.alpha_in.tao:,.4f} {symbol}",  # Alpha Pool a_in
+                        f"{pool.tao_in.tao:,.4f} τ",  # TAO Reserves (t_in)
+                        f"{pool.alpha_in.tao:,.4f} {symbol}",  # Alpha Reserves a_in
                         f"{pool.price.tao:.4f} τ/{symbol}",  # Rate (t/a)
                         f"{pool.alpha_out.tao:,.4f} {symbol}",  # Alpha out (a_out)
                         f"[medium_purple]{tao_ownership}[/medium_purple]",  # TAO equiv
@@ -1638,12 +1638,12 @@ async def stake_list(
             justify="center",
         )
         table.add_column(
-            f"[white]TAO pool ({Balance.unit}_in)",
+            f"[white]TAO Reserves ({Balance.unit}_in)",
             style="medium_purple",
             justify="right",
         )
         table.add_column(
-            f"[white]Alpha pool ({Balance.get_unit(1)}_in)",
+            f"[white]Alpha Reserves ({Balance.get_unit(1)}_in)",
             style="medium_purple",
             justify="right",
         )
@@ -1698,7 +1698,7 @@ async def stake_list(
         hotkeys_to_substakes[hotkey].append(substake)
 
     # Iterate over each hotkey and make a table
-        counter = 0
+    counter = 0
     num_hotkeys = len(hotkeys_to_substakes)
     all_hotkeys_total_global_tao = Balance(0)
     all_hotkeys_total_tao_value = Balance(0)
@@ -1744,16 +1744,16 @@ async def stake_list(
                 "Stake this hotkey holds in the subnet, expressed in subnet's dynamic TAO currency. This can change whenever staking or unstaking occurs on this hotkey in this subnet. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
             ),
             (
-                "[bold tan]TAO Pool (τ_in)[/bold tan]",
-                'Units of TAO in the TAO pool reserves for this subnet. Attached to every subnet is a subnet pool, containing a TAO reserve and the alpha reserve. See also "ALPHA Pool (α_in)" description. This can change every block when staking or unstaking or emissions occur on this subnet. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
+                "[bold tan]TAO Reserves (τ_in)[/bold tan]",
+                'Units of TAO in the TAO Reserves reserves for this subnet. Attached to every subnet is a subnet pool, containing a TAO reserve and the alpha reserve. See also "Alpha Reserves (α_in)" description. This can change every block when staking or unstaking or emissions occur on this subnet. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
             ),
             (
-                "[bold tan]Alpha Pool (α_in)[/bold tan]",
-                'Units of subnet dTAO token in the dTAO pool reserves for this subnet. This reserve, together with "TAO Pool(τ_in)", form the subnet pool for every subnet. This can change every block when staking or unstaking or emissions occur on this subnet. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
+                "[bold tan]Alpha Reserves (α_in)[/bold tan]",
+                'Units of subnet dTAO token in the dTAO pool reserves for this subnet. This reserve, together with "TAO Reserves(τ_in)", form the subnet pool for every subnet. This can change every block when staking or unstaking or emissions occur on this subnet. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
             ),
             (
                 "[bold tan]RATE (τ_in/α_in)[/bold tan]",
-                "Exchange rate between TAO and subnet dTAO token. Calculated as (TAO Pool(τ_in) / ALPHA Pool (α_in)). This can change every block when staking or unstaking or emissions occur on this subnet. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
+                "Exchange rate between TAO and subnet dTAO token. Calculated as (TAO Reserves(τ_in) / Alpha Reserves (α_in)). This can change every block when staking or unstaking or emissions occur on this subnet. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
             ),
             (
                 "[bold tan]Alpha out (α_out)[/bold tan]",
@@ -1761,7 +1761,7 @@ async def stake_list(
             ),
             (
                 "[bold tan]TAO Equiv (τ_in x α/α_out)[/bold tan]",
-                'TAO-equivalent value of the hotkeys stake α (i.e., Stake(α)). Calculated as (TAO Pool(τ_in) x (Stake(α) / ALPHA Out(α_out)). This value is weighted with (1-γ), where γ is the local weight coefficient, and used in determining the overall stake weight of the hotkey in this subnet. Also see the "Local weight coeff (γ)" column of "btcli subnet list" command output. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
+                'TAO-equivalent value of the hotkeys stake α (i.e., Stake(α)). Calculated as (TAO Reserves(τ_in) x (Stake(α) / ALPHA Out(α_out)). This value is weighted with (1-γ), where γ is the local weight coefficient, and used in determining the overall stake weight of the hotkey in this subnet. Also see the "Local weight coeff (γ)" column of "btcli subnet list" command output. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
             ),
             (
                 "[bold tan]Exchange Value (α x τ/α)[/bold tan]",
