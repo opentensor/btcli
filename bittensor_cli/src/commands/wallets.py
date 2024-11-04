@@ -81,13 +81,21 @@ async def regen_coldkey(
         with open(json_path, "r") as f:
             json_str = f.read()
     try:
-        wallet.regenerate_coldkey(
+        new_wallet = wallet.regenerate_coldkey(
             mnemonic=mnemonic,
             seed=seed,
             json=(json_str, json_password) if all([json_str, json_password]) else None,
             use_password=use_password,
             overwrite=False,
         )
+
+        if isinstance(new_wallet, Wallet):
+            console.print(
+                "\n✅ [dark_sea_green]Regenerated coldkey successfully!\n",
+                f"[dark_sea_green]Wallet name: ({new_wallet.name}), path: ({new_wallet.path}), coldkey ss58: ({new_wallet.coldkeypub.ss58_address})",
+            )
+    except ValueError:
+        print_error("Mnemonic phrase is invalid")
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
 
@@ -99,11 +107,16 @@ async def regen_coldkey_pub(
 ):
     """Creates a new coldkeypub under this wallet."""
     try:
-        wallet.regenerate_coldkeypub(
+        new_coldkeypub = wallet.regenerate_coldkeypub(
             ss58_address=ss58_address,
             public_key=public_key_hex,
             overwrite=False,
         )
+        if isinstance(new_coldkeypub, Wallet):
+            console.print(
+                "\n✅ [dark_sea_green]Regenerated coldkeypub successfully!\n",
+                f"[dark_sea_green]Wallet name: ({new_coldkeypub.name}), path: ({new_coldkeypub.path}), coldkey ss58: ({new_coldkeypub.coldkeypub.ss58_address})",
+            )
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
 
@@ -126,13 +139,20 @@ async def regen_hotkey(
             json_str = f.read()
 
     try:
-        wallet.regenerate_hotkey(
+        new_hotkey = wallet.regenerate_hotkey(
             mnemonic=mnemonic,
             seed=seed,
             json=(json_str, json_password) if all([json_str, json_password]) else None,
             use_password=use_password,
             overwrite=False,
         )
+        if isinstance(new_hotkey, Wallet):
+            console.print(
+                "\n✅ [dark_sea_green]Regenerated hotkey successfully!\n",
+                f"[dark_sea_green]Wallet name: ({new_hotkey.name}), path: ({new_hotkey.path}), hotkey ss58: ({new_hotkey.hotkey.ss58_address})",
+            )
+    except ValueError:
+        print_error("Mnemonic phrase is invalid")
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
 
