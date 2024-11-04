@@ -1182,6 +1182,7 @@ async def stake_add(
             (wallet.hotkey_str, wallet.hotkey.ss58_address)
             for wallet in all_hotkeys_
             if wallet.hotkey_str not in exclude_hotkeys
+            and wallet.hotkey.ss58_address not in exclude_hotkeys
         ]  # definitely wallets
 
     elif include_hotkeys:
@@ -1349,6 +1350,7 @@ async def unstake(
             (wallet.hotkey_str, wallet.hotkey.ss58_address)
             for wallet in all_hotkeys_
             if wallet.hotkey_str not in exclude_hotkeys
+            and wallet.hotkey.ss58_address not in hotkeys_to_unstake_from
         ]  # definitely wallets
 
     elif include_hotkeys:
