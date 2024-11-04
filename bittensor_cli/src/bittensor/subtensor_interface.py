@@ -283,7 +283,7 @@ class SubtensorInterface:
         self,
         runtime_api: str,
         method: str,
-        params: Optional[Union[list[list[int]], dict[str, int]]],
+        params: Optional[Union[list[list[int]], list[int], dict[str, int]]],
         block_hash: Optional[str] = None,
         reuse_block: Optional[bool] = False,
     ) -> Optional[str]:
