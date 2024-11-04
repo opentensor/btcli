@@ -371,6 +371,12 @@ def get_creation_data(
             json = prompt_answer
     elif mnemonic:
         mnemonic = parse_mnemonic(mnemonic)
+
+    if json:
+        if not os.path.exists(json):
+            print_error(f"The JSON file '{json}' does not exist.")
+            raise typer.Exit()
+
     if json and not json_password:
         json_password = Prompt.ask(
             "Enter the backup password for JSON file.", password=True
