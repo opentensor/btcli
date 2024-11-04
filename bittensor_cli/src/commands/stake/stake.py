@@ -1720,74 +1720,76 @@ async def stake_list(
         f"  Total TAO ({Balance.unit}): [dark_sea_green]{all_hotkeys_total_global_tao}[/dark_sea_green]\n"
         f"  Total Value ({Balance.unit}): [dark_sea_green]{all_hotkeys_total_tao_value}[/dark_sea_green]"
     )
+    if not sub_stakes:
+        console.print(f"\n[blue]No stakes found for coldkey ss58: ({coldkey_address})")
+    else:
+        console.print("\nPress Enter to continue to column descriptions...")
+        input()
+        header = """
+    [bold white]Description[/bold white]: Each table displays information about stake associated with a hotkey. The columns are as follows:
+    """
+        console.print(header)
+        description_table = Table(
+            show_header=False, box=box.SIMPLE, show_edge=False, show_lines=True
+        )
 
-    console.print("\nPress Enter to continue to column descriptions...")
-    input()
-    header = """
-[bold white]Description[/bold white]: Each table displays information about stake associated with a hotkey. The columns are as follows:
-"""
-    console.print(header)
-    description_table = Table(
-        show_header=False, box=box.SIMPLE, show_edge=False, show_lines=True
-    )
+        fields = [
+            ("[bold tan]Netuid[/bold tan]", "The netuid of the subnet."),
+            (
+                "[bold tan]Symbol[/bold tan]",
+                "The symbol for the subnet's dynamic TAO token.",
+            ),
+            (
+                "[bold tan]Stake (α)[/bold tan]",
+                "Stake this hotkey holds in the subnet, expressed in subnet's dynamic TAO currency. This can change whenever staking or unstaking occurs on this hotkey in this subnet. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
+            ),
+            (
+                "[bold tan]TAO Pool (τ_in)[/bold tan]",
+                'Units of TAO in the TAO pool reserves for this subnet. Attached to every subnet is a subnet pool, containing a TAO reserve and the alpha reserve. See also "ALPHA Pool (α_in)" description. This can change every block when staking or unstaking or emissions occur on this subnet. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
+            ),
+            (
+                "[bold tan]Alpha Pool (α_in)[/bold tan]",
+                'Units of subnet dTAO token in the dTAO pool reserves for this subnet. This reserve, together with "TAO Pool(τ_in)", form the subnet pool for every subnet. This can change every block when staking or unstaking or emissions occur on this subnet. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
+            ),
+            (
+                "[bold tan]RATE (τ_in/α_in)[/bold tan]",
+                "Exchange rate between TAO and subnet dTAO token. Calculated as (TAO Pool(τ_in) / ALPHA Pool (α_in)). This can change every block when staking or unstaking or emissions occur on this subnet. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
+            ),
+            (
+                "[bold tan]Alpha out (α_out)[/bold tan]",
+                "Total stake in the subnet, expressed in subnet's dynamic TAO currency. This is the sum of all the stakes present in all the hotkeys in this subnet. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
+            ),
+            (
+                "[bold tan]TAO Equiv (τ_in x α/α_out)[/bold tan]",
+                'TAO-equivalent value of the hotkeys stake α (i.e., Stake(α)). Calculated as (TAO Pool(τ_in) x (Stake(α) / ALPHA Out(α_out)). This value is weighted with (1-γ), where γ is the local weight coefficient, and used in determining the overall stake weight of the hotkey in this subnet. Also see the "Local weight coeff (γ)" column of "btcli subnet list" command output. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
+            ),
+            (
+                "[bold tan]Exchange Value (α x τ/α)[/bold tan]",
+                "This is the potential τ you will receive, without considering slippage, if you unstake from this hotkey now on this subnet. See Swap(α → τ) column description. Note: The TAO Equiv(τ_in x α/α_out) indicates validator stake weight while this Exchange Value shows τ you will receive if you unstake now. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
+            ),
+            (
+                "[bold tan]Swap (α → τ)[/bold tan]",
+                "This is the actual τ you will receive, after factoring in the slippage charge, if you unstake from this hotkey now on this subnet. The slippage is calculated as 1 - (Swap(α → τ)/Exchange Value(α x τ/α)), and is displayed in brackets. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
+            ),
+            (
+                "[bold tan]Registered[/bold tan]",
+                "Indicates if the hotkey is registered in this subnet or not. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
+            ),
+            (
+                "[bold tan]Emission (α/block)[/bold tan]",
+                "Shows the portion of the one α/block emission into this subnet that is received by this hotkey, according to YC2 in this subnet. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
+            ),
+        ]
 
-    fields = [
-        ("[bold tan]Netuid[/bold tan]", "The netuid of the subnet."),
-        (
-            "[bold tan]Symbol[/bold tan]",
-            "The symbol for the subnet's dynamic TAO token.",
-        ),
-        (
-            "[bold tan]Stake (α)[/bold tan]",
-            "Stake this hotkey holds in the subnet, expressed in subnet's dynamic TAO currency. This can change whenever staking or unstaking occurs on this hotkey in this subnet. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
-        ),
-        (
-            "[bold tan]TAO Pool (τ_in)[/bold tan]",
-            'Units of TAO in the TAO pool reserves for this subnet. Attached to every subnet is a subnet pool, containing a TAO reserve and the alpha reserve. See also "ALPHA Pool (α_in)" description. This can change every block when staking or unstaking or emissions occur on this subnet. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
-        ),
-        (
-            "[bold tan]Alpha Pool (α_in)[/bold tan]",
-            'Units of subnet dTAO token in the dTAO pool reserves for this subnet. This reserve, together with "TAO Pool(τ_in)", form the subnet pool for every subnet. This can change every block when staking or unstaking or emissions occur on this subnet. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
-        ),
-        (
-            "[bold tan]RATE (τ_in/α_in)[/bold tan]",
-            "Exchange rate between TAO and subnet dTAO token. Calculated as (TAO Pool(τ_in) / ALPHA Pool (α_in)). This can change every block when staking or unstaking or emissions occur on this subnet. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
-        ),
-        (
-            "[bold tan]Alpha out (α_out)[/bold tan]",
-            "Total stake in the subnet, expressed in subnet's dynamic TAO currency. This is the sum of all the stakes present in all the hotkeys in this subnet. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
-        ),
-        (
-            "[bold tan]TAO Equiv (τ_in x α/α_out)[/bold tan]",
-            'TAO-equivalent value of the hotkeys stake α (i.e., Stake(α)). Calculated as (TAO Pool(τ_in) x (Stake(α) / ALPHA Out(α_out)). This value is weighted with (1-γ), where γ is the local weight coefficient, and used in determining the overall stake weight of the hotkey in this subnet. Also see the "Local weight coeff (γ)" column of "btcli subnet list" command output. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].',
-        ),
-        (
-            "[bold tan]Exchange Value (α x τ/α)[/bold tan]",
-            "This is the potential τ you will receive, without considering slippage, if you unstake from this hotkey now on this subnet. See Swap(α → τ) column description. Note: The TAO Equiv(τ_in x α/α_out) indicates validator stake weight while this Exchange Value shows τ you will receive if you unstake now. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
-        ),
-        (
-            "[bold tan]Swap (α → τ)[/bold tan]",
-            "This is the actual τ you will receive, after factoring in the slippage charge, if you unstake from this hotkey now on this subnet. The slippage is calculated as 1 - (Swap(α → τ)/Exchange Value(α x τ/α)), and is displayed in brackets. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
-        ),
-        (
-            "[bold tan]Registered[/bold tan]",
-            "Indicates if the hotkey is registered in this subnet or not. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
-        ),
-        (
-            "[bold tan]Emission (α/block)[/bold tan]",
-            "Shows the portion of the one α/block emission into this subnet that is received by this hotkey, according to YC2 in this subnet. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
-        ),
-    ]
-
-    description_table.add_column(
-        "Field",
-        no_wrap=True,
-        style="bold tan",
-    )
-    description_table.add_column("Description", overflow="fold")
-    for field_name, description in fields:
-        description_table.add_row(field_name, description)
-    console.print(description_table)
+        description_table.add_column(
+            "Field",
+            no_wrap=True,
+            style="bold tan",
+        )
+        description_table.add_column("Description", overflow="fold")
+        for field_name, description in fields:
+            description_table.add_row(field_name, description)
+        console.print(description_table)
 
 
 async def move_stake(
