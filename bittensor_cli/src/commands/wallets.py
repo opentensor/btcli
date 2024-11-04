@@ -723,7 +723,11 @@ async def overview(
                 de_registered_neurons.append(de_registered_neuron)
 
                 # Add this hotkey to the wallets dict
-                wallet_ = WalletLike(name=wallet.name, hotkey_ss58=hotkey_addr, hotkey_str=hotkey_addr[:5])
+                wallet_ = WalletLike(
+                    name=wallet.name,
+                    hotkey_ss58=hotkey_addr,
+                    hotkey_str=hotkey_addr[:5],
+                )
                 # Indicates a hotkey not on local machine but exists in stake_info obj on-chain
                 if hotkey_coldkey_to_hotkey_wallet.get(hotkey_addr) is None:
                     hotkey_coldkey_to_hotkey_wallet[hotkey_addr] = {}

@@ -3369,20 +3369,24 @@ class CLIManager:
             )
 
         if include_hotkeys:
-            include_hotkeys = parse_to_list(
+            included_hotkeys = parse_to_list(
                 include_hotkeys,
                 str,
-                "Hotkeys must be a comma-separated list of ss58s, e.g., `--include-hotkeys 5Grw....,5Grw....`.",
-                is_ss58=True,
+                "Hotkeys must be a comma-separated list of ss58s or hotkey names, e.g., "
+                "`--include-hotkeys 5Grw....,5Grw....`.",
             )
+        else:
+            included_hotkeys = []
 
         if exclude_hotkeys:
-            exclude_hotkeys = parse_to_list(
+            excluded_hotkeys = parse_to_list(
                 exclude_hotkeys,
                 str,
-                "Hotkeys must be a comma-separated list of ss58s, e.g., `--exclude-hotkeys 5Grw....,5Grw....`.",
-                is_ss58=True,
+                "Hotkeys must be a comma-separated list of ss58s or hotkey names, e.g., "
+                "`--exclude-hotkeys 5Grw....,5Grw....`.",
             )
+        else:
+            excluded_hotkeys = []
 
         return self._run_command(
             stake.stake_add(
@@ -3391,8 +3395,8 @@ class CLIManager:
                 amount,
                 stake_all,
                 max_stake,
-                include_hotkeys,
-                exclude_hotkeys,
+                included_hotkeys,
+                excluded_hotkeys,
                 all_hotkeys,
                 prompt,
                 hotkey_ss58_address,
@@ -3524,20 +3528,24 @@ class CLIManager:
             )
 
         if include_hotkeys:
-            include_hotkeys = parse_to_list(
+            included_hotkeys = parse_to_list(
                 include_hotkeys,
                 str,
-                "Hotkeys must be a comma-separated list of ss58s, e.g., `--include-hotkeys 5Grw....,5Grw....`.",
-                is_ss58=True,
+                "Hotkeys must be a comma-separated list of ss58s or hotkey names, e.g., "
+                "`--include-hotkeys 5Grw....,5Grw....`.",
             )
+        else:
+            included_hotkeys = []
 
         if exclude_hotkeys:
-            exclude_hotkeys = parse_to_list(
+            excluded_hotkeys = parse_to_list(
                 exclude_hotkeys,
                 str,
-                "Hotkeys must be a comma-separated list of ss58s, e.g., `--exclude-hotkeys 5Grw....,5Grw....`.",
-                is_ss58=True,
+                "Hotkeys must be a comma-separated list of ss58s or hotkey names, e.g., "
+                "`--exclude-hotkeys 5Grw....,5Grw....`.",
             )
+        else:
+            excluded_hotkeys = []
 
         return self._run_command(
             stake.unstake(
@@ -3545,8 +3553,8 @@ class CLIManager:
                 self.initialize_chain(network),
                 hotkey_ss58_address,
                 all_hotkeys,
-                include_hotkeys,
-                exclude_hotkeys,
+                included_hotkeys,
+                excluded_hotkeys,
                 amount,
                 keep_stake,
                 unstake_all,
