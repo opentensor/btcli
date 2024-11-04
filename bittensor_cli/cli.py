@@ -2620,6 +2620,10 @@ class CLIManager:
                 amount = FloatPrompt.ask(
                     "[dark_sea_green]Amount to stake to each netuid (TAO τ)[/dark_sea_green]"
                 )
+
+            if amount <= 0:
+                print_error(f"You entered an incorrect stake amount: {amount}")
+                raise typer.Exit()
             if Balance.from_tao(amount) > free_balance:
                 print_error(
                     f"You dont have enough balance to stake. Current free Balance: {free_balance}."
@@ -2795,6 +2799,10 @@ class CLIManager:
             )
         else:
             excluded_hotkeys = []
+
+        if amount and amount <= 0:
+            print_error(f"You entered an incorrect unstake amount: {amount}")
+            raise typer.Exit()
 
         return self._run_command(
             stake.unstake(
