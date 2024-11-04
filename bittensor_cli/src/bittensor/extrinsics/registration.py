@@ -918,6 +918,9 @@ async def _block_solver(
     stop_event.clear()
 
     solution_queue = Queue()
+    if cuda:
+        num_processes = len(dev_id)
+
     finished_queues = [Queue() for _ in range(num_processes)]
     check_block = Lock()
 
@@ -927,7 +930,6 @@ async def _block_solver(
 
     if cuda:
         ## Create a worker per CUDA device
-        num_processes = len(dev_id)
         solvers = [
             _CUDASolver(
                 i,
