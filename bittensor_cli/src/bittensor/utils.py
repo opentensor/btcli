@@ -974,3 +974,9 @@ def retry_prompt(
             return var
         else:
             err_console.print(rejection_text)
+
+
+def validate_netuid(value: int) -> int:
+    if value is not None and value < 0:
+        raise typer.BadParameter("Negative netuid passed. Please use correct netuid.")
+    return value

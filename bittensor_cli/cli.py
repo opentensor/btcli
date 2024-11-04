@@ -43,6 +43,7 @@ from bittensor_cli.src.bittensor.utils import (
     print_error,
     validate_chain_endpoint,
     retry_prompt,
+    validate_netuid,
 )
 from typing_extensions import Annotated
 from textwrap import dedent
@@ -163,6 +164,7 @@ class Options:
         None,
         help="The netuid of the subnet in the root network, (e.g. 1).",
         prompt=True,
+        callback=validate_netuid,
     )
     netuid_not_req = typer.Option(
         None,
