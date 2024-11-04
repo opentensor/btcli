@@ -4,10 +4,9 @@ import itertools
 import os
 import sys
 from collections import defaultdict
-from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 from sys import getsizeof
-from typing import Any, Collection, Generator, Optional
+from typing import Collection, Generator, Optional
 
 import aiohttp
 from bittensor_wallet import Wallet
@@ -1129,7 +1128,7 @@ async def _fetch_neuron_for_netuid(
 
 async def _fetch_all_neurons(
     netuids: list[int], subtensor
-) -> list[tuple[int, list[ScaleBytes]]]:
+) -> list[tuple[int, Optional[str]]]:
     """Retrieves all neurons for each of the specified netuids"""
     return list(
         await asyncio.gather(
@@ -1138,27 +1137,8 @@ async def _fetch_all_neurons(
     )
 
 
-def _partial_decode(args):
-    """
-    Helper function for passing to ProcessPoolExecutor that decodes scale bytes based on a set return type and
-    rpc type registry, passing this back to the Executor with its specified netuid for easier mapping
-
-    :param args: (return type, scale bytes object, custom rpc type registry, netuid)
-
-    :return: (original netuid, decoded object)
-    """
-    return_type, as_scale_bytes, custom_rpc_type_registry_, netuid_ = args
-    decoded = decode_scale_bytes(return_type, as_scale_bytes, custom_rpc_type_registry_)
-    if decoded.startswith("0x"):
-        bytes_result = bytes.fromhex(decoded[2:])
-    else:
-        bytes_result = bytes.fromhex(decoded)
-
-    return netuid_, NeuronInfoLite.list_from_vec_u8(bytes_result)
-
-
 def _process_neurons_for_netuids(
-    netuids_with_all_neurons_hex_bytes: list[tuple[int, list[ScaleBytes]]],
+    netuids_with_all_neurons_hex_bytes: list[tuple[int, Optional[str]]],
 ) -> list[tuple[int, list[NeuronInfoLite]]]:
     """
     Decode a list of hex-bytes neurons with their respective netuid
@@ -1168,6 +1148,8 @@ def _process_neurons_for_netuids(
     """
     all_results = [
         (netuid, NeuronInfoLite.list_from_vec_u8(bytes.fromhex(result[2:])))
+        if result
+        else (netuid, [])
         for netuid, result in netuids_with_all_neurons_hex_bytes
     ]
     return all_results
