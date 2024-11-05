@@ -4,16 +4,18 @@ from typing import Any, Optional
 
 
 class Constants:
-    networks = ["local", "finney", "test", "archive"]
+    networks = ["local", "finney", "test", "archive", "subvortex"]
     finney_entrypoint = "wss://entrypoint-finney.opentensor.ai:443"
     finney_test_entrypoint = "wss://test.finney.opentensor.ai:443"
     archive_entrypoint = "wss://archive.chain.opentensor.ai:443"
+    subvortex_entrypoint = "ws://subvortex.info:9944"
     local_entrypoint = "ws://127.0.0.1:9444"
     network_map = {
         "finney": finney_entrypoint,
         "test": finney_test_entrypoint,
         "archive": archive_entrypoint,
         "local": local_entrypoint,
+        "subvortex": subvortex_entrypoint,
     }
     delegates_detail_url = "https://raw.githubusercontent.com/opentensor/bittensor-delegates/main/public/delegates.json"
 
