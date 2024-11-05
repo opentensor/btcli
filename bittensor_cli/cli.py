@@ -45,6 +45,8 @@ from bittensor_cli.src.bittensor.utils import (
     validate_chain_endpoint,
     retry_prompt,
     validate_netuid,
+    is_rao_network,
+    get_effective_network,
 )
 from typing_extensions import Annotated
 from textwrap import dedent
@@ -735,9 +737,9 @@ class CLIManager:
         self.subnets_app.command(
             "register", rich_help_panel=HELP_PANELS["SUBNETS"]["REGISTER"]
         )(self.subnets_register)
-        # self.subnets_app.command(
-        #     "metagraph", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
-        # )(self.subnets_metagraph)
+        self.subnets_app.command(
+            "metagraph", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"], hidden=True
+        )(self.subnets_metagraph)
         self.subnets_app.command(
             "show", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
         )(self.subnets_show)
@@ -1396,6 +1398,12 @@ class CLIManager:
                 "Hotkeys names must be a comma-separated list, e.g., `--exclude-hotkeys hk1,hk2`.",
             )
 
+        # For Rao games
+        effective_network = get_effective_network(self.config, network)
+        if is_rao_network(effective_network):
+            print_error("This command is disabled on the 'rao' network.")
+            raise typer.Exit()
+
         return self._run_command(
             wallets.overview(
                 wallet,
@@ -1464,6 +1472,13 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH],
             validate=WV.WALLET,
         )
+
+        # For Rao games
+        effective_network = get_effective_network(self.config, network)
+        if is_rao_network(effective_network):
+            print_error("This command is disabled on the 'rao' network.")
+            raise typer.Exit()
+
         subtensor = self.initialize_chain(network)
         return self._run_command(
             wallets.transfer(
@@ -1589,6 +1604,12 @@ class CLIManager:
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
         )
+        # For Rao games
+        effective_network = get_effective_network(self.config, network)
+        if is_rao_network(effective_network):
+            print_error("This command is disabled on the 'rao' network.")
+            raise typer.Exit()
+
         self.initialize_chain(network)
         return self._run_command(
             wallets.inspect(
@@ -2138,13 +2159,17 @@ class CLIManager:
         [green]$[/green] btcli wallet history
 
         """
+        # TODO: Fetch effective network and redirect users accordingly - this only works on finney
+        # no_use_config_str = "Using the network [dark_orange]finney[/dark_orange] and ignoring network/chain configs"
 
-        no_use_config_str = "Using the network [dark_orange]finney[/dark_orange] and ignoring network/chain configs"
-
-        if self.config.get("network"):
-            if self.config.get("network") != "finney":
-                console.print(no_use_config_str)
-
+        # if self.config.get("network"):
+        #     if self.config.get("network") != "finney":
+        #         console.print(no_use_config_str)
+        
+        # For Rao games
+        print_error("This command is disabled on the 'rao' network.")
+        raise typer.Exit()
+        
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
             wallet_name,
@@ -3724,6 +3749,12 @@ class CLIManager:
                 "Unable to use `--reuse-last` or `--html` when config `no-cache` is set to `True`. "
                 "Set the`no-cache` field to `False` by using `btcli config set` or editing the config.yml file."
             )
+            raise typer.Exit()
+
+        # For Rao games
+        effective_network = get_effective_network(self.config, network)
+        if is_rao_network(effective_network):
+            print_error("This command is disabled on the 'rao' network.")
             raise typer.Exit()
 
         if reuse_last:

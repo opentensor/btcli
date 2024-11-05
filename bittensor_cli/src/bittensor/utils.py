@@ -23,6 +23,7 @@ import typer
 
 
 from bittensor_cli.src.bittensor.balances import Balance
+from bittensor_cli.src import defaults, Constants
 
 
 if TYPE_CHECKING:
@@ -980,3 +981,36 @@ def validate_netuid(value: int) -> int:
     if value is not None and value < 0:
         raise typer.BadParameter("Negative netuid passed. Please use correct netuid.")
     return value
+
+
+def get_effective_network(config, network: Optional[list[str]]) -> str:
+    """
+    Determines the effective network to be used, considering the network parameter,
+    the configuration, and the default.
+    """
+    if network:
+        for item in network:
+            if item.startswith("ws"):
+                network_ = item
+                break
+            else:
+                network_ = item
+        return network_
+    elif config.get("network"):
+        return config["network"]
+    else:
+        return defaults.subtensor.network
+
+def is_rao_network(network: str) -> bool:
+    """Check if the given network is 'rao'."""
+    
+    network = network.lower()
+    rao_identifiers = [
+        "rao",
+        Constants.rao_entrypoint,
+    ]
+    return (
+        network == "rao"
+        or network in rao_identifiers
+        or "rao.chain.opentensor.ai" in network
+    )
