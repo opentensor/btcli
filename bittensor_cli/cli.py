@@ -24,6 +24,7 @@ from bittensor_cli.src import (
     WalletOptions as WO,
     WalletValidationTypes as WV,
     Constants,
+    COLOR_PALETTE,
 )
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
@@ -298,7 +299,7 @@ def get_optional_netuid(netuid: Optional[int], all_netuids: bool) -> Optional[in
         return None
     elif netuid is None and all_netuids is False:
         answer = Prompt.ask(
-            "[dark_sea_green3]Enter the netuid to use.[/dark_sea_green3] Leave blank for all netuids",
+            f"Enter the [{COLOR_PALETTE['GENERAL']['SUBHEADING_MAIN']}]netuid[/{COLOR_PALETTE['GENERAL']['SUBHEADING_MAIN']}] to use. Leave blank for all netuids",
             default=None,
             show_default=False,
         )
@@ -823,7 +824,7 @@ class CLIManager:
             elif self.config["network"]:
                 self.subtensor = SubtensorInterface(self.config["network"])
                 console.print(
-                    f"Using the specified network [dark_orange]{self.config['network']}[/dark_orange] from config"
+                    f"Using the specified network [{COLOR_PALETTE['GENERAL']['LINKS']}]{self.config['network']}[/{COLOR_PALETTE['GENERAL']['LINKS']}] from config"
                 )
             else:
                 self.subtensor = SubtensorInterface(defaults.subtensor.network)
@@ -1185,7 +1186,7 @@ class CLIManager:
             else:
                 wallet_name = Prompt.ask(
                     "Enter the [blue]wallet name[/blue]"
-                    + " [dark_sea_green3 italic](Hint: You can set this with `btcli config set --wallet-name`)[/dark_sea_green3 italic]",
+                    + f" [{COLOR_PALETTE['GENERAL']['HINT']} italic](Hint: You can set this with `btcli config set --wallet-name`)",
                     default=defaults.wallet.name,
                 )
 
@@ -2614,11 +2615,11 @@ class CLIManager:
                 raise typer.Exit()
             if netuid is not None:
                 amount = FloatPrompt.ask(
-                    "[dark_sea_green]Amount to stake (TAO τ)[/dark_sea_green]"
+                    f"Amount to [{COLOR_PALETTE['GENERAL']['SUBHEADING_MAIN']}]stake (TAO τ)"
                 )
             else:
                 amount = FloatPrompt.ask(
-                    "[dark_sea_green]Amount to stake to each netuid (TAO τ)[/dark_sea_green]"
+                    f"Amount to [{COLOR_PALETTE['GENERAL']['SUBHEADING_MAIN']}]stake to each netuid (TAO τ)"
                 )
 
             if amount <= 0:

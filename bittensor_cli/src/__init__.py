@@ -550,3 +550,53 @@ HELP_PANELS = {
     },
     "WEIGHTS": {"COMMIT_REVEAL": "Commit / Reveal"},
 }
+
+COLOR_PALETTE = {
+    "GENERAL": {
+        "HEADER": "#4196D6",
+        "LINKS": "#8CB9E9",
+        "HINT": "#A2E5B8",
+        "COLDKEY": "#9EF5E4",
+        "HOTKEY": "#ECC39D",
+        "SUBHEADING_MAIN": "#7ECFEC",
+        "SUBHEADING": "#AFEFFF",
+        "SUBHEADING_EXTRA_1": "#96A3C5",
+        "SUBHEADING_EXTRA_2": "#6D7BAF",
+        "CONFIRMATION_Y_N_Q": "#EE8DF8",
+        "SYMBOL": "#E7CC51",
+        "BALANCE": "#4F91C6"
+    },
+    "STAKE": {
+        "STAKE_AMOUNT": "#53B5A0",
+        "STAKE_ALPHA": "#53B5A0",
+        "STAKE_SWAP": "#67A3A5",
+        "TAO": "#4F91C6",
+        "SLIPPAGE_TEXT": "#C25E7C",
+        "SLIPPAGE_PERCENT": "#E7B195",
+        "NOT_REGISTERED": "#EB6A6C",
+        "EXTRA_1": "#D781BB"
+    },
+    "POOLS": {
+        "TAO": "#4F91C6",
+        "ALPHA_IN": "#D09FE9",
+        "ALPHA_OUT": "#AB7CC8",
+        "RATE": "#F8D384",
+        "TAO_EQUIV": "#8CB9E9",
+        "EMISSION": "#F8D384",
+        "EXTRA_1": "#CAA8FB",
+        "EXTRA_2": "#806DAF",
+    },
+    "GREY": {
+        "GREY_100": "#F8F9FA",
+        "GREY_200": "#F1F3F4",
+        "GREY_300": "#DBDDE1",
+        "GREY_400": "#BDC1C6",
+        "GREY_500": "#5F6368",
+        "GREY_600": "#2E3134",
+        "GREY_700": "#282A2D",
+        "GREY_800": "#17181B",
+        "GREY_900": "#0E1013",
+        "BLACK": "#000000"
+    }
+    
+}

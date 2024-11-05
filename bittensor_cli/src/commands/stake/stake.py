@@ -11,6 +11,7 @@ from rich.table import Table
 from rich import box
 from substrateinterface.exceptions import SubstrateRequestException
 
+from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import StakeInfo
 from bittensor_cli.src.bittensor.utils import (
@@ -864,7 +865,7 @@ async def stake_add(
     )
     # Init the table.
     table = Table(
-        title=f"\n[dark_orange]Staking to: \nWallet: [light_goldenrod2]{wallet.name}[/light_goldenrod2], Coldkey ss58: [light_goldenrod2]{wallet.coldkeypub.ss58_address}[/light_goldenrod2]\nNetwork: {subtensor.network}[/dark_orange]\n",
+        title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Staking to: \nWallet: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.name}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}], Coldkey ss58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\nNetwork: {subtensor.network}[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n",
         show_footer=True,
         show_edge=False,
         header_style="bold white",
@@ -1002,7 +1003,7 @@ async def stake_add(
                 slippage_pct = f"{slippage_pct_float:.4f} %"
             else:
                 slippage_pct_float = 0
-                slippage_pct = "N/A"
+                slippage_pct = f"[{COLOR_PALETTE['STAKE']['SLIPPAGE_TEXT']}]N/A[/{COLOR_PALETTE['STAKE']['SLIPPAGE_TEXT']}]"
             max_slippage = max(slippage_pct_float, max_slippage)
             rows.append(
                 (
@@ -1017,28 +1018,28 @@ async def stake_add(
                 )
             )
     table.add_column("Netuid", justify="center", style="grey89")
-    table.add_column("Hotkey", justify="center", style="bright_magenta")
+    table.add_column("Hotkey", justify="center", style=COLOR_PALETTE["GENERAL"]["HOTKEY"])
     table.add_column(
-        f"Amount ({Balance.get_unit(0)})", justify="center", style="dark_sea_green"
+        f"Amount ({Balance.get_unit(0)})", justify="center", style=COLOR_PALETTE["POOLS"]["TAO"]
     )
     table.add_column(
         f"Rate (per {Balance.get_unit(0)})",
         justify="center",
-        style="light_goldenrod2",
+        style=COLOR_PALETTE["POOLS"]["RATE"],
     )
     table.add_column(
         "Received",
         justify="center",
-        style="light_slate_blue",
+        style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
     )
-    table.add_column("Slippage", justify="center", style="rgb(220,50,47)")
+    table.add_column("Slippage", justify="center", style=COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT'])
     for row in rows:
         table.add_row(*row)
     console.print(table)
     message = ""
     if max_slippage > 5:
-        message += "-------------------------------------------------------------------------------------------------------------------\n"
-        message += f"[bold][yellow]WARNING:[/yellow]  The slippage on one of your operations is high: [bold red]{max_slippage} %[/bold red], this may result in a loss of funds.[/bold] \n"
+        message += f"[{COLOR_PALETTE['STAKE']['SLIPPAGE_TEXT']}]-------------------------------------------------------------------------------------------------------------------\n"
+        message += f"[bold]WARNING:[/bold]  The slippage on one of your operations is high: [{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}]{max_slippage} %[/{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}], this may result in a loss of funds.\n"
         message += "-------------------------------------------------------------------------------------------------------------------\n"
         console.print(message)
     console.print(
@@ -1056,7 +1057,7 @@ The columns are as follows:
     )
     if prompt:
         if not Confirm.ask("Would you like to continue?"):
-            return False
+            raise typer.Exit()
 
     async def send_extrinsic(
         netuid_i, amount_, current, staking_address_ss58, status=None
@@ -1088,7 +1089,7 @@ The columns are as follows:
             return
         if not prompt:  # TODO verbose?
             console.print(
-                f":white_heavy_check_mark: [green]Submitted {amount_} to {netuid_i}[/green]"
+                f":white_heavy_check_mark: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]Submitted {amount_} to {netuid_i}[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
             )
         else:
             await response.process_events()
@@ -1108,10 +1109,10 @@ The columns are as follows:
                 new_balance = new_balance_[wallet.coldkeypub.ss58_address]
                 new_stake = new_stake_.set_unit(netuid_i)
                 console.print(
-                    f"Balance:\n  [blue]{current_wallet_balance}[/blue] :arrow_right: [green]{new_balance}[/green]"
+                    f"Balance:\n  [blue]{current_wallet_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
                 )
                 console.print(
-                    f"Subnet: [dark_orange]{netuid_i}[/dark_orange] Stake:\n  [blue]{current}[/blue] :arrow_right: [green]{new_stake}[/green]"
+                    f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid_i}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] Stake:\n  [blue]{current}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}"
                 )
 
     # Perform staking operation.
@@ -1273,8 +1274,8 @@ async def unstake(
                 # Prompt the user for each subnet
                 while True:
                     response = Prompt.ask(
-                        f"Unstake all: [dark_sea_green3]{current_stake_balance}[/dark_sea_green3]"
-                        f" from [dark_sea_green3]{staking_address_name if staking_address_name else staking_address_ss58}[/dark_sea_green3] on netuid: [dark_sea_green3]{netuid}? [y/n/q]",
+                        f"Unstake all: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{current_stake_balance}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
+                        f" from [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{staking_address_name if staking_address_name else staking_address_ss58}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] on netuid: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{netuid}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]? [y/n/q]",
                         choices=["y", "n", "q"],
                         default="n",
                         show_choices=True,
@@ -1290,7 +1291,7 @@ async def unstake(
                     elif response.lower() == "n":
                         while True:
                             amount_input = Prompt.ask(
-                                f"Enter amount to unstake in [dark_sea_green3]{Balance.get_unit(netuid)}[/dark_sea_green3] from subnet: [dark_sea_green3]{netuid}[/dark_sea_green3] (Max: [dark_sea_green3]{current_stake_balance}[/dark_sea_green3])"
+                                f"Enter amount to unstake in [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{Balance.get_unit(netuid)}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] from subnet: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{netuid}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] (Max: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{current_stake_balance}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}])"
                             )
                             if amount_input.lower() == "q":
                                 skip_remaining_subnets = True
@@ -1382,7 +1383,7 @@ async def unstake(
 
     # Build the table
     table = Table(
-        title=f"\n[tan]Unstaking to: \nWallet: [dark_sea_green3]{wallet.name}[/dark_sea_green3], Coldkey ss58: [dark_sea_green3]{wallet.coldkeypub.ss58_address}[/dark_sea_green3]\nNetwork: {subtensor.network}[/tan]\n",
+        title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Unstaking to: \nWallet: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.name}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}], Coldkey ss58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\nNetwork: {subtensor.network}[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n",
         show_footer=True,
         show_edge=False,
         header_style="bold white",
@@ -1393,22 +1394,22 @@ async def unstake(
         pad_edge=True,
     )
     table.add_column("Netuid", justify="center", style="grey89")
-    table.add_column("Hotkey", justify="center", style="plum2")
+    table.add_column("Hotkey", justify="center", style=COLOR_PALETTE["GENERAL"]["HOTKEY"])
     table.add_column(
-        f"Amount ({Balance.get_unit(1)})", justify="center", style="dark_sea_green"
+        f"Amount ({Balance.get_unit(1)})", justify="center", style=COLOR_PALETTE["POOLS"]["TAO"]
     )
     table.add_column(
         f"Rate ({Balance.get_unit(0)}/{Balance.get_unit(1)})",
         justify="center",
-        style="light_goldenrod2",
+        style=COLOR_PALETTE["POOLS"]["RATE"],
     )
     table.add_column(
         f"Received ({Balance.get_unit(0)})",
         justify="center",
-        style="light_slate_blue",
+        style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
         footer=f"{total_received_amount}",
     )
-    table.add_column("Slippage", justify="center", style="light_salmon3")
+    table.add_column("Slippage", justify="center", style=COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT'])
 
     for op in unstake_operations:
         dynamic_info = op["dynamic_info"]
@@ -1427,8 +1428,8 @@ async def unstake(
     if max_float_slippage > 5:
         console.print(
             "\n"
-            f"-------------------------------------------------------------------------------------------------------------------\n"
-            f"[bold][yellow]WARNING:[/yellow]  The slippage on one of your operations is high: [bold red]{max_float_slippage}%[/bold red], this may result in a loss of funds.[/bold] \n"
+            f"[{COLOR_PALETTE['STAKE']['SLIPPAGE_TEXT']}]-------------------------------------------------------------------------------------------------------------------\n"
+            f"[bold]WARNING:[/bold]  The slippage on one of your operations is high: [{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}]{max_float_slippage} %[/{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}], this may result in a loss of funds.\n"
             f"-------------------------------------------------------------------------------------------------------------------\n"
         )
 
@@ -1447,7 +1448,7 @@ The columns are as follows:
     )
     if prompt:
         if not Confirm.ask("Would you like to continue?"):
-            return False
+            raise typer.Exit()
 
     # Perform unstaking operations
     try:
@@ -1506,12 +1507,12 @@ The columns are as follows:
                         )
                     ).set_unit(netuid_i)
                     console.print(
-                        f"Balance:\n  [blue]{current_wallet_balance}[/blue] :arrow_right: [green]{new_balance}[/green]"
+                        f"Balance:\n  [blue]{current_wallet_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
                     )
                     console.print(
-                        f"Subnet: [dark_orange]{netuid_i}[/dark_orange] Stake:\n  [blue]{current_stake_balance}[/blue] :arrow_right: [green]{new_stake}[/green]"
+                        f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid_i}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] Stake:\n  [blue]{current_stake_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}"
                     )
-    console.print("[green]Unstaking operations completed.[/green]")
+    console.print(f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]Unstaking operations completed.")
 
 
 async def stake_list(
@@ -1572,9 +1573,9 @@ async def stake_list(
                     if slippage + swapped_tao_value != 0
                     else 0
                 )
-                slippage_percentage = f"[salmon1]{slippage_percentage_:.3f}%[/salmon1]"
+                slippage_percentage = f"[{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}]{slippage_percentage_:.3f}%[/{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}]"
             else:
-                slippage_percentage = "[salmon1]0.000%[/salmon1]"
+                slippage_percentage = f"[{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}]0.000%[/{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}]"
             tao_locked = pool.tao_in
             issuance = pool.alpha_out if pool.is_dynamic else tao_locked
             per_block_emission = substake_.emission.tao / emission_drain_tempo
@@ -1600,20 +1601,20 @@ async def stake_list(
                         f"{pool.alpha_in.tao:,.4f} {symbol}",  # Alpha Reserves a_in
                         f"{pool.price.tao:.4f} τ/{symbol}",  # Rate (t/a)
                         f"{pool.alpha_out.tao:,.4f} {symbol}",  # Alpha out (a_out)
-                        f"[medium_purple]{tao_ownership}[/medium_purple]",  # TAO equiv
-                        f"[light_slate_blue]{tao_value}[/light_slate_blue]",  # Exchange Value (α x τ/α)
-                        f"[cadet_blue]{swapped_tao_value}[/cadet_blue] ({slippage_percentage})",  # Swap(α) -> τ
-                        "[bold cadet_blue]YES[/bold cadet_blue]"
+                        f"{tao_ownership}",  # TAO equiv
+                        f"{tao_value}",  # Exchange Value (α x τ/α)
+                        f"{swapped_tao_value} ({slippage_percentage})",  # Swap(α) -> τ
+                        "YES"
                         if substake_.is_registered
-                        else "[hot_pink3]NO[/hot_pink3]",  # Registered
+                        else f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]NO",  # Registered
                         str(Balance.from_tao(per_block_emission).set_unit(netuid))
                         if substake_.is_registered
-                        else "[hot_pink3]N/A[/hot_pink3]",  # Emission(α/block)
+                        else f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]N/A",  # Emission(α/block)
                     ]
                 )
         # table = Table(show_footer=True, pad_edge=False, box=None, expand=False, title=f"{name}")
         table = Table(
-            title=f"\n[dark_orange]Hotkey: {name}[/dark_orange]\n[dark_orange]Network: {subtensor.network}[/dark_orange]\n\nSee below for an explanation of the columns\n",
+            title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Hotkey: {name}\nNetwork: {subtensor.network}[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n\n[{COLOR_PALETTE['GENERAL']['HINT']}]See below for an explanation of the columns\n",
             show_footer=True,
             show_edge=False,
             header_style="bold white",
@@ -1626,62 +1627,61 @@ async def stake_list(
         table.add_column("[white]Netuid", footer_style="overline white", style="grey89")
         table.add_column(
             "[white]Symbol",
-            footer_style="white",
-            style="light_goldenrod1",
+            style=COLOR_PALETTE["GENERAL"]["SYMBOL"],
             justify="center",
             no_wrap=True,
         )
         table.add_column(
             f"[white]Stake ({Balance.get_unit(1)})",
             footer_style="overline white",
-            style="rgb(42,161,152)",
+            style=COLOR_PALETTE["STAKE"]["STAKE_ALPHA"],
             justify="center",
         )
         table.add_column(
             f"[white]TAO Reserves ({Balance.unit}_in)",
-            style="medium_purple",
+            style=COLOR_PALETTE["STAKE"]["TAO"],
             justify="right",
         )
         table.add_column(
             f"[white]Alpha Reserves ({Balance.get_unit(1)}_in)",
-            style="medium_purple",
+            style=COLOR_PALETTE["POOLS"]["ALPHA_IN"],
             justify="right",
         )
         table.add_column(
             f"[white]Rate \n({Balance.unit}_in/{Balance.get_unit(1)}_in)",
             footer_style="white",
-            style="light_goldenrod2",
+            style=COLOR_PALETTE["POOLS"]["RATE"],
             justify="center",
         )
         table.add_column(
             f"[white]Alpha out ({Balance.get_unit(1)}_out)",
-            style="medium_purple",
+            style=COLOR_PALETTE["POOLS"]["ALPHA_OUT"],
             justify="right",
         )
         table.add_column(
             f"[white]TAO equiv \n({Balance.unit}_in x {Balance.get_unit(1)}/{Balance.get_unit(1)}_out)",
-            style="medium_purple",
+            style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
             justify="right",
             footer=f"{total_tao_ownership}",
         )
         table.add_column(
             f"[white]Exchange Value \n({Balance.get_unit(1)} x {Balance.unit}/{Balance.get_unit(1)})",
             footer_style="overline white",
-            style="blue",
+            style=COLOR_PALETTE["STAKE"]["TAO"],
             justify="right",
             footer=f"{total_tao_value}",
         )
         table.add_column(
             f"[white]Swap ({Balance.get_unit(1)} -> {Balance.unit})",
             footer_style="overline white",
-            style="white",
+            style=COLOR_PALETTE["STAKE"]["STAKE_SWAP"],
             justify="right",
             footer=f"{total_swapped_tao_value}",
         )
-        table.add_column("[white]Registered", style="red", justify="right")
+        table.add_column("[white]Registered",style=COLOR_PALETTE["STAKE"]["STAKE_ALPHA"], justify="right")
         table.add_column(
             f"[white]Emission \n({Balance.get_unit(1)}/block)",
-            style="light_goldenrod2",
+            style=COLOR_PALETTE["POOLS"]["EMISSION"],
             justify="right",
         )
         for row in rows:
@@ -1715,10 +1715,10 @@ async def stake_list(
     console.print("\n\n")
     console.print(
         f"Wallet:\n"
-        f"  Coldkey SS58: [bold plum2]{coldkey_address}[/bold plum2]\n"
-        f"  Free Balance: [dark_sea_green]{balance}[/dark_sea_green]\n"
-        f"  Total TAO ({Balance.unit}): [dark_sea_green]{all_hotkeys_total_global_tao}[/dark_sea_green]\n"
-        f"  Total Value ({Balance.unit}): [dark_sea_green]{all_hotkeys_total_tao_value}[/dark_sea_green]"
+        f"  Coldkey SS58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{coldkey_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
+        f"  Free Balance: [{COLOR_PALETTE['GENERAL']['BALANCE']}]{balance}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]\n"
+        f"  Total TAO ({Balance.unit}): [{COLOR_PALETTE['GENERAL']['BALANCE']}]{all_hotkeys_total_global_tao}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]\n"
+        f"  Total Value ({Balance.unit}): [{COLOR_PALETTE['GENERAL']['BALANCE']}]{all_hotkeys_total_tao_value}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]"
     )
     if not sub_stakes:
         console.print(f"\n[blue]No stakes found for coldkey ss58: ({coldkey_address})")
@@ -1822,15 +1822,15 @@ async def move_stake(
 
     if origin_stake_balance == Balance.from_tao(0).set_unit(origin_netuid):
         print_error(
-            f"Your balance is [dark_orange]0[/dark_orange] in Netuid: [dark_orange]{origin_netuid}[/dark_orange]"
+            f"Your balance is [{COLOR_PALETTE['POOLS']['TAO']}]0[/{COLOR_PALETTE['POOLS']['TAO']}] in Netuid: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{origin_netuid}"
         )
         raise typer.Exit()
 
     console.print(
-        f"\nOrigin netuid: [dark_orange]{origin_netuid}[/dark_orange], Origin stake: [dark_orange]{origin_stake_balance}"
+        f"\nOrigin Netuid: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{origin_netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}], Origin stake: [{COLOR_PALETTE['POOLS']['TAO']}]{origin_stake_balance}"
     )
     console.print(
-        f"Destination netuid: [dark_orange]{destination_netuid}[/dark_orange], Destination stake: [dark_orange]{destination_stake_balance}\n"
+        f"Destination netuid: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{destination_netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}], Destination stake: [{COLOR_PALETTE['POOLS']['TAO']}]{destination_stake_balance}\n"
     )
 
     # Determine the amount we are moving.
@@ -1841,13 +1841,13 @@ async def move_stake(
         amount_to_move_as_balance = origin_stake_balance
     else:  # max_stake
         # TODO improve this
-        if Confirm.ask(f"Move all: [dark_orange]{origin_stake_balance}[/dark_orange]?"):
+        if Confirm.ask(f"Move all: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{origin_stake_balance}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]?"):
             amount_to_move_as_balance = origin_stake_balance
         else:
             try:
                 amount = float(
                     Prompt.ask(
-                        f"Enter amount to move in [dark_orange]{Balance.get_unit(origin_netuid)}"
+                        f"Enter amount to move in [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{Balance.get_unit(origin_netuid)}"
                     )
                 )
                 amount_to_move_as_balance = Balance.from_tao(amount)
@@ -1859,7 +1859,7 @@ async def move_stake(
     amount_to_move_as_balance.set_unit(origin_netuid)
     if amount_to_move_as_balance > origin_stake_balance:
         err_console.print(
-            f"[red]Not enough stake[/red]:\n Stake balance:[dark_orange]{origin_stake_balance}[/dark_orange] < Moving amount: [dark_orange]{amount_to_move_as_balance}[/dark_orange]"
+            f"[red]Not enough stake[/red]:\n Stake balance: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{origin_stake_balance}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] < Moving amount: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{amount_to_move_as_balance}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
         )
         return False
 
@@ -1903,7 +1903,7 @@ async def move_stake(
             )
 
         table = Table(
-            title=f"\n[dark_orange]Moving stake from: [light_goldenrod2]{Balance.get_unit(origin_netuid)}(Netuid: {origin_netuid})[/light_goldenrod2] to: [light_goldenrod2]{Balance.get_unit(destination_netuid)}(Netuid: {destination_netuid})[/light_goldenrod2]\nNetwork: {subtensor.network}[/dark_orange]\n",
+            title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Moving stake from: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{Balance.get_unit(origin_netuid)}(Netuid: {origin_netuid})[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] to: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{Balance.get_unit(destination_netuid)}(Netuid: {destination_netuid})[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]\nNetwork: {subtensor.network}\n",
             show_footer=True,
             show_edge=False,
             header_style="bold white",
@@ -1913,26 +1913,26 @@ async def move_stake(
             show_lines=False,
             pad_edge=True,
         )
-        table.add_column("origin netuid", justify="center", style="green")
-        table.add_column("origin hotkey", justify="center", style="bright_magenta")
-        table.add_column("dest netuid", justify="center", style="green")
-        table.add_column("dest hotkey", justify="center", style="bright_magenta")
+        table.add_column("origin netuid", justify="center", style=COLOR_PALETTE["GENERAL"]["SYMBOL"])
+        table.add_column("origin hotkey", justify="center", style=COLOR_PALETTE["GENERAL"]["HOTKEY"])
+        table.add_column("dest netuid", justify="center", style=COLOR_PALETTE["GENERAL"]["SYMBOL"])
+        table.add_column("dest hotkey", justify="center", style=COLOR_PALETTE["GENERAL"]["HOTKEY"])
         table.add_column(
             f"amount ({Balance.get_unit(origin_netuid)})",
             justify="center",
-            style="medium_purple",
+            style=COLOR_PALETTE["STAKE"]["TAO"],
         )
         table.add_column(
             f"rate ({Balance.get_unit(destination_netuid)}/{Balance.get_unit(origin_netuid)})",
             justify="center",
-            style="cyan",
+            style=COLOR_PALETTE["POOLS"]["RATE"],
         )
         table.add_column(
             f"received ({Balance.get_unit(destination_netuid)})",
             justify="center",
-            style="rgb(220,50,47)",
+            style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
         )
-        table.add_column("slippage", justify="center", style="salmon1")
+        table.add_column("slippage", justify="center", style=COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT'])
 
         table.add_row(
             f"{Balance.get_unit(origin_netuid)}({origin_netuid})",
@@ -1949,9 +1949,9 @@ async def move_stake(
         console.print(table)
         message = ""
         if slippage_pct_float > 5:
-            message += "\t-------------------------------------------------------------------------------------------------------------------\n"
-            message += f"\t[bold][yellow]WARNING:[/yellow]\tSlippage is high: [bold red]{slippage_pct}[/bold red], this may result in a loss of funds.[/bold] \n"
-            message += "\t-------------------------------------------------------------------------------------------------------------------\n"
+            message += f"[{COLOR_PALETTE['STAKE']['SLIPPAGE_TEXT']}]-------------------------------------------------------------------------------------------------------------------\n"
+            message += f"[bold]WARNING:\tSlippage is high: [{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}]{slippage_pct}[/{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}], this may result in a loss of funds.[/bold] \n"
+            message += "-------------------------------------------------------------------------------------------------------------------\n"
             console.print(message)
         if not Confirm.ask("Would you like to continue?"):
             return True
@@ -2011,10 +2011,10 @@ async def move_stake(
                 ).set_unit(destination_netuid)
                 console.print(
                     f"Origin Stake:\n  [blue]{origin_stake_balance}[/blue] :arrow_right: "
-                    f"[green]{new_origin_stake_balance}[/green]"
+                    f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_origin_stake_balance}"
                 )
                 console.print(
                     f"Destination Stake:\n  [blue]{destination_stake_balance}[/blue] :arrow_right: "
-                    f"[green]{new_destination_stake_balance}[/green]"
+                    f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_destination_stake_balance}"
                 )
                 return

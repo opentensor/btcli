@@ -25,7 +25,7 @@ from scalecodec import ScaleBytes
 import scalecodec
 import typer
 
-from bittensor_cli.src import TYPE_REGISTRY
+from bittensor_cli.src import TYPE_REGISTRY, COLOR_PALETTE
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import (
@@ -269,28 +269,28 @@ async def wallet_balance(
         ),
         Column(
             "[white]Coldkey Address",
-            style="plum2",
+            style=COLOR_PALETTE["GENERAL"]["COLDKEY"],
             no_wrap=True,
         ),
         Column(
             "[white]Free Balance",
             justify="right",
-            style="tan",
+            style=COLOR_PALETTE["GENERAL"]["BALANCE"],
             no_wrap=True,
         ),
         Column(
             "[white]Staked Balance",
             justify="right",
-            style="orange1",
+            style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
             no_wrap=True,
         ),
         Column(
             "[white]Total Balance",
             justify="right",
-            style="dark_sea_green",
+            style=COLOR_PALETTE["GENERAL"]["BALANCE"],
             no_wrap=True,
         ),
-        title=f"\n[underline navajo_white1]Wallet Coldkey Balance[/underline navajo_white1]\n[navajo_white1]Network: {subtensor.network}",
+        title=f"\n [{COLOR_PALETTE['GENERAL']['HEADER']}]Wallet Coldkey Balance\nNetwork: {subtensor.network}",
         show_footer=True,
         show_edge=False,
         border_style="bright_black",
