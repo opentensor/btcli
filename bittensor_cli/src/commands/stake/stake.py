@@ -106,6 +106,7 @@ async def add_stake_extrinsic(
     try:
         wallet.unlock_coldkey()
     except KeyFileError:
+        err_console.print("Error decrypting coldkey (possibly incorrect password)")
         return False
 
     # Default to wallet's own hotkey if the value is not passed.
@@ -312,6 +313,7 @@ async def add_stake_multiple_extrinsic(
     try:
         wallet.unlock_coldkey()
     except KeyFileError:
+        err_console.print("Error decrypting coldkey (possibly incorrect password)")
         return False
 
     with console.status(
@@ -493,6 +495,7 @@ async def unstake_extrinsic(
     try:
         wallet.unlock_coldkey()
     except KeyFileError:
+        err_console.print("Error decrypting coldkey (possibly incorrect password)")
         return False
 
     if hotkey_ss58 is None:
@@ -663,6 +666,7 @@ async def unstake_multiple_extrinsic(
     try:
         wallet.unlock_coldkey()
     except KeyFileError:
+        err_console.print("Error decrypting coldkey (possibly incorrect password)")
         return False
 
     with console.status(
@@ -1178,6 +1182,7 @@ async def stake_add(
             (wallet.hotkey_str, wallet.hotkey.ss58_address)
             for wallet in all_hotkeys_
             if wallet.hotkey_str not in exclude_hotkeys
+            and wallet.hotkey.ss58_address not in exclude_hotkeys
         ]  # definitely wallets
 
     elif include_hotkeys:
@@ -1345,6 +1350,7 @@ async def unstake(
             (wallet.hotkey_str, wallet.hotkey.ss58_address)
             for wallet in all_hotkeys_
             if wallet.hotkey_str not in exclude_hotkeys
+            and wallet.hotkey.ss58_address not in hotkeys_to_unstake_from
         ]  # definitely wallets
 
     elif include_hotkeys:
