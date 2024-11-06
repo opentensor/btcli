@@ -14,6 +14,8 @@
 * Adds confirmation after each successful regen by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/203
 * Removes wallet path prompt by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/205
 * Support hotkey names for include/exclude in st add/remove by @thewhaleking in https://github.com/opentensor/btcli/pull/216
+* Subvortex network added by @thewhaleking  in https://github.com/opentensor/btcli/pull/223
+* Add prompt option to all commands which use Confirm prompts by @thewhaleking in https://github.com/opentensor/btcli/pull/227
 
 **Full Changelog**: https://github.com/opentensor/btcli/compare/v8.2.0...v8.3.0
 
