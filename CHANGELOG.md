@@ -16,6 +16,7 @@
 * Support hotkey names for include/exclude in st add/remove by @thewhaleking in https://github.com/opentensor/btcli/pull/216
 * Subvortex network added by @thewhaleking  in https://github.com/opentensor/btcli/pull/223
 * Add prompt option to all commands which use Confirm prompts by @thewhaleking in https://github.com/opentensor/btcli/pull/227
+* Update local subtensor port by @distributedstatemachine in https://github.com/opentensor/btcli/pull/228
 
 **Full Changelog**: https://github.com/opentensor/btcli/compare/v8.2.0...v8.3.0
 
