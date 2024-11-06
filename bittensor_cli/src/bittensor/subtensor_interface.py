@@ -634,6 +634,9 @@ class SubtensorInterface:
             reuse_block=reuse_block,
         )
 
+        if result is None:
+            return []
+
         return NeuronInfoLite.list_from_any(result)
 
     async def neuron_for_uid(
