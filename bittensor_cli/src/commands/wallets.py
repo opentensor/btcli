@@ -1413,13 +1413,14 @@ async def faucet(
     output_in_place: bool,
     log_verbose: bool,
     max_successes: int = 3,
+    prompt: bool = True,
 ):
     # TODO: - work out prompts to be passed through the cli
     success = await run_faucet_extrinsic(
         subtensor,
         wallet,
         tpb=threads_per_block,
-        prompt=False,
+        prompt=prompt,
         update_interval=update_interval,
         num_processes=processes,
         cuda=use_cuda,
