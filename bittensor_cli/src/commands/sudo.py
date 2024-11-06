@@ -8,7 +8,7 @@ from rich.table import Column, Table
 from rich.prompt import Confirm
 from scalecodec import GenericCall
 
-from bittensor_cli.src import HYPERPARAMS, DelegatesDetails
+from bittensor_cli.src import HYPERPARAMS, DelegatesDetails, COLOR_PALETTE
 from bittensor_cli.src.bittensor.chain_data import decode_account_id
 from bittensor_cli.src.bittensor.utils import (
     console,
@@ -496,11 +496,12 @@ async def get_hyperparameters(subtensor: "SubtensorInterface", netuid: int):
     subnet = await subtensor.get_subnet_hyperparameters(netuid)
 
     table = Table(
-        Column("[white]HYPERPARAMETER", style="plum2"),
-        Column("[white]VALUE", style="light_goldenrod2"),
-        Column("[white]NORMALIZED", style="light_goldenrod3"),
-        title=f"[underline navajo_white1]\nSubnet Hyperparameters[/underline navajo_white1]\n NETUID: [navajo_white1]"
-        f"{netuid}[/navajo_white1] - Network: [navajo_white1]{subtensor.network}[/navajo_white1]\n",
+        Column("[white]HYPERPARAMETER", style=COLOR_PALETTE['SUDO']['HYPERPARAMETER']),
+        Column("[white]VALUE", style=COLOR_PALETTE['SUDO']['VALUE']),
+        Column("[white]NORMALIZED", style=COLOR_PALETTE['SUDO']['NORMALIZED']),
+        title=f"[{COLOR_PALETTE['GENERAL']['HEADER']}]\nSubnet Hyperparameters\n NETUID: "
+        f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
+         f" - Network: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{subtensor.network}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]\n",
         show_footer=True,
         width=None,
         pad_edge=False,

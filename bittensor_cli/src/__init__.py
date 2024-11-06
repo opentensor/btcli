@@ -564,7 +564,12 @@ COLOR_PALETTE = {
         "SUBHEADING_EXTRA_2": "#6D7BAF",
         "CONFIRMATION_Y_N_Q": "#EE8DF8",
         "SYMBOL": "#E7CC51",
-        "BALANCE": "#4F91C6"
+        "BALANCE": "#4F91C6",
+        "COST": "#53B5A0",
+        "SUCCESS": "#53B5A0",
+        "NETUID": "#CBA880",
+        "NETUID_EXTRA": "#DDD5A9",
+        "TEMPO": "#67A3A5",
     },
     "STAKE": {
         "STAKE_AMOUNT": "#53B5A0",
@@ -574,7 +579,7 @@ COLOR_PALETTE = {
         "SLIPPAGE_TEXT": "#C25E7C",
         "SLIPPAGE_PERCENT": "#E7B195",
         "NOT_REGISTERED": "#EB6A6C",
-        "EXTRA_1": "#D781BB"
+        "EXTRA_1": "#D781BB",
     },
     "POOLS": {
         "TAO": "#4F91C6",
@@ -596,7 +601,11 @@ COLOR_PALETTE = {
         "GREY_700": "#282A2D",
         "GREY_800": "#17181B",
         "GREY_900": "#0E1013",
-        "BLACK": "#000000"
-    }
-    
+        "BLACK": "#000000",
+    },
+    "SUDO": {
+        "HYPERPARAMETER": "#4F91C6",
+        "VALUE": "#D09FE9",
+        "NORMALIZED": "#AB7CC8",
+    },
 }

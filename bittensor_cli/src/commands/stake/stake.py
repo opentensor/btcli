@@ -1749,7 +1749,9 @@ async def stake_list(
         ).lower()
 
         if display_table == "q":
-            console.print(f"[{COLOR_PALETTE['GENERAL']['SUBHEADING_EXTRA_1']}]Column descriptions skipped.")
+            console.print(
+                f"[{COLOR_PALETTE['GENERAL']['SUBHEADING_EXTRA_1']}]Column descriptions skipped."
+            )
         else:
             header = """
         [bold white]Description[/bold white]: Each table displays information about stake associated with a hotkey. The columns are as follows:

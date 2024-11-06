@@ -28,6 +28,7 @@ from rich.console import Console
 from rich.status import Status
 from substrateinterface.exceptions import SubstrateRequestException
 
+from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.chain_data import NeuronInfo
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.utils import (
@@ -532,9 +533,9 @@ async def register_extrinsic(
     if prompt:
         if not Confirm.ask(
             f"Continue Registration?\n"
-            f"  hotkey ({wallet.hotkey_str}):\t[bold white]{wallet.hotkey.ss58_address}[/bold white]\n"
-            f"  coldkey ({wallet.name}):\t[bold white]{wallet.coldkeypub.ss58_address}[/bold white]\n"
-            f"  network:\t\t[bold white]{subtensor.network}[/bold white]"
+            f"  hotkey [{COLOR_PALETTE['GENERAL']['HOTKEY']}]({wallet.hotkey_str})[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]:\t[{COLOR_PALETTE['GENERAL']['HOTKEY']}]{wallet.hotkey.ss58_address}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]\n"
+            f"  coldkey [{COLOR_PALETTE['GENERAL']['COLDKEY']}]({wallet.name})[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]:\t[{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
+            f"  network:\t\t[{COLOR_PALETTE['GENERAL']['LINKS']}]{subtensor.network}[/{COLOR_PALETTE['GENERAL']['LINKS']}]\n"
         ):
             return False
 
@@ -587,7 +588,7 @@ async def register_extrinsic(
             )
             if is_registered:
                 err_console.print(
-                    f":white_heavy_check_mark: [green]Already registered on netuid:{netuid}[/green]"
+                    f":white_heavy_check_mark: [dark_sea_green3]Already registered on netuid:{netuid}[/dark_sea_green3]"
                 )
                 return True
 
@@ -634,8 +635,8 @@ async def register_extrinsic(
 
                             if "HotKeyAlreadyRegisteredInSubNet" in err_msg:
                                 console.print(
-                                    f":white_heavy_check_mark: [green]Already Registered on "
-                                    f"[bold]subnet:{netuid}[/bold][/green]"
+                                    f":white_heavy_check_mark: [dark_sea_green3]Already Registered on "
+                                    f"[bold]subnet:{netuid}[/bold][/dark_sea_green3]"
                                 )
                                 return True
                             err_console.print(
@@ -653,7 +654,7 @@ async def register_extrinsic(
                         )
                         if is_registered:
                             console.print(
-                                ":white_heavy_check_mark: [green]Registered[/green]"
+                                ":white_heavy_check_mark: [dark_sea_green3]Registered[/dark_sea_green3]"
                             )
                             return True
                         else:
@@ -728,11 +729,11 @@ async def burned_register_extrinsic(
 
     if not neuron.is_null:
         console.print(
-            ":white_heavy_check_mark: [green]Already Registered[/green]:\n"
-            f"uid: [bold white]{neuron.uid}[/bold white]\n"
-            f"netuid: [bold white]{neuron.netuid}[/bold white]\n"
-            f"hotkey: [bold white]{neuron.hotkey}[/bold white]\n"
-            f"coldkey: [bold white]{neuron.coldkey}[/bold white]"
+            ":white_heavy_check_mark: [dark_sea_green3]Already Registered[/dark_sea_green3]:\n"
+            f"uid: [{COLOR_PALETTE['GENERAL']['NETUID_EXTRA']}]{neuron.uid}[/{COLOR_PALETTE['GENERAL']['NETUID_EXTRA']}]\n"
+            f"netuid: [{COLOR_PALETTE['GENERAL']['NETUID']}]{neuron.netuid}[/{COLOR_PALETTE['GENERAL']['NETUID']}]\n"
+            f"hotkey: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{neuron.hotkey}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]\n"
+            f"coldkey: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{neuron.coldkey}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]"
         )
         return True
 
@@ -775,7 +776,7 @@ async def burned_register_extrinsic(
 
         console.print(
             "Balance:\n"
-            f"  [blue]{old_balance}[/blue] :arrow_right: [green]{new_balance[wallet.coldkey.ss58_address]}[/green]"
+            f"  [blue]{old_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance[wallet.coldkey.ss58_address]}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
         )
 
         if len(netuids_for_hotkey) > 0:

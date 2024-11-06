@@ -95,15 +95,17 @@ async def register_subnetwork_extrinsic(
     burn_cost = await lock_cost(subtensor)
     if burn_cost > your_balance:
         err_console.print(
-            f"Your balance of: [green]{your_balance}[/green] is not enough to pay the subnet lock cost of: "
-            f"[green]{burn_cost}[/green]"
+            f"Your balance of: [{COLOR_PALETTE['POOLS']['TAO']}]{your_balance}[{COLOR_PALETTE['POOLS']['TAO']}] is not enough to pay the subnet lock cost of: "
+            f"[{COLOR_PALETTE['POOLS']['TAO']}]{burn_cost}[{COLOR_PALETTE['POOLS']['TAO']}]"
         )
         return False
 
     if prompt:
-        console.print(f"Your balance is: [green]{your_balance}[/green]")
+        console.print(
+            f"Your balance is: [{COLOR_PALETTE['POOLS']['TAO']}]{your_balance}"
+        )
         if not Confirm.ask(
-            f"Do you want to register a subnet for [green]{burn_cost}[/green]?"
+            f"Do you want to register a subnet for [{COLOR_PALETTE['POOLS']['TAO']}]{burn_cost}?"
         ):
             return False
 
@@ -151,7 +153,7 @@ async def register_subnetwork_extrinsic(
                 response, "NetworkAdded"
             )
             console.print(
-                f":white_heavy_check_mark: [green]Registered subnetwork with netuid: {attributes[0]}[/green]"
+                f":white_heavy_check_mark: [{COLOR_PALETTE['GENERAL']['SUCCESS']}]Registered subnetwork with netuid: {attributes[0]}"
             )
             return True
 
@@ -177,8 +179,8 @@ async def subnets_list(
 
     def define_table(total_emissions: float, total_rate: float):
         table = Table(
-            title=f"\n[underline navajo_white1]Subnets[/underline navajo_white1]"
-            f"\n[navajo_white1]Network: {subtensor.network}[/navajo_white1]\n\n",
+            title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Subnets"
+            f"\nNetwork: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{subtensor.network}\n\n",
             show_footer=True,
             show_edge=False,
             header_style="bold white",
@@ -189,38 +191,42 @@ async def subnets_list(
             pad_edge=True,
         )
 
-        table.add_column("[bold white]NETUID", style="white", justify="center")
-        table.add_column("[bold white]SYMBOL", style="bright_cyan", justify="right")
+        table.add_column("[bold white]NETUID", style="grey89", justify="center")
+        table.add_column(
+            "[bold white]SYMBOL",
+            style=COLOR_PALETTE["GENERAL"]["SYMBOL"],
+            justify="right",
+        )
         table.add_column(
             f"[bold white]EMISSION ({Balance.get_unit(0)})",
-            style="tan",
+            style=COLOR_PALETTE["POOLS"]["EMISSION"],
             justify="left",
             footer=f"τ {total_emissions:.4f}",
         )
         table.add_column(
             f"[bold white]STAKE ({Balance.get_unit(1)}_out)",
-            style="light_salmon3",
+            style=COLOR_PALETTE["STAKE"]["STAKE_ALPHA"],
             justify="left",
         )
         table.add_column(
             f"[bold white]TAO Pool ({Balance.get_unit(0)}_in)",
-            style="rgb(42,161,152)",
+            style=COLOR_PALETTE["STAKE"]["TAO"],
             justify="left",
         )
         table.add_column(
             f"[bold white]Alpha Pool ({Balance.get_unit(1)}_in)",
-            style="rgb(42,161,152)",
+            style=COLOR_PALETTE["POOLS"]["ALPHA_IN"],
             justify="left",
         )
         table.add_column(
             f"[bold white]RATE ({Balance.get_unit(0)}_in/{Balance.get_unit(1)}_in)",
-            style="medium_purple",
+            style=COLOR_PALETTE["POOLS"]["RATE"],
             justify="left",
             footer=f"τ {total_rate:.4f}",
         )
         table.add_column(
             "[bold white]Tempo (k/n)",
-            style="plum2",
+            style=COLOR_PALETTE["GENERAL"]["TEMPO"],
             justify="left",
             overflow="fold",
         )
@@ -672,7 +678,8 @@ Description:
 
         # Define table properties
         table = Table(
-            title=f"[underline navajo_white1]Subnet {netuid_}[/underline navajo_white1]\n[navajo_white1]Network: {subtensor.network}[/navajo_white1]\n",
+            title=f"[{COLOR_PALETTE['GENERAL']['HEADER']}]Subnet [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid_}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
+            f"\nNetwork: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{subtensor.network}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]\n",
             show_footer=True,
             show_edge=False,
             header_style="bold white",
@@ -692,6 +699,7 @@ Description:
         tao_sum = Balance(0)
         stake_sum = Balance(0)
         relative_emissions_sum = 0
+        stake_weight_sum = 0
         for idx, hk in enumerate(subnet_state.hotkeys):
             hotkey_block_emission = (
                 subnet_state.emission[idx].tao / emission_sum
@@ -701,6 +709,7 @@ Description:
             relative_emissions_sum += hotkey_block_emission
             tao_sum += subnet_state.global_stake[idx]
             stake_sum += subnet_state.local_stake[idx]
+            stake_weight_sum += subnet_state.stake_weight[idx]
             rows.append(
                 (
                     str(idx),  # UID
@@ -720,14 +729,14 @@ Description:
         table.add_column("UID", style="grey89", no_wrap=True, justify="center")
         table.add_column(
             f"TAO({Balance.get_unit(0)})",
-            style="medium_purple",
+            style=COLOR_PALETTE["STAKE"]["TAO"],
             no_wrap=True,
             justify="right",
             footer=str(tao_sum),
         )
         table.add_column(
             f"Stake({Balance.get_unit(netuid_)})",
-            style="rgb(42,161,152)",
+            style=COLOR_PALETTE["POOLS"]["ALPHA_IN"],
             no_wrap=True,
             justify="right",
             footer=f"{stake_sum.set_unit(subnet_info.netuid)}",
@@ -737,10 +746,11 @@ Description:
             style="blue",
             no_wrap=True,
             justify="center",
+            footer=f"{stake_weight_sum:.3f}",
         )
         table.add_column(
             "Dividends",
-            style="#8787d7",
+            style=COLOR_PALETTE["POOLS"]["EMISSION"],
             no_wrap=True,
             justify="center",
             footer=f"{relative_emissions_sum:.3f}",
@@ -757,13 +767,23 @@ Description:
         # )
         table.add_column(
             f"Emissions ({Balance.get_unit(netuid_)})",
-            style="tan",
+            style=COLOR_PALETTE["POOLS"]["EMISSION"],
             no_wrap=True,
             justify="center",
             footer=str(Balance.from_tao(emission_sum).set_unit(subnet_info.netuid)),
         )
-        table.add_column("Hotkey", style="plum2", no_wrap=True, justify="center")
-        table.add_column("Coldkey", style="plum2", no_wrap=True, justify="center")
+        table.add_column(
+            "Hotkey",
+            style=COLOR_PALETTE["GENERAL"]["HOTKEY"],
+            no_wrap=True,
+            justify="center",
+        )
+        table.add_column(
+            "Coldkey",
+            style=COLOR_PALETTE["GENERAL"]["COLDKEY"],
+            no_wrap=True,
+            justify="center",
+        )
         for row in rows:
             table.add_row(*row)
 
@@ -772,7 +792,9 @@ Description:
         console.print(table)
         console.print("\n")
         console.print(
-            f"Subnet: {netuid_}:\n  Owner: [bold plum2]{subnet_info.owner}[/bold plum2]\n  Total Locked: [dark_sea_green]{subnet_info.total_locked}[/dark_sea_green]\n  Owner Locked: [dark_sea_green]{subnet_info.owner_locked}[/dark_sea_green]"
+            f"Subnet: {netuid_}:\n  Owner: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{subnet_info.owner}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
+            f"  Total Locked: [{COLOR_PALETTE['GENERAL']['BALANCE']}]{subnet_info.total_locked}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]\n"
+            f"  Owner Locked: [{COLOR_PALETTE['GENERAL']['BALANCE']}]{subnet_info.owner_locked}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]"
         )
         console.print(
             """
@@ -810,7 +832,9 @@ async def lock_cost(subtensor: "SubtensorInterface") -> Optional[Balance]:
         )
     if lc:
         lock_cost_ = Balance(lc)
-        console.print(f"Subnet lock cost: [green]{lock_cost_}[/green]")
+        console.print(
+            f"Subnet lock cost: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{lock_cost_}"
+        )
         return lock_cost_
     else:
         err_console.print("Subnet lock cost: [red]Failed to get subnet lock cost[/red]")
@@ -898,7 +922,8 @@ async def register(
         # TODO make this a reusable function, also used in subnets list
         # Show creation table.
         table = Table(
-            title=f"\n[white]Register to netuid [dark_orange]{netuid}[/dark_orange]\nNetwork: [dark_orange]{subtensor.network}[/dark_orange]\n",
+            title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Register to [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]netuid: {netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
+            f"\nNetwork: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{subtensor.network}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]\n",
             show_footer=True,
             show_edge=False,
             header_style="bold white",
@@ -912,23 +937,32 @@ async def register(
             "Netuid", style="rgb(253,246,227)", no_wrap=True, justify="center"
         )
         table.add_column(
-            "Symbol", style="rgb(211,54,130)", no_wrap=True, justify="center"
-        )
-        table.add_column(
-            f"Cost ({Balance.get_unit(0)})",
-            style="tan",
+            "Symbol",
+            style=COLOR_PALETTE["GENERAL"]["SYMBOL"],
             no_wrap=True,
             justify="center",
         )
         table.add_column(
-            "Hotkey", style="bright_magenta", no_wrap=True, justify="center"
+            f"Cost ({Balance.get_unit(0)})",
+            style=COLOR_PALETTE["POOLS"]["TAO"],
+            no_wrap=True,
+            justify="center",
         )
         table.add_column(
-            "Coldkey", style="bold bright_magenta", no_wrap=True, justify="center"
+            "Hotkey",
+            style=COLOR_PALETTE["GENERAL"]["HOTKEY"],
+            no_wrap=True,
+            justify="center",
+        )
+        table.add_column(
+            "Coldkey",
+            style=COLOR_PALETTE["GENERAL"]["COLDKEY"],
+            no_wrap=True,
+            justify="center",
         )
         table.add_row(
             str(netuid),
-            f"[light_goldenrod1]{Balance.get_unit(netuid)}[light_goldenrod1]",
+            f"{Balance.get_unit(netuid)}",
             f"τ {current_recycle.tao:.4f}",
             f"{wallet.hotkey.ss58_address}",
             f"{wallet.coldkeypub.ss58_address}",
@@ -936,8 +970,8 @@ async def register(
         console.print(table)
         if not (
             Confirm.ask(
-                f"Your balance is: [bold green]{balance}[/bold green]\nThe cost to register by recycle is "
-                f"[bold red]{current_recycle}[/bold red]\nDo you want to continue?",
+                f"Your balance is: [{COLOR_PALETTE['GENERAL']['BALANCE']}]{balance}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]\nThe cost to register by recycle is "
+                f"[{COLOR_PALETTE['GENERAL']['COST']}]{current_recycle}[/{COLOR_PALETTE['GENERAL']['COST']}]\nDo you want to continue?",
                 default=False,
             )
         ):
