@@ -118,7 +118,7 @@ async def set_hyperparameter_extrinsic(
         return False
 
     with console.status(
-        f":satellite: Setting hyperparameter {parameter} to {value} on subnet: {netuid} ...",
+        f":satellite: Setting hyperparameter [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{parameter}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] to [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{value}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] on subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] ...",
         spinner="earth",
     ):
         substrate = subtensor.substrate
@@ -167,7 +167,7 @@ async def set_hyperparameter_extrinsic(
         # Successful registration, final check for membership
         else:
             console.print(
-                f":white_heavy_check_mark: [green]Hyperparameter {parameter} changed to {value}[/green]"
+                f":white_heavy_check_mark: [dark_sea_green3]Hyperparameter {parameter} changed to {value}[/dark_sea_green3]"
             )
             return True
 
@@ -409,7 +409,7 @@ async def set_take_extrinsic(
 
     if current_take_u16 < take_u16:
         console.print(
-            f"Current take is [dark_orange]{current_take * 100.:.2f}%[/dark_orange]. Increasing to [dark_orange]{take * 100:.2f}%."
+            f"Current take is [{COLOR_PALETTE['POOLS']['RATE']}]{current_take * 100.:.2f}%[/{COLOR_PALETTE['POOLS']['RATE']}]. Increasing to [{COLOR_PALETTE['POOLS']['RATE']}]{take * 100:.2f}%."
         )
         with console.status(
             f":satellite: Sending decrease_take_extrinsic call on [white]{subtensor}[/white] ..."
@@ -426,7 +426,7 @@ async def set_take_extrinsic(
 
     else:
         console.print(
-            f"Current take is [dark_orange]{current_take * 100.:.2f}%[/dark_orange]. Decreasing to [dark_orange]{take * 100:.2f}%."
+            f"Current take is [{COLOR_PALETTE['POOLS']['RATE']}]{current_take * 100.:.2f}%[/{COLOR_PALETTE['POOLS']['RATE']}]. Decreasing to [{COLOR_PALETTE['POOLS']['RATE']}]{take * 100:.2f}%."
         )
         with console.status(
             f":satellite: Sending increase_take_extrinsic call on [white]{subtensor}[/white] ..."
@@ -444,7 +444,7 @@ async def set_take_extrinsic(
     if not success:
         err_console.print(err)
     else:
-        console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+        console.print(":white_heavy_check_mark: [dark_sea_green_3]Finalized[/dark_sea_green_3]")
     return success
 
 
@@ -692,7 +692,7 @@ async def set_take(
         )
         if not len(netuids_registered) > 0:
             err_console.print(
-                f"Hotkey [dark_orange]{wallet.hotkey.ss58_address}[/dark_orange] is not registered to any subnet. Please register using [dark_orange]`btcli subnets register`[/dark_orange] and try again."
+                f"Hotkey [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{wallet.hotkey.ss58_address}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}] is not registered to any subnet. Please register using [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]`btcli subnets register`[{COLOR_PALETTE['GENERAL']['SUBHEADING']}] and try again."
             )
             return False
 
@@ -708,10 +708,10 @@ async def set_take(
             return False
         else:
             new_take = await get_current_take(subtensor, wallet)
-            console.print(f"New take is [dark_orange]{new_take * 100.:.2f}%")
+            console.print(f"New take is [{COLOR_PALETTE['POOLS']['RATE']}]{new_take * 100.:.2f}%")
             return True
 
-    console.print(f"Setting take on [dark_orange]network: {subtensor.network}")
+    console.print(f"Setting take on [{COLOR_PALETTE['GENERAL']['LINKS']}]network: {subtensor.network}")
 
     try:
         wallet.unlock_hotkey()

@@ -1694,11 +1694,11 @@ async def sign(wallet: Wallet, message: str, use_hotkey: str):
         )
     if not use_hotkey:
         keypair = wallet.coldkey
-        print_verbose(f"Signing using coldkey: {wallet.name}")
+        print_verbose(f"Signing using [{COLOR_PALETTE['GENERAL']['COLDKEY']}]coldkey: {wallet.name}")
     else:
         keypair = wallet.hotkey
-        print_verbose(f"Signing using hotkey: {wallet.hotkey_str}")
+        print_verbose(f"Signing using [{COLOR_PALETTE['GENERAL']['HOTKEY']}]hotkey: {wallet.hotkey_str}")
 
     signed_message = keypair.sign(message.encode("utf-8")).hex()
-    console.print("[bold green]Message signed successfully:")
+    console.print("[dark_sea_green3]Message signed successfully:")
     console.print(signed_message)

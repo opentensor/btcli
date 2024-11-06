@@ -1183,7 +1183,7 @@ class CLIManager:
             if self.config.get("wallet_name"):
                 wallet_name = self.config.get("wallet_name")
                 console.print(
-                    f"Using the wallet name from config:[bold cyan] {wallet_name}"
+                    f"Using the [blue]wallet name[/blue] from config:[bold cyan] {wallet_name}"
                 )
             else:
                 wallet_name = Prompt.ask(
@@ -1196,7 +1196,7 @@ class CLIManager:
             if self.config.get("wallet_hotkey"):
                 wallet_hotkey = self.config.get("wallet_hotkey")
                 console.print(
-                    f"Using the wallet hotkey from config:[bold cyan] {wallet_hotkey}"
+                    f"Using the [blue]wallet hotkey[/blue] from config:[bold cyan] {wallet_hotkey}"
                 )
             else:
                 wallet_hotkey = Prompt.ask(
@@ -1211,7 +1211,7 @@ class CLIManager:
         elif self.config.get("wallet_path"):
             wallet_path = self.config.get("wallet_path")
             console.print(
-                f"Using the wallet path from config:[bold magenta] {wallet_path}"
+                f"Using the [blue]wallet path[/blue] from config:[bold magenta] {wallet_path}"
             )
 
         if WO.PATH in ask_for and not wallet_path:
@@ -1751,7 +1751,7 @@ class CLIManager:
 
         if not wallet_name:
             wallet_name = Prompt.ask(
-                "Enter the name of the new wallet", default=defaults.wallet.name
+                f"Enter the name of the [{COLOR_PALETTE['GENERAL']['COLDKEY']}]new wallet (coldkey)", default=defaults.wallet.name
             )
 
         wallet = Wallet(wallet_name, wallet_hotkey, wallet_path)
@@ -1805,7 +1805,7 @@ class CLIManager:
 
         if not wallet_name:
             wallet_name = Prompt.ask(
-                "Enter the name of the new wallet", default=defaults.wallet.name
+                f"Enter the name of the [{COLOR_PALETTE['GENERAL']['COLDKEY']}]new wallet (coldkey)", default=defaults.wallet.name
             )
         wallet = Wallet(wallet_name, wallet_hotkey, wallet_path)
 
@@ -1920,12 +1920,12 @@ class CLIManager:
 
         if not wallet_name:
             wallet_name = Prompt.ask(
-                "Enter the wallet name", default=defaults.wallet.name
+                f"Enter the [{COLOR_PALETTE['GENERAL']['COLDKEY']}]wallet name", default=defaults.wallet.name
             )
 
         if not wallet_hotkey:
             wallet_hotkey = Prompt.ask(
-                "Enter the name of the new hotkey", default=defaults.wallet.hotkey
+                f"Enter the name of the [{COLOR_PALETTE['GENERAL']['HOTKEY']}]new hotkey", default=defaults.wallet.hotkey
             )
 
         wallet = self.wallet_ask(
@@ -1975,7 +1975,7 @@ class CLIManager:
 
         if not wallet_name:
             wallet_name = Prompt.ask(
-                "Enter the name of the new wallet", default=defaults.wallet.name
+                f"Enter the name of the [{COLOR_PALETTE['GENERAL']['COLDKEY']}]new wallet (coldkey)", default=defaults.wallet.name
             )
 
         wallet = self.wallet_ask(
@@ -2043,12 +2043,12 @@ class CLIManager:
 
         if not wallet_name:
             wallet_name = Prompt.ask(
-                "Enter the name of the new wallet (coldkey)",
+                f"Enter the name of the [{COLOR_PALETTE['GENERAL']['COLDKEY']}]new wallet (coldkey)",
                 default=defaults.wallet.name,
             )
         if not wallet_hotkey:
             wallet_hotkey = Prompt.ask(
-                "Enter the the name of the new hotkey", default=defaults.wallet.hotkey
+                f"Enter the the name of the [{COLOR_PALETTE['GENERAL']['HOTKEY']}]new hotkey", default=defaults.wallet.hotkey
             )
 
         self.verbosity_handler(quiet, verbose)
@@ -2426,8 +2426,9 @@ class CLIManager:
         self.verbosity_handler(quiet, verbose)
         if use_hotkey is None:
             use_hotkey = Confirm.ask(
-                "Would you like to sign the transaction using your [red]hotkey[/red]?"
-                "\n[Type [red]y[/red] for [red]hotkey[/red] and [blue]n[/blue] for [blue]coldkey[/blue]] (default is [blue]coldkey[/blue])",
+                f"Would you like to sign the transaction using your [{COLOR_PALETTE['GENERAL']['HOTKEY']}]hotkey[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]?"
+                f"\n[Type [{COLOR_PALETTE['GENERAL']['HOTKEY']}]y[/{COLOR_PALETTE['GENERAL']['HOTKEY']}] for [{COLOR_PALETTE['GENERAL']['HOTKEY']}]hotkey[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
+                f" and [{COLOR_PALETTE['GENERAL']['COLDKEY']}]n[/{COLOR_PALETTE['GENERAL']['COLDKEY']}] for [{COLOR_PALETTE['GENERAL']['COLDKEY']}]coldkey[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]] (default is [{COLOR_PALETTE['GENERAL']['COLDKEY']}]coldkey[/{COLOR_PALETTE['GENERAL']['COLDKEY']}])",
                 default=False,
             )
 
@@ -2438,7 +2439,7 @@ class CLIManager:
             wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
         )
         if not message:
-            message = typer.prompt("Enter the message to encode and sign")
+            message = Prompt.ask("Enter the [blue]message[/blue] to encode and sign")
 
         return self._run_command(wallets.sign(wallet, message, use_hotkey))
 
@@ -3226,7 +3227,7 @@ class CLIManager:
 
         if not param_value:
             param_value = Prompt.ask(
-                f"Enter the new value for [dark_orange]{param_name}[/dark_orange] in the VALUE column format"
+                f"Enter the new value for [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{param_name}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] in the VALUE column format"
             )
 
         wallet = self.wallet_ask(
@@ -3379,16 +3380,12 @@ class CLIManager:
         current_take = self._run_command(
             sudo.get_current_take(self.initialize_chain(network), wallet)
         )
-        console.print(f"Current take is [dark_orange]{current_take * 100.:.2f}%")
+        console.print(f"Current take is [{COLOR_PALETTE['POOLS']['RATE']}]{current_take * 100.:.2f}%")
 
         if not take:
-            max_value_style = typer.style(f"Max: {max_value}", fg="magenta")
-            min_value_style = typer.style(f"Min: {min_value}", fg="magenta")
-            prompt_text = typer.style(
-                "Enter take value (0.18 for 18%)", fg="bright_cyan", bold=True
+            take = FloatPrompt.ask(
+                f"Enter [blue]take value[/blue] (0.18 for 18%) [blue]Min: {min_value} Max: {max_value}"
             )
-            take = FloatPrompt.ask(f"{prompt_text} {min_value_style} {max_value_style}")
-
         if not (min_value <= take <= max_value):
             print_error(
                 f"Take value must be between {min_value} and {max_value}. Provided value: {take}"
@@ -3429,7 +3426,7 @@ class CLIManager:
         current_take = self._run_command(
             sudo.get_current_take(self.initialize_chain(network), wallet)
         )
-        console.print(f"Current take is [dark_orange]{current_take * 100.:.2f}%")
+        console.print(f"Current take is [{COLOR_PALETTE['POOLS']['RATE']}]{current_take * 100.:.2f}%")
 
     def subnets_list(
         self,
