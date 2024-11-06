@@ -1668,7 +1668,7 @@ class CLIManager:
             "--max-successes",
             help="Set the maximum number of times to successfully run the faucet for this command.",
         ),
-        prompt: bool = Options.prompt
+        prompt: bool = Options.prompt,
     ):
         """
         Obtain test TAO tokens by performing Proof of Work (PoW).
@@ -1707,7 +1707,7 @@ class CLIManager:
                 output_in_place,
                 verbose,
                 max_successes,
-                prompt
+                prompt,
             )
         )
 
@@ -2422,7 +2422,8 @@ class CLIManager:
         if use_hotkey is None:
             use_hotkey = Confirm.ask(
                 "Would you like to sign the transaction using your [red]hotkey[/red]?"
-                "\n[Type [red]y[/red] for [red]hotkey[/red] and [blue]n[/blue] for [blue]coldkey[/blue]] (default is [blue]coldkey[/blue])",
+                "\n[Type [red]y[/red] for [red]hotkey[/red] and [blue]n[/blue] for [blue]coldkey[/blue]] "
+                "(default is [blue]coldkey[/blue])",
                 default=False,
             )
 
@@ -3655,6 +3656,7 @@ class CLIManager:
         wait_for_finalization: bool = Options.wait_for_finalization,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        prompt: bool = Options.prompt,
     ):
         """
         Set child hotkeys on specified subnets.
@@ -3713,6 +3715,7 @@ class CLIManager:
                 proportions=proportions,
                 wait_for_finalization=wait_for_finalization,
                 wait_for_inclusion=wait_for_inclusion,
+                prompt=prompt,
             )
         )
 
@@ -3738,6 +3741,7 @@ class CLIManager:
         wait_for_finalization: bool = Options.wait_for_finalization,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        prompt: bool = Options.prompt,
     ):
         """
         Remove all children hotkeys on a specified subnet.
@@ -3772,6 +3776,7 @@ class CLIManager:
                 netuid,
                 wait_for_inclusion,
                 wait_for_finalization,
+                prompt=prompt,
             )
         )
 
@@ -4077,6 +4082,7 @@ class CLIManager:
             "-tbp",
             help="Set the number of threads per block for CUDA.",
         ),
+        prompt: bool = Options.prompt,
     ):
         """
         Register a neuron (a subnet validator or a subnet miner) using Proof of Work (POW).
@@ -4114,6 +4120,7 @@ class CLIManager:
                 use_cuda,
                 dev_id,
                 threads_per_block,
+                prompt=prompt,
             )
         )
 
@@ -4273,6 +4280,7 @@ class CLIManager:
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        prompt: bool = Options.prompt,
     ):
         """
         Reveal weights for a specific subnet.
@@ -4344,6 +4352,7 @@ class CLIManager:
                 weights,
                 salt,
                 __version_as_int__,
+                prompt=prompt,
             )
         )
 
@@ -4369,6 +4378,7 @@ class CLIManager:
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        prompt: bool = Options.prompt,
     ):
         """
 
@@ -4439,6 +4449,7 @@ class CLIManager:
                 weights,
                 salt,
                 __version_as_int__,
+                prompt=prompt,
             )
         )
 
