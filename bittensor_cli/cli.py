@@ -1668,6 +1668,7 @@ class CLIManager:
             "--max-successes",
             help="Set the maximum number of times to successfully run the faucet for this command.",
         ),
+        prompt: bool = Options.prompt
     ):
         """
         Obtain test TAO tokens by performing Proof of Work (PoW).
@@ -1706,6 +1707,7 @@ class CLIManager:
                 output_in_place,
                 verbose,
                 max_successes,
+                prompt
             )
         )
 
