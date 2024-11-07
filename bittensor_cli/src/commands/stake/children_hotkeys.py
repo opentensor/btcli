@@ -160,7 +160,7 @@ async def set_childkey_take_extrinsic(
     try:
         wallet.unlock_coldkey()
     except PasswordError:
-        return False, "Incorrect decrypt password"
+        return False, "Incorrect decrypt password."
     except KeyFileError:
         return False, "There was an error unlocking your coldkey."
 
