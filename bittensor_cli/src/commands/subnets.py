@@ -103,6 +103,7 @@ async def register_subnetwork_extrinsic(
     try:
         wallet.unlock_coldkey()
     except KeyFileError:
+        err_console.print("Error decrypting coldkey (possibly incorrect password)")
         return False
 
     with console.status(":satellite: Registering subnet...", spinner="earth"):
@@ -399,6 +400,7 @@ async def pow_register(
     use_cuda,
     dev_id,
     threads_per_block,
+    prompt: bool,
 ):
     """Register neuron."""
 
@@ -406,7 +408,7 @@ async def pow_register(
         subtensor,
         wallet=wallet,
         netuid=netuid,
-        prompt=True,
+        prompt=prompt,
         tpb=threads_per_block,
         update_interval=update_interval,
         num_processes=processors,

@@ -378,6 +378,7 @@ async def reveal_weights(
     weights: list[float],
     salt: list[int],
     version: int,
+    prompt: bool = True,
 ) -> None:
     """Reveal weights for a specific subnet."""
     uids_ = np.array(
@@ -397,7 +398,7 @@ async def reveal_weights(
     )
     # Call the reveal function in the module set_weights from extrinsics package
     extrinsic = SetWeightsExtrinsic(
-        subtensor, wallet, netuid, uids_, weights_, list(salt_), version
+        subtensor, wallet, netuid, uids_, weights_, list(salt_), version, prompt=prompt
     )
     success, message = await extrinsic.reveal(weight_uids, weight_vals)
 
@@ -415,6 +416,7 @@ async def commit_weights(
     weights: list[float],
     salt: list[int],
     version: int,
+    prompt: bool = True,
 ):
     """Commits weights and then reveals them for a specific subnet"""
     uids_ = np.array(
@@ -430,7 +432,7 @@ async def commit_weights(
         dtype=np.int64,
     )
     extrinsic = SetWeightsExtrinsic(
-        subtensor, wallet, netuid, uids_, weights_, list(salt_), version
+        subtensor, wallet, netuid, uids_, weights_, list(salt_), version, prompt=prompt
     )
     success, message = await extrinsic.set_weights_extrinsic()
     if success:

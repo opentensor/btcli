@@ -460,6 +460,9 @@ class Runtime:
         self.runtime_config = runtime_config
         self.metadata = metadata
 
+    def __str__(self):
+        return f"Runtime: {self.chain} | {self.config}"
+
     @property
     def implements_scaleinfo(self) -> bool:
         """
@@ -682,9 +685,9 @@ class Websocket:
             try:
                 self._receiving_task.cancel()
                 await self._receiving_task
+                await self.ws.close()
             except (AttributeError, asyncio.CancelledError):
                 pass
-            await self.ws.close()
             self.ws = None
             self._initialized = False
             self._receiving_task = None
@@ -897,9 +900,10 @@ class AsyncSubstrateInterface:
 
         async def get_runtime(block_hash, block_id) -> Runtime:
             # Check if runtime state already set to current block
-            if (block_hash and block_hash == self.last_block_hash) or (
-                block_id and block_id == self.block_id
-            ):
+            if (
+                (block_hash and block_hash == self.last_block_hash)
+                or (block_id and block_id == self.block_id)
+            ) and self.metadata is not None:
                 return Runtime(
                     self.chain,
                     self.runtime_config,
@@ -945,9 +949,11 @@ class AsyncSubstrateInterface:
                 raise SubstrateRequestException(
                     f"No runtime information for block '{block_hash}'"
                 )
-
             # Check if runtime state already set to current block
-            if runtime_info.get("specVersion") == self.runtime_version:
+            if (
+                runtime_info.get("specVersion") == self.runtime_version
+                and self.metadata is not None
+            ):
                 return Runtime(
                     self.chain,
                     self.runtime_config,
@@ -962,16 +968,19 @@ class AsyncSubstrateInterface:
                 if self.runtime_version in self.__metadata_cache:
                     # Get metadata from cache
                     # self.debug_message('Retrieved metadata for {} from memory'.format(self.runtime_version))
-                    self.metadata = self.__metadata_cache[self.runtime_version]
+                    metadata = self.metadata = self.__metadata_cache[
+                        self.runtime_version
+                    ]
                 else:
-                    self.metadata = await self.get_block_metadata(
+                    metadata = self.metadata = await self.get_block_metadata(
                         block_hash=runtime_block_hash, decode=True
                     )
                     # self.debug_message('Retrieved metadata for {} from Substrate node'.format(self.runtime_version))
 
                     # Update metadata cache
                     self.__metadata_cache[self.runtime_version] = self.metadata
-
+            else:
+                metadata = self.metadata
             # Update type registry
             self.reload_type_registry(use_remote_preset=False, auto_discover=True)
 
@@ -1012,7 +1021,10 @@ class AsyncSubstrateInterface:
         if block_id and block_hash:
             raise ValueError("Cannot provide block_hash and block_id at the same time")
 
-        if not (runtime := self.runtime_cache.retrieve(block_id, block_hash)):
+        if (
+            not (runtime := self.runtime_cache.retrieve(block_id, block_hash))
+            or runtime.metadata is None
+        ):
             runtime = await get_runtime(block_hash, block_id)
             self.runtime_cache.add_item(block_id, block_hash, runtime)
         return runtime
@@ -1123,7 +1135,7 @@ class AsyncSubstrateInterface:
         -------
         StorageKey
         """
-        await self.init_runtime(block_hash=block_hash)
+        runtime = await self.init_runtime(block_hash=block_hash)
 
         return StorageKey.create_from_storage_function(
             pallet,
@@ -1707,9 +1719,7 @@ class AsyncSubstrateInterface:
         )
         result = await self._make_rpc_request(payloads, runtime=runtime)
         if "error" in result[payload_id][0]:
-            raise SubstrateRequestException(
-                result[payload_id][0]["error"]["message"]
-            )
+            raise SubstrateRequestException(result[payload_id][0]["error"]["message"])
         if "result" in result[payload_id][0]:
             return result[payload_id][0]
         else:
@@ -2274,7 +2284,7 @@ class AsyncSubstrateInterface:
         MetadataModuleConstants
         """
 
-        # await self.init_runtime(block_hash=block_hash)
+        await self.init_runtime(block_hash=block_hash)
 
         for module in self.metadata.pallets:
             if module_name == module.name and module.constants:

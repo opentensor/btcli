@@ -494,6 +494,7 @@ async def set_children(
     netuid: Optional[int] = None,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
+    prompt: bool = True,
 ):
     """Set children hotkeys."""
     # Validate children SS58 addresses
@@ -520,7 +521,7 @@ async def set_children(
             netuid=netuid,
             hotkey=wallet.hotkey.ss58_address,
             children_with_proportions=children_with_proportions,
-            prompt=True,
+            prompt=prompt,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
         )
@@ -549,7 +550,7 @@ async def set_children(
                 netuid=netuid,
                 hotkey=wallet.hotkey.ss58_address,
                 children_with_proportions=children_with_proportions,
-                prompt=False,
+                prompt=prompt,
                 wait_for_inclusion=True,
                 wait_for_finalization=False,
             )
@@ -564,6 +565,7 @@ async def revoke_children(
     netuid: Optional[int] = None,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
+    prompt: bool = True,
 ):
     """
     Revokes the children hotkeys associated with a given network identifier (netuid).
@@ -575,7 +577,7 @@ async def revoke_children(
             netuid=netuid,
             hotkey=wallet.hotkey.ss58_address,
             children_with_proportions=[],
-            prompt=True,
+            prompt=prompt,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
         )
@@ -604,7 +606,7 @@ async def revoke_children(
                 netuid=netuid,
                 hotkey=wallet.hotkey.ss58_address,
                 children_with_proportions=[],
-                prompt=False,
+                prompt=prompt,
                 wait_for_inclusion=True,
                 wait_for_finalization=False,
             )
@@ -764,7 +766,7 @@ async def childkey_take(
                     netuid=netuid,
                     hotkey=wallet.hotkey.ss58_address,
                     take=take,
-                    prompt=False,
+                    prompt=prompt,
                     wait_for_inclusion=True,
                     wait_for_finalization=False,
                 )
