@@ -238,11 +238,14 @@ def get_hotkey_wallets_for_wallet(
 def get_coldkey_wallets_for_path(path: str) -> list[Wallet]:
     """Gets all wallets with coldkeys from a given path"""
     wallet_path = Path(path).expanduser()
-    wallets = [
-        Wallet(name=directory.name, path=path)
-        for directory in wallet_path.iterdir()
-        if directory.is_dir()
-    ]
+    try:
+        wallets = [
+            Wallet(name=directory.name, path=path)
+            for directory in wallet_path.iterdir()
+            if directory.is_dir()
+        ]
+    except FileNotFoundError:
+        wallets = []
     return wallets
 
 
