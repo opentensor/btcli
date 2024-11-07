@@ -2,7 +2,6 @@ import asyncio
 from typing import TYPE_CHECKING, Union
 
 from bittensor_wallet import Wallet
-from bittensor_wallet.errors import KeyFileError
 from rich import box
 from rich.table import Column, Table
 
@@ -102,7 +101,7 @@ async def set_hyperparameter_extrinsic(
         )
         return False
 
-    if not unlock_key(wallet):
+    if not unlock_key(wallet).success:
         return False
 
     extrinsic = HYPERPARAMS.get(parameter)

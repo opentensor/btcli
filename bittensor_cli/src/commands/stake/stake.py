@@ -7,7 +7,6 @@ from contextlib import suppress
 from typing import TYPE_CHECKING, Optional, Sequence, Union, cast
 
 from bittensor_wallet import Wallet
-from bittensor_wallet.errors import KeyFileError
 from rich.prompt import Confirm
 from rich.table import Table, Column
 import typer
@@ -104,7 +103,7 @@ async def add_stake_extrinsic(
     """
 
     # Decrypt keys,
-    if not unlock_key(wallet):
+    if not unlock_key(wallet).success:
         return False
 
     # Default to wallet's own hotkey if the value is not passed.
@@ -308,7 +307,7 @@ async def add_stake_multiple_extrinsic(
             return True
 
     # Decrypt coldkey.
-    if not unlock_key(wallet):
+    if not unlock_key(wallet).success:
         return False
 
     with console.status(
@@ -487,7 +486,7 @@ async def unstake_extrinsic(
                       finalization/inclusion, the response is `True`.
     """
     # Decrypt coldkey
-    if not unlock_key(wallet):
+    if not unlock_key(wallet).success:
         return False
 
     if hotkey_ss58 is None:
@@ -655,7 +654,7 @@ async def unstake_multiple_extrinsic(
             return True
 
     # Unlock coldkey.
-    if not unlock_key(wallet):
+    if not unlock_key(wallet).success:
         return False
 
     with console.status(

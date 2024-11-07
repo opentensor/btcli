@@ -1617,7 +1617,7 @@ async def set_id(
             print_error(f":cross_mark: This wallet doesn't own subnet {subnet_netuid}.")
             return False
 
-    if not unlock_key(wallet):
+    if not unlock_key(wallet).success:
         return False
 
     with console.status(
@@ -1718,12 +1718,12 @@ async def check_coldkey_swap(wallet: Wallet, subtensor: SubtensorInterface):
 async def sign(wallet: Wallet, message: str, use_hotkey: str):
     """Sign a message using the provided wallet or hotkey."""
     if not use_hotkey:
-        if not unlock_key(wallet):
+        if not unlock_key(wallet).success:
             return False
         keypair = wallet.coldkey
         print_verbose(f"Signing using coldkey: {wallet.name}")
     else:
-        if not unlock_key(wallet, "hot"):
+        if not unlock_key(wallet, "hot").success:
             return False
         keypair = wallet.hotkey
         print_verbose(f"Signing using hotkey: {wallet.hotkey_str}")

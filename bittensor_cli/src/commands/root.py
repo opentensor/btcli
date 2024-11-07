@@ -3,7 +3,6 @@ import json
 from typing import Optional, TYPE_CHECKING
 
 from bittensor_wallet import Wallet
-from bittensor_wallet.errors import KeyFileError
 import numpy as np
 from numpy.typing import NDArray
 from rich import box
@@ -281,7 +280,7 @@ async def burned_register_extrinsic(
              finalization/inclusion, the response is `True`.
     """
 
-    if not unlock_key(wallet):
+    if not unlock_key(wallet).success:
         return False
 
     with console.status(
@@ -535,7 +534,7 @@ async def delegate_extrinsic(
     delegate_string = "delegate" if delegate else "undelegate"
 
     # Decrypt key
-    if not unlock_key(wallet):
+    if not unlock_key(wallet).success:
         return False
 
     print_verbose("Checking if hotkey is a delegate")
@@ -1093,7 +1092,7 @@ async def senate_vote(
         return False
 
     # Unlock the wallet.
-    if not unlock_key(wallet) and unlock_key(wallet, "hot"):
+    if not unlock_key(wallet).success and unlock_key(wallet, "hot").success:
         return False
 
     console.print(f"Fetching proposals in [dark_orange]network: {subtensor.network}")
@@ -1313,7 +1312,7 @@ async def set_take(wallet: Wallet, subtensor: SubtensorInterface, take: float) -
 
     console.print(f"Setting take on [dark_orange]network: {subtensor.network}")
     # Unlock the wallet.
-    if not unlock_key(wallet) and unlock_key(wallet, "hot"):
+    if not unlock_key(wallet).success and unlock_key(wallet, "hot").success:
         return False
 
     result_ = await _do_set_take()
@@ -1711,7 +1710,7 @@ async def nominate(wallet: Wallet, subtensor: SubtensorInterface, prompt: bool):
 
     console.print(f"Nominating on [dark_orange]network: {subtensor.network}")
     # Unlock the wallet.
-    if not unlock_key(wallet) and unlock_key(wallet, "hot"):
+    if not unlock_key(wallet).success and unlock_key(wallet, "hot").success:
         return False
 
     print_verbose(f"Checking hotkey ({wallet.hotkey_str}) is a delegate")

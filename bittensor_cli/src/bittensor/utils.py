@@ -1,4 +1,5 @@
 import ast
+from collections import namedtuple
 import math
 import os
 import sqlite3
@@ -34,6 +35,8 @@ if TYPE_CHECKING:
 console = Console()
 err_console = Console(stderr=True)
 verbose_console = Console(quiet=True)
+
+UnlockStatus = namedtuple("UnlockStatus", ["success", "message"])
 
 
 def print_console(message: str, colour: str, title: str, console: Console):
@@ -979,7 +982,19 @@ def retry_prompt(
             err_console.print(rejection_text)
 
 
-def unlock_key(wallet: Wallet, unlock_type="cold") -> bool:
+def unlock_key(
+    wallet: Wallet, unlock_type="cold", print_out: bool = True
+) -> "UnlockStatus":
+    """
+    Attempts to decrypt a wallet's coldkey or hotkey
+    Args:
+        wallet: a Wallet object
+        unlock_type: the key type, 'cold' or 'hot'
+        print_out:  whether to print out the error message to the err_console
+
+    Returns: UnlockStatus for success status of unlock, with error message if unsuccessful
+
+    """
     if unlock_type == "cold":
         unlocker = "unlock_coldkey"
     elif unlock_type == "hot":
@@ -990,14 +1005,14 @@ def unlock_key(wallet: Wallet, unlock_type="cold") -> bool:
         )
     try:
         getattr(wallet, unlocker)()
-        return True
+        return UnlockStatus(True, "")
     except PasswordError:
-        err_console.print(
-            ":cross_mark: [red]The password used to decrypt your Keyfile is invalid.[/red]"
-        )
-        return False
+        err_msg = "The password used to decrypt your Keyfile is invalid."
+        if print_out:
+            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+        return UnlockStatus(False, err_msg)
     except KeyFileError:
-        err_console.print(
-            ":cross_mark: [red]Keyfile is corrupt, non-writable, or non-readable.[/red]"
-        )
-        return False
+        err_msg = "Keyfile is corrupt, non-writable, or non-readable."
+        if print_out:
+            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+        return UnlockStatus(False, err_msg)

@@ -21,7 +21,6 @@ import time
 from typing import Union, List, TYPE_CHECKING
 
 from bittensor_wallet import Wallet, Keypair
-from bittensor_wallet.errors import KeyFileError
 import numpy as np
 from numpy.typing import NDArray
 from rich.prompt import Confirm
@@ -307,7 +306,7 @@ async def root_register_extrinsic(
              the response is `True`.
     """
 
-    if not unlock_key(wallet):
+    if not unlock_key(wallet).success:
         return False
 
     print_verbose(f"Checking if hotkey ({wallet.hotkey_str}) is registered on root")
@@ -425,7 +424,7 @@ async def set_root_weights_extrinsic(
         err_console.print("Your hotkey is not registered to the root network")
         return False
 
-    if not unlock_key(wallet):
+    if not unlock_key(wallet).success:
         return False
 
     # First convert types.
