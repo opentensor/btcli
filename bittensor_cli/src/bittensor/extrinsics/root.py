@@ -37,6 +37,7 @@ from bittensor_cli.src.bittensor.utils import (
     u16_normalized_float,
     print_verbose,
     format_error_message,
+    unlock_key,
 )
 
 if TYPE_CHECKING:
@@ -306,10 +307,7 @@ async def root_register_extrinsic(
              the response is `True`.
     """
 
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet):
         return False
 
     print_verbose(f"Checking if hotkey ({wallet.hotkey_str}) is registered on root")
@@ -427,10 +425,7 @@ async def set_root_weights_extrinsic(
         err_console.print("Your hotkey is not registered to the root network")
         return False
 
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet):
         return False
 
     # First convert types.

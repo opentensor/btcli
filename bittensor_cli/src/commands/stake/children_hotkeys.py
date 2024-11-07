@@ -2,7 +2,7 @@ import asyncio
 from typing import Optional
 
 from bittensor_wallet import Wallet
-from bittensor_wallet.errors import KeyFileError
+from bittensor_wallet.errors import KeyFileError, PasswordError
 from rich.prompt import Confirm, Prompt, IntPrompt
 from rich.table import Table
 from rich.text import Text
@@ -19,6 +19,7 @@ from bittensor_cli.src.bittensor.utils import (
     u64_to_float,
     is_valid_ss58_address,
     format_error_message,
+    unlock_key,
 )
 
 
@@ -72,10 +73,8 @@ async def set_children_extrinsic(
                 return False, "Operation Cancelled"
 
     # Decrypt coldkey.
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        return False, "There was an error unlocking your coldkey."
+    if not unlock_key(wallet):
+        return False
 
     with console.status(
         f":satellite: {operation} on [white]{subtensor.network}[/white] ..."
@@ -160,6 +159,8 @@ async def set_childkey_take_extrinsic(
     # Decrypt coldkey.
     try:
         wallet.unlock_coldkey()
+    except PasswordError:
+        return False, "Incorrect decrypt password"
     except KeyFileError:
         return False, "There was an error unlocking your coldkey."
 

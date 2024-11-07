@@ -28,6 +28,7 @@ from bittensor_cli.src.bittensor.utils import (
     render_tree,
     u16_normalized_float,
     validate_coldkey_presence,
+    unlock_key,
 )
 
 if TYPE_CHECKING:
@@ -103,10 +104,7 @@ async def add_stake_extrinsic(
     """
 
     # Decrypt keys,
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet):
         return False
 
     # Default to wallet's own hotkey if the value is not passed.
@@ -310,10 +308,7 @@ async def add_stake_multiple_extrinsic(
             return True
 
     # Decrypt coldkey.
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet):
         return False
 
     with console.status(
@@ -491,11 +486,8 @@ async def unstake_extrinsic(
     :return: success: `True` if extrinsic was finalized or included in the block. If we did not wait for
                       finalization/inclusion, the response is `True`.
     """
-    # Decrypt keys,
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    # Decrypt coldkey
+    if not unlock_key(wallet):
         return False
 
     if hotkey_ss58 is None:
@@ -663,10 +655,7 @@ async def unstake_multiple_extrinsic(
             return True
 
     # Unlock coldkey.
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet):
         return False
 
     with console.status(

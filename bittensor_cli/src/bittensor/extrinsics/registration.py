@@ -20,7 +20,7 @@ import subprocess
 
 import backoff
 from bittensor_wallet import Wallet
-from bittensor_wallet.errors import KeyFileError
+from bittensor_wallet.errors import KeyFileError, PasswordError
 from Crypto.Hash import keccak
 import numpy as np
 from rich.prompt import Confirm
@@ -37,6 +37,7 @@ from bittensor_cli.src.bittensor.utils import (
     get_human_readable,
     print_verbose,
     print_error,
+    unlock_key,
 )
 
 if typing.TYPE_CHECKING:
@@ -728,6 +729,8 @@ async def run_faucet_extrinsic(
     # Unlock coldkey
     try:
         wallet.unlock_coldkey()
+    except PasswordError:
+        return False, "Incorrect unlock password"
     except KeyFileError:
         return False, "There was an error unlocking your coldkey"
 
@@ -1639,10 +1642,7 @@ async def swap_hotkey_extrinsic(
         )
         return False
 
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet):
         return False
 
     if prompt:

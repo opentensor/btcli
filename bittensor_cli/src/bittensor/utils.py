@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 from bittensor_wallet import Wallet, Keypair
 from bittensor_wallet.utils import SS58_FORMAT
-from bittensor_wallet.errors import KeyFileError
+from bittensor_wallet.errors import KeyFileError, PasswordError
 from bittensor_wallet import utils
 from jinja2 import Template
 from markupsafe import Markup
@@ -977,3 +977,27 @@ def retry_prompt(
             return var
         else:
             err_console.print(rejection_text)
+
+
+def unlock_key(wallet: Wallet, unlock_type="cold") -> bool:
+    if unlock_type == "cold":
+        unlocker = "unlock_coldkey"
+    elif unlock_type == "hot":
+        unlocker = "unlock_hotkey"
+    else:
+        raise ValueError(
+            f"Invalid unlock type provided: {unlock_type}. Must be 'cold' or 'hot'."
+        )
+    try:
+        getattr(wallet, unlocker)()
+        return True
+    except PasswordError:
+        err_console.print(
+            ":cross_mark: [red]The password used to decrypt your Keyfile is invalid.[/red]"
+        )
+        return False
+    except KeyFileError:
+        err_console.print(
+            ":cross_mark: [red]Keyfile is corrupt, non-writable, or non-readable.[/red]"
+        )
+        return False
