@@ -1769,7 +1769,6 @@ class AsyncSubstrateInterface:
             call_params = {}
 
         await self.init_runtime(block_hash=block_hash)
-
         call = self.runtime_config.create_scale_object(
             type_string="Call", metadata=self.metadata
         )
@@ -2087,7 +2086,8 @@ class AsyncSubstrateInterface:
 
         :return: The signed Extrinsic
         """
-        await self.init_runtime()
+        if not self.metadata:
+            await self.init_runtime()
 
         # Check requirements
         if not isinstance(call, GenericCall):
@@ -2140,7 +2140,6 @@ class AsyncSubstrateInterface:
         extrinsic = self.runtime_config.create_scale_object(
             type_string="Extrinsic", metadata=self.metadata
         )
-
         value = {
             "account_id": f"0x{keypair.public_key.hex()}",
             "signature": f"0x{signature.hex()}",
@@ -2158,9 +2157,7 @@ class AsyncSubstrateInterface:
         signature_cls = self.runtime_config.get_decoder_class("ExtrinsicSignature")
         if issubclass(signature_cls, self.runtime_config.get_decoder_class("Enum")):
             value["signature_version"] = signature_version
-
         extrinsic.encode(value)
-
         return extrinsic
 
     async def get_chain_finalised_head(self):
