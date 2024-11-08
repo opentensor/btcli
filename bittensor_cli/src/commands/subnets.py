@@ -21,6 +21,7 @@ from bittensor_cli.src.bittensor.extrinsics.registration import (
     register_extrinsic,
     burned_register_extrinsic,
 )
+from bittensor_cli.src.bittensor.extrinsics.root import root_register_extrinsic
 from rich.live import Live
 from bittensor_cli.src.bittensor.minigraph import MiniGraph
 from bittensor_cli.src.commands.wallets import set_id, get_id
@@ -1011,13 +1012,16 @@ async def register(
         ):
             return
 
-    await burned_register_extrinsic(
-        subtensor,
-        wallet=wallet,
-        netuid=netuid,
-        prompt=False,
-        old_balance=balance,
-    )
+    if netuid == 0:
+        await root_register_extrinsic(subtensor, wallet=wallet)
+    else:
+        await burned_register_extrinsic(
+            subtensor,
+            wallet=wallet,
+            netuid=netuid,
+            prompt=False,
+            old_balance=balance,
+        )
 
 
 # TODO: Confirm emissions, incentive, Dividends are to be fetched from subnet_state or keep NeuronInfo
