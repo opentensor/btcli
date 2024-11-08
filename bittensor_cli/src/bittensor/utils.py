@@ -1060,7 +1060,7 @@ def prompt_for_identity(
         ]
     ):
         console.print(
-            "[yellow]All fields are optional. Press Enter to skip and keep the default/existing value.[/yellow]\n"
+            "\n[yellow]All fields are optional. Press Enter to skip and keep the default/existing value.[/yellow]\n"
             "[dark_sea_green3]Tip: Entering a space and pressing Enter will clear existing default value.\n"
         )
 

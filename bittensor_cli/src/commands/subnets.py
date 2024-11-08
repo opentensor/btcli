@@ -853,7 +853,7 @@ async def create(wallet: Wallet, subtensor: "SubtensorInterface", prompt: bool):
     if success and prompt:
         # Prompt for user to set identity.
         do_set_identity = Confirm.ask(
-            "Subnetwork registered successfully. Would you like to set your identity?"
+            "Would you like to set your [blue]identity?[/blue]"
         )
 
         if do_set_identity:
@@ -868,7 +868,15 @@ async def create(wallet: Wallet, subtensor: "SubtensorInterface", prompt: bool):
                     console.print(":cross_mark: Aborted!")
                     raise typer.Exit()
 
-            identity = prompt_for_identity(current_identity=current_identity)
+            identity = prompt_for_identity(
+                current_identity=current_identity,
+                name=None,
+                web_url=None,
+                image_url=None,
+                discord_handle=None,
+                description=None,
+                additional_info=None,
+            )
 
             await set_id(
                 wallet,

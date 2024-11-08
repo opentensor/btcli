@@ -1418,8 +1418,13 @@ def create_identity_table(title: str = None):
         title = "On-Chain Identity"
 
     table = Table(
-        Column("Item", justify="right", style=COLOR_PALETTE['GENERAL']['SUBHEADING_MAIN'], no_wrap=True),
-        Column("Value", style=COLOR_PALETTE['GENERAL']['SUBHEADING']),
+        Column(
+            "Item",
+            justify="right",
+            style=COLOR_PALETTE["GENERAL"]["SUBHEADING_MAIN"],
+            no_wrap=True,
+        ),
+        Column("Value", style=COLOR_PALETTE["GENERAL"]["SUBHEADING"]),
         title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]{title}",
         show_footer=True,
         show_edge=False,
@@ -1504,12 +1509,12 @@ async def get_id(subtensor: SubtensorInterface, ss58_address: str, title: str = 
 
     if not identity:
         err_console.print(
-            f"[red]Existing identity not found[/red]"
+            f"[blue]Existing identity not found[/blue]"
             f" for [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]"
             f" on {subtensor}"
         )
         return {}
-    
+
     table = create_identity_table(title)
     table.add_row("Address", ss58_address)
     for key, value in identity.items():
