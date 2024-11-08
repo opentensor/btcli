@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 import asyncio
-import binascii
 import curses
-from functools import partial
 import os.path
 import re
 import ssl
@@ -47,6 +45,7 @@ from bittensor_cli.src.bittensor.utils import (
     validate_netuid,
     is_rao_network,
     get_effective_network,
+    prompt_for_identity,
 )
 from typing_extensions import Annotated
 from textwrap import dedent
@@ -1213,6 +1212,8 @@ class CLIManager:
             console.print(
                 f"Using the [blue]wallet path[/blue] from config:[bold magenta] {wallet_path}"
             )
+        else:
+            wallet_path = defaults.wallet.path
 
         if WO.PATH in ask_for and not wallet_path:
             wallet_path = Prompt.ask(
@@ -1751,7 +1752,8 @@ class CLIManager:
 
         if not wallet_name:
             wallet_name = Prompt.ask(
-                f"Enter the name of the [{COLOR_PALETTE['GENERAL']['COLDKEY']}]new wallet (coldkey)", default=defaults.wallet.name
+                f"Enter the name of the [{COLOR_PALETTE['GENERAL']['COLDKEY']}]new wallet (coldkey)",
+                default=defaults.wallet.name,
             )
 
         wallet = Wallet(wallet_name, wallet_hotkey, wallet_path)
@@ -1805,7 +1807,8 @@ class CLIManager:
 
         if not wallet_name:
             wallet_name = Prompt.ask(
-                f"Enter the name of the [{COLOR_PALETTE['GENERAL']['COLDKEY']}]new wallet (coldkey)", default=defaults.wallet.name
+                f"Enter the name of the [{COLOR_PALETTE['GENERAL']['COLDKEY']}]new wallet (coldkey)",
+                default=defaults.wallet.name,
             )
         wallet = Wallet(wallet_name, wallet_hotkey, wallet_path)
 
@@ -1920,12 +1923,14 @@ class CLIManager:
 
         if not wallet_name:
             wallet_name = Prompt.ask(
-                f"Enter the [{COLOR_PALETTE['GENERAL']['COLDKEY']}]wallet name", default=defaults.wallet.name
+                f"Enter the [{COLOR_PALETTE['GENERAL']['COLDKEY']}]wallet name",
+                default=defaults.wallet.name,
             )
 
         if not wallet_hotkey:
             wallet_hotkey = Prompt.ask(
-                f"Enter the name of the [{COLOR_PALETTE['GENERAL']['HOTKEY']}]new hotkey", default=defaults.wallet.hotkey
+                f"Enter the name of the [{COLOR_PALETTE['GENERAL']['HOTKEY']}]new hotkey",
+                default=defaults.wallet.hotkey,
             )
 
         wallet = self.wallet_ask(
@@ -1975,7 +1980,8 @@ class CLIManager:
 
         if not wallet_name:
             wallet_name = Prompt.ask(
-                f"Enter the name of the [{COLOR_PALETTE['GENERAL']['COLDKEY']}]new wallet (coldkey)", default=defaults.wallet.name
+                f"Enter the name of the [{COLOR_PALETTE['GENERAL']['COLDKEY']}]new wallet (coldkey)",
+                default=defaults.wallet.name,
             )
 
         wallet = self.wallet_ask(
@@ -2048,7 +2054,8 @@ class CLIManager:
             )
         if not wallet_hotkey:
             wallet_hotkey = Prompt.ask(
-                f"Enter the the name of the [{COLOR_PALETTE['GENERAL']['HOTKEY']}]new hotkey", default=defaults.wallet.hotkey
+                f"Enter the the name of the [{COLOR_PALETTE['GENERAL']['HOTKEY']}]new hotkey",
+                default=defaults.wallet.hotkey,
             )
 
         self.verbosity_handler(quiet, verbose)
@@ -2165,11 +2172,11 @@ class CLIManager:
         # if self.config.get("network"):
         #     if self.config.get("network") != "finney":
         #         console.print(no_use_config_str)
-        
+
         # For Rao games
         print_error("This command is disabled on the 'rao' network.")
         raise typer.Exit()
-        
+
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
             wallet_name,
@@ -2186,17 +2193,10 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
-        display_name: str = typer.Option(
+        name: str = typer.Option(
             "",
-            "--display-name",
-            "--display",
+            "--name",
             help="The display name for the identity.",
-        ),
-        legal_name: str = typer.Option(
-            "",
-            "--legal-name",
-            "--legal",
-            help="The legal name for the identity.",
         ),
         web_url: str = typer.Option(
             "",
@@ -2204,51 +2204,26 @@ class CLIManager:
             "--web",
             help="The web URL for the identity.",
         ),
-        riot_handle: str = typer.Option(
-            "",
-            "--riot-handle",
-            "--riot",
-            help="The Riot handle for the identity.",
-        ),
-        email: str = typer.Option(
-            "",
-            help="The email address for the identity.",
-        ),
-        pgp_fingerprint: str = typer.Option(
-            "",
-            "--pgp-fingerprint",
-            "--pgp",
-            help="The PGP fingerprint for the identity.",
-        ),
         image_url: str = typer.Option(
             "",
             "--image-url",
             "--image",
             help="The image URL for the identity.",
         ),
-        info_: str = typer.Option(
+        discord_handle: str = typer.Option(
             "",
-            "--info",
-            "-i",
-            help="The info for the identity.",
+            "--discord",
+            help="The Discord handle for the identity.",
         ),
-        twitter_url: str = typer.Option(
+        description: str = typer.Option(
             "",
-            "-x",
-            "-𝕏",
-            "--twitter-url",
-            "--twitter",
-            help="The 𝕏 (Twitter) URL for the identity.",
+            "--description",
+            help="The description for the identity.",
         ),
-        validator_id: Optional[bool] = typer.Option(
-            None,
-            "--validator/--not-validator",
-            help="Are you updating a validator hotkey identity?",
-        ),
-        subnet_netuid: Optional[int] = typer.Option(
-            None,
-            "--netuid",
-            help="Netuid if you are updating identity of a subnet owner",
+        additional_info: str = typer.Option(
+            "",
+            "--additional",
+            help="Additional details for the identity.",
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -2276,94 +2251,64 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.HOTKEY, WO.PATH, WO.NAME],
-            validate=WV.WALLET_AND_HOTKEY,
+            ask_for=[WO.NAME],
+            validate=WV.WALLET,
         )
 
-        if not any(
-            [
-                display_name,
-                legal_name,
-                web_url,
-                riot_handle,
-                email,
-                pgp_fingerprint,
-                image_url,
-                info_,
-                twitter_url,
-            ]
-        ):
-            console.print(
-                "[yellow]All fields are optional. Press Enter to skip a field.[/yellow]"
+        current_identity = self._run_command(
+            wallets.get_id(
+                self.initialize_chain(network),
+                wallet.coldkeypub.ss58_address,
+                "Current on-chain identity",
             )
-            text_rejection = partial(
-                retry_prompt,
-                rejection=lambda x: sys.getsizeof(x) > 113,
-                rejection_text="[red]Error:[/red] Identity field must be <= 64 raw bytes.",
-            )
+        )
 
-            def pgp_check(s: str):
-                try:
-                    if s.startswith("0x"):
-                        s = s[2:]  # Strip '0x'
-                    pgp_fingerprint_encoded = binascii.unhexlify(s.replace(" ", ""))
-                except Exception:
-                    return True
-                return True if len(pgp_fingerprint_encoded) != 20 else False
+        if prompt:
+            if not Confirm.ask(
+                "Cost to register an [blue]Identity[/blue] is [blue]0.1 TAO[/blue],"
+                " are you sure you wish to continue?"
+            ):
+                console.print(":cross_mark: Aborted!")
+                raise typer.Exit()
 
-            display_name = display_name or text_rejection("Display name")
-            legal_name = legal_name or text_rejection("Legal name")
-            web_url = web_url or text_rejection("Web URL")
-            riot_handle = riot_handle or text_rejection("Riot handle")
-            email = email or text_rejection("Email address")
-            pgp_fingerprint = pgp_fingerprint or retry_prompt(
-                "PGP fingerprint (Eg: A1B2 C3D4 E5F6 7890 1234 5678 9ABC DEF0 1234 5678)",
-                lambda s: False if not s else pgp_check(s),
-                "[red]Error:[/red] PGP Fingerprint must be exactly 20 bytes.",
-            )
-            image_url = image_url or text_rejection("Image URL")
-            info_ = info_ or text_rejection("Enter info")
-            twitter_url = twitter_url or text_rejection("𝕏 (Twitter) URL")
-
-            validator_id = validator_id or Confirm.ask(
-                "Are you updating a [bold blue]validator hotkey[/bold blue] identity or a [bold blue]subnet "
-                "owner[/bold blue] identity?\n"
-                "Enter [bold green]Y[/bold green] for [bold]validator hotkey[/bold] or [bold red]N[/bold red] for "
-                "[bold]subnet owner[/bold]",
-                show_choices=True,
-            )
-
-            if validator_id is False:
-                subnet_netuid = IntPrompt.ask("Enter the netuid of the subnet you own")
+        identity = prompt_for_identity(
+            current_identity,
+            name,
+            web_url,
+            image_url,
+            discord_handle,
+            description,
+            additional_info,
+        )
 
         return self._run_command(
             wallets.set_id(
                 wallet,
                 self.initialize_chain(network),
-                display_name,
-                legal_name,
-                web_url,
-                pgp_fingerprint,
-                riot_handle,
-                email,
-                image_url,
-                twitter_url,
-                info_,
-                validator_id,
-                subnet_netuid,
+                identity["name"],
+                identity["url"],
+                identity["image"],
+                identity["discord"],
+                identity["description"],
+                identity["additional"],
                 prompt,
             )
         )
 
     def wallet_get_id(
         self,
-        target_ss58_address: str = typer.Option(
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        wallet_path: Optional[str] = Options.wallet_path,
+        coldkey_ss58=typer.Option(
             None,
+            "--ss58",
+            "--coldkey_ss58",
+            "--coldkey.ss58_address",
+            "--coldkey.ss58",
             "--key",
             "-k",
-            "--ss58",
-            help="The coldkey or hotkey ss58 address to query.",
-            prompt=True,
+            help="Coldkey address of the wallet",
         ),
         network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
@@ -2386,13 +2331,28 @@ class CLIManager:
 
         [bold]Note[/bold]: This command is primarily used for informational purposes and has no side effects on the blockchain network state.
         """
-        if not is_valid_ss58_address(target_ss58_address):
-            print_error("You have entered an incorrect ss58 address. Please try again")
-            raise typer.Exit()
+        wallet = None
+        if coldkey_ss58:
+            if not is_valid_ss58_address(coldkey_ss58):
+                print_error("You entered an invalid ss58 address")
+                raise typer.Exit()
+        else:
+            coldkey_or_ss58 = Prompt.ask(
+                "Enter the [blue]wallet name[/blue] or [blue]coldkey ss58 address[/blue]",
+                default=self.config.get("wallet_name") or defaults.wallet.name,
+            )
+            if is_valid_ss58_address(coldkey_or_ss58):
+                coldkey_ss58 = coldkey_or_ss58
+            else:
+                wallet_name = coldkey_or_ss58 if coldkey_or_ss58 else wallet_name
+                wallet = self.wallet_ask(
+                    wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+                )
+                coldkey_ss58 = wallet.coldkeypub.ss58_address
 
         self.verbosity_handler(quiet, verbose)
         return self._run_command(
-            wallets.get_id(self.initialize_chain(network), target_ss58_address)
+            wallets.get_id(self.initialize_chain(network), coldkey_ss58)
         )
 
     def wallet_sign(
@@ -3380,7 +3340,9 @@ class CLIManager:
         current_take = self._run_command(
             sudo.get_current_take(self.initialize_chain(network), wallet)
         )
-        console.print(f"Current take is [{COLOR_PALETTE['POOLS']['RATE']}]{current_take * 100.:.2f}%")
+        console.print(
+            f"Current take is [{COLOR_PALETTE['POOLS']['RATE']}]{current_take * 100.:.2f}%"
+        )
 
         if not take:
             take = FloatPrompt.ask(
@@ -3426,7 +3388,9 @@ class CLIManager:
         current_take = self._run_command(
             sudo.get_current_take(self.initialize_chain(network), wallet)
         )
-        console.print(f"Current take is [{COLOR_PALETTE['POOLS']['RATE']}]{current_take * 100.:.2f}%")
+        console.print(
+            f"Current take is [{COLOR_PALETTE['POOLS']['RATE']}]{current_take * 100.:.2f}%"
+        )
 
     def subnets_list(
         self,
@@ -3541,12 +3505,31 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
-            validate=WV.WALLET_AND_HOTKEY,
+            ask_for=[
+                WO.NAME,
+            ],
+            validate=WV.WALLET,
         )
-        return self._run_command(
+        success = self._run_command(
             subnets.create(wallet, self.initialize_chain(network), prompt)
         )
+
+        if success and prompt:
+            set_id = Confirm.ask(
+                "[dark_sea_green3]Do you want to set/update your identity?",
+                default=False,
+                show_default=True,
+            )
+            if set_id:
+                self.wallet_set_id(
+                    wallet_name=wallet.name,
+                    wallet_hotkey=wallet.hotkey,
+                    wallet_path=wallet.path,
+                    network=network,
+                    prompt=prompt,
+                    quiet=quiet,
+                    verbose=verbose,
+                )
 
     def subnets_pow_register(
         self,

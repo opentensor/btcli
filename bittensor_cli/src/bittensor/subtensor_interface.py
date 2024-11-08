@@ -24,6 +24,7 @@ from bittensor_cli.src.bittensor.chain_data import (
     NeuronInfo,
     SubnetHyperparameters,
     decode_account_id,
+    decode_hex_identity,
     DelegateInfoLite,
     DynamicInfo,
 )
@@ -819,6 +820,36 @@ class SubtensorInterface:
 
         return DelegateInfo.delegated_list_from_vec_u8(bytes_result)
 
+    async def query_all_identities(
+        self,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> dict[str, dict]:
+        """
+        Queries all identities on the Bittensor blockchain.
+
+        :param block_hash: The hash of the blockchain block number at which to perform the query.
+        :param reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        :return: A dictionary mapping addresses to their decoded identity data.
+        """
+
+        identities = await self.substrate.query_map(
+            module="SubtensorModule",
+            storage_function="Identities",
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        if identities is None:
+            return {}
+
+        all_identities = {
+                decode_account_id(ss58_address[0]): decode_hex_identity(identity)
+                for ss58_address, identity in identities
+            }
+        return all_identities
+
     async def query_identity(
         self,
         key: str,
@@ -843,40 +874,17 @@ class SubtensorInterface:
         The identity information can include various attributes such as the neuron's stake, rank, and other
         network-specific details, providing insights into the neuron's role and status within the Bittensor network.
         """
-
-        def decode_hex_identity_dict(info_dictionary):
-            for k, v in info_dictionary.items():
-                if isinstance(v, dict):
-                    item = next(iter(v.values()))
-                else:
-                    item = v
-                if isinstance(item, tuple) and item:
-                    if len(item) > 1:
-                        try:
-                            info_dictionary[k] = (
-                                bytes(item).hex(sep=" ", bytes_per_sep=2).upper()
-                            )
-                        except UnicodeDecodeError:
-                            print(f"Could not decode: {k}: {item}")
-                    else:
-                        try:
-                            info_dictionary[k] = bytes(item[0]).decode("utf-8")
-                        except UnicodeDecodeError:
-                            print(f"Could not decode: {k}: {item}")
-                else:
-                    info_dictionary[k] = item
-
-            return info_dictionary
-
         identity_info = await self.substrate.query(
-            module="Registry",
-            storage_function="IdentityOf",
+            module="SubtensorModule",
+            storage_function="Identities",
             params=[key],
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
+        if not identity_info:
+            return {}
         try:
-            return decode_hex_identity_dict(identity_info["info"])
+            return decode_hex_identity(identity_info)
         except TypeError:
             return {}
 

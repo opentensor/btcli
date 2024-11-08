@@ -3,9 +3,11 @@ import math
 import os
 import sqlite3
 import webbrowser
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable
 from urllib.parse import urlparse
+from functools import partial
 
 from bittensor_wallet import Wallet, Keypair
 from bittensor_wallet.utils import SS58_FORMAT
@@ -16,6 +18,7 @@ from markupsafe import Markup
 import numpy as np
 from numpy.typing import NDArray
 from rich.console import Console
+from rich.prompt import Prompt
 import scalecodec
 from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
@@ -954,7 +957,7 @@ def retry_prompt(
     rejection_text: str,
     default="",
     show_default=False,
-    prompt_type=typer.prompt,
+    prompt_type=Prompt.ask,
 ):
     """
     Allows for asking prompts again if they do not meet a certain criteria (as defined in `rejection`)
@@ -1001,9 +1004,9 @@ def get_effective_network(config, network: Optional[list[str]]) -> str:
     else:
         return defaults.subtensor.network
 
+
 def is_rao_network(network: str) -> bool:
     """Check if the given network is 'rao'."""
-    
     network = network.lower()
     rao_identifiers = [
         "rao",
@@ -1014,3 +1017,61 @@ def is_rao_network(network: str) -> bool:
         or network in rao_identifiers
         or "rao.chain.opentensor.ai" in network
     )
+
+
+def prompt_for_identity(
+    current_identity: dict,
+    name: Optional[str],
+    web_url: Optional[str],
+    image_url: Optional[str],
+    discord_handle: Optional[str],
+    description: Optional[str],
+    additional_info: Optional[str],
+):
+    """
+    Prompts the user for identity fields with validation.
+    Returns a dictionary with the updated fields.
+    """
+    identity_fields = {}
+
+    fields = [
+        ("name", "[blue]Display name[/blue]", name),
+        ("url", "[blue]Web URL[/blue]", web_url),
+        ("image", "[blue]Image URL[/blue]", image_url),
+        ("discord", "[blue]Discord handle[/blue]", discord_handle),
+        ("description", "[blue]Description[/blue]", description),
+        ("additional", "[blue]Additional information[/blue]", additional_info),
+    ]
+
+    text_rejection = partial(
+        retry_prompt,
+        rejection=lambda x: sys.getsizeof(x) > 113,
+        rejection_text="[red]Error:[/red] Identity field must be <= 64 raw bytes.",
+    )
+
+    if not any(
+        [
+            name,
+            web_url,
+            image_url,
+            discord_handle,
+            description,
+            additional_info,
+        ]
+    ):
+        console.print(
+            "[yellow]All fields are optional. Press Enter to skip and keep the default/existing value.[/yellow]\n"
+            "[dark_sea_green3]Tip: Entering a space and pressing Enter will clear existing default value.\n"
+        )
+
+    for key, prompt, value in fields:
+        if value:
+            identity_fields[key] = value
+        else:
+            identity_fields[key] = text_rejection(
+                prompt,
+                default=current_identity.get(key, ""),
+                show_default=True,
+            )
+
+    return identity_fields

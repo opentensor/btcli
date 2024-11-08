@@ -1413,172 +1413,55 @@ async def swap_hotkey(
     )
 
 
-def set_id_prompts(
-    validator: bool,
-) -> tuple[str, str, str, str, str, str, str, str, str, bool, int]:
-    """
-    Used to prompt the user to input their info for setting the ID
-    :return: (display_name, legal_name, web_url, riot_handle, email,pgp_fingerprint, image_url, info_, twitter_url,
-             validator_id)
-    """
-    text_rejection = partial(
-        retry_prompt,
-        rejection=lambda x: sys.getsizeof(x) > 113,
-        rejection_text="[red]Error:[/red] Identity field must be <= 64 raw bytes.",
+def create_identity_table(title: str = None):
+    if not title:
+        title = "On-Chain Identity"
+
+    table = Table(
+        Column("Item", justify="right", style=COLOR_PALETTE['GENERAL']['SUBHEADING_MAIN'], no_wrap=True),
+        Column("Value", style=COLOR_PALETTE['GENERAL']['SUBHEADING']),
+        title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]{title}",
+        show_footer=True,
+        show_edge=False,
+        header_style="bold white",
+        border_style="bright_black",
+        style="bold",
+        title_justify="center",
+        show_lines=False,
+        pad_edge=True,
     )
-
-    def pgp_check(s: str):
-        try:
-            if s.startswith("0x"):
-                s = s[2:]  # Strip '0x'
-            pgp_fingerprint_encoded = binascii.unhexlify(s.replace(" ", ""))
-        except Exception:
-            return True
-        return True if len(pgp_fingerprint_encoded) != 20 else False
-
-    display_name = text_rejection("Display name")
-    legal_name = text_rejection("Legal name")
-    web_url = text_rejection("Web URL")
-    riot_handle = text_rejection("Riot handle")
-    email = text_rejection("Email address")
-    pgp_fingerprint = retry_prompt(
-        "PGP fingerprint (Eg: A1B2 C3D4 E5F6 7890 1234 5678 9ABC DEF0 1234 5678)",
-        lambda s: False if not s else pgp_check(s),
-        "[red]Error:[/red] PGP Fingerprint must be exactly 20 bytes.",
-    )
-    image_url = text_rejection("Image URL")
-    info_ = text_rejection("Enter info")
-    twitter_url = text_rejection("𝕏 (Twitter) URL")
-
-    subnet_netuid = None
-    if validator is False:
-        subnet_netuid = IntPrompt.ask("Enter the netuid of the subnet you own")
-
-    return (
-        display_name,
-        legal_name,
-        web_url,
-        pgp_fingerprint,
-        riot_handle,
-        email,
-        image_url,
-        twitter_url,
-        info_,
-        validator,
-        subnet_netuid,
-    )
+    return table
 
 
 async def set_id(
     wallet: Wallet,
     subtensor: SubtensorInterface,
-    display_name: str,
-    legal_name: str,
+    name: str,
     web_url: str,
-    pgp_fingerprint: str,
-    riot_handle: str,
-    email: str,
-    image: str,
-    twitter: str,
-    info_: str,
-    validator_id: bool,
-    subnet_netuid: int,
+    image_url: str,
+    discord_handle: str,
+    description: str,
+    additional_info: str,
     prompt: bool,
 ):
     """Create a new or update existing identity on-chain."""
 
-    id_dict = {
-        "additional": [[]],
-        "display": display_name,
-        "legal": legal_name,
-        "web": web_url,
-        "pgp_fingerprint": pgp_fingerprint,
-        "riot": riot_handle,
-        "email": email,
-        "image": image,
-        "twitter": twitter,
-        "info": info_,
+    identity_data = {
+        "name": name.encode(),
+        "url": web_url.encode(),
+        "image": image_url.encode(),
+        "discord": discord_handle.encode(),
+        "description": description.encode(),
+        "additional": additional_info.encode(),
     }
 
-    try:
-        pgp_fingerprint_encoded = binascii.unhexlify(pgp_fingerprint.replace(" ", ""))
-    except Exception as e:
-        print_error(f"The PGP is not in the correct format: {e}")
-        raise typer.Exit()
-
-    for field, string in id_dict.items():
-        if (
-            field == "pgp_fingerprint"
-            and pgp_fingerprint
-            and len(pgp_fingerprint_encoded) != 20
-        ):
+    for field, value in identity_data.items():
+        max_size = 64  # bytes
+        if len(value) > max_size:
             err_console.print(
-                "[red]Error:[/red] PGP Fingerprint must be exactly 20 bytes."
+                f"[red]Error:[/red] Identity field [white]{field}[/white] must be <= {max_size} bytes.\n"
+                f"Value '{value.decode()}' is {len(value)} bytes."
             )
-            return False
-        elif (size := getsizeof(string)) > 113:  # 64 + 49 overhead bytes for string
-            err_console.print(
-                f"[red]Error:[/red] Identity field [white]{field}[/white] must be <= 64 raw bytes.\n"
-                f"Value: '{string}' currently [white]{size} bytes[/white]."
-            )
-            return False
-
-    identified = (
-        wallet.hotkey.ss58_address if validator_id else wallet.coldkeypub.ss58_address
-    )
-    encoded_id_dict = {
-        "info": {
-            "additional": [[]],
-            "display": {f"Raw{len(display_name.encode())}": display_name.encode()},
-            "legal": {f"Raw{len(legal_name.encode())}": legal_name.encode()},
-            "web": {f"Raw{len(web_url.encode())}": web_url.encode()},
-            "riot": {f"Raw{len(riot_handle.encode())}": riot_handle.encode()},
-            "email": {f"Raw{len(email.encode())}": email.encode()},
-            "pgp_fingerprint": pgp_fingerprint_encoded if pgp_fingerprint else None,
-            "image": {f"Raw{len(image.encode())}": image.encode()},
-            "info": {f"Raw{len(info_.encode())}": info_.encode()},
-            "twitter": {f"Raw{len(twitter.encode())}": twitter.encode()},
-        },
-        "identified": identified,
-    }
-
-    if prompt:
-        if not Confirm.ask(
-            "Cost to register an Identity is [bold white italic]0.1 Tao[/bold white italic],"
-            " are you sure you wish to continue?"
-        ):
-            console.print(":cross_mark: Aborted!")
-            raise typer.Exit()
-
-    if validator_id:
-        block_hash = await subtensor.substrate.get_chain_head()
-
-        is_registered_on_root, hotkey_owner = await asyncio.gather(
-            is_hotkey_registered(
-                subtensor, netuid=0, hotkey_ss58=wallet.hotkey.ss58_address
-            ),
-            subtensor.get_hotkey_owner(
-                hotkey_ss58=wallet.hotkey.ss58_address, block_hash=block_hash
-            ),
-        )
-
-        if not is_registered_on_root:
-            print_error("The hotkey is not registered on root. Aborting.")
-            return False
-
-        own_hotkey = wallet.coldkeypub.ss58_address == hotkey_owner
-        if not own_hotkey:
-            print_error("The hotkey doesn't belong to the coldkey wallet. Aborting.")
-            return False
-    else:
-        subnet_owner_ = await subtensor.substrate.query(
-            module="SubtensorModule",
-            storage_function="SubnetOwner",
-            params=[subnet_netuid],
-        )
-        subnet_owner = decode_account_id(subnet_owner_[0])
-        if subnet_owner != wallet.coldkeypub.ss58_address:
-            print_error(f":cross_mark: This wallet doesn't own subnet {subnet_netuid}.")
             return False
 
     try:
@@ -1587,39 +1470,33 @@ async def set_id(
         err_console.print("Error decrypting coldkey (possibly incorrect password)")
         return False
 
+    call = await subtensor.substrate.compose_call(
+        call_module="SubtensorModule",
+        call_function="set_identity",
+        call_params=identity_data,
+    )
+
     with console.status(
-        ":satellite: [bold green]Updating identity on-chain...", spinner="earth"
+        " :satellite: [dark_sea_green3]Updating identity on-chain...", spinner="earth"
     ):
-        call = await subtensor.substrate.compose_call(
-            call_module="Registry",
-            call_function="set_identity",
-            call_params=encoded_id_dict,
-        )
         success, err_msg = await subtensor.sign_and_send_extrinsic(call, wallet)
 
         if not success:
             err_console.print(f"[red]:cross_mark: Failed![/red] {err_msg}")
             return
 
-        console.print(":white_heavy_check_mark: Success!")
-        identity = await subtensor.query_identity(
-            identified or wallet.coldkey.ss58_address
-        )
+        console.print(":white_heavy_check_mark: [dark_sea_green3]Success!")
+        identity = await subtensor.query_identity(wallet.coldkeypub.ss58_address)
 
-    table = Table(
-        Column("Key", justify="right", style="cyan", no_wrap=True),
-        Column("Value", style="magenta"),
-        title="[bold white italic]Updated On-Chain Identity",
-    )
-
-    table.add_row("Address", identified or wallet.coldkey.ss58_address)
+    table = create_identity_table(title="New on-chain Identity")
+    table.add_row("Address", wallet.coldkeypub.ss58_address)
     for key, value in identity.items():
-        table.add_row(key, str(value) if value is not None else "~")
+        table.add_row(key, str(value) if value else "~")
 
     return console.print(table)
 
 
-async def get_id(subtensor: SubtensorInterface, ss58_address: str):
+async def get_id(subtensor: SubtensorInterface, ss58_address: str, title: str = None):
     with console.status(
         ":satellite: [bold green]Querying chain identity...", spinner="earth"
     ):
@@ -1627,22 +1504,19 @@ async def get_id(subtensor: SubtensorInterface, ss58_address: str):
 
     if not identity:
         err_console.print(
-            f"[red]Identity not found[/red]"
-            f" for [light_goldenrod3]{ss58_address}[/light_goldenrod3]"
-            f" on [white]{subtensor}[/white]"
+            f"[red]Existing identity not found[/red]"
+            f" for [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]"
+            f" on {subtensor}"
         )
-        return
-    table = Table(
-        Column("Item", justify="right", style="cyan", no_wrap=True),
-        Column("Value", style="magenta"),
-        title="[bold white italic]On-Chain Identity",
-    )
-
+        return {}
+    
+    table = create_identity_table(title)
     table.add_row("Address", ss58_address)
     for key, value in identity.items():
-        table.add_row(key, str(value) if value is not None else "~")
+        table.add_row(key, str(value) if value else "~")
 
-    return console.print(table)
+    console.print(table)
+    return identity
 
 
 async def check_coldkey_swap(wallet: Wallet, subtensor: SubtensorInterface):
@@ -1694,10 +1568,14 @@ async def sign(wallet: Wallet, message: str, use_hotkey: str):
         )
     if not use_hotkey:
         keypair = wallet.coldkey
-        print_verbose(f"Signing using [{COLOR_PALETTE['GENERAL']['COLDKEY']}]coldkey: {wallet.name}")
+        print_verbose(
+            f"Signing using [{COLOR_PALETTE['GENERAL']['COLDKEY']}]coldkey: {wallet.name}"
+        )
     else:
         keypair = wallet.hotkey
-        print_verbose(f"Signing using [{COLOR_PALETTE['GENERAL']['HOTKEY']}]hotkey: {wallet.hotkey_str}")
+        print_verbose(
+            f"Signing using [{COLOR_PALETTE['GENERAL']['HOTKEY']}]hotkey: {wallet.hotkey_str}"
+        )
 
     signed_message = keypair.sign(message.encode("utf-8")).hex()
     console.print("[dark_sea_green3]Message signed successfully:")

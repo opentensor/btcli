@@ -2,6 +2,7 @@ import asyncio
 import json
 import sqlite3
 from typing import TYPE_CHECKING, Optional, cast
+import typer
 
 from bittensor_wallet import Wallet
 from bittensor_wallet.errors import KeyFileError
@@ -22,7 +23,7 @@ from bittensor_cli.src.bittensor.extrinsics.registration import (
 )
 from rich.live import Live
 from bittensor_cli.src.bittensor.minigraph import MiniGraph
-from bittensor_cli.src.commands.wallets import set_id, set_id_prompts
+from bittensor_cli.src.commands.wallets import set_id, get_id
 from bittensor_cli.src.bittensor.utils import (
     RAO_PER_TAO,
     console,
@@ -35,6 +36,7 @@ from bittensor_cli.src.bittensor.utils import (
     millify,
     render_table,
     update_metadata_table,
+    prompt_for_identity,
 )
 
 if TYPE_CHECKING:
@@ -153,7 +155,7 @@ async def register_subnetwork_extrinsic(
                 response, "NetworkAdded"
             )
             console.print(
-                f":white_heavy_check_mark: [{COLOR_PALETTE['GENERAL']['SUCCESS']}]Registered subnetwork with netuid: {attributes[0]}"
+                f":white_heavy_check_mark: [dark_sea_green3]Registered subnetwork with netuid: {attributes[0]}"
             )
             return True
 
@@ -172,10 +174,11 @@ async def subnets_list(
 
     async def fetch_subnet_data():
         subnets = await subtensor.get_all_subnet_dynamic_info()
-        global_weights = await subtensor.get_global_weights(
-            [subnet.netuid for subnet in subnets]
+        global_weights, identities = await asyncio.gather(
+            subtensor.get_global_weights([subnet.netuid for subnet in subnets]),
+            subtensor.query_all_identities(),
         )
-        return subnets, global_weights
+        return subnets, global_weights, identities
 
     def define_table(total_emissions: float, total_rate: float):
         table = Table(
@@ -191,20 +194,21 @@ async def subnets_list(
             pad_edge=True,
         )
 
-        table.add_column("[bold white]NETUID", style="grey89", justify="center")
+        table.add_column("[bold white]Netuid", style="grey89", justify="center")
         table.add_column(
-            "[bold white]SYMBOL",
+            "[bold white]Symbol",
             style=COLOR_PALETTE["GENERAL"]["SYMBOL"],
             justify="right",
         )
+        table.add_column("[bold white]Owner", style="cyan", justify="left")
         table.add_column(
-            f"[bold white]EMISSION ({Balance.get_unit(0)})",
+            f"[bold white]Emission ({Balance.get_unit(0)})",
             style=COLOR_PALETTE["POOLS"]["EMISSION"],
             justify="left",
             footer=f"τ {total_emissions:.4f}",
         )
         table.add_column(
-            f"[bold white]STAKE ({Balance.get_unit(1)}_out)",
+            f"[bold white]Stake ({Balance.get_unit(1)}_out)",
             style=COLOR_PALETTE["STAKE"]["STAKE_ALPHA"],
             justify="left",
         )
@@ -236,7 +240,7 @@ async def subnets_list(
         return table
 
     # Non-live mode
-    def create_table(subnets, global_weights):
+    def create_table(subnets, global_weights, identities):
         rows = []
         for subnet in subnets:
             netuid = subnet.netuid
@@ -245,12 +249,15 @@ async def subnets_list(
 
             if netuid == 0:
                 emission_tao = 0.0
+                identity = "~"
             else:
                 emission_tao = subnet.emission.tao
+                identity = identities.get(subnet.owner, {}).get("name", "~")
 
-            # Prepare content
+            # Prepare cells
             netuid_cell = str(netuid)
             symbol_cell = f"{subnet.symbol}"
+            identity_cell = identity
             emission_cell = f"{emission_tao:,.4f}"
             alpha_out_cell = f"{subnet.alpha_out.tao:,.5f} {symbol}"
             tao_in_cell = f"{subnet.tao_in.tao:,.4f} τ"
@@ -265,6 +272,7 @@ async def subnets_list(
                 (
                     netuid_cell,  # Netuid
                     symbol_cell,  # Symbol
+                    identity_cell,  # Identity
                     emission_cell,  # Emission (τ)
                     alpha_out_cell,  # Stake α_out
                     tao_in_cell,  # TAO Pool τ_in
@@ -285,16 +293,15 @@ async def subnets_list(
 
         # Sort rows by emission, keeping the root subnet in the first position
         sorted_rows = [rows[0]] + sorted(
-            rows[1:], key=lambda x: float(str(x[2]).replace(",", "")), reverse=True
+            rows[1:], key=lambda x: float(str(x[3]).replace(",", "")), reverse=True
         )
 
-        # Add rows to the table
         for row in sorted_rows:
             table.add_row(*row)
         return table
 
     # Live mode
-    def create_table_live(subnets, global_weights, previous_data):
+    def create_table_live(subnets, global_weights, identities, previous_data):
         def format_cell(value, previous_value, unit="", precision=4):
             if previous_value is not None:
                 change = value - previous_value
@@ -322,8 +329,10 @@ async def subnets_list(
 
             if netuid == 0:
                 emission_tao = 0.0
+                identity = "~"
             else:
                 emission_tao = subnet.emission.tao
+                identity = identities.get(subnet.owner, {}).get("name", "~")
 
             # Store current values for comparison
             current_data[netuid] = {
@@ -335,12 +344,11 @@ async def subnets_list(
                 "blocks_since_last_step": subnet.blocks_since_last_step,
                 "global_weight": global_weight,
             }
-
-            # Retrieve previous data if available
             prev = previous_data.get(netuid) if previous_data else {}
 
-            # Prepare content
+            # Prepare cells
             netuid_cell = str(netuid)
+            identity_cell = identity
             symbol_cell = f"{subnet.symbol}"
             emission_cell = format_cell(
                 emission_tao, prev.get("emission_tao"), unit="", precision=4
@@ -364,7 +372,7 @@ async def subnets_list(
                 subnet.price.tao, prev.get("price"), unit=f" τ/{symbol}", precision=4
             )
 
-            # Content: Blocks_since_last_step
+            # Tempo cell
             prev_blocks_since_last_step = prev.get("blocks_since_last_step")
             if prev_blocks_since_last_step is not None:
                 if subnet.blocks_since_last_step >= prev_blocks_since_last_step:
@@ -388,7 +396,7 @@ async def subnets_list(
                 f"{subnet.blocks_since_last_step}/{subnet.tempo}{block_change_text}"
             )
 
-            # Content: Global_weight
+            # Local weight coeff cell
             prev_global_weight = prev.get("global_weight")
             if prev_global_weight is not None and global_weight is not None:
                 weight_change = float(global_weight) - float(prev_global_weight)
@@ -415,6 +423,7 @@ async def subnets_list(
                 (
                     netuid_cell,  # Netuid
                     symbol_cell,  # Symbol
+                    identity_cell,  # Identity
                     emission_cell,  # Emission (τ)
                     alpha_out_cell,  # Stake α_out
                     tao_in_cell,  # TAO Pool τ_in
@@ -436,11 +445,9 @@ async def subnets_list(
         # Sort rows by emission, keeping the first subnet in the first position
         sorted_rows = [rows[0]] + sorted(
             rows[1:],
-            key=lambda x: float(str(x[2]).split()[0].replace(",", "")),
+            key=lambda x: float(str(x[3]).split()[0].replace(",", "")),
             reverse=True,
         )
-
-        # Add rows to the table
         for row in sorted_rows:
             table.add_row(*row)
         return table, current_data
@@ -462,18 +469,15 @@ async def subnets_list(
         with Live(console=console, screen=True, auto_refresh=True) as live:
             try:
                 while True:
-                    subnets, global_weights = await fetch_subnet_data()
+                    subnets, global_weights, identities = await fetch_subnet_data()
                     table, current_data = create_table_live(
-                        subnets, global_weights, previous_data
+                        subnets, global_weights, identities, previous_data
                     )
                     previous_data = current_data
                     progress.reset(progress_task)
                     start_time = asyncio.get_event_loop().time()
-
-                    # Create the message
                     message = "\nLive view active. Press [bold red]Ctrl + C[/bold red] to exit"
 
-                    # Include the message in the live render group
                     live_render = Group(table, progress, message)
                     live.update(live_render)
                     while not progress.finished:
@@ -485,8 +489,8 @@ async def subnets_list(
                 pass  # Ctrl + C
     else:
         # Non-live mode
-        subnets, global_weights = await fetch_subnet_data()
-        table = create_table(subnets, global_weights)
+        subnets, global_weights, identities = await fetch_subnet_data()
+        table = create_table(subnets, global_weights, identities)
         console.print(table)
 
         display_table = Prompt.ask(
@@ -853,8 +857,30 @@ async def create(wallet: Wallet, subtensor: "SubtensorInterface", prompt: bool):
         )
 
         if do_set_identity:
-            id_prompts = set_id_prompts(validator=False)
-            await set_id(wallet, subtensor, *id_prompts, prompt=prompt)
+            current_identity = await get_id(
+                subtensor, wallet.coldkeypub.ss58_address, "Current on-chain identity"
+            )
+            if prompt:
+                if not Confirm.ask(
+                    "\nCost to register an [blue]Identity[/blue] is [blue]0.1 TAO[/blue],"
+                    " are you sure you wish to continue?"
+                ):
+                    console.print(":cross_mark: Aborted!")
+                    raise typer.Exit()
+
+            identity = prompt_for_identity(current_identity=current_identity)
+
+            await set_id(
+                wallet,
+                subtensor,
+                identity["name"],
+                identity["url"],
+                identity["image"],
+                identity["discord"],
+                identity["description"],
+                identity["additional"],
+                prompt,
+            )
 
 
 async def pow_register(
