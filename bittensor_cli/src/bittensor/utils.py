@@ -1007,12 +1007,12 @@ def unlock_key(
         getattr(wallet, unlocker)()
         return UnlockStatus(True, "")
     except PasswordError:
-        err_msg = "The password used to decrypt your Keyfile is invalid."
+        err_msg = f"The password used to decrypt your {unlock_type.capitalize()}key Keyfile is invalid."
         if print_out:
             err_console.print(f":cross_mark: [red]{err_msg}[/red]")
         return UnlockStatus(False, err_msg)
     except KeyFileError:
-        err_msg = "Keyfile is corrupt, non-writable, or non-readable."
+        err_msg = f"{unlock_type.capitalize()}key Keyfile is corrupt, non-writable, or non-readable, or non-existent."
         if print_out:
             err_console.print(f":cross_mark: [red]{err_msg}[/red]")
         return UnlockStatus(False, err_msg)
