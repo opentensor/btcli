@@ -349,47 +349,28 @@ async def wallet_balance(
 async def get_wallet_transfers(wallet_address: str) -> list[dict]:
     """Get all transfers associated with the provided wallet address."""
 
-    api_url = "https://api.subquery.network/sq/TaoStats/bittensor-indexer"
-    max_txn = 1000
-    graphql_query = """
-    query ($first: Int!, $after: Cursor, $filter: TransferFilter, $order: [TransfersOrderBy!]!) {
-        transfers(first: $first, after: $after, filter: $filter, orderBy: $order) {
-            nodes {
-                id
-                from
-                to
-                amount
-                extrinsicId
-                blockNumber
-            }
-            pageInfo {
-                endCursor
-                hasNextPage
-                hasPreviousPage
-            }
-            totalCount
-        }
+    api_url = "https://api.taostats.io/api/transfer/v1"
+    params = {
+        "address": wallet_address,
+        "limit": 200
     }
-    """
-    variables = {
-        "first": max_txn,
-        "filter": {
-            "or": [
-                {"from": {"equalTo": wallet_address}},
-                {"to": {"equalTo": wallet_address}},
-            ]
-        },
-        "order": "BLOCK_NUMBER_DESC",
-    }
+
     async with aiohttp.ClientSession() as session:
-        response = await session.post(
-            api_url, json={"query": graphql_query, "variables": variables}
-        )
+        response = await session.get(api_url, params=params)
         data = await response.json()
 
-    # Extract nodes and pageInfo from the response
-    transfer_data = data.get("data", {}).get("transfers", {})
-    transfers = transfer_data.get("nodes", [])
+        raw_transfers = data.get("data", [])
+        transfers = []
+
+        for tx in raw_transfers:
+            transfers.append({
+                "id": tx["id"],
+                "from": tx["from"]["ss58"],
+                "to": tx["to"]["ss58"],
+                "amount": tx["amount"],
+                "extrinsic_id": tx["extrinsic_id"],
+                "block_number": tx["block_number"]
+            })
 
     return transfers
 
@@ -457,9 +438,9 @@ def create_transfer_history_table(transfers: list[dict]) -> Table:
             item["from"],
             item["to"],
             f"{tao_amount:.3f}",
-            str(item["extrinsicId"]),
-            item["blockNumber"],
-            f"{taostats_url_base}/{item['blockNumber']}-{item['extrinsicId']:04}",
+            str(item["extrinsic_id"]),
+            item["block_number"],
+            f"{taostats_url_base}/{item['block_number']}-{item['extrinsic_id']:04}",
         )
     table.add_row()
     return table
