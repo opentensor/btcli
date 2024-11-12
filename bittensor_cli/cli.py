@@ -7,6 +7,7 @@ import os.path
 import re
 import ssl
 import sys
+import traceback
 from pathlib import Path
 from typing import Coroutine, Optional
 from dataclasses import fields
@@ -840,6 +841,7 @@ class CLIManager:
                 return result
             except (ConnectionRefusedError, ssl.SSLError):
                 err_console.print(f"Unable to connect to the chain: {self.subtensor}")
+                verbose_console.print(traceback.format_exc())
             except (
                 ConnectionClosed,
                 SubstrateRequestException,
@@ -847,6 +849,10 @@ class CLIManager:
             ) as e:
                 if isinstance(e, SubstrateRequestException):
                     err_console.print(str(e))
+                verbose_console.print(traceback.format_exc())
+            except Exception as e:
+                err_console.print(f"An unknown error has occurred: {e}")
+                verbose_console.print(traceback.format_exc())
             finally:
                 if initiated is False:
                     asyncio.create_task(cmd).cancel()

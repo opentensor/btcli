@@ -6,13 +6,14 @@ from dataclasses import dataclass
 from hashlib import blake2b
 from typing import Optional, Any, Union, Callable, Awaitable, cast
 
-from bt_decode import PortableRegistry, decode as decode_by_type_string, MetadataV15
 from async_property import async_property
+from bt_decode import PortableRegistry, decode as decode_by_type_string, MetadataV15
+from bittensor_wallet import Keypair
+from packaging import version
 from scalecodec import GenericExtrinsic
 from scalecodec.base import ScaleBytes, ScaleType, RuntimeConfigurationObject
 from scalecodec.type_registry import load_type_registry_preset
 from scalecodec.types import GenericCall
-from bittensor_wallet import Keypair
 from substrateinterface.exceptions import (
     SubstrateRequestException,
     ExtrinsicNotFound,
@@ -771,14 +772,13 @@ class AsyncSubstrateInterface:
         """
         self.chain_endpoint = chain_endpoint
         self.__chain = chain_name
-        self.ws = Websocket(
-            chain_endpoint,
-            options={
-                "max_size": 2**32,
-                "read_limit": 2**16,
-                "write_limit": 2**16,
-            },
-        )
+        options = {
+            "max_size": 2**32,
+            "write_limit": 2**16,
+        }
+        if version.parse(websockets.__version__) < version.parse("14.0"):
+            options.update({"read_limit": 2**16})
+        self.ws = Websocket(chain_endpoint, options=options)
         self._lock = asyncio.Lock()
         self.last_block_hash: Optional[str] = None
         self.config = {
