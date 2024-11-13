@@ -20,6 +20,7 @@ from rich.console import Console
 import scalecodec
 from scalecodec.base import RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset
+from scalecodec.utils.ss58 import ss58_encode, ss58_decode
 import typer
 
 
@@ -1003,3 +1004,14 @@ def bytes_from_hex_string_result(hex_string_result: str) -> bytes:
         hex_string_result = hex_string_result[2:]
 
     return bytes.fromhex(hex_string_result)
+
+
+def decode_account_id(account_id_bytes: Union[tuple[int], tuple[tuple[int]]]):
+    if isinstance(account_id_bytes, tuple) and isinstance(account_id_bytes[0], tuple):
+        account_id_bytes = account_id_bytes[0]
+    # Convert the AccountId bytes to a Base64 string
+    return ss58_encode(bytes(account_id_bytes).hex(), SS58_FORMAT)
+
+
+def encode_account_id(ss58_address: str) -> bytes:
+    return bytes.fromhex(ss58_decode(ss58_address, SS58_FORMAT))
