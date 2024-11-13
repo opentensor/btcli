@@ -9,7 +9,12 @@ from munch import munchify, Munch
 from typing import Optional, Any, Union, Callable, Awaitable, cast, TYPE_CHECKING
 from types import SimpleNamespace
 
-from bt_decode import PortableRegistry, decode as decode_by_type_string, MetadataV15
+from bt_decode import (
+    PortableRegistry,
+    decode as decode_by_type_string,
+    encode as encode_by_type_string,
+    MetadataV15,
+)
 from async_property import async_property
 from scalecodec import GenericExtrinsic
 from scalecodec.base import ScaleBytes, ScaleType, RuntimeConfigurationObject
@@ -28,7 +33,7 @@ from websockets.exceptions import ConnectionClosed
 if TYPE_CHECKING:
     from websockets.asyncio.client import ClientConnection
 
-from .utils import bytes_from_hex_string_result
+from .utils import bytes_from_hex_string_result, encode_account_id
 
 ResultHandler = Callable[[dict, Any], Awaitable[tuple[dict, bool]]]
 
@@ -971,6 +976,32 @@ class AsyncSubstrateInterface:
         else:
             obj = decode_by_type_string(type_string, self.registry, scale_bytes)
         return obj
+
+    async def encode_scale(self, type_string, value: Any) -> bytes:
+        """
+        Helper function to encode arbitrary objects according to given RUST type_string
+        (e.g. BlockNumber).
+
+        Parameters
+        ----------
+        type_string
+        value
+
+        Returns
+        -------
+        bytes: encoded SCALE bytes
+
+        """
+        if value is None:
+            result = b"\x00"
+        else:
+            if type_string == "scale_info::0":  # Is an AccountId
+                # encode string into AccountId
+                ## AccountId is a composite type with one, unnamed field
+                return encode_account_id(value)
+
+            result = bytes(encode_by_type_string(type_string, self.registry, value))
+        return result
 
     async def init_runtime(
         self, block_hash: Optional[str] = None, block_id: Optional[int] = None
