@@ -1,5 +1,14 @@
 # Changelog
 
+## 8.3.1 /2024-11-13
+
+## What's Changed
+* Better handle incorrect file path for wallets. by @thewhaleking in https://github.com/opentensor/btcli/pull/230
+* Handle websockets version 14, verbose error output by @thewhaleking in https://github.com/opentensor/btcli/pull/236
+* Handles the new PasswordError from bt-wallet by @thewhaleking in https://github.com/opentensor/btcli/pull/232
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v8.3.0...v.8.3.1
+
 ## 8.3.0 /2024-11-06
 
 ## What's Changed
