@@ -55,6 +55,7 @@ from bittensor_cli.src.bittensor.utils import (
     is_valid_ss58_address,
     validate_coldkey_presence,
     retry_prompt,
+    unlock_key,
 )
 
 
@@ -1616,10 +1617,7 @@ async def set_id(
             print_error(f":cross_mark: This wallet doesn't own subnet {subnet_netuid}.")
             return False
 
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success:
         return False
 
     with console.status(
@@ -1719,18 +1717,14 @@ async def check_coldkey_swap(wallet: Wallet, subtensor: SubtensorInterface):
 
 async def sign(wallet: Wallet, message: str, use_hotkey: str):
     """Sign a message using the provided wallet or hotkey."""
-
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print(
-            ":cross_mark: [red]Keyfile is corrupt, non-writable, non-readable or the password used to decrypt is "
-            "invalid[/red]:[bold white]\n  [/bold white]"
-        )
     if not use_hotkey:
+        if not unlock_key(wallet).success:
+            return False
         keypair = wallet.coldkey
         print_verbose(f"Signing using coldkey: {wallet.name}")
     else:
+        if not unlock_key(wallet, "hot").success:
+            return False
         keypair = wallet.hotkey
         print_verbose(f"Signing using hotkey: {wallet.hotkey_str}")
 
