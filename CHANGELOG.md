@@ -1,5 +1,25 @@
 # Changelog
 
+## 8.3.0 /2024-11-06
+
+## What's Changed
+
+* Better handle incorrect password by @thewhaleking in https://github.com/opentensor/btcli/pull/187
+* Fixes success path of pow register by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/189
+* Adds `--all` flag to transfer by @thewhaleking in https://github.com/opentensor/btcli/pull/181
+* Various fixes by @thewhaleking in https://github.com/opentensor/btcli/pull/199
+* Fix wallets in overview by @thewhaleking in https://github.com/opentensor/btcli/pull/197
+* fix handling null neurons by @thewhaleking in https://github.com/opentensor/btcli/pull/214
+* Fix cuda pow registration by @thewhaleking in https://github.com/opentensor/btcli/pull/215
+* Adds confirmation after each successful regen by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/203
+* Removes wallet path prompt by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/205
+* Support hotkey names for include/exclude in st add/remove by @thewhaleking in https://github.com/opentensor/btcli/pull/216
+* Subvortex network added by @thewhaleking  in https://github.com/opentensor/btcli/pull/223
+* Add prompt option to all commands which use Confirm prompts by @thewhaleking in https://github.com/opentensor/btcli/pull/227
+* Update local subtensor port by @distributedstatemachine in https://github.com/opentensor/btcli/pull/228
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v8.2.0...v8.3.0
+
 ## 8.2.0 /2024-10-10
 
 ## What's Changed
