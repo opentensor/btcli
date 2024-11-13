@@ -1372,9 +1372,8 @@ async def inspect(
                 ]
             ),
         )
-        for x in all_delegates:
-            for y, z in x:
-                all_hotkeys.append(WalletLike(hotkey_ss58=y.hotkey_ss58))
+
+        all_hotkeys.extend([WalletLike(hotkey_ss58=y.hotkey_ss58) for x in all_delegates for (y, _) in x])
 
         all_netuids = await subtensor.filter_netuids_by_registered_hotkeys(
             (await subtensor.get_all_subnet_netuids(block_hash)),
