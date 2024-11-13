@@ -3,7 +3,7 @@ import binascii
 import itertools
 import os
 import sys
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from functools import partial
 from sys import getsizeof
 from typing import Collection, Generator, Optional
@@ -60,10 +60,13 @@ from bittensor_cli.src.bittensor.utils import (
 
 
 class WalletLike:
+    hotkey = namedtuple("hotkey", ["ss58_address"])
+
     def __init__(self, name=None, hotkey_ss58=None, hotkey_str=None):
         self.name = name
         self.hotkey_ss58 = hotkey_ss58
         self.hotkey_str = hotkey_str
+        self.hotkey = self.hotkey(hotkey_ss58)
 
 
 async def regen_coldkey(
@@ -1371,9 +1374,8 @@ async def inspect(
         )
         for x in all_delegates:
             for y, z in x:
-                all_hotkeys.append(y.hotkey_ss58)
-        # all_hotkeys.extend([x.hotkey_ss58 for x in all_delegates[0]])
-        print(all_hotkeys)
+                all_hotkeys.append(WalletLike(hotkey_ss58=y.hotkey_ss58))
+
         all_netuids = await subtensor.filter_netuids_by_registered_hotkeys(
             (await subtensor.get_all_subnet_netuids(block_hash)),
             netuids_filter,
