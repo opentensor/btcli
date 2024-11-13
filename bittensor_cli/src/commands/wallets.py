@@ -4,19 +4,19 @@ import itertools
 import os
 import sys
 from collections import defaultdict
-from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 from sys import getsizeof
-from typing import Any, Collection, Generator, Optional
+from typing import Collection, Generator, Optional
 
 import aiohttp
 from bittensor_wallet import Wallet
 from bittensor_wallet.errors import KeyFileError
 from bittensor_wallet.keyfile import Keyfile
+from bt_decode import PortableRegistry
 from fuzzywuzzy import fuzz
 from rich import box
 from rich.align import Align
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Confirm
 from rich.table import Column, Table
 from rich.tree import Tree
 from rich.padding import Padding
@@ -43,6 +43,7 @@ from bittensor_cli.src.bittensor.utils import (
     RAO_PER_TAO,
     console,
     convert_blocks_to_time,
+    decode_scale_bytes,
     err_console,
     print_error,
     print_verbose,
@@ -52,6 +53,13 @@ from bittensor_cli.src.bittensor.utils import (
     validate_coldkey_presence,
     retry_prompt,
 )
+
+
+class WalletLike:
+    def __init__(self, name=None, hotkey_ss58=None, hotkey_str=None):
+        self.name = name
+        self.hotkey_ss58 = hotkey_ss58
+        self.hotkey_str = hotkey_str
 
 
 async def regen_coldkey(
@@ -70,13 +78,21 @@ async def regen_coldkey(
         with open(json_path, "r") as f:
             json_str = f.read()
     try:
-        wallet.regenerate_coldkey(
+        new_wallet = wallet.regenerate_coldkey(
             mnemonic=mnemonic,
             seed=seed,
             json=(json_str, json_password) if all([json_str, json_password]) else None,
             use_password=use_password,
             overwrite=False,
         )
+
+        if isinstance(new_wallet, Wallet):
+            console.print(
+                "\n✅ [dark_sea_green]Regenerated coldkey successfully!\n",
+                f"[dark_sea_green]Wallet name: ({new_wallet.name}), path: ({new_wallet.path}), coldkey ss58: ({new_wallet.coldkeypub.ss58_address})",
+            )
+    except ValueError:
+        print_error("Mnemonic phrase is invalid")
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
 
@@ -88,11 +104,16 @@ async def regen_coldkey_pub(
 ):
     """Creates a new coldkeypub under this wallet."""
     try:
-        wallet.regenerate_coldkeypub(
+        new_coldkeypub = wallet.regenerate_coldkeypub(
             ss58_address=ss58_address,
             public_key=public_key_hex,
             overwrite=False,
         )
+        if isinstance(new_coldkeypub, Wallet):
+            console.print(
+                "\n✅ [dark_sea_green]Regenerated coldkeypub successfully!\n",
+                f"[dark_sea_green]Wallet name: ({new_coldkeypub.name}), path: ({new_coldkeypub.path}), coldkey ss58: ({new_coldkeypub.coldkeypub.ss58_address})",
+            )
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
 
@@ -115,13 +136,20 @@ async def regen_hotkey(
             json_str = f.read()
 
     try:
-        wallet.regenerate_hotkey(
+        new_hotkey = wallet.regenerate_hotkey(
             mnemonic=mnemonic,
             seed=seed,
             json=(json_str, json_password) if all([json_str, json_password]) else None,
             use_password=use_password,
             overwrite=False,
         )
+        if isinstance(new_hotkey, Wallet):
+            console.print(
+                "\n✅ [dark_sea_green]Regenerated hotkey successfully!\n",
+                f"[dark_sea_green]Wallet name: ({new_hotkey.name}), path: ({new_hotkey.path}), hotkey ss58: ({new_hotkey.hotkey.ss58_address})",
+            )
+    except ValueError:
+        print_error("Mnemonic phrase is invalid")
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
 
@@ -692,9 +720,11 @@ async def overview(
                 de_registered_neurons.append(de_registered_neuron)
 
                 # Add this hotkey to the wallets dict
-                wallet_ = Wallet(name=wallet)
-                wallet_.hotkey_ss58 = hotkey_addr
-                wallet.hotkey_str = hotkey_addr[:5]  # Max length of 5 characters
+                wallet_ = WalletLike(
+                    name=wallet.name,
+                    hotkey_ss58=hotkey_addr,
+                    hotkey_str=hotkey_addr[:5],
+                )
                 # Indicates a hotkey not on local machine but exists in stake_info obj on-chain
                 if hotkey_coldkey_to_hotkey_wallet.get(hotkey_addr) is None:
                     hotkey_coldkey_to_hotkey_wallet[hotkey_addr] = {}
@@ -757,8 +787,7 @@ async def overview(
             if not hotwallet:
                 # Indicates a mismatch between what the chain says the coldkey
                 # is for this hotkey and the local wallet coldkey-hotkey pair
-                hotwallet = Wallet(name=nn.coldkey[:7])
-                hotwallet.hotkey_str = nn.hotkey[:7]
+                hotwallet = WalletLike(name=nn.coldkey[:7], hotkey_str=nn.hotkey[:7])
 
             nn: NeuronInfoLite
             uid = nn.uid
@@ -1095,74 +1124,72 @@ def _map_hotkey_to_neurons(
     return netuid, result, None
 
 
-async def _fetch_neurons_for_netuid(
+async def _fetch_neuron_for_netuid(
     netuid: int, subtensor: SubtensorInterface
-) -> tuple[int, tuple[str, bytes]]:
+) -> tuple[int, Optional[tuple[str, bytes]]]:
     """
     Retrieves all neurons for a specified netuid
 
     :param netuid: the netuid to query
     :param subtensor: the SubtensorInterface to make the query
 
-    :return: the original netuid, and a tuple of the runtime call type and the result bytes
+    :return: the original netuid and a tuple of the neurons type and the encoded hex-bytes
     """
 
-    async def neurons_lite_for_netuid(netuid: int) -> dict[Any, Any]:
-        result = await subtensor.query_runtime_api_wait_to_decode(
+    async def neurons_lite_for_uid(uid: int) -> Optional[str]:
+        block_hash = subtensor.substrate.last_block_hash
+        type_string, bytes_result = await subtensor.query_runtime_api_wait_to_decode(
             runtime_api="NeuronInfoRuntimeApi",
             method="get_neurons_lite",
-            params=[netuid],
-            block_hash=subtensor.substrate.last_block_hash,
-            reuse_block=True,
+            params=[uid],
+            block_hash=block_hash,
         )
 
-        return result
+        return type_string, bytes_result
 
-    neurons = await neurons_lite_for_netuid(netuid=netuid)
-    return netuid, neurons
-
-
-def _decode_neurons(
-    args: tuple[str, bytes], type_registry: dict[str, Any]
-) -> list[NeuronInfoLite]:
-    runtime_call_type, result_bytes = args
-    result_obj = utils.decode_scale_bytes(
-        runtime_call_type, result_bytes, type_registry
-    )
-    return NeuronInfoLite.list_from_any(result_obj)
+    result = await neurons_lite_for_uid(uid=netuid)
+    return netuid, result
 
 
 async def _fetch_all_neurons(
-    netuids: list[int], subtensor: SubtensorInterface
-) -> list[tuple[int, list[NeuronInfoLite]]]:
+    netuids: list[int], subtensor
+) -> list[tuple[int, Optional[tuple[str, bytes]]]]:
     """Retrieves all neurons for each of the specified netuids"""
+    return list(
+        await asyncio.gather(
+            *[_fetch_neuron_for_netuid(netuid, subtensor) for netuid in netuids]
+        )
+    )
 
-    all_futures = []
-    with ProcessPoolExecutor() as executor:
-        for corout in asyncio.as_completed(
-            [_fetch_neurons_for_netuid(netuid, subtensor) for netuid in netuids]
-        ):
-            netuid, result = await corout
-            future = executor.submit(
-                partial(
-                    _decode_neurons, type_registry=subtensor.substrate.registry.registry
-                ),
-                result,
-            )
-            all_futures.append((netuid, future))
 
-    all_results = [  # Wait for all futures to complete
-        (netuid, future.result()) for netuid, future in all_futures
+def _process_neurons_for_netuids(
+    netuids_with_all_neurons_bytes: list[tuple[int, Optional[tuple[str, bytes]]]], custom_rpc_type_registry: PortableRegistry
+) -> list[tuple[int, list[NeuronInfoLite]]]:
+    """
+    Decode a list of hex-bytes neurons (and typestring) with their respective netuid
+
+    :param netuids_with_all_neurons_hex_bytes: netuids with hex-bytes neurons
+    :return: netuids mapped to decoded neurons
+    """
+    all_results = [
+        (netuid, NeuronInfoLite.list_from_any(decode_scale_bytes(result[0], result[1], custom_rpc_type_registry)))
+        if result
+        else (netuid, [])
+        for netuid, result in netuids_with_all_neurons_bytes
     ]
-
     return all_results
 
 
 async def _get_neurons_for_netuids(
     subtensor: SubtensorInterface, netuids: list[int], hot_wallets: list[str]
 ) -> list[tuple[int, list["NeuronInfoLite"], Optional[str]]]:
-    all_processed_neurons = await _fetch_all_neurons(netuids, subtensor)
+    all_neurons_bytes = await _fetch_all_neurons(netuids, subtensor)
 
+    if not subtensor.substrate.registry:
+        subtensor.substrate.initialize()
+    
+    custom_rpc_type_registry: PortableRegistry = subtensor.substrate.registry
+    all_processed_neurons = _process_neurons_for_netuids(all_neurons_bytes, custom_rpc_type_registry)
     return [
         _map_hotkey_to_neurons(neurons, hot_wallets, netuid)
         for netuid, neurons in all_processed_neurons
@@ -1223,11 +1250,17 @@ async def transfer(
     subtensor: SubtensorInterface,
     destination: str,
     amount: float,
+    transfer_all: bool,
     prompt: bool,
 ):
     """Transfer token of amount to destination."""
     await transfer_extrinsic(
-        subtensor, wallet, destination, Balance.from_tao(amount), prompt=prompt
+        subtensor,
+        wallet,
+        destination,
+        Balance.from_tao(amount),
+        transfer_all,
+        prompt=prompt,
     )
 
 
@@ -1381,13 +1414,14 @@ async def faucet(
     output_in_place: bool,
     log_verbose: bool,
     max_successes: int = 3,
+    prompt: bool = True,
 ):
     # TODO: - work out prompts to be passed through the cli
     success = await run_faucet_extrinsic(
         subtensor,
         wallet,
         tpb=threads_per_block,
-        prompt=False,
+        prompt=prompt,
         update_interval=update_interval,
         num_processes=processes,
         cuda=use_cuda,

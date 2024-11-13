@@ -107,18 +107,18 @@ class SubtensorInterface:
         return f"Network: {self.network}, Chain: {self.chain_endpoint}"
 
     async def __aenter__(self):
-        with console.status(
-            f"[yellow]Connecting to Substrate:[/yellow][bold white] {self}..."
-        ):
-            try:
+        try:
+            with console.status(
+                f"[yellow]Connecting to Substrate:[/yellow][bold white] {self}..."
+            ):
                 async with self.substrate:
                     return self
-            except TimeoutException:
-                err_console.print(
-                    "\n[red]Error[/red]: Timeout occurred connecting to substrate. "
-                    f"Verify your chain and network settings: {self}"
-                )
-                raise typer.Exit(code=1)
+        except TimeoutException:
+            err_console.print(
+                "\n[red]Error[/red]: Timeout occurred connecting to substrate. "
+                f"Verify your chain and network settings: {self}"
+            )
+            raise typer.Exit(code=1)
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.substrate.close()
@@ -265,7 +265,7 @@ class SubtensorInterface:
         self,
         runtime_api: str,
         method: str,
-        params: Optional[Union[list[list[int]], dict[str, int]]],
+        params: Optional[Union[list[list[int]], list[int], dict[str, int]]],
         block_hash: Optional[str] = None,
         reuse_block: Optional[bool] = False,
     ) -> Optional[Any]:

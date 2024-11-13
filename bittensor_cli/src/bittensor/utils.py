@@ -466,7 +466,7 @@ def get_explorer_url_for_network(
         explorer_opentensor_url = "{root_url}/query/{block_hash}".format(
             root_url=explorer_root_urls.get("opentensor"), block_hash=block_hash
         )
-        explorer_taostats_url = "{root_url}/extrinsic/{block_hash}".format(
+        explorer_taostats_url = "{root_url}/hash/{block_hash}".format(
             root_url=explorer_root_urls.get("taostats"), block_hash=block_hash
         )
         explorer_urls["opentensor"] = explorer_opentensor_url
@@ -555,7 +555,7 @@ def format_error_message(
             err_docs = error_message.get("docs", [err_description])
             err_description = err_docs[0] if err_docs else err_description
 
-    return f"Subtensor returned `{err_name}({err_type})` error. This means: `{err_description}`."
+    return f"Subtensor returned `{err_name}({err_type})` error. This means: '{err_description}'."
 
 
 def convert_blocks_to_time(blocks: int, block_time: int = 12) -> tuple[int, int, int]:
