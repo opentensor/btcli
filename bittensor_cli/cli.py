@@ -1568,7 +1568,7 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Displays the details of the user's wallet pairs (coldkey, hotkey) on the Bittensor network.
+        Displays the details of the user's wallet pairs (coldkey to delegated and owned hotkeys) on the Bittensor network.
 
         The output is presented as a table with the below columns:
 

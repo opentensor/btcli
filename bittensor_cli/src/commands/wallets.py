@@ -1325,13 +1325,6 @@ async def inspect(
         block_hash = await subtensor.substrate.get_chain_head()
         await subtensor.substrate.init_runtime(block_hash=block_hash)
 
-        print_verbose("Fetching netuids of registered hotkeys", status)
-        all_netuids = await subtensor.filter_netuids_by_registered_hotkeys(
-            (await subtensor.get_all_subnet_netuids(block_hash)),
-            netuids_filter,
-            all_hotkeys,
-            block_hash=block_hash,
-        )
     # bittensor.logging.debug(f"Netuids to check: {all_netuids}")
     with console.status("Pulling delegates info...", spinner="aesthetic"):
         registered_delegate_info = await subtensor.get_delegate_identities()
@@ -1362,16 +1355,12 @@ async def inspect(
     ]
     all_delegates: list[list[tuple[DelegateInfo, Balance]]]
     with console.status("Pulling balance data...", spinner="aesthetic"):
-        balances, all_neurons, all_delegates = await asyncio.gather(
+        # print_verbose("Fetching netuids of registered hotkeys", status)
+        # TODO this fetches only netuids where the hotkey is on the device. I don't think this is intended.
+        balances, all_delegates = await asyncio.gather(
             subtensor.get_balance(
                 *[w.coldkeypub.ss58_address for w in wallets_with_ckp_file],
                 block_hash=block_hash,
-            ),
-            asyncio.gather(
-                *[
-                    subtensor.neurons_lite(netuid=netuid, block_hash=block_hash)
-                    for netuid in all_netuids
-                ]
             ),
             asyncio.gather(
                 *[
@@ -1380,6 +1369,23 @@ async def inspect(
                 ]
             ),
         )
+        for x in all_delegates:
+            for y, z in x:
+                all_hotkeys.append(y.hotkey_ss58)
+        # all_hotkeys.extend([x.hotkey_ss58 for x in all_delegates[0]])
+        print(all_hotkeys)
+        all_netuids = await subtensor.filter_netuids_by_registered_hotkeys(
+            (await subtensor.get_all_subnet_netuids(block_hash)),
+            netuids_filter,
+            all_hotkeys,
+            block_hash=block_hash,
+        )
+        all_neurons = await asyncio.gather(
+                *[
+                    subtensor.neurons_lite(netuid=netuid, block_hash=block_hash)
+                    for netuid in all_netuids
+                ]
+            )
     neuron_state_dict = {}
     for netuid, neuron in zip(all_netuids, all_neurons):
         neuron_state_dict[netuid] = neuron if neuron else []
