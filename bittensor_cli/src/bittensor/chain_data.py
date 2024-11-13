@@ -5,18 +5,10 @@ from typing import Any, Optional, Union
 import bt_decode
 import netaddr
 import munch
-from scalecodec.utils.ss58 import ss58_encode
 
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.networking import int_to_ip
-from bittensor_cli.src.bittensor.utils import SS58_FORMAT, u16_normalized_float
-
-
-def decode_account_id(account_id_bytes: Union[tuple[int], tuple[tuple[int]]]):
-    if isinstance(account_id_bytes, tuple) and isinstance(account_id_bytes[0], tuple):
-        account_id_bytes = account_id_bytes[0]
-    # Convert the AccountId bytes to a Base64 string
-    return ss58_encode(bytes(account_id_bytes).hex(), SS58_FORMAT)
+from bittensor_cli.src.bittensor.utils import u16_normalized_float, decode_account_id
 
 
 def process_stake_data(stake_data):
