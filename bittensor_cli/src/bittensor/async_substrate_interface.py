@@ -1110,17 +1110,6 @@ class AsyncSubstrateInterface:
                 # self.debug_message('Add PortableRegistry from metadata to type registry')
                 self.runtime_config.add_portable_registry(self.metadata)
 
-            if self.metadata_v15:
-                metadata_v15 = self.metadata_v15.value()
-                self.runtime_config.update_from_scale_info_types(
-                    self._type_registry_to_scale_info_types(
-                        metadata_v15["types"]["types"]
-                    )
-                )
-                self.runtime_config.type_registry["runtime_api"].update(
-                    self._type_registry_apis_to_runtime_api(metadata_v15["apis"])
-                )
-
             # Set active runtime version
             self.runtime_config.set_active_spec_version_id(self.runtime_version)
 
@@ -2335,50 +2324,42 @@ class AsyncSubstrateInterface:
             params = {}
 
         try:
-            runtime_call_def = self.runtime_config.type_registry["runtime_api"][api][
-                "methods"
-            ][method]
-            runtime_api_types = self.runtime_config.type_registry["runtime_api"][
-                api
-            ].get("types", {})
+            metadata_v15 = self.metadata_v15.value()
+            apis = {entry["name"]: entry for entry in metadata_v15["apis"]}
+            api_entry = apis[api]
+            methods = {entry["name"]: entry for entry in api_entry["methods"]}
+            runtime_call_def = methods[method]
         except KeyError:
             raise ValueError(f"Runtime API Call '{api}.{method}' not found in registry")
 
-        if isinstance(params, list) and len(params) != len(runtime_call_def["params"]):
+        if isinstance(params, list) and len(params) != len(runtime_call_def["inputs"]):
             raise ValueError(
                 f"Number of parameter provided ({len(params)}) does not "
-                f"match definition {len(runtime_call_def['params'])}"
+                f"match definition {len(runtime_call_def['inputs'])}"
             )
 
-        # Add runtime API types to registry
-        self.runtime_config.update_type_registry_types(runtime_api_types)
-        runtime = Runtime(
-            self.chain,
-            self.runtime_config,
-            self.metadata,
-            self.type_registry,
-        )
-
         # Encode params
-        param_data = ScaleBytes(bytes())
-        for idx, param in enumerate(runtime_call_def["params"]):
-            scale_obj = runtime.runtime_config.create_scale_object(param["type"])
+        param_data = b""
+        for idx, param in enumerate(runtime_call_def["inputs"]):
+            param_type_string = f'scale_info::{param["ty"]}'
             if isinstance(params, list):
-                param_data += scale_obj.encode(params[idx])
+                param_data += await self.encode_scale(param_type_string, params[idx])
             else:
                 if param["name"] not in params:
                     raise ValueError(f"Runtime Call param '{param['name']}' is missing")
 
-                param_data += scale_obj.encode(params[param["name"]])
+                param_data += await self.encode_scale(
+                    param_type_string, params[param["name"]]
+                )
 
         # RPC request
         result_data = await self.rpc_request(
-            "state_call", [f"{api}_{method}", str(param_data), block_hash]
+            "state_call", [f"{api}_{method}", param_data.hex(), block_hash]
         )
 
-        return runtime_call_def["type"], bytes_from_hex_string_result(
-            result_data["result"]
-        )
+        output_type_string = f'scale_info::{runtime_call_def["output"]}'
+
+        return output_type_string, bytes_from_hex_string_result(result_data["result"])
 
     async def runtime_call(
         self,
