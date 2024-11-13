@@ -1,7 +1,6 @@
 import asyncio
 
 from bittensor_wallet import Wallet
-from bittensor_wallet.errors import KeyFileError
 from rich.prompt import Confirm
 from substrateinterface.exceptions import SubstrateRequestException
 
@@ -16,6 +15,7 @@ from bittensor_cli.src.bittensor.utils import (
     get_explorer_url_for_network,
     is_valid_bittensor_address_or_public_key,
     print_error,
+    unlock_key,
 )
 
 
@@ -115,10 +115,7 @@ async def transfer_extrinsic(
         return False
     console.print(f"[dark_orange]Initiating transfer on network: {subtensor.network}")
     # Unlock wallet coldkey.
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success:
         return False
 
     # Check balance.

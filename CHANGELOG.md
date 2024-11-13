@@ -1,13 +1,26 @@
 # Changelog
 
+## 8.3.1 /2024-11-13
+
+## What's Changed
+* Better handle incorrect file path for wallets. by @thewhaleking in https://github.com/opentensor/btcli/pull/230
+* Handle websockets version 14, verbose error output by @thewhaleking in https://github.com/opentensor/btcli/pull/236
+* Handles the new PasswordError from bt-wallet by @thewhaleking in https://github.com/opentensor/btcli/pull/232
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v8.3.0...v.8.3.1
+
 ## 8.3.0 /2024-11-06
 
 ## What's Changed
-
 * Better handle incorrect password by @thewhaleking in https://github.com/opentensor/btcli/pull/187
 * Fixes success path of pow register by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/189
 * Adds `--all` flag to transfer by @thewhaleking in https://github.com/opentensor/btcli/pull/181
-* Various fixes by @thewhaleking in https://github.com/opentensor/btcli/pull/199
+* In `do_transfer`, we check the balance with coldkeypub.ss58, but then retrieve it from the dict with coldkey.ss58. Resolve this. by @thewhaleking in https://github.com/opentensor/btcli/pull/199
+* Handle KeyboardInterrupt in CLI to gracefully exit (no traceback) by @thewhaleking in https://github.com/opentensor/btcli/pull/199
+* Handle race conditions where self.metadata may not be set before finishing initialising runtime (this may need optimised in the future) by @thewhaleking in https://github.com/opentensor/btcli/pull/199
+* Error description output by @thewhaleking in https://github.com/opentensor/btcli/pull/199
+* Taostats link fixed by @thewhaleking in https://github.com/opentensor/btcli/pull/199
+* Fixes not showing confirmation if --no-prompt is specified on stake remove by @thewhaleking in https://github.com/opentensor/btcli/pull/199
 * Fix wallets in overview by @thewhaleking in https://github.com/opentensor/btcli/pull/197
 * fix handling null neurons by @thewhaleking in https://github.com/opentensor/btcli/pull/214
 * Fix cuda pow registration by @thewhaleking in https://github.com/opentensor/btcli/pull/215
@@ -16,6 +29,7 @@
 * Support hotkey names for include/exclude in st add/remove by @thewhaleking in https://github.com/opentensor/btcli/pull/216
 * Subvortex network added by @thewhaleking  in https://github.com/opentensor/btcli/pull/223
 * Add prompt option to all commands which use Confirm prompts by @thewhaleking in https://github.com/opentensor/btcli/pull/227
+* fix: local subtensor port by @distributedstatemachine in https://github.com/opentensor/btcli/pull/228
 * Update local subtensor port by @distributedstatemachine in https://github.com/opentensor/btcli/pull/228
 
 **Full Changelog**: https://github.com/opentensor/btcli/compare/v8.2.0...v8.3.0

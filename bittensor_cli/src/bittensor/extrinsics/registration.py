@@ -20,7 +20,6 @@ import subprocess
 
 import backoff
 from bittensor_wallet import Wallet
-from bittensor_wallet.errors import KeyFileError
 from Crypto.Hash import keccak
 import numpy as np
 from rich.prompt import Confirm
@@ -37,6 +36,7 @@ from bittensor_cli.src.bittensor.utils import (
     get_human_readable,
     print_verbose,
     print_error,
+    unlock_key,
 )
 
 if typing.TYPE_CHECKING:
@@ -726,10 +726,8 @@ async def run_faucet_extrinsic(
         return False, "Requires torch"
 
     # Unlock coldkey
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        return False, "There was an error unlocking your coldkey"
+    if not (unlock_status := unlock_key(wallet, print_out=False)).success:
+        return False, unlock_status.message
 
     # Get previous balance.
     old_balance = await subtensor.get_balance(wallet.coldkeypub.ss58_address)
@@ -1639,10 +1637,7 @@ async def swap_hotkey_extrinsic(
         )
         return False
 
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success:
         return False
 
     if prompt:

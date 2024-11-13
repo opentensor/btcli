@@ -1,4 +1,5 @@
 import ast
+from collections import namedtuple
 import math
 import os
 import sqlite3
@@ -9,7 +10,7 @@ from urllib.parse import urlparse
 
 from bittensor_wallet import Wallet, Keypair
 from bittensor_wallet.utils import SS58_FORMAT
-from bittensor_wallet.errors import KeyFileError
+from bittensor_wallet.errors import KeyFileError, PasswordError
 from bittensor_wallet import utils
 from jinja2 import Template
 from markupsafe import Markup
@@ -34,6 +35,8 @@ if TYPE_CHECKING:
 console = Console()
 err_console = Console(stderr=True)
 verbose_console = Console(quiet=True)
+
+UnlockStatus = namedtuple("UnlockStatus", ["success", "message"])
 
 
 def print_console(message: str, colour: str, title: str, console: Console):
@@ -238,11 +241,14 @@ def get_hotkey_wallets_for_wallet(
 def get_coldkey_wallets_for_path(path: str) -> list[Wallet]:
     """Gets all wallets with coldkeys from a given path"""
     wallet_path = Path(path).expanduser()
-    wallets = [
-        Wallet(name=directory.name, path=path)
-        for directory in wallet_path.iterdir()
-        if directory.is_dir()
-    ]
+    try:
+        wallets = [
+            Wallet(name=directory.name, path=path)
+            for directory in wallet_path.iterdir()
+            if directory.is_dir()
+        ]
+    except FileNotFoundError:
+        wallets = []
     return wallets
 
 
@@ -974,3 +980,39 @@ def retry_prompt(
             return var
         else:
             err_console.print(rejection_text)
+
+
+def unlock_key(
+    wallet: Wallet, unlock_type="cold", print_out: bool = True
+) -> "UnlockStatus":
+    """
+    Attempts to decrypt a wallet's coldkey or hotkey
+    Args:
+        wallet: a Wallet object
+        unlock_type: the key type, 'cold' or 'hot'
+        print_out:  whether to print out the error message to the err_console
+
+    Returns: UnlockStatus for success status of unlock, with error message if unsuccessful
+
+    """
+    if unlock_type == "cold":
+        unlocker = "unlock_coldkey"
+    elif unlock_type == "hot":
+        unlocker = "unlock_hotkey"
+    else:
+        raise ValueError(
+            f"Invalid unlock type provided: {unlock_type}. Must be 'cold' or 'hot'."
+        )
+    try:
+        getattr(wallet, unlocker)()
+        return UnlockStatus(True, "")
+    except PasswordError:
+        err_msg = f"The password used to decrypt your {unlock_type.capitalize()}key Keyfile is invalid."
+        if print_out:
+            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+        return UnlockStatus(False, err_msg)
+    except KeyFileError:
+        err_msg = f"{unlock_type.capitalize()}key Keyfile is corrupt, non-writable, or non-readable, or non-existent."
+        if print_out:
+            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+        return UnlockStatus(False, err_msg)

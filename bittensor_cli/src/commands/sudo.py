@@ -2,7 +2,6 @@ import asyncio
 from typing import TYPE_CHECKING, Union
 
 from bittensor_wallet import Wallet
-from bittensor_wallet.errors import KeyFileError
 from rich import box
 from rich.table import Column, Table
 
@@ -14,6 +13,7 @@ from bittensor_cli.src.bittensor.utils import (
     print_error,
     print_verbose,
     normalize_hyperparameters,
+    unlock_key,
 )
 
 if TYPE_CHECKING:
@@ -101,10 +101,7 @@ async def set_hyperparameter_extrinsic(
         )
         return False
 
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success:
         return False
 
     extrinsic = HYPERPARAMS.get(parameter)
