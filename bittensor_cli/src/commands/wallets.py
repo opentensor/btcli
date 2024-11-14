@@ -15,23 +15,19 @@ from bittensor_wallet.keyfile import Keyfile
 from fuzzywuzzy import fuzz
 from rich import box
 from rich.align import Align
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Confirm
 from rich.table import Column, Table
 from rich.tree import Tree
 from rich.padding import Padding
 from rich.prompt import IntPrompt
-from scalecodec import ScaleBytes
-import scalecodec
 import typer
 
-from bittensor_cli.src import TYPE_REGISTRY
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import (
     DelegateInfo,
     NeuronInfoLite,
     StakeInfo,
-    custom_rpc_type_registry,
     decode_account_id,
 )
 from bittensor_cli.src.bittensor.extrinsics.registration import (
@@ -46,7 +42,6 @@ from bittensor_cli.src.bittensor.utils import (
     RAO_PER_TAO,
     console,
     convert_blocks_to_time,
-    decode_scale_bytes,
     err_console,
     print_error,
     print_verbose,
@@ -56,6 +51,7 @@ from bittensor_cli.src.bittensor.utils import (
     validate_coldkey_presence,
     retry_prompt,
     unlock_key,
+    hex_to_bytes,
 )
 
 
@@ -1176,7 +1172,7 @@ def _process_neurons_for_netuids(
     :return: netuids mapped to decoded neurons
     """
     all_results = [
-        (netuid, NeuronInfoLite.list_from_vec_u8(bytes.fromhex(result[2:])))
+        (netuid, NeuronInfoLite.list_from_vec_u8(hex_to_bytes(result)))
         if result
         else (netuid, [])
         for netuid, result in netuids_with_all_neurons_hex_bytes
