@@ -22,6 +22,8 @@ from substrateinterface.exceptions import (
 from substrateinterface.storage import StorageKey
 import websockets
 
+from bittensor_cli.src.bittensor.utils import hex_to_bytes
+
 ResultHandler = Callable[[dict, Any], Awaitable[tuple[dict, bool]]]
 
 
@@ -2564,10 +2566,7 @@ class AsyncSubstrateInterface:
                         item_key = None
 
                     try:
-                        try:
-                            item_bytes = bytes.fromhex(item[1][2:])
-                        except ValueError:
-                            item_bytes = bytes.fromhex(item[1])
+                        item_bytes = hex_to_bytes(item[1])
 
                         item_value = await self.decode_scale(
                             type_string=value_type,

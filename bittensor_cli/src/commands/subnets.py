@@ -28,6 +28,7 @@ from bittensor_cli.src.bittensor.utils import (
     render_table,
     update_metadata_table,
     unlock_key,
+    hex_to_bytes,
 )
 
 if TYPE_CHECKING:
@@ -155,12 +156,8 @@ async def subnets_list(
         hex_bytes_result = await subtensor.query_runtime_api(
             runtime_api="SubnetInfoRuntimeApi", method="get_subnets_info", params=[]
         )
-        try:
-            bytes_result = bytes.fromhex(hex_bytes_result[2:])
-        except ValueError:
-            bytes_result = bytes.fromhex(hex_bytes_result)
 
-        return SubnetInfo.list_from_vec_u8(bytes_result)
+        return SubnetInfo.list_from_vec_u8(hex_to_bytes(hex_bytes_result))
 
     if not reuse_last:
         subnets: list[SubnetInfo]

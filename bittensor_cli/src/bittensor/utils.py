@@ -581,7 +581,7 @@ def decode_hex_identity_dict(info_dictionary) -> dict[str, Any]:
     def get_decoded(data: str) -> str:
         """Decodes a hex-encoded string."""
         try:
-            return bytes.fromhex(data[2:]).decode()
+            return hex_to_bytes(data).decode()
         except UnicodeDecodeError:
             print(f"Could not decode: {key}: {item}")
 
@@ -1016,3 +1016,14 @@ def unlock_key(
         if print_out:
             err_console.print(f":cross_mark: [red]{err_msg}[/red]")
         return UnlockStatus(False, err_msg)
+
+
+def hex_to_bytes(hex_str: str) -> bytes:
+    """
+    Converts a hex-encoded string into bytes. Handles 0x-prefixed and non-prefixed hex-encoded strings.
+    """
+    if hex_str.startswith("0x"):
+        bytes_result = bytes.fromhex(hex_str[2:])
+    else:
+        bytes_result = bytes.fromhex(hex_str)
+    return bytes_result
