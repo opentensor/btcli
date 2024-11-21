@@ -845,9 +845,9 @@ class SubtensorInterface:
             return {}
 
         all_identities = {
-                decode_account_id(ss58_address[0]): decode_hex_identity(identity)
-                for ss58_address, identity in identities
-            }
+            decode_account_id(ss58_address[0]): decode_hex_identity(identity)
+            for ss58_address, identity in identities
+        }
         return all_identities
 
     async def query_identity(
@@ -887,6 +887,45 @@ class SubtensorInterface:
             return decode_hex_identity(identity_info)
         except TypeError:
             return {}
+
+    async def fetch_coldkey_hotkey_identities(
+        self,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> dict[str, dict]:
+        """
+        Builds a dictionary containing coldkeys and hotkeys with their associated identities and relationships.
+        :param block_hash: The hash of the blockchain block number for the query.
+        :param reuse_block: Whether to reuse the last-used blockchain block hash.
+        :return: Dict with 'coldkeys' and 'hotkeys' as keys.
+        """
+
+        coldkey_identities = await self.query_all_identities()
+        query = await self.substrate.query_multiple(
+            params=[(ss58) for ss58, _ in coldkey_identities.items()],
+            module="SubtensorModule",
+            storage_function="OwnedHotkeys",
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        identities = {"coldkeys": {}, "hotkeys": {}}
+        for coldkey_ss58, hotkeys in query.items():
+            coldkey_identity = coldkey_identities.get(coldkey_ss58)
+            hotkeys = [decode_account_id(hotkey[0]) for hotkey in hotkeys or []]
+
+            identities["coldkeys"][coldkey_ss58] = {
+                "identity": coldkey_identity,
+                "hotkeys": hotkeys,
+            }
+            
+            for hotkey_ss58 in hotkeys:
+                identities["hotkeys"][hotkey_ss58] = {
+                    "coldkey": coldkey_ss58,
+                    "identity": coldkey_identity,
+                }
+
+        return identities
 
     async def weights(
         self, netuid: int, block_hash: Optional[str] = None

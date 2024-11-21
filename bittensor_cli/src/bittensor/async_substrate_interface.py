@@ -4,7 +4,7 @@ import random
 from collections import defaultdict
 from dataclasses import dataclass
 from hashlib import blake2b
-from typing import Optional, Any, Union, Callable, Awaitable, cast, Iterable
+from typing import Optional, Any, Union, Callable, Awaitable, cast
 
 from bt_decode import PortableRegistry, decode as decode_by_type_string, MetadataV15
 from async_property import async_property
@@ -460,6 +460,9 @@ class Runtime:
         self.runtime_config = runtime_config
         self.metadata = metadata
 
+    def __str__(self):
+        return f"Runtime: {self.chain} | {self.config}"
+
     @property
     def implements_scaleinfo(self) -> bool:
         """
@@ -897,9 +900,10 @@ class AsyncSubstrateInterface:
 
         async def get_runtime(block_hash, block_id) -> Runtime:
             # Check if runtime state already set to current block
-            if (block_hash and block_hash == self.last_block_hash) or (
-                block_id and block_id == self.block_id
-            ):
+            if (
+                (block_hash and block_hash == self.last_block_hash)
+                or (block_id and block_id == self.block_id)
+            ) and self.metadata is not None:
                 return Runtime(
                     self.chain,
                     self.runtime_config,
@@ -945,9 +949,11 @@ class AsyncSubstrateInterface:
                 raise SubstrateRequestException(
                     f"No runtime information for block '{block_hash}'"
                 )
-
             # Check if runtime state already set to current block
-            if runtime_info.get("specVersion") == self.runtime_version:
+            if (
+                runtime_info.get("specVersion") == self.runtime_version
+                and self.metadata is not None
+            ):
                 return Runtime(
                     self.chain,
                     self.runtime_config,
@@ -962,16 +968,19 @@ class AsyncSubstrateInterface:
                 if self.runtime_version in self.__metadata_cache:
                     # Get metadata from cache
                     # self.debug_message('Retrieved metadata for {} from memory'.format(self.runtime_version))
-                    self.metadata = self.__metadata_cache[self.runtime_version]
+                    metadata = self.metadata = self.__metadata_cache[
+                        self.runtime_version
+                    ]
                 else:
-                    self.metadata = await self.get_block_metadata(
+                    metadata = self.metadata = await self.get_block_metadata(
                         block_hash=runtime_block_hash, decode=True
                     )
                     # self.debug_message('Retrieved metadata for {} from Substrate node'.format(self.runtime_version))
 
                     # Update metadata cache
                     self.__metadata_cache[self.runtime_version] = self.metadata
-
+            else:
+                metadata = self.metadata
             # Update type registry
             self.reload_type_registry(use_remote_preset=False, auto_discover=True)
 
@@ -1012,7 +1021,10 @@ class AsyncSubstrateInterface:
         if block_id and block_hash:
             raise ValueError("Cannot provide block_hash and block_id at the same time")
 
-        if not (runtime := self.runtime_cache.retrieve(block_id, block_hash)):
+        if (
+            not (runtime := self.runtime_cache.retrieve(block_id, block_hash))
+            or runtime.metadata is None
+        ):
             runtime = await get_runtime(block_hash, block_id)
             self.runtime_cache.add_item(block_id, block_hash, runtime)
         return runtime
@@ -1123,7 +1135,7 @@ class AsyncSubstrateInterface:
         -------
         StorageKey
         """
-        await self.init_runtime(block_hash=block_hash)
+        runtime = await self.init_runtime(block_hash=block_hash)
 
         return StorageKey.create_from_storage_function(
             pallet,
@@ -1603,6 +1615,7 @@ class AsyncSubstrateInterface:
         result_handler: Optional[ResultHandler] = None,
     ) -> RequestManager.RequestResults:
         request_manager = RequestManager(payloads)
+
         subscription_added = False
 
         async with self.ws as ws:
@@ -1785,23 +1798,13 @@ class AsyncSubstrateInterface:
         # By allowing for specifying the block hash, users, if they have multiple query types they want
         # to do, can simply query the block hash first, and then pass multiple query_subtensor calls
         # into an asyncio.gather, with the specified block hash
-        if len(params) != len(set(params)):
-            raise SubstrateRequestException(
-                "You are attempting to query multiple values, but you have duplicates."
-            )
-
         block_hash = await self._get_current_block_hash(block_hash, reuse_block_hash)
         if block_hash:
             self.last_block_hash = block_hash
         runtime = await self.init_runtime(block_hash=block_hash)
         preprocessed: tuple[Preprocessed] = await asyncio.gather(
             *[
-                self._preprocess(
-                    [x] if not isinstance(x, Iterable) else list(x),
-                    block_hash,
-                    storage_function,
-                    module,
-                )
+                self._preprocess([x], block_hash, storage_function, module)
                 for x in params
             ]
         )
@@ -1809,10 +1812,10 @@ class AsyncSubstrateInterface:
             self.make_payload(item.queryable, item.method, item.params)
             for item in preprocessed
         ]
-
         # These will always be the same throughout the preprocessed list, so we just grab the first one
         value_scale_type = preprocessed[0].value_scale_type
         storage_item = preprocessed[0].storage_item
+
         responses = await self._make_rpc_request(
             all_info, value_scale_type, storage_item, runtime
         )
@@ -2281,7 +2284,7 @@ class AsyncSubstrateInterface:
         MetadataModuleConstants
         """
 
-        # await self.init_runtime(block_hash=block_hash)
+        await self.init_runtime(block_hash=block_hash)
 
         for module in self.metadata.pallets:
             if module_name == module.name and module.constants:

@@ -17,19 +17,14 @@ from bittensor_cli.src.bittensor.chain_data import StakeInfo
 from bittensor_cli.src.bittensor.utils import (
     # TODO add back in caching
     console,
-    create_table,
     err_console,
     print_verbose,
     print_error,
-    get_coldkey_wallets_for_path,
     get_hotkey_wallets_for_wallet,
     is_valid_ss58_address,
-    get_metadata_table,
-    update_metadata_table,
-    render_tree,
     u16_normalized_float,
-    validate_coldkey_presence,
     format_error_message,
+    group_subnets,
 )
 
 if TYPE_CHECKING:
@@ -1157,7 +1152,207 @@ The columns are as follows:
                     await asyncio.sleep(tx_rate_limit_blocks * 12)  # 12 sec per block
 
 
-# TODO: Decouple stuff from here. Works but is a mess
+async def unstake_selection(
+    subtensor: "SubtensorInterface",
+    wallet: Wallet,
+    dynamic_info,
+    identities,
+    old_identities,
+):
+    stake_infos = await subtensor.get_stake_info_for_coldkey(
+        coldkey_ss58=wallet.coldkeypub.ss58_address
+    )
+
+    if not stake_infos:
+        print_error("You have no stakes to unstake.")
+        return
+
+    hotkey_stakes = {}
+    for stake_info in stake_infos:
+        hotkey_ss58 = stake_info.hotkey_ss58
+        netuid_ = stake_info.netuid
+        stake_amount = stake_info.stake
+        if stake_amount.tao > 0:
+            hotkey_stakes.setdefault(hotkey_ss58, {})[netuid_] = stake_amount
+
+    hotkeys_info = []
+    for idx, (hotkey_ss58, netuid_stakes) in enumerate(hotkey_stakes.items()):
+        identity = identities["hotkeys"].get(hotkey_ss58) or old_identities.get(
+            hotkey_ss58
+        )
+        hotkey_name = "~"
+        if identity:
+            hotkey_name = identity.get("identity", {}).get("name", "") or identity.get(
+                "display", "~"
+            )
+        # TODO: Add wallet ids here.
+
+        hotkeys_info.append(
+            {
+                "index": idx,
+                "identity": hotkey_name,
+                "netuids": list(netuid_stakes.keys()),
+                "hotkey_ss58": hotkey_ss58,
+            }
+        )
+
+    # Display existing hotkeys, id, and staked netuids.
+    table = Table(
+        title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Hotkeys with Stakes",
+        show_footer=True,
+        show_edge=False,
+        header_style="bold white",
+        border_style="bright_black",
+        style="bold",
+        title_justify="center",
+        show_lines=False,
+        pad_edge=True,
+    )
+    table.add_column("Index", justify="right")
+    table.add_column("Identity", style=COLOR_PALETTE["GENERAL"]["SUBHEADING"])
+    table.add_column("Netuids", style=COLOR_PALETTE["GENERAL"]["NETUID"])
+    table.add_column("Hotkey Address", style=COLOR_PALETTE["GENERAL"]["HOTKEY"])
+
+    for hotkey_info in hotkeys_info:
+        index = str(hotkey_info["index"])
+        identity = hotkey_info["identity"]
+        netuids = group_subnets([n for n in hotkey_info["netuids"]])
+        hotkey_ss58 = hotkey_info["hotkey_ss58"]
+        table.add_row(index, identity, netuids, hotkey_ss58)
+
+    console.print("\n", table)
+
+    # Prompt to select hotkey to unstake.
+    hotkey_options = [str(hotkey_info["index"]) for hotkey_info in hotkeys_info]
+    hotkey_idx = Prompt.ask(
+        "\nEnter the index of the hotkey you want to unstake from",
+        choices=hotkey_options,
+    )
+    selected_hotkey_info = hotkeys_info[int(hotkey_idx)]
+    selected_hotkey_ss58 = selected_hotkey_info["hotkey_ss58"]
+    selected_hotkey_name = selected_hotkey_info["identity"]
+    netuid_stakes = hotkey_stakes[selected_hotkey_ss58]
+
+    # Display hotkey's staked netuids with amount.
+    table = Table(
+        title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Stakes for hotkey \n[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{selected_hotkey_name}\n{selected_hotkey_ss58}\n",
+        show_footer=True,
+        show_edge=False,
+        header_style="bold white",
+        border_style="bright_black",
+        style="bold",
+        title_justify="center",
+        show_lines=False,
+        pad_edge=True,
+    )
+    table.add_column("Subnet", justify="right")
+    table.add_column("Symbol", style=COLOR_PALETTE["GENERAL"]["SYMBOL"])
+    table.add_column("Stake Amount", style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"])
+    table.add_column(
+        f"[bold white]RATE ({Balance.get_unit(0)}_in/{Balance.get_unit(1)}_in)",
+        style=COLOR_PALETTE["POOLS"]["RATE"],
+        justify="left",
+    )
+
+    for netuid_, stake_amount in netuid_stakes.items():
+        symbol = dynamic_info[netuid_].symbol
+        rate = f"{dynamic_info[netuid_].price.tao:.4f} τ/{symbol}"
+        table.add_row(str(netuid_), symbol, str(stake_amount), rate)
+    console.print("\n", table)
+
+    # Ask which netuids to unstake from for the selected hotkey.
+    while True:
+        netuid_input = Prompt.ask(
+            "\nEnter the netuids of the [blue]subnets to unstake[/blue] from (comma-separated), or '[blue]all[/blue]' to unstake from all",
+            default="all",
+        )
+
+        if netuid_input.lower() == "all":
+            selected_netuids = list(netuid_stakes.keys())
+            break
+        else:
+            try:
+                netuid_list = [int(n.strip()) for n in netuid_input.split(",")]
+                invalid_netuids = [n for n in netuid_list if n not in netuid_stakes]
+                if invalid_netuids:
+                    print_error(
+                        f"The following netuids are invalid or not available: {', '.join(map(str, invalid_netuids))}. Please try again."
+                    )
+                else:
+                    selected_netuids = netuid_list
+                    break
+            except ValueError:
+                print_error(
+                    "Please enter valid netuids (numbers), separated by commas, or 'all'."
+                )
+
+    hotkeys_to_unstake_from = []
+    for netuid_ in selected_netuids:
+        hotkeys_to_unstake_from.append(
+            (selected_hotkey_name, selected_hotkey_ss58, netuid_)
+        )
+    return hotkeys_to_unstake_from
+
+
+def ask_unstake_amount(
+    current_stake_balance: Balance,
+    netuid: int,
+    staking_address_name: str,
+    staking_address_ss58: str,
+    interactive: bool,
+) -> Optional[Balance]:
+    """Prompt the user to decide the amount to unstake."""
+    while True:
+        response = Prompt.ask(
+            f"Unstake all: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{current_stake_balance}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
+            f" from [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{staking_address_name if staking_address_name else staking_address_ss58}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
+            f" on netuid: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{netuid}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]? [y/n/q]",
+            choices=["y", "n", "q"],
+            default="n" if interactive else "y",
+            show_choices=True,
+        ).lower()
+
+        if response == "q":
+            return None  # Quit
+
+        elif response == "y":
+            return current_stake_balance
+
+        elif response == "n":
+            while True:
+                amount_input = Prompt.ask(
+                    f"Enter amount to unstake in [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{Balance.get_unit(netuid)}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
+                    f" from subnet: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{netuid}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
+                    f" (Max: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{current_stake_balance}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}])"
+                )
+                if amount_input.lower() == "q":
+                    return None  # Quit
+
+                try:
+                    amount_value = float(amount_input)
+                    if amount_value <= 0:
+                        console.print("[red]Amount must be greater than zero.[/red]")
+                        continue  # Re-prompt
+
+                    amount_to_unstake = Balance.from_tao(amount_value)
+                    amount_to_unstake.set_unit(netuid)
+                    if amount_to_unstake > current_stake_balance:
+                        console.print(
+                            f"[red]Amount exceeds current stake balance of {current_stake_balance}.[/red]"
+                        )
+                        continue  # Re-prompt
+
+                    return amount_to_unstake
+
+                except ValueError:
+                    console.print(
+                        "[red]Invalid input. Please enter a numeric value or 'q' to quit.[/red]"
+                    )
+
+        else:
+            console.print("[red]Invalid input. Please enter 'y', 'n', or 'q'.[/red]")
+
+
 async def unstake(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
@@ -1170,61 +1365,84 @@ async def unstake(
     keep_stake: float,
     unstake_all: bool,
     prompt: bool,
+    interactive: bool = False,
 ):
-    """Unstake token of amount from hotkey(s)."""
-    netuids = (
-        [int(netuid)]
-        if netuid is not None
-        else await subtensor.get_all_subnet_netuids()
-    )
-    # Get the hotkey_names (if any) and the hotkey_ss58s.
-    hotkeys_to_unstake_from: list[tuple[Optional[str], str]] = []
-    if hotkey_ss58_address:
-        print_verbose(f"Unstaking from ss58 ({hotkey_ss58_address})")
-        # Unstake from specific hotkey.
-        hotkeys_to_unstake_from = [(None, hotkey_ss58_address)]
-    elif all_hotkeys:
-        print_verbose("Unstaking from all hotkeys")
-        # Unstake from all hotkeys.
-        all_hotkeys_: list[Wallet] = get_hotkey_wallets_for_wallet(wallet=wallet)
-        # Exclude hotkeys that are specified.
-        hotkeys_to_unstake_from = [
-            (wallet.hotkey_str, wallet.hotkey.ss58_address)
-            for wallet in all_hotkeys_
-            if wallet.hotkey_str not in exclude_hotkeys
-        ]
-    elif include_hotkeys:
-        print_verbose("Unstaking from included hotkeys")
-        # Unstake from specific hotkeys.
-        for hotkey_ss58_or_hotkey_name in include_hotkeys:
-            if is_valid_ss58_address(hotkey_ss58_or_hotkey_name):
-                # If the hotkey is a valid ss58 address, we add it to the list.
-                hotkeys_to_unstake_from.append((None, hotkey_ss58_or_hotkey_name))
-            else:
-                # If the hotkey is not a valid ss58 address, we assume it is a hotkey name.
-                # We then get the hotkey from the wallet and add it to the list.
-                wallet_ = Wallet(
-                    name=wallet.name,
-                    path=wallet.path,
-                    hotkey=hotkey_ss58_or_hotkey_name,
-                )
-                hotkeys_to_unstake_from.append(
-                    (wallet_.hotkey_str, wallet_.hotkey.ss58_address)
-                )
-    else:
-        # Only cli.config.wallet.hotkey is specified.
-        # So we unstake from that single hotkey.
-        print_verbose(
-            f"Unstaking from wallet: ({wallet.name}) from hotkey: ({wallet.hotkey_str})"
-        )
-        assert wallet.hotkey is not None
-        hotkeys_to_unstake_from = [(wallet.hotkey_str, wallet.hotkey.ss58_address)]
-
+    """Unstake tokens from hotkey(s)."""
     with console.status(
-        f"Retrieving stake and subnet data from {subtensor.network}...",
+        f"Retrieving subnet data & identities from {subtensor.network}...",
         spinner="earth",
     ):
-        # Prepare lists to store unstaking data per subnet
+        all_sn_dynamic_info_, ck_hk_identities, old_identities = await asyncio.gather(
+            subtensor.get_all_subnet_dynamic_info(),
+            subtensor.fetch_coldkey_hotkey_identities(),
+            subtensor.get_delegate_identities(),
+        )
+        all_sn_dynamic_info = {info.netuid: info for info in all_sn_dynamic_info_}
+
+    if interactive:
+        hotkeys_to_unstake_from = await unstake_selection(
+            subtensor, wallet, all_sn_dynamic_info, ck_hk_identities, old_identities
+        )
+        if not hotkeys_to_unstake_from:
+            console.print("[red]No unstake operations to perform.[/red]")
+            return False
+        netuids = list({netuid for _, _, netuid in hotkeys_to_unstake_from})
+
+    else:
+        netuids = (
+            [int(netuid)]
+            if netuid is not None
+            else await subtensor.get_all_subnet_netuids()
+        )
+
+        # Get the hotkey_names (if any) and the hotkey_ss58s.
+        hotkeys_to_unstake_from: list[tuple[Optional[str], str]] = []
+        if hotkey_ss58_address:
+            print_verbose(f"Unstaking from ss58 ({hotkey_ss58_address})")
+            # Unstake from specific hotkey.
+            hotkeys_to_unstake_from = [(None, hotkey_ss58_address)]
+        elif all_hotkeys:
+            print_verbose("Unstaking from all hotkeys")
+            # Unstake from all hotkeys.
+            all_hotkeys_: list[Wallet] = get_hotkey_wallets_for_wallet(wallet=wallet)
+            # Exclude hotkeys that are specified.
+            hotkeys_to_unstake_from = [
+                (wallet.hotkey_str, wallet.hotkey.ss58_address)
+                for wallet in all_hotkeys_
+                if wallet.hotkey_str not in exclude_hotkeys
+            ]
+        elif include_hotkeys:
+            print_verbose("Unstaking from included hotkeys")
+            # Unstake from specific hotkeys.
+            for hotkey_identifier in include_hotkeys:
+                if is_valid_ss58_address(hotkey_identifier):
+                    # If the hotkey is a valid ss58 address, we add it to the list.
+                    hotkeys_to_unstake_from.append((None, hotkey_identifier))
+                else:
+                    # If the hotkey is not a valid ss58 address, we assume it is a hotkey name.
+                    # We then get the hotkey from the wallet and add it to the list.
+                    wallet_ = Wallet(
+                        name=wallet.name,
+                        path=wallet.path,
+                        hotkey=hotkey_identifier,
+                    )
+                    hotkeys_to_unstake_from.append(
+                        (wallet_.hotkey_str, wallet_.hotkey.ss58_address)
+                    )
+        else:
+            # Only cli.config.wallet.hotkey is specified.
+            # So we unstake from that single hotkey.
+            print_verbose(
+                f"Unstaking from wallet: ({wallet.name}) from hotkey: ({wallet.hotkey_str})"
+            )
+            assert wallet.hotkey is not None
+            hotkeys_to_unstake_from = [(wallet.hotkey_str, wallet.hotkey.ss58_address)]
+
+    with console.status(
+        f"Retrieving stake data from {subtensor.network}...",
+        spinner="earth",
+    ):
+        # Prepare unstaking transactions
         unstake_operations = []
         total_received_amount = Balance.from_tao(0)
         current_wallet_balance: Balance = (
@@ -1232,42 +1450,49 @@ async def unstake(
         )[wallet.coldkeypub.ss58_address]
         max_float_slippage = 0
 
-        # Fetch dynamic info and stake balances
+        # Fetch stake balances
         chain_head = await subtensor.substrate.get_chain_head()
-        dynamic_info_list, stake_all_netuids = await asyncio.gather(
-            asyncio.gather(
-                *[subtensor.get_subnet_dynamic_info(x, chain_head) for x in netuids]
-            ),
-            subtensor.multi_get_stake_for_coldkey_and_hotkey_on_netuid(
+        stake_in_netuids = (
+            await subtensor.multi_get_stake_for_coldkey_and_hotkey_on_netuid(
                 hotkey_ss58s=[hk[1] for hk in hotkeys_to_unstake_from],
                 coldkey_ss58=wallet.coldkeypub.ss58_address,
                 netuids=netuids,
                 block_hash=chain_head,
-            ),
+            )
         )
-        dynamic_info_all_netuids = dict(zip(netuids, dynamic_info_list))
+
+    # Flag to check if user wants to quit
+    skip_remaining_subnets = False
+    if hotkeys_to_unstake_from:
+        console.print(
+            "[dark_sea_green3]Tip: Enter 'q' any time to skip further entries and process existing unstakes"
+        )
 
     # Iterate over hotkeys and netuids to collect unstake operations
     for hotkey in hotkeys_to_unstake_from:
-        staking_address_name, staking_address_ss58 = hotkey
-        initial_amount = amount
-        skip_remaining_subnets = False  # Flag to check if user wants to quit
+        if skip_remaining_subnets:
+            break
 
-        if len(netuids) > 1:
+        if interactive:
+            staking_address_name, staking_address_ss58, netuid = hotkey
+            netuids_to_process = [netuid]
+        else:
+            staking_address_name, staking_address_ss58 = hotkey
+            netuids_to_process = netuids
+
+        initial_amount = amount
+
+        if len(netuids_to_process) > 1:
             console.print(
                 "[dark_sea_green3]Tip: Enter 'q' any time to stop going over remaining subnets and process current unstakes.\n"
             )
 
-        for netuid in netuids:
+        for netuid in netuids_to_process:
             if skip_remaining_subnets:
                 break  # Exit the loop over netuids
 
-            dynamic_info = dynamic_info_all_netuids.get(netuid)
-            if dynamic_info is None:
-                console.print(f"[red]Subnet: {netuid} does not exist.[/red]")
-                continue  # Skip to the next subnet
-
-            current_stake_balance = stake_all_netuids[staking_address_ss58][netuid]
+            dynamic_info = all_sn_dynamic_info.get(netuid)
+            current_stake_balance = stake_in_netuids[staking_address_ss58][netuid]
             if current_stake_balance.tao == 0:
                 continue  # No stake to unstake
 
@@ -1277,70 +1502,18 @@ async def unstake(
             elif unstake_all:
                 amount_to_unstake_as_balance = current_stake_balance
             else:
-                # Prompt the user for each subnet
-                while True:
-                    response = Prompt.ask(
-                        f"Unstake all: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{current_stake_balance}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
-                        f" from [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{staking_address_name if staking_address_name else staking_address_ss58}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] on netuid: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{netuid}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]? [y/n/q]",
-                        choices=["y", "n", "q"],
-                        default="n",
-                        show_choices=True,
-                    ).lower()
-
-                    if response.lower() == "q":
-                        skip_remaining_subnets = True
-                        break  # Exit the loop over netuids
-
-                    elif response.lower() == "y":
-                        amount_to_unstake_as_balance = current_stake_balance
-                        break  # Proceed with unstake operation
-                    elif response.lower() == "n":
-                        while True:
-                            amount_input = Prompt.ask(
-                                f"Enter amount to unstake in [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{Balance.get_unit(netuid)}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] from subnet: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{netuid}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] (Max: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{current_stake_balance}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}])"
-                            )
-                            if amount_input.lower() == "q":
-                                skip_remaining_subnets = True
-                                break  # Exit the loop over netuids
-
-                            try:
-                                amount_value = float(amount_input)
-                                if amount_value < 0 or amount_value == 0:
-                                    console.print(
-                                        "[red]Amount cannot be negative or zero.[/red]"
-                                    )
-                                    continue  # Re-prompt
-
-                                amount_to_unstake_as_balance = Balance.from_tao(
-                                    amount_value
-                                )
-                                amount_to_unstake_as_balance.set_unit(netuid)
-                                if amount_to_unstake_as_balance > current_stake_balance:
-                                    console.print(
-                                        f"[red]Amount exceeds current stake balance of {current_stake_balance}.[/red]"
-                                    )
-                                    continue  # Re-prompt
-
-                                break  # Valid amount entered
-
-                            except ValueError:
-                                console.print(
-                                    "[red]Invalid input. Please enter a numeric value or 'q' to quit.[/red]"
-                                )
-
-                        if skip_remaining_subnets:
-                            break  # Exit the loop over netuids
-
-                        break  # Exit the response loop
-
-                    else:
-                        console.print(
-                            "[red]Invalid input. Please enter 'y', 'n', or 'q'.[/red]"
-                        )
-                        continue  # Re-prompt
-
-                if skip_remaining_subnets:
-                    break  # Exit the loop over netuids
+                amount_to_unstake_as_balance = ask_unstake_amount(
+                    current_stake_balance,
+                    netuid,
+                    staking_address_name
+                    if staking_address_name
+                    else staking_address_ss58,
+                    staking_address_ss58,
+                    interactive,
+                )
+                if amount_to_unstake_as_balance is None:
+                    skip_remaining_subnets = True
+                    break
 
             # Check enough stake to remove.
             amount_to_unstake_as_balance.set_unit(netuid)
@@ -1349,7 +1522,7 @@ async def unstake(
                     f"[red]Not enough stake to remove[/red]:\n Stake balance: [dark_orange]{current_stake_balance}[/dark_orange]"
                     f" < Unstaking amount: [dark_orange]{amount_to_unstake_as_balance}[/dark_orange]"
                 )
-                continue  # Skip to the next subnet
+                continue  # Skip to the next subnet - useful when single amount is specified for all subnets
 
             received_amount, slippage = dynamic_info.alpha_to_tao_with_slippage(
                 amount_to_unstake_as_balance
@@ -1389,7 +1562,9 @@ async def unstake(
 
     # Build the table
     table = Table(
-        title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Unstaking to: \nWallet: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.name}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}], Coldkey ss58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\nNetwork: {subtensor.network}[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n",
+        title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Unstaking to: \nWallet: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.name}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}],"
+        f" Coldkey ss58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
+        f"Network: {subtensor.network}[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n",
         show_footer=True,
         show_edge=False,
         header_style="bold white",
@@ -1441,7 +1616,8 @@ async def unstake(
         console.print(
             "\n"
             f"[{COLOR_PALETTE['STAKE']['SLIPPAGE_TEXT']}]-------------------------------------------------------------------------------------------------------------------\n"
-            f"[bold]WARNING:[/bold]  The slippage on one of your operations is high: [{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}]{max_float_slippage} %[/{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}], this may result in a loss of funds.\n"
+            f"[bold]WARNING:[/bold]  The slippage on one of your operations is high: [{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}]{max_float_slippage} %[/{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}],"
+            " this may result in a loss of funds.\n"
             f"-------------------------------------------------------------------------------------------------------------------\n"
         )
 
@@ -1451,7 +1627,7 @@ async def unstake(
 The table displays information about the stake remove operation you are about to perform.
 The columns are as follows:
     - [bold white]Netuid[/bold white]: The netuid of the subnet you are unstaking from.
-    - [bold white]Hotkey[/bold white]: The ss58 address of the hotkey you are unstaking from. 
+    - [bold white]Hotkey[/bold white]: The ss58 address or identity of the hotkey you are unstaking from. 
     - [bold white]Amount[/bold white]: The stake amount you are removing from this key.
     - [bold white]Rate[/bold white]: The rate of exchange between TAO and the subnet's stake.
     - [bold white]Received[/bold white]: The amount of free balance TAO you will receive on this subnet after slippage.
@@ -1469,7 +1645,7 @@ The columns are as follows:
         err_console.print("Error decrypting coldkey (possibly incorrect password)")
         return False
 
-    with console.status(f"\n:satellite: Performing unstaking operations...") as status:
+    with console.status("\n:satellite: Performing unstaking operations...") as status:
         for op in unstake_operations:
             netuid_i = op["netuid"]
             staking_address_name = op["hotkey_name"]
@@ -1522,7 +1698,8 @@ The columns are as follows:
                         f"Balance:\n  [blue]{current_wallet_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
                     )
                     console.print(
-                        f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid_i}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] Stake:\n  [blue]{current_stake_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}"
+                        f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid_i}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
+                        f" Stake:\n  [blue]{current_stake_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}"
                     )
     console.print(
         f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]Unstaking operations completed."
@@ -2060,3 +2237,10 @@ async def move_stake(
                     f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_destination_stake_balance}"
                 )
                 return
+
+
+async def fetch_coldkey_stake(subtensor: "SubtensorInterface", wallet: Wallet):
+    sub_stakes = await subtensor.get_stake_info_for_coldkey(
+        coldkey_ss58=wallet.coldkeypub.ss58_address
+    )
+    return sub_stakes

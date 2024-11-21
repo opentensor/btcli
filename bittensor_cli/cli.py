@@ -2679,6 +2679,12 @@ class CLIManager:
             "hotkeys in `--include-hotkeys`.",
         ),
         prompt: bool = Options.prompt,
+        interactive: bool = typer.Option(
+            False,
+            "--interactive",
+            "-i",
+            help="Enter interactive mode for unstaking.",
+        ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2694,33 +2700,38 @@ class CLIManager:
         [blue bold]Note[/blue bold]: This command is for users who wish to reallocate their stake or withdraw them from the network. It allows for flexible management of TAO stake across different neurons (hotkeys) on the network.
         """
         self.verbosity_handler(quiet, verbose)
-        netuid = get_optional_netuid(netuid, all_netuids)
 
-        if all_hotkeys and include_hotkeys:
+        if interactive and any(
+            [hotkey_ss58_address, include_hotkeys, exclude_hotkeys, all_hotkeys]
+        ):
             err_console.print(
-                "You have specified hotkeys to include and also the `--all-hotkeys` flag. The flag"
-                "should only be used standalone (to use all hotkeys) or with `--exclude-hotkeys`."
+                "Interactive mode cannot be used with hotkey selection options like --include-hotkeys, --exclude-hotkeys, --all-hotkeys, or --hotkey."
             )
             raise typer.Exit()
 
-        if include_hotkeys and exclude_hotkeys:
-            err_console.print(
-                "You have specified both including and excluding hotkeys options. Select one or the other."
-            )
-            raise typer.Exit()
+        if not interactive:
+            netuid = get_optional_netuid(netuid, all_netuids)
+            if all_hotkeys and include_hotkeys:
+                err_console.print(
+                    "You have specified hotkeys to include and also the `--all-hotkeys` flag. The flag"
+                    " should only be used standalone (to use all hotkeys) or with `--exclude-hotkeys`."
+                )
+                raise typer.Exit()
 
-        if unstake_all and amount:
-            err_console.print(
-                "Cannot specify both a specific amount and 'unstake-all'. Choose one or the other."
-            )
-            raise typer.Exit()
+            if include_hotkeys and exclude_hotkeys:
+                err_console.print(
+                    "You have specified both including and excluding hotkeys options. Select one or the other."
+                )
+                raise typer.Exit()
 
-        # TODO: We are prompting for amount for each subnet later - confirm this to be removed
-        # if not unstake_all and not amount and not keep_stake:
-        #     amount = FloatPrompt.ask("[blue bold]Amount to unstake (TAO τ)[/blue bold]")
+            if unstake_all and amount:
+                err_console.print(
+                    "Cannot specify both a specific amount and 'unstake-all'. Choose one or the other."
+                )
+                raise typer.Exit()
 
-        if unstake_all and not amount:
-            if not Confirm.ask("Unstake all staked TAO tokens?", default=False):
+            if amount and amount <= 0:
+                print_error(f"You entered an incorrect unstake amount: {amount}")
                 raise typer.Exit()
 
         if (
@@ -2728,6 +2739,7 @@ class CLIManager:
             and not hotkey_ss58_address
             and not all_hotkeys
             and not include_hotkeys
+            and not interactive
         ):
             if not wallet_name:
                 wallet_name = Prompt.ask(
@@ -2735,7 +2747,7 @@ class CLIManager:
                     default=self.config.get("wallet_name") or defaults.wallet.name,
                 )
             hotkey_or_ss58 = Prompt.ask(
-                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to stake to",
+                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake from",
                 default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
             )
             if is_valid_ss58_address(hotkey_or_ss58):
@@ -2753,7 +2765,13 @@ class CLIManager:
                     validate=WV.WALLET_AND_HOTKEY,
                 )
 
-        elif all_hotkeys or include_hotkeys or exclude_hotkeys or hotkey_ss58_address:
+        elif (
+            all_hotkeys
+            or include_hotkeys
+            or exclude_hotkeys
+            or hotkey_ss58_address
+            or interactive
+        ):
             wallet = self.wallet_ask(
                 wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
             )
@@ -2771,8 +2789,8 @@ class CLIManager:
             included_hotkeys = parse_to_list(
                 include_hotkeys,
                 str,
-                "Hotkeys must be a comma-separated list of ss58s, e.g., `--include-hotkeys 5Grw....,5Grw....`.",
-                is_ss58=True,
+                "Hotkeys must be a comma-separated list of ss58s or names, e.g., `--include-hotkeys hk1,hk2`.",
+                is_ss58=False,
             )
         else:
             included_hotkeys = []
@@ -2781,15 +2799,11 @@ class CLIManager:
             excluded_hotkeys = parse_to_list(
                 exclude_hotkeys,
                 str,
-                "Hotkeys must be a comma-separated list of ss58s, e.g., `--exclude-hotkeys 5Grw....,5Grw....`.",
-                is_ss58=True,
+                "Hotkeys must be a comma-separated list of ss58s or names, e.g., `--exclude-hotkeys hk3,hk4`.",
+                is_ss58=False,
             )
         else:
             excluded_hotkeys = []
-
-        if amount and amount <= 0:
-            print_error(f"You entered an incorrect unstake amount: {amount}")
-            raise typer.Exit()
 
         return self._run_command(
             stake.unstake(
@@ -2804,6 +2818,7 @@ class CLIManager:
                 keep_stake,
                 unstake_all,
                 prompt,
+                interactive,
             )
         )
 

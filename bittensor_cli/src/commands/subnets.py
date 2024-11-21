@@ -580,7 +580,7 @@ async def show(subtensor: "SubtensorInterface", netuid: int, prompt: bool = True
             return
 
         table = Table(
-            title=f"[underline dark_orange]Root Network[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}[/dark_orange]\n",
+            title=f"[{COLOR_PALETTE['GENERAL']['HEADER']}]Root Network\n[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]Network: {subtensor.network}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]\n",
             show_footer=True,
             show_edge=False,
             header_style="bold white",
@@ -593,27 +593,27 @@ async def show(subtensor: "SubtensorInterface", netuid: int, prompt: bool = True
         table.add_column("[bold white]Position", style="white", justify="center")
         table.add_column(
             f"[bold white] TAO ({Balance.get_unit(0)})",
-            style="medium_purple",
+            style=COLOR_PALETTE["STAKE"]["TAO"],
             justify="center",
         )
         table.add_column(
             f"[bold white]Stake ({Balance.get_unit(0)})",
-            style="rgb(42,161,152)",
+            style=COLOR_PALETTE["POOLS"]["ALPHA_IN"],
             justify="center",
         )
         table.add_column(
             f"[bold white]Emission ({Balance.get_unit(0)}/block)",
-            style="tan",
+            style=COLOR_PALETTE["POOLS"]["EMISSION"],
             justify="center",
         )
         table.add_column(
             "[bold white]Hotkey",
-            style="plum2",
+            style=COLOR_PALETTE["GENERAL"]["HOTKEY"],
             justify="center",
         )
         table.add_column(
             "[bold white]Coldkey",
-            style="plum2",
+            style=COLOR_PALETTE["GENERAL"]["COLDKEY"],
             justify="center",
         )
 
