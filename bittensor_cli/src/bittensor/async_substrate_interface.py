@@ -4,12 +4,11 @@ import random
 from collections import defaultdict
 from dataclasses import dataclass
 from hashlib import blake2b
-from typing import Optional, Any, Union, Callable, Awaitable, cast
+from typing import Optional, Any, Union, Callable, Awaitable, cast, TYPE_CHECKING
 
 from async_property import async_property
 from bt_decode import PortableRegistry, decode as decode_by_type_string, MetadataV15
 from bittensor_wallet import Keypair
-from packaging import version
 from scalecodec import GenericExtrinsic
 from scalecodec.base import ScaleBytes, ScaleType, RuntimeConfigurationObject
 from scalecodec.type_registry import load_type_registry_preset
@@ -20,9 +19,13 @@ from substrateinterface.exceptions import (
     BlockNotFound,
 )
 from substrateinterface.storage import StorageKey
-import websockets
+from websockets.asyncio.client import connect
+from websockets.exceptions import ConnectionClosed
 
 from bittensor_cli.src.bittensor.utils import hex_to_bytes
+
+if TYPE_CHECKING:
+    from websockets.asyncio.client import ClientConnection
 
 ResultHandler = Callable[[dict, Any], Awaitable[tuple[dict, bool]]]
 
@@ -627,7 +630,7 @@ class Websocket:
         # TODO allow setting max concurrent connections and rpc subscriptions per connection
         # TODO reconnection logic
         self.ws_url = ws_url
-        self.ws: Optional[websockets.WebSocketClientProtocol] = None
+        self.ws: Optional[ClientConnection] = None
         self.id = 0
         self.max_subscriptions = max_subscriptions
         self.max_connections = max_connections
@@ -655,7 +658,7 @@ class Websocket:
 
     async def _connect(self):
         self.ws = await asyncio.wait_for(
-            websockets.connect(self.ws_url, **self._options), timeout=10
+            connect(self.ws_url, **self._options), timeout=10
         )
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -698,9 +701,7 @@ class Websocket:
 
     async def _recv(self) -> None:
         try:
-            response = json.loads(
-                await cast(websockets.WebSocketClientProtocol, self.ws).recv()
-            )
+            response = json.loads(await cast(ClientConnection, self.ws).recv())
             async with self._lock:
                 self._open_subscriptions -= 1
             if "id" in response:
@@ -709,7 +710,7 @@ class Websocket:
                 self._received[response["params"]["subscription"]] = response
             else:
                 raise KeyError(response)
-        except websockets.ConnectionClosed:
+        except ConnectionClosed:
             raise
         except KeyError as e:
             raise e
@@ -720,7 +721,7 @@ class Websocket:
                 await self._recv()
         except asyncio.CancelledError:
             pass
-        except websockets.ConnectionClosed:
+        except ConnectionClosed:
             # TODO try reconnect, but only if it's needed
             raise
 
@@ -737,7 +738,7 @@ class Websocket:
         try:
             await self.ws.send(json.dumps({**payload, **{"id": original_id}}))
             return original_id
-        except websockets.ConnectionClosed:
+        except ConnectionClosed:
             raise
 
     async def retrieve(self, item_id: int) -> Optional[dict]:
@@ -774,13 +775,13 @@ class AsyncSubstrateInterface:
         """
         self.chain_endpoint = chain_endpoint
         self.__chain = chain_name
-        options = {
-            "max_size": 2**32,
-            "write_limit": 2**16,
-        }
-        if version.parse(websockets.__version__) < version.parse("14.0"):
-            options.update({"read_limit": 2**16})
-        self.ws = Websocket(chain_endpoint, options=options)
+        self.ws = Websocket(
+            chain_endpoint,
+            options={
+                "max_size": 2**32,
+                "write_limit": 2**16,
+            },
+        )
         self._lock = asyncio.Lock()
         self.last_block_hash: Optional[str] = None
         self.config = {
