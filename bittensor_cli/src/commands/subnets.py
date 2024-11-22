@@ -5,7 +5,6 @@ from textwrap import dedent
 from typing import TYPE_CHECKING, Optional, cast
 
 from bittensor_wallet import Wallet
-from bittensor_wallet.errors import KeyFileError
 from rich.prompt import Confirm
 from rich.table import Column, Table
 
@@ -28,6 +27,8 @@ from bittensor_cli.src.bittensor.utils import (
     millify,
     render_table,
     update_metadata_table,
+    unlock_key,
+    hex_to_bytes,
 )
 
 if TYPE_CHECKING:
@@ -100,10 +101,7 @@ async def register_subnetwork_extrinsic(
         ):
             return False
 
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success:
         return False
 
     with console.status(":satellite: Registering subnet...", spinner="earth"):
@@ -155,11 +153,11 @@ async def subnets_list(
     """List all subnet netuids in the network."""
 
     async def _get_all_subnets_info():
-        result = await subtensor.query_runtime_api(
+        hex_bytes_result = await subtensor.query_runtime_api(
             runtime_api="SubnetInfoRuntimeApi", method="get_subnets_info", params=[]
         )
 
-        return SubnetInfo.list_from_any(result)
+        return SubnetInfo.list_from_vec_u8(hex_to_bytes(hex_bytes_result))
 
     if not reuse_last:
         subnets: list[SubnetInfo]

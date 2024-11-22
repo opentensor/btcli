@@ -1,4 +1,5 @@
 import ast
+from collections import namedtuple
 import math
 import os
 import sqlite3
@@ -9,7 +10,7 @@ from urllib.parse import urlparse
 
 from bittensor_wallet import Wallet, Keypair
 from bittensor_wallet.utils import SS58_FORMAT
-from bittensor_wallet.errors import KeyFileError
+from bittensor_wallet.errors import KeyFileError, PasswordError
 from bittensor_wallet import utils
 import bt_decode
 from jinja2 import Template
@@ -36,6 +37,8 @@ if TYPE_CHECKING:
 console = Console()
 err_console = Console(stderr=True)
 verbose_console = Console(quiet=True)
+
+UnlockStatus = namedtuple("UnlockStatus", ["success", "message"])
 
 
 def print_console(message: str, colour: str, title: str, console: Console):
@@ -240,11 +243,14 @@ def get_hotkey_wallets_for_wallet(
 def get_coldkey_wallets_for_path(path: str) -> list[Wallet]:
     """Gets all wallets with coldkeys from a given path"""
     wallet_path = Path(path).expanduser()
-    wallets = [
-        Wallet(name=directory.name, path=path)
-        for directory in wallet_path.iterdir()
-        if directory.is_dir()
-    ]
+    try:
+        wallets = [
+            Wallet(name=directory.name, path=path)
+            for directory in wallet_path.iterdir()
+            if directory.is_dir()
+        ]
+    except FileNotFoundError:
+        wallets = []
     return wallets
 
 
@@ -598,7 +604,7 @@ def decode_hex_identity_dict(info_dictionary) -> dict[str, Any]:
     def get_decoded(data: str) -> str:
         """Decodes a hex-encoded string."""
         try:
-            return bytes.fromhex(data[2:]).decode()
+            return hex_to_bytes(data).decode()
         except UnicodeDecodeError:
             print(f"Could not decode: {key}: {item}")
 
@@ -997,6 +1003,53 @@ def retry_prompt(
             return var
         else:
             err_console.print(rejection_text)
+
+
+def unlock_key(
+    wallet: Wallet, unlock_type="cold", print_out: bool = True
+) -> "UnlockStatus":
+    """
+    Attempts to decrypt a wallet's coldkey or hotkey
+    Args:
+        wallet: a Wallet object
+        unlock_type: the key type, 'cold' or 'hot'
+        print_out:  whether to print out the error message to the err_console
+
+    Returns: UnlockStatus for success status of unlock, with error message if unsuccessful
+
+    """
+    if unlock_type == "cold":
+        unlocker = "unlock_coldkey"
+    elif unlock_type == "hot":
+        unlocker = "unlock_hotkey"
+    else:
+        raise ValueError(
+            f"Invalid unlock type provided: {unlock_type}. Must be 'cold' or 'hot'."
+        )
+    try:
+        getattr(wallet, unlocker)()
+        return UnlockStatus(True, "")
+    except PasswordError:
+        err_msg = f"The password used to decrypt your {unlock_type.capitalize()}key Keyfile is invalid."
+        if print_out:
+            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+        return UnlockStatus(False, err_msg)
+    except KeyFileError:
+        err_msg = f"{unlock_type.capitalize()}key Keyfile is corrupt, non-writable, or non-readable, or non-existent."
+        if print_out:
+            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+        return UnlockStatus(False, err_msg)
+
+
+def hex_to_bytes(hex_str: str) -> bytes:
+    """
+    Converts a hex-encoded string into bytes. Handles 0x-prefixed and non-prefixed hex-encoded strings.
+    """
+    if hex_str.startswith("0x"):
+        bytes_result = bytes.fromhex(hex_str[2:])
+    else:
+        bytes_result = bytes.fromhex(hex_str)
+    return bytes_result
 
 
 def bytes_from_hex_string_result(hex_string_result: str) -> bytes:

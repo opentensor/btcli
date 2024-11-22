@@ -5,7 +5,6 @@ from collections import defaultdict
 from dataclasses import dataclass
 from hashlib import blake2b
 from itertools import chain
-from munch import munchify, Munch
 from typing import Optional, Any, Union, Callable, Awaitable, cast
 from types import SimpleNamespace
 
@@ -30,6 +29,8 @@ from substrateinterface.storage import StorageKey
 import websockets
 
 from .utils import bytes_from_hex_string_result, encode_account_id
+
+from bittensor_cli.src.bittensor.utils import hex_to_bytes
 
 ResultHandler = Callable[[dict, Any], Awaitable[tuple[dict, bool]]]
 
@@ -809,14 +810,13 @@ class AsyncSubstrateInterface:
         """
         self.chain_endpoint = chain_endpoint
         self.__chain = chain_name
-        self.ws = Websocket(
-            chain_endpoint,
-            options={
-                "max_size": 2**32,
-                "read_limit": 2**16,
-                "write_limit": 2**16,
-            },
-        )
+        options = {
+            "max_size": 2**32,
+            "write_limit": 2**16,
+        }
+        if version.parse(websockets.__version__) < version.parse("14.0"):
+            options.update({"read_limit": 2**16})
+        self.ws = Websocket(chain_endpoint, options=options)
         self._lock = asyncio.Lock()
         self.last_block_hash: Optional[str] = None
         self.config = {
@@ -2699,10 +2699,7 @@ class AsyncSubstrateInterface:
                         item_key = None
 
                     try:
-                        try:
-                            item_bytes = bytes.fromhex(item[1][2:])
-                        except ValueError:
-                            item_bytes = bytes.fromhex(item[1])
+                        item_bytes = hex_to_bytes(item[1])
 
                         item_value = await self.decode_scale(
                             type_string=value_type,

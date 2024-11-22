@@ -20,7 +20,6 @@ import subprocess
 
 import backoff
 from bittensor_wallet import Wallet
-from bittensor_wallet.errors import KeyFileError
 from Crypto.Hash import keccak
 import numpy as np
 from rich.prompt import Confirm
@@ -37,6 +36,8 @@ from bittensor_cli.src.bittensor.utils import (
     get_human_readable,
     print_verbose,
     print_error,
+    unlock_key,
+    hex_to_bytes,
 )
 
 if typing.TYPE_CHECKING:
@@ -726,10 +727,8 @@ async def run_faucet_extrinsic(
         return False, "Requires torch"
 
     # Unlock coldkey
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        return False, "There was an error unlocking your coldkey"
+    if not (unlock_status := unlock_key(wallet, print_out=False)).success:
+        return False, unlock_status.message
 
     # Get previous balance.
     old_balance = await subtensor.get_balance(wallet.coldkeypub.ss58_address)
@@ -865,7 +864,7 @@ async def _check_for_newest_block_and_update(
         block_number, difficulty, block_hash = await _get_block_with_retry(
             subtensor=subtensor, netuid=netuid
         )
-        block_bytes = bytes.fromhex(block_hash[2:])
+        block_bytes = hex_to_bytes(block_hash)
 
         update_curr_block(
             curr_diff,
@@ -972,7 +971,7 @@ async def _block_solver(
         subtensor=subtensor, netuid=netuid
     )
 
-    block_bytes = bytes.fromhex(block_hash[2:])
+    block_bytes = hex_to_bytes(block_hash)
     old_block_number = block_number
     # Set to current block
     _update_curr_block(
@@ -1251,7 +1250,7 @@ def _terminate_workers_and_wait_for_exit(
 @backoff.on_exception(backoff.constant, Exception, interval=1, max_tries=3)
 async def _get_block_with_retry(
     subtensor: "SubtensorInterface", netuid: int
-) -> tuple[int, int, bytes]:
+) -> tuple[int, int, str]:
     """
     Gets the current block number, difficulty, and block hash from the substrate node.
 
@@ -1639,10 +1638,7 @@ async def swap_hotkey_extrinsic(
         )
         return False
 
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success:
         return False
 
     if prompt:

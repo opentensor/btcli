@@ -3,7 +3,6 @@ import json
 from typing import Optional, TYPE_CHECKING
 
 from bittensor_wallet import Wallet
-from bittensor_wallet.errors import KeyFileError
 import numpy as np
 from numpy.typing import NDArray
 from rich import box
@@ -41,6 +40,7 @@ from bittensor_cli.src.bittensor.utils import (
     render_table,
     update_metadata_table,
     group_subnets,
+    unlock_key,
 )
 
 if TYPE_CHECKING:
@@ -279,10 +279,7 @@ async def burned_register_extrinsic(
              finalization/inclusion, the response is `True`.
     """
 
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success:
         return False
 
     with console.status(
@@ -538,10 +535,7 @@ async def delegate_extrinsic(
     delegate_string = "delegate" if delegate else "undelegate"
 
     # Decrypt key
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success:
         return False
 
     print_verbose("Checking if hotkey is a delegate")
@@ -1099,11 +1093,7 @@ async def senate_vote(
         return False
 
     # Unlock the wallet.
-    try:
-        wallet.unlock_hotkey()
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success and unlock_key(wallet, "hot").success:
         return False
 
     console.print(f"Fetching proposals in [dark_orange]network: {subtensor.network}")
@@ -1323,11 +1313,7 @@ async def set_take(wallet: Wallet, subtensor: SubtensorInterface, take: float) -
 
     console.print(f"Setting take on [dark_orange]network: {subtensor.network}")
     # Unlock the wallet.
-    try:
-        wallet.unlock_hotkey()
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success and unlock_key(wallet, "hot").success:
         return False
 
     result_ = await _do_set_take()
@@ -1725,11 +1711,7 @@ async def nominate(wallet: Wallet, subtensor: SubtensorInterface, prompt: bool):
 
     console.print(f"Nominating on [dark_orange]network: {subtensor.network}")
     # Unlock the wallet.
-    try:
-        wallet.unlock_hotkey()
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success and unlock_key(wallet, "hot").success:
         return False
 
     print_verbose(f"Checking hotkey ({wallet.hotkey_str}) is a delegate")
