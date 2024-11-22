@@ -127,8 +127,6 @@ class Options:
     use_password = typer.Option(
         True,
         help="Set this to `True` to protect the generated Bittensor key with a password.",
-        is_flag=True,
-        flag_value=False,
     )
     public_hex_key = typer.Option(None, help="The public key in hex format.")
     ss58_address = typer.Option(
@@ -1843,8 +1841,6 @@ class CLIManager:
         use_password: bool = typer.Option(
             False,  # Overriden to False
             help="Set to 'True' to protect the generated Bittensor key with a password.",
-            is_flag=True,
-            flag_value=True,
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -1901,8 +1897,6 @@ class CLIManager:
         use_password: bool = typer.Option(
             False,  # Overriden to False
             help="Set to 'True' to protect the generated Bittensor key with a password.",
-            is_flag=True,
-            flag_value=True,
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
