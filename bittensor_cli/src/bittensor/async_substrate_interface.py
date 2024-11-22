@@ -652,14 +652,11 @@ class Websocket:
                 self._exit_task.cancel()
             if not self._initialized:
                 self._initialized = True
-                await self._connect()
+                self.ws = await asyncio.wait_for(
+                    connect(self.ws_url, **self._options), timeout=10
+                )
                 self._receiving_task = asyncio.create_task(self._start_receiving())
         return self
-
-    async def _connect(self):
-        self.ws = await asyncio.wait_for(
-            connect(self.ws_url, **self._options), timeout=10
-        )
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         async with self._lock:
@@ -701,7 +698,7 @@ class Websocket:
 
     async def _recv(self) -> None:
         try:
-            response = json.loads(await cast(ClientConnection, self.ws).recv())
+            response = json.loads(await self.ws.recv())
             async with self._lock:
                 self._open_subscriptions -= 1
             if "id" in response:
