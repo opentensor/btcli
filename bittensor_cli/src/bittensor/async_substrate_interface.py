@@ -439,7 +439,7 @@ class RuntimeCache:
             self.block_hashes[block_hash] = runtime
 
     def retrieve(
-        self, block: Optional[int], block_hash: Optional[str]
+        self, block: Optional[int] = None, block_hash: Optional[str] = None
     ) -> Optional["Runtime"]:
         if block is not None:
             return self.blocks.get(block)
@@ -630,7 +630,7 @@ class Websocket:
         # TODO allow setting max concurrent connections and rpc subscriptions per connection
         # TODO reconnection logic
         self.ws_url = ws_url
-        self.ws: Optional[ClientConnection] = None
+        self.ws: Optional["ClientConnection"] = None
         self.id = 0
         self.max_subscriptions = max_subscriptions
         self.max_connections = max_connections
@@ -1135,7 +1135,7 @@ class AsyncSubstrateInterface:
         -------
         StorageKey
         """
-        runtime = await self.init_runtime(block_hash=block_hash)
+        await self.init_runtime(block_hash=block_hash)
 
         return StorageKey.create_from_storage_function(
             pallet,
@@ -1555,7 +1555,7 @@ class AsyncSubstrateInterface:
         self,
         response: dict,
         subscription_id: Union[int, str],
-        value_scale_type: Optional[str],
+        value_scale_type: Optional[str] = None,
         storage_item: Optional[ScaleType] = None,
         runtime: Optional[Runtime] = None,
         result_handler: Optional[ResultHandler] = None,
