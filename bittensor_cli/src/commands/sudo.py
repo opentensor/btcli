@@ -178,7 +178,7 @@ async def sudo_set_hyperparameter(
 
     normalized_value: Union[str, bool]
     if param_name in [
-        "network_registration_allowed",
+        "registration_allowed",
         "network_pow_registration_allowed",
         "commit_reveal_weights_enabled",
         "liquid_alpha_enabled",
