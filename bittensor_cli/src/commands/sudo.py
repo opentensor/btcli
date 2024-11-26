@@ -178,19 +178,20 @@ async def sudo_set_hyperparameter(
 
     normalized_value: Union[str, bool]
     if param_name in [
-        "network_registration_allowed",
+        "registration_allowed",
         "network_pow_registration_allowed",
         "commit_reveal_weights_enabled",
         "liquid_alpha_enabled",
     ]:
-        normalized_value = param_value.lower() in ["true", "1"]
+        normalized_value = param_value.lower() in ["true", "True", "1"]
     else:
         normalized_value = param_value
 
     is_allowed_value, value = allowed_value(param_name, normalized_value)
     if not is_allowed_value:
         err_console.print(
-            f"Hyperparameter {param_name} value is not within bounds. Value is {normalized_value} but must be {value}"
+            f"Hyperparameter [dark_orange]{param_name}[/dark_orange] value is not within bounds. "
+            f"Value is {normalized_value} but must be {value}"
         )
         return
 
