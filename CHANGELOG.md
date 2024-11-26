@@ -1,6 +1,6 @@
 # Changelog
 
-## 8.4.0 /2024-11-26
+## 8.4.0 /2024-11-27
 
 ## What's Changed
 * Use hex to bytes function by @thewhaleking in https://github.com/opentensor/btcli/pull/244
