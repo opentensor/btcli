@@ -1,5 +1,17 @@
 # Changelog
 
+## 8.4.0 /2024-11-26
+
+## What's Changed
+* Use hex to bytes function by @thewhaleking in https://github.com/opentensor/btcli/pull/244
+* Remove deprecated Typer options by @thewhaleking in https://github.com/opentensor/btcli/pull/248
+* Upgrade websockets by @thewhaleking in https://github.com/opentensor/btcli/pull/247
+* Fast block improvements by @thewhaleking in https://github.com/opentensor/btcli/pull/245
+* Fixed overview message discrepancy by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/251
+* Fix hyperparams setting. by @thewhaleking in https://github.com/opentensor/btcli/pull/252
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v8.3.1...v8.4.0
+
 ## 8.3.1 /2024-11-13
 
 ## What's Changed
