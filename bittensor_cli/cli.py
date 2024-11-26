@@ -3904,6 +3904,16 @@ class CLIManager:
             )
             param_name = hyperparam_list[choice - 1]
 
+        if param_name in ["alpha_high", "alpha_low"]:
+            param_name = "alpha_values"
+            low_val = FloatPrompt.ask(
+                "Enter the new value for [dark_orange]alpha_low[/dark_orange]"
+            )
+            high_val = FloatPrompt.ask(
+                "Enter the new value for [dark_orange]alpha_high[/dark_orange]"
+            )
+            param_value = f"{low_val},{high_val}"
+
         if not param_value:
             param_value = Prompt.ask(
                 f"Enter the new value for [dark_orange]{param_name}[/dark_orange] in the VALUE column format"
