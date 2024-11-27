@@ -4,12 +4,11 @@ import random
 from collections import defaultdict
 from dataclasses import dataclass
 from hashlib import blake2b
-from typing import Optional, Any, Union, Callable, Awaitable, cast
+from typing import Optional, Any, Union, Callable, Awaitable, cast, TYPE_CHECKING
 
 from async_property import async_property
 from bt_decode import PortableRegistry, decode as decode_by_type_string, MetadataV15
 from bittensor_wallet import Keypair
-from packaging import version
 from scalecodec import GenericExtrinsic
 from scalecodec.base import ScaleBytes, ScaleType, RuntimeConfigurationObject
 from scalecodec.type_registry import load_type_registry_preset
@@ -20,7 +19,13 @@ from substrateinterface.exceptions import (
     BlockNotFound,
 )
 from substrateinterface.storage import StorageKey
-import websockets
+from websockets.asyncio.client import connect
+from websockets.exceptions import ConnectionClosed
+
+from bittensor_cli.src.bittensor.utils import hex_to_bytes
+
+if TYPE_CHECKING:
+    from websockets.asyncio.client import ClientConnection
 
 ResultHandler = Callable[[dict, Any], Awaitable[tuple[dict, bool]]]
 
@@ -434,7 +439,7 @@ class RuntimeCache:
             self.block_hashes[block_hash] = runtime
 
     def retrieve(
-        self, block: Optional[int], block_hash: Optional[str]
+        self, block: Optional[int] = None, block_hash: Optional[str] = None
     ) -> Optional["Runtime"]:
         if block is not None:
             return self.blocks.get(block)
@@ -625,7 +630,7 @@ class Websocket:
         # TODO allow setting max concurrent connections and rpc subscriptions per connection
         # TODO reconnection logic
         self.ws_url = ws_url
-        self.ws: Optional[websockets.WebSocketClientProtocol] = None
+        self.ws: Optional["ClientConnection"] = None
         self.id = 0
         self.max_subscriptions = max_subscriptions
         self.max_connections = max_connections
@@ -647,14 +652,11 @@ class Websocket:
                 self._exit_task.cancel()
             if not self._initialized:
                 self._initialized = True
-                await self._connect()
+                self.ws = await asyncio.wait_for(
+                    connect(self.ws_url, **self._options), timeout=10
+                )
                 self._receiving_task = asyncio.create_task(self._start_receiving())
         return self
-
-    async def _connect(self):
-        self.ws = await asyncio.wait_for(
-            websockets.connect(self.ws_url, **self._options), timeout=10
-        )
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         async with self._lock:
@@ -696,9 +698,7 @@ class Websocket:
 
     async def _recv(self) -> None:
         try:
-            response = json.loads(
-                await cast(websockets.WebSocketClientProtocol, self.ws).recv()
-            )
+            response = json.loads(await self.ws.recv())
             async with self._lock:
                 self._open_subscriptions -= 1
             if "id" in response:
@@ -707,7 +707,7 @@ class Websocket:
                 self._received[response["params"]["subscription"]] = response
             else:
                 raise KeyError(response)
-        except websockets.ConnectionClosed:
+        except ConnectionClosed:
             raise
         except KeyError as e:
             raise e
@@ -718,7 +718,7 @@ class Websocket:
                 await self._recv()
         except asyncio.CancelledError:
             pass
-        except websockets.ConnectionClosed:
+        except ConnectionClosed:
             # TODO try reconnect, but only if it's needed
             raise
 
@@ -735,7 +735,7 @@ class Websocket:
         try:
             await self.ws.send(json.dumps({**payload, **{"id": original_id}}))
             return original_id
-        except websockets.ConnectionClosed:
+        except ConnectionClosed:
             raise
 
     async def retrieve(self, item_id: int) -> Optional[dict]:
@@ -772,13 +772,13 @@ class AsyncSubstrateInterface:
         """
         self.chain_endpoint = chain_endpoint
         self.__chain = chain_name
-        options = {
-            "max_size": 2**32,
-            "write_limit": 2**16,
-        }
-        if version.parse(websockets.__version__) < version.parse("14.0"):
-            options.update({"read_limit": 2**16})
-        self.ws = Websocket(chain_endpoint, options=options)
+        self.ws = Websocket(
+            chain_endpoint,
+            options={
+                "max_size": 2**32,
+                "write_limit": 2**16,
+            },
+        )
         self._lock = asyncio.Lock()
         self.last_block_hash: Optional[str] = None
         self.config = {
@@ -1135,7 +1135,7 @@ class AsyncSubstrateInterface:
         -------
         StorageKey
         """
-        runtime = await self.init_runtime(block_hash=block_hash)
+        await self.init_runtime(block_hash=block_hash)
 
         return StorageKey.create_from_storage_function(
             pallet,
@@ -1555,7 +1555,7 @@ class AsyncSubstrateInterface:
         self,
         response: dict,
         subscription_id: Union[int, str],
-        value_scale_type: Optional[str],
+        value_scale_type: Optional[str] = None,
         storage_item: Optional[ScaleType] = None,
         runtime: Optional[Runtime] = None,
         result_handler: Optional[ResultHandler] = None,
@@ -1769,7 +1769,6 @@ class AsyncSubstrateInterface:
             call_params = {}
 
         await self.init_runtime(block_hash=block_hash)
-
         call = self.runtime_config.create_scale_object(
             type_string="Call", metadata=self.metadata
         )
@@ -2087,7 +2086,8 @@ class AsyncSubstrateInterface:
 
         :return: The signed Extrinsic
         """
-        await self.init_runtime()
+        if not self.metadata:
+            await self.init_runtime()
 
         # Check requirements
         if not isinstance(call, GenericCall):
@@ -2140,7 +2140,6 @@ class AsyncSubstrateInterface:
         extrinsic = self.runtime_config.create_scale_object(
             type_string="Extrinsic", metadata=self.metadata
         )
-
         value = {
             "account_id": f"0x{keypair.public_key.hex()}",
             "signature": f"0x{signature.hex()}",
@@ -2158,9 +2157,7 @@ class AsyncSubstrateInterface:
         signature_cls = self.runtime_config.get_decoder_class("ExtrinsicSignature")
         if issubclass(signature_cls, self.runtime_config.get_decoder_class("Enum")):
             value["signature_version"] = signature_version
-
         extrinsic.encode(value)
-
         return extrinsic
 
     async def get_chain_finalised_head(self):
@@ -2564,10 +2561,7 @@ class AsyncSubstrateInterface:
                         item_key = None
 
                     try:
-                        try:
-                            item_bytes = bytes.fromhex(item[1][2:])
-                        except ValueError:
-                            item_bytes = bytes.fromhex(item[1])
+                        item_bytes = hex_to_bytes(item[1])
 
                         item_value = await self.decode_scale(
                             type_string=value_type,

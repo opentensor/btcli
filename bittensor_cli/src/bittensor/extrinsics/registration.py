@@ -18,7 +18,6 @@ import typing
 from typing import Optional
 import subprocess
 
-import backoff
 from bittensor_wallet import Wallet
 from Crypto.Hash import keccak
 import numpy as np
@@ -37,6 +36,7 @@ from bittensor_cli.src.bittensor.utils import (
     print_verbose,
     print_error,
     unlock_key,
+    hex_to_bytes,
 )
 
 if typing.TYPE_CHECKING:
@@ -687,7 +687,7 @@ async def run_faucet_extrinsic(
     tpb: int = 256,
     num_processes: Optional[int] = None,
     update_interval: Optional[int] = None,
-    log_verbose: bool = False,
+    log_verbose: bool = True,
     max_successes: int = 3,
 ) -> tuple[bool, str]:
     r"""Runs a continual POW to get a faucet of TAO on the test net.
@@ -735,8 +735,12 @@ async def run_faucet_extrinsic(
     # Attempt rolling registration.
     attempts = 1
     successes = 1
+    pow_result: Optional[POWSolution]
     while True:
         try:
+            account_nonce = await subtensor.substrate.get_account_nonce(
+                wallet.coldkey.ss58_address
+            )
             pow_result = None
             while pow_result is None or await pow_result.is_stale(subtensor=subtensor):
                 # Solve latest POW.
@@ -745,7 +749,7 @@ async def run_faucet_extrinsic(
                         if prompt:
                             err_console.print("CUDA is not available.")
                         return False, "CUDA is not available."
-                    pow_result: Optional[POWSolution] = await create_pow(
+                    pow_result = await create_pow(
                         subtensor,
                         wallet,
                         -1,
@@ -758,7 +762,7 @@ async def run_faucet_extrinsic(
                         log_verbose=log_verbose,
                     )
                 else:
-                    pow_result: Optional[POWSolution] = await create_pow(
+                    pow_result = await create_pow(
                         subtensor,
                         wallet,
                         -1,
@@ -778,7 +782,7 @@ async def run_faucet_extrinsic(
                 },
             )
             extrinsic = await subtensor.substrate.create_signed_extrinsic(
-                call=call, keypair=wallet.coldkey
+                call=call, keypair=wallet.coldkey, nonce=account_nonce
             )
             response = await subtensor.substrate.submit_extrinsic(
                 extrinsic,
@@ -863,7 +867,7 @@ async def _check_for_newest_block_and_update(
         block_number, difficulty, block_hash = await _get_block_with_retry(
             subtensor=subtensor, netuid=netuid
         )
-        block_bytes = bytes.fromhex(block_hash[2:])
+        block_bytes = hex_to_bytes(block_hash)
 
         update_curr_block(
             curr_diff,
@@ -970,7 +974,7 @@ async def _block_solver(
         subtensor=subtensor, netuid=netuid
     )
 
-    block_bytes = bytes.fromhex(block_hash[2:])
+    block_bytes = hex_to_bytes(block_hash)
     old_block_number = block_number
     # Set to current block
     _update_curr_block(
@@ -1245,11 +1249,9 @@ def _terminate_workers_and_wait_for_exit(
             worker.terminate()
 
 
-# TODO verify this works with async
-@backoff.on_exception(backoff.constant, Exception, interval=1, max_tries=3)
 async def _get_block_with_retry(
     subtensor: "SubtensorInterface", netuid: int
-) -> tuple[int, int, bytes]:
+) -> tuple[int, int, str]:
     """
     Gets the current block number, difficulty, and block hash from the substrate node.
 
@@ -1261,10 +1263,9 @@ async def _get_block_with_retry(
     :raises Exception: If the block hash is None.
     :raises ValueError: If the difficulty is None.
     """
-    block_number = await subtensor.substrate.get_block_number(None)
-    block_hash = await subtensor.substrate.get_block_hash(
-        block_number
-    )  # TODO check if I need to do all this
+    block = await subtensor.substrate.get_block()
+    block_hash = block["header"]["hash"]
+    block_number = block["header"]["number"]
     try:
         difficulty = (
             1_000_000

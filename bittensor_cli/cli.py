@@ -58,7 +58,7 @@ except ImportError:
         pass
 
 
-__version__ = "8.3.1"
+__version__ = "8.4.0"
 
 
 _core_version = re.match(r"^\d+\.\d+\.\d+", __version__).group(0)
@@ -127,8 +127,6 @@ class Options:
     use_password = typer.Option(
         True,
         help="Set this to `True` to protect the generated Bittensor key with a password.",
-        is_flag=True,
-        flag_value=False,
     )
     public_hex_key = typer.Option(None, help="The public key in hex format.")
     ss58_address = typer.Option(
@@ -1843,8 +1841,6 @@ class CLIManager:
         use_password: bool = typer.Option(
             False,  # Overriden to False
             help="Set to 'True' to protect the generated Bittensor key with a password.",
-            is_flag=True,
-            flag_value=True,
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -1901,8 +1897,6 @@ class CLIManager:
         use_password: bool = typer.Option(
             False,  # Overriden to False
             help="Set to 'True' to protect the generated Bittensor key with a password.",
-            is_flag=True,
-            flag_value=True,
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3909,6 +3903,16 @@ class CLIManager:
                 show_choices=False,
             )
             param_name = hyperparam_list[choice - 1]
+
+        if param_name in ["alpha_high", "alpha_low"]:
+            param_name = "alpha_values"
+            low_val = FloatPrompt.ask(
+                "Enter the new value for [dark_orange]alpha_low[/dark_orange]"
+            )
+            high_val = FloatPrompt.ask(
+                "Enter the new value for [dark_orange]alpha_high[/dark_orange]"
+            )
+            param_value = f"{low_val},{high_val}"
 
         if not param_value:
             param_value = Prompt.ask(

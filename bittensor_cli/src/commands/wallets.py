@@ -15,23 +15,19 @@ from bittensor_wallet.keyfile import Keyfile
 from fuzzywuzzy import fuzz
 from rich import box
 from rich.align import Align
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Confirm
 from rich.table import Column, Table
 from rich.tree import Tree
 from rich.padding import Padding
 from rich.prompt import IntPrompt
-from scalecodec import ScaleBytes
-import scalecodec
 import typer
 
-from bittensor_cli.src import TYPE_REGISTRY
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import (
     DelegateInfo,
     NeuronInfoLite,
     StakeInfo,
-    custom_rpc_type_registry,
     decode_account_id,
 )
 from bittensor_cli.src.bittensor.extrinsics.registration import (
@@ -46,7 +42,6 @@ from bittensor_cli.src.bittensor.utils import (
     RAO_PER_TAO,
     console,
     convert_blocks_to_time,
-    decode_scale_bytes,
     err_console,
     print_error,
     print_verbose,
@@ -56,6 +51,7 @@ from bittensor_cli.src.bittensor.utils import (
     validate_coldkey_presence,
     retry_prompt,
     unlock_key,
+    hex_to_bytes,
 )
 
 
@@ -660,8 +656,13 @@ async def overview(
             neurons
         )
 
+        has_alerts = False
         alerts_table = Table(show_header=True, header_style="bold magenta")
         alerts_table.add_column("🥩 alert!")
+        alerts_table.add_row(
+            "[bold]Detected the following stake(s) associated with coldkey(s) that are not linked to any local hotkeys:[/bold]"
+        )
+        alerts_table.add_row("")
 
         coldkeys_to_check = []
         ck_stakes = await subtensor.get_total_stake_for_coldkey(
@@ -684,12 +685,23 @@ async def overview(
                 if difference == 0:
                     continue  # We have all our stake registered.
 
+                has_alerts = True
                 coldkeys_to_check.append(coldkey_wallet)
                 alerts_table.add_row(
-                    "Found [light_goldenrod2]{}[/light_goldenrod2] stake with coldkey [bright_magenta]{}[/bright_magenta] that is not registered.".format(
-                        abs(difference), coldkey_wallet.coldkeypub.ss58_address
+                    "[light_goldenrod2]{}[/light_goldenrod2] stake associated with coldkey [bright_magenta]{}[/bright_magenta] (ss58: [bright_magenta]{}[/bright_magenta])".format(
+                        abs(difference),
+                        coldkey_wallet.name,
+                        coldkey_wallet.coldkeypub.ss58_address,
                     )
                 )
+        if has_alerts:
+            alerts_table.add_row("")
+            alerts_table.add_row(
+                "[bold yellow]Note:[/bold yellow] This stake might be delegated, staked to another user's hotkey, or associated with a hotkey not present in your wallet."
+            )
+            alerts_table.add_row(
+                "You can find out more by executing `[bold]btcli wallet inspect[/bold]` command."
+            )
 
         if coldkeys_to_check:
             # We have some stake that is not with a registered hotkey.
@@ -743,7 +755,7 @@ async def overview(
         grid = Table.grid(pad_edge=True)
 
         # If there are any alerts, add them to the grid
-        if len(alerts_table.rows) > 0:
+        if has_alerts:
             grid.add_row(alerts_table)
 
         # Add title
@@ -1176,7 +1188,7 @@ def _process_neurons_for_netuids(
     :return: netuids mapped to decoded neurons
     """
     all_results = [
-        (netuid, NeuronInfoLite.list_from_vec_u8(bytes.fromhex(result[2:])))
+        (netuid, NeuronInfoLite.list_from_vec_u8(hex_to_bytes(result)))
         if result
         else (netuid, [])
         for netuid, result in netuids_with_all_neurons_hex_bytes
