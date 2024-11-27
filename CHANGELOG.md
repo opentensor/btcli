@@ -10,6 +10,7 @@
 * Fixed overview message discrepancy by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/251
 * Fix hyperparams setting. by @thewhaleking in https://github.com/opentensor/btcli/pull/252
 * Bumps btwallet to 2.1.2 by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/255
+* Bumps btwallet to 2.1.3 by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/256
 
 **Full Changelog**: https://github.com/opentensor/btcli/compare/v8.3.1...v8.4.0
 
