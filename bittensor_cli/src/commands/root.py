@@ -866,11 +866,13 @@ async def get_weights(
 
                 uid_to_weights[uid][netuid] = normalized_weight
         rows: list[list[str]] = []
+        sorted_netuids: list = list(netuids)
+        sorted_netuids.sort()
         for uid in uid_to_weights:
             row = [str(uid)]
 
             uid_weights = uid_to_weights[uid]
-            for netuid in netuids:
+            for netuid in sorted_netuids:
                 if netuid in uid_weights:
                     row.append("{:0.2f}%".format(uid_weights[netuid] * 100))
                 else:
@@ -879,24 +881,23 @@ async def get_weights(
 
         if not no_cache:
             db_cols = [("UID", "INTEGER")]
-            for netuid in netuids:
+            for netuid in sorted_netuids:
                 db_cols.append((f"_{netuid}", "TEXT"))
             create_table("rootgetweights", db_cols, rows)
-            netuids = list(netuids)
             update_metadata_table(
                 "rootgetweights",
-                {"rows": json.dumps(rows), "netuids": json.dumps(netuids)},
+                {"rows": json.dumps(rows), "netuids": json.dumps(sorted_netuids)},
             )
     else:
         metadata = get_metadata_table("rootgetweights")
         rows = json.loads(metadata["rows"])
-        netuids = json.loads(metadata["netuids"])
+        sorted_netuids = json.loads(metadata["netuids"])
 
     _min_lim = limit_min_col if limit_min_col is not None else 0
-    _max_lim = limit_max_col + 1 if limit_max_col is not None else len(netuids)
-    _max_lim = min(_max_lim, len(netuids))
+    _max_lim = limit_max_col + 1 if limit_max_col is not None else len(sorted_netuids)
+    _max_lim = min(_max_lim, len(sorted_netuids))
 
-    if _min_lim is not None and _min_lim > len(netuids):
+    if _min_lim is not None and _min_lim > len(sorted_netuids):
         err_console.print("Minimum limit greater than number of netuids")
         return
 
@@ -915,8 +916,7 @@ async def get_weights(
             style="rgb(50,163,219)",
             no_wrap=True,
         )
-        netuids = list(netuids)
-        for netuid in netuids[_min_lim:_max_lim]:
+        for netuid in sorted_netuids[_min_lim:_max_lim]:
             table.add_column(
                 f"[white]{netuid}",
                 header_style="overline white",
@@ -939,7 +939,7 @@ async def get_weights(
 
     else:
         html_cols = [{"title": "UID", "field": "UID"}]
-        for netuid in netuids[_min_lim:_max_lim]:
+        for netuid in sorted_netuids[_min_lim:_max_lim]:
             html_cols.append({"title": str(netuid), "field": f"_{netuid}"})
         render_table(
             "rootgetweights",
