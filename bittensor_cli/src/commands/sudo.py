@@ -104,7 +104,7 @@ async def set_hyperparameter_extrinsic(
     if not unlock_key(wallet).success:
         return False
 
-    extrinsic = HYPERPARAMS.get(parameter)
+    extrinsic, sudo_ = HYPERPARAMS.get(parameter, ("", False))
     if extrinsic is None:
         err_console.print(":cross_mark: [red]Invalid hyperparameter specified.[/red]")
         return False
@@ -144,11 +144,17 @@ async def set_hyperparameter_extrinsic(
             call_params[str(value_argument["name"])] = value
 
         # create extrinsic call
-        call = await substrate.compose_call(
+        call_ = await substrate.compose_call(
             call_module="AdminUtils",
             call_function=extrinsic,
             call_params=call_params,
         )
+        if sudo_:
+            call = await substrate.compose_call(
+                call_module="Sudo", call_function="sudo", call_params={"call": call_}
+            )
+        else:
+            call = call_
         success, err_msg = await subtensor.sign_and_send_extrinsic(
             call, wallet, wait_for_inclusion, wait_for_finalization
         )
