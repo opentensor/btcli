@@ -340,7 +340,10 @@ HYPERPARAMS = {
     "max_validators": ("sudo_set_max_allowed_validators", True),
     "adjustment_alpha": ("sudo_set_adjustment_alpha", False),
     "difficulty": ("sudo_set_difficulty", False),
-    "commit_reveal_weights_interval": ("sudo_set_commit_reveal_weights_interval", False),
+    "commit_reveal_weights_interval": (
+        "sudo_set_commit_reveal_weights_interval",
+        False,
+    ),
     "commit_reveal_weights_enabled": ("sudo_set_commit_reveal_weights_enabled", False),
     "alpha_values": ("sudo_set_alpha_values", False),
     "liquid_alpha_enabled": ("sudo_set_liquid_alpha_enabled", False),

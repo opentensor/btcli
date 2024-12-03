@@ -3884,12 +3884,12 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
 
-        hyperparams = self._run_command(
-            sudo.get_hyperparameters(self.initialize_chain(network), netuid)
-        )
-
-        if not hyperparams:
-            raise typer.Exit()
+        if not param_name and not param_value:
+            hyperparams = self._run_command(
+                sudo.get_hyperparameters(self.initialize_chain(network), netuid)
+            )
+            if not hyperparams:
+                raise typer.Exit()
 
         if not param_name:
             hyperparam_list = [field.name for field in fields(SubnetHyperparameters)]
