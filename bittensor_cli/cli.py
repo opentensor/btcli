@@ -3659,7 +3659,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        Set child hotkeys on specified subnets.
+        Set child hotkeys on a specified subnet (or all). Overrides currently set children.
 
         Users can specify the 'proportion' to delegate to child hotkeys (ss58 address). The sum of proportions cannot be greater than 1.
 
@@ -3744,7 +3744,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        Remove all children hotkeys on a specified subnet.
+        Remove all children hotkeys on a specified subnet (or all).
 
         This command is used to remove delegated authority from all child hotkeys, removing their position and influence on the subnet.
 
