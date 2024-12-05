@@ -658,8 +658,13 @@ async def overview(
             neurons
         )
 
+        has_alerts = False
         alerts_table = Table(show_header=True, header_style="bold magenta")
         alerts_table.add_column("🥩 alert!")
+        alerts_table.add_row(
+            "[bold]Detected the following stake(s) associated with coldkey(s) that are not linked to any local hotkeys:[/bold]"
+        )
+        alerts_table.add_row("")
 
         coldkeys_to_check = []
         ck_stakes = await subtensor.get_total_stake_for_coldkey(
@@ -682,12 +687,23 @@ async def overview(
                 if difference == 0:
                     continue  # We have all our stake registered.
 
+                has_alerts = True
                 coldkeys_to_check.append(coldkey_wallet)
                 alerts_table.add_row(
-                    "Found [light_goldenrod2]{}[/light_goldenrod2] stake with coldkey [bright_magenta]{}[/bright_magenta] that is not registered.".format(
-                        abs(difference), coldkey_wallet.coldkeypub.ss58_address
+                    "[light_goldenrod2]{}[/light_goldenrod2] stake associated with coldkey [bright_magenta]{}[/bright_magenta] (ss58: [bright_magenta]{}[/bright_magenta])".format(
+                        abs(difference),
+                        coldkey_wallet.name,
+                        coldkey_wallet.coldkeypub.ss58_address,
                     )
                 )
+        if has_alerts:
+            alerts_table.add_row("")
+            alerts_table.add_row(
+                "[bold yellow]Note:[/bold yellow] This stake might be delegated, staked to another user's hotkey, or associated with a hotkey not present in your wallet."
+            )
+            alerts_table.add_row(
+                "You can find out more by executing `[bold]btcli wallet inspect[/bold]` command."
+            )
 
         if coldkeys_to_check:
             # We have some stake that is not with a registered hotkey.
@@ -741,7 +757,7 @@ async def overview(
         grid = Table.grid(pad_edge=True)
 
         # If there are any alerts, add them to the grid
-        if len(alerts_table.rows) > 0:
+        if has_alerts:
             grid.add_row(alerts_table)
 
         # Add title

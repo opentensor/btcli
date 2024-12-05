@@ -127,8 +127,6 @@ class Options:
     use_password = typer.Option(
         True,
         help="Set this to `True` to protect the generated Bittensor key with a password.",
-        is_flag=True,
-        flag_value=False,
     )
     public_hex_key = typer.Option(None, help="The public key in hex format.")
     ss58_address = typer.Option(
@@ -1843,8 +1841,6 @@ class CLIManager:
         use_password: bool = typer.Option(
             False,  # Overriden to False
             help="Set to 'True' to protect the generated Bittensor key with a password.",
-            is_flag=True,
-            flag_value=True,
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -1901,8 +1897,6 @@ class CLIManager:
         use_password: bool = typer.Option(
             False,  # Overriden to False
             help="Set to 'True' to protect the generated Bittensor key with a password.",
-            is_flag=True,
-            flag_value=True,
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3665,7 +3659,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        Set child hotkeys on specified subnets.
+        Set child hotkeys on a specified subnet (or all). Overrides currently set children.
 
         Users can specify the 'proportion' to delegate to child hotkeys (ss58 address). The sum of proportions cannot be greater than 1.
 
@@ -3750,7 +3744,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        Remove all children hotkeys on a specified subnet.
+        Remove all children hotkeys on a specified subnet (or all).
 
         This command is used to remove delegated authority from all child hotkeys, removing their position and influence on the subnet.
 
@@ -3890,12 +3884,12 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
 
-        hyperparams = self._run_command(
-            sudo.get_hyperparameters(self.initialize_chain(network), netuid)
-        )
-
-        if not hyperparams:
-            raise typer.Exit()
+        if not param_name or not param_value:
+            hyperparams = self._run_command(
+                sudo.get_hyperparameters(self.initialize_chain(network), netuid)
+            )
+            if not hyperparams:
+                raise typer.Exit()
 
         if not param_name:
             hyperparam_list = [field.name for field in fields(SubnetHyperparameters)]
@@ -3909,6 +3903,16 @@ class CLIManager:
                 show_choices=False,
             )
             param_name = hyperparam_list[choice - 1]
+
+        if param_name in ["alpha_high", "alpha_low"]:
+            param_name = "alpha_values"
+            low_val = FloatPrompt.ask(
+                "Enter the new value for [dark_orange]alpha_low[/dark_orange]"
+            )
+            high_val = FloatPrompt.ask(
+                "Enter the new value for [dark_orange]alpha_high[/dark_orange]"
+            )
+            param_value = f"{low_val},{high_val}"
 
         if not param_value:
             param_value = Prompt.ask(

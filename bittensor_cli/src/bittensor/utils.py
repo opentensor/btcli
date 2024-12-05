@@ -559,7 +559,12 @@ def format_error_message(
             err_type = error_message.get("type", err_type)
             err_name = error_message.get("name", err_name)
             err_docs = error_message.get("docs", [err_description])
-            err_description = err_docs[0] if err_docs else err_description
+            if not err_docs:
+                err_description = err_description
+            elif isinstance(err_docs, str):
+                err_description = err_docs
+            else:
+                err_description = err_docs[0]
 
     return f"Subtensor returned `{err_name}({err_type})` error. This means: '{err_description}'."
 
