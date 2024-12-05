@@ -486,11 +486,11 @@ async def set_root_weights_extrinsic(
                 console.print(":white_heavy_check_mark: [green]Finalized[/green]")
                 return True
             else:
-                fmt_err = format_error_message(error_message, subtensor.substrate)
+                fmt_err = format_error_message(error_message)
                 err_console.print(f":cross_mark: [red]Failed[/red]: {fmt_err}")
                 return False
 
     except SubstrateRequestException as e:
-        fmt_err = format_error_message(e, subtensor.substrate)
+        fmt_err = format_error_message(e)
         err_console.print(":cross_mark: [red]Failed[/red]: error:{}".format(fmt_err))
         return False

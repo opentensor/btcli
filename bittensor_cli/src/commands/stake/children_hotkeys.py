@@ -208,7 +208,7 @@ async def set_childkey_take_extrinsic(
         except SubstrateRequestException as e:
             return (
                 False,
-                f"Exception occurred while setting childkey take: {format_error_message(e, subtensor.substrate)}",
+                f"Exception occurred while setting childkey take: {format_error_message(e)}",
             )
 
 
@@ -232,9 +232,7 @@ async def get_childkey_take(subtensor, hotkey: str, netuid: int) -> Optional[int
             return int(childkey_take_.value)
 
     except SubstrateRequestException as e:
-        err_console.print(
-            f"Error querying ChildKeys: {format_error_message(e, subtensor.substrate)}"
-        )
+        err_console.print(f"Error querying ChildKeys: {format_error_message(e)}")
         return None
 
 
