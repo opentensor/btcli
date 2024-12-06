@@ -618,10 +618,7 @@ async def register_extrinsic(
                         if not success:
                             success, err_msg = (
                                 False,
-                                format_error_message(
-                                    await response.error_message,
-                                    substrate=subtensor.substrate,
-                                ),
+                                format_error_message(await response.error_message),
                             )
                             # Look error here
                             # https://github.com/opentensor/subtensor/blob/development/pallets/subtensor/src/errors.rs
@@ -795,7 +792,7 @@ async def run_faucet_extrinsic(
             if not await response.is_success:
                 err_console.print(
                     f":cross_mark: [red]Failed[/red]: "
-                    f"{format_error_message(await response.error_message, subtensor.substrate)}"
+                    f"{format_error_message(await response.error_message)}"
                 )
                 if attempts == max_allowed_attempts:
                     raise MaxAttemptsException

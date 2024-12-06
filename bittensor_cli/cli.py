@@ -58,7 +58,7 @@ except ImportError:
         pass
 
 
-__version__ = "8.4.0"
+__version__ = "8.4.1"
 
 
 _core_version = re.match(r"^\d+\.\d+\.\d+", __version__).group(0)
@@ -3659,7 +3659,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        Set child hotkeys on specified subnets.
+        Set child hotkeys on a specified subnet (or all). Overrides currently set children.
 
         Users can specify the 'proportion' to delegate to child hotkeys (ss58 address). The sum of proportions cannot be greater than 1.
 
@@ -3744,7 +3744,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        Remove all children hotkeys on a specified subnet.
+        Remove all children hotkeys on a specified subnet (or all).
 
         This command is used to remove delegated authority from all child hotkeys, removing their position and influence on the subnet.
 
@@ -3884,12 +3884,12 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
 
-        hyperparams = self._run_command(
-            sudo.get_hyperparameters(self.initialize_chain(network), netuid)
-        )
-
-        if not hyperparams:
-            raise typer.Exit()
+        if not param_name or not param_value:
+            hyperparams = self._run_command(
+                sudo.get_hyperparameters(self.initialize_chain(network), netuid)
+            )
+            if not hyperparams:
+                raise typer.Exit()
 
         if not param_name:
             hyperparam_list = [field.name for field in fields(SubnetHyperparameters)]

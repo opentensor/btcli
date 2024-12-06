@@ -134,9 +134,7 @@ class SetWeightsExtrinsic:
         try:
             success, message = await self.do_commit_weights(commit_hash=commit_hash)
         except SubstrateRequestException as e:
-            err_console.print(
-                f"Error committing weights: {format_error_message(e, self.subtensor.substrate)}"
-            )
+            err_console.print(f"Error committing weights: {format_error_message(e)}")
             # bittensor.logging.error(f"Error committing weights: {e}")
             success = False
             message = "No attempt made. Perhaps it is too soon to commit weights!"
@@ -257,7 +255,7 @@ class SetWeightsExtrinsic:
                     wait_for_finalization=self.wait_for_finalization,
                 )
             except SubstrateRequestException as e:
-                return False, format_error_message(e, self.subtensor.substrate)
+                return False, format_error_message(e)
             # We only wait here if we expect finalization.
             if not self.wait_for_finalization and not self.wait_for_inclusion:
                 return True, "Not waiting for finalization or inclusion."
@@ -266,9 +264,7 @@ class SetWeightsExtrinsic:
             if await response.is_success:
                 return True, "Successfully set weights."
             else:
-                return False, format_error_message(
-                    await response.error_message, self.subtensor.substrate
-                )
+                return False, format_error_message(await response.error_message)
 
         with console.status(
             f":satellite: Setting weights on [white]{self.subtensor.network}[/white] ..."
@@ -314,7 +310,7 @@ class SetWeightsExtrinsic:
                 wait_for_finalization=self.wait_for_finalization,
             )
         except SubstrateRequestException as e:
-            return False, format_error_message(e, self.subtensor.substrate)
+            return False, format_error_message(e)
 
         if not self.wait_for_finalization and not self.wait_for_inclusion:
             success, error_message = True, ""
@@ -326,9 +322,7 @@ class SetWeightsExtrinsic:
             else:
                 success, error_message = (
                     False,
-                    format_error_message(
-                        await response.error_message, self.subtensor.substrate
-                    ),
+                    format_error_message(await response.error_message),
                 )
 
         if success:
