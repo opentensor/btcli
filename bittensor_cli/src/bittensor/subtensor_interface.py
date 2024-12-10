@@ -14,7 +14,6 @@ import typer
 
 from bittensor_cli.src.bittensor.async_substrate_interface import (
     AsyncSubstrateInterface,
-    TimeoutException,
 )
 from bittensor_cli.src.bittensor.chain_data import (
     DelegateInfo,
@@ -118,7 +117,7 @@ class SubtensorInterface:
             ):
                 async with self.substrate:
                     return self
-        except TimeoutException:
+        except TimeoutError:
             err_console.print(
                 "\n[red]Error[/red]: Timeout occurred connecting to substrate. "
                 f"Verify your chain and network settings: {self}"
