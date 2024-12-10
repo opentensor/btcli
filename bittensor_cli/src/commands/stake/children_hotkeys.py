@@ -229,7 +229,7 @@ async def get_childkey_take(subtensor, hotkey: str, netuid: int) -> Optional[int
             params=[hotkey, netuid],
         )
         if childkey_take_:
-            return int(childkey_take_.value)
+            return int(childkey_take_)
 
     except SubstrateRequestException as e:
         err_console.print(f"Error querying ChildKeys: {format_error_message(e)}")
@@ -300,8 +300,8 @@ async def get_children(
             reuse_block_hash=True,
         )
         stake = (
-            Balance.from_rao(_result.value)
-            if getattr(_result, "value", None)
+            Balance.from_rao(_result)
+            if _result is not None
             else Balance(0)
         )
         if parent:
