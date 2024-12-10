@@ -839,7 +839,6 @@ class AsyncSubstrateInterface:
         self.transaction_version = None
         self.__metadata = None
         self.metadata_version_hex = "0x0f000000"  # v15
-        self.event_loop = asyncio.get_event_loop()
 
     async def __aenter__(self):
         await self.initialize()
