@@ -212,7 +212,9 @@ async def set_childkey_take_extrinsic(
             )
 
 
-async def get_childkey_take(subtensor, hotkey: str, netuid: int) -> Optional[int]:
+async def get_childkey_take(
+    subtensor, hotkeys: list[str], netuid: int, block_hash: str
+) -> dict[str, int]:
     """
     Get the childkey take of a hotkey on a specific network.
     Args:
@@ -220,16 +222,25 @@ async def get_childkey_take(subtensor, hotkey: str, netuid: int) -> Optional[int
     - netuid (int): The netuid to search for.
 
     Returns:
-    - Optional[float]: The value of the "ChildkeyTake" if found, or None if any error occurs.
+        # TODO fix this whole docstring
+    - Optional[int]: The value of the "ChildkeyTake" if found, or None if any error occurs.
     """
     try:
-        childkey_take_ = await subtensor.substrate.query(
-            module="SubtensorModule",
-            storage_function="ChildkeyTake",
-            params=[hotkey, netuid],
-        )
-        if childkey_take_:
-            return int(childkey_take_)
+        calls = [
+            (
+                await subtensor.substrate.create_storage_key(
+                    "SubtensorModule",
+                    "ChildkeyTake",
+                    [hotkey, netuid],
+                    block_hash=block_hash,
+                )
+            )
+            for hotkey in hotkeys
+        ]
+        batch_call = await subtensor.substrate.query_multi(calls, block_hash=block_hash)
+        takes = {}
+        for item in batch_call:
+            takes.update({item[0].params[0]: int(item[1])})
 
     except SubstrateRequestException as e:
         err_console.print(f"Error querying ChildKeys: {format_error_message(e)}")
@@ -281,7 +292,9 @@ async def get_children(
     - If netuid is not specified, generates and prints a summary table of all child hotkeys across all subnets.
     """
 
-    async def get_total_stake_for_hk(hotkey: str, parent: bool = False):
+    async def get_total_stake_for_hk(
+        hotkeys: list[str], parent: bool = False, block_hash: str = None
+    ) -> dict[str, Balance]:
         """
         Fetches and displays the total stake for a specified hotkey from the Subtensor blockchain network.
         If `parent` is True, it prints the hotkey and its corresponding stake.
@@ -293,24 +306,38 @@ async def get_children(
         Returns:
         - Balance: The total stake associated with the specified hotkey.
         """
-        _result = await subtensor.substrate.query(
-            module="SubtensorModule",
-            storage_function="TotalHotkeyStake",
-            params=[hotkey],
-            reuse_block_hash=True,
-        )
-        stake = Balance.from_rao(_result) if _result is not None else Balance(0)
-        if parent:
-            console.print(
-                f"\nYour Hotkey: [bright_magenta]{hotkey}[/bright_magenta]  |  Total Stake: [dark_orange]{stake}t[/dark_orange]\n",
-                end="",
-                no_wrap=True,
+        calls = [
+            (
+                await subtensor.substrate.create_storage_key(
+                    "SubtensorModule",
+                    "TotalHotkeyStake",
+                    [hotkey],
+                    block_hash=block_hash,
+                )
             )
+            for hotkey in hotkeys
+        ]
+        batch_call = await subtensor.substrate.query_multi(calls, block_hash=block_hash)
+        stakes = {}
+        for item in batch_call:
+            stakes.update({item[0].params[0]: Balance.from_rao(item[1] or 0)})
 
-        return stake
+        if parent:
+            for hotkey, stake in stakes.items():
+                console.print(
+                    f"\nYour Hotkey: [bright_magenta]{hotkey}[/bright_magenta]  |"
+                    f"  Total Stake: [dark_orange]{stake}t[/dark_orange]\n",
+                    end="",
+                    no_wrap=True,
+                )
 
-    async def get_take(child: tuple) -> float:
+        return stakes
+
+    async def get_take(
+        child_tuples: list[tuple], block_hash: str
+    ) -> dict[str, Optional[float]]:
         """
+        TODO update docstring
         Get the take value for a given subtensor, hotkey, and netuid.
 
         @param child: The hotkey to retrieve the take value for.
@@ -318,14 +345,16 @@ async def get_children(
         @return: The take value as a float. If the take value is not available, it returns 0.
 
         """
-        child_hotkey = child[1]
-        take_u16 = await get_childkey_take(
-            subtensor=subtensor, hotkey=child_hotkey, netuid=netuid
+        u16_takes: dict[str, int] = await get_childkey_take(
+            subtensor,
+            [child[1] for child in child_tuples],
+            netuid=netuid,
+            block_hash=block_hash,
         )
-        if take_u16:
-            return u16_to_float(take_u16)
-        else:
-            return 0
+        for key, val in list(u16_takes.items()):
+            if val:
+                u16_takes[key] = u16_to_float(val)
+        return u16_takes
 
     async def _render_table(
         parent_hotkey: str,
@@ -366,28 +395,36 @@ async def get_children(
         netuid_children_tuples.sort(
             key=lambda x: x[0]
         )  # Sort by netuid in ascending order
+        block_hash_ = await subtensor.substrate.get_chain_head()
+        all_child_stakes: dict[str, Balance]
+        all_child_takes: dict[str, Optional[float]]
+        hotkey_stake_dict: dict[str, Balance]
 
-        for index, (netuid, children_) in enumerate(netuid_children_tuples):
+        all_child_stakes, all_child_takes, hotkey_stake_dict = await asyncio.gather(
+            get_total_stake_for_hk(
+                [c[1] for (_, children_) in netuid_children_tuples for c in children_],
+                block_hash=block_hash_,
+            ),
+            get_take(
+                [c for (_, children_) in netuid_children_tuples for c in children_],
+                block_hash=block_hash_,
+            ),
+            subtensor.get_total_stake_for_hotkey(parent_hotkey),
+        )
+        for index, (netuid_, children_) in enumerate(netuid_children_tuples):
             # calculate totals
             total_proportion_per_netuid = 0
             total_stake_weight_per_netuid = 0
             avg_take_per_netuid = 0
 
-            hotkey_stake_dict = await subtensor.get_total_stake_for_hotkey(
-                parent_hotkey
-            )
             hotkey_stake = hotkey_stake_dict.get(parent_hotkey, Balance(0))
 
             children_info = []
-            child_stakes = await asyncio.gather(
-                *[get_total_stake_for_hk(c[1]) for c in children_]
-            )
-            child_takes = await asyncio.gather(*[get_take(c) for c in children_])
-            for child, child_stake, child_take in zip(
-                children_, child_stakes, child_takes
-            ):
+            for child in children_:
                 proportion = child[0]
                 child_hotkey = child[1]
+                child_take = all_child_takes[child_hotkey]
+                child_stake = all_child_stakes[child_hotkey]
 
                 # add to totals
                 avg_take_per_netuid += child_take
@@ -416,7 +453,7 @@ async def get_children(
 
                 hotkey = Text(hotkey, style="italic red" if proportion == 0 else "")
                 table.add_row(
-                    str(netuid),
+                    str(netuid_),
                     hotkey,
                     proportion_str,
                     take_str,
@@ -449,12 +486,15 @@ async def get_children(
     if netuid is None:
         # get all netuids
         netuids = await subtensor.get_all_subnet_netuids()
-        await get_total_stake_for_hk(wallet.hotkey.ss58_address, True)
+        await get_total_stake_for_hk([wallet.hotkey.ss58_address], True)
         netuid_children_tuples = []
-        for netuid in netuids:
-            success, children, err_mg = await subtensor.get_children(
-                wallet.hotkey.ss58_address, netuid
-            )
+        gotten_children = await asyncio.gather(
+            *[
+                subtensor.get_children(wallet.hotkey.ss58_address, netuid)
+                for netuid in netuids
+            ]
+        )
+        for netuid, (success, children, err_mg) in zip(netuids, gotten_children):
             if children:
                 netuid_children_tuples.append((netuid, children))
             if not success:
