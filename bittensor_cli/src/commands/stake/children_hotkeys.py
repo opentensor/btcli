@@ -213,17 +213,19 @@ async def set_childkey_take_extrinsic(
 
 
 async def get_childkey_take(
-    subtensor, hotkeys: list[str], netuid: int, block_hash: str
-) -> dict[str, int]:
+    subtensor: "SubtensorInterface", hotkeys: list[str], netuid: int, block_hash: str
+) -> Optional[dict[str, int]]:
     """
-    Get the childkey take of a hotkey on a specific network.
+    Get the childkey takes of a list of hotkeys
+
     Args:
-    - hotkey (str): The hotkey to search for.
-    - netuid (int): The netuid to search for.
+        subtensor: the SubtensorInterface object to use to make the query
+        hotkeys: The list of hotkeys to search for.
+        netuid: The netuid to search for.
+        block_hash: The hash of the blockchain block on which to query.
 
     Returns:
-        # TODO fix this whole docstring
-    - Optional[int]: The value of the "ChildkeyTake" if found, or None if any error occurs.
+        {hotkey: take} for the hotkeys provided, None if an error occurred.
     """
     try:
         calls = [
@@ -293,7 +295,7 @@ async def get_children(
     """
 
     async def get_total_stake_for_hk(
-        hotkeys: list[str], parent: bool = False, block_hash: str = None
+        hotkeys: list[str], parent: bool = False
     ) -> dict[str, Balance]:
         """
         Fetches and displays the total stake for a specified hotkey from the Subtensor blockchain network.
@@ -333,16 +335,15 @@ async def get_children(
 
         return stakes
 
-    async def get_take(
-        child_tuples: list[tuple], block_hash: str
-    ) -> dict[str, Optional[float]]:
+    async def get_take(child_tuples: list[tuple]) -> dict[str, Optional[float]]:
         """
-        TODO update docstring
         Get the take value for a given subtensor, hotkey, and netuid.
 
-        @param child: The hotkey to retrieve the take value for.
+        Args:
+            child_tuples: The [(netuid, (, child-hotkey))] to retrieve the take value for.
 
-        @return: The take value as a float. If the take value is not available, it returns 0.
+        Returns:
+            {child-hotkey: take} for the specified children
 
         """
         u16_takes: dict[str, int] = await get_childkey_take(
@@ -358,7 +359,7 @@ async def get_children(
 
     async def _render_table(
         parent_hotkey: str,
-        netuid_children_tuples: list[tuple[int, list[tuple[int, str]]]],
+        netuid_children_tuples_: list[tuple[int, list[tuple[int, str]]]],
     ):
         """
         Retrieves and renders children hotkeys and their details for a given parent hotkey.
@@ -381,7 +382,7 @@ async def get_children(
             "Current Stake Weight", style="bold red", no_wrap=True, justify="right"
         )
 
-        if not netuid_children_tuples:
+        if not netuid_children_tuples_:
             console.print(table)
             console.print(
                 f"[bold red]There are currently no child hotkeys with parent hotkey: {wallet.name} ({parent_hotkey}).[/bold red]"
@@ -392,26 +393,23 @@ async def get_children(
         total_proportion = 0
         total_stake_weight = 0
 
-        netuid_children_tuples.sort(
+        netuid_children_tuples_.sort(
             key=lambda x: x[0]
         )  # Sort by netuid in ascending order
-        block_hash_ = await subtensor.substrate.get_chain_head()
         all_child_stakes: dict[str, Balance]
         all_child_takes: dict[str, Optional[float]]
         hotkey_stake_dict: dict[str, Balance]
 
         all_child_stakes, all_child_takes, hotkey_stake_dict = await asyncio.gather(
             get_total_stake_for_hk(
-                [c[1] for (_, children_) in netuid_children_tuples for c in children_],
-                block_hash=block_hash_,
+                [c[1] for (_, children_) in netuid_children_tuples_ for c in children_]
             ),
             get_take(
-                [c for (_, children_) in netuid_children_tuples for c in children_],
-                block_hash=block_hash_,
+                [c for (_, children_) in netuid_children_tuples_ for c in children_]
             ),
-            subtensor.get_total_stake_for_hotkey(parent_hotkey),
+            subtensor.get_total_stake_for_hotkey(parent_hotkey, block_hash=block_hash),
         )
-        for index, (netuid_, children_) in enumerate(netuid_children_tuples):
+        for index, (netuid_, children_) in enumerate(netuid_children_tuples_):
             # calculate totals
             total_proportion_per_netuid = 0
             total_stake_weight_per_netuid = 0
@@ -477,12 +475,13 @@ async def get_children(
             total_stake_weight += total_stake_weight_per_netuid
 
             # Add a dividing line if there are more than one netuid
-            if len(netuid_children_tuples) > 1:
+            if len(netuid_children_tuples_) > 1:
                 table.add_section()
 
         console.print(table)
 
     # Core logic for get_children
+    block_hash = await subtensor.substrate.get_chain_head()
     if netuid is None:
         # get all netuids
         netuids = await subtensor.get_all_subnet_netuids()
@@ -490,7 +489,7 @@ async def get_children(
         netuid_children_tuples = []
         gotten_children = await asyncio.gather(
             *[
-                subtensor.get_children(wallet.hotkey.ss58_address, netuid)
+                subtensor.get_children(wallet.hotkey.ss58_address, netuid, block_hash)
                 for netuid in netuids
             ]
         )
@@ -504,11 +503,11 @@ async def get_children(
         await _render_table(wallet.hotkey.ss58_address, netuid_children_tuples)
     else:
         success, children, err_mg = await subtensor.get_children(
-            wallet.hotkey.ss58_address, netuid
+            wallet.hotkey.ss58_address, netuid, block_hash
         )
         if not success:
             err_console.print(f"Failed to get children from subtensor: {err_mg}")
-        await get_total_stake_for_hk(wallet.hotkey.ss58_address, True)
+        await get_total_stake_for_hk([wallet.hotkey.ss58_address], True)
         if children:
             netuid_children_tuples = [(netuid, children)]
             await _render_table(wallet.hotkey.ss58_address, netuid_children_tuples)
@@ -673,38 +672,41 @@ async def childkey_take(
         table.add_column("Netuid", justify="center", style="cyan")
         table.add_column("Take (%)", justify="right", style="magenta")
 
-        for netuid, take_value in takes:
-            table.add_row(str(netuid), f"{take_value:.2f}%")
+        for netuid_, take_value in takes:
+            table.add_row(str(netuid_), f"{take_value:.2f}%")
 
         console.print(table)
 
-    async def display_chk_take(ss58, netuid):
+    async def display_chk_take(ss58: str, netuid_: int) -> None:
         """Print single key take for hotkey and netuid"""
-        chk_take = await get_childkey_take(
-            subtensor=subtensor, netuid=netuid, hotkey=ss58
+        chk_take: dict[str, int] = await get_childkey_take(
+            subtensor=subtensor, netuid=netuid_, hotkeys=[ss58], block_hash=block_hash
         )
-        chk_take = u16_to_float(chk_take)
+        chk_take = u16_to_float(chk_take[ss58])
         console.print(
-            f"Child take for {ss58} is: {chk_take * 100:.2f}% on netuid {netuid}."
+            f"Child take for {ss58} is: {chk_take * 100:.2f}% on netuid {netuid_}."
         )
 
-    async def chk_all_subnets(ss58):
+    async def chk_all_subnets(ss58: str) -> None:
         """Aggregate data for childkey take from all subnets"""
-        netuids = await subtensor.get_all_subnet_netuids()
+        netuids_ = await subtensor.get_all_subnet_netuids(block_hash=block_hash)
+        if 0 in netuids_:
+            del netuids_[netuids_.index(0)]
+        all_childkey_takes = await asyncio.gather(
+            *[
+                get_childkey_take(subtensor, [ss58], subnet, block_hash=block_hash)
+                for subnet in netuids_
+            ]
+        )
         takes = []
-        for subnet in netuids:
-            if subnet == 0:
-                continue
-            curr_take = await get_childkey_take(
-                subtensor=subtensor, netuid=subnet, hotkey=ss58
-            )
-            if curr_take is not None:
-                take_value = u16_to_float(curr_take)
+        for subnet, curr_take in zip(netuids_, all_childkey_takes):
+            if ct := curr_take[ss58] is not None:
+                take_value = u16_to_float(ct)
                 takes.append((subnet, take_value * 100))
 
         print_all_takes(takes, ss58)
 
-    async def set_chk_take_subnet(subnet, chk_take):
+    async def set_chk_take_subnet(subnet: int, chk_take: float) -> None:
         """Set the childkey take for a single subnet"""
         success, message = await set_childkey_take_extrinsic(
             subtensor=subtensor,
@@ -727,6 +729,7 @@ async def childkey_take(
                 f":cross_mark:[red] Unable to set childkey take.[/red] {message}"
             )
 
+    block_hash = await subtensor.substrate.get_chain_head()
     # Print childkey take for other user and return (dont offer to change take rate)
     if hotkey and hotkey != wallet.hotkey.ss58_address:
         # display childkey take for other users
@@ -738,7 +741,7 @@ async def childkey_take(
                 )
             return
         else:
-            # show childhotkey take on all subnets
+            # show child hotkey take on all subnets
             await chk_all_subnets(hotkey)
             if take:
                 console.print(
