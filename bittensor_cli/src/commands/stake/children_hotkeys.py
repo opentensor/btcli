@@ -242,7 +242,7 @@ async def get_childkey_take(
         batch_call = await subtensor.substrate.query_multi(calls, block_hash=block_hash)
         takes = {}
         for item in batch_call:
-            takes[item[0].params[0]] = int(item[1]) if item[1] is not None else 0
+            takes.update({item[0].params[0]: int(item[1]) if item[1] is not None else 0})
         return takes
 
     except SubstrateRequestException as e:
