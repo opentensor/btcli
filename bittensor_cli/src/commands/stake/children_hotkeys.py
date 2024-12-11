@@ -242,7 +242,8 @@ async def get_childkey_take(
         batch_call = await subtensor.substrate.query_multi(calls, block_hash=block_hash)
         takes = {}
         for item in batch_call:
-            takes.update({item[0].params[0]: int(item[1])})
+            takes[item[0].params[0]] = int(item[1]) if item[1] is not None else 0
+        return takes
 
     except SubstrateRequestException as e:
         err_console.print(f"Error querying ChildKeys: {format_error_message(e)}")
@@ -484,6 +485,7 @@ async def get_children(
     block_hash = await subtensor.substrate.get_chain_head()
     if netuid is None:
         # get all netuids
+
         netuids = await subtensor.get_all_subnet_netuids()
         await get_total_stake_for_hk([wallet.hotkey.ss58_address], True)
         netuid_children_tuples = []
