@@ -498,8 +498,8 @@ def format_error_message(error_message: Union[dict, Exception]) -> str:
         # subtensor error structure
         if (
             error_message.get("code")
-            and error_message.get("message")
-            and error_message.get("data")
+            or error_message.get("message")
+            or error_message.get("data")
         ):
             err_name = "SubstrateRequestException"
             err_type = error_message.get("message", "")
@@ -513,8 +513,8 @@ def format_error_message(error_message: Union[dict, Exception]) -> str:
 
         elif (
             error_message.get("type")
-            and error_message.get("name")
-            and error_message.get("docs")
+            or error_message.get("name")
+            or error_message.get("docs")
         ):
             err_type = error_message.get("type", err_type)
             err_name = error_message.get("name", err_name)
