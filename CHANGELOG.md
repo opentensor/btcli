@@ -1,5 +1,13 @@
 # Changelog
 
+## 8.4.2 /2024-12-12
+
+## What's Changed
+* Removes the `.value` checks as we no longer use SCALE objects. by @thewhaleking in https://github.com/opentensor/btcli/pull/270
+* Backmerge main to staging 842 by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/273
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v8.4.1...v8.4.2
+
 ## 8.4.1 /2024-12-05
 
 ## What's Changed
