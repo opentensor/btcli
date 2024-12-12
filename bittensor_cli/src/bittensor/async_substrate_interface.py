@@ -18,7 +18,7 @@ from typing import Optional, Any, Union, Callable, Awaitable, cast, TYPE_CHECKIN
 from async_property import async_property
 from bittensor_wallet import Keypair
 from bt_decode import PortableRegistry, decode as decode_by_type_string, MetadataV15
-from scalecodec import GenericExtrinsic
+from scalecodec import GenericExtrinsic, ss58_encode, ss58_decode
 from scalecodec.base import ScaleBytes, ScaleType, RuntimeConfigurationObject
 from scalecodec.type_registry import load_type_registry_preset
 from scalecodec.types import GenericCall
@@ -383,6 +383,8 @@ class QueryMapResult:
             max_results=self.max_results,
             ignore_decoding_errors=self.ignore_decoding_errors,
         )
+        if len(result.records) < self.page_size:
+            self.loading_complete = True
 
         # Update last key from new result set to use as offset for next page
         self.last_key = result.last_key
@@ -391,23 +393,35 @@ class QueryMapResult:
     def __aiter__(self):
         return self
 
-    async def __anext__(self):
+    async def get_next_record(self):
         try:
             # Try to get the next record from the buffer
-            return next(self._buffer)
+            record = next(self._buffer)
         except StopIteration:
-            # If no more records in the buffer, try to fetch the next page
-            if self.loading_complete:
-                raise StopAsyncIteration
+            # If no more records in the buffer
+            return False, None
+        else:
+            return True, record
 
-            next_page = await self.retrieve_next_page(self.last_key)
-            if not next_page:
-                self.loading_complete = True
-                raise StopAsyncIteration
+    async def __anext__(self):
+        successfully_retrieved, record = await self.get_next_record()
+        if successfully_retrieved:
+            return record
 
-            # Update the buffer with the newly fetched records
-            self._buffer = iter(next_page)
-            return next(self._buffer)
+        # If loading is already completed
+        if self.loading_complete:
+            raise StopAsyncIteration
+
+        next_page = await self.retrieve_next_page(self.last_key)
+
+        # If we cannot retrieve the next page
+        if not next_page:
+            self.loading_complete = True
+            raise StopAsyncIteration
+
+        # Update the buffer with the newly fetched records
+        self._buffer = iter(next_page)
+        return next(self._buffer)
 
     def __getitem__(self, item):
         return self.records[item]
@@ -456,10 +470,12 @@ class Runtime:
     transaction_version = None
     cache_region = None
     metadata = None
+    runtime_config: RuntimeConfigurationObject
     type_registry_preset = None
 
-    def __init__(self, chain, runtime_config, metadata, type_registry):
-        self.runtime_config = RuntimeConfigurationObject()
+    def __init__(
+        self, chain, runtime_config: RuntimeConfigurationObject, metadata, type_registry
+    ):
         self.config = {}
         self.chain = chain
         self.type_registry = type_registry
@@ -746,11 +762,12 @@ class Websocket:
         Returns:
             id: the internal ID of the request (incremented int)
         """
-        async with self._lock:
-            original_id = self.id
-            self.id += 1
-            self._open_subscriptions += 1
+        # async with self._lock:
+        original_id = self.id
+        self.id += 1
+        # self._open_subscriptions += 1
         try:
+            # print(">>>", payload)
             await self.ws.send(json.dumps({**payload, **{"id": original_id}}))
             return original_id
         except (ConnectionClosed, ssl.SSLError, EOFError):
@@ -770,12 +787,11 @@ class Websocket:
         try:
             return self._received.pop(item_id)
         except KeyError:
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.001)
             return None
 
 
 class AsyncSubstrateInterface:
-    runtime = None
     registry: Optional[PortableRegistry] = None
 
     def __init__(
@@ -786,6 +802,7 @@ class AsyncSubstrateInterface:
         ss58_format: Optional[int] = None,
         type_registry: Optional[dict] = None,
         chain_name: Optional[str] = None,
+        sync_calls: bool = False,
         max_retries: int = 5,
         retry_timeout: float = 60.0,
     ):
@@ -801,6 +818,7 @@ class AsyncSubstrateInterface:
             ss58_format: the specific SS58 format to use
             type_registry: a dict of custom types
             chain_name: the name of the chain (the result of the rpc request for "system_chain")
+            sync_calls: whether this instance is going to be called through a sync wrapper or plain
             max_retries: number of times to retry RPC requests before giving up
             retry_timeout: how to long wait since the last ping to retry the RPC request
 
@@ -839,6 +857,9 @@ class AsyncSubstrateInterface:
         self.transaction_version = None
         self.__metadata = None
         self.metadata_version_hex = "0x0f000000"  # v15
+        self.event_loop = asyncio.get_event_loop()
+        self.sync_calls = sync_calls
+        self.__name: Optional[str] = None
 
     async def __aenter__(self):
         await self.initialize()
@@ -853,7 +874,8 @@ class AsyncSubstrateInterface:
                     chain = await self.rpc_request("system_chain", [])
                     self.__chain = chain.get("result")
                 self.reload_type_registry()
-                await asyncio.gather(self.load_registry(), self.init_runtime(None))
+                # await asyncio.gather(self.load_registry(), self.init_runtime(None))
+                await asyncio.gather(self.load_registry(), self._init_init_runtime())
             self.initialized = True
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -876,6 +898,35 @@ class AsyncSubstrateInterface:
         else:
             return self.__metadata
 
+    @property
+    def runtime(self):
+        return Runtime(
+            self.chain,
+            self.runtime_config,
+            self.__metadata,
+            self.type_registry,
+        )
+
+    @property
+    def implements_scaleinfo(self) -> Optional[bool]:
+        """
+        Returns True if current runtime implementation a `PortableRegistry` (`MetadataV14` and higher)
+
+        Returns
+        -------
+        bool
+        """
+        if self.__metadata:
+            return self.__metadata.portable_registry is not None
+        else:
+            return None
+
+    @async_property  # TODO this doesn't work in sync
+    async def name(self):
+        if self.__name is None:
+            self.__name = await self.rpc_request("system_name", [])
+        return self.__name
+
     async def get_storage_item(self, module: str, storage_function: str):
         if not self.__metadata:
             await self.init_runtime()
@@ -895,6 +946,7 @@ class AsyncSubstrateInterface:
         return block_hash
 
     async def load_registry(self):
+        # TODO this needs to happen before init_runtime
         metadata_rpc_result = await self.rpc_request(
             "state_call",
             ["Metadata_metadata_at_version", self.metadata_version_hex],
@@ -918,11 +970,101 @@ class AsyncSubstrateInterface:
             Decoded object
 
         """
+
+        async def wait_for_registry():
+            while self.registry is None:
+                await asyncio.sleep(0.01)
+            return
+
         if scale_bytes == b"\x00":
             obj = None
         else:
-            obj = decode_by_type_string(type_string, self.registry, scale_bytes)
+            if not self.registry:
+                await asyncio.wait_for(wait_for_registry(), timeout=10)
+            try:
+                obj = decode_by_type_string(type_string, self.registry, scale_bytes)
+            except TimeoutError:
+                # indicates that registry was never loaded
+                # TODO add max retries
+                await self.load_registry()
+                return self.decode_scale(type_string, scale_bytes)
         return obj
+
+    async def encode_scale(self, type_string, value, block_hash=None) -> ScaleBytes:
+        """
+        Helper function to encode arbitrary data into SCALE-bytes for given RUST type_string
+
+        Args:
+            type_string: the type string of the SCALE object for decoding
+            value: value to encode
+            block_hash: the hash of the blockchain block whose metadata to use for encoding
+
+        Returns:
+            ScaleBytes encoded value
+        """
+        if not self.__metadata or block_hash:
+            await self.init_runtime(block_hash=block_hash)
+
+        obj = self.runtime_config.create_scale_object(
+            type_string=type_string, metadata=self.__metadata
+        )
+        return obj.encode(value)
+
+    def ss58_encode(
+        self, public_key: Union[str, bytes], ss58_format: int = None
+    ) -> str:
+        """
+        Helper function to encode a public key to SS58 address.
+
+        If no target `ss58_format` is provided, it will default to the ss58 format of the network it's connected to.
+
+        Args:
+            public_key: 32 bytes or hex-string. e.g. 0x6e39f36c370dd51d9a7594846914035de7ea8de466778ea4be6c036df8151f29
+            ss58_format: target networkID to format the address for, defaults to the network it's connected to
+
+        Returns:
+            str containing the SS58 address
+        """
+
+        if ss58_format is None:
+            ss58_format = self.ss58_format
+
+        return ss58_encode(public_key, ss58_format=ss58_format)
+
+    def ss58_decode(self, ss58_address: str) -> str:
+        """
+        Helper function to decode a SS58 address to a public key
+
+        Args:
+            ss58_address: the encoded SS58 address to decode (e.g. EaG2CRhJWPb7qmdcJvy3LiWdh26Jreu9Dx6R1rXxPmYXoDk)
+
+        Returns:
+            str containing the hex representation of the public key
+        """
+        return ss58_decode(ss58_address, valid_ss58_format=self.ss58_format)
+
+    async def _init_init_runtime(self):
+        runtime_info, metadata = await asyncio.gather(
+            self.get_block_runtime_version(None), self.get_block_metadata()
+        )
+        self.__metadata = metadata
+        self.__metadata_cache[self.runtime_version] = self.__metadata
+        self.runtime_version = runtime_info.get("specVersion")
+        self.runtime_config.set_active_spec_version_id(self.runtime_version)
+        self.transaction_version = runtime_info.get("transactionVersion")
+        if self.implements_scaleinfo:
+            # self.debug_message('Add PortableRegistry from metadata to type registry')
+            self.runtime_config.add_portable_registry(metadata)
+        # Set runtime compatibility flags
+        try:
+            _ = self.runtime_config.create_scale_object("sp_weights::weight_v2::Weight")
+            self.config["is_weight_v2"] = True
+            self.runtime_config.update_type_registry_types(
+                {"Weight": "sp_weights::weight_v2::Weight"}
+            )
+        except NotImplementedError:
+            self.config["is_weight_v2"] = False
+            self.runtime_config.update_type_registry_types({"Weight": "WeightV1"})
 
     async def init_runtime(
         self, block_hash: Optional[str] = None, block_id: Optional[int] = None
@@ -965,7 +1107,7 @@ class AsyncSubstrateInterface:
             self.last_block_hash = block_hash
             self.block_id = block_id
 
-            # In fact calls and storage functions are decoded against runtime of previous block, therefor retrieve
+            # In fact calls and storage functions are decoded against runtime of previous block, therefore retrieve
             # metadata and apply type registry of runtime of parent block
             block_header = await self.rpc_request(
                 "chain_getHeader", [self.last_block_hash]
@@ -1142,20 +1284,6 @@ class AsyncSubstrateInterface:
             # Load type registries in runtime configuration
             self.runtime_config.update_type_registry(self.type_registry)
 
-    @property
-    def implements_scaleinfo(self) -> Optional[bool]:
-        """
-        Returns True if current runtime implementation a `PortableRegistry` (`MetadataV14` and higher)
-
-        Returns
-        -------
-        bool
-        """
-        if self.__metadata:
-            return self.__metadata.portable_registry is not None
-        else:
-            return None
-
     async def create_storage_key(
         self,
         pallet: str,
@@ -1175,7 +1303,8 @@ class AsyncSubstrateInterface:
         Returns:
             StorageKey
         """
-        await self.init_runtime(block_hash=block_hash)
+        if not self.__metadata or block_hash:
+            await self.init_runtime(block_hash=block_hash)
 
         return StorageKey.create_from_storage_function(
             pallet,
@@ -1410,7 +1539,7 @@ class AsyncSubstrateInterface:
             A dict containing the extrinsic and digest logs data
         """
         if block_hash and block_number:
-            raise ValueError("Either block_hash or block_number should be be set")
+            raise ValueError("Either block_hash or block_number should be set")
 
         if block_number is not None:
             block_hash = await self.get_block_hash(block_number)
@@ -1659,7 +1788,15 @@ class AsyncSubstrateInterface:
         subscription_added = False
 
         async with self.ws as ws:
-            for item in payloads:
+            if len(payloads) > 1:
+                send_coroutines = await asyncio.gather(
+                    *[ws.send(item["payload"]) for item in payloads]
+                )
+                for item_id, item in zip(send_coroutines, payloads):
+                    request_manager.add_request(item_id, item["id"])
+            else:
+                item = payloads[0]
+                # print(item)
                 item_id = await ws.send(item["payload"])
                 request_manager.add_request(item_id, item["id"])
 
@@ -1779,6 +1916,17 @@ class AsyncSubstrateInterface:
         )
         result = await self._make_rpc_request(payloads, runtime=runtime)
         if "error" in result[payload_id][0]:
+            if (
+                "Failed to get runtime version"
+                in result[payload_id][0]["error"]["message"]
+            ):
+                err_console.print(
+                    "Failed to get runtime. Re-fetching from chain, and retrying."
+                )
+                await self.init_runtime()
+                return await self.rpc_request(
+                    method, params, block_hash, reuse_block_hash
+                )
             raise SubstrateRequestException(result[payload_id][0]["error"]["message"])
         if "result" in result[payload_id][0]:
             return result[payload_id][0]
@@ -1830,7 +1978,8 @@ class AsyncSubstrateInterface:
         if call_params is None:
             call_params = {}
 
-        await self.init_runtime(block_hash=block_hash)
+        if not self.__metadata or block_hash:
+            await self.init_runtime(block_hash=block_hash)
 
         call = self.runtime_config.create_scale_object(
             type_string="Call", metadata=self.__metadata
@@ -1863,7 +2012,10 @@ class AsyncSubstrateInterface:
         block_hash = await self._get_current_block_hash(block_hash, reuse_block_hash)
         if block_hash:
             self.last_block_hash = block_hash
-        runtime = await self.init_runtime(block_hash=block_hash)
+        if not self.__metadata or block_hash:
+            runtime = await self.init_runtime(block_hash=block_hash)
+        else:
+            runtime = self.runtime
         preprocessed: tuple[Preprocessed] = await asyncio.gather(
             *[
                 self._preprocess([x], block_hash, storage_function, module)
@@ -1913,8 +2065,8 @@ class AsyncSubstrateInterface:
         Returns:
             list of `(storage_key, scale_obj)` tuples
         """
-
-        await self.init_runtime(block_hash=block_hash)
+        if not self.__metadata or block_hash:
+            await self.init_runtime(block_hash=block_hash)
 
         # Retrieve corresponding value
         response = await self.rpc_request(
@@ -1967,7 +2119,10 @@ class AsyncSubstrateInterface:
         Returns:
              The created Scale Type object
         """
-        runtime = await self.init_runtime(block_hash=block_hash)
+        if not self.__metadata or block_hash:
+            runtime = await self.init_runtime(block_hash=block_hash)
+        else:
+            runtime = self.runtime
         if "metadata" not in kwargs:
             kwargs["metadata"] = runtime.metadata
 
@@ -2262,7 +2417,8 @@ class AsyncSubstrateInterface:
         Returns:
              ScaleType from the runtime call
         """
-        await self.init_runtime()
+        if not self.__metadata or block_hash:
+            await self.init_runtime(block_hash=block_hash)
 
         if params is None:
             params = {}
@@ -2349,8 +2505,8 @@ class AsyncSubstrateInterface:
         Returns:
             MetadataModuleConstants
         """
-
-        await self.init_runtime(block_hash=block_hash)
+        if not self.__metadata or block_hash:
+            await self.init_runtime(block_hash=block_hash)
 
         for module in self.__metadata.pallets:
             if module_name == module.name and module.constants:
@@ -2448,7 +2604,10 @@ class AsyncSubstrateInterface:
         block_hash = await self._get_current_block_hash(block_hash, reuse_block_hash)
         if block_hash:
             self.last_block_hash = block_hash
-        runtime = await self.init_runtime(block_hash=block_hash)
+        if not self.__metadata or block_hash:
+            runtime = await self.init_runtime(block_hash=block_hash)
+        else:
+            runtime = self.runtime
         preprocessed: Preprocessed = await self._preprocess(
             params, block_hash, storage_function, module
         )
@@ -2514,13 +2673,15 @@ class AsyncSubstrateInterface:
         Returns:
              QueryMapResult object
         """
+        hex_to_bytes_ = hex_to_bytes
         params = params or []
         block_hash = await self._get_current_block_hash(block_hash, reuse_block_hash)
         if block_hash:
             self.last_block_hash = block_hash
-        runtime = await self.init_runtime(block_hash=block_hash)
+        if not self.__metadata or block_hash:
+            await self.init_runtime(block_hash=block_hash)
 
-        metadata_pallet = runtime.metadata.get_metadata_pallet(module)
+        metadata_pallet = self.__metadata.get_metadata_pallet(module)
         if not metadata_pallet:
             raise ValueError(f'Pallet "{module}" not found')
         storage_item = metadata_pallet.get_storage_function(storage_function)
@@ -2547,8 +2708,8 @@ class AsyncSubstrateInterface:
             module,
             storage_item.value["name"],
             params,
-            runtime_config=runtime.runtime_config,
-            metadata=runtime.metadata,
+            runtime_config=self.runtime_config,
+            metadata=self.__metadata,
         )
         prefix = storage_key.to_hex()
 
@@ -2628,7 +2789,7 @@ class AsyncSubstrateInterface:
                         item_key = None
 
                     try:
-                        item_bytes = hex_to_bytes(item[1])
+                        item_bytes = hex_to_bytes_(item[1])
 
                         item_value = await self.decode_scale(
                             type_string=value_type, scale_bytes=item_bytes
@@ -2783,7 +2944,10 @@ class AsyncSubstrateInterface:
         Returns:
             list of call functions
         """
-        runtime = await self.init_runtime(block_hash=block_hash)
+        if not self.__metadata or block_hash:
+            runtime = await self.init_runtime(block_hash=block_hash)
+        else:
+            runtime = self.runtime
 
         for pallet in runtime.metadata.pallets:
             if pallet.name == module_name and pallet.calls:
