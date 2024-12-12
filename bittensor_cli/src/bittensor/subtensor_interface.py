@@ -916,13 +916,16 @@ class SubtensorInterface:
         except SubstrateRequestException as e:
             return False, format_error_message(e)
 
-    async def get_children(self, hotkey, netuid) -> tuple[bool, list, str]:
+    async def get_children(
+        self, hotkey: str, netuid: int, block_hash: Optional[str] = None
+    ) -> tuple[bool, list, str]:
         """
         This method retrieves the children of a given hotkey and netuid. It queries the SubtensorModule's ChildKeys
         storage function to get the children and formats them before returning as a tuple.
 
         :param hotkey: The hotkey value.
         :param netuid: The netuid value.
+        :param block_hash: The hash of the block number to check the hotkey against.
 
         :return: A tuple containing a boolean indicating success or failure, a list of formatted children, and an error
         message (if applicable)
@@ -932,6 +935,7 @@ class SubtensorInterface:
                 module="SubtensorModule",
                 storage_function="ChildKeys",
                 params=[hotkey, netuid],
+                block_hash=block_hash,
             )
             if children:
                 formatted_children = []
