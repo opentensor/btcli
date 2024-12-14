@@ -132,15 +132,10 @@ class Options:
     ss58_address = typer.Option(
         None, "--ss58", "--ss58-address", help="The SS58 address of the coldkey."
     )
-    overwrite_coldkey = typer.Option(
+    overwrite = typer.Option(
         False,
-        help="Overwrite the old coldkey with the newly generated coldkey.",
-        prompt=True,
-    )
-    overwrite_hotkey = typer.Option(
-        False,
-        help="Overwrite the old hotkey with the newly generated hotkey.",
-        prompt=True,
+        "--overwrite/--no-overwrite",
+        help="Overwrite the existing wallet file with the new one.",
     )
     network = typer.Option(
         None,
@@ -1725,6 +1720,7 @@ class CLIManager:
         json: Optional[str] = Options.json,
         json_password: Optional[str] = Options.json_password,
         use_password: Optional[bool] = Options.use_password,
+        overwrite: bool = Options.overwrite,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -1770,6 +1766,7 @@ class CLIManager:
                 json,
                 json_password,
                 use_password,
+                overwrite,
             )
         )
 
@@ -1780,6 +1777,7 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         public_key_hex: Optional[str] = Options.public_hex_key,
         ss58_address: Optional[str] = Options.ss58_address,
+        overwrite: bool = Options.overwrite,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -1826,7 +1824,7 @@ class CLIManager:
             rich.print("[red]Error: Invalid SS58 address or public key![/red]")
             raise typer.Exit()
         return self._run_command(
-            wallets.regen_coldkey_pub(wallet, ss58_address, public_key_hex)
+            wallets.regen_coldkey_pub(wallet, ss58_address, public_key_hex, overwrite)
         )
 
     def wallet_regen_hotkey(
@@ -1842,6 +1840,7 @@ class CLIManager:
             False,  # Overriden to False
             help="Set to 'True' to protect the generated Bittensor key with a password.",
         ),
+        overwrite: bool = Options.overwrite,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -1880,6 +1879,7 @@ class CLIManager:
                 json,
                 json_password,
                 use_password,
+                overwrite,
             )
         )
 
@@ -1898,6 +1898,7 @@ class CLIManager:
             False,  # Overriden to False
             help="Set to 'True' to protect the generated Bittensor key with a password.",
         ),
+        overwrite: bool = Options.overwrite,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -1935,7 +1936,9 @@ class CLIManager:
             validate=WV.WALLET,
         )
         n_words = get_n_words(n_words)
-        return self._run_command(wallets.new_hotkey(wallet, n_words, use_password))
+        return self._run_command(
+            wallets.new_hotkey(wallet, n_words, use_password, overwrite)
+        )
 
     def wallet_new_coldkey(
         self,
@@ -1949,6 +1952,7 @@ class CLIManager:
             help="The number of words used in the mnemonic. Options: [12, 15, 18, 21, 24]",
         ),
         use_password: Optional[bool] = Options.use_password,
+        overwrite: bool = Options.overwrite,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -1985,7 +1989,9 @@ class CLIManager:
             validate=WV.NONE,
         )
         n_words = get_n_words(n_words)
-        return self._run_command(wallets.new_coldkey(wallet, n_words, use_password))
+        return self._run_command(
+            wallets.new_coldkey(wallet, n_words, use_password, overwrite)
+        )
 
     def wallet_check_ck_swap(
         self,
@@ -2019,6 +2025,7 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         n_words: Optional[int] = None,
         use_password: bool = Options.use_password,
+        overwrite: bool = Options.overwrite,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2064,6 +2071,7 @@ class CLIManager:
                 wallet,
                 n_words,
                 use_password,
+                overwrite,
             )
         )
 
