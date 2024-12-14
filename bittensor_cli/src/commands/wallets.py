@@ -69,6 +69,7 @@ async def regen_coldkey(
     json_path: Optional[str] = None,
     json_password: Optional[str] = "",
     use_password: Optional[bool] = True,
+    overwrite: Optional[bool] = False,
 ):
     """Creates a new coldkey under this wallet"""
     json_str: Optional[str] = None
@@ -83,7 +84,7 @@ async def regen_coldkey(
             seed=seed,
             json=(json_str, json_password) if all([json_str, json_password]) else None,
             use_password=use_password,
-            overwrite=False,
+            overwrite=overwrite,
         )
 
         if isinstance(new_wallet, Wallet):
@@ -101,13 +102,14 @@ async def regen_coldkey_pub(
     wallet: Wallet,
     ss58_address: str,
     public_key_hex: str,
+    overwrite: Optional[bool] = False,
 ):
     """Creates a new coldkeypub under this wallet."""
     try:
         new_coldkeypub = wallet.regenerate_coldkeypub(
             ss58_address=ss58_address,
             public_key=public_key_hex,
-            overwrite=False,
+            overwrite=overwrite,
         )
         if isinstance(new_coldkeypub, Wallet):
             console.print(
@@ -125,6 +127,7 @@ async def regen_hotkey(
     json_path: Optional[str],
     json_password: Optional[str] = "",
     use_password: Optional[bool] = False,
+    overwrite: Optional[bool] = False,
 ):
     """Creates a new hotkey under this wallet."""
     json_str: Optional[str] = None
@@ -141,7 +144,7 @@ async def regen_hotkey(
             seed=seed,
             json=(json_str, json_password) if all([json_str, json_password]) else None,
             use_password=use_password,
-            overwrite=False,
+            overwrite=overwrite,
         )
         if isinstance(new_hotkey, Wallet):
             console.print(
@@ -158,13 +161,14 @@ async def new_hotkey(
     wallet: Wallet,
     n_words: int,
     use_password: bool,
+    overwrite: Optional[bool] = False,
 ):
     """Creates a new hotkey under this wallet."""
     try:
         wallet.create_new_hotkey(
             n_words=n_words,
             use_password=use_password,
-            overwrite=False,
+            overwrite=overwrite,
         )
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
@@ -174,13 +178,14 @@ async def new_coldkey(
     wallet: Wallet,
     n_words: int,
     use_password: bool,
+    overwrite: Optional[bool] = False,
 ):
     """Creates a new coldkey under this wallet."""
     try:
         wallet.create_new_coldkey(
             n_words=n_words,
             use_password=use_password,
-            overwrite=False,
+            overwrite=overwrite,
         )
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
@@ -190,13 +195,14 @@ async def wallet_create(
     wallet: Wallet,
     n_words: int = 12,
     use_password: bool = True,
+    overwrite: Optional[bool] = False,
 ):
     """Creates a new wallet."""
     try:
         wallet.create_new_coldkey(
             n_words=n_words,
             use_password=use_password,
-            overwrite=False,
+            overwrite=overwrite,
         )
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
@@ -205,7 +211,7 @@ async def wallet_create(
         wallet.create_new_hotkey(
             n_words=n_words,
             use_password=False,
-            overwrite=False,
+            overwrite=overwrite,
         )
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
