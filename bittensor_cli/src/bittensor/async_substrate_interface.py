@@ -999,7 +999,6 @@ class AsyncSubstrateInterface:
                 # encode string into AccountId
                 ## AccountId is a composite type with one, unnamed field
                 return encode_account_id(value)
-
             result = bytes(encode_by_type_string(type_string, self.registry, value))
         return result
 
@@ -2399,7 +2398,7 @@ class AsyncSubstrateInterface:
         nonce_obj = await self.runtime_call(
             "AccountNonceApi", "account_nonce", [account_address]
         )
-        return nonce_obj.value
+        return nonce_obj
 
     async def get_metadata_constant(self, module_name, constant_name, block_hash=None):
         """
