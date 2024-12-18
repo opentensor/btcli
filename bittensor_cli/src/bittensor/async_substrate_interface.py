@@ -2493,14 +2493,17 @@ class AsyncSubstrateInterface:
         extrinsic = await self.create_signed_extrinsic(
             call=call, keypair=keypair, signature=signature
         )
-        extrinsic_len = self.runtime_config.create_scale_object("u32")
-        extrinsic_len.encode(len(extrinsic.data))
+        extrinsic_len = len(extrinsic.data)
 
-        result = await self.runtime_call(
-            "TransactionPaymentApi", "query_info", [extrinsic, extrinsic_len]
+        result = (
+            await self.runtime_call(  # Needs the call hex, not the extrinsic object
+                "TransactionPaymentApi",
+                "query_info",
+                [extrinsic, extrinsic_len],
+            )
         )
 
-        return result.value
+        return result
 
     async def query(
         self,
