@@ -725,8 +725,8 @@ class CLIManager:
             "list", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
         )(self.subnets_list)
         self.subnets_app.command(
-            "lock-cost", rich_help_panel=HELP_PANELS["SUBNETS"]["CREATION"]
-        )(self.subnets_lock_cost)
+            "burn-cost", rich_help_panel=HELP_PANELS["SUBNETS"]["CREATION"]
+        )(self.subnets_burn_cost)
         self.subnets_app.command(
             "create", rich_help_panel=HELP_PANELS["SUBNETS"]["CREATION"]
         )(self.subnets_create)
@@ -787,7 +787,7 @@ class CLIManager:
         )(self.wallet_get_id)
 
         # Subnets
-        self.subnets_app.command("lock_cost", hidden=True)(self.subnets_lock_cost)
+        self.subnets_app.command("burn_cost", hidden=True)(self.subnets_burn_cost)
         self.subnets_app.command("pow_register", hidden=True)(self.subnets_pow_register)
 
         # Sudo
@@ -3480,23 +3480,23 @@ class CLIManager:
             )
         )
 
-    def subnets_lock_cost(
+    def subnets_burn_cost(
         self,
         network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
         """
-        Shows the required amount of TAO to be locked for creating a new subnet, i.e., cost of registering a new subnet.
+        Shows the required amount of TAO to be recycled for creating a new subnet, i.e., cost of registering a new subnet.
 
         The current implementation anneals the cost of creating a subnet over a period of two days. If the displayed cost is unappealing to you, check back in a day or two to see if it has decreased to a more affordable level.
 
         EXAMPLE
 
-        [green]$[/green] btcli subnets lock_cost
+        [green]$[/green] btcli subnets burn_cost
         """
         self.verbosity_handler(quiet, verbose)
-        return self._run_command(subnets.lock_cost(self.initialize_chain(network)))
+        return self._run_command(subnets.burn_cost(self.initialize_chain(network)))
 
     def subnets_create(
         self,

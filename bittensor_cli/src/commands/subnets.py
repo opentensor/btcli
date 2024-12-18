@@ -94,8 +94,8 @@ async def register_subnetwork_extrinsic(
     your_balance_ = await subtensor.get_balance(wallet.coldkeypub.ss58_address)
     your_balance = your_balance_[wallet.coldkeypub.ss58_address]
 
-    print_verbose("Fetching lock_cost")
-    burn_cost = await lock_cost(subtensor)
+    print_verbose("Fetching burn_cost")
+    burn_cost = await burn_cost(subtensor)
     if burn_cost > your_balance:
         err_console.print(
             f"Your balance of: [{COLOR_PALETTE['POOLS']['TAO']}]{your_balance}[{COLOR_PALETTE['POOLS']['TAO']}] is not enough to pay the subnet lock cost of: "
@@ -824,7 +824,7 @@ Description:
         await show_subnet(netuid)
 
 
-async def lock_cost(subtensor: "SubtensorInterface") -> Optional[Balance]:
+async def burn_cost(subtensor: "SubtensorInterface") -> Optional[Balance]:
     """View locking cost of creating a new subnetwork"""
     with console.status(
         f":satellite:Retrieving lock cost from {subtensor.network}...",
@@ -836,13 +836,13 @@ async def lock_cost(subtensor: "SubtensorInterface") -> Optional[Balance]:
             params=[],
         )
     if lc:
-        lock_cost_ = Balance(lc)
+        burn_cost_ = Balance(lc)
         console.print(
-            f"Subnet lock cost: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{lock_cost_}"
+            f"Subnet burn cost: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{burn_cost_}"
         )
-        return lock_cost_
+        return burn_cost_
     else:
-        err_console.print("Subnet lock cost: [red]Failed to get subnet lock cost[/red]")
+        err_console.print("Subnet burn cost: [red]Failed to get subnet burn cost[/red]")
         return None
 
 
