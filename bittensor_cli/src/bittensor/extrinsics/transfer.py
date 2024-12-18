@@ -61,14 +61,13 @@ async def transfer_extrinsic(
                 call=call, keypair=wallet.coldkeypub
             )
         except SubstrateRequestException as e:
-            payment_info = {"partialFee": int(2e7)}  # assume  0.02 Tao
+            payment_info = {"partial_fee": int(2e7)}  # assume  0.02 Tao
             err_console.print(
                 f":cross_mark: [red]Failed to get payment info[/red]:\n"
                 f"  [bold white]{format_error_message(e, subtensor.substrate)}[/bold white]\n"
-                f"  Defaulting to default transfer fee: {payment_info['partialFee']}"
+                f"  Defaulting to default transfer fee: {payment_info['partial_fee']}"
             )
-
-        return Balance.from_rao(payment_info["partialFee"])
+        return Balance.from_rao(payment_info["partial_fee"])
 
     async def do_transfer() -> tuple[bool, str, str]:
         """

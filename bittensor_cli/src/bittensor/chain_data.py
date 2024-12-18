@@ -3,8 +3,6 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Any, Union
 
-import munch
-
 import bt_decode
 import netaddr
 from scalecodec import ScaleBytes
@@ -95,12 +93,17 @@ class InfoBase:
 
     @classmethod
     def from_any(cls, any_: Any) -> "InfoBase":
-        any_ = munch.munchify(any_)
         return cls._fix_decoded(any_)
 
     @classmethod
     def list_from_any(cls, any_list: list[Any]) -> list["InfoBase"]:
         return [cls.from_any(any_) for any_ in any_list]
+
+    def __getitem__(self, item):
+        return getattr(self, item)
+
+    def get(self, item, default=None):
+        return getattr(self, item, default)
 
 
 @dataclass
@@ -136,35 +139,35 @@ class SubnetHyperparameters(InfoBase):
     liquid_alpha_enabled: bool
 
     @classmethod
-    def _fix_decoded(cls, decoded: Any) -> "SubnetHyperparameters":
+    def _fix_decoded(cls, decoded: Union[dict, "SubnetHyperparameters"]) -> "SubnetHyperparameters":
         return SubnetHyperparameters(
-            rho=decoded.rho,
-            kappa=decoded.kappa,
-            immunity_period=decoded.immunity_period,
-            min_allowed_weights=decoded.min_allowed_weights,
-            max_weight_limit=decoded.max_weights_limit,
-            tempo=decoded.tempo,
-            min_difficulty=decoded.min_difficulty,
-            max_difficulty=decoded.max_difficulty,
-            weights_version=decoded.weights_version,
-            weights_rate_limit=decoded.weights_rate_limit,
-            adjustment_interval=decoded.adjustment_interval,
-            activity_cutoff=decoded.activity_cutoff,
-            registration_allowed=decoded.registration_allowed,
-            target_regs_per_interval=decoded.target_regs_per_interval,
-            min_burn=decoded.min_burn,
-            max_burn=decoded.max_burn,
-            bonds_moving_avg=decoded.bonds_moving_avg,
-            max_regs_per_block=decoded.max_regs_per_block,
-            serving_rate_limit=decoded.serving_rate_limit,
-            max_validators=decoded.max_validators,
-            adjustment_alpha=decoded.adjustment_alpha,
-            difficulty=decoded.difficulty,
-            commit_reveal_weights_interval=decoded.commit_reveal_weights_interval,
-            commit_reveal_weights_enabled=decoded.commit_reveal_weights_enabled,
-            alpha_high=decoded.alpha_high,
-            alpha_low=decoded.alpha_low,
-            liquid_alpha_enabled=decoded.liquid_alpha_enabled,
+            rho=decoded.get("rho"),
+            kappa=decoded.get("kappa"),
+            immunity_period=decoded.get("immunity_period"),
+            min_allowed_weights=decoded.get("min_allowed_weights"),
+            max_weight_limit=decoded.get("max_weights_limit"),
+            tempo=decoded.get("tempo"),
+            min_difficulty=decoded.get("min_difficulty"),
+            max_difficulty=decoded.get("max_difficulty"),
+            weights_version=decoded.get("weights_version"),
+            weights_rate_limit=decoded.get("weights_rate_limit"),
+            adjustment_interval=decoded.get("adjustment_interval"),
+            activity_cutoff=decoded.get("activity_cutoff"),
+            registration_allowed=decoded.get("registration_allowed"),
+            target_regs_per_interval=decoded.get("target_regs_per_interval"),
+            min_burn=decoded.get("min_burn"),
+            max_burn=decoded.get("max_burn"),
+            bonds_moving_avg=decoded.get("bonds_moving_avg"),
+            max_regs_per_block=decoded.get("max_regs_per_block"),
+            serving_rate_limit=decoded.get("serving_rate_limit"),
+            max_validators=decoded.get("max_validators"),
+            adjustment_alpha=decoded.get("adjustment_alpha"),
+            difficulty=decoded.get("difficulty"),
+            commit_reveal_weights_interval=decoded.get("commit_reveal_weights_interval"),
+            commit_reveal_weights_enabled=decoded.get("commit_reveal_weights_enabled"),
+            alpha_high=decoded.get("alpha_high"),
+            alpha_low=decoded.get("alpha_low"),
+            liquid_alpha_enabled=decoded.get("liquid_alpha_enabled"),
         )
 
     @classmethod
@@ -202,7 +205,6 @@ class StakeInfo(InfoBase):
 
     @classmethod
     def from_any(cls, any_: Any) -> "StakeInfo":
-        any_ = munch.munchify(any_)
         return cls._fix_decoded_values(any_)
 
     @classmethod
@@ -310,44 +312,44 @@ class NeuronInfo(InfoBase):
         stake_dict = process_stake_data(n.stake, n.netuid)
         total_stake = sum(stake_dict.values()) if stake_dict else Balance(0)
         axon_info = n.axon_info
-        coldkey = decode_account_id(n.coldkey)
-        hotkey = decode_account_id(n.hotkey)
+        coldkey = decode_account_id(n.get("coldkey"))
+        hotkey = decode_account_id(n.get("hotkey"))
         return NeuronInfo(
             hotkey=hotkey,
             coldkey=coldkey,
-            uid=n.uid,
-            netuid=n.netuid,
-            active=n.active,
+            uid=n.get("uid"),
+            netuid=n.get("netuid"),
+            active=n.get("active"),
             stake=total_stake,
             stake_dict=stake_dict,
             total_stake=total_stake,
-            rank=u16_normalized_float(n.rank),
-            emission=n.emission / 1e9,
-            incentive=u16_normalized_float(n.incentive),
-            consensus=u16_normalized_float(n.consensus),
-            trust=u16_normalized_float(n.trust),
-            validator_trust=u16_normalized_float(n.validator_trust),
-            dividends=u16_normalized_float(n.dividends),
-            last_update=n.last_update,
-            validator_permit=n.validator_permit,
-            weights=[[e[0], e[1]] for e in n.weights],
-            bonds=[[e[0], e[1]] for e in n.bonds],
-            pruning_score=n.pruning_score,
+            rank=u16_normalized_float(n.rget("ank")),
+            emission=n.get("emission") / 1e9,
+            incentive=u16_normalized_float(n.get("incentive")),
+            consensus=u16_normalized_float(n.get("consensus")),
+            trust=u16_normalized_float(n.get("trust")),
+            validator_trust=u16_normalized_float(n.get("validator_trust")),
+            dividends=u16_normalized_float(n.get("dividends")),
+            last_update=n.get("last_update"),
+            validator_permit=n.get("validator_permit"),
+            weights=[[e[0], e[1]] for e in n.get("weights")],
+            bonds=[[e[0], e[1]] for e in n.get("bonds")],
+            pruning_score=n.get("pruning_score"),
             prometheus_info=PrometheusInfo(
-                block=n.prometheus_info.block,
-                version=n.prometheus_info.version,
-                ip=str(netaddr.IPAddress(n.prometheus_info.ip)),
-                port=n.prometheus_info.port,
-                ip_type=n.prometheus_info.ip_type,
+                block=n.get("prometheus_info").get("block"),
+                version=n.get("prometheus_info").get("version"),
+                ip=str(netaddr.IPAddress(n.get("prometheus_info").get("ip"))),
+                port=n.get("prometheus_info").get("port"),
+                ip_type=n.get("prometheus_info").get("ip_type"),
             ),
             axon_info=AxonInfo(
-                version=axon_info.version,
-                ip=str(netaddr.IPAddress(axon_info.ip)),
-                port=axon_info.port,
-                ip_type=axon_info.ip_type,
-                placeholder1=axon_info.placeholder1,
-                placeholder2=axon_info.placeholder2,
-                protocol=axon_info.protocol,
+                version=axon_info.get("version"),
+                ip=str(netaddr.IPAddress(axon_info.get("ip"))),
+                port=axon_info.get("port"),
+                ip_type=axon_info.get("ip_type"),
+                placeholder1=axon_info.get("placeholder1"),
+                placeholder2=axon_info.get("placeholder2"),
+                protocol=axon_info.get("protocol"),
                 hotkey=hotkey,
                 coldkey=coldkey,
             ),
@@ -517,13 +519,14 @@ class DelegateInfo(InfoBase):
 
     @classmethod
     def _fix_decoded(cls, decoded: "DelegateInfo") -> "DelegateInfo":
+        # TODO check if this is hotkey_ss58 or delegate_ss58 from bt-decode
         hotkey = decode_account_id(decoded.delegate_ss58)
         owner = decode_account_id(decoded.owner_ss58)
         nominators = [
             (decode_account_id(x), Balance.from_rao(y)) for x, y in decoded.nominators
         ]
         total_stake = sum((x[1] for x in nominators)) if nominators else Balance(0)
-        return DelegateInfo(
+        return cls(
             hotkey_ss58=hotkey,
             total_stake=total_stake,
             nominators=nominators,
@@ -578,9 +581,8 @@ class DelegateInfo(InfoBase):
 
     @classmethod
     def delegated_list_from_any(
-        cls, any_list: list[Any]
+        cls, any_list: list[Union[tuple["DelegateInfo", Balance], tuple[dict, Balance]]]
     ) -> list[tuple["DelegateInfo", Balance]]:
-        any_list = [munch.munchify(any_) for any_ in any_list]
         return cls._fix_delegated_list(any_list)
 
 
