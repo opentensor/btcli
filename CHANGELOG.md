@@ -1,5 +1,32 @@
 # Changelog
 
+## 8.4.1 /2024-12-05
+
+## What's Changed
+* Sometimes err_docs is a string. We want to handle this properly. by @thewhaleking in https://github.com/opentensor/btcli/pull/260
+* Sudo Hyperparams by @thewhaleking in https://github.com/opentensor/btcli/pull/261
+* Sorted netuids in `btcli r get-weights` by @thewhaleking in https://github.com/opentensor/btcli/pull/258
+* Show hyperparams during `sudo set` only sometimes by @thewhaleking in https://github.com/opentensor/btcli/pull/262
+* Update stake children help menu by @thewhaleking in https://github.com/opentensor/btcli/pull/264
+* Updates bt-decode to 0.4.0 by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/265
+* Backmerge main to staging for 8.4.1 by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/267
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v8.4.0...v8.4.1
+
+## 8.4.0 /2024-11-27
+
+## What's Changed
+* Use hex to bytes function by @thewhaleking in https://github.com/opentensor/btcli/pull/244
+* Remove deprecated Typer options by @thewhaleking in https://github.com/opentensor/btcli/pull/248
+* Upgrade websockets by @thewhaleking in https://github.com/opentensor/btcli/pull/247
+* Fast block improvements by @thewhaleking in https://github.com/opentensor/btcli/pull/245
+* Fixed overview message discrepancy by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/251
+* Fix hyperparams setting. by @thewhaleking in https://github.com/opentensor/btcli/pull/252
+* Bumps btwallet to 2.1.2 by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/255
+* Bumps btwallet to 2.1.3 by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/256
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v8.3.1...v8.4.0
+
 ## 8.3.1 /2024-11-13
 
 ## What's Changed

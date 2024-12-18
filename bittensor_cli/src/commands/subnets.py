@@ -128,7 +128,7 @@ async def register_subnetwork_extrinsic(
         await response.process_events()
         if not await response.is_success:
             err_console.print(
-                f":cross_mark: [red]Failed[/red]: {format_error_message(await response.error_message, substrate)}"
+                f":cross_mark: [red]Failed[/red]: {format_error_message(await response.error_message)}"
             )
             await asyncio.sleep(0.5)
             return False
