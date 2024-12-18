@@ -63,8 +63,8 @@ async def transfer_extrinsic(
         except SubstrateRequestException as e:
             payment_info = {"partialFee": int(2e7)}  # assume  0.02 Tao
             err_console.print(
-                f":cross_mark: [red]Failed to get payment info[/red]:[bold white]\n"
-                f"  {format_error_message(e, subtensor.substrate)}[/bold white]\n"
+                f":cross_mark: [red]Failed to get payment info[/red]:\n"
+                f"  [bold white]{format_error_message(e, subtensor.substrate)}[/bold white]\n"
                 f"  Defaulting to default transfer fee: {payment_info['partialFee']}"
             )
 
