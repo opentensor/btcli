@@ -1001,6 +1001,8 @@ class AsyncSubstrateInterface:
                 # encode string into AccountId
                 ## AccountId is a composite type with one, unnamed field
                 return encode_account_id(value)
+            if hasattr(value, "value_object"):
+                value = value.value_object
             result = bytes(encode_by_type_string(type_string, self.registry, value))
         return result
 
