@@ -1181,7 +1181,8 @@ async def _fetch_all_neurons(
 
 
 def _process_neurons_for_netuids(
-    netuids_with_all_neurons_bytes: list[tuple[int, Optional[tuple[str, bytes]]]], custom_rpc_type_registry: PortableRegistry
+    netuids_with_all_neurons_bytes: list[tuple[int, Optional[tuple[str, bytes]]]],
+    custom_rpc_type_registry: PortableRegistry,
 ) -> list[tuple[int, list[NeuronInfoLite]]]:
     """
     Decode a list of hex-bytes neurons (and typestring) with their respective netuid
@@ -1190,7 +1191,12 @@ def _process_neurons_for_netuids(
     :return: netuids mapped to decoded neurons
     """
     all_results = [
-        (netuid, NeuronInfoLite.list_from_any(decode_scale_bytes(result[0], result[1], custom_rpc_type_registry)))
+        (
+            netuid,
+            NeuronInfoLite.list_from_any(
+                decode_scale_bytes(result[0], result[1], custom_rpc_type_registry)
+            ),
+        )
         if result
         else (netuid, [])
         for netuid, result in netuids_with_all_neurons_bytes
@@ -1207,7 +1213,9 @@ async def _get_neurons_for_netuids(
         subtensor.substrate.initialize()
 
     custom_rpc_type_registry: PortableRegistry = subtensor.substrate.registry
-    all_processed_neurons = _process_neurons_for_netuids(all_neurons_bytes, custom_rpc_type_registry)
+    all_processed_neurons = _process_neurons_for_netuids(
+        all_neurons_bytes, custom_rpc_type_registry
+    )
     return [
         _map_hotkey_to_neurons(neurons, hot_wallets, netuid)
         for netuid, neurons in all_processed_neurons

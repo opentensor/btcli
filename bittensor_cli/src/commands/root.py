@@ -1126,9 +1126,9 @@ async def get_senate(subtensor: SubtensorInterface):
         senate_members = await _get_senate_members(subtensor)
 
     print_verbose("Fetching member details from Github")
-    delegate_info: dict[str, DelegatesDetails] = (
-        await subtensor.get_delegate_identities()
-    )
+    delegate_info: dict[
+        str, DelegatesDetails
+    ] = await subtensor.get_delegate_identities()
 
     table = Table(
         Column(
@@ -1225,9 +1225,9 @@ async def proposals(subtensor: SubtensorInterface):
     )
 
     print_verbose("Fetching member information from Chain")
-    registered_delegate_info: dict[str, DelegatesDetails] = (
-        await subtensor.get_delegate_identities()
-    )
+    registered_delegate_info: dict[
+        str, DelegatesDetails
+    ] = await subtensor.get_delegate_identities()
 
     table = Table(
         Column(
