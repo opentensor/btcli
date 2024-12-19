@@ -313,7 +313,7 @@ def get_creation_data(
     seed: Optional[str],
     json: Optional[str],
     json_password: Optional[str],
-) -> tuple[str, str, str, str]:
+) -> tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
     """
     Determines which of the key creation elements have been supplied, if any. If None have been supplied,
     prompts to user, and determines what they've supplied. Returns all elements in a tuple.

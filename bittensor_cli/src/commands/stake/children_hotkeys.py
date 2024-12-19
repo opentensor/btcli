@@ -299,11 +299,7 @@ async def get_children(
             params=[hotkey],
             reuse_block_hash=True,
         )
-        stake = (
-            Balance.from_rao(_result)
-            if _result is not None
-            else Balance(0)
-        )
+        stake = Balance.from_rao(_result) if _result is not None else Balance(0)
         if parent:
             console.print(
                 f"\nYour Hotkey: [bright_magenta]{hotkey}[/bright_magenta]  |  Total Stake: [dark_orange]{stake}t[/dark_orange]\n",

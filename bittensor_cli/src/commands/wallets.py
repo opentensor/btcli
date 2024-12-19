@@ -12,6 +12,7 @@ import aiohttp
 from bittensor_wallet import Wallet
 from bittensor_wallet.errors import KeyFileError
 from bittensor_wallet.keyfile import Keyfile
+from bt_decode import PortableRegistry
 from fuzzywuzzy import fuzz
 from rich import box
 from rich.align import Align
@@ -42,6 +43,7 @@ from bittensor_cli.src.bittensor.utils import (
     RAO_PER_TAO,
     console,
     convert_blocks_to_time,
+    decode_scale_bytes,
     err_console,
     print_error,
     print_verbose,
@@ -1142,34 +1144,34 @@ def _map_hotkey_to_neurons(
 
 async def _fetch_neuron_for_netuid(
     netuid: int, subtensor: SubtensorInterface
-) -> tuple[int, Optional[str]]:
+) -> tuple[int, Optional[tuple[str, bytes]]]:
     """
     Retrieves all neurons for a specified netuid
 
     :param netuid: the netuid to query
     :param subtensor: the SubtensorInterface to make the query
 
-    :return: the original netuid, and a mapping of the neurons to their NeuronInfoLite objects
+    :return: the original netuid and a tuple of the neurons type and the encoded hex-bytes
     """
 
     async def neurons_lite_for_uid(uid: int) -> Optional[str]:
         block_hash = subtensor.substrate.last_block_hash
-        hex_bytes_result = await subtensor.query_runtime_api(
+        type_string, bytes_result = await subtensor.query_runtime_api_wait_to_decode(
             runtime_api="NeuronInfoRuntimeApi",
             method="get_neurons_lite",
             params=[uid],
             block_hash=block_hash,
         )
 
-        return hex_bytes_result
+        return type_string, bytes_result
 
-    neurons = await neurons_lite_for_uid(uid=netuid)
-    return netuid, neurons
+    result = await neurons_lite_for_uid(uid=netuid)
+    return netuid, result
 
 
 async def _fetch_all_neurons(
     netuids: list[int], subtensor
-) -> list[tuple[int, Optional[str]]]:
+) -> list[tuple[int, Optional[tuple[str, bytes]]]]:
     """Retrieves all neurons for each of the specified netuids"""
     return list(
         await asyncio.gather(
@@ -1179,19 +1181,25 @@ async def _fetch_all_neurons(
 
 
 def _process_neurons_for_netuids(
-    netuids_with_all_neurons_hex_bytes: list[tuple[int, Optional[str]]],
+    netuids_with_all_neurons_bytes: list[tuple[int, Optional[tuple[str, bytes]]]],
+    custom_rpc_type_registry: PortableRegistry,
 ) -> list[tuple[int, list[NeuronInfoLite]]]:
     """
-    Decode a list of hex-bytes neurons with their respective netuid
+    Decode a list of hex-bytes neurons (and typestring) with their respective netuid
 
     :param netuids_with_all_neurons_hex_bytes: netuids with hex-bytes neurons
     :return: netuids mapped to decoded neurons
     """
     all_results = [
-        (netuid, NeuronInfoLite.list_from_vec_u8(hex_to_bytes(result)))
+        (
+            netuid,
+            NeuronInfoLite.list_from_any(
+                decode_scale_bytes(result[0], result[1], custom_rpc_type_registry)
+            ),
+        )
         if result
         else (netuid, [])
-        for netuid, result in netuids_with_all_neurons_hex_bytes
+        for netuid, result in netuids_with_all_neurons_bytes
     ]
     return all_results
 
@@ -1199,9 +1207,15 @@ def _process_neurons_for_netuids(
 async def _get_neurons_for_netuids(
     subtensor: SubtensorInterface, netuids: list[int], hot_wallets: list[str]
 ) -> list[tuple[int, list["NeuronInfoLite"], Optional[str]]]:
-    all_neurons_hex_bytes = await _fetch_all_neurons(netuids, subtensor)
+    all_neurons_bytes = await _fetch_all_neurons(netuids, subtensor)
 
-    all_processed_neurons = _process_neurons_for_netuids(all_neurons_hex_bytes)
+    if not subtensor.substrate.registry:
+        subtensor.substrate.initialize()
+
+    custom_rpc_type_registry: PortableRegistry = subtensor.substrate.registry
+    all_processed_neurons = _process_neurons_for_netuids(
+        all_neurons_bytes, custom_rpc_type_registry
+    )
     return [
         _map_hotkey_to_neurons(neurons, hot_wallets, netuid)
         for netuid, neurons in all_processed_neurons

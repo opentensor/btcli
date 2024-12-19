@@ -1,18 +1,14 @@
+from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional, Union
 
 import bt_decode
 import netaddr
-from scalecodec.utils.ss58 import ss58_encode
+import munch
 
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.networking import int_to_ip
-from bittensor_cli.src.bittensor.utils import SS58_FORMAT, u16_normalized_float
-
-
-def decode_account_id(account_id_bytes: tuple):
-    # Convert the AccountId bytes to a Base64 string
-    return ss58_encode(bytes(account_id_bytes).hex(), SS58_FORMAT)
+from bittensor_cli.src.bittensor.utils import u16_normalized_float, decode_account_id
 
 
 def process_stake_data(stake_data):
@@ -62,7 +58,32 @@ class AxonInfo:
 
 
 @dataclass
-class SubnetHyperparameters:
+class InfoBase:
+    """Base dataclass for info objects."""
+
+    @abstractmethod
+    def _fix_decoded(self, decoded: Any) -> "InfoBase":
+        raise NotImplementedError(
+            "This is an abstract method and must be implemented in a subclass."
+        )
+
+    @classmethod
+    def from_any(cls, any_: Any) -> "InfoBase":
+        return cls._fix_decoded(any_)
+
+    @classmethod
+    def list_from_any(cls, any_list: list[Any]) -> list["InfoBase"]:
+        return [cls.from_any(any_) for any_ in any_list]
+
+    def __getitem__(self, item):
+        return getattr(self, item)
+
+    def get(self, item, default=None):
+        return getattr(self, item, default)
+
+
+@dataclass
+class SubnetHyperparameters(InfoBase):
     """Dataclass for subnet hyperparameters."""
 
     rho: int
@@ -94,41 +115,49 @@ class SubnetHyperparameters:
     liquid_alpha_enabled: bool
 
     @classmethod
+    def _fix_decoded(
+        cls, decoded: Union[dict, "SubnetHyperparameters"]
+    ) -> "SubnetHyperparameters":
+        return SubnetHyperparameters(
+            rho=decoded.get("rho"),
+            kappa=decoded.get("kappa"),
+            immunity_period=decoded.get("immunity_period"),
+            min_allowed_weights=decoded.get("min_allowed_weights"),
+            max_weight_limit=decoded.get("max_weights_limit"),
+            tempo=decoded.get("tempo"),
+            min_difficulty=decoded.get("min_difficulty"),
+            max_difficulty=decoded.get("max_difficulty"),
+            weights_version=decoded.get("weights_version"),
+            weights_rate_limit=decoded.get("weights_rate_limit"),
+            adjustment_interval=decoded.get("adjustment_interval"),
+            activity_cutoff=decoded.get("activity_cutoff"),
+            registration_allowed=decoded.get("registration_allowed"),
+            target_regs_per_interval=decoded.get("target_regs_per_interval"),
+            min_burn=decoded.get("min_burn"),
+            max_burn=decoded.get("max_burn"),
+            bonds_moving_avg=decoded.get("bonds_moving_avg"),
+            max_regs_per_block=decoded.get("max_regs_per_block"),
+            serving_rate_limit=decoded.get("serving_rate_limit"),
+            max_validators=decoded.get("max_validators"),
+            adjustment_alpha=decoded.get("adjustment_alpha"),
+            difficulty=decoded.get("difficulty"),
+            commit_reveal_weights_interval=decoded.get(
+                "commit_reveal_weights_interval"
+            ),
+            commit_reveal_weights_enabled=decoded.get("commit_reveal_weights_enabled"),
+            alpha_high=decoded.get("alpha_high"),
+            alpha_low=decoded.get("alpha_low"),
+            liquid_alpha_enabled=decoded.get("liquid_alpha_enabled"),
+        )
+
+    @classmethod
     def from_vec_u8(cls, vec_u8: bytes) -> Optional["SubnetHyperparameters"]:
         decoded = bt_decode.SubnetHyperparameters.decode(vec_u8)
-        return SubnetHyperparameters(
-            rho=decoded.rho,
-            kappa=decoded.kappa,
-            immunity_period=decoded.immunity_period,
-            min_allowed_weights=decoded.min_allowed_weights,
-            max_weight_limit=decoded.max_weights_limit,
-            tempo=decoded.tempo,
-            min_difficulty=decoded.min_difficulty,
-            max_difficulty=decoded.max_difficulty,
-            weights_version=decoded.weights_version,
-            weights_rate_limit=decoded.weights_rate_limit,
-            adjustment_interval=decoded.adjustment_interval,
-            activity_cutoff=decoded.activity_cutoff,
-            registration_allowed=decoded.registration_allowed,
-            target_regs_per_interval=decoded.target_regs_per_interval,
-            min_burn=decoded.min_burn,
-            max_burn=decoded.max_burn,
-            bonds_moving_avg=decoded.bonds_moving_avg,
-            max_regs_per_block=decoded.max_regs_per_block,
-            serving_rate_limit=decoded.serving_rate_limit,
-            max_validators=decoded.max_validators,
-            adjustment_alpha=decoded.adjustment_alpha,
-            difficulty=decoded.difficulty,
-            commit_reveal_weights_interval=decoded.commit_reveal_weights_interval,
-            commit_reveal_weights_enabled=decoded.commit_reveal_weights_enabled,
-            alpha_high=decoded.alpha_high,
-            alpha_low=decoded.alpha_low,
-            liquid_alpha_enabled=decoded.liquid_alpha_enabled,
-        )
+        return cls._fix_decoded(decoded)
 
 
 @dataclass
-class StakeInfo:
+class StakeInfo(InfoBase):
     """Dataclass for stake info."""
 
     hotkey_ss58: str  # Hotkey address
@@ -136,19 +165,24 @@ class StakeInfo:
     stake: Balance  # Stake for the hotkey-coldkey pair
 
     @classmethod
+    def _fix_decoded(cls, decoded: Any) -> "StakeInfo":
+        hotkey = decode_account_id(decoded.get("hotkey"))
+        coldkey = decode_account_id(decoded.get("coldkey"))
+        stake = Balance.from_rao(decoded.get("stake"))
+
+        return StakeInfo(hotkey, coldkey, stake)
+
+    @classmethod
+    def from_any(cls, any_: Any) -> "StakeInfo":
+        return cls._fix_decoded(any_)
+
+    @classmethod
     def list_from_vec_u8(cls, vec_u8: bytes) -> list["StakeInfo"]:
         """
         Returns a list of StakeInfo objects from a `vec_u8`.
         """
         decoded = bt_decode.StakeInfo.decode_vec(vec_u8)
-        results = []
-        for d in decoded:
-            hotkey = decode_account_id(d.hotkey)
-            coldkey = decode_account_id(d.coldkey)
-            stake = Balance.from_rao(d.stake)
-            results.append(StakeInfo(hotkey, coldkey, stake))
-
-        return results
+        return [cls._fix_decoded(d) for d in decoded]
 
 
 @dataclass
@@ -170,7 +204,7 @@ class PrometheusInfo:
 
 
 @dataclass
-class NeuronInfo:
+class NeuronInfo(InfoBase):
     """Dataclass for neuron metadata."""
 
     hotkey: str
@@ -241,58 +275,64 @@ class NeuronInfo:
         return neuron
 
     @classmethod
-    def from_vec_u8(cls, vec_u8: bytes) -> "NeuronInfo":
-        n = bt_decode.NeuronInfo.decode(vec_u8)
+    def _fix_decoded(cls, decoded: Any) -> "NeuronInfo":
+        n = decoded
+
         stake_dict = process_stake_data(n.stake)
         total_stake = sum(stake_dict.values()) if stake_dict else Balance(0)
         axon_info = n.axon_info
-        coldkey = decode_account_id(n.coldkey)
-        hotkey = decode_account_id(n.hotkey)
+        coldkey = decode_account_id(n.get("coldkey"))
+        hotkey = decode_account_id(n.get("hotkey"))
         return NeuronInfo(
             hotkey=hotkey,
             coldkey=coldkey,
-            uid=n.uid,
-            netuid=n.netuid,
-            active=n.active,
+            uid=n.get("uid"),
+            netuid=n.get("netuid"),
+            active=n.get("active"),
             stake=total_stake,
             stake_dict=stake_dict,
             total_stake=total_stake,
-            rank=u16_normalized_float(n.rank),
-            emission=n.emission / 1e9,
-            incentive=u16_normalized_float(n.incentive),
-            consensus=u16_normalized_float(n.consensus),
-            trust=u16_normalized_float(n.trust),
-            validator_trust=u16_normalized_float(n.validator_trust),
-            dividends=u16_normalized_float(n.dividends),
-            last_update=n.last_update,
-            validator_permit=n.validator_permit,
-            weights=[[e[0], e[1]] for e in n.weights],
-            bonds=[[e[0], e[1]] for e in n.bonds],
-            pruning_score=n.pruning_score,
+            rank=u16_normalized_float(n.rget("ank")),
+            emission=n.get("emission") / 1e9,
+            incentive=u16_normalized_float(n.get("incentive")),
+            consensus=u16_normalized_float(n.get("consensus")),
+            trust=u16_normalized_float(n.get("trust")),
+            validator_trust=u16_normalized_float(n.get("validator_trust")),
+            dividends=u16_normalized_float(n.get("dividends")),
+            last_update=n.get("last_update"),
+            validator_permit=n.get("validator_permit"),
+            weights=[[e[0], e[1]] for e in n.get("weights")],
+            bonds=[[e[0], e[1]] for e in n.get("bonds")],
+            pruning_score=n.get("pruning_score"),
             prometheus_info=PrometheusInfo(
-                block=n.prometheus_info.block,
-                version=n.prometheus_info.version,
-                ip=str(netaddr.IPAddress(n.prometheus_info.ip)),
-                port=n.prometheus_info.port,
-                ip_type=n.prometheus_info.ip_type,
+                block=n.get("prometheus_info").get("block"),
+                version=n.get("prometheus_info").get("version"),
+                ip=str(netaddr.IPAddress(n.get("prometheus_info").get("ip"))),
+                port=n.get("prometheus_info").get("port"),
+                ip_type=n.get("prometheus_info").get("ip_type"),
             ),
             axon_info=AxonInfo(
-                version=axon_info.version,
-                ip=str(netaddr.IPAddress(axon_info.ip)),
-                port=axon_info.port,
-                ip_type=axon_info.ip_type,
-                placeholder1=axon_info.placeholder1,
-                placeholder2=axon_info.placeholder2,
-                protocol=axon_info.protocol,
+                version=axon_info.get("version"),
+                ip=str(netaddr.IPAddress(axon_info.get("ip"))),
+                port=axon_info.get("port"),
+                ip_type=axon_info.get("ip_type"),
+                placeholder1=axon_info.get("placeholder1"),
+                placeholder2=axon_info.get("placeholder2"),
+                protocol=axon_info.get("protocol"),
                 hotkey=hotkey,
                 coldkey=coldkey,
             ),
             is_null=False,
         )
 
+    @classmethod
+    def from_vec_u8(cls, vec_u8: bytes) -> "NeuronInfo":
+        n = bt_decode.NeuronInfo.decode(vec_u8)
+        return cls._fix_decoded(n)
+
 
 @dataclass
-class NeuronInfoLite:
+class NeuronInfoLite(InfoBase):
     """Dataclass for neuron metadata, but without the weights and bonds."""
 
     hotkey: str
@@ -346,74 +386,76 @@ class NeuronInfoLite:
         return neuron
 
     @classmethod
+    def _fix_decoded(cls, decoded: Union[dict, "NeuronInfoLite"]) -> "NeuronInfoLite":
+        active = decoded.get("active")
+        axon_info = decoded.get("axon_info")
+        coldkey = decode_account_id(decoded.get("coldkey"))
+        consensus = decoded.get("consensus")
+        dividends = decoded.get("dividends")
+        emission = decoded.get("emission")
+        hotkey = decode_account_id(decoded.get("hotkey"))
+        incentive = decoded.get("incentive")
+        last_update = decoded.get("last_update")
+        netuid = decoded.get("netuid")
+        prometheus_info = decoded.get("prometheus_info")
+        pruning_score = decoded.get("pruning_score")
+        rank = decoded.get("rank")
+        stake_dict = process_stake_data(decoded.get("stake"))
+        stake = sum(stake_dict.values()) if stake_dict else Balance(0)
+        trust = decoded.get("trust")
+        uid = decoded.get("uid")
+        validator_permit = decoded.get("validator_permit")
+        validator_trust = decoded.get("validator_trust")
+
+        neuron = cls(
+            active=active,
+            axon_info=AxonInfo(
+                version=axon_info.version,
+                ip=str(netaddr.IPAddress(axon_info.ip)),
+                port=axon_info.port,
+                ip_type=axon_info.ip_type,
+                placeholder1=axon_info.placeholder1,
+                placeholder2=axon_info.placeholder2,
+                protocol=axon_info.protocol,
+                hotkey=hotkey,
+                coldkey=coldkey,
+            ),
+            coldkey=coldkey,
+            consensus=u16_normalized_float(consensus),
+            dividends=u16_normalized_float(dividends),
+            emission=emission / 1e9,
+            hotkey=hotkey,
+            incentive=u16_normalized_float(incentive),
+            last_update=last_update,
+            netuid=netuid,
+            prometheus_info=PrometheusInfo(
+                version=prometheus_info.version,
+                ip=str(netaddr.IPAddress(prometheus_info.ip)),
+                port=prometheus_info.port,
+                ip_type=prometheus_info.ip_type,
+                block=prometheus_info.block,
+            ),
+            pruning_score=pruning_score,
+            rank=u16_normalized_float(rank),
+            stake_dict=stake_dict,
+            stake=stake,
+            total_stake=stake,
+            trust=u16_normalized_float(trust),
+            uid=uid,
+            validator_permit=validator_permit,
+            validator_trust=u16_normalized_float(validator_trust),
+        )
+
+        return neuron
+
+    @classmethod
     def list_from_vec_u8(cls, vec_u8: bytes) -> list["NeuronInfoLite"]:
         decoded = bt_decode.NeuronInfoLite.decode_vec(vec_u8)
-        results = []
-        for item in decoded:
-            active = item.active
-            axon_info = item.axon_info
-            coldkey = decode_account_id(item.coldkey)
-            consensus = item.consensus
-            dividends = item.dividends
-            emission = item.emission
-            hotkey = decode_account_id(item.hotkey)
-            incentive = item.incentive
-            last_update = item.last_update
-            netuid = item.netuid
-            prometheus_info = item.prometheus_info
-            pruning_score = item.pruning_score
-            rank = item.rank
-            stake_dict = process_stake_data(item.stake)
-            stake = sum(stake_dict.values()) if stake_dict else Balance(0)
-            trust = item.trust
-            uid = item.uid
-            validator_permit = item.validator_permit
-            validator_trust = item.validator_trust
-            results.append(
-                NeuronInfoLite(
-                    active=active,
-                    axon_info=AxonInfo(
-                        version=axon_info.version,
-                        ip=str(netaddr.IPAddress(axon_info.ip)),
-                        port=axon_info.port,
-                        ip_type=axon_info.ip_type,
-                        placeholder1=axon_info.placeholder1,
-                        placeholder2=axon_info.placeholder2,
-                        protocol=axon_info.protocol,
-                        hotkey=hotkey,
-                        coldkey=coldkey,
-                    ),
-                    coldkey=coldkey,
-                    consensus=u16_normalized_float(consensus),
-                    dividends=u16_normalized_float(dividends),
-                    emission=emission / 1e9,
-                    hotkey=hotkey,
-                    incentive=u16_normalized_float(incentive),
-                    last_update=last_update,
-                    netuid=netuid,
-                    prometheus_info=PrometheusInfo(
-                        version=prometheus_info.version,
-                        ip=str(netaddr.IPAddress(prometheus_info.ip)),
-                        port=prometheus_info.port,
-                        ip_type=prometheus_info.ip_type,
-                        block=prometheus_info.block,
-                    ),
-                    pruning_score=pruning_score,
-                    rank=u16_normalized_float(rank),
-                    stake_dict=stake_dict,
-                    stake=stake,
-                    total_stake=stake,
-                    trust=u16_normalized_float(trust),
-                    uid=uid,
-                    validator_permit=validator_permit,
-                    validator_trust=u16_normalized_float(validator_trust),
-                )
-            )
-        return results
+        return [cls._fix_decoded(d) for d in decoded]
 
 
 @dataclass
-class DelegateInfo:
+class DelegateInfo(InfoBase):
     """
     Dataclass for delegate information. For a lighter version of this class, see :func:`DelegateInfoLite`.
 
@@ -444,15 +486,15 @@ class DelegateInfo:
     total_daily_return: Balance  # Total daily return of the delegate
 
     @classmethod
-    def from_vec_u8(cls, vec_u8: bytes) -> Optional["DelegateInfo"]:
-        decoded = bt_decode.DelegateInfo.decode(vec_u8)
+    def _fix_decoded(cls, decoded: "DelegateInfo") -> "DelegateInfo":
+        # TODO check if this is hotkey_ss58 or delegate_ss58 from bt-decode
         hotkey = decode_account_id(decoded.delegate_ss58)
         owner = decode_account_id(decoded.owner_ss58)
         nominators = [
             (decode_account_id(x), Balance.from_rao(y)) for x, y in decoded.nominators
         ]
         total_stake = sum((x[1] for x in nominators)) if nominators else Balance(0)
-        return DelegateInfo(
+        return cls(
             hotkey_ss58=hotkey,
             total_stake=total_stake,
             nominators=nominators,
@@ -465,38 +507,21 @@ class DelegateInfo:
         )
 
     @classmethod
-    def list_from_vec_u8(cls, vec_u8: bytes) -> list["DelegateInfo"]:
-        decoded = bt_decode.DelegateInfo.decode_vec(vec_u8)
-        results = []
-        for d in decoded:
-            hotkey = decode_account_id(d.delegate_ss58)
-            owner = decode_account_id(d.owner_ss58)
-            nominators = [
-                (decode_account_id(x), Balance.from_rao(y)) for x, y in d.nominators
-            ]
-            total_stake = sum((x[1] for x in nominators)) if nominators else Balance(0)
-            results.append(
-                DelegateInfo(
-                    hotkey_ss58=hotkey,
-                    total_stake=total_stake,
-                    nominators=nominators,
-                    owner_ss58=owner,
-                    take=u16_normalized_float(d.take),
-                    validator_permits=d.validator_permits,
-                    registrations=d.registrations,
-                    return_per_1000=Balance.from_rao(d.return_per_1000),
-                    total_daily_return=Balance.from_rao(d.total_daily_return),
-                )
-            )
-        return results
+    def from_vec_u8(cls, vec_u8: bytes) -> Optional["DelegateInfo"]:
+        decoded = bt_decode.DelegateInfo.decode(vec_u8)
+        return cls._fix_decoded(decoded)
 
     @classmethod
-    def delegated_list_from_vec_u8(
-        cls, vec_u8: bytes
+    def list_from_vec_u8(cls, vec_u8: bytes) -> list["DelegateInfo"]:
+        decoded = bt_decode.DelegateInfo.decode_vec(vec_u8)
+        return [cls._fix_decoded(d) for d in decoded]
+
+    @classmethod
+    def _fix_delegated_list(
+        cls, delegated_list: list[tuple["DelegateInfo", Balance]]
     ) -> list[tuple["DelegateInfo", Balance]]:
-        decoded = bt_decode.DelegateInfo.decode_delegated(vec_u8)
         results = []
-        for d, b in decoded:
+        for d, b in delegated_list:
             nominators = [
                 (decode_account_id(x), Balance.from_rao(y)) for x, y in d.nominators
             ]
@@ -515,9 +540,22 @@ class DelegateInfo:
             results.append((delegate, Balance.from_rao(b)))
         return results
 
+    @classmethod
+    def delegated_list_from_vec_u8(
+        cls, vec_u8: bytes
+    ) -> list[tuple["DelegateInfo", Balance]]:
+        decoded = bt_decode.DelegateInfo.decode_delegated(vec_u8)
+        return cls._fix_delegated_list(decoded)
+
+    @classmethod
+    def delegated_list_from_any(
+        cls, any_list: list[Union[tuple["DelegateInfo", Balance], tuple[dict, Balance]]]
+    ) -> list[tuple["DelegateInfo", Balance]]:
+        return cls._fix_delegated_list(any_list)
+
 
 @dataclass
-class SubnetInfo:
+class SubnetInfo(InfoBase):
     """Dataclass for subnet info."""
 
     netuid: int
@@ -540,193 +578,33 @@ class SubnetInfo:
     owner_ss58: str
 
     @classmethod
+    def _fix_decoded(cls, decoded: "SubnetInfo") -> "SubnetInfo":
+        d = decoded
+        return SubnetInfo(
+            netuid=d.netuid,
+            rho=d.rho,
+            kappa=d.kappa,
+            difficulty=d.difficulty,
+            immunity_period=d.immunity_period,
+            max_allowed_validators=d.max_allowed_validators,
+            min_allowed_weights=d.min_allowed_weights,
+            max_weight_limit=d.max_weights_limit,
+            scaling_law_power=d.scaling_law_power,
+            subnetwork_n=d.subnetwork_n,
+            max_n=d.max_allowed_uids,
+            blocks_since_epoch=d.blocks_since_last_step,
+            tempo=d.tempo,
+            modality=d.network_modality,
+            connection_requirements={
+                str(int(netuid)): u16_normalized_float(int(req))
+                for (netuid, req) in d.network_connect
+            },
+            emission_value=d.emission_values,
+            burn=Balance.from_rao(d.burn),
+            owner_ss58=decode_account_id(d.owner),
+        )
+
+    @classmethod
     def list_from_vec_u8(cls, vec_u8: bytes) -> list["SubnetInfo"]:
         decoded = bt_decode.SubnetInfo.decode_vec_option(vec_u8)
-        result = []
-        for d in decoded:
-            result.append(
-                SubnetInfo(
-                    netuid=d.netuid,
-                    rho=d.rho,
-                    kappa=d.kappa,
-                    difficulty=d.difficulty,
-                    immunity_period=d.immunity_period,
-                    max_allowed_validators=d.max_allowed_validators,
-                    min_allowed_weights=d.min_allowed_weights,
-                    max_weight_limit=d.max_weights_limit,
-                    scaling_law_power=d.scaling_law_power,
-                    subnetwork_n=d.subnetwork_n,
-                    max_n=d.max_allowed_uids,
-                    blocks_since_epoch=d.blocks_since_last_step,
-                    tempo=d.tempo,
-                    modality=d.network_modality,
-                    connection_requirements={
-                        str(int(netuid)): u16_normalized_float(int(req))
-                        for (netuid, req) in d.network_connect
-                    },
-                    emission_value=d.emission_values,
-                    burn=Balance.from_rao(d.burn),
-                    owner_ss58=decode_account_id(d.owner),
-                )
-            )
-        return result
-
-
-custom_rpc_type_registry = {
-    "types": {
-        "SubnetInfo": {
-            "type": "struct",
-            "type_mapping": [
-                ["netuid", "Compact<u16>"],
-                ["rho", "Compact<u16>"],
-                ["kappa", "Compact<u16>"],
-                ["difficulty", "Compact<u64>"],
-                ["immunity_period", "Compact<u16>"],
-                ["max_allowed_validators", "Compact<u16>"],
-                ["min_allowed_weights", "Compact<u16>"],
-                ["max_weights_limit", "Compact<u16>"],
-                ["scaling_law_power", "Compact<u16>"],
-                ["subnetwork_n", "Compact<u16>"],
-                ["max_allowed_uids", "Compact<u16>"],
-                ["blocks_since_last_step", "Compact<u64>"],
-                ["tempo", "Compact<u16>"],
-                ["network_modality", "Compact<u16>"],
-                ["network_connect", "Vec<[u16; 2]>"],
-                ["emission_values", "Compact<u64>"],
-                ["burn", "Compact<u64>"],
-                ["owner", "AccountId"],
-            ],
-        },
-        "DelegateInfo": {
-            "type": "struct",
-            "type_mapping": [
-                ["delegate_ss58", "AccountId"],
-                ["take", "Compact<u16>"],
-                ["nominators", "Vec<(AccountId, Compact<u64>)>"],
-                ["owner_ss58", "AccountId"],
-                ["registrations", "Vec<Compact<u16>>"],
-                ["validator_permits", "Vec<Compact<u16>>"],
-                ["return_per_1000", "Compact<u64>"],
-                ["total_daily_return", "Compact<u64>"],
-            ],
-        },
-        "NeuronInfo": {
-            "type": "struct",
-            "type_mapping": [
-                ["hotkey", "AccountId"],
-                ["coldkey", "AccountId"],
-                ["uid", "Compact<u16>"],
-                ["netuid", "Compact<u16>"],
-                ["active", "bool"],
-                ["axon_info", "axon_info"],
-                ["prometheus_info", "PrometheusInfo"],
-                ["stake", "Vec<(AccountId, Compact<u64>)>"],
-                ["rank", "Compact<u16>"],
-                ["emission", "Compact<u64>"],
-                ["incentive", "Compact<u16>"],
-                ["consensus", "Compact<u16>"],
-                ["trust", "Compact<u16>"],
-                ["validator_trust", "Compact<u16>"],
-                ["dividends", "Compact<u16>"],
-                ["last_update", "Compact<u64>"],
-                ["validator_permit", "bool"],
-                ["weights", "Vec<(Compact<u16>, Compact<u16>)>"],
-                ["bonds", "Vec<(Compact<u16>, Compact<u16>)>"],
-                ["pruning_score", "Compact<u16>"],
-            ],
-        },
-        "NeuronInfoLite": {
-            "type": "struct",
-            "type_mapping": [
-                ["hotkey", "AccountId"],
-                ["coldkey", "AccountId"],
-                ["uid", "Compact<u16>"],
-                ["netuid", "Compact<u16>"],
-                ["active", "bool"],
-                ["axon_info", "axon_info"],
-                ["prometheus_info", "PrometheusInfo"],
-                ["stake", "Vec<(AccountId, Compact<u64>)>"],
-                ["rank", "Compact<u16>"],
-                ["emission", "Compact<u64>"],
-                ["incentive", "Compact<u16>"],
-                ["consensus", "Compact<u16>"],
-                ["trust", "Compact<u16>"],
-                ["validator_trust", "Compact<u16>"],
-                ["dividends", "Compact<u16>"],
-                ["last_update", "Compact<u64>"],
-                ["validator_permit", "bool"],
-                ["pruning_score", "Compact<u16>"],
-            ],
-        },
-        "axon_info": {
-            "type": "struct",
-            "type_mapping": [
-                ["block", "u64"],
-                ["version", "u32"],
-                ["ip", "u128"],
-                ["port", "u16"],
-                ["ip_type", "u8"],
-                ["protocol", "u8"],
-                ["placeholder1", "u8"],
-                ["placeholder2", "u8"],
-            ],
-        },
-        "PrometheusInfo": {
-            "type": "struct",
-            "type_mapping": [
-                ["block", "u64"],
-                ["version", "u32"],
-                ["ip", "u128"],
-                ["port", "u16"],
-                ["ip_type", "u8"],
-            ],
-        },
-        "IPInfo": {
-            "type": "struct",
-            "type_mapping": [
-                ["ip", "Compact<u128>"],
-                ["ip_type_and_protocol", "Compact<u8>"],
-            ],
-        },
-        "StakeInfo": {
-            "type": "struct",
-            "type_mapping": [
-                ["hotkey", "AccountId"],
-                ["coldkey", "AccountId"],
-                ["stake", "Compact<u64>"],
-            ],
-        },
-        "SubnetHyperparameters": {
-            "type": "struct",
-            "type_mapping": [
-                ["rho", "Compact<u16>"],
-                ["kappa", "Compact<u16>"],
-                ["immunity_period", "Compact<u16>"],
-                ["min_allowed_weights", "Compact<u16>"],
-                ["max_weights_limit", "Compact<u16>"],
-                ["tempo", "Compact<u16>"],
-                ["min_difficulty", "Compact<u64>"],
-                ["max_difficulty", "Compact<u64>"],
-                ["weights_version", "Compact<u64>"],
-                ["weights_rate_limit", "Compact<u64>"],
-                ["adjustment_interval", "Compact<u16>"],
-                ["activity_cutoff", "Compact<u16>"],
-                ["registration_allowed", "bool"],
-                ["target_regs_per_interval", "Compact<u16>"],
-                ["min_burn", "Compact<u64>"],
-                ["max_burn", "Compact<u64>"],
-                ["bonds_moving_avg", "Compact<u64>"],
-                ["max_regs_per_block", "Compact<u16>"],
-                ["serving_rate_limit", "Compact<u64>"],
-                ["max_validators", "Compact<u16>"],
-                ["adjustment_alpha", "Compact<u64>"],
-                ["difficulty", "Compact<u64>"],
-                ["commit_reveal_weights_interval", "Compact<u64>"],
-                ["commit_reveal_weights_enabled", "bool"],
-                ["alpha_high", "Compact<u16>"],
-                ["alpha_low", "Compact<u16>"],
-                ["liquid_alpha_enabled", "bool"],
-            ],
-        },
-    }
-}
+        return [cls._fix_decoded(d) for d in decoded]
