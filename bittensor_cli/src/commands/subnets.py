@@ -14,7 +14,7 @@ from rich.progress import Progress, BarColumn, TextColumn
 from rich.table import Column, Table
 from rich import box
 
-from bittensor_cli.src import COLOR_PALETTE
+from bittensor_cli.src import COLOR_PALETTE, SUBNETS
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import SubnetState
 from bittensor_cli.src.bittensor.extrinsics.registration import (
@@ -181,7 +181,7 @@ async def subnets_list(
         )
         return subnets, global_weights, identities
 
-    def define_table(total_emissions: float, total_rate: float):
+    def define_table(total_emissions: float, total_rate: float, total_netuids: int):
         table = Table(
             title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Subnets"
             f"\nNetwork: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{subtensor.network}\n\n",
@@ -195,13 +195,13 @@ async def subnets_list(
             pad_edge=True,
         )
 
-        table.add_column("[bold white]Netuid", style="grey89", justify="center")
+        table.add_column("[bold white]Netuid", style="grey89", justify="center", footer=str(total_netuids))
         table.add_column(
             "[bold white]Symbol",
             style=COLOR_PALETTE["GENERAL"]["SYMBOL"],
             justify="right",
         )
-        table.add_column("[bold white]Owner", style="cyan", justify="left")
+        table.add_column("[bold white]Name", style="cyan", justify="left")
         table.add_column(
             f"[bold white]Emission ({Balance.get_unit(0)})",
             style=COLOR_PALETTE["POOLS"]["EMISSION"],
@@ -209,9 +209,10 @@ async def subnets_list(
             footer=f"τ {total_emissions:.4f}",
         )
         table.add_column(
-            f"[bold white]Stake ({Balance.get_unit(1)}_out)",
-            style=COLOR_PALETTE["STAKE"]["STAKE_ALPHA"],
+            f"[bold white]RATE ({Balance.get_unit(0)}_in/{Balance.get_unit(1)}_in)",
+            style="#AB7CC8",
             justify="left",
+            footer=f"τ {total_rate:.4f}",
         )
         table.add_column(
             f"[bold white]TAO Pool ({Balance.get_unit(0)}_in)",
@@ -224,10 +225,9 @@ async def subnets_list(
             justify="left",
         )
         table.add_column(
-            f"[bold white]RATE ({Balance.get_unit(0)}_in/{Balance.get_unit(1)}_in)",
-            style=COLOR_PALETTE["POOLS"]["RATE"],
+            f"[bold white]Stake ({Balance.get_unit(1)}_out)",
+            style=COLOR_PALETTE["STAKE"]["STAKE_ALPHA"],
             justify="left",
-            footer=f"τ {total_rate:.4f}",
         )
         table.add_column(
             "[bold white]Tempo (k/n)",
@@ -258,12 +258,12 @@ async def subnets_list(
             # Prepare cells
             netuid_cell = str(netuid)
             symbol_cell = f"{subnet.symbol}"
-            identity_cell = identity
+            subnet_name_cell = SUBNETS.get(netuid, "~")
             emission_cell = f"{emission_tao:,.4f}"
-            alpha_out_cell = f"{subnet.alpha_out.tao:,.5f} {symbol}"
+            price_cell = f"{subnet.price.tao:.4f} τ/{symbol}"
             tao_in_cell = f"{subnet.tao_in.tao:,.4f} τ"
             alpha_in_cell = f"{subnet.alpha_in.tao:,.4f} {symbol}"
-            price_cell = f"{subnet.price.tao:.4f} τ/{symbol}"
+            alpha_out_cell = f"{subnet.alpha_out.tao:,.5f} {symbol}"
             tempo_cell = f"{subnet.blocks_since_last_step}/{subnet.tempo}"
             global_weight_cell = (
                 f"{global_weight:.4f}" if global_weight is not None else "N/A"
@@ -271,16 +271,16 @@ async def subnets_list(
 
             rows.append(
                 (
-                    netuid_cell,  # Netuid
-                    symbol_cell,  # Symbol
-                    identity_cell,  # Identity
-                    emission_cell,  # Emission (τ)
-                    alpha_out_cell,  # Stake α_out
-                    tao_in_cell,  # TAO Pool τ_in
-                    alpha_in_cell,  # Alpha Pool α_in
-                    price_cell,  # Rate τ_in/α_in
-                    tempo_cell,  # Tempo k/n
-                    global_weight_cell,  # Local weight coeff. (γ)
+                    netuid_cell,      # Netuid
+                    symbol_cell,      # Symbol
+                    subnet_name_cell, # Name
+                    emission_cell,    # Emission (τ)
+                    price_cell,       # Rate τ_in/α_in
+                    tao_in_cell,      # TAO Pool τ_in
+                    alpha_in_cell,    # Alpha Pool α_in
+                    alpha_out_cell,   # Stake α_out
+                    tempo_cell,       # Tempo k/n
+                    global_weight_cell,# Local weight coeff. (γ)
                 )
             )
 
@@ -290,11 +290,12 @@ async def subnets_list(
         total_rate = sum(
             float(subnet.price.tao) for subnet in subnets if subnet.netuid != 0
         )
-        table = define_table(total_emissions, total_rate)
+        total_netuids = len(subnets)
+        table = define_table(total_emissions, total_rate, total_netuids)
 
-        # Sort rows by emission, keeping the root subnet in the first position
+        # Sort rows by stake, keeping the root subnet in the first position
         sorted_rows = [rows[0]] + sorted(
-            rows[1:], key=lambda x: float(str(x[3]).replace(",", "")), reverse=True
+            rows[1:], key=lambda x: float(str(x[7]).split()[0].replace(",", "")), reverse=True 
         )
 
         for row in sorted_rows:
@@ -349,16 +350,13 @@ async def subnets_list(
 
             # Prepare cells
             netuid_cell = str(netuid)
-            identity_cell = identity
             symbol_cell = f"{subnet.symbol}"
+            subnet_name_cell = SUBNETS.get(netuid, "~")
             emission_cell = format_cell(
                 emission_tao, prev.get("emission_tao"), unit="", precision=4
             )
-            alpha_out_cell = format_cell(
-                subnet.alpha_out.tao,
-                prev.get("alpha_out"),
-                unit=f" {symbol}",
-                precision=5,
+            price_cell = format_cell(
+                subnet.price.tao, prev.get("price"), unit=f" τ/{symbol}", precision=4
             )
             tao_in_cell = format_cell(
                 subnet.tao_in.tao, prev.get("tao_in"), unit=" τ", precision=4
@@ -369,8 +367,11 @@ async def subnets_list(
                 unit=f" {symbol}",
                 precision=4,
             )
-            price_cell = format_cell(
-                subnet.price.tao, prev.get("price"), unit=f" τ/{symbol}", precision=4
+            alpha_out_cell = format_cell(
+                subnet.alpha_out.tao,
+                prev.get("alpha_out"),
+                unit=f" {symbol}",
+                precision=5,
             )
 
             # Tempo cell
@@ -422,16 +423,16 @@ async def subnets_list(
 
             rows.append(
                 (
-                    netuid_cell,  # Netuid
-                    symbol_cell,  # Symbol
-                    identity_cell,  # Identity
-                    emission_cell,  # Emission (τ)
-                    alpha_out_cell,  # Stake α_out
-                    tao_in_cell,  # TAO Pool τ_in
-                    alpha_in_cell,  # Alpha Pool α_in
-                    price_cell,  # Rate τ_in/α_in
-                    tempo_cell,  # Tempo k/n
-                    global_weight_cell,  # Local weight coeff. (γ)
+                    netuid_cell,      # Netuid
+                    symbol_cell,      # Symbol
+                    subnet_name_cell, # Name
+                    emission_cell,    # Emission (τ)
+                    price_cell,       # Rate τ_in/α_in
+                    tao_in_cell,      # TAO Pool τ_in
+                    alpha_in_cell,    # Alpha Pool α_in
+                    alpha_out_cell,   # Stake α_out
+                    tempo_cell,       # Tempo k/n
+                    global_weight_cell,# Local weight coeff. (γ)
                 )
             )
 
@@ -441,13 +442,12 @@ async def subnets_list(
         total_rate = sum(
             float(subnet.price.tao) for subnet in subnets if subnet.netuid != 0
         )
-        table = define_table(total_emissions, total_rate)
+        total_netuids = len(subnets)
+        table = define_table(total_emissions, total_rate, total_netuids)
 
-        # Sort rows by emission, keeping the first subnet in the first position
+        # Sort rows by stake, keeping the first subnet in the first position
         sorted_rows = [rows[0]] + sorted(
-            rows[1:],
-            key=lambda x: float(str(x[3]).split()[0].replace(",", "")),
-            reverse=True,
+            rows[1:], key=lambda x: float(str(x[7]).split()[0].replace(",", "")), reverse=True
         )
         for row in sorted_rows:
             table.add_row(*row)
@@ -466,21 +466,43 @@ async def subnets_list(
         )
         progress_task = progress.add_task("Updating:", total=refresh_interval)
 
+        previous_block = None
+        current_block = None
         previous_data = None
+
         with Live(console=console, screen=True, auto_refresh=True) as live:
             try:
                 while True:
-                    subnets, global_weights, identities = await fetch_subnet_data()
+                    subnets = await subtensor.get_all_subnet_dynamic_info()
+                    global_weights, identities, block_number = await asyncio.gather(
+                        subtensor.get_global_weights([subnet.netuid for subnet in subnets]),
+                        subtensor.query_all_identities(),
+                        subtensor.substrate.get_block_number(None)
+                    )
+
+                    # Update block numbers
+                    previous_block = current_block
+                    current_block = block_number
+                    new_blocks = "N/A" if previous_block is None else str(current_block - previous_block)
+
                     table, current_data = create_table_live(
                         subnets, global_weights, identities, previous_data
                     )
                     previous_data = current_data
                     progress.reset(progress_task)
                     start_time = asyncio.get_event_loop().time()
-                    message = "\nLive view active. Press [bold red]Ctrl + C[/bold red] to exit"
 
-                    live_render = Group(table, progress, message)
+                    block_info = (
+                        f"Previous: [dark_sea_green]{previous_block if previous_block else 'N/A'}[/dark_sea_green] "
+                        f"Current: [dark_sea_green]{current_block}[/dark_sea_green] "
+                        f"New: [dark_sea_green]{new_blocks}[/dark_sea_green] "
+                    )
+
+                    message = f"Live view active. Press [bold red]Ctrl + C[/bold red] to exit\n{block_info}"
+
+                    live_render = Group(message, progress, table)
                     live.update(live_render)
+
                     while not progress.finished:
                         await asyncio.sleep(0.1)
                         elapsed = asyncio.get_event_loop().time() - start_time
@@ -556,15 +578,20 @@ async def subnets_list(
             console.print(description_table)
 
 
-async def show(subtensor: "SubtensorInterface", netuid: int, prompt: bool = True):
+async def show(subtensor: "SubtensorInterface", netuid: int, verbose: bool = False, prompt: bool = True):
     async def show_root():
         all_subnets = await subtensor.get_all_subnet_dynamic_info()
 
-        hex_bytes_result = await subtensor.query_runtime_api(
-            runtime_api="SubnetInfoRuntimeApi",
-            method="get_subnet_state",
-            params=[0],
+        hex_bytes_result, identities, old_identities = await asyncio.gather(
+            subtensor.query_runtime_api(
+                runtime_api="SubnetInfoRuntimeApi",
+                method="get_subnet_state",
+                params=[0],
+            ),
+            subtensor.query_all_identities(),
+            subtensor.get_delegate_identities(),
         )
+
         if (bytes_result := hex_bytes_result) is None:
             err_console.print("The root subnet does not exist")
             return
@@ -616,6 +643,11 @@ async def show(subtensor: "SubtensorInterface", netuid: int, prompt: bool = True
             style=COLOR_PALETTE["GENERAL"]["COLDKEY"],
             justify="center",
         )
+        table.add_column(
+            "[bold white]Identity",
+            style=COLOR_PALETTE["GENERAL"]["SYMBOL"],
+            justify="left",
+        )
 
         sorted_hotkeys = sorted(
             enumerate(root_state.hotkeys),
@@ -632,13 +664,20 @@ async def show(subtensor: "SubtensorInterface", netuid: int, prompt: bool = True
                 total_emission_per_block += subnet.alpha_to_tao(
                     Balance.from_rao(emission_on_subnet)
                 )
+
+            # Get identity for this validator
+            coldkey_identity = identities.get(root_state.coldkeys[idx], {}).get("name", "")
+            hotkey_identity = old_identities.get(root_state.hotkeys[idx])
+            validator_identity = coldkey_identity if coldkey_identity else (hotkey_identity.display if hotkey_identity else "")
+
             table.add_row(
                 str((pos + 1)),
                 str(root_state.global_stake[idx]),
                 str(root_state.local_stake[idx]),
                 f"{(total_emission_per_block)}",
-                f"{root_state.hotkeys[idx]}",
-                f"{root_state.coldkeys[idx]}",
+                f"{root_state.hotkeys[idx][:6]}" if not verbose else f"{root_state.hotkeys[idx]}",
+                f"{root_state.coldkeys[idx][:6]}" if not verbose else f"{root_state.coldkeys[idx]}",
+                validator_identity,
             )
 
         # Print the table
@@ -658,12 +697,19 @@ Description:
         )
 
     async def show_subnet(netuid_: int):
-        subnet_info = await subtensor.get_subnet_dynamic_info(netuid_)
-        hex_bytes_result = await subtensor.query_runtime_api(
-            runtime_api="SubnetInfoRuntimeApi",
-            method="get_subnet_state",
-            params=[netuid_],
+        subnet_info, hex_bytes_result, identities, old_identities = await asyncio.gather(
+            subtensor.get_subnet_dynamic_info(netuid_),
+            subtensor.query_runtime_api(
+                runtime_api="SubnetInfoRuntimeApi",
+                method="get_subnet_state",
+                params=[netuid_],
+            ),
+            subtensor.query_all_identities(),
+            subtensor.get_delegate_identities(),
         )
+        owner_ss58 = subnet_info.owner if subnet_info else ""   
+        owner_identity = identities.get(owner_ss58, {}).get("name", old_identities.get(owner_ss58).display if old_identities.get(owner_ss58) else "")
+        
         if (bytes_result := hex_bytes_result) is None:
             err_console.print(f"Subnet {netuid_} does not exist")
             return
@@ -683,7 +729,8 @@ Description:
 
         # Define table properties
         table = Table(
-            title=f"[{COLOR_PALETTE['GENERAL']['HEADER']}]Subnet [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid_}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
+            title=f"[{COLOR_PALETTE['GENERAL']['HEADER']}]Subnet [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid_}"
+            f"{': ' + SUBNETS.get(netuid_, '') if SUBNETS.get(netuid_) else ''}"
             f"\nNetwork: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{subtensor.network}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]\n",
             show_footer=True,
             show_edge=False,
@@ -715,6 +762,12 @@ Description:
             tao_sum += subnet_state.global_stake[idx]
             stake_sum += subnet_state.local_stake[idx]
             stake_weight_sum += subnet_state.stake_weight[idx]
+            
+            # Get identity for this uid
+            coldkey_identity = identities.get(subnet_state.coldkeys[idx], {}).get("name", "")
+            hotkey_identity = old_identities.get(subnet_state.hotkeys[idx])
+            uid_identity = coldkey_identity if coldkey_identity else (hotkey_identity.display if hotkey_identity else "~")
+
             rows.append(
                 (
                     str(idx),  # UID
@@ -726,8 +779,9 @@ Description:
                     str(subnet_state.incentives[idx]),  # Incentive
                     # f"{Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao:.5f}",  # Emissions relative
                     f"{Balance.from_tao(subnet_state.emission[idx].tao).set_unit(netuid_).tao:.5f} {subnet_info.symbol}",  # Emissions
-                    f"{subnet_state.hotkeys[idx]}",  # Hotkey
-                    f"{subnet_state.coldkeys[idx]}",  # Coldkey
+                    f"{subnet_state.hotkeys[idx][:6]}" if not verbose else f"{subnet_state.hotkeys[idx]}",  # Hotkey
+                    f"{subnet_state.coldkeys[idx][:6]}" if not verbose else f"{subnet_state.coldkeys[idx]}",  # Coldkey
+                    uid_identity,  # Identity
                 )
             )
             # Add columns to the table
@@ -789,6 +843,12 @@ Description:
             no_wrap=True,
             justify="center",
         )
+        table.add_column(
+            "Identity",
+            style=COLOR_PALETTE["GENERAL"]["SYMBOL"],
+            no_wrap=True,
+            justify="left",
+        )
         for row in rows:
             table.add_row(*row)
 
@@ -797,8 +857,7 @@ Description:
         console.print(table)
         console.print("\n")
         console.print(
-            f"Subnet: {netuid_}:\n  Owner: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{subnet_info.owner}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
-            f"  Total Locked: [{COLOR_PALETTE['GENERAL']['BALANCE']}]{subnet_info.total_locked}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]\n"
+            f"Subnet: {netuid_}:\n  Owner: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{subnet_info.owner}{' (' + owner_identity + ')' if owner_identity else ''}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
             f"  Owner Locked: [{COLOR_PALETTE['GENERAL']['BALANCE']}]{subnet_info.owner_locked}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]"
         )
         console.print(

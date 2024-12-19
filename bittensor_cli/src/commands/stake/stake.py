@@ -1799,8 +1799,10 @@ async def stake_list(
                         if substake_.is_registered
                         else f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]NO",  # Registered
                         str(Balance.from_tao(per_block_emission).set_unit(netuid))
-                        if substake_.is_registered
-                        else f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]N/A",  # Emission(α/block)
+                        # Removing this flag for now, TODO: Confirm correct values are here w.r.t CHKs
+                        
+                        # if substake_.is_registered
+                        # else f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]N/A",  # Emission(α/block)
                     ]
                 )
         # table = Table(show_footer=True, pad_edge=False, box=None, expand=False, title=f"{name}")
