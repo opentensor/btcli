@@ -139,7 +139,9 @@ class SubnetHyperparameters(InfoBase):
     liquid_alpha_enabled: bool
 
     @classmethod
-    def _fix_decoded(cls, decoded: Union[dict, "SubnetHyperparameters"]) -> "SubnetHyperparameters":
+    def _fix_decoded(
+        cls, decoded: Union[dict, "SubnetHyperparameters"]
+    ) -> "SubnetHyperparameters":
         return SubnetHyperparameters(
             rho=decoded.get("rho"),
             kappa=decoded.get("kappa"),
@@ -163,7 +165,9 @@ class SubnetHyperparameters(InfoBase):
             max_validators=decoded.get("max_validators"),
             adjustment_alpha=decoded.get("adjustment_alpha"),
             difficulty=decoded.get("difficulty"),
-            commit_reveal_weights_interval=decoded.get("commit_reveal_weights_interval"),
+            commit_reveal_weights_interval=decoded.get(
+                "commit_reveal_weights_interval"
+            ),
             commit_reveal_weights_enabled=decoded.get("commit_reveal_weights_enabled"),
             alpha_high=decoded.get("alpha_high"),
             alpha_low=decoded.get("alpha_low"),
