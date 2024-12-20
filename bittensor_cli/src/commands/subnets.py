@@ -581,6 +581,7 @@ async def subnets_list(
 async def show(subtensor: "SubtensorInterface", netuid: int, verbose: bool = False, prompt: bool = True):
     async def show_root():
         all_subnets = await subtensor.get_all_subnet_dynamic_info()
+        root_info = all_subnets[0]
 
         hex_bytes_result, identities, old_identities = await asyncio.gather(
             subtensor.query_runtime_api(
@@ -682,6 +683,17 @@ async def show(subtensor: "SubtensorInterface", netuid: int, verbose: bool = Fal
 
         # Print the table
         console.print(table)
+        console.print("\n")
+
+        console.print(
+            f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]Root Network (Subnet 0)[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
+            f"\n  Rate: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{root_info.price.tao:.4f} τ/{root_info.symbol}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
+            f"\n  Emission: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]0 τ[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
+            f"\n  TAO Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{root_info.tao_in.tao:,.4f} τ[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
+            f"\n  Alpha Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{root_info.alpha_in.tao:,.4f} {root_info.symbol}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
+            f"\n  Stake: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{root_info.alpha_out.tao:,.5f} {root_info.symbol}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
+            f"\n  Tempo: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{root_info.blocks_since_last_step}/{root_info.tempo}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
+        )
         console.print(
             """
 Description:
@@ -752,6 +764,7 @@ Description:
         stake_sum = Balance(0)
         relative_emissions_sum = 0
         stake_weight_sum = 0
+        
         for idx, hk in enumerate(subnet_state.hotkeys):
             hotkey_block_emission = (
                 subnet_state.emission[idx].tao / emission_sum
@@ -784,7 +797,15 @@ Description:
                     uid_identity,  # Identity
                 )
             )
-            # Add columns to the table
+
+        # Sort rows by stake
+        sorted_rows = sorted(
+            rows,
+            key=lambda x: float(str(x[2]).split()[0].replace(",", "")),
+            reverse=True
+        )
+
+        # Add columns to the table
         table.add_column("UID", style="grey89", no_wrap=True, justify="center")
         table.add_column(
             f"TAO({Balance.get_unit(0)})",
@@ -849,16 +870,26 @@ Description:
             no_wrap=True,
             justify="left",
         )
-        for row in rows:
+        for row in sorted_rows:
             table.add_row(*row)
 
         # Print the table
         console.print("\n\n")
         console.print(table)
         console.print("\n")
+
+        subnet_name = SUBNETS.get(netuid_, '')
+        subnet_name_display = f": {subnet_name}" if subnet_name else ""
+
         console.print(
-            f"Subnet: {netuid_}:\n  Owner: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{subnet_info.owner}{' (' + owner_identity + ')' if owner_identity else ''}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
-            f"  Owner Locked: [{COLOR_PALETTE['GENERAL']['BALANCE']}]{subnet_info.owner_locked}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]"
+            f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]Subnet {netuid_}{subnet_name_display}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
+            f"\n  Owner: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{subnet_info.owner}{' (' + owner_identity + ')' if owner_identity else ''}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]"
+            f"\n  Rate: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{subnet_info.price.tao:.4f} τ/{subnet_info.symbol}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
+            f"\n  Emission: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{subnet_info.emission.tao:,.4f} τ[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
+            f"\n  TAO Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{subnet_info.tao_in.tao:,.4f} τ[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
+            f"\n  Alpha Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{subnet_info.alpha_in.tao:,.4f} {subnet_info.symbol}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
+            f"\n  Stake: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{subnet_info.alpha_out.tao:,.5f} {subnet_info.symbol}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
+            f"\n  Tempo: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{subnet_info.blocks_since_last_step}/{subnet_info.tempo}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
         )
         console.print(
             """
@@ -876,6 +907,7 @@ Description:
         - Coldkey: The coldkey ss58 address.
 """
         )
+
 
     if netuid == 0:
         await show_root()
