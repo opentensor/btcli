@@ -2116,7 +2116,7 @@ class CLIManager:
 
         """
         self.verbosity_handler(quiet, verbose)
-
+        wallet = None
         if ss58_addresses:
             valid_ss58s = [
                 ss58 for ss58 in set(ss58_addresses) if is_valid_ss58_address(ss58)
@@ -2127,20 +2127,44 @@ class CLIManager:
                 print_error(f"Incorrect ss58 address: {invalid_ss58}. Skipping.")
 
             if valid_ss58s:
-                wallet = None
                 ss58_addresses = valid_ss58s
             else:
                 raise typer.Exit()
         else:
-            ask_for = [WO.PATH] if all_balances else [WO.NAME, WO.PATH]
-            validate = WV.NONE if all_balances else WV.WALLET
-            wallet = self.wallet_ask(
-                wallet_name,
-                wallet_path,
-                wallet_hotkey,
-                ask_for=ask_for,
-                validate=validate,
-            )
+            if wallet_name:
+                coldkey_or_ss58 = wallet_name
+            else:
+                coldkey_or_ss58 = Prompt.ask(
+                    "Enter the [blue]wallet name[/blue] or [blue]coldkey ss58 addresses[/blue] (comma-separated)",
+                    default=self.config.get("wallet_name") or defaults.wallet.name,
+                )
+            # Split by comma and strip whitespace
+            coldkey_or_ss58_list = [x.strip() for x in coldkey_or_ss58.split(",")]
+            
+            # Check if any entry is a valid SS58 address
+            if any(is_valid_ss58_address(x) for x in coldkey_or_ss58_list):
+                valid_ss58s = [
+                    ss58 for ss58 in coldkey_or_ss58_list if is_valid_ss58_address(ss58)
+                ]
+                invalid_ss58s = set(coldkey_or_ss58_list) - set(valid_ss58s)
+                for invalid_ss58 in invalid_ss58s:
+                    print_error(f"Incorrect ss58 address: {invalid_ss58}. Skipping.")
+                
+                if valid_ss58s:
+                    ss58_addresses = valid_ss58s
+                else:
+                    raise typer.Exit()
+            else:
+                wallet_name = coldkey_or_ss58_list[0] if coldkey_or_ss58_list else wallet_name
+                ask_for = [WO.PATH] if all_balances else [WO.NAME, WO.PATH]
+                validate = WV.NONE if all_balances else WV.WALLET
+                wallet = self.wallet_ask(
+                    wallet_name,
+                    wallet_path,
+                    wallet_hotkey,
+                    ask_for=ask_for,
+                    validate=validate,
+                )
         subtensor = self.initialize_chain(network)
         return self._run_command(
             wallets.wallet_balance(wallet, subtensor, all_balances, ss58_addresses)
@@ -2430,10 +2454,13 @@ class CLIManager:
                 print_error("You entered an invalid ss58 address")
                 raise typer.Exit()
         else:
-            coldkey_or_ss58 = Prompt.ask(
-                "Enter the [blue]wallet name[/blue] or [blue]coldkey ss58 address[/blue]",
-                default=self.config.get("wallet_name") or defaults.wallet.name,
-            )
+            if wallet_name:
+                coldkey_or_ss58 = wallet_name
+            else:
+                coldkey_or_ss58 = Prompt.ask(
+                    "Enter the [blue]wallet name[/blue] or [blue]coldkey ss58 address[/blue]",
+                    default=self.config.get("wallet_name") or defaults.wallet.name,
+                )
             if is_valid_ss58_address(coldkey_or_ss58):
                 coldkey_ss58 = coldkey_or_ss58
             else:

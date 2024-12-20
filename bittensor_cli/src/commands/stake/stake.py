@@ -1788,10 +1788,7 @@ async def stake_list(
                         str(netuid),  # Number
                         symbol,  # Symbol
                         f"{substake_.stake.tao:,.4f} {symbol}",  # Stake (a)
-                        f"{pool.tao_in.tao:,.4f} τ",  # TAO Reserves (t_in)
-                        f"{pool.alpha_in.tao:,.4f} {symbol}",  # Alpha Reserves a_in
                         f"{pool.price.tao:.4f} τ/{symbol}",  # Rate (t/a)
-                        f"{pool.alpha_out.tao:,.4f} {symbol}",  # Alpha out (a_out)
                         f"{tao_ownership}",  # TAO equiv
                         f"{tao_value}",  # Exchange Value (α x τ/α)
                         f"{swapped_tao_value} ({slippage_percentage})",  # Swap(α) -> τ
@@ -1817,7 +1814,11 @@ async def stake_list(
             show_lines=False,
             pad_edge=True,
         )
-        table.add_column("[white]Netuid", footer_style="overline white", style="grey89")
+        table.add_column("[white]Netuid", 
+            footer=f"{len(rows)}", 
+            footer_style="overline white", 
+            style="grey89"
+        )
         table.add_column(
             "[white]Symbol",
             style=COLOR_PALETTE["GENERAL"]["SYMBOL"],
@@ -1831,25 +1832,10 @@ async def stake_list(
             justify="center",
         )
         table.add_column(
-            f"[white]TAO Reserves ({Balance.unit}_in)",
-            style=COLOR_PALETTE["STAKE"]["TAO"],
-            justify="right",
-        )
-        table.add_column(
-            f"[white]Alpha Reserves ({Balance.get_unit(1)}_in)",
-            style=COLOR_PALETTE["POOLS"]["ALPHA_IN"],
-            justify="right",
-        )
-        table.add_column(
             f"[white]Rate \n({Balance.unit}_in/{Balance.get_unit(1)}_in)",
             footer_style="white",
             style=COLOR_PALETTE["POOLS"]["RATE"],
             justify="center",
-        )
-        table.add_column(
-            f"[white]Alpha out ({Balance.get_unit(1)}_out)",
-            style=COLOR_PALETTE["POOLS"]["ALPHA_OUT"],
-            justify="right",
         )
         table.add_column(
             f"[white]TAO equiv \n({Balance.unit}_in x {Balance.get_unit(1)}/{Balance.get_unit(1)}_out)",

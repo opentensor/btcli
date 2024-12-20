@@ -901,6 +901,9 @@ class SubtensorInterface:
         """
 
         coldkey_identities = await self.query_all_identities()
+        identities = {"coldkeys": {}, "hotkeys": {}}
+        if not coldkey_identities:
+            return identities
         query = await self.substrate.query_multiple(
             params=[(ss58) for ss58, _ in coldkey_identities.items()],
             module="SubtensorModule",
@@ -909,7 +912,6 @@ class SubtensorInterface:
             reuse_block_hash=reuse_block,
         )
 
-        identities = {"coldkeys": {}, "hotkeys": {}}
         for coldkey_ss58, hotkeys in query.items():
             coldkey_identity = coldkey_identities.get(coldkey_ss58)
             hotkeys = [decode_account_id(hotkey[0]) for hotkey in hotkeys or []]

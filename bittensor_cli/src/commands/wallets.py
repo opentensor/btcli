@@ -229,8 +229,9 @@ async def wallet_balance(
     """Retrieves the current balance of the specified wallet"""
     if ss58_addresses:
         coldkeys = ss58_addresses
-        wallet_names = [f"Provided Address {i + 1}" for i in range(len(ss58_addresses))]
-
+        identities = await subtensor.query_all_identities()
+        wallet_names = [f"{identities.get(coldkey, {'name': f'Provided address {i}'})['name']}" for i, coldkey in enumerate(coldkeys)]
+        
     elif not all_balances:
         if not wallet.coldkeypub_file.exists_on_device():
             err_console.print("[bold red]No wallets found.[/bold red]")
