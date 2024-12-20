@@ -203,16 +203,16 @@ async def subnets_list(
         )
         table.add_column("[bold white]Name", style="cyan", justify="left")
         table.add_column(
-            f"[bold white]Emission ({Balance.get_unit(0)})",
-            style=COLOR_PALETTE["POOLS"]["EMISSION"],
-            justify="left",
-            footer=f"τ {total_emissions:.4f}",
-        )
-        table.add_column(
             f"[bold white]RATE ({Balance.get_unit(0)}_in/{Balance.get_unit(1)}_in)",
             style="#AB7CC8",
             justify="left",
             footer=f"τ {total_rate:.4f}",
+        )
+        table.add_column(
+            f"[bold white]Emission ({Balance.get_unit(0)})",
+            style=COLOR_PALETTE["POOLS"]["EMISSION"],
+            justify="left",
+            footer=f"τ {total_emissions:.4f}",
         )
         table.add_column(
             f"[bold white]TAO Pool ({Balance.get_unit(0)}_in)",
@@ -274,8 +274,8 @@ async def subnets_list(
                     netuid_cell,      # Netuid
                     symbol_cell,      # Symbol
                     subnet_name_cell, # Name
-                    emission_cell,    # Emission (τ)
                     price_cell,       # Rate τ_in/α_in
+                    emission_cell,    # Emission (τ)
                     tao_in_cell,      # TAO Pool τ_in
                     alpha_in_cell,    # Alpha Pool α_in
                     alpha_out_cell,   # Stake α_out
@@ -426,8 +426,8 @@ async def subnets_list(
                     netuid_cell,      # Netuid
                     symbol_cell,      # Symbol
                     subnet_name_cell, # Name
-                    emission_cell,    # Emission (τ)
                     price_cell,       # Rate τ_in/α_in
+                    emission_cell,    # Emission (τ)
                     tao_in_cell,      # TAO Pool τ_in
                     alpha_in_cell,    # Alpha Pool α_in
                     alpha_out_cell,   # Stake α_out
@@ -495,7 +495,7 @@ async def subnets_list(
                     block_info = (
                         f"Previous: [dark_sea_green]{previous_block if previous_block else 'N/A'}[/dark_sea_green] "
                         f"Current: [dark_sea_green]{current_block}[/dark_sea_green] "
-                        f"New: [dark_sea_green]{new_blocks}[/dark_sea_green] "
+                        f"Diff: [dark_sea_green]{new_blocks}[/dark_sea_green] "
                     )
 
                     message = f"Live view active. Press [bold red]Ctrl + C[/bold red] to exit\n{block_info}"
