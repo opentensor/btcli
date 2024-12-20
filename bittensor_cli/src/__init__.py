@@ -620,7 +620,7 @@ SUBNETS = {
     5: "kaito",
     6: "infinite",
     7: "subvortex",
-    8: "rpn",
+    8: "ptn",
     9: "pretrain",
     10: "sturday",
     11: "dippy",
@@ -628,7 +628,7 @@ SUBNETS = {
     13: "dataverse",
     14: "palaidn",
     15: "deval",
-    16: "bitrads",
+    16: "bitads",
     17: "3gen",
     18: "cortex",
     19: "inference",
@@ -670,5 +670,6 @@ SUBNETS = {
     56: "gradients",
     57: "gaia",
     58: "dippy-speech",
-    59: "agent-arena"
+    59: "agent-arena",
+    61: "red-team",
 }
