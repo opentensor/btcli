@@ -1786,8 +1786,8 @@ async def stake_list(
                 rows.append(
                     [
                         str(netuid),  # Number
-                        symbol,  # Symbol
-                        f"{substake_.stake.tao:,.4f} {symbol}",  # Stake (a)
+                        symbol if netuid != 0 else "\u03A4",  # Symbol
+                        f"{substake_.stake.tao:,.4f} {symbol}" if netuid != 0 else f"{symbol} {substake_.stake.tao:,.4f}",  # Stake (a)
                         f"{pool.price.tao:.4f} τ/{symbol}",  # Rate (t/a)
                         f"{tao_ownership}",  # TAO equiv
                         f"{tao_value}",  # Exchange Value (α x τ/α)

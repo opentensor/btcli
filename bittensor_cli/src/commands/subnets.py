@@ -257,13 +257,13 @@ async def subnets_list(
 
             # Prepare cells
             netuid_cell = str(netuid)
-            symbol_cell = f"{subnet.symbol}"
+            symbol_cell = f"{subnet.symbol}" if netuid != 0 else "\u03A4"
             subnet_name_cell = SUBNETS.get(netuid, "~")
-            emission_cell = f"{emission_tao:,.4f}"
+            emission_cell = f"τ {emission_tao:,.4f}"
             price_cell = f"{subnet.price.tao:.4f} τ/{symbol}"
-            tao_in_cell = f"{subnet.tao_in.tao:,.4f} τ"
-            alpha_in_cell = f"{subnet.alpha_in.tao:,.4f} {symbol}"
-            alpha_out_cell = f"{subnet.alpha_out.tao:,.5f} {symbol}"
+            tao_in_cell = f"τ {subnet.tao_in.tao:,.4f}"
+            alpha_in_cell = f"{subnet.alpha_in.tao:,.4f} {symbol}" if netuid != 0 else f"{symbol} {subnet.alpha_in.tao:,.4f}"
+            alpha_out_cell = f"{subnet.alpha_out.tao:,.5f} {symbol}" if netuid != 0 else f"{symbol} {subnet.alpha_out.tao:,.5f}"
             tempo_cell = f"{subnet.blocks_since_last_step}/{subnet.tempo}"
             global_weight_cell = (
                 f"{global_weight:.4f}" if global_weight is not None else "N/A"
@@ -304,22 +304,22 @@ async def subnets_list(
 
     # Live mode
     def create_table_live(subnets, global_weights, identities, previous_data):
-        def format_cell(value, previous_value, unit="", precision=4):
+        def format_cell(value, previous_value, unit="", unit_first=False, precision=4):
             if previous_value is not None:
                 change = value - previous_value
-                if change > 0:
+                if change > 0.01:
                     change_text = (
-                        f" [pale_green3](+{change:.{precision}f}{unit})[/pale_green3]"
+                        f" [pale_green3](+{change:.2f})[/pale_green3]"
                     )
-                elif change < 0:
+                elif change < -0.01:
                     change_text = (
-                        f" [hot_pink3]({change:.{precision}f}{unit})[/hot_pink3]"
+                        f" [hot_pink3]({change:.2f})[/hot_pink3]"
                     )
                 else:
                     change_text = ""
             else:
                 change_text = ""
-            return f"{value:,.{precision}f}{unit}{change_text}"
+            return f"{value:,.{precision}f} {unit}{change_text}" if not unit_first else f"{unit} {value:,.{precision}f}{change_text}"
 
         rows = []
         current_data = {}  # To store current values for comparison in the next update
@@ -350,27 +350,33 @@ async def subnets_list(
 
             # Prepare cells
             netuid_cell = str(netuid)
-            symbol_cell = f"{subnet.symbol}"
+            symbol_cell = f"{subnet.symbol}" if netuid != 0 else "\u03A4"
             subnet_name_cell = SUBNETS.get(netuid, "~")
+            if netuid is 0:
+                unit_first = True
+            else:
+                unit_first = False
             emission_cell = format_cell(
-                emission_tao, prev.get("emission_tao"), unit="", precision=4
+                emission_tao, prev.get("emission_tao"), unit="τ", unit_first=True, precision=4
             )
             price_cell = format_cell(
-                subnet.price.tao, prev.get("price"), unit=f" τ/{symbol}", precision=4
+                subnet.price.tao, prev.get("price"), unit=f"τ/{symbol}", precision=4
             )
             tao_in_cell = format_cell(
-                subnet.tao_in.tao, prev.get("tao_in"), unit=" τ", precision=4
+                subnet.tao_in.tao, prev.get("tao_in"), unit="τ", unit_first=True, precision=4
             )
             alpha_in_cell = format_cell(
                 subnet.alpha_in.tao,
                 prev.get("alpha_in"),
-                unit=f" {symbol}",
+                unit=f"{symbol}",
+                unit_first=unit_first,
                 precision=4,
             )
             alpha_out_cell = format_cell(
                 subnet.alpha_out.tao,
                 prev.get("alpha_out"),
-                unit=f" {symbol}",
+                unit=f"{symbol}",
+                unit_first=unit_first,
                 precision=5,
             )
 
@@ -688,10 +694,10 @@ async def show(subtensor: "SubtensorInterface", netuid: int, verbose: bool = Fal
         console.print(
             f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]Root Network (Subnet 0)[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
             f"\n  Rate: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{root_info.price.tao:.4f} τ/{root_info.symbol}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
-            f"\n  Emission: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]0 τ[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
-            f"\n  TAO Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{root_info.tao_in.tao:,.4f} τ[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
-            f"\n  Alpha Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{root_info.alpha_in.tao:,.4f} {root_info.symbol}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
-            f"\n  Stake: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{root_info.alpha_out.tao:,.5f} {root_info.symbol}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
+            f"\n  Emission: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{root_info.symbol} 0[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
+            f"\n  TAO Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{root_info.symbol} {root_info.tao_in.tao:,.4f}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
+            f"\n  Alpha Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{root_info.symbol}{root_info.alpha_in.tao:,.4f}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
+            f"\n  Stake: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{root_info.symbol} {root_info.alpha_out.tao:,.5f}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
             f"\n  Tempo: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{root_info.blocks_since_last_step}/{root_info.tempo}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
         )
         console.print(
@@ -885,8 +891,8 @@ Description:
             f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]Subnet {netuid_}{subnet_name_display}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
             f"\n  Owner: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{subnet_info.owner}{' (' + owner_identity + ')' if owner_identity else ''}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]"
             f"\n  Rate: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{subnet_info.price.tao:.4f} τ/{subnet_info.symbol}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
-            f"\n  Emission: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{subnet_info.emission.tao:,.4f} τ[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
-            f"\n  TAO Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{subnet_info.tao_in.tao:,.4f} τ[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
+            f"\n  Emission: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]τ {subnet_info.emission.tao:,.4f}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
+            f"\n  TAO Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]τ {subnet_info.tao_in.tao:,.4f}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
             f"\n  Alpha Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{subnet_info.alpha_in.tao:,.4f} {subnet_info.symbol}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
             f"\n  Stake: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{subnet_info.alpha_out.tao:,.5f} {subnet_info.symbol}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
             f"\n  Tempo: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{subnet_info.blocks_since_last_step}/{subnet_info.tempo}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
