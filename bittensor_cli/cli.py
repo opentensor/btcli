@@ -2117,7 +2117,17 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
         wallet = None
-        if ss58_addresses:
+        if all_balances:
+            ask_for = [WO.PATH]
+            validate = WV.NONE
+            wallet = self.wallet_ask(
+                wallet_name,
+                wallet_path,
+                wallet_hotkey,
+                ask_for=ask_for,
+                validate=validate,
+            )
+        elif ss58_addresses:
             valid_ss58s = [
                 ss58 for ss58 in set(ss58_addresses) if is_valid_ss58_address(ss58)
             ]
@@ -2156,8 +2166,8 @@ class CLIManager:
                     raise typer.Exit()
             else:
                 wallet_name = coldkey_or_ss58_list[0] if coldkey_or_ss58_list else wallet_name
-                ask_for = [WO.PATH] if all_balances else [WO.NAME, WO.PATH]
-                validate = WV.NONE if all_balances else WV.WALLET
+                ask_for = [WO.NAME, WO.PATH]
+                validate = WV.WALLET
                 wallet = self.wallet_ask(
                     wallet_name,
                     wallet_path,
