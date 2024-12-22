@@ -352,7 +352,7 @@ async def subnets_list(
             netuid_cell = str(netuid)
             symbol_cell = f"{subnet.symbol}" if netuid != 0 else "\u03A4"
             subnet_name_cell = SUBNETS.get(netuid, "~")
-            if netuid is 0:
+            if netuid == 0:
                 unit_first = True
             else:
                 unit_first = False
