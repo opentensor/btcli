@@ -584,7 +584,14 @@ async def subnets_list(
             console.print(description_table)
 
 
-async def show(subtensor: "SubtensorInterface", netuid: int, verbose: bool = False, prompt: bool = True):
+async def show(
+    subtensor: "SubtensorInterface",
+    netuid: int,
+    max_rows: Optional[int] = None,
+    delegate_selection: bool = False,
+    verbose: bool = False,
+    prompt: bool = True,
+) -> Optional[str]:
     async def show_root():
         all_subnets = await subtensor.get_all_subnet_dynamic_info()
         root_info = all_subnets[0]
@@ -624,6 +631,8 @@ async def show(subtensor: "SubtensorInterface", netuid: int, verbose: bool = Fal
             show_lines=False,
             pad_edge=True,
         )
+        # if delegate_selection:
+        #     table.add_column("#", style="cyan", justify="right")
         table.add_column("[bold white]Position", style="white", justify="center")
         table.add_column(
             f"[bold white] TAO ({Balance.get_unit(0)})",
@@ -661,6 +670,8 @@ async def show(subtensor: "SubtensorInterface", netuid: int, verbose: bool = Fal
             key=lambda x: root_state.global_stake[x[0]],
             reverse=True,
         )
+        sorted_rows = []
+        sorted_hks_delegation = []
         for pos, (idx, hk) in enumerate(sorted_hotkeys):
             total_emission_per_block = 0
             for netuid_ in range(len(all_subnets)):
@@ -677,42 +688,78 @@ async def show(subtensor: "SubtensorInterface", netuid: int, verbose: bool = Fal
             hotkey_identity = old_identities.get(root_state.hotkeys[idx])
             validator_identity = coldkey_identity if coldkey_identity else (hotkey_identity.display if hotkey_identity else "")
 
-            table.add_row(
-                str((pos + 1)),
-                str(root_state.global_stake[idx]),
-                str(root_state.local_stake[idx]),
-                f"{(total_emission_per_block)}",
-                f"{root_state.hotkeys[idx][:6]}" if not verbose else f"{root_state.hotkeys[idx]}",
-                f"{root_state.coldkeys[idx][:6]}" if not verbose else f"{root_state.coldkeys[idx]}",
-                validator_identity,
+            sorted_rows.append(
+                (
+                    str((pos + 1)),
+                    str(root_state.global_stake[idx]),
+                    str(root_state.local_stake[idx]),
+                    f"{(total_emission_per_block)}",
+                    f"{root_state.hotkeys[idx][:6]}" if not verbose else f"{root_state.hotkeys[idx]}",
+                    f"{root_state.coldkeys[idx][:6]}" if not verbose else f"{root_state.coldkeys[idx]}",
+                    validator_identity,
+                )
             )
+            sorted_hks_delegation.append(root_state.hotkeys[idx])
 
+        for pos, row in enumerate(sorted_rows, 1):
+            table_row = []
+            # if delegate_selection:
+            #     table_row.append(str(pos))
+            table_row.extend(row)
+            table.add_row(*table_row)
+            if delegate_selection and pos == max_rows:
+                break
         # Print the table
         console.print(table)
         console.print("\n")
 
-        console.print(
-            f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]Root Network (Subnet 0)[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
-            f"\n  Rate: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{root_info.price.tao:.4f} τ/{root_info.symbol}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
-            f"\n  Emission: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{root_info.symbol} 0[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
-            f"\n  TAO Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{root_info.symbol} {root_info.tao_in.tao:,.4f}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
-            f"\n  Alpha Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{root_info.symbol}{root_info.alpha_in.tao:,.4f}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
-            f"\n  Stake: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{root_info.symbol} {root_info.alpha_out.tao:,.5f}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
-            f"\n  Tempo: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{root_info.blocks_since_last_step}/{root_info.tempo}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
-        )
-        console.print(
-            """
-Description:
-    The table displays the root subnet participants and their metrics.
-    The columns are as follows:
-        - Position: The sorted position of the hotkey by total TAO.
-        - TAO: The sum of all TAO balances for this hotkey accross all subnets. 
-        - Stake: The stake balance of this hotkey on root (measured in TAO).
-        - Emission: The emission accrued to this hotkey across all subnets every block measured in TAO.
-        - Hotkey: The hotkey ss58 address.
-        - Coldkey: The coldkey ss58 address.
-"""
-        )
+        if not delegate_selection:
+            console.print(
+                f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]Root Network (Subnet 0)[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
+                f"\n  Rate: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{root_info.price.tao:.4f} τ/{root_info.symbol}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
+                f"\n  Emission: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{root_info.symbol} 0[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
+                f"\n  TAO Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{root_info.symbol} {root_info.tao_in.tao:,.4f}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
+                f"\n  Alpha Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{root_info.symbol}{root_info.alpha_in.tao:,.4f}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
+                f"\n  Stake: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{root_info.symbol} {root_info.alpha_out.tao:,.5f}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
+                f"\n  Tempo: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{root_info.blocks_since_last_step}/{root_info.tempo}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
+            )
+            console.print(
+                """
+    Description:
+        The table displays the root subnet participants and their metrics.
+        The columns are as follows:
+            - Position: The sorted position of the hotkey by total TAO.
+            - TAO: The sum of all TAO balances for this hotkey accross all subnets. 
+            - Stake: The stake balance of this hotkey on root (measured in TAO).
+            - Emission: The emission accrued to this hotkey across all subnets every block measured in TAO.
+            - Hotkey: The hotkey ss58 address.
+            - Coldkey: The coldkey ss58 address.
+    """
+            )
+        if delegate_selection:
+            while True:
+                selection = Prompt.ask(
+                    "\nEnter the position of the delegate you want to stake to [dim](or press Enter to cancel)[/dim]",
+                    default=""
+                )
+                
+                if selection == "":
+                    return None
+                    
+                try:
+                    idx = int(selection)
+                    if 1 <= idx <= max_rows:
+                       selected_hotkey = sorted_hks_delegation[idx - 1]
+                       row_data = sorted_rows[idx - 1]
+                       identity = row_data[6]
+                       identity_str = f" ({identity})" if identity else ""
+                       console.print(f"\nSelected delegate: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{selected_hotkey}{identity_str}")
+                       
+                       return selected_hotkey
+                    else:
+                        console.print(f"[red]Invalid selection. Please enter a number between 1 and {max_rows}[/red]")
+                except ValueError:
+                    console.print("[red]Please enter a valid number[/red]")
 
     async def show_subnet(netuid_: int):
         subnet_info, hex_bytes_result, identities, old_identities = await asyncio.gather(
@@ -759,6 +806,11 @@ Description:
             show_lines=False,
             pad_edge=True,
         )
+        
+        # Add index for selection if selecting delegates
+        if delegate_selection:
+            table.add_column("#", style="cyan", justify="right")
+
         rows = []
         emission_sum = sum(
             [
@@ -876,50 +928,84 @@ Description:
             no_wrap=True,
             justify="left",
         )
-        for row in sorted_rows:
-            table.add_row(*row)
+        for pos, row in enumerate(sorted_rows, 1):
+            table_row = []
+            if delegate_selection:
+                table_row.append(str(pos))
+            table_row.extend(row)
+            table.add_row(*table_row)
+            if delegate_selection and pos == max_rows:
+                break
 
         # Print the table
         console.print("\n\n")
         console.print(table)
         console.print("\n")
 
-        subnet_name = SUBNETS.get(netuid_, '')
-        subnet_name_display = f": {subnet_name}" if subnet_name else ""
+        if not delegate_selection:
+            subnet_name = SUBNETS.get(netuid_, '')
+            subnet_name_display = f": {subnet_name}" if subnet_name else ""
 
-        console.print(
-            f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]Subnet {netuid_}{subnet_name_display}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
-            f"\n  Owner: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{subnet_info.owner}{' (' + owner_identity + ')' if owner_identity else ''}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]"
-            f"\n  Rate: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{subnet_info.price.tao:.4f} τ/{subnet_info.symbol}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
-            f"\n  Emission: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]τ {subnet_info.emission.tao:,.4f}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
-            f"\n  TAO Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]τ {subnet_info.tao_in.tao:,.4f}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
-            f"\n  Alpha Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{subnet_info.alpha_in.tao:,.4f} {subnet_info.symbol}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
-            f"\n  Stake: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{subnet_info.alpha_out.tao:,.5f} {subnet_info.symbol}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
-            f"\n  Tempo: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{subnet_info.blocks_since_last_step}/{subnet_info.tempo}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
-        )
-        console.print(
-            """
-Description:
-    The table displays the subnet participants and their metrics.
-    The columns are as follows:
-        - UID: The hotkey index in the subnet.
-        - TAO: The sum of all TAO balances for this hotkey accross all subnets. 
-        - Stake: The stake balance of this hotkey on this subnet.
-        - Weight: The stake-weight of this hotkey on this subnet. Computed as an average of the normalized TAO and Stake columns of this subnet.
-        - Dividends: Validating dividends earned by the hotkey.
-        - Incentives: Mining incentives earned by the hotkey (always zero in the RAO demo.)
-        - Emission: The emission accrued to this hokey on this subnet every block (in staking units).
-        - Hotkey: The hotkey ss58 address.
-        - Coldkey: The coldkey ss58 address.
-"""
-        )
+            console.print(
+                f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]Subnet {netuid_}{subnet_name_display}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
+                f"\n  Owner: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{subnet_info.owner}{' (' + owner_identity + ')' if owner_identity else ''}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]"
+                f"\n  Rate: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{subnet_info.price.tao:.4f} τ/{subnet_info.symbol}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
+                f"\n  Emission: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]τ {subnet_info.emission.tao:,.4f}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
+                f"\n  TAO Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]τ {subnet_info.tao_in.tao:,.4f}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
+                f"\n  Alpha Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{subnet_info.alpha_in.tao:,.4f} {subnet_info.symbol}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
+                f"\n  Stake: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{subnet_info.alpha_out.tao:,.5f} {subnet_info.symbol}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
+                f"\n  Tempo: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{subnet_info.blocks_since_last_step}/{subnet_info.tempo}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
+            )
+            console.print(
+                """
+    Description:
+        The table displays the subnet participants and their metrics.
+        The columns are as follows:
+            - UID: The hotkey index in the subnet.
+            - TAO: The sum of all TAO balances for this hotkey accross all subnets. 
+            - Stake: The stake balance of this hotkey on this subnet.
+            - Weight: The stake-weight of this hotkey on this subnet. Computed as an average of the normalized TAO and Stake columns of this subnet.
+            - Dividends: Validating dividends earned by the hotkey.
+            - Incentives: Mining incentives earned by the hotkey (always zero in the RAO demo.)
+            - Emission: The emission accrued to this hokey on this subnet every block (in staking units).
+            - Hotkey: The hotkey ss58 address.
+            - Coldkey: The coldkey ss58 address.
+    """
+            )
 
+        if delegate_selection:
+            while True:
+                selection = Prompt.ask(
+                    "\nEnter the number of the delegate you want to stake to [dim](or press Enter to cancel)[/dim]",
+                    default=""
+                )
+                
+                if selection == "":
+                    return None
+                    
+                try:
+                    idx = int(selection)
+                    if 1 <= idx <= max_rows:
+                        uid = int(sorted_rows[idx-1][0])
+                        hotkey = subnet_state.hotkeys[uid]
+                        row_data = sorted_rows[idx-1]
+                        identity = row_data[9]
+                        identity_str = f" ({identity})" if identity else ""
+                        console.print(f"\nSelected delegate: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{hotkey}{identity_str}")
+                        return hotkey
+                    else:
+                        console.print(f"[red]Invalid selection. Please enter a number between 1 and {max_rows}[/red]")
+                except ValueError:
+                    console.print("[red]Please enter a valid number[/red]")
+
+        return None
 
     if netuid == 0:
-        await show_root()
+        result = await show_root()
+        return result
     else:
-        await show_subnet(netuid)
-
+        result = await show_subnet(netuid)
+        return result
 
 async def burn_cost(subtensor: "SubtensorInterface") -> Optional[Balance]:
     """View locking cost of creating a new subnetwork"""

@@ -2573,11 +2573,34 @@ class CLIManager:
                     "Enter the [blue]wallet name[/blue]",
                     default=self.config.get("wallet_name") or defaults.wallet.name,
                 )
-            hotkey_or_ss58 = Prompt.ask(
-                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to stake to",
-                default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
-            )
-            if is_valid_ss58_address(hotkey_or_ss58):
+            if netuid is not None:
+                hotkey_or_ss58 = Prompt.ask(
+                    "Enter the [blue]wallet hotkey[/blue] name or [blue]ss58 address[/blue] to stake to [dim](or Press Enter to view delegates)[/dim]",
+                )
+            else:
+                hotkey_or_ss58 = Prompt.ask(
+                    "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to stake to",
+                    default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
+                )
+
+            if hotkey_or_ss58 == "":
+                wallet = self.wallet_ask(
+                    wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
+                )
+                selected_hotkey = self._run_command(
+                subnets.show(
+                        subtensor=self.initialize_chain(network),
+                        netuid=netuid,
+                        max_rows=12,
+                        prompt=False, 
+                        delegate_selection=True
+                    )
+                )
+                if selected_hotkey is None:
+                    print_error("No delegate selected. Exiting.")
+                    raise typer.Exit()
+                include_hotkeys = selected_hotkey
+            elif is_valid_ss58_address(hotkey_or_ss58) :
                 wallet = self.wallet_ask(
                     wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
                 )
