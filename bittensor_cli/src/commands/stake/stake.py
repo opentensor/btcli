@@ -1177,7 +1177,7 @@ async def unstake_selection(
         stake_amount = stake_info.stake
         if stake_amount.tao > 0:
             hotkey_stakes.setdefault(hotkey_ss58, {})[netuid_] = stake_amount
-    
+
     if not hotkey_stakes:
         if netuid is not None:
             print_error(f"You have no stakes to unstake in subnet {netuid}.")
@@ -1370,22 +1370,32 @@ def ask_unstake_amount(
 async def _unstake_all(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
+    unstake_all_alpha: bool = False,
     prompt: bool = True,
 ) -> bool:
     """Unstakes all stakes from all hotkeys in all subnets."""
-    
+
     with console.status(
         f"Retrieving stake information & identities from {subtensor.network}...",
         spinner="earth",
     ):
-        stake_info, ck_hk_identities, old_identities, all_sn_dynamic_info_, current_wallet_balance = await asyncio.gather(
+        (
+            stake_info,
+            ck_hk_identities,
+            old_identities,
+            all_sn_dynamic_info_,
+            current_wallet_balance,
+        ) = await asyncio.gather(
             subtensor.get_stake_info_for_coldkey(wallet.coldkeypub.ss58_address),
             subtensor.fetch_coldkey_hotkey_identities(),
             subtensor.get_delegate_identities(),
             subtensor.get_all_subnet_dynamic_info(),
-            subtensor.get_balance(wallet.coldkeypub.ss58_address)
+            subtensor.get_balance(wallet.coldkeypub.ss58_address),
         )
-        
+
+        if unstake_all_alpha:
+            stake_info = [stake for stake in stake_info if stake.netuid != 0]
+
         if not stake_info:
             console.print("[red]No stakes found to unstake[/red]")
             return False
@@ -1394,8 +1404,13 @@ async def _unstake_all(
 
         # Calculate total value and slippage for all stakes
         total_received_value = Balance(0)
+        table_title = (
+            "Unstaking Summary - All Stakes"
+            if not unstake_all_alpha
+            else "Unstaking Summary - All Alpha Stakes"
+        )
         table = Table(
-            title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Unstaking Summary - All Stakes\nWallet: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.name}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}], Coldkey ss58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\nNetwork: {subtensor.network}[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n",
+            title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]{table_title}\nWallet: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.name}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}], Coldkey ss58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\nNetwork: {subtensor.network}[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n",
             show_footer=True,
             show_edge=False,
             header_style="bold white",
@@ -1427,26 +1442,32 @@ async def _unstake_all(
         table.add_column(
             "Slippage",
             justify="center",
-            style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"]
+            style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"],
         )
         max_slippage = 0.0
         for stake in stake_info:
             if stake.stake.rao == 0:
                 continue
-                
+
             dynamic_info = all_sn_dynamic_info.get(stake.netuid)
             stake_amount = stake.stake
-            received_amount, slippage = dynamic_info.alpha_to_tao_with_slippage(stake_amount)
-            
+            received_amount, slippage = dynamic_info.alpha_to_tao_with_slippage(
+                stake_amount
+            )
+
             total_received_value += received_amount
-            
+
             # Get hotkey identity
-            identity = ck_hk_identities["hotkeys"].get(stake.hotkey_ss58) or old_identities.get(stake.hotkey_ss58)
+            identity = ck_hk_identities["hotkeys"].get(
+                stake.hotkey_ss58
+            ) or old_identities.get(stake.hotkey_ss58)
             hotkey_display = stake.hotkey_ss58
             if identity:
-                hotkey_name = identity.get("identity", {}).get("name", "") or identity.get("display", "~")
+                hotkey_name = identity.get("identity", {}).get(
+                    "name", ""
+                ) or identity.get("display", "~")
                 hotkey_display = f"{hotkey_name}"
-            
+
             if dynamic_info.is_dynamic:
                 slippage_pct_float = (
                     100 * float(slippage) / float(slippage + received_amount)
@@ -1457,9 +1478,9 @@ async def _unstake_all(
             else:
                 slippage_pct_float = 0
                 slippage_pct = "[red]N/A[/red]"
-            
+
             max_slippage = max(max_slippage, slippage_pct_float)
-            
+
             table.add_row(
                 str(stake.netuid),
                 hotkey_display,
@@ -1476,12 +1497,14 @@ async def _unstake_all(
         message += f"[bold]WARNING:[/bold] The slippage on one of your operations is high: [{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}]{max_slippage:.4f}%[/{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}], this may result in a loss of funds.\n"
         message += "-------------------------------------------------------------------------------------------------------------------\n"
         console.print(message)
-    
+
     console.print(
         f"Expected return after slippage: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{total_received_value}"
     )
-    
-    if prompt and not Confirm.ask("\nDo you want to proceed with unstaking everything?"):
+
+    if prompt and not Confirm.ask(
+        "\nDo you want to proceed with unstaking everything?"
+    ):
         return False
 
     try:
@@ -1490,13 +1513,18 @@ async def _unstake_all(
         err_console.print("Error decrypting coldkey (possibly incorrect password)")
         return False
 
-    with console.status(":satellite: Unstaking all stakes..."):
+    console_status = (
+        ":satellite: Unstaking all Alpha stakes..."
+        if unstake_all_alpha
+        else ":satellite: Unstaking all stakes..."
+    )
+    with console.status(console_status):
+        call_function = "unstake_all_alpha" if unstake_all_alpha else "unstake_all"
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
-            call_function="unstake_all",
+            call_function=call_function,
             call_params={},
         )
-        
         success, error_message = await subtensor.sign_and_send_extrinsic(
             call=call,
             wallet=wallet,
@@ -1505,17 +1533,22 @@ async def _unstake_all(
         )
 
         if success:
-            console.print(":white_heavy_check_mark: [green]Successfully unstaked all stakes[/green]")
-            new_balance_ = await subtensor.get_balance(
-                        wallet.coldkeypub.ss58_address
+            success_message = (
+                ":white_heavy_check_mark: [green]Successfully unstaked all stakes[/green]"
+                if not unstake_all_alpha
+                else ":white_heavy_check_mark: [green]Successfully unstaked all Alpha stakes[/green]"
             )
+            console.print(success_message)
+            new_balance_ = await subtensor.get_balance(wallet.coldkeypub.ss58_address)
             new_balance = new_balance_[wallet.coldkeypub.ss58_address]
             console.print(
                 f"Balance:\n [blue]{current_wallet_balance[wallet.coldkeypub.ss58_address]}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
             )
             return True
         else:
-            err_console.print(f":cross_mark: [red]Failed to unstake[/red]: {error_message}")
+            err_console.print(
+                f":cross_mark: [red]Failed to unstake[/red]: {error_message}"
+            )
             return False
 
 
@@ -1532,11 +1565,12 @@ async def unstake(
     prompt: bool,
     interactive: bool = False,
     netuid: Optional[int] = None,
+    unstake_all_alpha: bool = False,
 ):
     """Unstake tokens from hotkey(s)."""
 
-    if unstake_all:
-        return await _unstake_all(wallet, subtensor, prompt)
+    if unstake_all or unstake_all_alpha:
+        return await _unstake_all(wallet, subtensor, unstake_all_alpha, prompt)
 
     with console.status(
         f"Retrieving subnet data & identities from {subtensor.network}...",
@@ -1551,7 +1585,12 @@ async def unstake(
 
     if interactive:
         hotkeys_to_unstake_from = await unstake_selection(
-            subtensor, wallet, all_sn_dynamic_info, ck_hk_identities, old_identities, netuid=netuid
+            subtensor,
+            wallet,
+            all_sn_dynamic_info,
+            ck_hk_identities,
+            old_identities,
+            netuid=netuid,
         )
         if not hotkeys_to_unstake_from:
             console.print("[red]No unstake operations to perform.[/red]")
@@ -1956,8 +1995,10 @@ async def stake_list(
                 rows.append(
                     [
                         str(netuid),  # Number
-                        symbol if netuid != 0 else "\u03A4",  # Symbol
-                        f"{substake_.stake.tao:,.4f} {symbol}" if netuid != 0 else f"{symbol} {substake_.stake.tao:,.4f}",  # Stake (a)
+                        symbol if netuid != 0 else "\u03a4",  # Symbol
+                        f"{substake_.stake.tao:,.4f} {symbol}"
+                        if netuid != 0
+                        else f"{symbol} {substake_.stake.tao:,.4f}",  # Stake (a)
                         f"{pool.price.tao:.4f} τ/{symbol}",  # Rate (t/a)
                         f"{tao_ownership}",  # TAO equiv
                         f"{tao_value}",  # Exchange Value (α x τ/α)
@@ -1965,9 +2006,8 @@ async def stake_list(
                         "YES"
                         if substake_.is_registered
                         else f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]NO",  # Registered
-                        str(Balance.from_tao(per_block_emission).set_unit(netuid))
+                        str(Balance.from_tao(per_block_emission).set_unit(netuid)),
                         # Removing this flag for now, TODO: Confirm correct values are here w.r.t CHKs
-                        
                         # if substake_.is_registered
                         # else f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]N/A",  # Emission(α/block)
                     ]
@@ -1984,10 +2024,11 @@ async def stake_list(
             show_lines=False,
             pad_edge=True,
         )
-        table.add_column("[white]Netuid", 
-            footer=f"{len(rows)}", 
-            footer_style="overline white", 
-            style="grey89"
+        table.add_column(
+            "[white]Netuid",
+            footer=f"{len(rows)}",
+            footer_style="overline white",
+            style="grey89",
         )
         table.add_column(
             "[white]Symbol",

@@ -2724,7 +2724,13 @@ class CLIManager:
             False,
             "--unstake-all",
             "--all",
-            help="When set, this command unstakes all staked TAO from the specified hotkeys.",
+            help="When set, this command unstakes all staked TAO + Alpha from the all hotkeys.",
+        ),
+        unstake_all_alpha: bool = typer.Option(
+            False,
+            "--unstake-all-alpha",
+            "--all-alpha",
+            help="When set, this command unstakes all staked Alpha from the all hotkeys.",
         ),
         amount: float = typer.Option(
             0.0, "--amount", "-a", help="The amount of TAO to unstake."
@@ -2788,7 +2794,11 @@ class CLIManager:
             )
             raise typer.Exit()
 
-        if not interactive and not unstake_all:
+        if unstake_all and unstake_all_alpha:
+            err_console.print("Cannot specify both unstake-all and unstake-all-alpha.")
+            raise typer.Exit()
+
+        if not interactive and not unstake_all and not unstake_all_alpha:
             netuid = get_optional_netuid(netuid, all_netuids)
             if all_hotkeys and include_hotkeys:
                 err_console.print(
@@ -2820,6 +2830,7 @@ class CLIManager:
             and not include_hotkeys
             and not interactive
             and not unstake_all
+            and not unstake_all_alpha
         ):
             if not wallet_name:
                 wallet_name = Prompt.ask(
@@ -2856,6 +2867,7 @@ class CLIManager:
             or hotkey_ss58_address
             or interactive
             or unstake_all
+            or unstake_all_alpha
         ):
             wallet = self.wallet_ask(
                 wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
@@ -2903,6 +2915,7 @@ class CLIManager:
                 prompt,
                 interactive,
                 netuid=netuid,
+                unstake_all_alpha=unstake_all_alpha,
             )
         )
 
