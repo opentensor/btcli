@@ -1906,7 +1906,6 @@ async def stake_list(
             else hotkey_
         )
         rows = []
-        total_tao_ownership = Balance(0)
         total_tao_value = Balance(0)
         total_swapped_tao_value = Balance(0)
         for substake_ in substakes:
@@ -1948,7 +1947,6 @@ async def stake_list(
                     tao_ownership = Balance.from_tao(
                         (alpha_value.tao / issuance.tao) * tao_locked.tao
                     )
-                    total_tao_ownership += tao_ownership
                 else:
                     # TODO what's this var for?
                     alpha_ownership = "0.0000"
@@ -1959,7 +1957,6 @@ async def stake_list(
                         symbol if netuid != 0 else "\u03A4",  # Symbol
                         f"{substake_.stake.tao:,.4f} {symbol}" if netuid != 0 else f"{symbol} {substake_.stake.tao:,.4f}",  # Stake (a)
                         f"{pool.price.tao:.4f} τ/{symbol}",  # Rate (t/a)
-                        f"{tao_ownership}",  # TAO equiv
                         f"{tao_value}",  # Exchange Value (α x τ/α)
                         f"{swapped_tao_value} ({slippage_percentage})",  # Swap(α) -> τ
                         "YES"
@@ -2008,12 +2005,6 @@ async def stake_list(
             justify="center",
         )
         table.add_column(
-            f"[white]TAO equiv \n({Balance.unit}_in x {Balance.get_unit(1)}/{Balance.get_unit(1)}_out)",
-            style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
-            justify="right",
-            footer=f"{total_tao_ownership}",
-        )
-        table.add_column(
             f"[white]Exchange Value \n({Balance.get_unit(1)} x {Balance.unit}/{Balance.get_unit(1)})",
             footer_style="overline white",
             style=COLOR_PALETTE["STAKE"]["TAO"],
@@ -2040,7 +2031,7 @@ async def stake_list(
         for row in rows:
             table.add_row(*row)
         console.print(table)
-        return total_tao_ownership, total_tao_value
+        return total_tao_value
 
     for substake in sub_stakes:
         hotkey = substake.hotkey_ss58
@@ -2053,12 +2044,10 @@ async def stake_list(
     # Iterate over each hotkey and make a table
     counter = 0
     num_hotkeys = len(hotkeys_to_substakes)
-    all_hotkeys_total_global_tao = Balance(0)
     all_hotkeys_total_tao_value = Balance(0)
     for hotkey in hotkeys_to_substakes.keys():
         counter += 1
-        stake, value = table_substakes(hotkey, hotkeys_to_substakes[hotkey])
-        all_hotkeys_total_global_tao += stake
+        value = table_substakes(hotkey, hotkeys_to_substakes[hotkey])
         all_hotkeys_total_tao_value += value
 
         if num_hotkeys > 1 and counter < num_hotkeys:
@@ -2070,7 +2059,6 @@ async def stake_list(
         f"Wallet:\n"
         f"  Coldkey SS58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{coldkey_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
         f"  Free Balance: [{COLOR_PALETTE['GENERAL']['BALANCE']}]{balance}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]\n"
-        f"  Total TAO ({Balance.unit}): [{COLOR_PALETTE['GENERAL']['BALANCE']}]{all_hotkeys_total_global_tao}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]\n"
         f"  Total Value ({Balance.unit}): [{COLOR_PALETTE['GENERAL']['BALANCE']}]{all_hotkeys_total_tao_value}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]"
     )
     if not sub_stakes:
@@ -2107,24 +2095,8 @@ async def stake_list(
                     "The stake amount this hotkey holds in the subnet, expressed in subnet's alpha token currency. This can change whenever staking or unstaking occurs on this hotkey in this subnet. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#staking[/blue].",
                 ),
                 (
-                    "[bold tan]TAO Reserves (τ_in)[/bold tan]",
-                    'Number of TAO in the TAO reserves of the pool for this subnet. Attached to every subnet is a subnet pool, containing a TAO reserve and the alpha reserve. See also "Alpha Pool (α_in)" description. This can change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#subnet-pool[/blue].',
-                ),
-                (
-                    "[bold tan]Alpha Reserves (α_in)[/bold tan]",
-                    "Number of subnet alpha tokens in the alpha reserves of the pool for this subnet. This reserve, together with 'TAO Pool (τ_in)', form the subnet pool for every subnet. This can change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#subnet-pool[/blue].",
-                ),
-                (
                     "[bold tan]RATE (τ_in/α_in)[/bold tan]",
                     "Exchange rate between TAO and subnet dTAO token. Calculated as the reserve ratio: (TAO Pool (τ_in) / Alpha Pool (α_in)). Note that the terms relative price, alpha token price, alpha price are the same as exchange rate. This rate can change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#rate-%CF%84_in%CE%B1_in[/blue].",
-                ),
-                (
-                    "[bold tan]Alpha out (α_out)[/bold tan]",
-                    "Total stake in the subnet, expressed in subnet's alpha token currency. This is the sum of all the stakes present in all the hotkeys in this subnet. This can change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#stake-%CE%B1_out-or-alpha-out-%CE%B1_out",
-                ),
-                (
-                    "[bold tan]TAO Equiv (τ_in x α/α_out)[/bold tan]",
-                    'TAO-equivalent value of the hotkeys stake α (i.e., Stake(α)). Calculated as (TAO Reserves(τ_in) x (Stake(α) / ALPHA Out(α_out)). This value is weighted with (1-γ), where γ is the local weight coefficient, and used in determining the overall stake weight of the hotkey in this subnet. Also see the "Local weight coeff (γ)" column of "btcli subnet list" command output. This can change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#local-weight-or-tao-equiv-%CF%84_in-x-%CE%B1%CE%B1_out[/blue].',
                 ),
                 (
                     "[bold tan]Exchange Value (α x τ/α)[/bold tan]",
