@@ -10,7 +10,7 @@ from sys import getsizeof
 from typing import Any, Collection, Generator, Optional
 
 import aiohttp
-from bittensor_wallet import Wallet
+from bittensor_wallet import Wallet, Keypair
 from bittensor_wallet.errors import KeyFileError
 from bittensor_wallet.keyfile import Keyfile
 from fuzzywuzzy import fuzz
@@ -135,14 +135,26 @@ async def new_hotkey(
     wallet: Wallet,
     n_words: int,
     use_password: bool,
+    uri: Optional[str] = None,
 ):
     """Creates a new hotkey under this wallet."""
     try:
-        wallet.create_new_hotkey(
-            n_words=n_words,
-            use_password=use_password,
-            overwrite=False,
-        )
+        if uri:
+            try:
+                keypair = Keypair.create_from_uri(uri)
+            except Exception as e:
+                print_error(f"Failed to create keypair from URI {uri}: {str(e)}")
+            wallet.set_hotkey(keypair=keypair, encrypt=use_password)
+            console.print(
+                f"[dark_sea_green]Hotkey created from URI: {uri}[/dark_sea_green]"
+            )
+        else:
+            wallet.create_new_hotkey(
+                n_words=n_words,
+                use_password=use_password,
+                overwrite=False,
+            )
+            console.print(f"[dark_sea_green]Hotkey created[/dark_sea_green]")
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
 
@@ -151,14 +163,27 @@ async def new_coldkey(
     wallet: Wallet,
     n_words: int,
     use_password: bool,
+    uri: Optional[str] = None,
 ):
     """Creates a new coldkey under this wallet."""
     try:
-        wallet.create_new_coldkey(
-            n_words=n_words,
-            use_password=use_password,
-            overwrite=False,
-        )
+        if uri:
+            try:
+                keypair = Keypair.create_from_uri(uri)
+            except Exception as e:
+                print_error(f"Failed to create keypair from URI {uri}: {str(e)}")
+            wallet.set_coldkey(keypair=keypair, encrypt=False, overwrite=False)
+            wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=False)
+            console.print(
+                f"[dark_sea_green]Coldkey created from URI: {uri}[/dark_sea_green]"
+            )
+        else:
+            wallet.create_new_coldkey(
+                n_words=n_words,
+                use_password=use_password,
+                overwrite=False,
+            )
+            console.print(f"[dark_sea_green]Coldkey created[/dark_sea_green]")
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
 
@@ -167,25 +192,40 @@ async def wallet_create(
     wallet: Wallet,
     n_words: int = 12,
     use_password: bool = True,
+    uri: Optional[str] = None,
 ):
     """Creates a new wallet."""
-    try:
-        wallet.create_new_coldkey(
-            n_words=n_words,
-            use_password=use_password,
-            overwrite=False,
+    if uri:
+        try:
+            keypair = Keypair.create_from_uri(uri)
+        except Exception as e:
+            print_error(f"Failed to create keypair from URI: {str(e)}")
+        wallet.set_coldkey(keypair=keypair, encrypt=False, overwrite=False)
+        wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=False)
+        wallet.set_hotkey(keypair=keypair, encrypt=False, overwrite=False)
+        console.print(
+            f"[dark_sea_green]Wallet created from URI: {uri}[/dark_sea_green]"
         )
-    except KeyFileError:
-        print_error("KeyFileError: File is not writable")
+    else:
+        try:
+            wallet.create_new_coldkey(
+                n_words=n_words,
+                use_password=use_password,
+                overwrite=False,
+            )
+            console.print(f"[dark_sea_green]Coldkey created[/dark_sea_green]")
+        except KeyFileError:
+            print_error("KeyFileError: File is not writable")
 
-    try:
-        wallet.create_new_hotkey(
-            n_words=n_words,
-            use_password=False,
-            overwrite=False,
-        )
-    except KeyFileError:
-        print_error("KeyFileError: File is not writable")
+        try:
+            wallet.create_new_hotkey(
+                n_words=n_words,
+                use_password=False,
+                overwrite=False,
+            )
+            console.print(f"[dark_sea_green]Hotkey created[/dark_sea_green]")
+        except KeyFileError:
+            print_error("KeyFileError: File is not writable")
 
 
 def get_coldkey_wallets_for_path(path: str) -> list[Wallet]:
@@ -230,8 +270,11 @@ async def wallet_balance(
     if ss58_addresses:
         coldkeys = ss58_addresses
         identities = await subtensor.query_all_identities()
-        wallet_names = [f"{identities.get(coldkey, {'name': f'Provided address {i}'})['name']}" for i, coldkey in enumerate(coldkeys)]
-        
+        wallet_names = [
+            f"{identities.get(coldkey, {'name': f'Provided address {i}'})['name']}"
+            for i, coldkey in enumerate(coldkeys)
+        ]
+
     elif not all_balances:
         if not wallet.coldkeypub_file.exists_on_device():
             err_console.print("[bold red]No wallets found.[/bold red]")

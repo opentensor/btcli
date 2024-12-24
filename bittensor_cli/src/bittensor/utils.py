@@ -986,6 +986,17 @@ def validate_netuid(value: int) -> int:
     return value
 
 
+def validate_uri(uri: str) -> str:
+    if not uri:
+        raise ValueError("URI cannot be empty")
+    clean_uri = uri.lstrip("/").lower()
+    if not clean_uri.isalnum():
+        raise typer.BadParameter(
+            f"Invalid URI format: {uri}. URI must contain only alphanumeric characters (e.g. 'alice', 'bob')"
+        )
+    return f"//{clean_uri.capitalize()}"
+
+
 def get_effective_network(config, network: Optional[list[str]]) -> str:
     """
     Determines the effective network to be used, considering the network parameter,

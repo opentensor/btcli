@@ -46,6 +46,7 @@ from bittensor_cli.src.bittensor.utils import (
     is_rao_network,
     get_effective_network,
     prompt_for_identity,
+    validate_uri,
 )
 from typing_extensions import Annotated
 from textwrap import dedent
@@ -226,6 +227,12 @@ class Options:
         False,
         "--live",
         help="Display live view of the table",
+    )
+    uri = typer.Option(
+        None,
+        "--uri",
+        help="Create wallet from uri (e.g. 'Alice', 'Bob', 'Charlie', 'Dave', 'Eve')",
+        callback=validate_uri,
     )
 
 
@@ -598,7 +605,9 @@ class CLIManager:
         )
 
         # utils app
-        self.app.add_typer(self.utils_app, name="utils", no_args_is_help=True, hidden=True)
+        self.app.add_typer(
+            self.utils_app, name="utils", no_args_is_help=True, hidden=True
+        )
 
         # config commands
         self.config_app.command("set")(self.set_config)
@@ -1902,6 +1911,7 @@ class CLIManager:
             is_flag=True,
             flag_value=True,
         ),
+        uri: Optional[str] = Options.uri,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -1940,8 +1950,9 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET,
         )
-        n_words = get_n_words(n_words)
-        return self._run_command(wallets.new_hotkey(wallet, n_words, use_password))
+        if not uri:
+            n_words = get_n_words(n_words)
+        return self._run_command(wallets.new_hotkey(wallet, n_words, use_password, uri))
 
     def wallet_new_coldkey(
         self,
@@ -1955,6 +1966,7 @@ class CLIManager:
             help="The number of words used in the mnemonic. Options: [12, 15, 18, 21, 24]",
         ),
         use_password: Optional[bool] = Options.use_password,
+        uri: Optional[str] = Options.uri,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -1991,8 +2003,11 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH],
             validate=WV.NONE,
         )
-        n_words = get_n_words(n_words)
-        return self._run_command(wallets.new_coldkey(wallet, n_words, use_password))
+        if not uri:
+            n_words = get_n_words(n_words)
+        return self._run_command(
+            wallets.new_coldkey(wallet, n_words, use_password, uri)
+        )
 
     def wallet_check_ck_swap(
         self,
@@ -2026,6 +2041,7 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         n_words: Optional[int] = None,
         use_password: bool = Options.use_password,
+        uri: Optional[str] = Options.uri,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2066,12 +2082,14 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.NONE,
         )
-        n_words = get_n_words(n_words)
+        if not uri:
+            n_words = get_n_words(n_words)
         return self._run_command(
             wallets.wallet_create(
                 wallet,
                 n_words,
                 use_password,
+                uri,
             )
         )
 
@@ -2148,10 +2166,9 @@ class CLIManager:
                     "Enter the [blue]wallet name[/blue] or [blue]coldkey ss58 addresses[/blue] (comma-separated)",
                     default=self.config.get("wallet_name") or defaults.wallet.name,
                 )
-            # Split by comma and strip whitespace
+
+            # Split and validate ss58 addresses
             coldkey_or_ss58_list = [x.strip() for x in coldkey_or_ss58.split(",")]
-            
-            # Check if any entry is a valid SS58 address
             if any(is_valid_ss58_address(x) for x in coldkey_or_ss58_list):
                 valid_ss58s = [
                     ss58 for ss58 in coldkey_or_ss58_list if is_valid_ss58_address(ss58)
@@ -2159,13 +2176,15 @@ class CLIManager:
                 invalid_ss58s = set(coldkey_or_ss58_list) - set(valid_ss58s)
                 for invalid_ss58 in invalid_ss58s:
                     print_error(f"Incorrect ss58 address: {invalid_ss58}. Skipping.")
-                
+
                 if valid_ss58s:
                     ss58_addresses = valid_ss58s
                 else:
                     raise typer.Exit()
             else:
-                wallet_name = coldkey_or_ss58_list[0] if coldkey_or_ss58_list else wallet_name
+                wallet_name = (
+                    coldkey_or_ss58_list[0] if coldkey_or_ss58_list else wallet_name
+                )
                 ask_for = [WO.NAME, WO.PATH]
                 validate = WV.WALLET
                 wallet = self.wallet_ask(
@@ -2588,19 +2607,19 @@ class CLIManager:
                     wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
                 )
                 selected_hotkey = self._run_command(
-                subnets.show(
+                    subnets.show(
                         subtensor=self.initialize_chain(network),
                         netuid=netuid,
                         max_rows=12,
-                        prompt=False, 
-                        delegate_selection=True
+                        prompt=False,
+                        delegate_selection=True,
                     )
                 )
                 if selected_hotkey is None:
                     print_error("No delegate selected. Exiting.")
                     raise typer.Exit()
                 include_hotkeys = selected_hotkey
-            elif is_valid_ss58_address(hotkey_or_ss58) :
+            elif is_valid_ss58_address(hotkey_or_ss58):
                 wallet = self.wallet_ask(
                     wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
                 )
@@ -2808,8 +2827,8 @@ class CLIManager:
                     default=self.config.get("wallet_name") or defaults.wallet.name,
                 )
             hotkey_or_ss58 = Prompt.ask(
-                    "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake from [dim](or Press Enter to view existing staked hotkeys)[/dim]",
-                )
+                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake from [dim](or Press Enter to view existing staked hotkeys)[/dim]",
+            )
             if hotkey_or_ss58 == "":
                 wallet = self.wallet_ask(
                     wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
