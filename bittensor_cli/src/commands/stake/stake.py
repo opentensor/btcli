@@ -1158,6 +1158,7 @@ async def unstake_selection(
     dynamic_info,
     identities,
     old_identities,
+    netuid: Optional[int] = None,
 ):
     stake_infos = await subtensor.get_stake_info_for_coldkey(
         coldkey_ss58=wallet.coldkeypub.ss58_address
@@ -1169,11 +1170,20 @@ async def unstake_selection(
 
     hotkey_stakes = {}
     for stake_info in stake_infos:
+        if netuid is not None and stake_info.netuid != netuid:
+            continue
         hotkey_ss58 = stake_info.hotkey_ss58
         netuid_ = stake_info.netuid
         stake_amount = stake_info.stake
         if stake_amount.tao > 0:
             hotkey_stakes.setdefault(hotkey_ss58, {})[netuid_] = stake_amount
+    
+    if not hotkey_stakes:
+        if netuid is not None:
+            print_error(f"You have no stakes to unstake in subnet {netuid}.")
+        else:
+            print_error("You have no stakes to unstake.")
+        return
 
     hotkeys_info = []
     for idx, (hotkey_ss58, netuid_stakes) in enumerate(hotkey_stakes.items()):
@@ -1197,8 +1207,9 @@ async def unstake_selection(
         )
 
     # Display existing hotkeys, id, and staked netuids.
+    subnet_filter = f" for Subnet {netuid}" if netuid is not None else ""
     table = Table(
-        title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Hotkeys with Stakes",
+        title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Hotkeys with Stakes{subnet_filter}\n",
         show_footer=True,
         show_edge=False,
         header_style="bold white",
@@ -1258,33 +1269,36 @@ async def unstake_selection(
         symbol = dynamic_info[netuid_].symbol
         rate = f"{dynamic_info[netuid_].price.tao:.4f} τ/{symbol}"
         table.add_row(str(netuid_), symbol, str(stake_amount), rate)
-    console.print("\n", table)
+    console.print("\n", table, "\n")
 
     # Ask which netuids to unstake from for the selected hotkey.
-    while True:
-        netuid_input = Prompt.ask(
-            "\nEnter the netuids of the [blue]subnets to unstake[/blue] from (comma-separated), or '[blue]all[/blue]' to unstake from all",
-            default="all",
-        )
+    if netuid is not None:
+        selected_netuids = [netuid]
+    else:
+        while True:
+            netuid_input = Prompt.ask(
+                "\nEnter the netuids of the [blue]subnets to unstake[/blue] from (comma-separated), or '[blue]all[/blue]' to unstake from all",
+                default="all",
+            )
 
-        if netuid_input.lower() == "all":
-            selected_netuids = list(netuid_stakes.keys())
-            break
-        else:
-            try:
-                netuid_list = [int(n.strip()) for n in netuid_input.split(",")]
-                invalid_netuids = [n for n in netuid_list if n not in netuid_stakes]
-                if invalid_netuids:
+            if netuid_input.lower() == "all":
+                selected_netuids = list(netuid_stakes.keys())
+                break
+            else:
+                try:
+                    netuid_list = [int(n.strip()) for n in netuid_input.split(",")]
+                    invalid_netuids = [n for n in netuid_list if n not in netuid_stakes]
+                    if invalid_netuids:
+                        print_error(
+                            f"The following netuids are invalid or not available: {', '.join(map(str, invalid_netuids))}. Please try again."
+                        )
+                    else:
+                        selected_netuids = netuid_list
+                        break
+                except ValueError:
                     print_error(
-                        f"The following netuids are invalid or not available: {', '.join(map(str, invalid_netuids))}. Please try again."
+                        "Please enter valid netuids (numbers), separated by commas, or 'all'."
                     )
-                else:
-                    selected_netuids = netuid_list
-                    break
-            except ValueError:
-                print_error(
-                    "Please enter valid netuids (numbers), separated by commas, or 'all'."
-                )
 
     hotkeys_to_unstake_from = []
     for netuid_ in selected_netuids:
@@ -1353,11 +1367,162 @@ def ask_unstake_amount(
             console.print("[red]Invalid input. Please enter 'y', 'n', or 'q'.[/red]")
 
 
+async def _unstake_all(
+    wallet: Wallet,
+    subtensor: "SubtensorInterface",
+    prompt: bool = True,
+) -> bool:
+    """Unstakes all stakes from all hotkeys in all subnets."""
+    
+    with console.status(
+        f"Retrieving stake information & identities from {subtensor.network}...",
+        spinner="earth",
+    ):
+        stake_info, ck_hk_identities, old_identities, all_sn_dynamic_info_, current_wallet_balance = await asyncio.gather(
+            subtensor.get_stake_info_for_coldkey(wallet.coldkeypub.ss58_address),
+            subtensor.fetch_coldkey_hotkey_identities(),
+            subtensor.get_delegate_identities(),
+            subtensor.get_all_subnet_dynamic_info(),
+            subtensor.get_balance(wallet.coldkeypub.ss58_address)
+        )
+        
+        if not stake_info:
+            console.print("[red]No stakes found to unstake[/red]")
+            return False
+
+        all_sn_dynamic_info = {info.netuid: info for info in all_sn_dynamic_info_}
+
+        # Calculate total value and slippage for all stakes
+        total_received_value = Balance(0)
+        table = Table(
+            title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Unstaking Summary - All Stakes\nWallet: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.name}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}], Coldkey ss58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\nNetwork: {subtensor.network}[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n",
+            show_footer=True,
+            show_edge=False,
+            header_style="bold white",
+            border_style="bright_black",
+            style="bold",
+            title_justify="center",
+            show_lines=False,
+            pad_edge=True,
+        )
+        table.add_column("Netuid", justify="center", style="grey89")
+        table.add_column(
+            "Hotkey", justify="center", style=COLOR_PALETTE["GENERAL"]["HOTKEY"]
+        )
+        table.add_column(
+            f"Current Stake ({Balance.get_unit(1)})",
+            justify="center",
+            style=COLOR_PALETTE["STAKE"]["STAKE_ALPHA"],
+        )
+        table.add_column(
+            f"Rate ({Balance.unit}/{Balance.get_unit(1)})",
+            justify="center",
+            style=COLOR_PALETTE["POOLS"]["RATE"],
+        )
+        table.add_column(
+            f"Recieved ({Balance.unit})",
+            justify="center",
+            style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
+        )
+        table.add_column(
+            "Slippage",
+            justify="center",
+            style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"]
+        )
+        max_slippage = 0.0
+        for stake in stake_info:
+            if stake.stake.rao == 0:
+                continue
+                
+            dynamic_info = all_sn_dynamic_info.get(stake.netuid)
+            stake_amount = stake.stake
+            received_amount, slippage = dynamic_info.alpha_to_tao_with_slippage(stake_amount)
+            
+            total_received_value += received_amount
+            
+            # Get hotkey identity
+            identity = ck_hk_identities["hotkeys"].get(stake.hotkey_ss58) or old_identities.get(stake.hotkey_ss58)
+            hotkey_display = stake.hotkey_ss58
+            if identity:
+                hotkey_name = identity.get("identity", {}).get("name", "") or identity.get("display", "~")
+                hotkey_display = f"{hotkey_name}"
+            
+            if dynamic_info.is_dynamic:
+                slippage_pct_float = (
+                    100 * float(slippage) / float(slippage + received_amount)
+                    if slippage + received_amount != 0
+                    else 0
+                )
+                slippage_pct = f"{slippage_pct_float:.4f} %"
+            else:
+                slippage_pct_float = 0
+                slippage_pct = "[red]N/A[/red]"
+            
+            max_slippage = max(max_slippage, slippage_pct_float)
+            
+            table.add_row(
+                str(stake.netuid),
+                hotkey_display,
+                str(stake_amount),
+                str(float(dynamic_info.price))
+                + f"({Balance.get_unit(0)}/{Balance.get_unit(stake.netuid)})",
+                str(received_amount),
+                slippage_pct,
+            )
+    console.print(table)
+    message = ""
+    if max_slippage > 5:
+        message += f"[{COLOR_PALETTE['STAKE']['SLIPPAGE_TEXT']}]-------------------------------------------------------------------------------------------------------------------\n"
+        message += f"[bold]WARNING:[/bold] The slippage on one of your operations is high: [{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}]{max_slippage:.4f}%[/{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}], this may result in a loss of funds.\n"
+        message += "-------------------------------------------------------------------------------------------------------------------\n"
+        console.print(message)
+    
+    console.print(
+        f"Expected return after slippage: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{total_received_value}"
+    )
+    
+    if prompt and not Confirm.ask("\nDo you want to proceed with unstaking everything?"):
+        return False
+
+    try:
+        wallet.unlock_coldkey()
+    except KeyFileError:
+        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+        return False
+
+    with console.status(":satellite: Unstaking all stakes..."):
+        call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="unstake_all",
+            call_params={},
+        )
+        
+        success, error_message = await subtensor.sign_and_send_extrinsic(
+            call=call,
+            wallet=wallet,
+            wait_for_inclusion=True,
+            wait_for_finalization=False,
+        )
+
+        if success:
+            console.print(":white_heavy_check_mark: [green]Successfully unstaked all stakes[/green]")
+            new_balance_ = await subtensor.get_balance(
+                        wallet.coldkeypub.ss58_address
+            )
+            new_balance = new_balance_[wallet.coldkeypub.ss58_address]
+            console.print(
+                f"Balance:\n [blue]{current_wallet_balance[wallet.coldkeypub.ss58_address]}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
+            )
+            return True
+        else:
+            err_console.print(f":cross_mark: [red]Failed to unstake[/red]: {error_message}")
+            return False
+
+
 async def unstake(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
     hotkey_ss58_address: str,
-    netuid: Optional[int],
     all_hotkeys: bool,
     include_hotkeys: list[str],
     exclude_hotkeys: list[str],
@@ -1366,8 +1531,13 @@ async def unstake(
     unstake_all: bool,
     prompt: bool,
     interactive: bool = False,
+    netuid: Optional[int] = None,
 ):
     """Unstake tokens from hotkey(s)."""
+
+    if unstake_all:
+        return await _unstake_all(wallet, subtensor, prompt)
+
     with console.status(
         f"Retrieving subnet data & identities from {subtensor.network}...",
         spinner="earth",
@@ -1381,7 +1551,7 @@ async def unstake(
 
     if interactive:
         hotkeys_to_unstake_from = await unstake_selection(
-            subtensor, wallet, all_sn_dynamic_info, ck_hk_identities, old_identities
+            subtensor, wallet, all_sn_dynamic_info, ck_hk_identities, old_identities, netuid=netuid
         )
         if not hotkeys_to_unstake_from:
             console.print("[red]No unstake operations to perform.[/red]")
@@ -1537,7 +1707,7 @@ async def unstake(
                 slippage_pct = f"{slippage_pct_float:.4f} %"
             else:
                 slippage_pct_float = 0
-                slippage_pct = f"{slippage_pct_float}%"
+                slippage_pct = "[red]N/A[/red]"
             max_float_slippage = max(max_float_slippage, slippage_pct_float)
 
             unstake_operations.append(

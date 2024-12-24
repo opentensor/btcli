@@ -2769,7 +2769,7 @@ class CLIManager:
             )
             raise typer.Exit()
 
-        if not interactive:
+        if not interactive and not unstake_all:
             netuid = get_optional_netuid(netuid, all_netuids)
             if all_hotkeys and include_hotkeys:
                 err_console.print(
@@ -2800,6 +2800,7 @@ class CLIManager:
             and not all_hotkeys
             and not include_hotkeys
             and not interactive
+            and not unstake_all
         ):
             if not wallet_name:
                 wallet_name = Prompt.ask(
@@ -2807,10 +2808,14 @@ class CLIManager:
                     default=self.config.get("wallet_name") or defaults.wallet.name,
                 )
             hotkey_or_ss58 = Prompt.ask(
-                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake from",
-                default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
-            )
-            if is_valid_ss58_address(hotkey_or_ss58):
+                    "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake from [dim](or Press Enter to view existing staked hotkeys)[/dim]",
+                )
+            if hotkey_or_ss58 == "":
+                wallet = self.wallet_ask(
+                    wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
+                )
+                interactive = True
+            elif is_valid_ss58_address(hotkey_or_ss58):
                 hotkey_ss58_address = hotkey_or_ss58
                 wallet = self.wallet_ask(
                     wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
@@ -2831,11 +2836,11 @@ class CLIManager:
             or exclude_hotkeys
             or hotkey_ss58_address
             or interactive
+            or unstake_all
         ):
             wallet = self.wallet_ask(
                 wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
             )
-
         else:
             wallet = self.wallet_ask(
                 wallet_name,
@@ -2870,7 +2875,6 @@ class CLIManager:
                 wallet,
                 self.initialize_chain(network),
                 hotkey_ss58_address,
-                netuid,
                 all_hotkeys,
                 included_hotkeys,
                 excluded_hotkeys,
@@ -2879,6 +2883,7 @@ class CLIManager:
                 unstake_all,
                 prompt,
                 interactive,
+                netuid=netuid,
             )
         )
 
