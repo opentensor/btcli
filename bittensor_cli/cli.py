@@ -2470,6 +2470,7 @@ class CLIManager:
             "--coldkey.ss58",
             help="Coldkey address of the wallet",
         ),
+        live: bool = Options.live,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         # TODO add: all-wallets, reuse_last, html_output
@@ -2499,7 +2500,7 @@ class CLIManager:
                 )
 
         return self._run_command(
-            stake.stake_list(wallet, coldkey_ss58, self.initialize_chain(network))
+            stake.stake_list(wallet, coldkey_ss58, self.initialize_chain(network), live)
         )
 
     def stake_add(
