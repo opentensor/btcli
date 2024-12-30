@@ -1215,9 +1215,9 @@ class SubnetState:
     trust: list[float]
     rank: list[float]
     block_at_registration: list[int]
-    local_stake: list[Balance]
-    global_stake: list[Balance]
-    stake_weight: list[float]
+    alpha_stake: list[Balance]
+    tao_stake: list[Balance]
+    total_stake: list[Balance]
     emission_history: list[list[int]]
 
     @classmethod
@@ -1261,13 +1261,15 @@ class SubnetState:
             trust=[u16_normalized_float(val) for val in decoded["trust"]],
             rank=[u16_normalized_float(val) for val in decoded["rank"]],
             block_at_registration=decoded["block_at_registration"],
-            local_stake=[
-                Balance.from_rao(val).set_unit(netuid) for val in decoded["local_stake"]
+            alpha_stake=[
+                Balance.from_rao(val).set_unit(netuid) for val in decoded["alpha_stake"]
             ],
-            global_stake=[
-                Balance.from_rao(val).set_unit(0) for val in decoded["global_stake"]
+            tao_stake=[
+                Balance.from_rao(val).set_unit(0) for val in decoded["tao_stake"]
             ],
-            stake_weight=[u16_normalized_float(val) for val in decoded["stake_weight"]],
+            total_stake=[
+                Balance.from_rao(val).set_unit(netuid) for val in decoded["total_stake"]
+            ],
             emission_history=decoded["emission_history"],
         )
 
@@ -1471,9 +1473,9 @@ custom_rpc_type_registry = {
                 ["trust", "Vec<Compact<u16>>"],
                 ["rank", "Vec<Compact<u16>>"],
                 ["block_at_registration", "Vec<Compact<u64>>"],
-                ["local_stake", "Vec<Compact<u64>>"],
-                ["global_stake", "Vec<Compact<u64>>"],
-                ["stake_weight", "Vec<Compact<u16>>"],
+                ["alpha_stake", "Vec<Compact<u64>>"],
+                ["tao_stake", "Vec<Compact<u64>>"],
+                ["total_stake", "Vec<Compact<u64>>"],
                 ["emission_history", "Vec<Vec<Compact<u64>>>"],
             ],
         },

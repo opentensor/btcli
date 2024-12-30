@@ -175,11 +175,8 @@ async def subnets_list(
 
     async def fetch_subnet_data():
         subnets = await subtensor.get_all_subnet_dynamic_info()
-        global_weights, identities = await asyncio.gather(
-            subtensor.get_global_weights([subnet.netuid for subnet in subnets]),
-            subtensor.query_all_identities(),
-        )
-        return subnets, global_weights, identities
+        identities = await subtensor.query_all_identities()
+        return subnets, identities
 
     def define_table(total_emissions: float, total_rate: float, total_netuids: int):
         table = Table(
@@ -235,17 +232,13 @@ async def subnets_list(
             justify="left",
             overflow="fold",
         )
-        table.add_column(
-            "[bold white]Local weight coeff. (γ)", style="steel_blue", justify="left"
-        )
         return table
 
     # Non-live mode
-    def create_table(subnets, global_weights, identities):
+    def create_table(subnets, identities):
         rows = []
         for subnet in subnets:
             netuid = subnet.netuid
-            global_weight = global_weights.get(netuid)
             symbol = f"{subnet.symbol}\u200e"
 
             if netuid == 0:
@@ -265,9 +258,6 @@ async def subnets_list(
             alpha_in_cell = f"{subnet.alpha_in.tao:,.4f} {symbol}" if netuid != 0 else f"{symbol} {subnet.alpha_in.tao:,.4f}"
             alpha_out_cell = f"{subnet.alpha_out.tao:,.5f} {symbol}" if netuid != 0 else f"{symbol} {subnet.alpha_out.tao:,.5f}"
             tempo_cell = f"{subnet.blocks_since_last_step}/{subnet.tempo}"
-            global_weight_cell = (
-                f"{global_weight:.4f}" if global_weight is not None else "N/A"
-            )
 
             rows.append(
                 (
@@ -280,7 +270,6 @@ async def subnets_list(
                     alpha_in_cell,    # Alpha Pool α_in
                     alpha_out_cell,   # Stake α_out
                     tempo_cell,       # Tempo k/n
-                    global_weight_cell,# Local weight coeff. (γ)
                 )
             )
 
@@ -303,7 +292,7 @@ async def subnets_list(
         return table
 
     # Live mode
-    def create_table_live(subnets, global_weights, identities, previous_data):
+    def create_table_live(subnets, identities, previous_data):
         def format_cell(value, previous_value, unit="", unit_first=False, precision=4):
             if previous_value is not None:
                 change = value - previous_value
@@ -326,7 +315,6 @@ async def subnets_list(
 
         for subnet in subnets:
             netuid = subnet.netuid
-            global_weight = global_weights.get(netuid)
             symbol = f"{subnet.symbol}\u200e"
 
             if netuid == 0:
@@ -344,7 +332,6 @@ async def subnets_list(
                 "alpha_in": subnet.alpha_in.tao,
                 "price": subnet.price.tao,
                 "blocks_since_last_step": subnet.blocks_since_last_step,
-                "global_weight": global_weight,
             }
             prev = previous_data.get(netuid) if previous_data else {}
 
@@ -404,29 +391,6 @@ async def subnets_list(
                 f"{subnet.blocks_since_last_step}/{subnet.tempo}{block_change_text}"
             )
 
-            # Local weight coeff cell
-            prev_global_weight = prev.get("global_weight")
-            if prev_global_weight is not None and global_weight is not None:
-                weight_change = float(global_weight) - float(prev_global_weight)
-                if weight_change > 0:
-                    weight_change_text = (
-                        f" [pale_green3](+{weight_change:.6f})[/pale_green3]"
-                    )
-                elif weight_change < 0:
-                    weight_change_text = (
-                        f" [hot_pink3]({weight_change:.6f})[/hot_pink3]"
-                    )
-                else:
-                    weight_change_text = ""
-            else:
-                weight_change_text = ""
-
-            global_weight_cell = (
-                f"{global_weight:.4f}{weight_change_text}"
-                if global_weight is not None
-                else "N/A"
-            )
-
             rows.append(
                 (
                     netuid_cell,      # Netuid
@@ -438,7 +402,6 @@ async def subnets_list(
                     alpha_in_cell,    # Alpha Pool α_in
                     alpha_out_cell,   # Stake α_out
                     tempo_cell,       # Tempo k/n
-                    global_weight_cell,# Local weight coeff. (γ)
                 )
             )
 
@@ -480,8 +443,7 @@ async def subnets_list(
             try:
                 while True:
                     subnets = await subtensor.get_all_subnet_dynamic_info()
-                    global_weights, identities, block_number = await asyncio.gather(
-                        subtensor.get_global_weights([subnet.netuid for subnet in subnets]),
+                    identities, block_number = await asyncio.gather(
                         subtensor.query_all_identities(),
                         subtensor.substrate.get_block_number(None)
                     )
@@ -492,7 +454,7 @@ async def subnets_list(
                     new_blocks = "N/A" if previous_block is None else str(current_block - previous_block)
 
                     table, current_data = create_table_live(
-                        subnets, global_weights, identities, previous_data
+                        subnets, identities, previous_data
                     )
                     previous_data = current_data
                     progress.reset(progress_task)
@@ -518,8 +480,8 @@ async def subnets_list(
                 pass  # Ctrl + C
     else:
         # Non-live mode
-        subnets, global_weights, identities = await fetch_subnet_data()
-        table = create_table(subnets, global_weights, identities)
+        subnets, identities = await fetch_subnet_data()
+        table = create_table(subnets, identities)
         console.print(table)
 
         display_table = Prompt.ask(
@@ -819,9 +781,7 @@ async def show(
             ]
         )
         tao_sum = Balance(0)
-        stake_sum = Balance(0)
         relative_emissions_sum = 0
-        stake_weight_sum = 0
         
         for idx, hk in enumerate(subnet_state.hotkeys):
             hotkey_block_emission = (
@@ -830,9 +790,7 @@ async def show(
                 else 0
             )
             relative_emissions_sum += hotkey_block_emission
-            tao_sum += subnet_state.global_stake[idx]
-            stake_sum += subnet_state.local_stake[idx]
-            stake_weight_sum += subnet_state.stake_weight[idx]
+            tao_sum += subnet_state.total_stake[idx]
             
             # Get identity for this uid
             coldkey_identity = identities.get(subnet_state.coldkeys[idx], {}).get("name", "")
@@ -842,9 +800,7 @@ async def show(
             rows.append(
                 (
                     str(idx),  # UID
-                    str(subnet_state.global_stake[idx]),  # TAO
-                    f"{subnet_state.local_stake[idx].tao:.4f} {subnet_info.symbol}",  # Stake
-                    f"{subnet_state.stake_weight[idx]:.4f}",  # Weight
+                    f"{subnet_state.total_stake[idx].tao:.4f} {subnet_info.symbol}",  # Stake
                     # str(subnet_state.dividends[idx]),
                     f"{Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao:.5f}",  # Dividends
                     str(subnet_state.incentives[idx]),  # Incentive
@@ -866,25 +822,11 @@ async def show(
         # Add columns to the table
         table.add_column("UID", style="grey89", no_wrap=True, justify="center")
         table.add_column(
-            f"TAO({Balance.get_unit(0)})",
-            style=COLOR_PALETTE["STAKE"]["TAO"],
-            no_wrap=True,
-            justify="right",
-            footer=str(tao_sum),
-        )
-        table.add_column(
-            f"Stake({Balance.get_unit(netuid_)})",
+            f"Stake ({Balance.get_unit(netuid_)})",
             style=COLOR_PALETTE["POOLS"]["ALPHA_IN"],
             no_wrap=True,
             justify="right",
-            footer=f"{stake_sum.set_unit(subnet_info.netuid)}",
-        )
-        table.add_column(
-            f"Weight({Balance.get_unit(0)}•{Balance.get_unit(netuid_)})",
-            style="blue",
-            no_wrap=True,
-            justify="center",
-            footer=f"{stake_weight_sum:.3f}",
+            footer=f"{tao_sum.set_unit(subnet_info.netuid)}",
         )
         table.add_column(
             "Dividends",
@@ -953,7 +895,7 @@ async def show(
                 f"\n  Emission: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]τ {subnet_info.emission.tao:,.4f}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
                 f"\n  TAO Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]τ {subnet_info.tao_in.tao:,.4f}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
                 f"\n  Alpha Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{subnet_info.alpha_in.tao:,.4f} {subnet_info.symbol}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
-                f"\n  Stake: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{subnet_info.alpha_out.tao:,.5f} {subnet_info.symbol}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
+                # f"\n  Stake: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{subnet_info.alpha_out.tao:,.5f} {subnet_info.symbol}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
                 f"\n  Tempo: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{subnet_info.blocks_since_last_step}/{subnet_info.tempo}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
             )
             console.print(
