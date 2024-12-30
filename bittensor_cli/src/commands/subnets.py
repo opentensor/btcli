@@ -597,12 +597,7 @@ async def show(
         #     table.add_column("#", style="cyan", justify="right")
         table.add_column("[bold white]Position", style="white", justify="center")
         table.add_column(
-            f"[bold white] TAO ({Balance.get_unit(0)})",
-            style=COLOR_PALETTE["STAKE"]["TAO"],
-            justify="center",
-        )
-        table.add_column(
-            f"[bold white]Stake ({Balance.get_unit(0)})",
+            f"[bold white]Total Stake ({Balance.get_unit(0)})",
             style=COLOR_PALETTE["POOLS"]["ALPHA_IN"],
             justify="center",
         )
@@ -629,7 +624,7 @@ async def show(
 
         sorted_hotkeys = sorted(
             enumerate(root_state.hotkeys),
-            key=lambda x: root_state.global_stake[x[0]],
+            key=lambda x: root_state.total_stake[x[0]],
             reverse=True,
         )
         sorted_rows = []
@@ -652,13 +647,12 @@ async def show(
 
             sorted_rows.append(
                 (
-                    str((pos + 1)),
-                    str(root_state.global_stake[idx]),
-                    str(root_state.local_stake[idx]),
-                    f"{(total_emission_per_block)}",
-                    f"{root_state.hotkeys[idx][:6]}" if not verbose else f"{root_state.hotkeys[idx]}",
-                    f"{root_state.coldkeys[idx][:6]}" if not verbose else f"{root_state.coldkeys[idx]}",
-                    validator_identity,
+                    str((pos + 1)), # Position
+                    str(root_state.total_stake[idx]), # Total Stake
+                    f"{(total_emission_per_block)}", # Emission
+                    f"{root_state.hotkeys[idx][:6]}" if not verbose else f"{root_state.hotkeys[idx]}", # Hotkey
+                    f"{root_state.coldkeys[idx][:6]}" if not verbose else f"{root_state.coldkeys[idx]}", # Coldkey
+                    validator_identity, # Identity
                 )
             )
             sorted_hks_delegation.append(root_state.hotkeys[idx])
