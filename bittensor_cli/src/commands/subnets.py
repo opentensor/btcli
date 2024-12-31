@@ -181,8 +181,21 @@ async def subnets_list(
             subtensor.get_subnet_tao(),
         )
         return subnets, identities, subnet_tao, block_number
+    
+    def calculate_emission_stats(subnet_tao: dict, block_number: int) -> tuple[Balance, str]:
+        # We do not include the root subnet in the emission calculation
+        total_tao_emitted = sum(
+            subnet_tao.get(n, Balance(0)) 
+            for n in subnet_tao.keys() 
+            if n != 0
+        )
+        emission_percentage = (total_tao_emitted.tao / block_number) * 100
+        percentage_color = "dark_sea_green" if emission_percentage < 100 else "red"
+        formatted_percentage = f"[{percentage_color}]{emission_percentage:.2f}%[/{percentage_color}]"
+        percentage_string = f"{total_tao_emitted:}/{block_number} ({formatted_percentage})"
+        return total_tao_emitted, percentage_string
 
-    def define_table(total_emissions: float, total_rate: float, total_netuids: int):
+    def define_table(total_emissions: float, total_rate: float, total_netuids: int, tao_emission_percentage: str):
         table = Table(
             title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Subnets"
             f"\nNetwork: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{subtensor.network}\n\n",
@@ -219,6 +232,7 @@ async def subnets_list(
             f"[bold white]TAO Pool ({Balance.get_unit(0)}_in)",
             style=COLOR_PALETTE["STAKE"]["TAO"],
             justify="left",
+            footer=f"{tao_emission_percentage}",
         )
         table.add_column(
             f"[bold white]Alpha Pool ({Balance.get_unit(1)}_in)",
@@ -231,11 +245,6 @@ async def subnets_list(
             justify="left",
         )
         table.add_column(
-            "[bold white]Total TAO/Current block (Temp)",
-            style=COLOR_PALETTE["STAKE"]["TAO"],
-            justify="left",
-        )
-        table.add_column(
             "[bold white]Tempo (k/n)",
             style=COLOR_PALETTE["GENERAL"]["TEMPO"],
             justify="left",
@@ -245,16 +254,12 @@ async def subnets_list(
 
     # Non-live mode
     def create_table(subnets, identities, subnet_tao, block_number):
-        rows = []
-        total_tao = Balance(0)
+        rows = [] 
+        _, percentage_string = calculate_emission_stats(subnet_tao, block_number)
+
         for subnet in subnets:
             netuid = subnet.netuid
             symbol = f"{subnet.symbol}\u200e"
-            if netuid == 0:
-                subnet_tao_balance = subnet_tao.get(netuid, Balance(0))
-            else:
-                subnet_tao_balance = sum(subnet_tao.get(n, Balance(0)) for n in subnet_tao.keys() if n != 0)
-            total_tao = subnet_tao_balance
 
             if netuid == 0:
                 emission_tao = 0.0
@@ -272,7 +277,6 @@ async def subnets_list(
             tao_in_cell = f"τ {subnet.tao_in.tao:,.4f}"
             alpha_in_cell = f"{subnet.alpha_in.tao:,.4f} {symbol}" if netuid != 0 else f"{symbol} {subnet.alpha_in.tao:,.4f}"
             alpha_out_cell = f"{subnet.alpha_out.tao:,.5f} {symbol}" if netuid != 0 else f"{symbol} {subnet.alpha_out.tao:,.5f}"
-            subnet_tao_cell = f"τ {subnet_tao_balance.tao:,.4f} / {block_number}"
             tempo_cell = f"{subnet.blocks_since_last_step}/{subnet.tempo}"
 
             rows.append(
@@ -285,7 +289,6 @@ async def subnets_list(
                     tao_in_cell,      # TAO Pool τ_in
                     alpha_in_cell,    # Alpha Pool α_in
                     alpha_out_cell,   # Stake α_out
-                    subnet_tao_cell,  # Subnet TAO
                     tempo_cell,       # Tempo k/n
                 )
             )
@@ -297,7 +300,7 @@ async def subnets_list(
             float(subnet.price.tao) for subnet in subnets if subnet.netuid != 0
         )
         total_netuids = len(subnets)
-        table = define_table(total_emissions, total_rate, total_netuids)
+        table = define_table(total_emissions, total_rate, total_netuids, percentage_string)
 
         # Sort rows by stake, keeping the root subnet in the first position
         sorted_rows = [rows[0]] + sorted(
@@ -329,6 +332,7 @@ async def subnets_list(
 
         rows = []
         current_data = {}  # To store current values for comparison in the next update
+        _, percentage_string = calculate_emission_stats(subnet_tao, block_number)
 
         for subnet in subnets:
             netuid = subnet.netuid
@@ -340,13 +344,7 @@ async def subnets_list(
             else:
                 emission_tao = subnet.emission.tao
                 identity = identities.get(subnet.owner, {}).get("name", "~")
-            
-            if netuid == 0:
-                subnet_tao_balance = subnet_tao.get(netuid, Balance(0))
-            else:
-                subnet_tao_balance = sum(subnet_tao.get(n, Balance(0)) for n in subnet_tao.keys() if n != 0)
-
-
+        
             # Store current values for comparison
             current_data[netuid] = {
                 "emission_tao": emission_tao,
@@ -355,7 +353,6 @@ async def subnets_list(
                 "alpha_in": subnet.alpha_in.tao,
                 "price": subnet.price.tao,
                 "blocks_since_last_step": subnet.blocks_since_last_step,
-                "subnet_tao": subnet_tao_balance.tao,
             }
             prev = previous_data.get(netuid) if previous_data else {}
 
@@ -391,14 +388,6 @@ async def subnets_list(
                 precision=5,
             )
 
-            subnet_tao_cell = format_cell(
-                subnet_tao_balance.tao,
-                prev.get("subnet_tao"),
-                unit="τ",
-                unit_first=True,
-                precision=4
-            ) + f" / {block_number}"
-
             # Tempo cell
             prev_blocks_since_last_step = prev.get("blocks_since_last_step")
             if prev_blocks_since_last_step is not None:
@@ -433,7 +422,6 @@ async def subnets_list(
                     tao_in_cell,      # TAO Pool τ_in
                     alpha_in_cell,    # Alpha Pool α_in
                     alpha_out_cell,   # Stake α_out
-                    subnet_tao_cell,  # Subnet TAO
                     tempo_cell,       # Tempo k/n
                 )
             )
@@ -445,7 +433,7 @@ async def subnets_list(
             float(subnet.price.tao) for subnet in subnets if subnet.netuid != 0
         )
         total_netuids = len(subnets)
-        table = define_table(total_emissions, total_rate, total_netuids)
+        table = define_table(total_emissions, total_rate, total_netuids, percentage_string)
 
         # Sort rows by stake, keeping the first subnet in the first position
         sorted_rows = [rows[0]] + sorted(
@@ -548,16 +536,16 @@ async def subnets_list(
                     "Shows how the one τ per block emission is distributed among all the subnet pools. For each subnet, this fraction is first calculated by dividing the subnet's alpha token price by the sum of all alpha prices across all the subnets. This fraction of TAO is then added to the TAO Pool (τ_in) of the subnet. This can change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#emissions[/blue].",
                 ),
                 (
-                    "[bold tan]STAKE (α_out)[/bold tan]",
-                    "Total stake in the subnet, expressed in the subnet's alpha token currency. This is the sum of all the stakes present in all the hotkeys in this subnet. This can change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#stake-%CE%B1_out-or-alpha-out-%CE%B1_out[/blue].",
-                ),
-                (
-                    "[bold tan]TAO Reserves (τ_in)[/bold tan]",
+                    "[bold tan]TAO Pool (τ_in)[/bold tan]",
                     'Number of TAO in the TAO reserves of the pool for this subnet. Attached to every subnet is a subnet pool, containing a TAO reserve and the alpha reserve. See also "Alpha Pool (α_in)" description. This can change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#subnet-pool[/blue].',
                 ),
                 (
-                    "[bold tan]Alpha Reserves (α_in)[/bold tan]",
+                    "[bold tan]Alpha Pool (α_in)[/bold tan]",
                     "Number of subnet alpha tokens in the alpha reserves of the pool for this subnet. This reserve, together with 'TAO Pool (τ_in)', form the subnet pool for every subnet. This can change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#subnet-pool[/blue].",
+                ),
+                                (
+                    "[bold tan]STAKE (α_out)[/bold tan]",
+                    "Total stake in the subnet, expressed in the subnet's alpha token currency. This is the sum of all the stakes present in all the hotkeys in this subnet. This can change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#stake-%CE%B1_out-or-alpha-out-%CE%B1_out[/blue].",
                 ),
                 (
                     "[bold tan]RATE (τ_in/α_in)[/bold tan]",
@@ -566,10 +554,6 @@ async def subnets_list(
                 (
                     "[bold tan]Tempo (k/n)[/bold tan]",
                     'The tempo status of the subnet. Represented as (k/n) where "k" is the number of blocks elapsed since the last tempo and "n" is the total number of blocks in the tempo. The number "n" is a subnet hyperparameter and does not change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#tempo-kn[/blue].',
-                ),
-                (
-                    "[bold tan]Local weight coeff (γ)[/bold tan]",
-                    "This is the global_split coefficient. It is a multiplication factor between 0 and 1, and it controls the balance between a validator's normalized global and local weights. In effect, the global_split parameter controls the balance between the validator hotkey's local and global influence. This is a subnet parameter. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#global-split[/blue].",
                 ),
             ]
 
