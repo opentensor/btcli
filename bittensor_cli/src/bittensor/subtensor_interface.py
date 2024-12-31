@@ -1412,3 +1412,35 @@ class SubtensorInterface:
         return {
             netuid: u64_normalized_float(weight) for (netuid, weight) in result.items()
         }
+
+    async def get_subnet_tao(
+        self, netuid: Optional[int] = None, block_hash: Optional[str] = None
+    ) -> dict[int, Balance]:
+        """
+        Retrieves the total TAO for one or all subnets.
+
+        Args:
+            netuid: Optional specific netuid to query. If None, returns data for all subnets.
+            block_hash: Optional block hash to query at.
+
+        Returns:
+            Dictionary mapping netuid to its total TAO balance
+        """
+        if netuid is not None:
+            result = await self.substrate.query(
+                module="SubtensorModule",
+                storage_function="SubnetTAO",
+                params=[netuid],
+                block_hash=block_hash
+            )
+            return {netuid: Balance.from_rao(result or 0)}
+        else:
+            results = await self.substrate.query_map(
+                module="SubtensorModule",
+                storage_function="SubnetTAO",
+                block_hash=block_hash
+            )
+            return {
+                netuid: Balance.from_rao(tao or 0) 
+                async for netuid, tao in results
+            }

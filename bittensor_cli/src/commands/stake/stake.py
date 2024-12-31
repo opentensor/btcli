@@ -928,20 +928,28 @@ async def stake_add(
         hotkeys_to_stake_to = [(None, hotkey_ss58_or_name)]
 
     starting_chain_head = await subtensor.substrate.get_chain_head()
-    all_dynamic_info, initial_stake_balances = await asyncio.gather(
+    all_dynamic_info, stake_info_dict = await asyncio.gather(
         asyncio.gather(
             *[
                 subtensor.get_subnet_dynamic_info(x, starting_chain_head)
                 for x in netuids
             ]
         ),
-        subtensor.multi_get_stake_for_coldkey_and_hotkey_on_netuid(
-            hotkey_ss58s=[x[1] for x in hotkeys_to_stake_to],
-            coldkey_ss58=wallet.coldkeypub.ss58_address,
-            netuids=netuids,
+        subtensor.get_stake_info_for_coldkeys(
+            coldkey_ss58_list=[wallet.coldkeypub.ss58_address],
             block_hash=starting_chain_head,
         ),
     )
+    initial_stake_balances = {}
+    for hotkey_ss58 in [x[1] for x in hotkeys_to_stake_to]:
+        initial_stake_balances[hotkey_ss58] = {}
+        for netuid in netuids:
+            initial_stake_balances[hotkey_ss58][netuid] = Balance.from_rao(0)
+            
+    for stake_info in stake_info_dict[wallet.coldkeypub.ss58_address]:
+        if stake_info.hotkey_ss58 in initial_stake_balances:
+            initial_stake_balances[stake_info.hotkey_ss58][stake_info.netuid] = stake_info.stake
+            
     for hk_name, hk_ss58 in hotkeys_to_stake_to:
         if not is_valid_ss58_address(hk_ss58):
             print_error(
@@ -999,18 +1007,18 @@ async def stake_add(
                     else 0
                 )
                 slippage_pct = f"{slippage_pct_float:.4f} %"
+                rate = str(1 / (float(dynamic_info.price) or 1))
             else:
                 slippage_pct_float = 0
                 slippage_pct = f"[{COLOR_PALETTE['STAKE']['SLIPPAGE_TEXT']}]N/A[/{COLOR_PALETTE['STAKE']['SLIPPAGE_TEXT']}]"
+                rate = str(1)
             max_slippage = max(slippage_pct_float, max_slippage)
             rows.append(
-                (
-                    str(netuid),
+                (                    str(netuid),
                     # f"{staking_address_ss58[:3]}...{staking_address_ss58[-3:]}",
                     f"{hotkey[1]}",
                     str(amount_to_stake_as_balance),
-                    str(1 / (float(dynamic_info.price) or 1))
-                    + f" {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ",
+                    rate + f" {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ",
                     str(received_amount.set_unit(netuid)),
                     str(slippage_pct),
                 )
@@ -1102,16 +1110,20 @@ The columns are as follows:
                     f"\n{failure_prelude} with error: {format_error_message(await response.error_message, subtensor.substrate)}"
                 )
             else:
-                new_balance_, new_stake_ = await asyncio.gather(
+                new_balance_, stake_info_dict = await asyncio.gather(
                     subtensor.get_balance(wallet.coldkeypub.ss58_address),
-                    subtensor.get_stake_for_coldkey_and_hotkey_on_netuid(
-                        coldkey_ss58=wallet.coldkeypub.ss58_address,
-                        hotkey_ss58=staking_address_ss58,
-                        netuid=netuid_i,
+                    subtensor.get_stake_info_for_coldkeys(
+                        coldkey_ss58_list=[wallet.coldkeypub.ss58_address],
                     ),
                 )
                 new_balance = new_balance_[wallet.coldkeypub.ss58_address]
-                new_stake = new_stake_.set_unit(netuid_i)
+                new_stake = Balance.from_rao(0)
+                for stake_info in stake_info_dict[wallet.coldkeypub.ss58_address]:
+                    if (stake_info.hotkey_ss58 == staking_address_ss58 and 
+                        stake_info.netuid == netuid_i):
+                        new_stake = stake_info.stake.set_unit(netuid_i)
+                        break
+
                 console.print(
                     f"Balance:\n  [blue]{current_wallet_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
                 )
@@ -1664,14 +1676,20 @@ async def unstake(
 
         # Fetch stake balances
         chain_head = await subtensor.substrate.get_chain_head()
-        stake_in_netuids = (
-            await subtensor.multi_get_stake_for_coldkey_and_hotkey_on_netuid(
-                hotkey_ss58s=[hk[1] for hk in hotkeys_to_unstake_from],
-                coldkey_ss58=wallet.coldkeypub.ss58_address,
-                netuids=netuids,
-                block_hash=chain_head,
-            )
+        stake_info_dict = await subtensor.get_stake_info_for_coldkeys(
+            coldkey_ss58_list=[wallet.coldkeypub.ss58_address],
+            block_hash=chain_head,
         )
+        stake_in_netuids = {}
+        for _, stake_info_list in stake_info_dict.items():
+            hotkey_stakes = {}
+            for stake_info in stake_info_list:
+                if stake_info.hotkey_ss58 not in hotkey_stakes:
+                    hotkey_stakes[stake_info.hotkey_ss58] = {}
+                hotkey_stakes[stake_info.hotkey_ss58][stake_info.netuid] = stake_info.stake
+
+        stake_in_netuids = hotkey_stakes
+
 
     # Flag to check if user wants to quit
     skip_remaining_subnets = False
@@ -1899,13 +1917,15 @@ The columns are as follows:
                         wallet.coldkeypub.ss58_address
                     )
                     new_balance = new_balance_[wallet.coldkeypub.ss58_address]
-                    new_stake = (
-                        await subtensor.get_stake_for_coldkey_and_hotkey_on_netuid(
-                            coldkey_ss58=wallet.coldkeypub.ss58_address,
-                            hotkey_ss58=staking_address_ss58,
-                            netuid=netuid_i,
-                        )
-                    ).set_unit(netuid_i)
+                    new_stake_info = await subtensor.get_stake_info_for_coldkeys(
+                        coldkey_ss58_list=[wallet.coldkeypub.ss58_address],
+                    )
+                    new_stake = Balance.from_rao(0)
+                    for stake_info in new_stake_info[wallet.coldkeypub.ss58_address]:
+                        if (stake_info.hotkey_ss58 == staking_address_ss58 and 
+                            stake_info.netuid == netuid_i):
+                            new_stake = stake_info.stake.set_unit(netuid_i)
+                            break
                     console.print(
                         f"Balance:\n  [blue]{current_wallet_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
                     )
@@ -1931,23 +1951,23 @@ async def stake_list(
             substakes,
             registered_delegate_info,
             dynamic_info,
-            emission_drain_tempo,
+            # emission_drain_tempo,
         ) = await asyncio.gather(
             subtensor.get_stake_info_for_coldkeys(
                 coldkey_ss58_list=[coldkey_address], block_hash=block_hash
             ),
             subtensor.get_delegate_identities(block_hash=block_hash),
             subtensor.get_all_subnet_dynamic_info(),
-            subtensor.substrate.query(
-                "SubtensorModule", "HotkeyEmissionTempo", block_hash=block_hash
-            ),
+            # subtensor.substrate.query(
+            #     "SubtensorModule", "HotkeyEmissionTempo", block_hash=block_hash
+            # ),
         )
         sub_stakes = substakes[coldkey_address]
         return (
             sub_stakes,
             registered_delegate_info,
             dynamic_info,
-            emission_drain_tempo,
+            # emission_drain_tempo,
         )
 
     def define_table(
@@ -2083,8 +2103,7 @@ async def stake_list(
             issuance = pool.alpha_out if pool.is_dynamic else tao_locked
 
             # Per block emission cell
-            per_block_emission = substake_.emission.tao / emission_drain_tempo
-
+            per_block_emission = substake_.emission.tao / pool.tempo
             # Alpha ownership and TAO ownership cells
             if alpha_value.tao > 0.00009:
                 if issuance.tao != 0:
@@ -2132,7 +2151,7 @@ async def stake_list(
         substakes: list,
         registered_delegate_info: dict,
         dynamic_info: dict,
-        emission_drain_tempo: int,
+        # emission_drain_tempo: int,
         hotkey_name: str,
         previous_data: Optional[dict] = None,
     ) -> tuple[Table, dict, Balance, Balance, Balance]:
@@ -2196,7 +2215,7 @@ async def stake_list(
                 "price": pool.price.tao,
                 "tao_value": tao_value.tao,
                 "swapped_value": swapped_tao_value.tao,
-                "emission": substake.emission.tao / emission_drain_tempo,
+                "emission": substake.emission.tao / pool.tempo,
                 "tao_ownership": tao_ownership.tao,
             }
 
@@ -2256,7 +2275,7 @@ async def stake_list(
                 + f" ({slippage_pct:.2f}%)"
             )
 
-            emission_value = substake.emission.tao / emission_drain_tempo
+            emission_value = substake.emission.tao / pool.tempo
             emission_cell = format_cell(
                 emission_value,
                 prev.get("emission"),
@@ -2300,7 +2319,7 @@ async def stake_list(
         sub_stakes,
         registered_delegate_info,
         dynamic_info,
-        emission_drain_tempo,
+        # emission_drain_tempo,
     ) = await get_stake_data()
 
     # Iterate over substakes and aggregate them by hotkey.
@@ -2365,7 +2384,7 @@ async def stake_list(
                         sub_stakes,
                         registered_delegate_info,
                         dynamic_info_,
-                        emission_drain_tempo,
+                        # emission_drain_tempo,
                     ) = await get_stake_data(block_hash)
                     selected_stakes = [
                         stake
@@ -2388,7 +2407,7 @@ async def stake_list(
                         selected_stakes,
                         registered_delegate_info,
                         dynamic_info,
-                        emission_drain_tempo,
+                        # emission_drain_tempo,
                         hotkey_name,
                         previous_data,
                     )
@@ -2539,21 +2558,26 @@ async def move_stake(
 ):
     origin_hotkey_ss58 = wallet.hotkey.ss58_address
     # Get the wallet stake balances.
-    origin_stake_balance: Balance = (
-        await subtensor.get_stake_for_coldkey_and_hotkey_on_netuid(
-            coldkey_ss58=wallet.coldkeypub.ss58_address,
-            hotkey_ss58=origin_hotkey_ss58,
-            netuid=origin_netuid,
-        )
-    ).set_unit(origin_netuid)
+    origin_stake_balance = Balance.from_rao(0)
+    destination_stake_balance = Balance.from_rao(0)
+    
+    chain_head = await subtensor.substrate.get_chain_head()
+    stake_info_dict = await subtensor.get_stake_info_for_coldkeys(
+        coldkey_ss58_list=[wallet.coldkeypub.ss58_address],
+        block_hash=chain_head,
+    )
+    
+    for stake_info in stake_info_dict[wallet.coldkeypub.ss58_address]:
+        if (stake_info.hotkey_ss58 == origin_hotkey_ss58 and 
+            stake_info.netuid == origin_netuid):
+            origin_stake_balance = stake_info.stake
+        elif (stake_info.hotkey_ss58 == destination_hotkey and 
+              stake_info.netuid == destination_netuid):
+            destination_stake_balance = stake_info.stake
 
-    destination_stake_balance: Balance = (
-        await subtensor.get_stake_for_coldkey_and_hotkey_on_netuid(
-            coldkey_ss58=wallet.coldkeypub.ss58_address,
-            hotkey_ss58=destination_hotkey,
-            netuid=destination_netuid,
-        )
-    ).set_unit(destination_netuid)
+    # Set appropriate units
+    origin_stake_balance = origin_stake_balance.set_unit(origin_netuid)
+    destination_stake_balance = destination_stake_balance.set_unit(destination_netuid)
 
     if origin_stake_balance == Balance.from_tao(0).set_unit(origin_netuid):
         print_error(
@@ -2744,20 +2768,21 @@ async def move_stake(
                 )
                 return
             else:
-                new_origin_stake_balance: Balance = (
-                    await subtensor.get_stake_for_coldkey_and_hotkey_on_netuid(
-                        coldkey_ss58=wallet.coldkeypub.ss58_address,
-                        hotkey_ss58=origin_hotkey_ss58,
-                        netuid=origin_netuid,
-                    )
-                ).set_unit(origin_netuid)
-                new_destination_stake_balance: Balance = (
-                    await subtensor.get_stake_for_coldkey_and_hotkey_on_netuid(
-                        coldkey_ss58=wallet.coldkeypub.ss58_address,
-                        hotkey_ss58=destination_hotkey,
-                        netuid=destination_netuid,
-                    )
-                ).set_unit(destination_netuid)
+                new_stake_info_dict = await subtensor.get_stake_info_for_coldkeys(
+                    coldkey_ss58_list=[wallet.coldkeypub.ss58_address],
+                )
+                
+                new_origin_stake_balance = Balance.from_rao(0)
+                new_destination_stake_balance = Balance.from_rao(0)
+                
+                for stake_info in new_stake_info_dict[wallet.coldkeypub.ss58_address]:
+                    if (stake_info.hotkey_ss58 == origin_hotkey_ss58 and 
+                        stake_info.netuid == origin_netuid):
+                        new_origin_stake_balance = stake_info.stake.set_unit(origin_netuid)
+                    elif (stake_info.hotkey_ss58 == destination_hotkey and 
+                          stake_info.netuid == destination_netuid):
+                        new_destination_stake_balance = stake_info.stake.set_unit(destination_netuid)
+
                 console.print(
                     f"Origin Stake:\n  [blue]{origin_stake_balance}[/blue] :arrow_right: "
                     f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_origin_stake_balance}"

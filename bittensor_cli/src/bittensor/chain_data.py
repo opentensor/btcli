@@ -897,7 +897,7 @@ class DynamicInfo:
             if alpha_in.tao > 0
             else Balance.from_tao(1)
         )
-        is_dynamic = True if decoded["alpha_in"] > 0 else False
+        is_dynamic = True if int(decoded["netuid"]) > 0 else False # TODO: Patching this temporarily
         return DynamicInfo(
             owner=ss58_encode(decoded["owner"], SS58_FORMAT),
             netuid=netuid,

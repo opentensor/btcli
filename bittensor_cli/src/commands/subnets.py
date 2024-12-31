@@ -174,9 +174,13 @@ async def subnets_list(
     """List all subnet netuids in the network."""
 
     async def fetch_subnet_data():
-        subnets = await subtensor.get_all_subnet_dynamic_info()
-        identities = await subtensor.query_all_identities()
-        return subnets, identities
+        block_number = await subtensor.substrate.get_block_number(None)
+        subnets, identities, subnet_tao = await asyncio.gather(
+            subtensor.get_all_subnet_dynamic_info(),
+            subtensor.query_all_identities(),
+            subtensor.get_subnet_tao(),
+        )
+        return subnets, identities, subnet_tao, block_number
 
     def define_table(total_emissions: float, total_rate: float, total_netuids: int):
         table = Table(
@@ -227,6 +231,11 @@ async def subnets_list(
             justify="left",
         )
         table.add_column(
+            "[bold white]Total TAO/Current block (Temp)",
+            style=COLOR_PALETTE["STAKE"]["TAO"],
+            justify="left",
+        )
+        table.add_column(
             "[bold white]Tempo (k/n)",
             style=COLOR_PALETTE["GENERAL"]["TEMPO"],
             justify="left",
@@ -235,11 +244,17 @@ async def subnets_list(
         return table
 
     # Non-live mode
-    def create_table(subnets, identities):
+    def create_table(subnets, identities, subnet_tao, block_number):
         rows = []
+        total_tao = Balance(0)
         for subnet in subnets:
             netuid = subnet.netuid
             symbol = f"{subnet.symbol}\u200e"
+            if netuid == 0:
+                subnet_tao_balance = subnet_tao.get(netuid, Balance(0))
+            else:
+                subnet_tao_balance = sum(subnet_tao.get(n, Balance(0)) for n in subnet_tao.keys() if n != 0)
+            total_tao = subnet_tao_balance
 
             if netuid == 0:
                 emission_tao = 0.0
@@ -257,6 +272,7 @@ async def subnets_list(
             tao_in_cell = f"τ {subnet.tao_in.tao:,.4f}"
             alpha_in_cell = f"{subnet.alpha_in.tao:,.4f} {symbol}" if netuid != 0 else f"{symbol} {subnet.alpha_in.tao:,.4f}"
             alpha_out_cell = f"{subnet.alpha_out.tao:,.5f} {symbol}" if netuid != 0 else f"{symbol} {subnet.alpha_out.tao:,.5f}"
+            subnet_tao_cell = f"τ {subnet_tao_balance.tao:,.4f} / {block_number}"
             tempo_cell = f"{subnet.blocks_since_last_step}/{subnet.tempo}"
 
             rows.append(
@@ -269,6 +285,7 @@ async def subnets_list(
                     tao_in_cell,      # TAO Pool τ_in
                     alpha_in_cell,    # Alpha Pool α_in
                     alpha_out_cell,   # Stake α_out
+                    subnet_tao_cell,  # Subnet TAO
                     tempo_cell,       # Tempo k/n
                 )
             )
@@ -292,7 +309,7 @@ async def subnets_list(
         return table
 
     # Live mode
-    def create_table_live(subnets, identities, previous_data):
+    def create_table_live(subnets, identities, previous_data, subnet_tao, block_number):
         def format_cell(value, previous_value, unit="", unit_first=False, precision=4):
             if previous_value is not None:
                 change = value - previous_value
@@ -323,6 +340,12 @@ async def subnets_list(
             else:
                 emission_tao = subnet.emission.tao
                 identity = identities.get(subnet.owner, {}).get("name", "~")
+            
+            if netuid == 0:
+                subnet_tao_balance = subnet_tao.get(netuid, Balance(0))
+            else:
+                subnet_tao_balance = sum(subnet_tao.get(n, Balance(0)) for n in subnet_tao.keys() if n != 0)
+
 
             # Store current values for comparison
             current_data[netuid] = {
@@ -332,6 +355,7 @@ async def subnets_list(
                 "alpha_in": subnet.alpha_in.tao,
                 "price": subnet.price.tao,
                 "blocks_since_last_step": subnet.blocks_since_last_step,
+                "subnet_tao": subnet_tao_balance.tao,
             }
             prev = previous_data.get(netuid) if previous_data else {}
 
@@ -367,6 +391,14 @@ async def subnets_list(
                 precision=5,
             )
 
+            subnet_tao_cell = format_cell(
+                subnet_tao_balance.tao,
+                prev.get("subnet_tao"),
+                unit="τ",
+                unit_first=True,
+                precision=4
+            ) + f" / {block_number}"
+
             # Tempo cell
             prev_blocks_since_last_step = prev.get("blocks_since_last_step")
             if prev_blocks_since_last_step is not None:
@@ -401,6 +433,7 @@ async def subnets_list(
                     tao_in_cell,      # TAO Pool τ_in
                     alpha_in_cell,    # Alpha Pool α_in
                     alpha_out_cell,   # Stake α_out
+                    subnet_tao_cell,  # Subnet TAO
                     tempo_cell,       # Tempo k/n
                 )
             )
@@ -443,9 +476,10 @@ async def subnets_list(
             try:
                 while True:
                     subnets = await subtensor.get_all_subnet_dynamic_info()
-                    identities, block_number = await asyncio.gather(
+                    identities, block_number, subnet_tao = await asyncio.gather(
                         subtensor.query_all_identities(),
-                        subtensor.substrate.get_block_number(None)
+                        subtensor.substrate.get_block_number(None),
+                        subtensor.get_subnet_tao()
                     )
 
                     # Update block numbers
@@ -454,7 +488,7 @@ async def subnets_list(
                     new_blocks = "N/A" if previous_block is None else str(current_block - previous_block)
 
                     table, current_data = create_table_live(
-                        subnets, identities, previous_data
+                        subnets, identities, previous_data, subnet_tao, block_number
                     )
                     previous_data = current_data
                     progress.reset(progress_task)
@@ -480,8 +514,8 @@ async def subnets_list(
                 pass  # Ctrl + C
     else:
         # Non-live mode
-        subnets, identities = await fetch_subnet_data()
-        table = create_table(subnets, identities)
+        subnets, identities, subnet_tao, block_number = await fetch_subnet_data()
+        table = create_table(subnets, identities, subnet_tao, block_number)
         console.print(table)
 
         display_table = Prompt.ask(
@@ -707,7 +741,7 @@ async def show(
                     if 1 <= idx <= max_rows:
                        selected_hotkey = sorted_hks_delegation[idx - 1]
                        row_data = sorted_rows[idx - 1]
-                       identity = row_data[6]
+                       identity = "" if row_data[5] == "~" else row_data[5]
                        identity_str = f" ({identity})" if identity else ""
                        console.print(f"\nSelected delegate: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{selected_hotkey}{identity_str}")
                        
@@ -925,7 +959,7 @@ async def show(
                         uid = int(sorted_rows[idx-1][0])
                         hotkey = subnet_state.hotkeys[uid]
                         row_data = sorted_rows[idx-1]
-                        identity = row_data[9]
+                        identity = "" if row_data[7] == "~" else row_data[7]
                         identity_str = f" ({identity})" if identity else ""
                         console.print(f"\nSelected delegate: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{hotkey}{identity_str}")
                         return hotkey
