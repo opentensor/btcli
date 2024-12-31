@@ -1951,23 +1951,18 @@ async def stake_list(
             substakes,
             registered_delegate_info,
             dynamic_info,
-            # emission_drain_tempo,
         ) = await asyncio.gather(
             subtensor.get_stake_info_for_coldkeys(
                 coldkey_ss58_list=[coldkey_address], block_hash=block_hash
             ),
             subtensor.get_delegate_identities(block_hash=block_hash),
             subtensor.get_all_subnet_dynamic_info(),
-            # subtensor.substrate.query(
-            #     "SubtensorModule", "HotkeyEmissionTempo", block_hash=block_hash
-            # ),
         )
         sub_stakes = substakes[coldkey_address]
         return (
             sub_stakes,
             registered_delegate_info,
             dynamic_info,
-            # emission_drain_tempo,
         )
 
     def define_table(
@@ -2151,7 +2146,6 @@ async def stake_list(
         substakes: list,
         registered_delegate_info: dict,
         dynamic_info: dict,
-        # emission_drain_tempo: int,
         hotkey_name: str,
         previous_data: Optional[dict] = None,
     ) -> tuple[Table, dict, Balance, Balance, Balance]:
@@ -2319,7 +2313,6 @@ async def stake_list(
         sub_stakes,
         registered_delegate_info,
         dynamic_info,
-        # emission_drain_tempo,
     ) = await get_stake_data()
 
     # Iterate over substakes and aggregate them by hotkey.
@@ -2384,7 +2377,6 @@ async def stake_list(
                         sub_stakes,
                         registered_delegate_info,
                         dynamic_info_,
-                        # emission_drain_tempo,
                     ) = await get_stake_data(block_hash)
                     selected_stakes = [
                         stake
@@ -2407,7 +2399,6 @@ async def stake_list(
                         selected_stakes,
                         registered_delegate_info,
                         dynamic_info,
-                        # emission_drain_tempo,
                         hotkey_name,
                         previous_data,
                     )
@@ -2799,3 +2790,39 @@ async def fetch_coldkey_stake(subtensor: "SubtensorInterface", wallet: Wallet):
         coldkey_ss58=wallet.coldkeypub.ss58_address
     )
     return sub_stakes
+
+
+# TODO: Use this in all subnet commands. 
+async def get_stake_info_for_coldkey_and_hotkey(
+    subtensor: "SubtensorInterface",
+    coldkey_ss58: str,
+    hotkey_ss58: Optional[str] = None,
+    netuid: Optional[int] = None,
+    block_hash: Optional[str] = None
+) -> dict[tuple[str, int], Balance]:
+    """Helper function to get stake info for a coldkey and optionally filter by hotkey and netuid.
+    
+    Args:
+        subtensor: SubtensorInterface instance
+        coldkey_ss58: Coldkey SS58 address
+        hotkey_ss58: Optional hotkey SS58 address to filter by
+        netuid: Optional netuid to filter by
+        block_hash: Optional block hash to query at
+        
+    Returns:
+        Dictionary mapping (hotkey, netuid) tuple to stake balance
+    """
+    stake_info_dict = await subtensor.get_stake_info_for_coldkeys(
+        coldkey_ss58_list=[coldkey_ss58],
+        block_hash=block_hash
+    )
+    
+    stakes = {}
+    for stake_info in stake_info_dict[coldkey_ss58]:
+        if hotkey_ss58 and stake_info.hotkey_ss58 != hotkey_ss58:
+            continue
+        if netuid is not None and stake_info.netuid != netuid:
+            continue
+        stakes[(stake_info.hotkey_ss58, stake_info.netuid)] = stake_info.stake
+        
+    return stakes
