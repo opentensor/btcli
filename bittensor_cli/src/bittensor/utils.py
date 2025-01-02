@@ -645,6 +645,32 @@ def millify(n: int):
     return "{:.2f}{}".format(n_ / 10 ** (3 * mill_idx), mill_names[mill_idx])
 
 
+def millify_tao(n: float, start_at: str = "K") -> str:
+    """
+    Dupe of millify, but for ease in converting tao values.
+    Allows thresholds to be specified for different suffixes.
+    """
+    mill_names = ["", "k", "m", "b", "t"]
+    thresholds = {"K": 1, "M": 2, "B": 3, "T": 4}
+
+    if start_at not in thresholds:
+        raise ValueError(f"start_at must be one of {list(thresholds.keys())}")
+
+    n_ = float(n)
+    if n_ == 0:
+        return "0.00"
+
+    mill_idx = int(math.floor(math.log10(abs(n_)) / 3))
+
+    # Number's index is below our threshold, return with commas
+    if mill_idx < thresholds[start_at]:
+        return f"{n_:,.2f}"
+
+    mill_idx = max(thresholds[start_at], min(len(mill_names) - 1, mill_idx))
+
+    return "{:.2f}{}".format(n_ / 10 ** (3 * mill_idx), mill_names[mill_idx])
+
+
 def normalize_hyperparameters(
     subnet: "SubnetHyperparameters",
 ) -> list[tuple[str, str, str]]:

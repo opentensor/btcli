@@ -2500,7 +2500,9 @@ class CLIManager:
                 )
 
         return self._run_command(
-            stake.stake_list(wallet, coldkey_ss58, self.initialize_chain(network), live)
+            stake.stake_list(
+                wallet, coldkey_ss58, self.initialize_chain(network), live, verbose
+            )
         )
 
     def stake_add(
@@ -3549,6 +3551,7 @@ class CLIManager:
                 False,  # reuse-last
                 False,  # html-output
                 not self.config.get("use_cache", True),
+                verbose,
                 live_mode,
             )
         )

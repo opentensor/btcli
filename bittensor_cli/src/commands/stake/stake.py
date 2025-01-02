@@ -28,6 +28,7 @@ from bittensor_cli.src.bittensor.utils import (
     u16_normalized_float,
     format_error_message,
     group_subnets,
+    millify_tao
 )
 
 if TYPE_CHECKING:
@@ -1943,6 +1944,7 @@ async def stake_list(
     coldkey_ss58: str,
     subtensor: "SubtensorInterface",
     live: bool = False,
+    verbose: bool = False,
 ):
     coldkey_address = coldkey_ss58 if coldkey_ss58 else wallet.coldkeypub.ss58_address
 
@@ -2015,21 +2017,21 @@ async def stake_list(
             f"[white]TAO equiv \n({Balance.unit}_in x {Balance.get_unit(1)}/{Balance.get_unit(1)}_out)",
             style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
             justify="right",
-            footer=f"{total_tao_ownership}",
+            footer=f"τ {millify_tao(total_tao_ownership.tao)}" if not verbose else f"{total_tao_ownership}",
         )
         table.add_column(
             f"[white]Exchange Value \n({Balance.get_unit(1)} x {Balance.unit}/{Balance.get_unit(1)})",
             footer_style="overline white",
             style=COLOR_PALETTE["STAKE"]["TAO"],
             justify="right",
-            footer=f"{total_tao_value}",
+            footer=f"τ {millify_tao(total_tao_value.tao)}" if not verbose else f"{total_tao_value}",
         )
         table.add_column(
             f"[white]Swap ({Balance.get_unit(1)} -> {Balance.unit})",
             footer_style="overline white",
             style=COLOR_PALETTE["STAKE"]["STAKE_SWAP"],
             justify="right",
-            footer=f"{total_swapped_tao_value}",
+            footer=f"τ {millify_tao(total_swapped_tao_value.tao)}" if not verbose else f"{total_swapped_tao_value}",
         )
         table.add_column(
             "[white]Registered",
@@ -2114,17 +2116,16 @@ async def stake_list(
                     alpha_ownership = "0.0000"
                     tao_ownership = "0.0000"
 
+                stake_value = millify_tao(substake_.stake.tao) if not verbose else f"{substake_.stake.tao:,.4f}"
                 rows.append(
                     [
                         str(netuid),  # Number
                         symbol if netuid != 0 else "\u03a4",  # Symbol
-                        f"{substake_.stake.tao:,.4f} {symbol}"
-                        if netuid != 0
-                        else f"{symbol} {substake_.stake.tao:,.4f}",  # Stake (a)
+                        f"{stake_value} {symbol}" if netuid != 0 else f"{symbol} {stake_value}",  # Stake (a)
                         f"{pool.price.tao:.4f} τ/{symbol}",  # Rate (t/a)
-                        f"{tao_ownership}",  # TAO equiv
-                        f"{tao_value}",  # Exchange Value (α x τ/α)
-                        f"{swapped_tao_value} ({slippage_percentage})",  # Swap(α) -> τ
+                        f"τ {millify_tao(tao_ownership.tao)}" if not verbose else f"{tao_ownership}",  # TAO equiv
+                        f"τ {millify_tao(tao_value.tao)}" if not verbose else f"{tao_value}",  # Exchange Value (α x τ/α)
+                        f"τ {millify_tao(swapped_tao_value.tao)} ({slippage_percentage})" if not verbose else f"{swapped_tao_value} ({slippage_percentage})",  # Swap(α) -> τ
                         "YES"
                         if substake_.is_registered
                         else f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]NO",  # Registered
@@ -2156,10 +2157,11 @@ async def stake_list(
         total_tao_value = Balance(0)
         total_swapped_tao_value = Balance(0)
 
-        def format_cell(value, previous_value, unit="", unit_first=False, precision=4):
+        def format_cell(value, previous_value, unit="", unit_first=False, precision=4, millify=False):
             if previous_value is not None:
                 change = value - previous_value
                 if abs(change) > 10 ** (-precision):
+                    formatted_change = f"{change:.{precision}f}" if not millify else f"{millify_tao(change)}"
                     change_text = (
                         f" [pale_green3](+{change:.{precision}f})[/pale_green3]"
                         if change > 0
@@ -2169,10 +2171,11 @@ async def stake_list(
                     change_text = ""
             else:
                 change_text = ""
+            formatted_value = f"{value:,.{precision}f}" if not millify else f"{millify_tao(value)}"
             return (
-                f"{value:,.{precision}f} {unit}{change_text}"
+                f"{formatted_value} {unit}{change_text}"
                 if not unit_first
-                else f"{unit} {value:,.{precision}f}{change_text}"
+                else f"{unit} {formatted_value}{change_text}"
             )
 
         # Process each stake
@@ -2223,6 +2226,7 @@ async def stake_list(
                 unit=symbol,
                 unit_first=unit_first,
                 precision=4,
+                millify=True if not verbose else False,
             )
 
             rate_cell = format_cell(
@@ -2239,6 +2243,7 @@ async def stake_list(
                 unit="τ",
                 unit_first=True,
                 precision=4,
+                millify=True if not verbose else False,
             )
 
             exchange_cell = format_cell(
@@ -2247,6 +2252,7 @@ async def stake_list(
                 unit="τ",
                 unit_first=True,
                 precision=4,
+                millify=True if not verbose else False,
             )
 
             if pool.is_dynamic:
@@ -2265,6 +2271,7 @@ async def stake_list(
                     unit="τ",
                     unit_first=True,
                     precision=4,
+                    millify=True if not verbose else False,
                 )
                 + f" ({slippage_pct:.2f}%)"
             )
@@ -2445,13 +2452,16 @@ async def stake_list(
                 input()
 
         balance = await subtensor.get_balance(coldkey_address)
+        total_tao_value = f"τ {millify_tao(all_hotkeys_total_tao_value.tao)}" if not verbose else all_hotkeys_total_tao_value
+        total_tao_ownership = f"τ {millify_tao(all_hotkeys_total_global_tao.tao)}" if not verbose else all_hotkeys_total_global_tao
+
         console.print("\n\n")
         console.print(
             f"Wallet:\n"
             f"  Coldkey SS58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{coldkey_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
             f"  Free Balance: [{COLOR_PALETTE['GENERAL']['BALANCE']}]{balance[coldkey_address]}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]\n"
-            f"  Total TAO ({Balance.unit}): [{COLOR_PALETTE['GENERAL']['BALANCE']}]{all_hotkeys_total_global_tao}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]\n"
-            f"  Total Value ({Balance.unit}): [{COLOR_PALETTE['GENERAL']['BALANCE']}]{all_hotkeys_total_tao_value}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]"
+            f"  Total TAO ({Balance.unit}): [{COLOR_PALETTE['GENERAL']['BALANCE']}]{total_tao_ownership}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]\n"
+            f"  Total Value ({Balance.unit}): [{COLOR_PALETTE['GENERAL']['BALANCE']}]{total_tao_value}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]"
         )
         if not sub_stakes:
             console.print(
