@@ -675,7 +675,7 @@ async def show(
             sorted_rows.append(
                 (
                     str((pos + 1)), # Position
-                    f"τ {millify_tao(root_state.total_stake[idx].tao)}" if verbose else f"{root_state.total_stake[idx]}", # Total Stake
+                    f"τ {millify_tao(root_state.total_stake[idx].tao)}" if not verbose else f"{root_state.total_stake[idx]}", # Total Stake
                     f"{total_emission_per_block}", # Emission
                     f"{root_state.hotkeys[idx][:6]}" if verbose else f"{root_state.hotkeys[idx]}", # Hotkey
                     f"{root_state.coldkeys[idx][:6]}" if verbose else f"{root_state.coldkeys[idx]}", # Coldkey
