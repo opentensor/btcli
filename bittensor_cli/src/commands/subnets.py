@@ -825,6 +825,8 @@ async def show(
                 (
                     str(idx),  # UID
                     f"{subnet_state.total_stake[idx].tao:.4f} {subnet_info.symbol}" if verbose else f"{millify_tao(subnet_state.total_stake[idx])} {subnet_info.symbol}",  # Stake
+                    f"{subnet_state.alpha_stake[idx].tao:.4f} {subnet_info.symbol}" if verbose else f"{millify_tao(subnet_state.alpha_stake[idx])} {subnet_info.symbol}",  # Alpha Stake
+                    f"τ {subnet_state.tao_stake[idx].tao:.4f}" if verbose else f"τ {millify_tao(subnet_state.tao_stake[idx])}",  # Tao Stake
                     # str(subnet_state.dividends[idx]),
                     f"{Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao:.5f}",  # Dividends
                     str(subnet_state.incentives[idx]),  # Incentive
@@ -852,6 +854,20 @@ async def show(
             justify="right",
             footer=f"{tao_sum.set_unit(subnet_info.netuid)}" if verbose else f"{millify_tao(tao_sum.tao)} {subnet_info.symbol}",
         )
+        # ------- Temporary columns for testing -------
+        table.add_column(
+            f"Alpha Stake ({Balance.get_unit(netuid_)}) TST",
+            style=COLOR_PALETTE["POOLS"]["EXTRA_2"],
+            no_wrap=True,
+            justify="right",
+        )
+        table.add_column(
+            f"Tao Stake (τ) TST",
+            style=COLOR_PALETTE["POOLS"]["EXTRA_2"],
+            no_wrap=True,
+            justify="right",
+        )
+        # ------- End Temporary columns for testing -------
         table.add_column(
             "Dividends",
             style=COLOR_PALETTE["POOLS"]["EMISSION"],
