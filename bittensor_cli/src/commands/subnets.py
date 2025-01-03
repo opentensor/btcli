@@ -543,27 +543,27 @@ async def subnets_list(
                 ),
                 (
                     "[bold tan]Emission (τ)[/bold tan]",
-                    "Shows how the one τ per block emission is distributed among all the subnet pools. For each subnet, this fraction is first calculated by dividing the subnet's alpha token price by the sum of all alpha prices across all the subnets. This fraction of TAO is then added to the TAO Pool (τ_in) of the subnet. This can change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#emissions[/blue].",
+                    "Shows how the one τ per block emission is distributed among all the subnet pools. For each subnet, this fraction is first calculated by dividing the subnet's alpha token price by the sum of all alpha prices across all the subnets. This fraction of TAO is then added to the TAO Pool (τ_in) of the subnet. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/dynamic-tao/dtao-guide#emissions[/blue].",
                 ),
                 (
                     "[bold tan]TAO Pool (τ_in)[/bold tan]",
-                    'Number of TAO in the TAO reserves of the pool for this subnet. Attached to every subnet is a subnet pool, containing a TAO reserve and the alpha reserve. See also "Alpha Pool (α_in)" description. This can change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#subnet-pool[/blue].',
+                    'Number of TAO in the TAO reserves of the pool for this subnet. Attached to every subnet is a subnet pool, containing a TAO reserve and the alpha reserve. See also "Alpha Pool (α_in)" description. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/dynamic-tao/dtao-guide#subnet-pool[/blue].',
                 ),
                 (
                     "[bold tan]Alpha Pool (α_in)[/bold tan]",
-                    "Number of subnet alpha tokens in the alpha reserves of the pool for this subnet. This reserve, together with 'TAO Pool (τ_in)', form the subnet pool for every subnet. This can change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#subnet-pool[/blue].",
+                    "Number of subnet alpha tokens in the alpha reserves of the pool for this subnet. This reserve, together with 'TAO Pool (τ_in)', form the subnet pool for every subnet. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/dynamic-tao/dtao-guide#subnet-pool[/blue].",
                 ),
                                 (
                     "[bold tan]STAKE (α_out)[/bold tan]",
-                    "Total stake in the subnet, expressed in the subnet's alpha token currency. This is the sum of all the stakes present in all the hotkeys in this subnet. This can change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#stake-%CE%B1_out-or-alpha-out-%CE%B1_out[/blue].",
+                    "Total stake in the subnet, expressed in the subnet's alpha token currency. This is the sum of all the stakes present in all the hotkeys in this subnet. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/dynamic-tao/dtao-guide#stake-%CE%B1_out-or-alpha-out-%CE%B1_out[/blue].",
                 ),
                 (
                     "[bold tan]RATE (τ_in/α_in)[/bold tan]",
-                    'Exchange rate between TAO and subnet dTAO token. Calculated as the reserve ratio: (TAO Pool (τ_in) / Alpha Pool (α_in)). Note that the terms relative price, alpha token price, alpha price are the same as exchange rate. This rate can change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#rate-%CF%84_in%CE%B1_in[/blue].',
+                    'Exchange rate between TAO and subnet dTAO token. Calculated as the reserve ratio: (TAO Pool (τ_in) / Alpha Pool (α_in)). Note that the terms relative price, alpha token price, alpha price are the same as exchange rate. This rate can change every block. \nFor more, see [blue]https://docs.bittensor.com/dynamic-tao/dtao-guide#rate-%CF%84_in%CE%B1_in[/blue].',
                 ),
                 (
                     "[bold tan]Tempo (k/n)[/bold tan]",
-                    'The tempo status of the subnet. Represented as (k/n) where "k" is the number of blocks elapsed since the last tempo and "n" is the total number of blocks in the tempo. The number "n" is a subnet hyperparameter and does not change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#tempo-kn[/blue].',
+                    'The tempo status of the subnet. Represented as (k/n) where "k" is the number of blocks elapsed since the last tempo and "n" is the total number of blocks in the tempo. The number "n" is a subnet hyperparameter and does not change every block. \nFor more, see [blue]https://docs.bittensor.com/dynamic-tao/dtao-guide#tempo-kn[/blue].',
                 ),
             ]
 

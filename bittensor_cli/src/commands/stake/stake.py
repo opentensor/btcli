@@ -2496,35 +2496,35 @@ async def stake_list(
                     ),
                     (
                         "[bold tan]Stake (α)[/bold tan]",
-                        "The stake amount this hotkey holds in the subnet, expressed in subnet's alpha token currency. This can change whenever staking or unstaking occurs on this hotkey in this subnet. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#staking[/blue].",
+                        "The stake amount this hotkey holds in the subnet, expressed in subnet's alpha token currency. This can change whenever staking or unstaking occurs on this hotkey in this subnet. \nFor more, see [blue]https://docs.bittensor.com/dynamic-tao/dtao-guide#staking[/blue].",
                     ),
                     (
                         "[bold tan]TAO Reserves (τ_in)[/bold tan]",
-                        'Number of TAO in the TAO reserves of the pool for this subnet. Attached to every subnet is a subnet pool, containing a TAO reserve and the alpha reserve. See also "Alpha Pool (α_in)" description. This can change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#subnet-pool[/blue].',
+                        'Number of TAO in the TAO reserves of the pool for this subnet. Attached to every subnet is a subnet pool, containing a TAO reserve and the alpha reserve. See also "Alpha Pool (α_in)" description. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/dynamic-tao/dtao-guide#subnet-pool[/blue].',
                     ),
                     (
                         "[bold tan]Alpha Reserves (α_in)[/bold tan]",
-                        "Number of subnet alpha tokens in the alpha reserves of the pool for this subnet. This reserve, together with 'TAO Pool (τ_in)', form the subnet pool for every subnet. This can change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#subnet-pool[/blue].",
+                        "Number of subnet alpha tokens in the alpha reserves of the pool for this subnet. This reserve, together with 'TAO Pool (τ_in)', form the subnet pool for every subnet. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/dynamic-tao/dtao-guide#subnet-pool[/blue].",
                     ),
                     (
                         "[bold tan]RATE (τ_in/α_in)[/bold tan]",
-                        "Exchange rate between TAO and subnet dTAO token. Calculated as the reserve ratio: (TAO Pool (τ_in) / Alpha Pool (α_in)). Note that the terms relative price, alpha token price, alpha price are the same as exchange rate. This rate can change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#rate-%CF%84_in%CE%B1_in[/blue].",
+                        "Exchange rate between TAO and subnet dTAO token. Calculated as the reserve ratio: (TAO Pool (τ_in) / Alpha Pool (α_in)). Note that the terms relative price, alpha token price, alpha price are the same as exchange rate. This rate can change every block. \nFor more, see [blue]https://docs.bittensor.com/dynamic-tao/dtao-guide#rate-%CF%84_in%CE%B1_in[/blue].",
                     ),
                     (
                         "[bold tan]Alpha out (α_out)[/bold tan]",
-                        "Total stake in the subnet, expressed in subnet's alpha token currency. This is the sum of all the stakes present in all the hotkeys in this subnet. This can change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#stake-%CE%B1_out-or-alpha-out-%CE%B1_out",
+                        "Total stake in the subnet, expressed in subnet's alpha token currency. This is the sum of all the stakes present in all the hotkeys in this subnet. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/dynamic-tao/dtao-guide#stake-%CE%B1_out-or-alpha-out-%CE%B1_out",
                     ),
                     (
                         "[bold tan]TAO Equiv (τ_in x α/α_out)[/bold tan]",
-                        'TAO-equivalent value of the hotkeys stake α (i.e., Stake(α)). Calculated as (TAO Reserves(τ_in) x (Stake(α) / ALPHA Out(α_out)). This value is weighted with (1-γ), where γ is the local weight coefficient, and used in determining the overall stake weight of the hotkey in this subnet. Also see the "Local weight coeff (γ)" column of "btcli subnet list" command output. This can change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#local-weight-or-tao-equiv-%CF%84_in-x-%CE%B1%CE%B1_out[/blue].',
+                        'TAO-equivalent value of the hotkeys stake α (i.e., Stake(α)). Calculated as (TAO Reserves(τ_in) x (Stake(α) / ALPHA Out(α_out)). This value is weighted with (1-γ), where γ is the local weight coefficient, and used in determining the overall stake weight of the hotkey in this subnet. Also see the "Local weight coeff (γ)" column of "btcli subnet list" command output. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/dynamic-tao/dtao-guide#local-weight-or-tao-equiv-%CF%84_in-x-%CE%B1%CE%B1_out[/blue].',
                     ),
                     (
                         "[bold tan]Exchange Value (α x τ/α)[/bold tan]",
-                        "This is the potential τ you will receive, without considering slippage, if you unstake from this hotkey now on this subnet. See Swap(α → τ) column description. Note: The TAO Equiv(τ_in x α/α_out) indicates validator stake weight while this Exchange Value shows τ you will receive if you unstake now. This can change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#exchange-value-%CE%B1-x-%CF%84%CE%B1[/blue].",
+                        "This is the potential τ you will receive, without considering slippage, if you unstake from this hotkey now on this subnet. See Swap(α → τ) column description. Note: The TAO Equiv(τ_in x α/α_out) indicates validator stake weight while this Exchange Value shows τ you will receive if you unstake now. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/dynamic-tao/dtao-guide#exchange-value-%CE%B1-x-%CF%84%CE%B1[/blue].",
                     ),
                     (
                         "[bold tan]Swap (α → τ)[/bold tan]",
-                        "This is the actual τ you will receive, after factoring in the slippage charge, if you unstake from this hotkey now on this subnet. The slippage is calculated as 1 - (Swap(α → τ)/Exchange Value(α x τ/α)), and is displayed in brackets. This can change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#swap-%CE%B1--%CF%84[/blue].",
+                        "This is the actual τ you will receive, after factoring in the slippage charge, if you unstake from this hotkey now on this subnet. The slippage is calculated as 1 - (Swap(α → τ)/Exchange Value(α x τ/α)), and is displayed in brackets. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/dynamic-tao/dtao-guide#swap-%CE%B1--%CF%84[/blue].",
                     ),
                     (
                         "[bold tan]Registered[/bold tan]",
@@ -2532,7 +2532,7 @@ async def stake_list(
                     ),
                     (
                         "[bold tan]Emission (α/block)[/bold tan]",
-                        "Shows the portion of the one α/block emission into this subnet that is received by this hotkey, according to YC2 in this subnet. This can change every block. \nFor more, see [blue]https://new-docs-50g07lci2-rajkaramchedus-projects.vercel.app/dynamic-tao/dtao-guide#emissions[/blue].",
+                        "Shows the portion of the one α/block emission into this subnet that is received by this hotkey, according to YC2 in this subnet. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/dynamic-tao/dtao-guide#emissions[/blue].",
                     ),
                 ]
 
