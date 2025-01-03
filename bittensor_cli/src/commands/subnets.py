@@ -806,7 +806,8 @@ async def show(
         )
         tao_sum = Balance(0)
         relative_emissions_sum = 0
-        
+        owner_hotkeys = await subtensor.get_owned_hotkeys(subnet_info.owner)
+
         for idx, hk in enumerate(subnet_state.hotkeys):
             hotkey_block_emission = (
                 subnet_state.emission[idx].tao / emission_sum
@@ -820,6 +821,9 @@ async def show(
             coldkey_identity = identities.get(subnet_state.coldkeys[idx], {}).get("name", "")
             hotkey_identity = old_identities.get(subnet_state.hotkeys[idx])
             uid_identity = coldkey_identity if coldkey_identity else (hotkey_identity.display if hotkey_identity else "~")
+            
+            if subnet_state.coldkeys[idx] == subnet_info.owner or subnet_state.hotkeys[idx] in owner_hotkeys:
+                uid_identity += " [orange3](*Owner)[/orange3]"
 
             rows.append(
                 (
@@ -856,13 +860,13 @@ async def show(
         )
         # ------- Temporary columns for testing -------
         table.add_column(
-            f"Alpha({Balance.get_unit(netuid_)})",
+            f"Alpha ({Balance.get_unit(netuid_)})",
             style=COLOR_PALETTE["POOLS"]["EXTRA_2"],
             no_wrap=True,
             justify="right",
         )
         table.add_column(
-            f"Tao(τ)",
+            f"Tao (τ)",
             style=COLOR_PALETTE["POOLS"]["EXTRA_2"],
             no_wrap=True,
             justify="right",

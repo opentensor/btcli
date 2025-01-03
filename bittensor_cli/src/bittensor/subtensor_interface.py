@@ -920,7 +920,7 @@ class SubtensorInterface:
                 "identity": coldkey_identity,
                 "hotkeys": hotkeys,
             }
-            
+
             for hotkey_ss58 in hotkeys:
                 identities["hotkeys"][hotkey_ss58] = {
                     "coldkey": coldkey_ss58,
@@ -1431,16 +1431,38 @@ class SubtensorInterface:
                 module="SubtensorModule",
                 storage_function="SubnetTAO",
                 params=[netuid],
-                block_hash=block_hash
+                block_hash=block_hash,
             )
             return {netuid: Balance.from_rao(result or 0)}
         else:
             results = await self.substrate.query_map(
                 module="SubtensorModule",
                 storage_function="SubnetTAO",
-                block_hash=block_hash
+                block_hash=block_hash,
             )
-            return {
-                netuid: Balance.from_rao(tao or 0) 
-                async for netuid, tao in results
-            }
+            return {netuid: Balance.from_rao(tao or 0) async for netuid, tao in results}
+
+    async def get_owned_hotkeys(
+        self,
+        coldkey_ss58: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> list[str]:
+        """
+        Retrieves all hotkeys owned by a specific coldkey address.
+
+        :param coldkey_ss58: The SS58 address of the coldkey to query.
+        :param block_hash: The hash of the blockchain block number for the query.
+        :param reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        :return: A list of hotkey SS58 addresses owned by the coldkey.
+        """
+        owned_hotkeys = await self.substrate.query(
+            module="SubtensorModule",
+            storage_function="OwnedHotkeys",
+            params=[coldkey_ss58],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        return [decode_account_id(hotkey[0]) for hotkey in owned_hotkeys or []]
