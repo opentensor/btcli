@@ -2163,9 +2163,9 @@ async def stake_list(
                 if abs(change) > 10 ** (-precision):
                     formatted_change = f"{change:.{precision}f}" if not millify else f"{millify_tao(change)}"
                     change_text = (
-                        f" [pale_green3](+{change:.{precision}f})[/pale_green3]"
+                        f" [pale_green3](+{formatted_change})[/pale_green3]"
                         if change > 0
-                        else f" [hot_pink3]({change:.{precision}f})[/hot_pink3]"
+                        else f" [hot_pink3]({formatted_change})[/hot_pink3]"
                     )
                 else:
                     change_text = ""
@@ -2235,6 +2235,7 @@ async def stake_list(
                 unit=f"τ/{symbol}",
                 unit_first=False,
                 precision=5,
+                millify=True if not verbose else False,
             )
 
             tao_ownership_cell = format_cell(

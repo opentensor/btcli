@@ -327,13 +327,12 @@ async def subnets_list(
         def format_cell(value, previous_value, unit="", unit_first=False, precision=4, millify=False):
             if previous_value is not None:
                 change = value - previous_value
-                if change > 0.01:
+                if abs(change) > 10 ** (-precision):
+                    formatted_change = f"{change:.{precision}f}" if not millify else f"{millify_tao(change)}"
                     change_text = (
-                        f" [pale_green3](+{change:.2f})[/pale_green3]"
-                    )
-                elif change < -0.01:
-                    change_text = (
-                        f" [hot_pink3]({change:.2f})[/hot_pink3]"
+                        f" [pale_green3](+{formatted_change})[/pale_green3]"
+                        if change > 0
+                        else f" [hot_pink3]({formatted_change})[/hot_pink3]"
                     )
                 else:
                     change_text = ""
