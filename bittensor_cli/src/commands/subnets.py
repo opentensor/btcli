@@ -233,13 +233,13 @@ async def subnets_list(
             f"[bold white]RATE ({Balance.get_unit(0)}_in/{Balance.get_unit(1)}_in)",
             style="#AB7CC8",
             justify="left",
-            footer=f"τ {total_rate:.4f}",
+            footer=f"τ {total_rate}",
         )
         table.add_column(
             f"[bold white]Emission ({Balance.get_unit(0)})",
             style=COLOR_PALETTE["POOLS"]["EMISSION"],
             justify="left",
-            footer=f"τ {total_emissions:.4f}",
+            footer=f"τ {total_emissions}",
         )
         table.add_column(
             f"[bold white]TAO Pool ({Balance.get_unit(0)}_in)",
