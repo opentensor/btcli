@@ -283,13 +283,14 @@ async def subnets_list(
             
             alpha_in_value = f"{millify_tao(subnet.alpha_in.tao)}" if not verbose else f"{subnet.alpha_in.tao:,.4f}"
             alpha_out_value = f"{millify_tao(subnet.alpha_out.tao)}" if not verbose else f"{subnet.alpha_out.tao:,.4f}"
+            price_value = f"{millify_tao(subnet.price.tao)}" if not verbose else f"{subnet.price.tao:,.4f}"
 
             # Prepare cells
             netuid_cell = str(netuid)
             symbol_cell = f"{subnet.symbol}" if netuid != 0 else "\u03A4"
             subnet_name_cell = SUBNETS.get(netuid, "~")
             emission_cell = f"τ {emission_tao:,.4f}"
-            price_cell = f"{subnet.price.tao:.4f} τ/{symbol}"
+            price_cell = f"{price_value} τ/{symbol}"
             tao_in_cell = f"τ {millify_tao(subnet.tao_in.tao)}" if not verbose else f"τ {subnet.tao_in.tao:,.4f}"
             alpha_in_cell = f"{alpha_in_value} {symbol}" if netuid != 0 else f"{symbol} {alpha_in_value}"
             alpha_out_cell = f"{alpha_out_value} {symbol}" if netuid != 0 else f"{symbol} {alpha_out_value}"
@@ -839,7 +840,7 @@ async def show(
             uid_identity = coldkey_identity if coldkey_identity else (hotkey_identity.display if hotkey_identity else "~")
             
             if subnet_state.coldkeys[idx] == subnet_info.owner or subnet_state.hotkeys[idx] in owner_hotkeys:
-                uid_identity += " [orange3](*Owner)[/orange3]"
+                uid_identity = f"[dark_sea_green3]{uid_identity} (*Owner)[/dark_sea_green3]"
 
             rows.append(
                 (
