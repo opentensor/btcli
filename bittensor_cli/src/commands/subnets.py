@@ -446,6 +446,8 @@ async def subnets_list(
         total_rate = sum(
             float(subnet.price.tao) for subnet in subnets if subnet.netuid != 0
         )
+        total_emissions = f"{millify_tao(total_emissions)}" if not verbose else f"{total_emissions:,.2f}"
+        total_rate = f"{millify_tao(total_rate)}" if not verbose else f"{total_rate:,.2f}"
         total_netuids = len(subnets)
         table = define_table(total_emissions, total_rate, total_netuids, percentage_string)
 
