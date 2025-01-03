@@ -2114,7 +2114,7 @@ async def stake_list(
                 else:
                     # TODO what's this var for?
                     alpha_ownership = "0.0000"
-                    tao_ownership = "0.0000"
+                    tao_ownership = Balance.from_tao(0)
 
                 stake_value = millify_tao(substake_.stake.tao) if not verbose else f"{substake_.stake.tao:,.4f}"
                 rows.append(
@@ -2122,7 +2122,7 @@ async def stake_list(
                         str(netuid),  # Number
                         symbol if netuid != 0 else "\u03a4",  # Symbol
                         f"{stake_value} {symbol}" if netuid != 0 else f"{symbol} {stake_value}",  # Stake (a)
-                        f"{pool.price.tao:.4f} τ/{symbol}",  # Rate (t/a)
+                        f"{millify_tao(pool.price.tao)} τ/{symbol}" if not verbose else f"{pool.price.tao:.4f} τ/{symbol}",  # Rate (t/a)
                         f"τ {millify_tao(tao_ownership.tao)}" if not verbose else f"{tao_ownership}",  # TAO equiv
                         f"τ {millify_tao(tao_value.tao)}" if not verbose else f"{tao_value}",  # Exchange Value (α x τ/α)
                         f"τ {millify_tao(swapped_tao_value.tao)} ({slippage_percentage})" if not verbose else f"{swapped_tao_value} ({slippage_percentage})",  # Swap(α) -> τ

@@ -380,7 +380,7 @@ async def subnets_list(
                 emission_tao, prev.get("emission_tao"), unit="τ", unit_first=True, precision=4
             )
             price_cell = format_cell(
-                subnet.price.tao, prev.get("price"), unit=f"τ/{symbol}", precision=4
+                subnet.price.tao, prev.get("price"), unit=f"τ/{symbol}", precision=4, millify=True if not verbose else False
             )
             tao_in_cell = format_cell(
                 subnet.tao_in.tao, prev.get("tao_in"), unit="τ", unit_first=True, precision=4, millify=True if not verbose else False
