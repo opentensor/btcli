@@ -628,6 +628,20 @@ async def show(
             style=COLOR_PALETTE["POOLS"]["ALPHA_IN"],
             justify="center",
         )
+        # ------- Temporary columns for testing -------
+        table.add_column(
+            "Alpha (τ)",
+            style=COLOR_PALETTE["POOLS"]["EXTRA_2"],
+            no_wrap=True,
+            justify="right",
+        )
+        table.add_column(
+            "Tao (τ)",
+            style=COLOR_PALETTE["POOLS"]["EXTRA_2"],
+            no_wrap=True,
+            justify="right",
+        )
+        # ------- End Temporary columns for testing -------
         table.add_column(
             f"[bold white]Emission ({Balance.get_unit(0)}/block)",
             style=COLOR_PALETTE["POOLS"]["EMISSION"],
@@ -676,9 +690,11 @@ async def show(
                 (
                     str((pos + 1)), # Position
                     f"τ {millify_tao(root_state.total_stake[idx].tao)}" if not verbose else f"{root_state.total_stake[idx]}", # Total Stake
+                    f"τ {root_state.alpha_stake[idx].tao:.4f}" if verbose else f"τ {millify_tao(root_state.alpha_stake[idx])}",  # Alpha Stake
+                    f"τ {root_state.tao_stake[idx].tao:.4f}" if verbose else f"τ {millify_tao(root_state.tao_stake[idx])}",  # Tao Stake
                     f"{total_emission_per_block}", # Emission
-                    f"{root_state.hotkeys[idx][:6]}" if verbose else f"{root_state.hotkeys[idx]}", # Hotkey
-                    f"{root_state.coldkeys[idx][:6]}" if verbose else f"{root_state.coldkeys[idx]}", # Coldkey
+                    f"{root_state.hotkeys[idx][:6]}" if not verbose else f"{root_state.hotkeys[idx]}", # Hotkey
+                    f"{root_state.coldkeys[idx][:6]}" if not verbose else f"{root_state.coldkeys[idx]}", # Coldkey
                     validator_identity, # Identity
                 )
             )
@@ -700,9 +716,10 @@ async def show(
             tao_pool = f"{millify_tao(root_info.tao_in.tao)}" if not verbose else f"{root_info.tao_in.tao:,.4f}"
             alpha_pool = f"{millify_tao(root_info.alpha_in.tao)}" if not verbose else f"{root_info.alpha_in.tao:,.4f}"
             stake = f"{millify_tao(root_info.alpha_out.tao)}" if not verbose else f"{root_info.alpha_out.tao:,.5f}"
+            rate = f"{millify_tao(root_info.price.tao)}" if not verbose else f"{root_info.price.tao:,.4f}"
             console.print(
                 f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]Root Network (Subnet 0)[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
-                f"\n  Rate: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{root_info.price.tao:.4f} τ/{root_info.symbol}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
+                f"\n  Rate: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{rate} τ/{root_info.symbol}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
                 f"\n  Emission: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{root_info.symbol} 0[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
                 f"\n  TAO Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{root_info.symbol} {tao_pool}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
                 f"\n  Alpha Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{root_info.symbol} {alpha_pool}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
