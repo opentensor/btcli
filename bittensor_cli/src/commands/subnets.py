@@ -856,13 +856,13 @@ async def show(
         )
         # ------- Temporary columns for testing -------
         table.add_column(
-            f"Alpha Stake ({Balance.get_unit(netuid_)}) TST",
+            f"Alpha({Balance.get_unit(netuid_)})",
             style=COLOR_PALETTE["POOLS"]["EXTRA_2"],
             no_wrap=True,
             justify="right",
         )
         table.add_column(
-            f"Tao Stake (τ) TST",
+            f"Tao(τ)",
             style=COLOR_PALETTE["POOLS"]["EXTRA_2"],
             no_wrap=True,
             justify="right",
