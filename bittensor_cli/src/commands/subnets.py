@@ -176,21 +176,20 @@ async def subnets_list(
 
     async def fetch_subnet_data():
         block_number = await subtensor.substrate.get_block_number(None)
-        subnets, identities, subnet_tao = await asyncio.gather(
+        subnets, subnet_tao = await asyncio.gather(
             subtensor.get_all_subnet_dynamic_info(),
-            subtensor.query_all_identities(),
             subtensor.get_subnet_tao(),
         )
 
-        # Sort subnets by stake, keeping the root subnet in the first position
+        # Sort subnets by market cap, keeping the root subnet in the first position
         root_subnet = next(s for s in subnets if s.netuid == 0)
         other_subnets = sorted(
             [s for s in subnets if s.netuid != 0],
-            key=lambda x: x.alpha_out.tao,
+            key=lambda x: (x.alpha_in.tao + x.alpha_out.tao) * x.price.tao,
             reverse=True
         )
         sorted_subnets = [root_subnet] + other_subnets
-        return sorted_subnets, identities, subnet_tao, block_number
+        return sorted_subnets, subnet_tao, block_number
     
     def calculate_emission_stats(subnet_tao: dict, block_number: int) -> tuple[Balance, str]:
         # We do not include the root subnet in the emission calculation
@@ -223,17 +222,17 @@ async def subnets_list(
         )
 
         table.add_column("[bold white]Netuid", style="grey89", justify="center", footer=str(total_netuids))
-        table.add_column(
-            "[bold white]Symbol",
-            style=COLOR_PALETTE["GENERAL"]["SYMBOL"],
-            justify="right",
-        )
         table.add_column("[bold white]Name", style="cyan", justify="left")
         table.add_column(
-            f"[bold white]RATE ({Balance.get_unit(0)}_in/{Balance.get_unit(1)}_in)",
-            style="#AB7CC8",
+            f"[bold white]Price \n({Balance.get_unit(0)}_in/{Balance.get_unit(1)}_in)",
+            style="dark_sea_green2",
             justify="left",
             footer=f"τ {total_rate}",
+        )
+        table.add_column(
+            f"[bold white]Market Cap \n({Balance.get_unit(1)} * Price)",
+            style="steel_blue3",
+            justify="left",
         )
         table.add_column(
             f"[bold white]Emission ({Balance.get_unit(0)})",
@@ -242,21 +241,22 @@ async def subnets_list(
             footer=f"τ {total_emissions}",
         )
         table.add_column(
-            f"[bold white]TAO Pool ({Balance.get_unit(0)}_in)",
+            f"[bold white]Liquidity \n({Balance.get_unit(0)}_in, {Balance.get_unit(1)}_in)",
             style=COLOR_PALETTE["STAKE"]["TAO"],
             justify="left",
             footer=f"{tao_emission_percentage}",
-        )
-        table.add_column(
-            f"[bold white]Alpha Pool ({Balance.get_unit(1)}_in)",
-            style=COLOR_PALETTE["POOLS"]["ALPHA_IN"],
-            justify="left",
         )
         table.add_column(
             f"[bold white]Stake ({Balance.get_unit(1)}_out)",
             style=COLOR_PALETTE["STAKE"]["STAKE_ALPHA"],
             justify="left",
         )
+        table.add_column(
+            f"[bold white]Supply ({Balance.get_unit(1)})",
+            style=COLOR_PALETTE["POOLS"]["ALPHA_IN"],
+            justify="left",
+        )
+
         table.add_column(
             "[bold white]Tempo (k/n)",
             style=COLOR_PALETTE["GENERAL"]["TEMPO"],
@@ -266,7 +266,7 @@ async def subnets_list(
         return table
 
     # Non-live mode
-    def create_table(subnets, identities, subnet_tao, block_number):
+    def create_table(subnets, subnet_tao, block_number):
         rows = [] 
         _, percentage_string = calculate_emission_stats(subnet_tao, block_number)
 
@@ -276,36 +276,46 @@ async def subnets_list(
 
             if netuid == 0:
                 emission_tao = 0.0
-                identity = "~"
             else:
                 emission_tao = subnet.emission.tao
-                identity = identities.get(subnet.owner, {}).get("name", "~")
             
             alpha_in_value = f"{millify_tao(subnet.alpha_in.tao)}" if not verbose else f"{subnet.alpha_in.tao:,.4f}"
             alpha_out_value = f"{millify_tao(subnet.alpha_out.tao)}" if not verbose else f"{subnet.alpha_out.tao:,.4f}"
             price_value = f"{millify_tao(subnet.price.tao)}" if not verbose else f"{subnet.price.tao:,.4f}"
+            
+            # Market Cap
+            market_cap = (subnet.alpha_in.tao + subnet.alpha_out.tao) * subnet.price.tao
+            market_cap_value = f"{millify_tao(market_cap)}" if not verbose else f"{market_cap:,.4f}"
+
+            # Liquidity
+            tao_in_cell = f"τ {millify_tao(subnet.tao_in.tao)}" if not verbose else f"τ {subnet.tao_in.tao:,.4f}"
+            alpha_in_cell = f"{alpha_in_value} {symbol}" if netuid != 0 else f"{symbol} {alpha_in_value}"
+
+            # Supply
+            supply = subnet.alpha_in.tao + subnet.alpha_out.tao
+            supply_value = f"{millify_tao(supply)}" if not verbose else f"{supply:,.4f}"
 
             # Prepare cells
             netuid_cell = str(netuid)
-            symbol_cell = f"{subnet.symbol}" if netuid != 0 else "\u03A4"
-            subnet_name_cell = SUBNETS.get(netuid, "~")
+            subnet_name_cell = f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{subnet.symbol if netuid != 0 else '\u03A4'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"  + f" {SUBNETS.get(netuid, '~')}"
             emission_cell = f"τ {emission_tao:,.4f}"
             price_cell = f"{price_value} τ/{symbol}"
-            tao_in_cell = f"τ {millify_tao(subnet.tao_in.tao)}" if not verbose else f"τ {subnet.tao_in.tao:,.4f}"
-            alpha_in_cell = f"{alpha_in_value} {symbol}" if netuid != 0 else f"{symbol} {alpha_in_value}"
+            liquidity_cell = f"{tao_in_cell}, {alpha_in_cell}"
             alpha_out_cell = f"{alpha_out_value} {symbol}" if netuid != 0 else f"{symbol} {alpha_out_value}"
+            market_cap_cell = f"τ {market_cap_value}"
+            supply_cell = f"{supply_value} {symbol} [#806DAF]/21M"
             tempo_cell = f"{subnet.blocks_since_last_step}/{subnet.tempo}"
 
             rows.append(
                 (
                     netuid_cell,      # Netuid
-                    symbol_cell,      # Symbol
                     subnet_name_cell, # Name
                     price_cell,       # Rate τ_in/α_in
+                    market_cap_cell,  # Market Cap
                     emission_cell,    # Emission (τ)
-                    tao_in_cell,      # TAO Pool τ_in
-                    alpha_in_cell,    # Alpha Pool α_in
+                    liquidity_cell,   # Liquidity (t_in, a_in)
                     alpha_out_cell,   # Stake α_out
+                    supply_cell,      # Supply
                     tempo_cell,       # Tempo k/n
                 )
             )
@@ -324,7 +334,7 @@ async def subnets_list(
         return table
 
     # Live mode
-    def create_table_live(subnets, identities, previous_data, subnet_tao, block_number):
+    def create_table_live(subnets, previous_data, subnet_tao, block_number):
         def format_cell(value, previous_value, unit="", unit_first=False, precision=4, millify=False):
             if previous_value is not None:
                 change = value - previous_value
@@ -342,6 +352,38 @@ async def subnets_list(
             formatted_value = f"{value:,.{precision}f}" if not millify else millify_tao(value)
             return f"{formatted_value} {unit}{change_text}" if not unit_first else f"{unit} {formatted_value}{change_text}"
 
+        def format_liquidity_cell(tao_val, alpha_val, prev_tao, prev_alpha, symbol, precision=4, millify=False, netuid=None):
+            """Format liquidity cell with combined changes"""
+
+            tao_str = f"τ {millify_tao(tao_val)}" if millify else f"τ {tao_val:,.{precision}f}"
+            _alpha_str = f"{millify_tao(alpha_val) if millify else f'{alpha_val:,.{precision}f}'}"
+            alpha_str = f"{_alpha_str} {symbol}" if netuid != 0 else f"{symbol} {_alpha_str}"
+            
+            # Show delta
+            if prev_tao is not None and prev_alpha is not None:
+                tao_change = tao_val - prev_tao
+                alpha_change = alpha_val - prev_alpha
+                
+                # Show changes if either value changed
+                if abs(tao_change) > 10**(-precision) or abs(alpha_change) > 10**(-precision):
+                    
+                    if millify:
+                        tao_change_str = f"+{millify_tao(tao_change)}" if tao_change > 0 else f"{millify_tao(tao_change)}"
+                        alpha_change_str = f"+{millify_tao(alpha_change)}" if alpha_change > 0 else f"{millify_tao(alpha_change)}"
+                    else:
+                        tao_change_str = f"+{tao_change:.{precision}f}" if tao_change > 0 else f"{tao_change:.{precision}f}"
+                        alpha_change_str = f"+{alpha_change:.{precision}f}" if alpha_change > 0 else f"{alpha_change:.{precision}f}"
+                    
+                    changes_str = f" [pale_green3]({tao_change_str}[/pale_green3]" if tao_change > 0 else \
+                                 f" [hot_pink3]({tao_change_str}[/hot_pink3]" if tao_change < 0 else \
+                                 f" [white]({tao_change_str}[/white]"
+                    changes_str += f"[pale_green3],{alpha_change_str})[/pale_green3]" if alpha_change > 0 else \
+                                 f"[hot_pink3],{alpha_change_str})[/hot_pink3]" if alpha_change < 0 else \
+                                 f"[white],{alpha_change_str})[/white]"
+                    return f"{tao_str}, {alpha_str}{changes_str}"
+                    
+            return f"{tao_str}, {alpha_str}"
+
         rows = []
         current_data = {}  # To store current values for comparison in the next update
         _, percentage_string = calculate_emission_stats(subnet_tao, block_number)
@@ -352,53 +394,75 @@ async def subnets_list(
 
             if netuid == 0:
                 emission_tao = 0.0
-                identity = "~"
             else:
                 emission_tao = subnet.emission.tao
-                identity = identities.get(subnet.owner, {}).get("name", "~")
-        
+
+            market_cap = (subnet.alpha_in.tao + subnet.alpha_out.tao) * subnet.price.tao
+            supply = subnet.alpha_in.tao + subnet.alpha_out.tao
+
             # Store current values for comparison
             current_data[netuid] = {
+                "market_cap": market_cap,
                 "emission_tao": emission_tao,
                 "alpha_out": subnet.alpha_out.tao,
                 "tao_in": subnet.tao_in.tao,
                 "alpha_in": subnet.alpha_in.tao,
                 "price": subnet.price.tao,
+                "supply": supply,
                 "blocks_since_last_step": subnet.blocks_since_last_step,
             }
             prev = previous_data.get(netuid) if previous_data else {}
 
             # Prepare cells
-            netuid_cell = str(netuid)
-            symbol_cell = f"{subnet.symbol}" if netuid != 0 else "\u03A4"
-            subnet_name_cell = SUBNETS.get(netuid, "~")
             if netuid == 0:
                 unit_first = True
             else:
                 unit_first = False
+
+            netuid_cell = str(netuid)
+            subnet_name_cell = f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{subnet.symbol if netuid != 0 else '\u03A4'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"  + f" {SUBNETS.get(netuid, '~')}"
             emission_cell = format_cell(
                 emission_tao, prev.get("emission_tao"), unit="τ", unit_first=True, precision=4
             )
             price_cell = format_cell(
                 subnet.price.tao, prev.get("price"), unit=f"τ/{symbol}", precision=4, millify=True if not verbose else False
             )
-            tao_in_cell = format_cell(
-                subnet.tao_in.tao, prev.get("tao_in"), unit="τ", unit_first=True, precision=4, millify=True if not verbose else False
-            )
-            alpha_in_cell = format_cell(
-                subnet.alpha_in.tao,
-                prev.get("alpha_in"),
-                unit=f"{symbol}",
-                unit_first=unit_first,
-                precision=4,
-                millify=True if not verbose else False,
-            )
+
             alpha_out_cell = format_cell(
                 subnet.alpha_out.tao,
                 prev.get("alpha_out"),
                 unit=f"{symbol}",
                 unit_first=unit_first,
                 precision=5,
+                millify=True if not verbose else False,
+            )
+            liquidity_cell = format_liquidity_cell(
+                subnet.tao_in.tao,
+                subnet.alpha_in.tao,
+                prev.get("tao_in"),
+                prev.get("alpha_in"),
+                symbol,
+                precision=4,
+                millify=not verbose,
+                netuid=netuid,
+            )
+            
+            market_cap_cell = format_cell(
+                market_cap,
+                prev.get("market_cap"),
+                unit="τ",
+                unit_first=True,
+                precision=4,
+                millify=True if not verbose else False,
+            )
+
+            # Supply cell
+            supply_cell = format_cell(
+                supply,
+                prev.get("supply"),
+                unit=f"{symbol} [#806DAF]/21M",
+                unit_first=False,
+                precision=2,
                 millify=True if not verbose else False,
             )
 
@@ -429,26 +493,28 @@ async def subnets_list(
             rows.append(
                 (
                     netuid_cell,      # Netuid
-                    symbol_cell,      # Symbol
                     subnet_name_cell, # Name
                     price_cell,       # Rate τ_in/α_in
+                    market_cap_cell,  # Market Cap
                     emission_cell,    # Emission (τ)
-                    tao_in_cell,      # TAO Pool τ_in
-                    alpha_in_cell,    # Alpha Pool α_in
+                    liquidity_cell,   # Liquidity (t_in, a_in)
                     alpha_out_cell,   # Stake α_out
+                    supply_cell,      # Supply
                     tempo_cell,       # Tempo k/n
                 )
             )
-
-        total_emissions = sum(
+        
+        # Calculate totals
+        total_netuids = len(subnets)
+        _total_emissions = sum(
             float(subnet.emission.tao) for subnet in subnets if subnet.netuid != 0
         )
+        total_emissions = f"{millify_tao(_total_emissions)}" if not verbose else f"{_total_emissions:,.2f}"
+
         total_rate = sum(
             float(subnet.price.tao) for subnet in subnets if subnet.netuid != 0
         )
-        total_emissions = f"{millify_tao(total_emissions)}" if not verbose else f"{total_emissions:,.2f}"
         total_rate = f"{millify_tao(total_rate)}" if not verbose else f"{total_rate:,.2f}"
-        total_netuids = len(subnets)
         table = define_table(total_emissions, total_rate, total_netuids, percentage_string)
 
         for row in rows:
@@ -475,12 +541,7 @@ async def subnets_list(
         with Live(console=console, screen=True, auto_refresh=True) as live:
             try:
                 while True:
-                    subnets = await subtensor.get_all_subnet_dynamic_info()
-                    identities, block_number, subnet_tao = await asyncio.gather(
-                        subtensor.query_all_identities(),
-                        subtensor.substrate.get_block_number(None),
-                        subtensor.get_subnet_tao()
-                    )
+                    subnets, subnet_tao, block_number = await fetch_subnet_data()
 
                     # Update block numbers
                     previous_block = current_block
@@ -488,7 +549,7 @@ async def subnets_list(
                     new_blocks = "N/A" if previous_block is None else str(current_block - previous_block)
 
                     table, current_data = create_table_live(
-                        subnets, identities, previous_data, subnet_tao, block_number
+                        subnets, previous_data, subnet_tao, block_number
                     )
                     previous_data = current_data
                     progress.reset(progress_task)
@@ -514,10 +575,12 @@ async def subnets_list(
                 pass  # Ctrl + C
     else:
         # Non-live mode
-        subnets, identities, subnet_tao, block_number = await fetch_subnet_data()
-        table = create_table(subnets, identities, subnet_tao, block_number)
+        subnets, subnet_tao, block_number = await fetch_subnet_data()
+        table = create_table(subnets, subnet_tao, block_number)
         console.print(table)
 
+        return
+        # TODO: Temporarily returning till we update docs
         display_table = Prompt.ask(
             "\nPress Enter to view column descriptions or type 'q' to skip:",
             choices=["", "q"],

@@ -893,11 +893,12 @@ class DynamicInfo:
         total_locked = Balance.from_rao(decoded["total_locked"]).set_unit(netuid)
         owner_locked = Balance.from_rao(decoded["owner_locked"]).set_unit(netuid)
         price = (
-            Balance.from_tao(tao_in.tao / alpha_in.tao)
+            Balance.from_tao(1.0) if netuid == 0
+            else Balance.from_tao(tao_in.tao / alpha_in.tao)
             if alpha_in.tao > 0
             else Balance.from_tao(1)
-        )
-        is_dynamic = True if int(decoded["netuid"]) > 0 else False # TODO: Patching this temporarily
+        ) # TODO: Patching this temporarily for netuid 0
+        is_dynamic = True if int(decoded["netuid"]) > 0 else False # TODO: Patching this temporarily for netuid 0
         return DynamicInfo(
             owner=ss58_encode(decoded["owner"], SS58_FORMAT),
             netuid=netuid,
