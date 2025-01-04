@@ -28,7 +28,7 @@ from bittensor_cli.src.bittensor.utils import (
     u16_normalized_float,
     format_error_message,
     group_subnets,
-    millify_tao
+    millify_tao,
 )
 
 if TYPE_CHECKING:
@@ -946,11 +946,13 @@ async def stake_add(
         initial_stake_balances[hotkey_ss58] = {}
         for netuid in netuids:
             initial_stake_balances[hotkey_ss58][netuid] = Balance.from_rao(0)
-            
+
     for stake_info in stake_info_dict[wallet.coldkeypub.ss58_address]:
         if stake_info.hotkey_ss58 in initial_stake_balances:
-            initial_stake_balances[stake_info.hotkey_ss58][stake_info.netuid] = stake_info.stake
-            
+            initial_stake_balances[stake_info.hotkey_ss58][stake_info.netuid] = (
+                stake_info.stake
+            )
+
     for hk_name, hk_ss58 in hotkeys_to_stake_to:
         if not is_valid_ss58_address(hk_ss58):
             print_error(
@@ -1015,7 +1017,8 @@ async def stake_add(
                 rate = str(1)
             max_slippage = max(slippage_pct_float, max_slippage)
             rows.append(
-                (                    str(netuid),
+                (
+                    str(netuid),
                     # f"{staking_address_ss58[:3]}...{staking_address_ss58[-3:]}",
                     f"{hotkey[1]}",
                     str(amount_to_stake_as_balance),
@@ -1120,8 +1123,10 @@ The columns are as follows:
                 new_balance = new_balance_[wallet.coldkeypub.ss58_address]
                 new_stake = Balance.from_rao(0)
                 for stake_info in stake_info_dict[wallet.coldkeypub.ss58_address]:
-                    if (stake_info.hotkey_ss58 == staking_address_ss58 and 
-                        stake_info.netuid == netuid_i):
+                    if (
+                        stake_info.hotkey_ss58 == staking_address_ss58
+                        and stake_info.netuid == netuid_i
+                    ):
                         new_stake = stake_info.stake.set_unit(netuid_i)
                         break
 
@@ -1687,10 +1692,11 @@ async def unstake(
             for stake_info in stake_info_list:
                 if stake_info.hotkey_ss58 not in hotkey_stakes:
                     hotkey_stakes[stake_info.hotkey_ss58] = {}
-                hotkey_stakes[stake_info.hotkey_ss58][stake_info.netuid] = stake_info.stake
+                hotkey_stakes[stake_info.hotkey_ss58][stake_info.netuid] = (
+                    stake_info.stake
+                )
 
         stake_in_netuids = hotkey_stakes
-
 
     # Flag to check if user wants to quit
     skip_remaining_subnets = False
@@ -1923,8 +1929,10 @@ The columns are as follows:
                     )
                     new_stake = Balance.from_rao(0)
                     for stake_info in new_stake_info[wallet.coldkeypub.ss58_address]:
-                        if (stake_info.hotkey_ss58 == staking_address_ss58 and 
-                            stake_info.netuid == netuid_i):
+                        if (
+                            stake_info.hotkey_ss58 == staking_address_ss58
+                            and stake_info.netuid == netuid_i
+                        ):
                             new_stake = stake_info.stake.set_unit(netuid_i)
                             break
                     console.print(
@@ -2006,7 +2014,9 @@ async def stake_list(
             footer_style="overline white",
             style=COLOR_PALETTE["STAKE"]["TAO"],
             justify="right",
-            footer=f"τ {millify_tao(total_tao_value.tao)}" if not verbose else f"{total_tao_value}",
+            footer=f"τ {millify_tao(total_tao_value.tao)}"
+            if not verbose
+            else f"{total_tao_value}",
         )
         table.add_column(
             f"[white]Stake ({Balance.get_unit(1)})",
@@ -2025,7 +2035,9 @@ async def stake_list(
             footer_style="overline white",
             style=COLOR_PALETTE["STAKE"]["STAKE_SWAP"],
             justify="right",
-            footer=f"τ {millify_tao(total_swapped_tao_value.tao)}" if not verbose else f"{total_swapped_tao_value}",
+            footer=f"τ {millify_tao(total_swapped_tao_value.tao)}"
+            if not verbose
+            else f"{total_swapped_tao_value}",
         )
         table.add_column(
             "[white]Registered",
@@ -2052,8 +2064,10 @@ async def stake_list(
         root_stakes = [s for s in substakes if s.netuid == 0]
         other_stakes = sorted(
             [s for s in substakes if s.netuid != 0],
-            key=lambda x: dynamic_info[x.netuid].alpha_to_tao(Balance.from_rao(int(x.stake.rao)).set_unit(x.netuid)).tao,
-            reverse=True
+            key=lambda x: dynamic_info[x.netuid]
+            .alpha_to_tao(Balance.from_rao(int(x.stake.rao)).set_unit(x.netuid))
+            .tao,
+            reverse=True,
         )
         sorted_substakes = root_stakes + other_stakes
         for substake_ in sorted_substakes:
@@ -2097,7 +2111,11 @@ async def stake_list(
             if netuid == 0:
                 swap_value = f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]N/A[/{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}] ({slippage_percentage})"
             else:
-                swap_value = f"τ {millify_tao(swapped_tao_value.tao)} ({slippage_percentage})" if not verbose else f"{swapped_tao_value} ({slippage_percentage})"
+                swap_value = (
+                    f"τ {millify_tao(swapped_tao_value.tao)} ({slippage_percentage})"
+                    if not verbose
+                    else f"{swapped_tao_value} ({slippage_percentage})"
+                )
 
             # TAO locked cell
             tao_locked = pool.tao_in
@@ -2122,16 +2140,29 @@ async def stake_list(
                     alpha_ownership = "0.0000"
                     tao_ownership = Balance.from_tao(0)
 
-                stake_value = millify_tao(substake_.stake.tao) if not verbose else f"{substake_.stake.tao:,.4f}"
-                subnet_name_cell = f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{symbol if netuid != 0 else '\u03A4'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"  + f" {SUBNETS.get(netuid, '~')}"
-                
+                stake_value = (
+                    millify_tao(substake_.stake.tao)
+                    if not verbose
+                    else f"{substake_.stake.tao:,.4f}"
+                )
+                subnet_name_cell = (
+                    f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{symbol if netuid != 0 else '\u03a4'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
+                    + f" {SUBNETS.get(netuid, '~')}"
+                )
+
                 rows.append(
                     [
                         str(netuid),  # Number
                         subnet_name_cell,  # Symbol + name
-                        f"τ {millify_tao(tao_value.tao)}" if not verbose else f"{tao_value}",  # Value (α x τ/α)
-                        f"{stake_value} {symbol}" if netuid != 0 else f"{symbol} {stake_value}",  # Stake (a)
-                        f"{millify_tao(pool.price.tao)} τ/{symbol}" if not verbose else f"{pool.price.tao:.4f} τ/{symbol}",  # Rate (t/a)
+                        f"τ {millify_tao(tao_value.tao)}"
+                        if not verbose
+                        else f"{tao_value}",  # Value (α x τ/α)
+                        f"{stake_value} {symbol}"
+                        if netuid != 0
+                        else f"{symbol} {stake_value}",  # Stake (a)
+                        f"{millify_tao(pool.price.tao)} τ/{symbol}"
+                        if not verbose
+                        else f"{pool.price.tao:.4f} τ/{symbol}",  # Rate (t/a)
                         # f"τ {millify_tao(tao_ownership.tao)}" if not verbose else f"{tao_ownership}",  # TAO equiv
                         swap_value,  # Swap(α) -> τ
                         "YES"
@@ -2165,11 +2196,17 @@ async def stake_list(
         total_tao_value = Balance(0)
         total_swapped_tao_value = Balance(0)
 
-        def format_cell(value, previous_value, unit="", unit_first=False, precision=4, millify=False):
+        def format_cell(
+            value, previous_value, unit="", unit_first=False, precision=4, millify=False
+        ):
             if previous_value is not None:
                 change = value - previous_value
                 if abs(change) > 10 ** (-precision):
-                    formatted_change = f"{change:.{precision}f}" if not millify else f"{millify_tao(change)}"
+                    formatted_change = (
+                        f"{change:.{precision}f}"
+                        if not millify
+                        else f"{millify_tao(change)}"
+                    )
                     change_text = (
                         f" [pale_green3](+{formatted_change})[/pale_green3]"
                         if change > 0
@@ -2179,19 +2216,23 @@ async def stake_list(
                     change_text = ""
             else:
                 change_text = ""
-            formatted_value = f"{value:,.{precision}f}" if not millify else f"{millify_tao(value)}"
+            formatted_value = (
+                f"{value:,.{precision}f}" if not millify else f"{millify_tao(value)}"
+            )
             return (
                 f"{formatted_value} {unit}{change_text}"
                 if not unit_first
                 else f"{unit} {formatted_value}{change_text}"
             )
-        
+
         # Sort subnets by value
         root_stakes = [s for s in substakes if s.netuid == 0]
         other_stakes = sorted(
             [s for s in substakes if s.netuid != 0],
-            key=lambda x: dynamic_info[x.netuid].alpha_to_tao(Balance.from_rao(int(x.stake.rao)).set_unit(x.netuid)).tao,
-            reverse=True
+            key=lambda x: dynamic_info[x.netuid]
+            .alpha_to_tao(Balance.from_rao(int(x.stake.rao)).set_unit(x.netuid))
+            .tao,
+            reverse=True,
         )
         sorted_substakes = root_stakes + other_stakes
 
@@ -2296,7 +2337,10 @@ async def stake_list(
                 unit_first=unit_first,
                 precision=4,
             )
-            subnet_name_cell = f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{symbol if netuid != 0 else '\u03A4'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"  + f" {SUBNETS.get(netuid, '~')}"
+            subnet_name_cell = (
+                f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{symbol if netuid != 0 else '\u03a4'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
+                + f" {SUBNETS.get(netuid, '~')}"
+            )
 
             rows.append(
                 [
@@ -2464,8 +2508,16 @@ async def stake_list(
                 input()
 
         balance = await subtensor.get_balance(coldkey_address)
-        total_tao_value = f"τ {millify_tao(all_hotkeys_total_tao_value.tao)}" if not verbose else all_hotkeys_total_tao_value
-        total_tao_ownership = f"τ {millify_tao(all_hotkeys_total_global_tao.tao)}" if not verbose else all_hotkeys_total_global_tao
+        total_tao_value = (
+            f"τ {millify_tao(all_hotkeys_total_tao_value.tao)}"
+            if not verbose
+            else all_hotkeys_total_tao_value
+        )
+        total_tao_ownership = (
+            f"τ {millify_tao(all_hotkeys_total_global_tao.tao)}"
+            if not verbose
+            else all_hotkeys_total_global_tao
+        )
 
         console.print("\n\n")
         console.print(
@@ -2575,19 +2627,23 @@ async def move_stake(
     # Get the wallet stake balances.
     origin_stake_balance = Balance.from_rao(0)
     destination_stake_balance = Balance.from_rao(0)
-    
+
     chain_head = await subtensor.substrate.get_chain_head()
     stake_info_dict = await subtensor.get_stake_info_for_coldkeys(
         coldkey_ss58_list=[wallet.coldkeypub.ss58_address],
         block_hash=chain_head,
     )
-    
+
     for stake_info in stake_info_dict[wallet.coldkeypub.ss58_address]:
-        if (stake_info.hotkey_ss58 == origin_hotkey_ss58 and 
-            stake_info.netuid == origin_netuid):
+        if (
+            stake_info.hotkey_ss58 == origin_hotkey_ss58
+            and stake_info.netuid == origin_netuid
+        ):
             origin_stake_balance = stake_info.stake
-        elif (stake_info.hotkey_ss58 == destination_hotkey and 
-              stake_info.netuid == destination_netuid):
+        elif (
+            stake_info.hotkey_ss58 == destination_hotkey
+            and stake_info.netuid == destination_netuid
+        ):
             destination_stake_balance = stake_info.stake
 
     # Set appropriate units
@@ -2786,17 +2842,25 @@ async def move_stake(
                 new_stake_info_dict = await subtensor.get_stake_info_for_coldkeys(
                     coldkey_ss58_list=[wallet.coldkeypub.ss58_address],
                 )
-                
+
                 new_origin_stake_balance = Balance.from_rao(0)
                 new_destination_stake_balance = Balance.from_rao(0)
-                
+
                 for stake_info in new_stake_info_dict[wallet.coldkeypub.ss58_address]:
-                    if (stake_info.hotkey_ss58 == origin_hotkey_ss58 and 
-                        stake_info.netuid == origin_netuid):
-                        new_origin_stake_balance = stake_info.stake.set_unit(origin_netuid)
-                    elif (stake_info.hotkey_ss58 == destination_hotkey and 
-                          stake_info.netuid == destination_netuid):
-                        new_destination_stake_balance = stake_info.stake.set_unit(destination_netuid)
+                    if (
+                        stake_info.hotkey_ss58 == origin_hotkey_ss58
+                        and stake_info.netuid == origin_netuid
+                    ):
+                        new_origin_stake_balance = stake_info.stake.set_unit(
+                            origin_netuid
+                        )
+                    elif (
+                        stake_info.hotkey_ss58 == destination_hotkey
+                        and stake_info.netuid == destination_netuid
+                    ):
+                        new_destination_stake_balance = stake_info.stake.set_unit(
+                            destination_netuid
+                        )
 
                 console.print(
                     f"Origin Stake:\n  [blue]{origin_stake_balance}[/blue] :arrow_right: "
@@ -2816,31 +2880,30 @@ async def fetch_coldkey_stake(subtensor: "SubtensorInterface", wallet: Wallet):
     return sub_stakes
 
 
-# TODO: Use this in all subnet commands. 
+# TODO: Use this in all subnet commands.
 async def get_stake_info_for_coldkey_and_hotkey(
     subtensor: "SubtensorInterface",
     coldkey_ss58: str,
     hotkey_ss58: Optional[str] = None,
     netuid: Optional[int] = None,
-    block_hash: Optional[str] = None
+    block_hash: Optional[str] = None,
 ) -> dict[tuple[str, int], Balance]:
     """Helper function to get stake info for a coldkey and optionally filter by hotkey and netuid.
-    
+
     Args:
         subtensor: SubtensorInterface instance
         coldkey_ss58: Coldkey SS58 address
         hotkey_ss58: Optional hotkey SS58 address to filter by
         netuid: Optional netuid to filter by
         block_hash: Optional block hash to query at
-        
+
     Returns:
         Dictionary mapping (hotkey, netuid) tuple to stake balance
     """
     stake_info_dict = await subtensor.get_stake_info_for_coldkeys(
-        coldkey_ss58_list=[coldkey_ss58],
-        block_hash=block_hash
+        coldkey_ss58_list=[coldkey_ss58], block_hash=block_hash
     )
-    
+
     stakes = {}
     for stake_info in stake_info_dict[coldkey_ss58]:
         if hotkey_ss58 and stake_info.hotkey_ss58 != hotkey_ss58:
@@ -2848,5 +2911,5 @@ async def get_stake_info_for_coldkey_and_hotkey(
         if netuid is not None and stake_info.netuid != netuid:
             continue
         stakes[(stake_info.hotkey_ss58, stake_info.netuid)] = stake_info.stake
-        
+
     return stakes
