@@ -2146,8 +2146,7 @@ async def stake_list(
                     else f"{substake_.stake.tao:,.4f}"
                 )
                 subnet_name_cell = (
-                    f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{symbol if netuid != 0 else '\u03a4'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
-                    + f" {SUBNETS.get(netuid, '~')}"
+                    f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{symbol if netuid != 0 else 'τ'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}] {SUBNETS.get(netuid, '~')}"
                 )
 
                 rows.append(
@@ -2338,8 +2337,8 @@ async def stake_list(
                 precision=4,
             )
             subnet_name_cell = (
-                f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{symbol if netuid != 0 else '\u03a4'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
-                + f" {SUBNETS.get(netuid, '~')}"
+                f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{symbol if netuid != 0 else 'τ'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
+                f" {SUBNETS.get(netuid, '~')}"
             )
 
             rows.append(

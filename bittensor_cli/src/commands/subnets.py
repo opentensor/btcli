@@ -332,8 +332,8 @@ async def subnets_list(
             # Prepare cells
             netuid_cell = str(netuid)
             subnet_name_cell = (
-                f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{subnet.symbol if netuid != 0 else '\u03a4'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
-                + f" {SUBNETS.get(netuid, '~')}"
+                f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{subnet.symbol if netuid != 0 else 'τ'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
+                f" {SUBNETS.get(netuid, '~')}"
             )
             emission_cell = f"τ {emission_tao:,.4f}"
             price_cell = f"{price_value} τ/{symbol}"
@@ -516,8 +516,8 @@ async def subnets_list(
 
             netuid_cell = str(netuid)
             subnet_name_cell = (
-                f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{subnet.symbol if netuid != 0 else '\u03a4'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
-                + f" {SUBNETS.get(netuid, '~')}"
+                f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{subnet.symbol if netuid != 0 else 'τ'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
+                f" {SUBNETS.get(netuid, '~')}"
             )
             emission_cell = format_cell(
                 emission_tao,
