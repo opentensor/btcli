@@ -14,7 +14,7 @@ from rich.console import Console, Group
 from rich.live import Live
 from substrateinterface.exceptions import SubstrateRequestException
 
-from bittensor_cli.src import COLOR_PALETTE
+from bittensor_cli.src import COLOR_PALETTE, SUBNETS
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import StakeInfo
 from bittensor_cli.src.bittensor.utils import (
@@ -1996,10 +1996,17 @@ async def stake_list(
             style="grey89",
         )
         table.add_column(
-            "[white]Symbol",
-            style=COLOR_PALETTE["GENERAL"]["SYMBOL"],
-            justify="center",
+            "[white]Name",
+            style="cyan",
+            justify="left",
             no_wrap=True,
+        )
+        table.add_column(
+            f"[white]Value \n({Balance.get_unit(1)} x {Balance.unit}/{Balance.get_unit(1)})",
+            footer_style="overline white",
+            style=COLOR_PALETTE["STAKE"]["TAO"],
+            justify="right",
+            footer=f"τ {millify_tao(total_tao_value.tao)}" if not verbose else f"{total_tao_value}",
         )
         table.add_column(
             f"[white]Stake ({Balance.get_unit(1)})",
@@ -2008,23 +2015,10 @@ async def stake_list(
             justify="center",
         )
         table.add_column(
-            f"[white]Rate \n({Balance.unit}_in/{Balance.get_unit(1)}_in)",
+            f"[white]Price \n({Balance.unit}_in/{Balance.get_unit(1)}_in)",
             footer_style="white",
             style=COLOR_PALETTE["POOLS"]["RATE"],
             justify="center",
-        )
-        table.add_column(
-            f"[white]TAO equiv \n({Balance.unit}_in x {Balance.get_unit(1)}/{Balance.get_unit(1)}_out)",
-            style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
-            justify="right",
-            footer=f"τ {millify_tao(total_tao_ownership.tao)}" if not verbose else f"{total_tao_ownership}",
-        )
-        table.add_column(
-            f"[white]Exchange Value \n({Balance.get_unit(1)} x {Balance.unit}/{Balance.get_unit(1)})",
-            footer_style="overline white",
-            style=COLOR_PALETTE["STAKE"]["TAO"],
-            justify="right",
-            footer=f"τ {millify_tao(total_tao_value.tao)}" if not verbose else f"{total_tao_value}",
         )
         table.add_column(
             f"[white]Swap ({Balance.get_unit(1)} -> {Balance.unit})",
@@ -2055,7 +2049,14 @@ async def stake_list(
         total_tao_ownership = Balance(0)
         total_tao_value = Balance(0)
         total_swapped_tao_value = Balance(0)
-        for substake_ in substakes:
+        root_stakes = [s for s in substakes if s.netuid == 0]
+        other_stakes = sorted(
+            [s for s in substakes if s.netuid != 0],
+            key=lambda x: dynamic_info[x.netuid].alpha_to_tao(Balance.from_rao(int(x.stake.rao)).set_unit(x.netuid)).tao,
+            reverse=True
+        )
+        sorted_substakes = root_stakes + other_stakes
+        for substake_ in sorted_substakes:
             netuid = substake_.netuid
             pool = dynamic_info[netuid]
             symbol = f"{Balance.get_unit(netuid)}\u200e"
@@ -2093,6 +2094,11 @@ async def stake_list(
             else:
                 slippage_percentage = f"[{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}]0.000%[/{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}]"
 
+            if netuid == 0:
+                swap_value = f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]N/A[/{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}] ({slippage_percentage})"
+            else:
+                swap_value = f"τ {millify_tao(swapped_tao_value.tao)} ({slippage_percentage})" if not verbose else f"{swapped_tao_value} ({slippage_percentage})"
+
             # TAO locked cell
             tao_locked = pool.tao_in
 
@@ -2117,15 +2123,17 @@ async def stake_list(
                     tao_ownership = Balance.from_tao(0)
 
                 stake_value = millify_tao(substake_.stake.tao) if not verbose else f"{substake_.stake.tao:,.4f}"
+                subnet_name_cell = f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{symbol if netuid != 0 else '\u03A4'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"  + f" {SUBNETS.get(netuid, '~')}"
+                
                 rows.append(
                     [
                         str(netuid),  # Number
-                        symbol if netuid != 0 else "\u03a4",  # Symbol
+                        subnet_name_cell,  # Symbol + name
+                        f"τ {millify_tao(tao_value.tao)}" if not verbose else f"{tao_value}",  # Value (α x τ/α)
                         f"{stake_value} {symbol}" if netuid != 0 else f"{symbol} {stake_value}",  # Stake (a)
                         f"{millify_tao(pool.price.tao)} τ/{symbol}" if not verbose else f"{pool.price.tao:.4f} τ/{symbol}",  # Rate (t/a)
-                        f"τ {millify_tao(tao_ownership.tao)}" if not verbose else f"{tao_ownership}",  # TAO equiv
-                        f"τ {millify_tao(tao_value.tao)}" if not verbose else f"{tao_value}",  # Exchange Value (α x τ/α)
-                        f"τ {millify_tao(swapped_tao_value.tao)} ({slippage_percentage})" if not verbose else f"{swapped_tao_value} ({slippage_percentage})",  # Swap(α) -> τ
+                        # f"τ {millify_tao(tao_ownership.tao)}" if not verbose else f"{tao_ownership}",  # TAO equiv
+                        swap_value,  # Swap(α) -> τ
                         "YES"
                         if substake_.is_registered
                         else f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]NO",  # Registered
@@ -2177,9 +2185,18 @@ async def stake_list(
                 if not unit_first
                 else f"{unit} {formatted_value}{change_text}"
             )
+        
+        # Sort subnets by value
+        root_stakes = [s for s in substakes if s.netuid == 0]
+        other_stakes = sorted(
+            [s for s in substakes if s.netuid != 0],
+            key=lambda x: dynamic_info[x.netuid].alpha_to_tao(Balance.from_rao(int(x.stake.rao)).set_unit(x.netuid)).tao,
+            reverse=True
+        )
+        sorted_substakes = root_stakes + other_stakes
 
         # Process each stake
-        for substake in substakes:
+        for substake in sorted_substakes:
             netuid = substake.netuid
             pool = dynamic_info.get(netuid)
             if substake.stake.rao == 0 or not pool:
@@ -2238,15 +2255,6 @@ async def stake_list(
                 millify=True if not verbose else False,
             )
 
-            tao_ownership_cell = format_cell(
-                tao_ownership.tao,
-                prev.get("tao_ownership"),
-                unit="τ",
-                unit_first=True,
-                precision=4,
-                millify=True if not verbose else False,
-            )
-
             exchange_cell = format_cell(
                 tao_value.tao,
                 prev.get("tao_value"),
@@ -2265,17 +2273,20 @@ async def stake_list(
             else:
                 slippage_pct = 0
 
-            swap_cell = (
-                format_cell(
-                    swapped_tao_value.tao,
-                    prev.get("swapped_value"),
-                    unit="τ",
-                    unit_first=True,
-                    precision=4,
-                    millify=True if not verbose else False,
+            if netuid != 0:
+                swap_cell = (
+                    format_cell(
+                        swapped_tao_value.tao,
+                        prev.get("swapped_value"),
+                        unit="τ",
+                        unit_first=True,
+                        precision=4,
+                        millify=True if not verbose else False,
+                    )
+                    + f" ({slippage_pct:.2f}%)"
                 )
-                + f" ({slippage_pct:.2f}%)"
-            )
+            else:
+                swap_cell = f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]N/A[/{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}] ({slippage_pct}%)"
 
             emission_value = substake.emission.tao / pool.tempo
             emission_cell = format_cell(
@@ -2285,15 +2296,15 @@ async def stake_list(
                 unit_first=unit_first,
                 precision=4,
             )
+            subnet_name_cell = f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{symbol if netuid != 0 else '\u03A4'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"  + f" {SUBNETS.get(netuid, '~')}"
 
             rows.append(
                 [
                     str(netuid),  # Netuid
-                    symbol if netuid != 0 else "\u03a4",  # Symbol
+                    subnet_name_cell,
+                    exchange_cell,  # Exchange value
                     stake_cell,  # Stake amount
                     rate_cell,  # Rate
-                    tao_ownership_cell,  # TAO equivalent
-                    exchange_cell,  # Exchange value
                     swap_cell,  # Swap value with slippage
                     "YES"
                     if substake.is_registered
@@ -2469,6 +2480,8 @@ async def stake_list(
                 f"\n[blue]No stakes found for coldkey ss58: ({coldkey_address})"
             )
         else:
+            # TODO: Temporarily returning till we update docs
+            return
             display_table = Prompt.ask(
                 "\nPress Enter to view column descriptions or type 'q' to skip:",
                 choices=["", "q"],
