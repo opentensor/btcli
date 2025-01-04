@@ -253,7 +253,7 @@ async def subnets_list(
             footer=f"τ {total_emissions}",
         )
         table.add_column(
-            f"[bold white]Liquidity \n({Balance.get_unit(0)}_in, {Balance.get_unit(1)}_in)",
+            f"[bold white]P ({Balance.get_unit(0)}_in, {Balance.get_unit(1)}_in)",
             style=COLOR_PALETTE["STAKE"]["TAO"],
             justify="left",
             footer=f"{tao_emission_percentage}",
@@ -315,15 +315,16 @@ async def subnets_list(
 
             # Liquidity
             tao_in_cell = (
-                f"τ {millify_tao(subnet.tao_in.tao)}"
-                if not verbose
-                else f"τ {subnet.tao_in.tao:,.4f}"
-            )
-            alpha_in_cell = (
-                f"{alpha_in_value} {symbol}"
+                (
+                    f"τ {millify_tao(subnet.tao_in.tao)}"
+                    if not verbose
+                    else f"τ {subnet.tao_in.tao:,.4f}"
+                )
                 if netuid != 0
-                else f"{symbol} {alpha_in_value}"
+                else "-"
             )
+
+            alpha_in_cell = f"{alpha_in_value} {symbol}" if netuid != 0 else "-"
 
             # Supply
             supply = subnet.alpha_in.tao + subnet.alpha_out.tao
@@ -542,15 +543,19 @@ async def subnets_list(
                 precision=5,
                 millify=True if not verbose else False,
             )
-            liquidity_cell = format_liquidity_cell(
-                subnet.tao_in.tao,
-                subnet.alpha_in.tao,
-                prev.get("tao_in"),
-                prev.get("alpha_in"),
-                symbol,
-                precision=4,
-                millify=not verbose,
-                netuid=netuid,
+            liquidity_cell = (
+                format_liquidity_cell(
+                    subnet.tao_in.tao,
+                    subnet.alpha_in.tao,
+                    prev.get("tao_in"),
+                    prev.get("alpha_in"),
+                    symbol,
+                    precision=4,
+                    millify=not verbose,
+                    netuid=netuid,
+                )
+                if netuid != 0
+                else "-, -"
             )
 
             market_cap_cell = format_cell(
@@ -969,7 +974,7 @@ async def show(
                     if 1 <= idx <= max_rows:
                         selected_hotkey = sorted_hks_delegation[idx - 1]
                         row_data = sorted_rows[idx - 1]
-                        identity = "" if row_data[5] == "~" else row_data[5]
+                        identity = "" if row_data[7] == "~" else row_data[7]
                         identity_str = f" ({identity})" if identity else ""
                         console.print(
                             f"\nSelected delegate: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{selected_hotkey}{identity_str}"
@@ -1054,7 +1059,13 @@ async def show(
         relative_emissions_sum = 0
         owner_hotkeys = await subtensor.get_owned_hotkeys(subnet_info.owner)
 
-        for idx, hk in enumerate(subnet_state.hotkeys):
+        sorted_indices = sorted(
+            range(len(subnet_state.hotkeys)),
+            key=lambda i: subnet_state.total_stake[i].tao,
+            reverse=True,
+        )
+
+        for idx in sorted_indices:
             hotkey_block_emission = (
                 subnet_state.emission[idx].tao / emission_sum
                 if emission_sum != 0
@@ -1108,13 +1119,6 @@ async def show(
                     uid_identity,  # Identity
                 )
             )
-
-        # Sort rows by stake
-        sorted_rows = sorted(
-            rows,
-            key=lambda x: float(str(x[2]).split()[0].replace(",", "")),
-            reverse=True,
-        )
 
         # Add columns to the table
         table.add_column("UID", style="grey89", no_wrap=True, justify="center")
@@ -1183,7 +1187,7 @@ async def show(
             no_wrap=True,
             justify="left",
         )
-        for pos, row in enumerate(sorted_rows, 1):
+        for pos, row in enumerate(rows, 1):
             table_row = []
             if delegate_selection:
                 table_row.append(str(pos))
@@ -1251,10 +1255,10 @@ async def show(
                 try:
                     idx = int(selection)
                     if 1 <= idx <= max_rows:
-                        uid = int(sorted_rows[idx - 1][0])
+                        uid = int(rows[idx - 1][0])
                         hotkey = subnet_state.hotkeys[uid]
-                        row_data = sorted_rows[idx - 1]
-                        identity = "" if row_data[7] == "~" else row_data[7]
+                        row_data = rows[idx - 1]
+                        identity = "" if row_data[9] == "~" else row_data[9]
                         identity_str = f" ({identity})" if identity else ""
                         console.print(
                             f"\nSelected delegate: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{hotkey}{identity_str}"
