@@ -648,7 +648,7 @@ async def subnets_list(
 
     # Live mode
     if live:
-        refresh_interval = 15  # seconds
+        refresh_interval = 10  # seconds
 
         progress = Progress(
             TextColumn("[progress.description]{task.description}"),
@@ -996,12 +996,12 @@ async def show(
 
     async def show_subnet(netuid_: int):
         (
-            subnet_info,
+            _subnet_info,
             hex_bytes_result,
             identities,
             old_identities,
         ) = await asyncio.gather(
-            subtensor.get_subnet_dynamic_info(netuid_),
+            subtensor.get_all_subnet_dynamic_info(),
             subtensor.query_runtime_api(
                 runtime_api="SubnetInfoRuntimeApi",
                 method="get_subnet_state",
@@ -1010,7 +1010,8 @@ async def show(
             subtensor.query_all_identities(),
             subtensor.get_delegate_identities(),
         )
-        owner_ss58 = subnet_info.owner if subnet_info else ""
+        subnet_info = _subnet_info[netuid_]
+        owner_ss58 = subnet_info.owner_coldkey if subnet_info else ""
         owner_identity = identities.get(owner_ss58, {}).get(
             "name",
             old_identities.get(owner_ss58).display
