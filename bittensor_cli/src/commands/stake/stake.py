@@ -1293,6 +1293,7 @@ async def unstake_selection(
     console.print("\n", table, "\n")
 
     # Ask which netuids to unstake from for the selected hotkey.
+    unstake_all = False
     if netuid is not None:
         selected_netuids = [netuid]
     else:
@@ -1304,6 +1305,7 @@ async def unstake_selection(
 
             if netuid_input.lower() == "all":
                 selected_netuids = list(netuid_stakes.keys())
+                unstake_all = True
                 break
             else:
                 try:
@@ -1326,7 +1328,7 @@ async def unstake_selection(
         hotkeys_to_unstake_from.append(
             (selected_hotkey_name, selected_hotkey_ss58, netuid_)
         )
-    return hotkeys_to_unstake_from
+    return hotkeys_to_unstake_from, unstake_all
 
 
 def ask_unstake_amount(
@@ -1544,7 +1546,7 @@ async def _unstake_all(
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function=call_function,
-            call_params={},
+            call_params={"hotkey": wallet.hotkey.ss58_address},
         )
         success, error_message = await subtensor.sign_and_send_extrinsic(
             call=call,
@@ -1605,7 +1607,7 @@ async def unstake(
         all_sn_dynamic_info = {info.netuid: info for info in all_sn_dynamic_info_}
 
     if interactive:
-        hotkeys_to_unstake_from = await unstake_selection(
+        hotkeys_to_unstake_from, unstake_all_from_hk = await unstake_selection(
             subtensor,
             wallet,
             all_sn_dynamic_info,
@@ -1706,6 +1708,7 @@ async def unstake(
         )
 
     # Iterate over hotkeys and netuids to collect unstake operations
+    unstake_all_hk_ss58 = None
     for hotkey in hotkeys_to_unstake_from:
         if skip_remaining_subnets:
             break
@@ -1734,10 +1737,11 @@ async def unstake(
                 continue  # No stake to unstake
 
             # Determine the amount we are unstaking.
-            if initial_amount:
-                amount_to_unstake_as_balance = Balance.from_tao(initial_amount)
-            elif unstake_all:
+            if unstake_all_from_hk or unstake_all:
                 amount_to_unstake_as_balance = current_stake_balance
+                unstake_all_hk_ss58 = staking_address_ss58
+            elif initial_amount:
+                amount_to_unstake_as_balance = Balance.from_tao(initial_amount)
             else:
                 amount_to_unstake_as_balance = ask_unstake_amount(
                     current_stake_balance,
@@ -1883,24 +1887,12 @@ The columns are as follows:
         return False
 
     with console.status("\n:satellite: Performing unstaking operations...") as status:
-        for op in unstake_operations:
-            netuid_i = op["netuid"]
-            staking_address_name = op["hotkey_name"]
-            staking_address_ss58 = op["hotkey_ss58"]
-            amount = op["amount_to_unstake"]
-            current_stake_balance = op["current_stake_balance"]
-
-            status.update(
-                f"\n:satellite: Unstaking {amount} from {staking_address_name} on netuid: {netuid_i} ..."
-            )
-
+        if unstake_all_from_hk:
             call = await subtensor.substrate.compose_call(
                 call_module="SubtensorModule",
-                call_function="remove_stake",
+                call_function="unstake_all",
                 call_params={
-                    "hotkey": staking_address_ss58,
-                    "netuid": netuid_i,
-                    "amount_unstaked": amount.rao,
+                    "hotkey": unstake_all_hk_ss58,
                 },
             )
             extrinsic = await subtensor.substrate.create_signed_extrinsic(
@@ -1924,24 +1916,71 @@ The columns are as follows:
                         wallet.coldkeypub.ss58_address
                     )
                     new_balance = new_balance_[wallet.coldkeypub.ss58_address]
-                    new_stake_info = await subtensor.get_stake_info_for_coldkeys(
-                        coldkey_ss58_list=[wallet.coldkeypub.ss58_address],
-                    )
-                    new_stake = Balance.from_rao(0)
-                    for stake_info in new_stake_info[wallet.coldkeypub.ss58_address]:
-                        if (
-                            stake_info.hotkey_ss58 == staking_address_ss58
-                            and stake_info.netuid == netuid_i
-                        ):
-                            new_stake = stake_info.stake.set_unit(netuid_i)
-                            break
                     console.print(
                         f"Balance:\n  [blue]{current_wallet_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
                     )
-                    console.print(
-                        f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid_i}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
-                        f" Stake:\n  [blue]{current_stake_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}"
-                    )
+        else:
+            for op in unstake_operations:
+                netuid_i = op["netuid"]
+                staking_address_name = op["hotkey_name"]
+                staking_address_ss58 = op["hotkey_ss58"]
+                amount = op["amount_to_unstake"]
+                current_stake_balance = op["current_stake_balance"]
+
+                status.update(
+                    f"\n:satellite: Unstaking {amount} from {staking_address_name} on netuid: {netuid_i} ..."
+                )
+
+                call = await subtensor.substrate.compose_call(
+                    call_module="SubtensorModule",
+                    call_function="remove_stake",
+                    call_params={
+                        "hotkey": staking_address_ss58,
+                        "netuid": netuid_i,
+                        "amount_unstaked": amount.rao,
+                    },
+                )
+                extrinsic = await subtensor.substrate.create_signed_extrinsic(
+                    call=call, keypair=wallet.coldkey
+                )
+                response = await subtensor.substrate.submit_extrinsic(
+                    extrinsic, wait_for_inclusion=True, wait_for_finalization=False
+                )
+                if not prompt:
+                    console.print(":white_heavy_check_mark: [green]Sent[/green]")
+                else:
+                    await response.process_events()
+                    if not await response.is_success:
+                        print_error(
+                            f":cross_mark: [red]Failed[/red] with error: "
+                            f"{format_error_message(await response.error_message, subtensor.substrate)}",
+                            status,
+                        )
+                    else:
+                        new_balance_ = await subtensor.get_balance(
+                            wallet.coldkeypub.ss58_address
+                        )
+                        new_balance = new_balance_[wallet.coldkeypub.ss58_address]
+                        new_stake_info = await subtensor.get_stake_info_for_coldkeys(
+                            coldkey_ss58_list=[wallet.coldkeypub.ss58_address],
+                        )
+                        new_stake = Balance.from_rao(0)
+                        for stake_info in new_stake_info[
+                            wallet.coldkeypub.ss58_address
+                        ]:
+                            if (
+                                stake_info.hotkey_ss58 == staking_address_ss58
+                                and stake_info.netuid == netuid_i
+                            ):
+                                new_stake = stake_info.stake.set_unit(netuid_i)
+                                break
+                        console.print(
+                            f"Balance:\n  [blue]{current_wallet_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
+                        )
+                        console.print(
+                            f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid_i}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
+                            f" Stake:\n  [blue]{current_stake_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}"
+                        )
     console.print(
         f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]Unstaking operations completed."
     )
@@ -2074,7 +2113,6 @@ async def stake_list(
             netuid = substake_.netuid
             pool = dynamic_info[netuid]
             symbol = f"{Balance.get_unit(netuid)}\u200e"
-
             # TODO: what is this price var for?
             price = (
                 "{:.4f}{}".format(
@@ -2145,9 +2183,7 @@ async def stake_list(
                     if not verbose
                     else f"{substake_.stake.tao:,.4f}"
                 )
-                subnet_name_cell = (
-                    f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{symbol if netuid != 0 else 'τ'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}] {SUBNETS.get(netuid, '~')}"
-                )
+                subnet_name_cell = f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{symbol if netuid != 0 else 'τ'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}] {SUBNETS.get(netuid, '~')}"
 
                 rows.append(
                     [
