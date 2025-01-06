@@ -876,7 +876,7 @@ class DynamicInfo:
     owner_hotkey: str
     owner_coldkey: str
     subnet_name: str
-    token_symbol: str
+    symbol: str
     tempo: int
     last_step: int
     blocks_since_last_step: int
@@ -918,7 +918,7 @@ class DynamicInfo:
     def fix_decoded_values(cls, decoded: dict) -> "DynamicInfo":
         """Returns a DynamicInfo object from a decoded DynamicInfo dictionary."""
         netuid = int(decoded["netuid"])
-        token_symbol = bytes([int(b) for b in decoded["token_symbol"]]).decode()
+        symbol = bytes([int(b) for b in decoded["token_symbol"]]).decode()
         subnet_name = bytes([int(b) for b in decoded["subnet_name"]]).decode()
         is_dynamic = (
             True if int(decoded["netuid"]) > 0 else False
@@ -963,7 +963,7 @@ class DynamicInfo:
             owner_hotkey=owner_hotkey,
             owner_coldkey=owner_coldkey,
             subnet_name=subnet_name,
-            token_symbol=token_symbol,
+            symbol=symbol,
             tempo=int(decoded["tempo"]),
             last_step=int(decoded["last_step"]),
             blocks_since_last_step=int(decoded["blocks_since_last_step"]),
