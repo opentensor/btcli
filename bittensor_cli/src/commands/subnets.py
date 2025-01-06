@@ -346,7 +346,11 @@ async def subnets_list(
             )
             market_cap_cell = f"τ {market_cap_value}"
             supply_cell = f"{supply_value} {symbol} [#806DAF]/21M"
-            tempo_cell = f"{subnet.blocks_since_last_step}/{subnet.tempo}"
+
+            if netuid != 0:
+                tempo_cell = f"{subnet.blocks_since_last_step}/{subnet.tempo}"
+            else:
+                tempo_cell = "[red]N/A[/red]"
 
             rows.append(
                 (
@@ -598,7 +602,9 @@ async def subnets_list(
             else:
                 block_change_text = ""
             tempo_cell = (
-                f"{subnet.blocks_since_last_step}/{subnet.tempo}{block_change_text}"
+                (f"{subnet.blocks_since_last_step}/{subnet.tempo}{block_change_text}")
+                if netuid != 0
+                else "[red]N/A[/red]"
             )
 
             rows.append(
