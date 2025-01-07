@@ -29,6 +29,7 @@ from bittensor_cli.src.bittensor.utils import (
     format_error_message,
     group_subnets,
     millify_tao,
+    get_subnet_name,
 )
 
 if TYPE_CHECKING:
@@ -2180,7 +2181,7 @@ async def stake_list(
                     if not verbose
                     else f"{substake_.stake.tao:,.4f}"
                 )
-                subnet_name_cell = f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{symbol if netuid != 0 else 'τ'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}] {SUBNETS.get(netuid, '~')}"
+                subnet_name_cell = f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{symbol if netuid != 0 else 'τ'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}] {get_subnet_name(dynamic_info[netuid])}"
 
                 rows.append(
                     [
@@ -2371,7 +2372,7 @@ async def stake_list(
             )
             subnet_name_cell = (
                 f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{symbol if netuid != 0 else 'τ'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
-                f" {SUBNETS.get(netuid, '~')}"
+                f" {get_subnet_name(dynamic_info[netuid])}"
             )
 
             rows.append(

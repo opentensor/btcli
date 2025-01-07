@@ -494,6 +494,8 @@ async def get_hyperparameters(subtensor: "SubtensorInterface", netuid: int):
         print_error(f"Subnet with netuid {netuid} does not exist.")
         return False
     subnet = await subtensor.get_subnet_hyperparameters(netuid)
+    _subnet_info = await subtensor.get_all_subnet_dynamic_info()
+    subnet_info = _subnet_info[netuid]
 
     table = Table(
         Column("[white]HYPERPARAMETER", style=COLOR_PALETTE['SUDO']['HYPERPARAMETER']),
@@ -501,7 +503,7 @@ async def get_hyperparameters(subtensor: "SubtensorInterface", netuid: int):
         Column("[white]NORMALIZED", style=COLOR_PALETTE['SUDO']['NORMALIZED']),
         title=f"[{COLOR_PALETTE['GENERAL']['HEADER']}]\nSubnet Hyperparameters\n NETUID: "
         f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid}"
-        f"{f' ({SUBNETS.get(netuid)})' if SUBNETS.get(netuid) else ''}"
+        f"{f' ({subnet_info.subnet_name})' if subnet_info.subnet_name is not None else ''}"
         f"[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
         f" - Network: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{subtensor.network}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]\n",
         show_footer=True,

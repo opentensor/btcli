@@ -38,6 +38,7 @@ from bittensor_cli.src.bittensor.utils import (
     render_table,
     update_metadata_table,
     prompt_for_identity,
+    get_subnet_name,
 )
 
 if TYPE_CHECKING:
@@ -357,7 +358,7 @@ async def subnets_list(
             netuid_cell = str(netuid)
             subnet_name_cell = (
                 f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{subnet.symbol if netuid != 0 else 'τ'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
-                f" {SUBNETS.get(netuid, '~')}"
+                f" {get_subnet_name(subnet)}"
             )
             emission_cell = f"τ {emission_tao:,.4f}"
             price_cell = f"{price_value} τ/{symbol}"
@@ -546,7 +547,7 @@ async def subnets_list(
             netuid_cell = str(netuid)
             subnet_name_cell = (
                 f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{subnet.symbol if netuid != 0 else 'τ'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
-                f" {SUBNETS.get(netuid, '~')}"
+                f" {get_subnet_name(subnet)}"
             )
             emission_cell = format_cell(
                 emission_tao,
@@ -1063,7 +1064,7 @@ async def show(
         # Define table properties
         table = Table(
             title=f"[{COLOR_PALETTE['GENERAL']['HEADER']}]Subnet [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid_}"
-            f"{': ' + SUBNETS.get(netuid_, '') if SUBNETS.get(netuid_) else ''}"
+            f"{': ' + get_subnet_name(subnet_info)}"
             f"\nNetwork: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{subtensor.network}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]\n",
             show_footer=True,
             show_edge=False,
@@ -1233,8 +1234,7 @@ async def show(
         console.print("\n")
 
         if not delegate_selection:
-            subnet_name = SUBNETS.get(netuid_, "")
-            subnet_name_display = f": {subnet_name}" if subnet_name else ""
+            subnet_name_display = f": {get_subnet_name(subnet_info)}" 
             tao_pool = (
                 f"{millify_tao(subnet_info.tao_in.tao)}"
                 if not verbose

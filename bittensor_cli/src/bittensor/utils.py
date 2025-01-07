@@ -1212,3 +1212,21 @@ def is_valid_contact(contact: str) -> bool:
     """
     email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
     return bool(re.match(email_pattern, contact))
+
+
+def get_subnet_name(subnet_info) -> str:
+    """Get the subnet name, prioritizing subnet_identity.subnet_name over subnet.subnet_name.
+    
+    Args:
+        subnet: The subnet dynamic info
+        
+    Returns:
+        str: The subnet name or empty string if no name is found
+    """
+    return (
+        subnet_info.subnet_identity.subnet_name
+        if hasattr(subnet_info, 'subnet_identity') 
+        and subnet_info.subnet_identity is not None 
+        and subnet_info.subnet_identity.subnet_name is not None
+        else (subnet_info.subnet_name if subnet_info.subnet_name is not None else "")
+    )
