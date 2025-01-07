@@ -917,6 +917,7 @@ class DynamicInfo:
     @classmethod
     def fix_decoded_values(cls, decoded: dict) -> "DynamicInfo":
         """Returns a DynamicInfo object from a decoded DynamicInfo dictionary."""
+
         netuid = int(decoded["netuid"])
         symbol = bytes([int(b) for b in decoded["token_symbol"]]).decode()
         subnet_name = bytes([int(b) for b in decoded["subnet_name"]]).decode()
@@ -952,11 +953,14 @@ class DynamicInfo:
             else Balance.from_tao(1)
         )  # TODO: Patching this temporarily for netuid 0
 
-        subnet_identity = (
-            SubnetIdentity.from_vec_u8(decoded["subnet_identity"])
-            if decoded.get("subnet_identity")
-            else None
-        )
+        if decoded.get("subnet_identity"):
+            subnet_identity = SubnetIdentity(
+                subnet_name=decoded["subnet_identity"]["subnet_name"],
+                github_repo=decoded["subnet_identity"]["github_repo"],
+                subnet_contact=decoded["subnet_identity"]["subnet_contact"],
+            )
+        else:
+            subnet_identity = None
 
         return cls(
             netuid=netuid,
