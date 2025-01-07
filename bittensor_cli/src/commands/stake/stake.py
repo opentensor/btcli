@@ -1201,7 +1201,7 @@ async def unstake_selection(
             print_error(f"You have no stakes to unstake in subnet {netuid}.")
         else:
             print_error("You have no stakes to unstake.")
-        return
+        raise typer.Exit()
 
     hotkeys_info = []
     for idx, (hotkey_ss58, netuid_stakes) in enumerate(hotkey_stakes.items()):
