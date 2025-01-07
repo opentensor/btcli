@@ -1064,7 +1064,7 @@ async def show(
         )
         tao_sum = Balance(0)
         relative_emissions_sum = 0
-        owner_hotkeys = await subtensor.get_owned_hotkeys(subnet_info.owner)
+        owner_hotkeys = await subtensor.get_owned_hotkeys(subnet_info.owner_coldkey)
 
         sorted_indices = sorted(
             range(len(subnet_state.hotkeys)),
@@ -1093,7 +1093,7 @@ async def show(
             )
 
             if (
-                subnet_state.coldkeys[idx] == subnet_info.owner
+                subnet_state.coldkeys[idx] == subnet_info.owner_coldkey
                 or subnet_state.hotkeys[idx] in owner_hotkeys
             ):
                 uid_identity = (
@@ -1114,7 +1114,7 @@ async def show(
                     else f"τ {millify_tao(subnet_state.tao_stake[idx])}",  # Tao Stake
                     # str(subnet_state.dividends[idx]),
                     f"{Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao:.5f}",  # Dividends
-                    str(subnet_state.incentives[idx]),  # Incentive
+                    f"{subnet_state.incentives[idx]:.4f}",  # Incentive
                     # f"{Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao:.5f}",  # Emissions relative
                     f"{Balance.from_tao(subnet_state.emission[idx].tao).set_unit(netuid_).tao:.5f} {subnet_info.symbol}",  # Emissions
                     f"{subnet_state.hotkeys[idx][:6]}"
@@ -1224,7 +1224,7 @@ async def show(
 
             console.print(
                 f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]Subnet {netuid_}{subnet_name_display}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
-                f"\n  Owner: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{subnet_info.owner}{' (' + owner_identity + ')' if owner_identity else ''}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]"
+                f"\n  Owner: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{subnet_info.owner_coldkey}{' (' + owner_identity + ')' if owner_identity else ''}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]"
                 f"\n  Rate: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{subnet_info.price.tao:.4f} τ/{subnet_info.symbol}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
                 f"\n  Emission: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]τ {subnet_info.emission.tao:,.4f}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
                 f"\n  TAO Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]τ {tao_pool}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
