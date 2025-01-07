@@ -366,11 +366,12 @@ async def subnets_list(
                 )
             )
 
-        total_emissions = sum(
-            float(subnet.emission.tao) for subnet in subnets if subnet.netuid != 0
+        total_emissions = round(
+            sum(float(subnet.emission.tao) for subnet in subnets if subnet.netuid != 0),
+            4,
         )
-        total_rate = sum(
-            float(subnet.price.tao) for subnet in subnets if subnet.netuid != 0
+        total_rate = round(
+            sum(float(subnet.price.tao) for subnet in subnets if subnet.netuid != 0), 4
         )
         total_netuids = len(subnets)
         table = define_table(
