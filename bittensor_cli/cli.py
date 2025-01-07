@@ -3608,13 +3608,17 @@ class CLIManager:
         wallet_hotkey: str = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
         subnet_name: Optional[str] = typer.Option(
-            None, "--subnet-name", help="Name of the subnet"
+            None, "--subnet-name", "--name", help="Name of the subnet"
         ),
         github_repo: Optional[str] = typer.Option(
-            None, "--github-repo", help="GitHub repository URL"
+            None, "--github-repo", "--repo", help="GitHub repository URL"
         ),
         subnet_contact: Optional[str] = typer.Option(
-            None, "--subnet-contact", help="Contact email for subnet"
+            None,
+            "--subnet-contact",
+            "--contact",
+            "--email",
+            help="Contact email for subnet",
         ),
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
