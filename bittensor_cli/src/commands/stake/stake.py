@@ -929,18 +929,14 @@ async def stake_add(
         hotkeys_to_stake_to = [(None, hotkey_ss58_or_name)]
 
     starting_chain_head = await subtensor.substrate.get_chain_head()
-    all_dynamic_info, stake_info_dict = await asyncio.gather(
-        asyncio.gather(
-            *[
-                subtensor.get_subnet_dynamic_info(x, starting_chain_head)
-                for x in netuids
-            ]
-        ),
+    _all_dynamic_info, stake_info_dict = await asyncio.gather(
+        subtensor.get_all_subnet_dynamic_info(),
         subtensor.get_stake_info_for_coldkeys(
             coldkey_ss58_list=[wallet.coldkeypub.ss58_address],
             block_hash=starting_chain_head,
         ),
     )
+    all_dynamic_info = {di.netuid: di for di in _all_dynamic_info}
     initial_stake_balances = {}
     for hotkey_ss58 in [x[1] for x in hotkeys_to_stake_to]:
         initial_stake_balances[hotkey_ss58] = {}
@@ -960,8 +956,9 @@ async def stake_add(
             )
             return False
     for hotkey in hotkeys_to_stake_to:
-        for netuid, dynamic_info in zip(netuids, all_dynamic_info):
+        for netuid in netuids:
             # Check that the subnet exists.
+            dynamic_info = all_dynamic_info.get(netuid)
             if not dynamic_info:
                 err_console.print(f"Subnet with netuid: {netuid} does not exist.")
                 continue

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable
 from urllib.parse import urlparse
 from functools import partial
+import re
 
 from bittensor_wallet import Wallet, Keypair
 from bittensor_wallet.utils import SS58_FORMAT
@@ -1112,3 +1113,102 @@ def prompt_for_identity(
             )
 
     return identity_fields
+
+
+def prompt_for_subnet_identity(
+    subnet_name: Optional[str],
+    github_repo: Optional[str],
+    subnet_contact: Optional[str],
+):
+    """
+    Prompts the user for required subnet identity fields with validation.
+    Returns a dictionary with the updated fields.
+
+    Args:
+        subnet_name (Optional[str]): Name of the subnet
+        github_repo (Optional[str]): GitHub repository URL
+        subnet_contact (Optional[str]): Contact information for subnet (email)
+
+    Returns:
+        dict: Dictionary containing the subnet identity fields
+    """
+    identity_fields = {}
+
+    fields = [
+        (
+            "subnet_name",
+            "[blue]Subnet name [dim](optional)[/blue]",
+            subnet_name,
+            lambda x: x and sys.getsizeof(x) > 113,
+            "[red]Error:[/red] Subnet name must be <= 64 raw bytes.",
+        ),
+        (
+            "github_repo",
+            "[blue]GitHub repository URL [dim](optional)[/blue]",
+            github_repo,
+            lambda x: x and not is_valid_github_url(x),
+            "[red]Error:[/red] Please enter a valid GitHub repository URL (e.g., https://github.com/username/repo).",
+        ),
+        (
+            "subnet_contact",
+            "[blue]Contact email [dim](optional)[/blue]",
+            subnet_contact,
+            lambda x: x and not is_valid_contact(x),
+            "[red]Error:[/red] Please enter a valid email address.",
+        ),
+    ]
+
+    for key, prompt, value, rejection_func, rejection_msg in fields:
+        if value:
+            if rejection_func(value):
+                raise ValueError(rejection_msg)
+            identity_fields[key] = value
+        else:
+            identity_fields[key] = retry_prompt(
+                prompt,
+                rejection=rejection_func,
+                rejection_text=rejection_msg,
+                default=None,  # Maybe we can add some defaults later
+                show_default=True,
+            )
+
+    return identity_fields
+
+
+def is_valid_github_url(url: str) -> bool:
+    """
+    Validates if the provided URL is a valid GitHub repository URL.
+
+    Args:
+        url (str): URL to validate
+
+    Returns:
+        bool: True if valid GitHub repo URL, False otherwise
+    """
+    try:
+        parsed = urlparse(url)
+        if parsed.netloc != "github.com":
+            return False
+
+        # Check path follows github.com/user/repo format
+        path_parts = [p for p in parsed.path.split("/") if p]
+        if len(path_parts) < 2:  # Need at least username/repo
+            return False
+
+        return True
+    except:
+        return False
+
+
+def is_valid_contact(contact: str) -> bool:
+    """
+    Validates if the provided contact is a valid email address.
+
+    Args:
+        contact (str): Contact information to validate
+
+    Returns:
+        bool: True if valid email, False otherwise
+    """
+    email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+    return bool(re.match(email_pattern, contact))

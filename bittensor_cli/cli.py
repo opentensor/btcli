@@ -47,6 +47,7 @@ from bittensor_cli.src.bittensor.utils import (
     get_effective_network,
     prompt_for_identity,
     validate_uri,
+    prompt_for_subnet_identity,
 )
 from typing_extensions import Annotated
 from textwrap import dedent
@@ -3606,6 +3607,15 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
+        subnet_name: Optional[str] = typer.Option(
+            None, "--subnet-name", help="Name of the subnet"
+        ),
+        github_repo: Optional[str] = typer.Option(
+            None, "--github-repo", help="GitHub repository URL"
+        ),
+        subnet_contact: Optional[str] = typer.Option(
+            None, "--subnet-contact", help="Contact email for subnet"
+        ),
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3627,8 +3637,13 @@ class CLIManager:
             ],
             validate=WV.WALLET,
         )
+        identity = prompt_for_subnet_identity(
+            subnet_name=subnet_name,
+            github_repo=github_repo,
+            subnet_contact=subnet_contact,
+        )
         success = self._run_command(
-            subnets.create(wallet, self.initialize_chain(network), prompt)
+            subnets.create(wallet, self.initialize_chain(network), identity, prompt)
         )
 
         if success and prompt:

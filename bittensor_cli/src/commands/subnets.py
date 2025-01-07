@@ -50,6 +50,7 @@ if TYPE_CHECKING:
 async def register_subnetwork_extrinsic(
     subtensor: "SubtensorInterface",
     wallet: Wallet,
+    subnet_identity: dict,
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = True,
     prompt: bool = False,
@@ -112,6 +113,22 @@ async def register_subnetwork_extrinsic(
         ):
             return False
 
+    has_identity = any(subnet_identity.values())
+    if has_identity:
+        identity_data = {
+            "subnet_name": subnet_identity["subnet_name"].encode(),
+            "github_repo": subnet_identity["github_repo"].encode(),
+            "subnet_contact": subnet_identity["subnet_contact"].encode(),
+        }
+        for field, value in identity_data.items():
+            max_size = 64  # bytes
+            if len(value) > max_size:
+                err_console.print(
+                    f"[red]Error:[/red] Identity field [white]{field}[/white] must be <= {max_size} bytes.\n"
+                    f"Value '{value.decode()}' is {len(value)} bytes."
+                )
+                return False
+
     try:
         wallet.unlock_coldkey()
     except KeyFileError:
@@ -119,15 +136,21 @@ async def register_subnetwork_extrinsic(
         return False
 
     with console.status(":satellite: Registering subnet...", spinner="earth"):
+        call_params = {
+            "hotkey": wallet.hotkey.ss58_address,
+            "mechid": 1,
+        }
+        call_function = "register_network"
+        if has_identity:
+            call_params["identity"] = identity_data
+            call_function = "register_network_with_identity"
+
         substrate = subtensor.substrate
         # create extrinsic call
         call = await substrate.compose_call(
             call_module="SubtensorModule",
-            call_function="register_network",
-            call_params={
-                "hotkey": wallet.hotkey.ss58_address,
-                "mechid": 1,
-            },
+            call_function=call_function,
+            call_params=call_params,
         )
         extrinsic = await substrate.create_signed_extrinsic(
             call=call, keypair=wallet.coldkey
@@ -1311,15 +1334,19 @@ async def burn_cost(subtensor: "SubtensorInterface") -> Optional[Balance]:
         return None
 
 
-async def create(wallet: Wallet, subtensor: "SubtensorInterface", prompt: bool):
+async def create(
+    wallet: Wallet, subtensor: "SubtensorInterface", subnet_identity: dict, prompt: bool
+):
     """Register a subnetwork"""
 
     # Call register command.
-    success = await register_subnetwork_extrinsic(subtensor, wallet, prompt=prompt)
+    success = await register_subnetwork_extrinsic(
+        subtensor, wallet, subnet_identity, prompt=prompt
+    )
     if success and prompt:
         # Prompt for user to set identity.
         do_set_identity = Confirm.ask(
-            "Would you like to set your [blue]identity?[/blue]"
+            "Would you like to set your own [blue]identity?[/blue]"
         )
 
         if do_set_identity:
