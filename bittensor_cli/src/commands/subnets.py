@@ -374,7 +374,7 @@ async def subnets_list(
             if netuid != 0:
                 tempo_cell = f"{subnet.blocks_since_last_step}/{subnet.tempo}"
             else:
-                tempo_cell = "[red]N/A[/red]"
+                tempo_cell = "-/-"
 
             rows.append(
                 (
@@ -829,6 +829,10 @@ async def show(
             )
             return
 
+        tao_sum = sum(
+            [root_state.tao_stake[idx].tao for idx in range(len(root_state.tao_stake))]
+        )
+
         table = Table(
             title=f"[{COLOR_PALETTE['GENERAL']['HEADER']}]Root Network\n[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]Network: {subtensor.network}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]\n",
             show_footer=True,
@@ -842,23 +846,24 @@ async def show(
         )
 
         table.add_column("[bold white]Position", style="white", justify="center")
-        table.add_column(
-            f"[bold white]Total Stake ({Balance.get_unit(0)})",
-            style=COLOR_PALETTE["POOLS"]["ALPHA_IN"],
-            justify="center",
-        )
+        # table.add_column(
+        #     f"[bold white]Total Stake ({Balance.get_unit(0)})",
+        #     style=COLOR_PALETTE["POOLS"]["ALPHA_IN"],
+        #     justify="center",
+        # )
         # ------- Temporary columns for testing -------
-        table.add_column(
-            "Alpha (τ)",
-            style=COLOR_PALETTE["POOLS"]["EXTRA_2"],
-            no_wrap=True,
-            justify="right",
-        )
+        # table.add_column(
+        #     "Alpha (τ)",
+        #     style=COLOR_PALETTE["POOLS"]["EXTRA_2"],
+        #     no_wrap=True,
+        #     justify="right",
+        # )
         table.add_column(
             "Tao (τ)",
             style=COLOR_PALETTE["POOLS"]["EXTRA_2"],
             no_wrap=True,
             justify="right",
+            footer=f"{tao_sum:.4f} τ" if verbose else f"{millify_tao(tao_sum)} τ",
         )
         # ------- End Temporary columns for testing -------
         table.add_column(
@@ -884,7 +889,7 @@ async def show(
 
         sorted_hotkeys = sorted(
             enumerate(root_state.hotkeys),
-            key=lambda x: root_state.total_stake[x[0]],
+            key=lambda x: root_state.tao_stake[x[0]],
             reverse=True,
         )
         sorted_rows = []
@@ -914,12 +919,12 @@ async def show(
             sorted_rows.append(
                 (
                     str((pos + 1)),  # Position
-                    f"τ {millify_tao(root_state.total_stake[idx].tao)}"
-                    if not verbose
-                    else f"{root_state.total_stake[idx]}",  # Total Stake
-                    f"τ {root_state.alpha_stake[idx].tao:.4f}"
-                    if verbose
-                    else f"τ {millify_tao(root_state.alpha_stake[idx])}",  # Alpha Stake
+                    # f"τ {millify_tao(root_state.total_stake[idx].tao)}"
+                    # if not verbose
+                    # else f"{root_state.total_stake[idx]}",  # Total Stake
+                    # f"τ {root_state.alpha_stake[idx].tao:.4f}"
+                    # if verbose
+                    # else f"τ {millify_tao(root_state.alpha_stake[idx])}",  # Alpha Stake
                     f"τ {root_state.tao_stake[idx].tao:.4f}"
                     if verbose
                     else f"τ {millify_tao(root_state.tao_stake[idx])}",  # Tao Stake
@@ -953,11 +958,6 @@ async def show(
                 if not verbose
                 else f"{root_info.tao_in.tao:,.4f}"
             )
-            alpha_pool = (
-                f"{millify_tao(root_info.alpha_in.tao)}"
-                if not verbose
-                else f"{root_info.alpha_in.tao:,.4f}"
-            )
             stake = (
                 f"{millify_tao(root_info.alpha_out.tao)}"
                 if not verbose
@@ -970,11 +970,10 @@ async def show(
             )
             console.print(
                 f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]Root Network (Subnet 0)[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
-                f"\n  Rate: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{rate} τ/{root_info.symbol}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
-                f"\n  Emission: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{root_info.symbol} 0[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
-                f"\n  TAO Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{root_info.symbol} {tao_pool}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
-                f"\n  Alpha Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{root_info.symbol} {alpha_pool}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
-                f"\n  Stake: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{root_info.symbol} {stake}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
+                f"\n  Rate: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{rate} τ/τ[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
+                f"\n  Emission: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]τ 0[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
+                f"\n  TAO Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]τ {tao_pool}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
+                f"\n  Stake: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]τ {stake}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
                 f"\n  Tempo: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{root_info.blocks_since_last_step}/{root_info.tempo}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
             )
             console.print(
@@ -1020,6 +1019,9 @@ async def show(
                     console.print("[red]Please enter a valid number[/red]")
 
     async def show_subnet(netuid_: int):
+        if not await subtensor.subnet_exists(netuid=netuid):
+            err_console.print(f"[red]Subnet {netuid} does not exist[/red]")
+            raise typer.Exit()
         (
             _subnet_info,
             hex_bytes_result,
@@ -1036,13 +1038,6 @@ async def show(
             subtensor.get_delegate_identities(),
         )
         subnet_info = _subnet_info[netuid_]
-        owner_ss58 = subnet_info.owner_coldkey if subnet_info else ""
-        owner_identity = identities.get(owner_ss58, {}).get(
-            "name",
-            old_identities.get(owner_ss58).display
-            if old_identities.get(owner_ss58)
-            else "",
-        )
 
         if (bytes_result := hex_bytes_result) is None:
             err_console.print(f"Subnet {netuid_} does not exist")
@@ -1080,23 +1075,60 @@ async def show(
         if delegate_selection:
             table.add_column("#", style="cyan", justify="right")
 
-        rows = []
+        # For hotkey_block_emission calculation
         emission_sum = sum(
             [
                 subnet_state.emission[idx].tao
                 for idx in range(len(subnet_state.emission))
             ]
         )
-        tao_sum = Balance(0)
+
+        # For table footers
+        alpha_sum = sum(
+            [
+                subnet_state.alpha_stake[idx].tao
+                for idx in range(len(subnet_state.alpha_stake))
+            ]
+        )
+        stake_sum = sum(
+            [
+                subnet_state.total_stake[idx].tao
+                for idx in range(len(subnet_state.total_stake))
+            ]
+        )
+        tao_sum = sum(
+            [
+                subnet_state.tao_stake[idx].tao
+                for idx in range(len(subnet_state.tao_stake))
+            ]
+        )
         relative_emissions_sum = 0
         owner_hotkeys = await subtensor.get_owned_hotkeys(subnet_info.owner_coldkey)
+        if subnet_info.owner_hotkey not in owner_hotkeys:
+            owner_hotkeys.append(subnet_info.owner_hotkey)
+
+        owner_identity = identities.get(subnet_info.owner_coldkey, {}).get("name", "")
+        if not owner_identity:
+            # If no coldkey identity found, try each owner hotkey
+            for hotkey in owner_hotkeys:
+                if hotkey_identity := old_identities.get(hotkey):
+                    owner_identity = hotkey_identity.display
+                    break
 
         sorted_indices = sorted(
             range(len(subnet_state.hotkeys)),
-            key=lambda i: subnet_state.total_stake[i].tao,
-            reverse=True,
+            key=lambda i: (
+                # Sort by owner status first
+                not (
+                    subnet_state.coldkeys[i] == subnet_info.owner_coldkey
+                    or subnet_state.hotkeys[i] in owner_hotkeys
+                ),
+                # Then sort by stake amount (higher stakes first)
+                -subnet_state.total_stake[i].tao,
+            ),
         )
 
+        rows = []
         for idx in sorted_indices:
             hotkey_block_emission = (
                 subnet_state.emission[idx].tao / emission_sum
@@ -1104,7 +1136,6 @@ async def show(
                 else 0
             )
             relative_emissions_sum += hotkey_block_emission
-            tao_sum += subnet_state.total_stake[idx]
 
             # Get identity for this uid
             coldkey_identity = identities.get(subnet_state.coldkeys[idx], {}).get(
@@ -1121,9 +1152,14 @@ async def show(
                 subnet_state.coldkeys[idx] == subnet_info.owner_coldkey
                 or subnet_state.hotkeys[idx] in owner_hotkeys
             ):
-                uid_identity = (
-                    f"[dark_sea_green3]{uid_identity} (*Owner)[/dark_sea_green3]"
-                )
+                if uid_identity == "~":
+                    uid_identity = (
+                        f"[dark_sea_green3](*Owner controlled)[/dark_sea_green3]"
+                    )
+                else:
+                    uid_identity = (
+                        f"[dark_sea_green3]{uid_identity} (*Owner)[/dark_sea_green3]"
+                    )
 
             rows.append(
                 (
@@ -1159,9 +1195,9 @@ async def show(
             style=COLOR_PALETTE["POOLS"]["ALPHA_IN"],
             no_wrap=True,
             justify="right",
-            footer=f"{tao_sum.set_unit(subnet_info.netuid)}"
+            footer=f"{stake_sum:.4f} {subnet_info.symbol}"
             if verbose
-            else f"{millify_tao(tao_sum.tao)} {subnet_info.symbol}",
+            else f"{millify_tao(stake_sum)} {subnet_info.symbol}",
         )
         # ------- Temporary columns for testing -------
         table.add_column(
@@ -1169,12 +1205,18 @@ async def show(
             style=COLOR_PALETTE["POOLS"]["EXTRA_2"],
             no_wrap=True,
             justify="right",
+            footer=f"{alpha_sum:.4f} {subnet_info.symbol}"
+            if verbose
+            else f"{millify_tao(alpha_sum)} {subnet_info.symbol}",
         )
         table.add_column(
-            f"Tao (τ)",
+            "Tao (τ)",
             style=COLOR_PALETTE["POOLS"]["EXTRA_2"],
             no_wrap=True,
             justify="right",
+            footer=f"{tao_sum:.4f} {subnet_info.symbol}"
+            if verbose
+            else f"{millify_tao(tao_sum)} {subnet_info.symbol}",
         )
         # ------- End Temporary columns for testing -------
         table.add_column(
@@ -1234,7 +1276,7 @@ async def show(
         console.print("\n")
 
         if not delegate_selection:
-            subnet_name_display = f": {get_subnet_name(subnet_info)}" 
+            subnet_name_display = f": {get_subnet_name(subnet_info)}"
             tao_pool = (
                 f"{millify_tao(subnet_info.tao_in.tao)}"
                 if not verbose
