@@ -2409,6 +2409,7 @@ async def stake_list(
         registered_delegate_info,
         dynamic_info,
     ) = await get_stake_data()
+    balance = await subtensor.get_balance(coldkey_address)
 
     # Iterate over substakes and aggregate them by hotkey.
     hotkeys_to_substakes: dict[str, list[StakeInfo]] = {}
@@ -2539,7 +2540,6 @@ async def stake_list(
                 console.print("\nPress Enter to continue to the next hotkey...")
                 input()
 
-        balance = await subtensor.get_balance(coldkey_address)
         total_tao_value = (
             f"τ {millify_tao(all_hotkeys_total_tao_value.tao)}"
             if not verbose
