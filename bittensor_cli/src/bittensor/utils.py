@@ -1015,7 +1015,7 @@ def validate_netuid(value: int) -> int:
 
 def validate_uri(uri: str) -> str:
     if not uri:
-        raise ValueError("URI cannot be empty")
+        return None
     clean_uri = uri.lstrip("/").lower()
     if not clean_uri.isalnum():
         raise typer.BadParameter(
