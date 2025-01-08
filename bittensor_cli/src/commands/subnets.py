@@ -629,7 +629,7 @@ async def subnets_list(
             tempo_cell = (
                 (f"{subnet.blocks_since_last_step}/{subnet.tempo}{block_change_text}")
                 if netuid != 0
-                else "[red]N/A[/red]"
+                else "-/-"
             )
 
             rows.append(
