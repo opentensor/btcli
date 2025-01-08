@@ -44,6 +44,7 @@ from bittensor_cli.src.bittensor.utils import (
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 
+TAO_WEIGHT = 0.018
 
 # helpers and extrinsics
 
@@ -1098,7 +1099,7 @@ async def show(
         )
         tao_sum = sum(
             [
-                subnet_state.tao_stake[idx].tao
+                subnet_state.tao_stake[idx].tao * TAO_WEIGHT
                 for idx in range(len(subnet_state.tao_stake))
             ]
         )
@@ -1161,6 +1162,8 @@ async def show(
                         f"[dark_sea_green3]{uid_identity} (*Owner)[/dark_sea_green3]"
                     )
 
+            # Modify tao stake with TAO_WEIGHT
+            tao_stake = subnet_state.tao_stake[idx] * TAO_WEIGHT
             rows.append(
                 (
                     str(idx),  # UID
@@ -1170,9 +1173,7 @@ async def show(
                     f"{subnet_state.alpha_stake[idx].tao:.4f} {subnet_info.symbol}"
                     if verbose
                     else f"{millify_tao(subnet_state.alpha_stake[idx])} {subnet_info.symbol}",  # Alpha Stake
-                    f"τ {subnet_state.tao_stake[idx].tao:.4f}"
-                    if verbose
-                    else f"τ {millify_tao(subnet_state.tao_stake[idx])}",  # Tao Stake
+                    f"τ {tao_stake.tao:.4f}" if verbose else f"τ {millify_tao(tao_stake)}",  # Tao Stake
                     # str(subnet_state.dividends[idx]),
                     f"{Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao:.5f}",  # Dividends
                     f"{subnet_state.incentives[idx]:.4f}",  # Incentive

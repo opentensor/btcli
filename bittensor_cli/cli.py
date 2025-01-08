@@ -748,7 +748,7 @@ class CLIManager:
         )(self.subnets_register)
         self.subnets_app.command(
             "metagraph", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"], hidden=True
-        )(self.subnets_metagraph)
+        )(self.subnets_show) #Aliased to `s show` for now
         self.subnets_app.command(
             "show", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
         )(self.subnets_show)
