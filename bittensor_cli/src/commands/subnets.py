@@ -1004,7 +1004,7 @@ async def show(
                     if 1 <= idx <= max_rows:
                         selected_hotkey = sorted_hks_delegation[idx - 1]
                         row_data = sorted_rows[idx - 1]
-                        identity = "" if row_data[7] == "~" else row_data[7]
+                        identity = "" if row_data[5] == "~" else row_data[5]
                         identity_str = f" ({identity})" if identity else ""
                         console.print(
                             f"\nSelected delegate: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{selected_hotkey}{identity_str}"
