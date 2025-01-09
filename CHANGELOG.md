@@ -1,5 +1,10 @@
 # Changelog
 
+## 8.2.0rc9 /2025-01-09
+
+## What's Changed
+* Updates delegate selection
+
 ## 8.2.0rc8 /2025-01-09
 
 ## What's Changed
