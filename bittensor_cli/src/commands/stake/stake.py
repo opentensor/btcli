@@ -1206,14 +1206,14 @@ async def unstake_selection(
 
     hotkeys_info = []
     for idx, (hotkey_ss58, netuid_stakes) in enumerate(hotkey_stakes.items()):
-        identity = identities["hotkeys"].get(hotkey_ss58) or old_identities.get(
-            hotkey_ss58
-        )
-        hotkey_name = "~"
-        if identity:
-            hotkey_name = identity.get("identity", {}).get("name", "") or identity.get(
-                "display", "~"
-            )
+        if hk_identity := identities["hotkeys"].get(hotkey_ss58):
+            hotkey_name = hk_identity.get("identity", {}).get(
+                "name", ""
+            ) or hk_identity.get("display", "~")
+        elif old_identity := old_identities.get(hotkey_ss58):
+            hotkey_name = old_identity.display
+        else:
+            hotkey_name = "~"
         # TODO: Add wallet ids here.
 
         hotkeys_info.append(
@@ -1479,15 +1479,16 @@ async def _unstake_all(
             total_received_value += received_amount
 
             # Get hotkey identity
-            identity = ck_hk_identities["hotkeys"].get(
-                stake.hotkey_ss58
-            ) or old_identities.get(stake.hotkey_ss58)
-            hotkey_display = stake.hotkey_ss58
-            if identity:
-                hotkey_name = identity.get("identity", {}).get(
+            if hk_identity := ck_hk_identities["hotkeys"].get(stake.hotkey_ss58):
+                hotkey_name = hk_identity.get("identity", {}).get(
                     "name", ""
-                ) or identity.get("display", "~")
+                ) or hk_identity.get("display", "~")
                 hotkey_display = f"{hotkey_name}"
+            elif old_identity := old_identities.get(stake.hotkey_ss58):
+                hotkey_name = old_identity.display
+                hotkey_display = f"{hotkey_name}"
+            else:
+                hotkey_display = stake.hotkey_ss58
 
             if dynamic_info.is_dynamic:
                 slippage_pct_float = (
