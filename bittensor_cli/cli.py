@@ -2728,12 +2728,14 @@ class CLIManager:
             False,
             "--unstake-all",
             "--all",
+            hidden=True,
             help="When set, this command unstakes all staked TAO + Alpha from the all hotkeys.",
         ),
         unstake_all_alpha: bool = typer.Option(
             False,
             "--unstake-all-alpha",
             "--all-alpha",
+            hidden=True,
             help="When set, this command unstakes all staked Alpha from the all hotkeys.",
         ),
         amount: float = typer.Option(
@@ -2789,6 +2791,9 @@ class CLIManager:
         [blue bold]Note[/blue bold]: This command is for users who wish to reallocate their stake or withdraw them from the network. It allows for flexible management of TAO stake across different neurons (hotkeys) on the network.
         """
         self.verbosity_handler(quiet, verbose)
+        # TODO: Coldkey related unstakes need to be updated. Patching for now. 
+        unstake_all_alpha = False
+        unstake_all = False
 
         if interactive and any(
             [hotkey_ss58_address, include_hotkeys, exclude_hotkeys, all_hotkeys]
