@@ -1185,7 +1185,7 @@ async def unstake_selection(
 
     if not stake_infos:
         print_error("You have no stakes to unstake.")
-        return
+        raise typer.Exit()
 
     hotkey_stakes = {}
     for stake_info in stake_infos:
@@ -1593,6 +1593,7 @@ async def unstake(
     if unstake_all or unstake_all_alpha:
         return await _unstake_all(wallet, subtensor, unstake_all_alpha, prompt)
 
+    unstake_all_from_hk = False
     with console.status(
         f"Retrieving subnet data & identities from {subtensor.network}...",
         spinner="earth",
