@@ -1,5 +1,10 @@
 # Changelog
 
+## 8.2.0rc7 /2025-01-09
+
+## What's Changed
+* Returns early in-case of no stake & fixes var
+
 ## 8.2.0rc6 /2025-01-09
 
 ## What's Changed
