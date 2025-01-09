@@ -1190,14 +1190,15 @@ async def unstake_selection(
 
     hotkeys_info = []
     for idx, (hotkey_ss58, netuid_stakes) in enumerate(hotkey_stakes.items()):
-        identity = identities["hotkeys"].get(hotkey_ss58) or old_identities.get(
-            hotkey_ss58
-        )
-        hotkey_name = "~"
-        if identity:
-            hotkey_name = identity.get("identity", {}).get("name", "") or identity.get(
-                "display", "~"
-            )
+        if hk_identity := identities["hotkeys"].get(hotkey_ss58):
+            hotkey_name = hk_identity.get("identity", {}).get(
+                "name", ""
+            ) or hk_identity.get("display", "~")
+        elif old_identity := old_identities.get(hotkey_ss58):
+            hotkey_name = old_identity.display
+        else:
+            hotkey_name = "~"
+
         # TODO: Add wallet ids here.
 
         hotkeys_info.append(
