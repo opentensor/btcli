@@ -1,5 +1,10 @@
 # Changelog
 
+## 8.2.0rc6 /2025-01-09
+
+## What's Changed
+* RAO development version for the rao chain
+
 ## 8.2.0 /2024-10-10
 
 ## What's Changed

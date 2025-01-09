@@ -97,7 +97,7 @@ class Defaults:
         }
 
     class subtensor:
-        network = "rao"
+        network = "test"
         chain_endpoint = None
         _mock = False
 
