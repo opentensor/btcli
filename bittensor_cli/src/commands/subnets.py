@@ -801,7 +801,10 @@ async def show(
 ) -> Optional[str]:
     async def show_root():
         all_subnets = await subtensor.get_all_subnet_dynamic_info()
-        root_info = all_subnets[0]
+        root_info = next((s for s in all_subnets if s.netuid == 0), None)
+        if root_info is None:
+            print_error("The root subnet does not exist")
+            raise typer.Exit()
 
         hex_bytes_result, identities, old_identities = await asyncio.gather(
             subtensor.query_runtime_api(
@@ -1035,24 +1038,27 @@ async def show(
             subtensor.query_all_identities(),
             subtensor.get_delegate_identities(),
         )
-        subnet_info = _subnet_info[netuid_]
+        subnet_info = next((s for s in _subnet_info if s.netuid == netuid_), None)
+        if subnet_info is None:
+            print_error(f"Subnet {netuid_} does not exist")
+            raise typer.Exit()
 
         if (bytes_result := hex_bytes_result) is None:
-            err_console.print(f"Subnet {netuid_} does not exist")
-            return
+            print_error(f"Subnet {netuid_} does not exist")
+            raise typer.Exit()
 
         if bytes_result.startswith("0x"):
             bytes_result = bytes.fromhex(bytes_result[2:])
 
         subnet_state: "SubnetState" = SubnetState.from_vec_u8(bytes_result)
         if subnet_info is None:
-            err_console.print(f"Subnet {netuid_} does not exist")
-            return
+            print_error(f"Subnet {netuid_} does not exist")
+            raise typer.Exit()
         elif len(subnet_state.hotkeys) == 0:
-            err_console.print(
+            print_error(
                 f"Subnet {netuid_} is currently empty with 0 UIDs registered."
             )
-            return
+            raise typer.Exit()
 
         # Define table properties
         table = Table(
