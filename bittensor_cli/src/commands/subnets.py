@@ -1296,22 +1296,22 @@ async def show(
                 # f"\n  Stake: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{subnet_info.alpha_out.tao:,.5f} {subnet_info.symbol}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
                 f"\n  Tempo: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{subnet_info.blocks_since_last_step}/{subnet_info.tempo}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
             )
-            console.print(
-                """
-    Description:
-        The table displays the subnet participants and their metrics.
-        The columns are as follows:
-            - UID: The hotkey index in the subnet.
-            - TAO: The sum of all TAO balances for this hotkey accross all subnets. 
-            - Stake: The stake balance of this hotkey on this subnet.
-            - Weight: The stake-weight of this hotkey on this subnet. Computed as an average of the normalized TAO and Stake columns of this subnet.
-            - Dividends: Validating dividends earned by the hotkey.
-            - Incentives: Mining incentives earned by the hotkey (always zero in the RAO demo.)
-            - Emission: The emission accrued to this hokey on this subnet every block (in staking units).
-            - Hotkey: The hotkey ss58 address.
-            - Coldkey: The coldkey ss58 address.
-    """
-            )
+    #         console.print(
+    #             """
+    # Description:
+    #     The table displays the subnet participants and their metrics.
+    #     The columns are as follows:
+    #         - UID: The hotkey index in the subnet.
+    #         - TAO: The sum of all TAO balances for this hotkey accross all subnets. 
+    #         - Stake: The stake balance of this hotkey on this subnet.
+    #         - Weight: The stake-weight of this hotkey on this subnet. Computed as an average of the normalized TAO and Stake columns of this subnet.
+    #         - Dividends: Validating dividends earned by the hotkey.
+    #         - Incentives: Mining incentives earned by the hotkey (always zero in the RAO demo.)
+    #         - Emission: The emission accrued to this hokey on this subnet every block (in staking units).
+    #         - Hotkey: The hotkey ss58 address.
+    #         - Coldkey: The coldkey ss58 address.
+    # """
+            # )
 
         if delegate_selection:
             while True:
