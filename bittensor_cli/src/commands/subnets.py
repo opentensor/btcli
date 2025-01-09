@@ -201,10 +201,7 @@ async def subnets_list(
 
     async def fetch_subnet_data():
         block_number = await subtensor.substrate.get_block_number(None)
-        subnets, subnet_tao = await asyncio.gather(
-            subtensor.get_all_subnet_dynamic_info(),
-            subtensor.get_subnet_tao(),
-        )
+        subnets = await subtensor.get_all_subnet_dynamic_info()
 
         # Sort subnets by market cap, keeping the root subnet in the first position
         root_subnet = next(s for s in subnets if s.netuid == 0)
@@ -214,24 +211,24 @@ async def subnets_list(
             reverse=True,
         )
         sorted_subnets = [root_subnet] + other_subnets
-        return sorted_subnets, subnet_tao, block_number
+        return sorted_subnets, block_number
 
     def calculate_emission_stats(
-        subnet_tao: dict, block_number: int
+        subnets: list, block_number: int
     ) -> tuple[Balance, str]:
         # We do not include the root subnet in the emission calculation
         total_tao_emitted = sum(
-            subnet_tao.get(n, Balance(0)) for n in subnet_tao.keys() if n != 0
+            subnet.tao_in.tao for subnet in subnets if subnet.netuid != 0
         )
-        emission_percentage = (total_tao_emitted.tao / block_number) * 100
+        emission_percentage = (total_tao_emitted / block_number) * 100
         percentage_color = "dark_sea_green" if emission_percentage < 100 else "red"
         formatted_percentage = (
             f"[{percentage_color}]{emission_percentage:.2f}%[/{percentage_color}]"
         )
         if not verbose:
-            percentage_string = f"τ {millify_tao(total_tao_emitted.tao)}/{millify_tao(block_number)} ({formatted_percentage})"
+            percentage_string = f"τ {millify_tao(total_tao_emitted)}/{millify_tao(block_number)} ({formatted_percentage})"
         else:
-            percentage_string = f"τ {total_tao_emitted.tao:,.1f}/{block_number} ({formatted_percentage})"
+            percentage_string = f"τ {total_tao_emitted:.1f}/{block_number} ({formatted_percentage})"
         return total_tao_emitted, percentage_string
 
     def define_table(
@@ -303,9 +300,9 @@ async def subnets_list(
         return table
 
     # Non-live mode
-    def create_table(subnets, subnet_tao, block_number):
+    def create_table(subnets, block_number):
         rows = []
-        _, percentage_string = calculate_emission_stats(subnet_tao, block_number)
+        _, percentage_string = calculate_emission_stats(subnets, block_number)
 
         for subnet in subnets:
             netuid = subnet.netuid
@@ -408,7 +405,7 @@ async def subnets_list(
         return table
 
     # Live mode
-    def create_table_live(subnets, previous_data, subnet_tao, block_number):
+    def create_table_live(subnets, previous_data, block_number):
         def format_cell(
             value, previous_value, unit="", unit_first=False, precision=4, millify=False
         ):
@@ -512,7 +509,7 @@ async def subnets_list(
 
         rows = []
         current_data = {}  # To store current values for comparison in the next update
-        _, percentage_string = calculate_emission_stats(subnet_tao, block_number)
+        _, percentage_string = calculate_emission_stats(subnets, block_number)
 
         for subnet in subnets:
             netuid = subnet.netuid
@@ -692,7 +689,7 @@ async def subnets_list(
         with Live(console=console, screen=True, auto_refresh=True) as live:
             try:
                 while True:
-                    subnets, subnet_tao, block_number = await fetch_subnet_data()
+                    subnets, block_number = await fetch_subnet_data()
 
                     # Update block numbers
                     previous_block = current_block
@@ -704,7 +701,7 @@ async def subnets_list(
                     )
 
                     table, current_data = create_table_live(
-                        subnets, previous_data, subnet_tao, block_number
+                        subnets, previous_data, block_number
                     )
                     previous_data = current_data
                     progress.reset(progress_task)
@@ -730,8 +727,8 @@ async def subnets_list(
                 pass  # Ctrl + C
     else:
         # Non-live mode
-        subnets, subnet_tao, block_number = await fetch_subnet_data()
-        table = create_table(subnets, subnet_tao, block_number)
+        subnets, block_number = await fetch_subnet_data()
+        table = create_table(subnets, block_number)
         console.print(table)
 
         return
