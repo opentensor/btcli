@@ -103,10 +103,11 @@ class SubtensorInterface:
                 self.network = defaults.subtensor.network
 
         self.substrate = AsyncSubstrateInterface(
-            chain_endpoint=self.chain_endpoint,
+            url=self.chain_endpoint,
             ss58_format=SS58_FORMAT,
             type_registry=TYPE_REGISTRY,
             chain_name="Bittensor",
+            pre_initialize=False
         )
 
     def __str__(self):
@@ -1039,7 +1040,7 @@ class SubtensorInterface:
                 decode_account_id(ss58_address[0]): DelegatesDetails.from_chain_data(
                     decode_hex_identity_dict(identity["info"])
                 )
-                for ss58_address, identity in identities_info
+                async for ss58_address, identity in identities_info
             }
 
             if response.ok:
