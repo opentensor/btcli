@@ -534,7 +534,7 @@ async def subnets_list(
                 "supply": supply,
                 "blocks_since_last_step": subnet.blocks_since_last_step,
             }
-            prev = previous_data.get(netuid) if previous_data else {}
+            prev = previous_data.get(netuid, {}) if previous_data else {}
 
             # Prepare cells
             if netuid == 0:

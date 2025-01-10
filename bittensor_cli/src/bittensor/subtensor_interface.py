@@ -1392,10 +1392,11 @@ class SubtensorInterface:
 
         return StakeInfo.list_of_tuple_from_vec_u8(bytes_result)  # type: ignore
 
-    async def get_all_subnet_dynamic_info(self) -> list["DynamicInfo"]:
+    async def get_all_subnet_dynamic_info(self, block_hash: Optional[str] = None) -> list["DynamicInfo"]:
         query = await self.substrate.runtime_call(
             "SubnetInfoRuntimeApi",
             "get_all_dynamic_info",
+            block_hash=block_hash,
         )
         subnets = DynamicInfo.list_from_vec_u8(bytes.fromhex(query.decode()[2:]))
         return subnets
