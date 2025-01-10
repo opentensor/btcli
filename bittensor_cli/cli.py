@@ -28,7 +28,7 @@ from bittensor_cli.src import (
 )
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
-from bittensor_cli.src.bittensor.async_substrate_interface import (
+from async_substrate_interface.errors import (
     SubstrateRequestException,
 )
 from bittensor_cli.src.commands import root, subnets, sudo, wallets

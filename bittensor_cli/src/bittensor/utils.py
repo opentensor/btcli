@@ -28,9 +28,6 @@ from bittensor_cli.src.bittensor.balances import Balance
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
-    from bittensor_cli.src.bittensor.async_substrate_interface import (
-        AsyncSubstrateInterface,
-    )
 
 console = Console()
 err_console = Console(stderr=True)
