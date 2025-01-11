@@ -1999,7 +1999,7 @@ async def stake_list(
         (
             substakes,
             registered_delegate_info,
-            dynamic_info,
+            _dynamic_info,
         ) = await asyncio.gather(
             subtensor.get_stake_info_for_coldkeys(
                 coldkey_ss58_list=[coldkey_address], block_hash=block_hash
@@ -2008,6 +2008,7 @@ async def stake_list(
             subtensor.get_all_subnet_dynamic_info(),
         )
         sub_stakes = substakes[coldkey_address]
+        dynamic_info = {info.netuid: info for info in _dynamic_info}
         return (
             sub_stakes,
             registered_delegate_info,
@@ -2195,9 +2196,7 @@ async def stake_list(
                         f"{stake_value} {symbol}"
                         if netuid != 0
                         else f"{symbol} {stake_value}",  # Stake (a)
-                        f"{millify_tao(pool.price.tao)} τ/{symbol}"
-                        if not verbose
-                        else f"{pool.price.tao:.4f} τ/{symbol}",  # Rate (t/a)
+                        f"{pool.price.tao:.4f} τ/{symbol}",  # Rate (t/a)
                         # f"τ {millify_tao(tao_ownership.tao)}" if not verbose else f"{tao_ownership}",  # TAO equiv
                         swap_value,  # Swap(α) -> τ
                         "YES"
@@ -2483,7 +2482,6 @@ async def stake_list(
                         if stake.hotkey_ss58 == selected_hotkey
                     ]
 
-                    dynamic_info = {info.netuid: info for info in dynamic_info_}
                     block_number = await subtensor.substrate.get_block_number(None)
 
                     previous_block = current_block

@@ -1,5 +1,10 @@
 # Changelog
 
+## 8.2.0rc10 /2025-01-11
+
+## What's Changed
+* Fixes data ordering in stake list
+
 ## 8.2.0rc9 /2025-01-09
 
 ## What's Changed

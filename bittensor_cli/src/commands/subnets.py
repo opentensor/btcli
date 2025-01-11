@@ -324,9 +324,7 @@ async def subnets_list(
                 else f"{subnet.alpha_out.tao:,.4f}"
             )
             price_value = (
-                f"{millify_tao(subnet.price.tao)}"
-                if not verbose
-                else f"{subnet.price.tao:,.4f}"
+                f"{subnet.price.tao:,.4f}"
             )
 
             # Market Cap
@@ -559,7 +557,7 @@ async def subnets_list(
                 prev.get("price"),
                 unit=f"τ/{symbol}",
                 precision=4,
-                millify=True if not verbose else False,
+                millify=False,
             )
 
             alpha_out_cell = format_cell(
