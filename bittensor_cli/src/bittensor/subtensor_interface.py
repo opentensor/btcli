@@ -1,8 +1,13 @@
+# TODO will need to pop a bunch of .value here and there
+
 import asyncio
 from typing import Optional, Any, Union, TypedDict, Iterable
 
 
 import aiohttp
+from async_substrate_interface.substrate_interface import (
+    AsyncSubstrateInterface,
+)
 from bittensor_wallet import Wallet
 from bittensor_wallet.utils import SS58_FORMAT
 import scalecodec
@@ -12,9 +17,6 @@ from scalecodec.type_registry import load_type_registry_preset
 from substrateinterface.exceptions import SubstrateRequestException
 import typer
 
-from bittensor_cli.src.bittensor.async_substrate_interface import (
-    AsyncSubstrateInterface,
-)
 from bittensor_cli.src.bittensor.chain_data import (
     DelegateInfo,
     custom_rpc_type_registry,
@@ -101,10 +103,11 @@ class SubtensorInterface:
                 self.network = defaults.subtensor.network
 
         self.substrate = AsyncSubstrateInterface(
-            chain_endpoint=self.chain_endpoint,
+            url=self.chain_endpoint,
             ss58_format=SS58_FORMAT,
             type_registry=TYPE_REGISTRY,
             chain_name="Bittensor",
+            pre_initialize=False
         )
 
     def __str__(self):
@@ -168,7 +171,7 @@ class SubtensorInterface:
         return (
             []
             if result is None or not hasattr(result, "records")
-            else [netuid async for netuid, exists in result if exists]
+            else [netuid.value async for netuid, exists in result if exists]
         )
 
     async def is_hotkey_delegate(
@@ -436,8 +439,8 @@ class SubtensorInterface:
             reuse_block_hash=reuse_block,
         )
         return (
-            [record[0] async for record in result if record[1]]
-            if result and hasattr(result, "records")
+            [record[0].value async for record in result if record[1]]
+            if result.records
             else []
         )
 
@@ -800,7 +803,7 @@ class SubtensorInterface:
             params=[netuid],
             block_hash=block_hash,
         )
-        w_map = [(uid, w or []) async for uid, w in w_map_encoded]
+        w_map = [(uid.value, w.value or []) async for uid, w in w_map_encoded]
 
         return w_map
 
@@ -828,7 +831,7 @@ class SubtensorInterface:
             params=[netuid],
             block_hash=block_hash,
         )
-        b_map = [(uid, b) async for uid, b in b_map_encoded]
+        b_map = [(uid.value, b.value) async for uid, b in b_map_encoded]
 
         return b_map
 
@@ -916,13 +919,16 @@ class SubtensorInterface:
         except SubstrateRequestException as e:
             return False, format_error_message(e)
 
-    async def get_children(self, hotkey, netuid) -> tuple[bool, list, str]:
+    async def get_children(
+        self, hotkey: str, netuid: int, block_hash: Optional[str] = None
+    ) -> tuple[bool, list, str]:
         """
         This method retrieves the children of a given hotkey and netuid. It queries the SubtensorModule's ChildKeys
         storage function to get the children and formats them before returning as a tuple.
 
         :param hotkey: The hotkey value.
         :param netuid: The netuid value.
+        :param block_hash: The hash of the block number to check the hotkey against.
 
         :return: A tuple containing a boolean indicating success or failure, a list of formatted children, and an error
         message (if applicable)
@@ -932,6 +938,7 @@ class SubtensorInterface:
                 module="SubtensorModule",
                 storage_function="ChildKeys",
                 params=[hotkey, netuid],
+                block_hash=block_hash,
             )
             if children:
                 formatted_children = []
@@ -1033,7 +1040,7 @@ class SubtensorInterface:
                 decode_account_id(ss58_address[0]): DelegatesDetails.from_chain_data(
                     decode_hex_identity_dict(identity["info"])
                 )
-                for ss58_address, identity in identities_info
+                async for ss58_address, identity in identities_info
             }
 
             if response.ok:

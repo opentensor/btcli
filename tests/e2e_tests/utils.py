@@ -10,7 +10,7 @@ from bittensor_wallet import Keypair, Wallet
 from typer.testing import CliRunner
 
 if TYPE_CHECKING:
-    from bittensor_cli.src.bittensor.async_substrate_interface import (
+    from async_substrate_interface.substrate_interface import (
         AsyncSubstrateInterface,
     )
 
