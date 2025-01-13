@@ -854,10 +854,10 @@ class CLIManager:
             finally:
                 if initiated is False:
                     asyncio.create_task(cmd).cancel()
-                    try:
-                        raise typer.Exit()
-                    except Exception:
-                        sys.exit()
+                try:
+                    raise typer.Exit()
+                except Exception:
+                    sys.exit()
 
         if sys.version_info < (3, 10):
             # For Python 3.9 or lower
