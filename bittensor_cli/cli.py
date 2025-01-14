@@ -748,7 +748,7 @@ class CLIManager:
         )(self.subnets_register)
         self.subnets_app.command(
             "metagraph", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"], hidden=True
-        )(self.subnets_show) #Aliased to `s show` for now
+        )(self.subnets_show)  # Aliased to `s show` for now
         self.subnets_app.command(
             "show", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
         )(self.subnets_show)
@@ -1409,12 +1409,6 @@ class CLIManager:
                 "Hotkeys names must be a comma-separated list, e.g., `--exclude-hotkeys hk1,hk2`.",
             )
 
-        # For Rao games
-        effective_network = get_effective_network(self.config, network)
-        if is_rao_network(effective_network):
-            print_error("This command is disabled on the 'rao' network.")
-            raise typer.Exit()
-
         return self._run_command(
             wallets.overview(
                 wallet,
@@ -1425,6 +1419,7 @@ class CLIManager:
                 include_hotkeys,
                 exclude_hotkeys,
                 netuids_filter=netuids,
+                verbose=verbose,
             )
         )
 
@@ -1600,6 +1595,8 @@ class CLIManager:
 
         [bold]Note[/bold]: The `inspect` command is for displaying information only and does not perform any transactions or state changes on the blockchain. It is intended to be used with Bittensor CLI and not as a standalone function in user code.
         """
+        print_error("This command is disabled on the 'rao' network.")
+        raise typer.Exit()
         self.verbosity_handler(quiet, verbose)
 
         if netuids:
@@ -1615,11 +1612,6 @@ class CLIManager:
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
         )
-        # For Rao games
-        effective_network = get_effective_network(self.config, network)
-        if is_rao_network(effective_network):
-            print_error("This command is disabled on the 'rao' network.")
-            raise typer.Exit()
 
         self.initialize_chain(network)
         return self._run_command(
@@ -2791,7 +2783,7 @@ class CLIManager:
         [blue bold]Note[/blue bold]: This command is for users who wish to reallocate their stake or withdraw them from the network. It allows for flexible management of TAO stake across different neurons (hotkeys) on the network.
         """
         self.verbosity_handler(quiet, verbose)
-        # TODO: Coldkey related unstakes need to be updated. Patching for now. 
+        # TODO: Coldkey related unstakes need to be updated. Patching for now.
         unstake_all_alpha = False
         unstake_all = False
 

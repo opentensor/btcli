@@ -228,7 +228,9 @@ async def subnets_list(
         if not verbose:
             percentage_string = f"τ {millify_tao(total_tao_emitted)}/{millify_tao(block_number)} ({formatted_percentage})"
         else:
-            percentage_string = f"τ {total_tao_emitted:.1f}/{block_number} ({formatted_percentage})"
+            percentage_string = (
+                f"τ {total_tao_emitted:.1f}/{block_number} ({formatted_percentage})"
+            )
         return total_tao_emitted, percentage_string
 
     def define_table(
@@ -323,9 +325,7 @@ async def subnets_list(
                 if not verbose
                 else f"{subnet.alpha_out.tao:,.4f}"
             )
-            price_value = (
-                f"{subnet.price.tao:,.4f}"
-            )
+            price_value = f"{subnet.price.tao:,.4f}"
 
             # Market Cap
             market_cap = (subnet.alpha_in.tao + subnet.alpha_out.tao) * subnet.price.tao
@@ -343,8 +343,8 @@ async def subnets_list(
                 if netuid != 0
                 else "-"
             )
-
             alpha_in_cell = f"{alpha_in_value} {symbol}" if netuid != 0 else "-"
+            liquidity_cell = f"{tao_in_cell}, {alpha_in_cell}"
 
             # Supply
             supply = subnet.alpha_in.tao + subnet.alpha_out.tao
@@ -358,7 +358,6 @@ async def subnets_list(
             )
             emission_cell = f"τ {emission_tao:,.4f}"
             price_cell = f"{price_value} τ/{symbol}"
-            liquidity_cell = f"{tao_in_cell}, {alpha_in_cell}"
             alpha_out_cell = (
                 f"{alpha_out_value} {symbol}"
                 if netuid != 0
@@ -1053,9 +1052,7 @@ async def show(
             print_error(f"Subnet {netuid_} does not exist")
             raise typer.Exit()
         elif len(subnet_state.hotkeys) == 0:
-            print_error(
-                f"Subnet {netuid_} is currently empty with 0 UIDs registered."
-            )
+            print_error(f"Subnet {netuid_} is currently empty with 0 UIDs registered.")
             raise typer.Exit()
 
         # Define table properties
@@ -1174,7 +1171,9 @@ async def show(
                     f"{subnet_state.alpha_stake[idx].tao:.4f} {subnet_info.symbol}"
                     if verbose
                     else f"{millify_tao(subnet_state.alpha_stake[idx])} {subnet_info.symbol}",  # Alpha Stake
-                    f"τ {tao_stake.tao:.4f}" if verbose else f"τ {millify_tao(tao_stake)}",  # Tao Stake
+                    f"τ {tao_stake.tao:.4f}"
+                    if verbose
+                    else f"τ {millify_tao(tao_stake)}",  # Tao Stake
                     # str(subnet_state.dividends[idx]),
                     f"{Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao:.5f}",  # Dividends
                     f"{subnet_state.incentives[idx]:.4f}",  # Incentive
@@ -1300,22 +1299,22 @@ async def show(
                 # f"\n  Stake: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{subnet_info.alpha_out.tao:,.5f} {subnet_info.symbol}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
                 f"\n  Tempo: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{subnet_info.blocks_since_last_step}/{subnet_info.tempo}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
             )
-    #         console.print(
-    #             """
-    # Description:
-    #     The table displays the subnet participants and their metrics.
-    #     The columns are as follows:
-    #         - UID: The hotkey index in the subnet.
-    #         - TAO: The sum of all TAO balances for this hotkey accross all subnets. 
-    #         - Stake: The stake balance of this hotkey on this subnet.
-    #         - Weight: The stake-weight of this hotkey on this subnet. Computed as an average of the normalized TAO and Stake columns of this subnet.
-    #         - Dividends: Validating dividends earned by the hotkey.
-    #         - Incentives: Mining incentives earned by the hotkey (always zero in the RAO demo.)
-    #         - Emission: The emission accrued to this hokey on this subnet every block (in staking units).
-    #         - Hotkey: The hotkey ss58 address.
-    #         - Coldkey: The coldkey ss58 address.
-    # """
-            # )
+        #         console.print(
+        #             """
+        # Description:
+        #     The table displays the subnet participants and their metrics.
+        #     The columns are as follows:
+        #         - UID: The hotkey index in the subnet.
+        #         - TAO: The sum of all TAO balances for this hotkey accross all subnets.
+        #         - Stake: The stake balance of this hotkey on this subnet.
+        #         - Weight: The stake-weight of this hotkey on this subnet. Computed as an average of the normalized TAO and Stake columns of this subnet.
+        #         - Dividends: Validating dividends earned by the hotkey.
+        #         - Incentives: Mining incentives earned by the hotkey (always zero in the RAO demo.)
+        #         - Emission: The emission accrued to this hokey on this subnet every block (in staking units).
+        #         - Hotkey: The hotkey ss58 address.
+        #         - Coldkey: The coldkey ss58 address.
+        # """
+        # )
 
         if delegate_selection:
             while True:

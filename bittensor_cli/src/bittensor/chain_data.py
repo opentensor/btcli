@@ -97,11 +97,13 @@ def decode_hex_identity(info_dictionary):
     return decoded_info
 
 
-def process_stake_data(stake_data):
+def process_stake_data(stake_data, netuid):
     decoded_stake_data = {}
     for account_id_bytes, stake_ in stake_data:
         account_id = decode_account_id(account_id_bytes)
-        decoded_stake_data.update({account_id: Balance.from_rao(stake_)})
+        decoded_stake_data.update(
+            {account_id: Balance.from_rao(stake_).set_unit(netuid)}
+        )
     return decoded_stake_data
 
 
@@ -371,7 +373,7 @@ class NeuronInfo:
     @classmethod
     def from_vec_u8(cls, vec_u8: bytes) -> "NeuronInfo":
         n = bt_decode.NeuronInfo.decode(vec_u8)
-        stake_dict = process_stake_data(n.stake)
+        stake_dict = process_stake_data(n.stake, n.netuid)
         total_stake = sum(stake_dict.values()) if stake_dict else Balance(0)
         axon_info = n.axon_info
         coldkey = decode_account_id(n.coldkey)
@@ -491,8 +493,12 @@ class NeuronInfoLite:
             prometheus_info = item.prometheus_info
             pruning_score = item.pruning_score
             rank = item.rank
-            stake_dict = process_stake_data(item.stake)
-            stake = sum(stake_dict.values()) if stake_dict else Balance(0)
+            stake_dict = process_stake_data(item.stake, item.netuid)
+            stake = (
+                sum(stake_dict.values())
+                if stake_dict
+                else Balance(0).set_unit(item.netuid)
+            )
             trust = item.trust
             uid = item.uid
             validator_permit = item.validator_permit

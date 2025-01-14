@@ -56,7 +56,16 @@ from bittensor_cli.src.bittensor.utils import (
     is_valid_ss58_address,
     validate_coldkey_presence,
     retry_prompt,
+    get_subnet_name,
+    millify_tao,
 )
+
+
+class WalletLike:
+    def __init__(self, name=None, hotkey_ss58=None, hotkey_str=None):
+        self.name = name
+        self.hotkey_ss58 = hotkey_ss58
+        self.hotkey_str = hotkey_str
 
 
 async def regen_coldkey(
@@ -603,17 +612,19 @@ async def overview(
     include_hotkeys: Optional[list[str]] = None,
     exclude_hotkeys: Optional[list[str]] = None,
     netuids_filter: Optional[list[int]] = None,
+    verbose: bool = False,
 ):
     """Prints an overview for the wallet's coldkey."""
 
     total_balance = Balance(0)
 
     # We are printing for every coldkey.
-    print_verbose("Fetching total balance for coldkey/s")
     block_hash = await subtensor.substrate.get_chain_head()
     all_hotkeys, total_balance = await _get_total_balance(
         total_balance, subtensor, wallet, all_wallets, block_hash=block_hash
     )
+    _dynamic_info = await subtensor.get_all_subnet_dynamic_info()
+    dynamic_info = {info.netuid: info for info in _dynamic_info}
 
     with console.status(
         f":satellite: Synchronizing with chain [white]{subtensor.network}[/white]",
@@ -621,9 +632,6 @@ async def overview(
     ) as status:
         # We are printing for a select number of hotkeys from all_hotkeys.
         if include_hotkeys or exclude_hotkeys:
-            print_verbose(
-                "Fetching for select hotkeys passed in 'include_hotkeys'", status
-            )
             all_hotkeys = _get_hotkeys(include_hotkeys, exclude_hotkeys, all_hotkeys)
 
         # Check we have keys to display.
@@ -633,17 +641,14 @@ async def overview(
 
         # Pull neuron info for all keys.
         neurons: dict[str, list[NeuronInfoLite]] = {}
-        print_verbose("Fetching subnet netuids", status)
         block, all_netuids = await asyncio.gather(
             subtensor.substrate.get_block_number(None),
             subtensor.get_all_subnet_netuids(),
         )
 
-        print_verbose("Filtering netuids by registered hotkeys", status)
         netuids = await subtensor.filter_netuids_by_registered_hotkeys(
             all_netuids, netuids_filter, all_hotkeys, reuse_block=True
         )
-        # bittensor.logging.debug(f"Netuids to check: {netuids}")
 
         for netuid in netuids:
             neurons[str(netuid)] = []
@@ -664,103 +669,16 @@ async def overview(
             )
         all_hotkeys, _ = validate_coldkey_presence(all_hotkeys)
 
-        print_verbose("Fetching key addresses", status)
         all_hotkey_addresses, hotkey_coldkey_to_hotkey_wallet = _get_key_address(
             all_hotkeys
         )
 
-        print_verbose("Pulling and processing neuron information for all keys", status)
         results = await _get_neurons_for_netuids(
             subtensor, netuids, all_hotkey_addresses
         )
         neurons = _process_neuron_results(results, neurons, netuids)
-        total_coldkey_stake_from_metagraph = await _calculate_total_coldkey_stake(
-            neurons
-        )
-
-        alerts_table = Table(show_header=True, header_style="bold magenta")
-        alerts_table.add_column("🥩 alert!")
-
-        coldkeys_to_check = []
-        ck_stakes = await subtensor.get_total_stake_for_coldkey(
-            *(
-                coldkey_wallet.coldkeypub.ss58_address
-                for coldkey_wallet in all_coldkey_wallets
-                if coldkey_wallet.coldkeypub
-            ),
-            block_hash=block_hash,
-        )
-        for coldkey_wallet in all_coldkey_wallets:
-            if coldkey_wallet.coldkeypub:
-                # Check if we have any stake with hotkeys that are not registered.
-                difference = (
-                    ck_stakes[coldkey_wallet.coldkeypub.ss58_address]
-                    - total_coldkey_stake_from_metagraph[
-                        coldkey_wallet.coldkeypub.ss58_address
-                    ]
-                )
-                if difference == 0:
-                    continue  # We have all our stake registered.
-
-                coldkeys_to_check.append(coldkey_wallet)
-                alerts_table.add_row(
-                    "Found [light_goldenrod2]{}[/light_goldenrod2] stake with coldkey [bright_magenta]{}[/bright_magenta] that is not registered.".format(
-                        abs(difference), coldkey_wallet.coldkeypub.ss58_address
-                    )
-                )
-
-        if coldkeys_to_check:
-            # We have some stake that is not with a registered hotkey.
-            if "-1" not in neurons:
-                neurons["-1"] = []
-
-        print_verbose("Checking coldkeys for de-registered stake", status)
-        results = await asyncio.gather(
-            *[
-                _get_de_registered_stake_for_coldkey_wallet(
-                    subtensor, all_hotkey_addresses, coldkey_wallet
-                )
-                for coldkey_wallet in coldkeys_to_check
-            ]
-        )
-
-        for result in results:
-            coldkey_wallet, de_registered_stake, err_msg = result
-            if err_msg is not None:
-                err_console.print(err_msg)
-
-            if len(de_registered_stake) == 0:
-                continue  # We have no de-registered stake with this coldkey.
-
-            de_registered_neurons = []
-            for hotkey_addr, our_stake in de_registered_stake:
-                # Make a neuron info lite for this hotkey and coldkey.
-                de_registered_neuron = NeuronInfoLite.get_null_neuron()
-                de_registered_neuron.hotkey = hotkey_addr
-                de_registered_neuron.coldkey = coldkey_wallet.coldkeypub.ss58_address
-                de_registered_neuron.total_stake = Balance(our_stake)
-                de_registered_neurons.append(de_registered_neuron)
-
-                # Add this hotkey to the wallets dict
-                wallet_ = Wallet(name=wallet)
-                wallet_.hotkey_ss58 = hotkey_addr
-                wallet.hotkey_str = hotkey_addr[:5]  # Max length of 5 characters
-                # Indicates a hotkey not on local machine but exists in stake_info obj on-chain
-                if hotkey_coldkey_to_hotkey_wallet.get(hotkey_addr) is None:
-                    hotkey_coldkey_to_hotkey_wallet[hotkey_addr] = {}
-                hotkey_coldkey_to_hotkey_wallet[hotkey_addr][
-                    coldkey_wallet.coldkeypub.ss58_address
-                ] = wallet_
-
-            # Add neurons to overview.
-            neurons["-1"].extend(de_registered_neurons)
-
         # Setup outer table.
         grid = Table.grid(pad_edge=True)
-
-        # If there are any alerts, add them to the grid
-        if len(alerts_table.rows) > 0:
-            grid.add_row(alerts_table)
 
         # Add title
         if not all_wallets:
@@ -780,9 +698,6 @@ async def overview(
             )
         )
         # Generate rows per netuid
-        hotkeys_seen = set()
-        total_neurons = 0
-        total_stake = 0.0
         tempos = await asyncio.gather(
             *[
                 subtensor.get_hyperparameter("Tempo", netuid, block_hash)
@@ -790,7 +705,6 @@ async def overview(
             ]
         )
     for netuid, subnet_tempo in zip(netuids, tempos):
-        last_subnet = netuid == netuids[-1]
         table_data = []
         total_rank = 0.0
         total_trust = 0.0
@@ -799,6 +713,8 @@ async def overview(
         total_incentive = 0.0
         total_dividends = 0.0
         total_emission = 0
+        total_stake = 0
+        total_neurons = 0
 
         for nn in neurons[str(netuid)]:
             hotwallet = hotkey_coldkey_to_hotkey_wallet.get(nn.hotkey, {}).get(
@@ -807,8 +723,7 @@ async def overview(
             if not hotwallet:
                 # Indicates a mismatch between what the chain says the coldkey
                 # is for this hotkey and the local wallet coldkey-hotkey pair
-                hotwallet = Wallet(name=nn.coldkey[:7])
-                hotwallet.hotkey_str = nn.hotkey[:7]
+                hotwallet = WalletLike(name=nn.coldkey[:7], hotkey_str=nn.hotkey[:7])
 
             nn: NeuronInfoLite
             uid = nn.uid
@@ -820,7 +735,7 @@ async def overview(
             validator_trust = nn.validator_trust
             incentive = nn.incentive
             dividends = nn.dividends
-            emission = int(nn.emission / (subnet_tempo + 1) * 1e9)
+            emission = int(nn.emission / (subnet_tempo + 1) * 1e9)  # Per block
             last_update = int(block - nn.last_update)
             validator_permit = nn.validator_permit
             row = [
@@ -828,14 +743,14 @@ async def overview(
                 hotwallet.hotkey_str,
                 str(uid),
                 str(active),
-                "{:.5f}".format(stake),
-                "{:.5f}".format(rank),
-                "{:.5f}".format(trust),
-                "{:.5f}".format(consensus),
-                "{:.5f}".format(incentive),
-                "{:.5f}".format(dividends),
-                "{:_}".format(emission),
-                "{:.5f}".format(validator_trust),
+                f"{stake:.4f}" if verbose else millify_tao(stake),
+                f"{rank:.4f}" if verbose else millify_tao(rank),
+                f"{trust:.4f}" if verbose else millify_tao(trust),
+                f"{consensus:.4f}" if verbose else millify_tao(consensus),
+                f"{incentive:.4f}" if verbose else millify_tao(incentive),
+                f"{dividends:.4f}" if verbose else millify_tao(dividends),
+                f"{emission:.4f}",
+                f"{validator_trust:.4f}" if verbose else millify_tao(validator_trust),
                 "*" if validator_permit else "",
                 str(last_update),
                 (
@@ -853,23 +768,15 @@ async def overview(
             total_dividends += dividends
             total_emission += emission
             total_validator_trust += validator_trust
-
-            if (nn.hotkey, nn.coldkey) not in hotkeys_seen:
-                # Don't double count stake on hotkey-coldkey pairs.
-                hotkeys_seen.add((nn.hotkey, nn.coldkey))
-                total_stake += stake
-
-            # netuid -1 are neurons that are de-registered.
-            if netuid != "-1":
-                total_neurons += 1
+            total_stake += stake
+            total_neurons += 1
 
             table_data.append(row)
 
         # Add subnet header
-        if netuid == "-1":
-            grid.add_row("Deregistered Neurons")
-        else:
-            grid.add_row(f"Subnet: [dark_orange]{netuid}[/dark_orange]")
+        grid.add_row(
+            f"Subnet: [dark_orange]{netuid}: {get_subnet_name(dynamic_info[netuid])} {dynamic_info[netuid].symbol}[/dark_orange]"
+        )
         width = console.width
         table = Table(
             show_footer=False,
@@ -878,45 +785,34 @@ async def overview(
             expand=True,
             width=width - 5,
         )
-        if last_subnet:
-            table.add_column(
-                "[white]COLDKEY", str(total_neurons), style="bold bright_cyan", ratio=2
-            )
-            table.add_column(
-                "[white]HOTKEY", str(total_neurons), style="bright_cyan", ratio=2
-            )
-        else:
-            # No footer for non-last subnet.
-            table.add_column("[white]COLDKEY", style="bold bright_cyan", ratio=2)
-            table.add_column("[white]HOTKEY", style="bright_cyan", ratio=2)
+
+        table.add_column("[white]COLDKEY", style="bold bright_cyan", ratio=2)
+        table.add_column("[white]HOTKEY", style="bright_cyan", ratio=2)
         table.add_column(
             "[white]UID", str(total_neurons), style="rgb(42,161,152)", ratio=1
         )
         table.add_column(
             "[white]ACTIVE", justify="right", style="#8787ff", no_wrap=True, ratio=1
         )
-        if last_subnet:
-            table.add_column(
-                "[white]STAKE(\u03c4)",
-                "\u03c4{:.5f}".format(total_stake),
-                footer_style="bold white",
-                justify="right",
-                style="dark_orange",
-                no_wrap=True,
-                ratio=1,
-            )
-        else:
-            # No footer for non-last subnet.
-            table.add_column(
-                "[white]STAKE(\u03c4)",
-                justify="right",
-                style="dark_orange",
-                no_wrap=True,
-                ratio=1.5,
-            )
+
+        _total_stake_formatted = (
+            f"{total_stake:.4f}" if verbose else millify_tao(total_stake)
+        )
+        table.add_column(
+            "[white]STAKE(\u03c4)"
+            if netuid == 0
+            else f"[white]STAKE({Balance.get_unit(netuid)})",
+            f"{_total_stake_formatted} {Balance.get_unit(netuid)}"
+            if netuid != 0
+            else f"{Balance.get_unit(netuid)} {_total_stake_formatted}",
+            justify="right",
+            style="dark_orange",
+            no_wrap=True,
+            ratio=1.5,
+        )
         table.add_column(
             "[white]RANK",
-            "{:.5f}".format(total_rank),
+            f"{total_rank:.4f}",
             justify="right",
             style="medium_purple",
             no_wrap=True,
@@ -924,7 +820,7 @@ async def overview(
         )
         table.add_column(
             "[white]TRUST",
-            "{:.5f}".format(total_trust),
+            f"{total_trust:.4f}",
             justify="right",
             style="green",
             no_wrap=True,
@@ -932,7 +828,7 @@ async def overview(
         )
         table.add_column(
             "[white]CONSENSUS",
-            "{:.5f}".format(total_consensus),
+            f"{total_consensus:.4f}",
             justify="right",
             style="rgb(42,161,152)",
             no_wrap=True,
@@ -940,7 +836,7 @@ async def overview(
         )
         table.add_column(
             "[white]INCENTIVE",
-            "{:.5f}".format(total_incentive),
+            f"{total_incentive:.4f}",
             justify="right",
             style="#5fd7ff",
             no_wrap=True,
@@ -948,7 +844,7 @@ async def overview(
         )
         table.add_column(
             "[white]DIVIDENDS",
-            "{:.5f}".format(total_dividends),
+            f"{total_dividends:.4f}",
             justify="right",
             style="#8787d7",
             no_wrap=True,
@@ -956,7 +852,7 @@ async def overview(
         )
         table.add_column(
             "[white]EMISSION(\u03c1)",
-            "\u03c1{:_}".format(total_emission),
+            f"\u03c1{total_emission}",
             justify="right",
             style="#d7d7ff",
             no_wrap=True,
@@ -964,7 +860,7 @@ async def overview(
         )
         table.add_column(
             "[white]VTRUST",
-            "{:.5f}".format(total_validator_trust),
+            f"{total_validator_trust:.4f}",
             justify="right",
             style="magenta",
             no_wrap=True,
@@ -1283,6 +1179,8 @@ async def inspect(
         delegates_: list[tuple[DelegateInfo, Balance]],
     ) -> Generator[list[str], None, None]:
         for d_, staked in delegates_:
+            if not staked.tao > 0:
+                continue
             if d_.hotkey_ss58 in registered_delegate_info:
                 delegate_name = registered_delegate_info[d_.hotkey_ss58].display
             else:
@@ -1292,7 +1190,11 @@ async def inspect(
                 + [
                     str(delegate_name),
                     str(staked),
-                    str(d_.total_daily_return.tao * (staked.tao / d_.total_stake.tao)),
+                    str(
+                        d_.total_daily_return.tao * (staked.tao / d_.total_stake.tao)
+                        if d_.total_stake.tao != 0
+                        else 0
+                    ),
                 ]
                 + [""] * 4
             )

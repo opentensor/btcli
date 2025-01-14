@@ -2424,6 +2424,10 @@ async def stake_list(
             hotkeys_to_substakes[hotkey] = []
         hotkeys_to_substakes[hotkey].append(substake)
 
+    if not hotkeys_to_substakes:
+        print_error(f"No stakes found for coldkey ss58: ({coldkey_address})")
+        raise typer.Exit()
+
     if live:
         # Select one hokkey for live monitoring
         if len(hotkeys_to_substakes) > 1:
