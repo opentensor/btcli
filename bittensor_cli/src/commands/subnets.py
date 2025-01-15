@@ -3,18 +3,17 @@ import json
 import sqlite3
 from typing import TYPE_CHECKING, Optional, cast
 import typer
+import plotille
 
 from bittensor_wallet import Wallet
 from bittensor_wallet.errors import KeyFileError
 from rich.prompt import Confirm, Prompt
-from rich.console import Console, Group
-from rich.spinner import Spinner
-from rich.text import Text
+from rich.console import Group
 from rich.progress import Progress, BarColumn, TextColumn
 from rich.table import Column, Table
 from rich import box
 
-from bittensor_cli.src import COLOR_PALETTE, SUBNETS
+from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import SubnetState
 from bittensor_cli.src.bittensor.extrinsics.registration import (
@@ -26,7 +25,6 @@ from rich.live import Live
 from bittensor_cli.src.bittensor.minigraph import MiniGraph
 from bittensor_cli.src.commands.wallets import set_id, get_id
 from bittensor_cli.src.bittensor.utils import (
-    RAO_PER_TAO,
     console,
     create_table,
     err_console,
@@ -1153,7 +1151,7 @@ async def show(
             ):
                 if uid_identity == "~":
                     uid_identity = (
-                        f"[dark_sea_green3](*Owner controlled)[/dark_sea_green3]"
+                        "[dark_sea_green3](*Owner controlled)[/dark_sea_green3]"
                     )
                 else:
                     uid_identity = (
@@ -2053,3 +2051,116 @@ async def metagraph_cmd(
                 table.add_row(*row)
 
         console.print(table)
+
+
+async def price(
+    subtensor: "SubtensorInterface",
+    netuid: int,
+    interval_hours: int = 24,
+):
+    """Plot historical subnet price data in the CLI."""
+
+    blocks_per_hour = int(3600 / 12)  # ~300 blocks per hour
+    total_blocks = blocks_per_hour * interval_hours
+
+    with console.status(":chart_increasing: Fetching historical price data..."):
+        current_block_hash = await subtensor.substrate.get_chain_head()
+        current_block = await subtensor.substrate.get_block_number(current_block_hash)
+
+        # Block range
+        step = 300
+        start_block = max(0, current_block - total_blocks)
+        block_numbers = range(start_block, current_block + 1, step)
+
+        # Fetch all block hashes
+        block_hash_cors = [
+            subtensor.substrate.get_block_hash(bn) for bn in block_numbers
+        ]
+        block_hashes = await asyncio.gather(*block_hash_cors)
+
+        # Fetch subnet data for each block
+        subnet_info_cors = [
+            subtensor.get_subnet_dynamic_info(netuid, bh) for bh in block_hashes
+        ]
+        subnet_infos = await asyncio.gather(*subnet_info_cors)
+
+        prices = []
+        for subnet_info in subnet_infos:
+            prices.append(subnet_info.price.tao)
+
+    if not prices:
+        err_console.print(f"[red]No price data found for subnet {netuid}[/red]")
+        return
+
+    fig = plotille.Figure()
+    fig.width = 60
+    fig.height = 20
+    fig.color_mode = "rgb"
+    fig.background = None
+
+    block_numbers = list(range(current_block - total_blocks, current_block + 1, step))
+
+    def color_label(text):
+        return plotille.color(text, fg=(186, 233, 143), mode="rgb")  # Green
+
+    fig.x_label = color_label("Block")
+    fig.y_label = color_label(f"Price ({Balance.get_unit(netuid)})")
+
+    fig.set_x_limits(min_=min(block_numbers), max_=max(block_numbers))
+    fig.set_y_limits(min_=min(prices) * 0.95, max_=max(prices) * 1.05)
+
+    fig.plot(
+        block_numbers,
+        prices,
+        label=f"Subnet {netuid} Price",
+        interp="linear",
+        lc="bae98f",  # Green hex
+    )
+
+    subnet = subnet_infos[-1]
+    console.print(
+        f"\n[{COLOR_PALETTE['GENERAL']['SYMBOL']}]Subnet {netuid} - {subnet.symbol} [cyan]{get_subnet_name(subnet)}"
+    )
+    console.print(
+        f"Current: [blue]{prices[-1]:.6f}{Balance.get_unit(netuid)}"
+        if netuid != 0
+        else f"Current: [blue]{Balance.get_unit(netuid)} {prices[-1]:.6f}"
+    )
+    console.print(
+        f"{interval_hours}h High: [dark_sea_green3]{max(prices):.6f}{Balance.get_unit(netuid)}"
+        if netuid != 0
+        else f"{interval_hours}h High: [dark_sea_green3]{Balance.get_unit(netuid)} {max(prices):.6f}"
+    )
+    console.print(
+        f"{interval_hours}h Low: [red]{min(prices):.6f}{Balance.get_unit(netuid)}"
+        if netuid != 0
+        else f"{interval_hours}h Low: [red]{Balance.get_unit(netuid)} {min(prices):.6f}"
+    )
+
+    change_color = "dark_sea_green3" if prices[-1] > prices[0] else "red"
+    console.print(
+        f"{interval_hours}h Change: "
+        f"[{change_color}]{((prices[-1] - prices[0]) / prices[0] * 100):.2f}%\n"
+    )
+    print(fig.show())
+    console.print("\nLatest stats:")
+    console.print(
+        f"Supply: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{subnet.alpha_in.tao + subnet.alpha_out.tao:,.2f} {Balance.get_unit(netuid)}"
+        if netuid != 0
+        else f"Supply: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{Balance.get_unit(netuid)} {subnet.alpha_in.tao + subnet.alpha_out.tao:,.2f}"
+    )
+    console.print(
+        f"Market Cap: [steel_blue3]{subnet.price.tao * (subnet.alpha_in.tao + subnet.alpha_out.tao):,.2f} {Balance.get_unit(netuid)} / 21M"
+        if netuid != 0
+        else f"Market Cap: [steel_blue3]{Balance.get_unit(netuid)} {subnet.price.tao * (subnet.alpha_in.tao + subnet.alpha_out.tao):,.2f} / 21M"
+    )
+    console.print(
+        f"Emission: [{COLOR_PALETTE['POOLS']['EMISSION']}]{subnet.emission.tao:,.2f} {Balance.get_unit(netuid)}"
+        if netuid != 0
+        else f"Emission: [{COLOR_PALETTE['POOLS']['EMISSION']}]{Balance.get_unit(netuid)} {subnet.emission.tao:,.2f}"
+    )
+    console.print(
+        f"Stake: [{COLOR_PALETTE['STAKE']['TAO']}]{subnet.alpha_out.tao:,.2f} {Balance.get_unit(netuid)}"
+        if netuid != 0
+        else f"Stake: [{COLOR_PALETTE['STAKE']['TAO']}]{Balance.get_unit(netuid)} {subnet.alpha_out.tao:,.2f}"
+    )

@@ -1,5 +1,11 @@
 # Changelog
 
+## 8.2.0rc11 /2025-01-14
+
+## What's Changed
+* Adds subnet price command
+* Ports w overview command
+
 ## 8.2.0rc10 /2025-01-11
 
 ## What's Changed

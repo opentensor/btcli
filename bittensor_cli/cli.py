@@ -62,7 +62,7 @@ except ImportError:
         pass
 
 
-__version__ = "8.2.0rc10"
+__version__ = "8.2.0rc11"
 
 
 _core_version = re.match(r"^\d+\.\d+\.\d+", __version__).group(0)
@@ -645,12 +645,13 @@ class CLIManager:
             "balance", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"]
         )(self.wallet_balance)
         self.wallet_app.command(
-            "history", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"]
+            "history",
+            rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"],
+            hidden=True,
         )(self.wallet_history)
         self.wallet_app.command(
             "overview",
             rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"],
-            hidden=True,
         )(self.wallet_overview)
         self.wallet_app.command(
             "transfer", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"]
@@ -752,6 +753,9 @@ class CLIManager:
         self.subnets_app.command(
             "show", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
         )(self.subnets_show)
+        self.subnets_app.command(
+            "price", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"], hidden=True
+        )(self.subnets_price)
 
         # weights commands
         self.weights_app.command(
@@ -3552,6 +3556,28 @@ class CLIManager:
                 verbose,
                 live_mode,
             )
+        )
+
+    def subnets_price(
+        self,
+        network: Optional[list[str]] = Options.network,
+        netuid: int = Options.netuid,
+        interval_hours: int = typer.Option(
+            24,
+            "--interval-hours",
+            "--interval",
+            help="The number of hours to show the historical price for.",
+        ),
+    ):
+        """
+        Shows the historical price of a subnet for the past 24 hours.
+
+        EXAMPLE
+
+        [green]$[/green] btcli subnets price --netuid 1
+        """
+        return self._run_command(
+            subnets.price(self.initialize_chain(network), netuid, interval_hours)
         )
 
     def subnets_show(

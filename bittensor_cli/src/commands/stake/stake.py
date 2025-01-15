@@ -10,11 +10,11 @@ from rich.prompt import Confirm, FloatPrompt, Prompt
 from rich.table import Table
 from rich import box
 from rich.progress import Progress, BarColumn, TextColumn
-from rich.console import Console, Group
+from rich.console import Group
 from rich.live import Live
 from substrateinterface.exceptions import SubstrateRequestException
 
-from bittensor_cli.src import COLOR_PALETTE, SUBNETS
+from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import StakeInfo
 from bittensor_cli.src.bittensor.utils import (

@@ -9,7 +9,7 @@ from rich.table import Column, Table
 from rich.prompt import Confirm
 from scalecodec import GenericCall
 
-from bittensor_cli.src import HYPERPARAMS, DelegatesDetails, COLOR_PALETTE, SUBNETS
+from bittensor_cli.src import HYPERPARAMS, DelegatesDetails, COLOR_PALETTE
 from bittensor_cli.src.bittensor.chain_data import decode_account_id
 from bittensor_cli.src.bittensor.utils import (
     console,
@@ -445,7 +445,9 @@ async def set_take_extrinsic(
     if not success:
         err_console.print(err)
     else:
-        console.print(":white_heavy_check_mark: [dark_sea_green_3]Finalized[/dark_sea_green_3]")
+        console.print(
+            ":white_heavy_check_mark: [dark_sea_green_3]Finalized[/dark_sea_green_3]"
+        )
     return success
 
 
@@ -502,9 +504,9 @@ async def get_hyperparameters(subtensor: "SubtensorInterface", netuid: int):
         raise typer.Exit()
 
     table = Table(
-        Column("[white]HYPERPARAMETER", style=COLOR_PALETTE['SUDO']['HYPERPARAMETER']),
-        Column("[white]VALUE", style=COLOR_PALETTE['SUDO']['VALUE']),
-        Column("[white]NORMALIZED", style=COLOR_PALETTE['SUDO']['NORMALIZED']),
+        Column("[white]HYPERPARAMETER", style=COLOR_PALETTE["SUDO"]["HYPERPARAMETER"]),
+        Column("[white]VALUE", style=COLOR_PALETTE["SUDO"]["VALUE"]),
+        Column("[white]NORMALIZED", style=COLOR_PALETTE["SUDO"]["NORMALIZED"]),
         title=f"[{COLOR_PALETTE['GENERAL']['HEADER']}]\nSubnet Hyperparameters\n NETUID: "
         f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid}"
         f"{f' ({subnet_info.subnet_name})' if subnet_info.subnet_name is not None else ''}"
@@ -716,10 +718,14 @@ async def set_take(
             return False
         else:
             new_take = await get_current_take(subtensor, wallet)
-            console.print(f"New take is [{COLOR_PALETTE['POOLS']['RATE']}]{new_take * 100.:.2f}%")
+            console.print(
+                f"New take is [{COLOR_PALETTE['POOLS']['RATE']}]{new_take * 100.:.2f}%"
+            )
             return True
 
-    console.print(f"Setting take on [{COLOR_PALETTE['GENERAL']['LINKS']}]network: {subtensor.network}")
+    console.print(
+        f"Setting take on [{COLOR_PALETTE['GENERAL']['LINKS']}]network: {subtensor.network}"
+    )
 
     try:
         wallet.unlock_hotkey()

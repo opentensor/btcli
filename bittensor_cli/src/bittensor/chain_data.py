@@ -905,7 +905,7 @@ class DynamicInfo:
     def from_vec_u8(cls, vec_u8: list[int]) -> Optional["DynamicInfo"]:
         if len(vec_u8) == 0:
             return None
-        decoded = from_scale_encoding(vec_u8, ChainDataType.DynamicInfo, is_option=True)
+        decoded = from_scale_encoding(vec_u8, ChainDataType.DynamicInfo)
         if decoded is None:
             return None
         return DynamicInfo.fix_decoded_values(decoded)

@@ -1,12 +1,7 @@
 import asyncio
-import binascii
 import itertools
 import os
-import sys
 from collections import defaultdict
-from concurrent.futures import ProcessPoolExecutor
-from functools import partial
-from sys import getsizeof
 from typing import Any, Collection, Generator, Optional
 
 import aiohttp
@@ -16,29 +11,23 @@ from bittensor_wallet.keyfile import Keyfile
 from fuzzywuzzy import fuzz
 from rich import box
 from rich.align import Align
-from rich.prompt import Confirm, Prompt
 from rich.table import Column, Table
 from rich.tree import Tree
 from rich.padding import Padding
-from rich.prompt import IntPrompt
 from scalecodec import ScaleBytes
-import scalecodec
 import typer
 
-from bittensor_cli.src import TYPE_REGISTRY, COLOR_PALETTE
+from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import (
     DelegateInfo,
     NeuronInfoLite,
     StakeInfo,
-    custom_rpc_type_registry,
-    decode_account_id,
 )
 from bittensor_cli.src.bittensor.extrinsics.registration import (
     run_faucet_extrinsic,
     swap_hotkey_extrinsic,
-    is_hotkey_registered,
 )
 from bittensor_cli.src.bittensor.extrinsics.transfer import transfer_extrinsic
 from bittensor_cli.src.bittensor.networking import int_to_ip
@@ -47,7 +36,6 @@ from bittensor_cli.src.bittensor.utils import (
     RAO_PER_TAO,
     console,
     convert_blocks_to_time,
-    decode_scale_bytes,
     err_console,
     print_error,
     print_verbose,
@@ -55,7 +43,6 @@ from bittensor_cli.src.bittensor.utils import (
     get_hotkey_wallets_for_wallet,
     is_valid_ss58_address,
     validate_coldkey_presence,
-    retry_prompt,
     get_subnet_name,
     millify_tao,
 )
