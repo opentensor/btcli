@@ -1,5 +1,10 @@
 # Changelog
 
+## 8.2.0rc12 /2025-01-14
+
+## What's Changed
+* Bumps requirements
+
 ## 8.2.0rc11 /2025-01-14
 
 ## What's Changed
