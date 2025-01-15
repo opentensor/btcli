@@ -2084,12 +2084,22 @@ async def price(
         ]
         subnet_infos = await asyncio.gather(*subnet_info_cors)
 
-        prices = []
-        for subnet_info in subnet_infos:
-            prices.append(subnet_info.price.tao)
+        valid_data = [
+            (bn, info)
+            for bn, info in zip(block_numbers, subnet_infos)
+            if info is not None
+        ]
+        if not valid_data:
+            err_console.print(f"[red]No price data found for subnet {netuid}[/red]")
+            return
 
-    if not prices:
-        err_console.print(f"[red]No price data found for subnet {netuid}[/red]")
+        block_numbers, subnet_infos = zip(*valid_data)
+        prices = [subnet_info.price.tao for subnet_info in subnet_infos]
+
+    if len(prices) < 5:
+        err_console.print(
+            f"[red]Insufficient price data for subnet {netuid}. Need at least 5 data points but only found {len(prices)}.[/red]"
+        )
         return
 
     fig = plotille.Figure()
@@ -2097,8 +2107,6 @@ async def price(
     fig.height = 20
     fig.color_mode = "rgb"
     fig.background = None
-
-    block_numbers = list(range(current_block - total_blocks, current_block + 1, step))
 
     def color_label(text):
         return plotille.color(text, fg=(186, 233, 143), mode="rgb")  # Green
