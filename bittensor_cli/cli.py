@@ -2345,8 +2345,8 @@ class CLIManager:
                 twitter_url,
                 info_,
                 validator_id,
-                prompt,
                 subnet_netuid,
+                prompt,
             )
         )
 
