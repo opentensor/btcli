@@ -19,3 +19,5 @@ websockets>=14.1
 bittensor-wallet>=2.0.2
 bt-decode==0.4.0
 plotille
+pywry
+plotly

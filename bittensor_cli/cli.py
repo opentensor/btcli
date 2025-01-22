@@ -29,8 +29,9 @@ from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.async_substrate_interface import (
     SubstrateRequestException,
 )
-from bittensor_cli.src.commands import subnets, sudo, wallets
+from bittensor_cli.src.commands import sudo, wallets
 from bittensor_cli.src.commands import weights as weights_cmds
+from bittensor_cli.src.commands.subnets import price, subnets
 from bittensor_cli.src.commands.stake import children_hotkeys, stake
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
@@ -754,7 +755,7 @@ class CLIManager:
             "show", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
         )(self.subnets_show)
         self.subnets_app.command(
-            "price", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"], hidden=True
+            "price", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
         )(self.subnets_price)
 
         # weights commands
@@ -3561,13 +3562,24 @@ class CLIManager:
     def subnets_price(
         self,
         network: Optional[list[str]] = Options.network,
-        netuid: int = Options.netuid,
+        netuid: Optional[int] = typer.Option(
+            None,
+            "--netuid",
+            help="The netuid of the subnet (e.g. 1)",
+        ),
         interval_hours: int = typer.Option(
             24,
             "--interval-hours",
             "--interval",
             help="The number of hours to show the historical price for.",
         ),
+        all_netuids: bool = typer.Option(
+            False,
+            "--all-netuids",
+            "--all",
+            help="Show the price for all subnets.",
+        ),
+        html_output: bool = Options.html_output,
     ):
         """
         Shows the historical price of a subnet for the past 24 hours.
@@ -3576,8 +3588,24 @@ class CLIManager:
 
         [green]$[/green] btcli subnets price --netuid 1
         """
+        if all_netuids and netuid:
+            print_error("Cannot specify both --netuid and --all-netuids")
+            raise typer.Exit()
+        
+        if not netuid and not all_netuids:
+            netuid = Prompt.ask(
+                "Enter the [blue]netuid[/blue] to view the price of [dim](or Press Enter to view all subnets)[/dim]",
+            )
+            if not netuid:
+                all_netuids = True
+                html_output = True
+
+        if all_netuids and not html_output:
+            print_error("Cannot specify --all-netuids without --html")
+            raise typer.Exit()
+
         return self._run_command(
-            subnets.price(self.initialize_chain(network), netuid, interval_hours)
+            price.price(self.initialize_chain(network), netuid, all_netuids, interval_hours, html_output)
         )
 
     def subnets_show(
