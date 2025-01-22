@@ -1,6 +1,9 @@
+from abc import abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Any, Union
+
+import munch
 
 import bt_decode
 import netaddr
@@ -14,67 +17,9 @@ from bittensor_cli.src.bittensor.networking import int_to_ip
 from bittensor_cli.src.bittensor.utils import SS58_FORMAT, u16_normalized_float
 
 
-class ChainDataType(Enum):
-    NeuronInfo = 1
-    SubnetInfoV2 = 2
-    DelegateInfo = 3
-    NeuronInfoLite = 4
-    DelegatedInfo = 5
-    StakeInfo = 6
-    IPInfo = 7
-    SubnetHyperparameters = 8
-    SubstakeElements = 9
-    DynamicPoolInfoV2 = 10
-    DelegateInfoLite = 11
-    DynamicInfo = 12
-    ScheduledColdkeySwapInfo = 13
-    SubnetInfo = 14
-    SubnetState = 15
-    SubnetIdentity = 16
-
-
-def from_scale_encoding_using_type_string(
-    input_: Union[list[int], bytes, ScaleBytes], type_string: str
-) -> Optional[dict]:
-    if isinstance(input_, ScaleBytes):
-        as_scale_bytes = input_
-    else:
-        if isinstance(input_, list) and all([isinstance(i, int) for i in input_]):
-            vec_u8 = input_
-            as_bytes = bytes(vec_u8)
-        elif isinstance(input_, bytes):
-            as_bytes = input_
-        else:
-            raise TypeError(
-                f"input must be a list[int], bytes, or ScaleBytes, not {type(input_)}"
-            )
-        as_scale_bytes = ScaleBytes(as_bytes)
-    rpc_runtime_config = RuntimeConfiguration()
-    rpc_runtime_config.update_type_registry(load_type_registry_preset("legacy"))
-    rpc_runtime_config.update_type_registry(custom_rpc_type_registry)
-    obj = rpc_runtime_config.create_scale_object(type_string, data=as_scale_bytes)
-    return obj.decode()
-
-
-def from_scale_encoding(
-    input_: Union[list[int], bytes, ScaleBytes],
-    type_name: ChainDataType,
-    is_vec: bool = False,
-    is_option: bool = False,
-) -> Optional[dict]:
-    type_string = type_name.name
-    if type_name == ChainDataType.DelegatedInfo:
-        # DelegatedInfo is a tuple of (DelegateInfo, Compact<u64>)
-        type_string = f"({ChainDataType.DelegateInfo.name}, Compact<u64>)"
-    if is_option:
-        type_string = f"Option<{type_string}>"
-    if is_vec:
-        type_string = f"Vec<{type_string}>"
-
-    return from_scale_encoding_using_type_string(input_, type_string)
-
-
-def decode_account_id(account_id_bytes: tuple):
+def decode_account_id(account_id_bytes: Union[tuple[int], tuple[tuple[int]]]):
+    if isinstance(account_id_bytes, tuple) and isinstance(account_id_bytes[0], tuple):
+        account_id_bytes = account_id_bytes[0]
     # Convert the AccountId bytes to a Base64 string
     return ss58_encode(bytes(account_id_bytes).hex(), SS58_FORMAT)
 
@@ -146,7 +91,27 @@ class AxonInfo:
 
 
 @dataclass
-class SubnetHyperparameters:
+class InfoBase:
+    """Base dataclass for info objects."""
+
+    @abstractmethod
+    def _fix_decoded(self, decoded: Any) -> "InfoBase":
+        raise NotImplementedError(
+            "This is an abstract method and must be implemented in a subclass."
+        )
+
+    @classmethod
+    def from_any(cls, any_: Any) -> "InfoBase":
+        any_ = munch.munchify(any_)
+        return cls._fix_decoded(any_)
+
+    @classmethod
+    def list_from_any(cls, any_list: list[Any]) -> list["InfoBase"]:
+        return [cls.from_any(any_) for any_ in any_list]
+
+
+@dataclass
+class SubnetHyperparameters(InfoBase):
     """Dataclass for subnet hyperparameters."""
 
     rho: int
@@ -178,8 +143,7 @@ class SubnetHyperparameters:
     liquid_alpha_enabled: bool
 
     @classmethod
-    def from_vec_u8(cls, vec_u8: bytes) -> Optional["SubnetHyperparameters"]:
-        decoded = bt_decode.SubnetHyperparameters.decode(vec_u8)
+    def _fix_decoded(cls, decoded: Any) -> "SubnetHyperparameters":
         return SubnetHyperparameters(
             rho=decoded.rho,
             kappa=decoded.kappa,
@@ -210,9 +174,14 @@ class SubnetHyperparameters:
             liquid_alpha_enabled=decoded.liquid_alpha_enabled,
         )
 
+    @classmethod
+    def from_vec_u8(cls, vec_u8: bytes) -> Optional["SubnetHyperparameters"]:
+        decoded = bt_decode.SubnetHyperparameters.decode(vec_u8)
+        return cls._fix_decoded(decoded)
+
 
 @dataclass
-class StakeInfo:
+class StakeInfo(InfoBase):
     """Dataclass for stake info."""
 
     hotkey_ss58: str  # Hotkey address
@@ -225,11 +194,11 @@ class StakeInfo:
     is_registered: bool
 
     @classmethod
-    def fix_decoded_values(cls, decoded: Any) -> "StakeInfo":
+    def _fix_decoded_values(cls, decoded: Any) -> "StakeInfo":
         """Fixes the decoded values."""
         return cls(
-            hotkey_ss58=ss58_encode(decoded["hotkey"], SS58_FORMAT),
-            coldkey_ss58=ss58_encode(decoded["coldkey"], SS58_FORMAT),
+            hotkey_ss58=decode_account_id(decoded["hotkey"]),
+            coldkey_ss58=decode_account_id(decoded["coldkey"]),
             netuid=int(decoded["netuid"]),
             stake=Balance.from_rao(decoded["stake"]).set_unit(decoded["netuid"]),
             locked=Balance.from_rao(decoded["locked"]).set_unit(decoded["netuid"]),
@@ -239,46 +208,17 @@ class StakeInfo:
         )
 
     @classmethod
-    def from_vec_u8(cls, vec_u8: list[int]) -> Optional["StakeInfo"]:
-        """Returns a StakeInfo object from a ``vec_u8``."""
-        if len(vec_u8) == 0:
-            return None
-
-        decoded = from_scale_encoding(vec_u8, ChainDataType.StakeInfo)
-        if decoded is None:
-            return None
-
-        return StakeInfo.fix_decoded_values(decoded)
+    def from_any(cls, any_: Any) -> "StakeInfo":
+        any_ = munch.munchify(any_)
+        return cls._fix_decoded_values(any_)
 
     @classmethod
-    def list_of_tuple_from_vec_u8(
-        cls, vec_u8: list[int]
-    ) -> dict[str, list["StakeInfo"]]:
-        """Returns a list of StakeInfo objects from a ``vec_u8``."""
-        decoded: Optional[list[tuple[str, list[object]]]] = (
-            from_scale_encoding_using_type_string(
-                vec_u8, type_string="Vec<(AccountId, Vec<StakeInfo>)>"
-            )
-        )
-
-        if decoded is None:
-            return {}
-
-        return {
-            ss58_encode(address=account_id, ss58_format=SS58_FORMAT): [
-                StakeInfo.fix_decoded_values(d) for d in stake_info
-            ]
-            for account_id, stake_info in decoded
-        }
-
-    @classmethod
-    def list_from_vec_u8(cls, vec_u8: list[int]) -> list["StakeInfo"]:
-        """Returns a list of StakeInfo objects from a ``vec_u8``."""
-        decoded = from_scale_encoding(vec_u8, ChainDataType.StakeInfo, is_vec=True)
-        if decoded is None:
-            return []
-
-        return [StakeInfo.fix_decoded_values(d) for d in decoded]
+    def list_from_vec_u8(cls, vec_u8: bytes) -> list["StakeInfo"]:
+        """
+        Returns a list of StakeInfo objects from a `vec_u8`.
+        """
+        decoded = bt_decode.StakeInfo.decode_vec(vec_u8)
+        return [cls._fix_decoded_values(d) for d in decoded]
 
 
 @dataclass
@@ -300,7 +240,7 @@ class PrometheusInfo:
 
 
 @dataclass
-class NeuronInfo:
+class NeuronInfo(InfoBase):
     """Dataclass for neuron metadata."""
 
     hotkey: str
@@ -371,8 +311,9 @@ class NeuronInfo:
         return neuron
 
     @classmethod
-    def from_vec_u8(cls, vec_u8: bytes) -> "NeuronInfo":
-        n = bt_decode.NeuronInfo.decode(vec_u8)
+    def _fix_decoded_values(cls, decoded: Any) -> "NeuronInfo":
+        n = decoded
+
         stake_dict = process_stake_data(n.stake, n.netuid)
         total_stake = sum(stake_dict.values()) if stake_dict else Balance(0)
         axon_info = n.axon_info
@@ -420,9 +361,14 @@ class NeuronInfo:
             is_null=False,
         )
 
+    @classmethod
+    def from_vec_u8(cls, vec_u8: bytes) -> "NeuronInfo":
+        n = bt_decode.NeuronInfo.decode(vec_u8)
+        return cls._fix_decoded_values(n)
+
 
 @dataclass
-class NeuronInfoLite:
+class NeuronInfoLite(InfoBase):
     """Dataclass for neuron metadata, but without the weights and bonds."""
 
     hotkey: str
@@ -476,78 +422,77 @@ class NeuronInfoLite:
         return neuron
 
     @classmethod
+    def _fix_decoded_values(cls, decoded: Any) -> "NeuronInfoLite":
+        active = decoded.active
+        axon_info = decoded.axon_info
+        coldkey = decode_account_id(decoded.coldkey)
+        consensus = decoded.consensus
+        dividends = decoded.dividends
+        emission = decoded.emission
+        hotkey = decode_account_id(decoded.hotkey)
+        incentive = decoded.incentive
+        last_update = decoded.last_update
+        netuid = decoded.netuid
+        prometheus_info = decoded.prometheus_info
+        pruning_score = decoded.pruning_score
+        rank = decoded.rank
+        stake_dict = process_stake_data(decoded.stake, decoded.netuid)
+        stake = (
+            sum(stake_dict.values())
+            if stake_dict
+            else Balance(0).set_unit(decoded.netuid)
+        )
+        trust = decoded.trust
+        uid = decoded.uid
+        validator_permit = decoded.validator_permit
+        validator_trust = decoded.validator_trust
+        return NeuronInfoLite(
+            active=active,
+            axon_info=AxonInfo(
+                version=axon_info.version,
+                ip=str(netaddr.IPAddress(axon_info.ip)),
+                port=axon_info.port,
+                ip_type=axon_info.ip_type,
+                placeholder1=axon_info.placeholder1,
+                placeholder2=axon_info.placeholder2,
+                protocol=axon_info.protocol,
+                hotkey=hotkey,
+                coldkey=coldkey,
+            ),
+            coldkey=coldkey,
+            consensus=u16_normalized_float(consensus),
+            dividends=u16_normalized_float(dividends),
+            emission=emission / 1e9,
+            hotkey=hotkey,
+            incentive=u16_normalized_float(incentive),
+            last_update=last_update,
+            netuid=netuid,
+            prometheus_info=PrometheusInfo(
+                version=prometheus_info.version,
+                ip=str(netaddr.IPAddress(prometheus_info.ip)),
+                port=prometheus_info.port,
+                ip_type=prometheus_info.ip_type,
+                block=prometheus_info.block,
+            ),
+            pruning_score=pruning_score,
+            rank=u16_normalized_float(rank),
+            stake_dict=stake_dict,
+            stake=stake,
+            total_stake=stake,
+            trust=u16_normalized_float(trust),
+            uid=uid,
+            validator_permit=validator_permit,
+            validator_trust=u16_normalized_float(validator_trust),
+        )
+
+    @classmethod
     def list_from_vec_u8(cls, vec_u8: bytes) -> list["NeuronInfoLite"]:
         decoded = bt_decode.NeuronInfoLite.decode_vec(vec_u8)
-        results = []
-        for item in decoded:
-            active = item.active
-            axon_info = item.axon_info
-            coldkey = decode_account_id(item.coldkey)
-            consensus = item.consensus
-            dividends = item.dividends
-            emission = item.emission
-            hotkey = decode_account_id(item.hotkey)
-            incentive = item.incentive
-            last_update = item.last_update
-            netuid = item.netuid
-            prometheus_info = item.prometheus_info
-            pruning_score = item.pruning_score
-            rank = item.rank
-            stake_dict = process_stake_data(item.stake, item.netuid)
-            stake = (
-                sum(stake_dict.values())
-                if stake_dict
-                else Balance(0).set_unit(item.netuid)
-            )
-            trust = item.trust
-            uid = item.uid
-            validator_permit = item.validator_permit
-            validator_trust = item.validator_trust
-            results.append(
-                NeuronInfoLite(
-                    active=active,
-                    axon_info=AxonInfo(
-                        version=axon_info.version,
-                        ip=str(netaddr.IPAddress(axon_info.ip)),
-                        port=axon_info.port,
-                        ip_type=axon_info.ip_type,
-                        placeholder1=axon_info.placeholder1,
-                        placeholder2=axon_info.placeholder2,
-                        protocol=axon_info.protocol,
-                        hotkey=hotkey,
-                        coldkey=coldkey,
-                    ),
-                    coldkey=coldkey,
-                    consensus=u16_normalized_float(consensus),
-                    dividends=u16_normalized_float(dividends),
-                    emission=emission / 1e9,
-                    hotkey=hotkey,
-                    incentive=u16_normalized_float(incentive),
-                    last_update=last_update,
-                    netuid=netuid,
-                    prometheus_info=PrometheusInfo(
-                        version=prometheus_info.version,
-                        ip=str(netaddr.IPAddress(prometheus_info.ip)),
-                        port=prometheus_info.port,
-                        ip_type=prometheus_info.ip_type,
-                        block=prometheus_info.block,
-                    ),
-                    pruning_score=pruning_score,
-                    rank=u16_normalized_float(rank),
-                    stake_dict=stake_dict,
-                    stake=stake,
-                    total_stake=stake,
-                    trust=u16_normalized_float(trust),
-                    uid=uid,
-                    validator_permit=validator_permit,
-                    validator_trust=u16_normalized_float(validator_trust),
-                )
-            )
-        return results
+        return [cls._fix_decoded_values(d) for d in decoded]
 
 
 @dataclass
-class DelegateInfo:
+class DelegateInfo(InfoBase):
     """
     Dataclass for delegate information. For a lighter version of this class, see :func:`DelegateInfoLite`.
 
@@ -578,8 +523,7 @@ class DelegateInfo:
     total_daily_return: Balance  # Total daily return of the delegate
 
     @classmethod
-    def from_vec_u8(cls, vec_u8: bytes) -> Optional["DelegateInfo"]:
-        decoded = bt_decode.DelegateInfo.decode(vec_u8)
+    def _fix_decoded(cls, decoded: "DelegateInfo") -> "DelegateInfo":
         hotkey = decode_account_id(decoded.delegate_ss58)
         owner = decode_account_id(decoded.owner_ss58)
         nominators = [
@@ -599,38 +543,21 @@ class DelegateInfo:
         )
 
     @classmethod
-    def list_from_vec_u8(cls, vec_u8: bytes) -> list["DelegateInfo"]:
-        decoded = bt_decode.DelegateInfo.decode_vec(vec_u8)
-        results = []
-        for d in decoded:
-            hotkey = decode_account_id(d.delegate_ss58)
-            owner = decode_account_id(d.owner_ss58)
-            nominators = [
-                (decode_account_id(x), Balance.from_rao(y)) for x, y in d.nominators
-            ]
-            total_stake = sum((x[1] for x in nominators)) if nominators else Balance(0)
-            results.append(
-                DelegateInfo(
-                    hotkey_ss58=hotkey,
-                    total_stake=total_stake,
-                    nominators=nominators,
-                    owner_ss58=owner,
-                    take=u16_normalized_float(d.take),
-                    validator_permits=d.validator_permits,
-                    registrations=d.registrations,
-                    return_per_1000=Balance.from_rao(d.return_per_1000),
-                    total_daily_return=Balance.from_rao(d.total_daily_return),
-                )
-            )
-        return results
+    def from_vec_u8(cls, vec_u8: bytes) -> Optional["DelegateInfo"]:
+        decoded = bt_decode.DelegateInfo.decode(vec_u8)
+        return cls._fix_decoded(decoded)
 
     @classmethod
-    def delegated_list_from_vec_u8(
-        cls, vec_u8: bytes
+    def list_from_vec_u8(cls, vec_u8: bytes) -> list["DelegateInfo"]:
+        decoded = bt_decode.DelegateInfo.decode_vec(vec_u8)
+        return [cls._fix_decoded(d) for d in decoded]
+
+    @classmethod
+    def _fix_delegated_list(
+        cls, delegated_list: list[tuple["DelegateInfo", Balance]]
     ) -> list[tuple["DelegateInfo", Balance]]:
-        decoded = bt_decode.DelegateInfo.decode_delegated(vec_u8)
         results = []
-        for d, b in decoded:
+        for d, b in delegated_list:
             nominators = [
                 (decode_account_id(x), Balance.from_rao(y)) for x, y in d.nominators
             ]
@@ -649,9 +576,23 @@ class DelegateInfo:
             results.append((delegate, Balance.from_rao(b)))
         return results
 
+    @classmethod
+    def delegated_list_from_vec_u8(
+        cls, vec_u8: bytes
+    ) -> list[tuple["DelegateInfo", Balance]]:
+        decoded = bt_decode.DelegateInfo.decode_delegated(vec_u8)
+        return cls._fix_delegated_list(decoded)
+
+    @classmethod
+    def delegated_list_from_any(
+        cls, any_list: list[Any]
+    ) -> list[tuple["DelegateInfo", Balance]]:
+        any_list = [munch.munchify(any_) for any_ in any_list]
+        return cls._fix_delegated_list(any_list)
+
 
 @dataclass
-class DelegateInfoLite:
+class DelegateInfoLite(InfoBase): # TODO(cam)
     """
     Dataclass for light delegate information.
 
@@ -720,7 +661,7 @@ class DelegateInfoLite:
 
 
 @dataclass
-class SubnetInfo:
+class SubnetInfo(InfoBase):
     """Dataclass for subnet info."""
 
     netuid: int
@@ -743,40 +684,40 @@ class SubnetInfo:
     owner_ss58: str
 
     @classmethod
+    def _fix_decoded_values(cls, decoded: "SubnetInfo") -> "SubnetInfo":
+        d = decoded
+        return SubnetInfo(
+            netuid=d.netuid,
+            rho=d.rho,
+            kappa=d.kappa,
+            difficulty=d.difficulty,
+            immunity_period=d.immunity_period,
+            max_allowed_validators=d.max_allowed_validators,
+            min_allowed_weights=d.min_allowed_weights,
+            max_weight_limit=d.max_weights_limit,
+            scaling_law_power=d.scaling_law_power,
+            subnetwork_n=d.subnetwork_n,
+            max_n=d.max_allowed_uids,
+            blocks_since_epoch=d.blocks_since_last_step,
+            tempo=d.tempo,
+            modality=d.network_modality,
+            connection_requirements={
+                str(int(netuid)): u16_normalized_float(int(req))
+                for (netuid, req) in d.network_connect
+            },
+            emission_value=d.emission_values,
+            burn=Balance.from_rao(d.burn),
+            owner_ss58=decode_account_id(d.owner),
+        )
+
+    @classmethod
     def list_from_vec_u8(cls, vec_u8: bytes) -> list["SubnetInfo"]:
         decoded = bt_decode.SubnetInfo.decode_vec_option(vec_u8)
-        result = []
-        for d in decoded:
-            result.append(
-                SubnetInfo(
-                    netuid=d.netuid,
-                    rho=d.rho,
-                    kappa=d.kappa,
-                    difficulty=d.difficulty,
-                    immunity_period=d.immunity_period,
-                    max_allowed_validators=d.max_allowed_validators,
-                    min_allowed_weights=d.min_allowed_weights,
-                    max_weight_limit=d.max_weights_limit,
-                    scaling_law_power=d.scaling_law_power,
-                    subnetwork_n=d.subnetwork_n,
-                    max_n=d.max_allowed_uids,
-                    blocks_since_epoch=d.blocks_since_last_step,
-                    tempo=d.tempo,
-                    modality=d.network_modality,
-                    connection_requirements={
-                        str(int(netuid)): u16_normalized_float(int(req))
-                        for (netuid, req) in d.network_connect
-                    },
-                    emission_value=d.emission_values,
-                    burn=Balance.from_rao(d.burn),
-                    owner_ss58=decode_account_id(d.owner),
-                )
-            )
-        return result
+        return [cls._fix_decoded_values(d) for d in decoded]
 
 
 @dataclass
-class SubnetInfoV2:
+class SubnetInfoV2(InfoBase): # TODO(cam)
     """Dataclass for subnet info."""
 
     netuid: int
