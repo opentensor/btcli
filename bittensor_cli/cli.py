@@ -3562,10 +3562,12 @@ class CLIManager:
     def subnets_price(
         self,
         network: Optional[list[str]] = Options.network,
-        netuid: Optional[int] = typer.Option(
+        netuids: str = typer.Option(
             None,
+            "--netuids",
             "--netuid",
-            help="The netuid of the subnet (e.g. 1)",
+            "-n",
+            help="Netuid(s) to show the price for.",
         ),
         interval_hours: int = typer.Option(
             24,
@@ -3584,28 +3586,52 @@ class CLIManager:
         """
         Shows the historical price of a subnet for the past 24 hours.
 
+        This command displays the historical price of a subnet for the past 24 hours.
+        If the `--all` flag is used, the command will display the price for all subnets in html format.
+        If the `--html` flag is used, the command will display the price in an HTML chart.
+        If no html flag is used, the command will display the price in the cli.
+
         EXAMPLE
 
         [green]$[/green] btcli subnets price --netuid 1
+        [green]$[/green] btcli subnets price --all --html
+        [green]$[/green] btcli subnets price --netuids 1,2,3,4 --html
         """
-        if all_netuids and netuid:
+        if netuids:
+            netuids = parse_to_list(
+                netuids,
+                int,
+                "Netuids must be a comma-separated list of ints, e.g., `--netuids 1,2,3,4`.",
+            )
+        if all_netuids and netuids:
             print_error("Cannot specify both --netuid and --all-netuids")
             raise typer.Exit()
-        
-        if not netuid and not all_netuids:
-            netuid = Prompt.ask(
-                "Enter the [blue]netuid[/blue] to view the price of [dim](or Press Enter to view all subnets)[/dim]",
+
+        if not netuids and not all_netuids:
+            netuids = Prompt.ask(
+                "Enter the [blue]netuid(s)[/blue] to view the price of in comma-separated format [dim](or Press Enter to view all subnets)[/dim]",
             )
-            if not netuid:
+            if not netuids:
                 all_netuids = True
                 html_output = True
+            else:
+                netuids = parse_to_list(
+                    netuids,
+                    int,
+                    "Netuids must be a comma-separated list of ints, e.g., `--netuids 1,2,3,4`.",
+                )
 
-        if all_netuids and not html_output:
-            print_error("Cannot specify --all-netuids without --html")
-            raise typer.Exit()
+        if all_netuids:
+            html_output = True
 
         return self._run_command(
-            price.price(self.initialize_chain(network), netuid, all_netuids, interval_hours, html_output)
+            price.price(
+                self.initialize_chain(network),
+                netuids,
+                all_netuids,
+                interval_hours,
+                html_output,
+            )
         )
 
     def subnets_show(

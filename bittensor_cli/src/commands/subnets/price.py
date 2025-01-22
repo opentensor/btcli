@@ -11,6 +11,7 @@ from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
     get_subnet_name,
+    print_error,
 )
 
 if TYPE_CHECKING:
@@ -19,17 +20,16 @@ if TYPE_CHECKING:
 
 async def price(
     subtensor: "SubtensorInterface",
-    netuid: int,
+    netuids: list[int],
     all_netuids: bool = False,
     interval_hours: int = 24,
     html_output: bool = False,
 ):
+    """
+    Fetch historical price data for subnets and display it in a chart.
+    """
     if all_netuids:
-        netuids = [
-            nid for nid in await subtensor.get_all_subnet_netuids() if nid != 0
-        ]
-    else:
-        netuids = [netuid]
+        netuids = [nid for nid in await subtensor.get_all_subnet_netuids() if nid != 0]
 
     blocks_per_hour = int(3600 / 12)  # ~300 blocks per hour
     total_blocks = blocks_per_hour * interval_hours
@@ -43,23 +43,24 @@ async def price(
         block_numbers = list(range(start_block, current_block + 1, step))
 
         # Block hashes
-        block_hash_cors = [subtensor.substrate.get_block_hash(bn) for bn in block_numbers]
+        block_hash_cors = [
+            subtensor.substrate.get_block_hash(bn) for bn in block_numbers
+        ]
         block_hashes = await asyncio.gather(*block_hash_cors)
 
-        # Subnet info
-        if all_netuids:
+        # Subnet info (we fetch all subnets in-case there are more than one)
+        if all_netuids or len(netuids) > 1:
             subnet_info_cors = [
                 subtensor.get_all_subnet_dynamic_info(bh) for bh in block_hashes
             ]
         else:
-            # TODO: Add feat supporting multiple netuids
+            # If there is only one netuid, we fetch the subnet info for that netuid
             netuid = netuids[0]
             subnet_info_cors = [
                 subtensor.get_subnet_dynamic_info(netuid, bh) for bh in block_hashes
             ]
         all_subnet_infos = await asyncio.gather(*subnet_info_cors)
 
-        # 3) Process the data
         subnet_data = _process_subnet_data(
             block_numbers, all_subnet_infos, netuids, all_netuids, interval_hours
         )
@@ -82,21 +83,18 @@ def _process_subnet_data(
     interval_hours,
 ):
     """
-    Take the fetched subnet data and build a dictionary of 
-    { netuid: { prices, stats } } containing:
-        - historical prices
-        - current/high/low
-        - supply/market_cap/emission/stake, etc.
-    Returns a dict sorted by market_cap desc.
+    Process subnet data into a structured format for price analysis.
     """
     subnet_data = {}
 
-    if all_netuids:
+    if all_netuids or len(netuids) > 1:
         for netuid in netuids:
             prices = []
             valid_subnet_infos = []
-            for block_num, subnet_infos in zip(block_numbers, all_subnet_infos):
-                subnet_info = next((s for s in subnet_infos if s.netuid == netuid), None)
+            for _, subnet_infos in zip(block_numbers, all_subnet_infos):
+                subnet_info = next(
+                    (s for s in subnet_infos if s.netuid == netuid), None
+                )
                 if subnet_info:
                     prices.append(subnet_info.price.tao)
                     valid_subnet_infos.append(subnet_info)
@@ -111,7 +109,7 @@ def _process_subnet_data(
                     f"Need at least 5 data points but only found {len(prices)}.[/red]"
                 )
                 continue
-            
+
             # Most recent data for statistics
             latest_subnet_data = valid_subnet_infos[-1]
             stats = {
@@ -119,7 +117,8 @@ def _process_subnet_data(
                 "high": max(prices),
                 "low": min(prices),
                 "change_pct": ((prices[-1] - prices[0]) / prices[0] * 100),
-                "supply": latest_subnet_data.alpha_in.tao + latest_subnet_data.alpha_out.tao,
+                "supply": latest_subnet_data.alpha_in.tao
+                + latest_subnet_data.alpha_out.tao,
                 "market_cap": latest_subnet_data.price.tao
                 * (latest_subnet_data.alpha_in.tao + latest_subnet_data.alpha_out.tao),
                 "emission": latest_subnet_data.emission.tao,
@@ -135,7 +134,7 @@ def _process_subnet_data(
     else:
         prices = []
         valid_subnet_infos = []
-        for block_num, subnet_info in zip(block_numbers, all_subnet_infos):
+        for _, subnet_info in zip(block_numbers, all_subnet_infos):
             if subnet_info:
                 prices.append(subnet_info.price.tao)
                 valid_subnet_infos.append(subnet_info)
@@ -158,7 +157,8 @@ def _process_subnet_data(
             "high": max(prices),
             "low": min(prices),
             "change_pct": ((prices[-1] - prices[0]) / prices[0] * 100),
-            "supply": latest_subnet_data.alpha_in.tao + latest_subnet_data.alpha_out.tao,
+            "supply": latest_subnet_data.alpha_in.tao
+            + latest_subnet_data.alpha_out.tao,
             "market_cap": latest_subnet_data.price.tao
             * (latest_subnet_data.alpha_in.tao + latest_subnet_data.alpha_out.tao),
             "emission": latest_subnet_data.emission.tao,
@@ -188,6 +188,9 @@ def _generate_html_single_subnet(
     block_numbers,
     interval_hours,
 ):
+    """
+    Generate an HTML chart for a single subnet.
+    """
     stats = data["stats"]
     prices = data["prices"]
 
@@ -197,7 +200,9 @@ def _generate_html_single_subnet(
             x=block_numbers,
             y=prices,
             mode="lines",
-            name=f"Subnet {netuid} - {stats['name']}" if stats["name"] else f"Subnet {netuid}",
+            name=f"Subnet {netuid} - {stats['name']}"
+            if stats["name"]
+            else f"Subnet {netuid}",
             line=dict(width=2, color="#1f77b4"),
         )
     )
@@ -346,12 +351,15 @@ def _generate_html_single_subnet(
 
 
 def _generate_html_multi_subnet(subnet_data, block_numbers, interval_hours):
+    """
+    Generate an HTML chart for multiple subnets.
+    """
     # Pick top subnet by market cap
-    top_subnet_id = max(
+    top_subnet_netuid = max(
         subnet_data.keys(),
         key=lambda k: subnet_data[k]["stats"]["market_cap"],
     )
-    top_subnet_stats = subnet_data[top_subnet_id]["stats"]
+    top_subnet_stats = subnet_data[top_subnet_netuid]["stats"]
 
     fig = go.Figure()
     fig.update_layout(
@@ -390,7 +398,7 @@ def _generate_html_multi_subnet(subnet_data, block_numbers, interval_hours):
     change_color = "#00FF00" if top_subnet_stats["change_pct"] > 0 else "#FF5555"
 
     left_text = (
-        f"Top subnet: Subnet {top_subnet_id}"
+        f"Top subnet: Subnet {top_subnet_netuid}"
         + (f" - {top_subnet_stats['name']}" if top_subnet_stats["name"] else "")
         + "<br><br>"
         + f"<span style='font-size: 24px'>{top_subnet_stats['current_price']:.6f} {top_subnet_stats['symbol']}"
@@ -442,7 +450,7 @@ def _generate_html_multi_subnet(subnet_data, block_numbers, interval_hours):
         for i in range(n):
             hue = i * 0.618033988749895 % 1
             saturation = 0.6 + (i % 3) * 0.2
-            value = 0.8 + (i % 2) * 0.2       # Brightness
+            value = 0.8 + (i % 2) * 0.2  # Brightness
 
             h = hue * 6
             c = value * saturation
@@ -566,7 +574,9 @@ def _generate_html_multi_subnet(subnet_data, block_numbers, interval_hours):
         }
 
     # Build buttons for each subnet
-    all_button_html = '<button class="subnet-button active" onclick="setAll()">All</button>'
+    all_button_html = (
+        '<button class="subnet-button active" onclick="setAll()">All</button>'
+    )
     subnet_buttons_html = ""
     for netuid in subnet_keys:
         subnet_buttons_html += f'<button class="subnet-button" onclick="setSubnet({netuid})">S{netuid}</button> '
@@ -697,6 +707,9 @@ async def _generate_html_output(
     block_numbers,
     interval_hours,
 ):
+    """
+    Start PyWry and display the price chart in a window.
+    """
     try:
         subnet_keys = list(subnet_data.keys())
 
@@ -747,10 +760,8 @@ async def _generate_html_output(
             except KeyboardInterrupt:
                 handler.close()
 
-    except ImportError:
-        console.print(
-            "[red]Error: Please install plotly to use HTML output: pip install plotly[/red]"
-        )
+    except Exception as e:
+        print_error(f"Error: {e}")
 
 
 def _generate_cli_output(subnet_data, block_numbers, interval_hours):
