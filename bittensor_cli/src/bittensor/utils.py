@@ -1,6 +1,7 @@
 import ast
 import math
 import os
+import json
 import sqlite3
 import webbrowser
 import sys
@@ -1225,20 +1226,21 @@ def is_valid_contact(contact: str) -> bool:
 
 def get_subnet_name(subnet_info) -> str:
     """Get the subnet name, prioritizing subnet_identity.subnet_name over subnet.subnet_name.
-    
+
     Args:
         subnet: The subnet dynamic info
-        
+
     Returns:
         str: The subnet name or empty string if no name is found
     """
     return (
         subnet_info.subnet_identity.subnet_name
-        if hasattr(subnet_info, 'subnet_identity') 
-        and subnet_info.subnet_identity is not None 
+        if hasattr(subnet_info, "subnet_identity")
+        and subnet_info.subnet_identity is not None
         and subnet_info.subnet_identity.subnet_name is not None
         else (subnet_info.subnet_name if subnet_info.subnet_name is not None else "")
     )
+
 
 def bytes_from_hex_string_result(hex_string_result: str) -> bytes:
     if hex_string_result.startswith("0x"):
@@ -1256,3 +1258,83 @@ def decode_account_id(account_id_bytes: Union[tuple[int], tuple[tuple[int]]]):
 
 def encode_account_id(ss58_address: str) -> bytes:
     return bytes.fromhex(ss58_decode(ss58_address, SS58_FORMAT))
+
+
+def format_registry(registry: dict) -> str:
+    """
+    Formats the registry into a string for use in bt_decode
+
+    Should be an array of type definitions
+
+    Only works if dependent types are defined before the type that depends on them
+    """
+    type_registry = {}
+    type_definitions = []
+
+    type_definitions.append(
+        {
+            "id": 0,
+            "type": {
+                "path": ["AccountId"],
+                "def": {"composite": {"fields": [{"type": 1, "typeName": "[u8; 32]"}]}},
+            },
+        }
+    )
+    type_registry["AccountId"] = 0
+
+    type_definitions.append(
+        {"id": 1, "type": {"def": {"array": {"type": 2, "len": 32}}}}
+    )  # [u8; 32]
+
+    for i, type_name in enumerate(
+        [
+            "u8",
+            "bool",
+            "char",
+            "str",
+            "u16",
+            "u32",
+            "u64",
+            "u128",
+            "u256",
+            "i8",
+            "i16",
+            "i32",
+            "i64",
+            "i128",
+            "i256",
+        ]
+    ):
+        idx = len(type_definitions)
+        type_def = {"id": idx, "type": {"def": {"primitive": type_name}}}
+        type_definitions.append(type_def)
+        type_registry[type_name] = idx
+
+    def format_struct_def(struct_mapping: list[list[str, str]]) -> dict:
+        return {
+            "composite": {
+                "fields": [
+                    {
+                        "name": field[0],
+                        "typeName": field[1],
+                        "type": type_registry[field[1]],
+                    }
+                    for field in struct_mapping
+                ]
+            }
+        }
+
+    inner = registry["types"]
+    for i, (type_name, type_def) in enumerate(inner.items()):
+        idx = len(type_definitions)
+        if type_def["type"] == "struct":
+            type_def = format_struct_def(type_def["type_mapping"])
+        else:
+            raise ValueError(f"Unsupported type: {type_def['type']}")
+
+        type_definition = {"id": idx, "type": {"path": [type_name], "def": type_def}}
+        type_definitions.append(type_definition)
+        type_registry[type_name] = idx
+    outer = {"types": type_definitions}
+
+    return json.dumps(outer)

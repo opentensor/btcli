@@ -7,7 +7,11 @@ import netaddr
 
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.networking import int_to_ip
-from bittensor_cli.src.bittensor.utils import u16_normalized_float, decode_account_id
+from bittensor_cli.src.bittensor.utils import (
+    u16_normalized_float,
+    decode_account_id,
+    format_registry,
+)
 
 
 def decode_hex_identity(info_dictionary):
@@ -1126,9 +1130,10 @@ class SubnetState(InfoBase):
 class SubstakeElements:
     @staticmethod
     def decode(result: list[int]) -> list[dict]:
-        descaled = from_scale_encoding(
-            input_=result, type_name=ChainDataType.SubstakeElements, is_vec=True
-        )
+        registry_formatted = format_registry(custom_rpc_type_registry)
+        registry = bt_decode.PortableRegistry.from_json(registry_formatted)
+        descaled = bt_decode.decode("SubstakeElements", registry, result)
+
         result = []
         for item in descaled:
             result.append(
