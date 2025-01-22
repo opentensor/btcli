@@ -81,17 +81,22 @@ class InfoBase:
     """Base dataclass for info objects."""
 
     @abstractmethod
-    def _fix_decoded(self, decoded: Any) -> "InfoBase":
+    def _fix_decoded_values(self, decoded: Any) -> "InfoBase":
         raise NotImplementedError(
             "This is an abstract method and must be implemented in a subclass."
         )
 
     @classmethod
-    def from_any(cls, any_: Any) -> "InfoBase":
-        return cls._fix_decoded(any_)
+    def from_any(cls, any_: Any) -> Optional["InfoBase"]:
+        if any_ is None:
+            return None
+        return cls._fix_decoded_values(any_)
 
     @classmethod
-    def list_from_any(cls, any_list: list[Any]) -> list["InfoBase"]:
+    def list_from_any(cls, any_list: list[Any]) -> Optional[list["InfoBase"]]:
+        if any_list is None:
+            return []
+
         return [cls.from_any(any_) for any_ in any_list]
 
     def __getitem__(self, item):
@@ -134,10 +139,10 @@ class SubnetHyperparameters(InfoBase):
     liquid_alpha_enabled: bool
 
     @classmethod
-    def _fix_decoded(
+    def _fix_decoded_values(
         cls, decoded: Union[dict, "SubnetHyperparameters"]
     ) -> "SubnetHyperparameters":
-        return SubnetHyperparameters(
+        return cls(
             rho=decoded.get("rho"),
             kappa=decoded.get("kappa"),
             immunity_period=decoded.get("immunity_period"),
@@ -169,11 +174,6 @@ class SubnetHyperparameters(InfoBase):
             liquid_alpha_enabled=decoded.get("liquid_alpha_enabled"),
         )
 
-    @classmethod
-    def from_vec_u8(cls, vec_u8: bytes) -> Optional["SubnetHyperparameters"]:
-        decoded = bt_decode.SubnetHyperparameters.decode(vec_u8)
-        return cls._fix_decoded(decoded)
-
 
 @dataclass
 class StakeInfo(InfoBase):
@@ -203,16 +203,10 @@ class StakeInfo(InfoBase):
         )
 
     @classmethod
-    def from_any(cls, any_: Any) -> "StakeInfo":
-        return cls._fix_decoded_values(any_)
-
-    @classmethod
-    def list_from_vec_u8(cls, vec_u8: bytes) -> list["StakeInfo"]:
-        """
-        Returns a list of StakeInfo objects from a `vec_u8`.
-        """
-        decoded = bt_decode.StakeInfo.decode_vec(vec_u8)
-        return [cls._fix_decoded_values(d) for d in decoded]
+    def list_of_tuple_from_any(
+        cls, any_list: list[tuple[Any, Any]]
+    ) -> list[tuple[str, "StakeInfo"]]:
+        return [(s, cls.from_any(any_)) for s, any_ in any_list]
 
 
 @dataclass
@@ -355,11 +349,6 @@ class NeuronInfo(InfoBase):
             is_null=False,
         )
 
-    @classmethod
-    def from_vec_u8(cls, vec_u8: bytes) -> "NeuronInfo":
-        n = bt_decode.NeuronInfo.decode(vec_u8)
-        return cls._fix_decoded_values(n)
-
 
 @dataclass
 class NeuronInfoLite(InfoBase):
@@ -479,11 +468,6 @@ class NeuronInfoLite(InfoBase):
             validator_trust=u16_normalized_float(validator_trust),
         )
 
-    @classmethod
-    def list_from_vec_u8(cls, vec_u8: bytes) -> list["NeuronInfoLite"]:
-        decoded = bt_decode.NeuronInfoLite.decode_vec(vec_u8)
-        return [cls._fix_decoded_values(d) for d in decoded]
-
 
 @dataclass
 class DelegateInfo(InfoBase):
@@ -517,7 +501,7 @@ class DelegateInfo(InfoBase):
     total_daily_return: Balance  # Total daily return of the delegate
 
     @classmethod
-    def _fix_decoded(cls, decoded: "DelegateInfo") -> "DelegateInfo":
+    def _fix_decoded_values(cls, decoded: "DelegateInfo") -> "DelegateInfo":
         # TODO check if this is hotkey_ss58 or delegate_ss58 from bt-decode
         hotkey = decode_account_id(decoded.delegate_ss58)
         owner = decode_account_id(decoded.owner_ss58)
@@ -536,16 +520,6 @@ class DelegateInfo(InfoBase):
             return_per_1000=Balance.from_rao(decoded.return_per_1000),
             total_daily_return=Balance.from_rao(decoded.total_daily_return),
         )
-
-    @classmethod
-    def from_vec_u8(cls, vec_u8: bytes) -> Optional["DelegateInfo"]:
-        decoded = bt_decode.DelegateInfo.decode(vec_u8)
-        return cls._fix_decoded(decoded)
-
-    @classmethod
-    def list_from_vec_u8(cls, vec_u8: bytes) -> list["DelegateInfo"]:
-        decoded = bt_decode.DelegateInfo.decode_vec(vec_u8)
-        return [cls._fix_decoded(d) for d in decoded]
 
     @classmethod
     def _fix_delegated_list(
@@ -572,13 +546,6 @@ class DelegateInfo(InfoBase):
         return results
 
     @classmethod
-    def delegated_list_from_vec_u8(
-        cls, vec_u8: bytes
-    ) -> list[tuple["DelegateInfo", Balance]]:
-        decoded = bt_decode.DelegateInfo.decode_delegated(vec_u8)
-        return cls._fix_delegated_list(decoded)
-
-    @classmethod
     def delegated_list_from_any(
         cls, any_list: list[Union[tuple["DelegateInfo", Balance], tuple[dict, Balance]]]
     ) -> list[tuple["DelegateInfo", Balance]]:
@@ -586,7 +553,7 @@ class DelegateInfo(InfoBase):
 
 
 @dataclass
-class DelegateInfoLite(InfoBase): # TODO(cam)
+class DelegateInfoLite(InfoBase):
     """
     Dataclass for light delegate information.
 
@@ -623,35 +590,6 @@ class DelegateInfoLite(InfoBase): # TODO(cam)
             owner_stake=Balance.from_rao(decoded["owner_stake"]),
             previous_total_stake=None,
         )
-
-    @classmethod
-    def from_vec_u8(cls, vec_u8: list[int]) -> Optional["DelegateInfoLite"]:
-        """Returns a DelegateInfoLite object from a ``vec_u8``."""
-        if len(vec_u8) == 0:
-            return None
-
-        decoded = from_scale_encoding(vec_u8, ChainDataType.DelegateInfoLite)
-
-        if decoded is None:
-            return None
-
-        decoded = DelegateInfoLite.fix_decoded_values(decoded)
-
-        return decoded
-
-    @classmethod
-    def list_from_vec_u8(cls, vec_u8: list[int]) -> list["DelegateInfoLite"]:
-        """Returns a list of DelegateInfoLite objects from a ``vec_u8``."""
-        decoded = from_scale_encoding(
-            vec_u8, ChainDataType.DelegateInfoLite, is_vec=True
-        )
-
-        if decoded is None:
-            return []
-
-        decoded = [DelegateInfoLite.fix_decoded_values(d) for d in decoded]
-
-        return decoded
 
 
 @dataclass
@@ -704,14 +642,9 @@ class SubnetInfo(InfoBase):
             owner_ss58=decode_account_id(d.owner),
         )
 
-    @classmethod
-    def list_from_vec_u8(cls, vec_u8: bytes) -> list["SubnetInfo"]:
-        decoded = bt_decode.SubnetInfo.decode_vec_option(vec_u8)
-        return [cls._fix_decoded_values(d) for d in decoded]
-
 
 @dataclass
-class SubnetInfoV2(InfoBase): # TODO(cam)
+class SubnetInfoV2(InfoBase):
     """Dataclass for subnet info."""
 
     netuid: int
@@ -727,30 +660,6 @@ class SubnetInfoV2(InfoBase): # TODO(cam)
     tao_locked: Balance
     hyperparameters: "SubnetHyperparameters"
     dynamic_pool: "DynamicPool"
-
-    @classmethod
-    def from_vec_u8(cls, vec_u8: bytes) -> Optional["SubnetInfoV2"]:
-        """Returns a SubnetInfoV2 object from a ``vec_u8``."""
-        if len(vec_u8) == 0:
-            return None
-        decoded = bt_decode.SubnetInfoV2.decode(vec_u8)  # TODO fix values
-
-        if decoded is None:
-            return None
-
-        return cls._fix_decoded_values(decoded)
-
-    @classmethod
-    def list_from_vec_u8(cls, vec_u8: bytes) -> list["SubnetInfoV2"]:
-        """Returns a list of SubnetInfoV2 objects from a ``vec_u8``."""
-        decoded = bt_decode.SubnetInfoV2.decode_vec(vec_u8)  # TODO fix values
-
-        if decoded is None:
-            return []
-
-        decoded = [cls._fix_decoded_values(d) for d in decoded]
-
-        return decoded
 
     @classmethod
     def _fix_decoded_values(cls, decoded: dict) -> "SubnetInfoV2":
@@ -796,15 +705,8 @@ class SubnetIdentity:
     subnet_contact: str
 
     @classmethod
-    def from_vec_u8(cls, vec_u8: list[int]) -> Optional["SubnetIdentity"]:
-        if len(vec_u8) == 0:
-            return None
-
-        decoded = from_scale_encoding(vec_u8, ChainDataType.SubnetIdentity)
-        if decoded is None:
-            return None
-
-        return SubnetIdentity(
+    def _fix_decoded_values(cls, decoded: dict) -> "SubnetIdentity":
+        return cls(
             subnet_name=bytes(decoded["subnet_name"]).decode(),
             github_repo=bytes(decoded["github_repo"]).decode(),
             subnet_contact=bytes(decoded["subnet_contact"]).decode(),
@@ -812,7 +714,7 @@ class SubnetIdentity:
 
 
 @dataclass
-class DynamicInfo:
+class DynamicInfo(InfoBase):
     netuid: int
     owner_hotkey: str
     owner_coldkey: str
@@ -837,27 +739,10 @@ class DynamicInfo:
     subnet_identity: Optional[SubnetIdentity]
 
     @classmethod
-    def from_vec_u8(cls, vec_u8: list[int]) -> Optional["DynamicInfo"]:
-        if len(vec_u8) == 0:
-            return None
-        decoded = from_scale_encoding(vec_u8, ChainDataType.DynamicInfo)
-        if decoded is None:
-            return None
-        return DynamicInfo.fix_decoded_values(decoded)
-
-    @classmethod
-    def list_from_vec_u8(cls, vec_u8: Union[list[int], bytes]) -> list["DynamicInfo"]:
-        decoded = from_scale_encoding(
-            vec_u8, ChainDataType.DynamicInfo, is_vec=True, is_option=True
-        )
-        if decoded is None:
-            return []
-        decoded = [DynamicInfo.fix_decoded_values(d) for d in decoded]
-        return decoded
-
-    @classmethod
-    def fix_decoded_values(cls, decoded: dict) -> "DynamicInfo":
+    def _fix_decoded_values(cls, decoded: Optional[dict]) -> "DynamicInfo":
         """Returns a DynamicInfo object from a decoded DynamicInfo dictionary."""
+        if decoded is None:
+            return None
 
         netuid = int(decoded["netuid"])
         symbol = bytes([int(b) for b in decoded["token_symbol"]]).decode()
@@ -1002,7 +887,7 @@ class DynamicInfo:
 
 
 @dataclass
-class DynamicPoolInfoV2:
+class DynamicPoolInfoV2(InfoBase):
     """Dataclass for dynamic pool info."""
 
     netuid: int
@@ -1013,11 +898,15 @@ class DynamicPoolInfoV2:
     k: int
 
     @classmethod
-    def from_vec_u8(cls, vec_u8: list[int]) -> Optional["DynamicPoolInfoV2"]:
-        """Returns a DynamicPoolInfoV2 object from a ``vec_u8``."""
-        if len(vec_u8) == 0:
-            return None
-        return from_scale_encoding(vec_u8, ChainDataType.DynamicPoolInfoV2)
+    def _fix_decoded_values(cls, decoded: dict) -> "DynamicPoolInfoV2":
+        return cls(
+            netuid=decoded["netuid"],
+            alpha_issuance=decoded["alpha_issuance"],
+            alpha_outstanding=decoded["alpha_outstanding"],
+            alpha_reserve=decoded["alpha_reserve"],
+            tao_reserve=decoded["tao_reserve"],
+            k=decoded["k"],
+        )
 
 
 @dataclass
@@ -1161,7 +1050,7 @@ class DynamicPool:
 
 
 @dataclass
-class ScheduledColdkeySwapInfo:
+class ScheduledColdkeySwapInfo(InfoBase):
     """Dataclass for scheduled coldkey swap information."""
 
     old_coldkey: str
@@ -1169,7 +1058,7 @@ class ScheduledColdkeySwapInfo:
     arbitration_block: int
 
     @classmethod
-    def fix_decoded_values(cls, decoded: Any) -> "ScheduledColdkeySwapInfo":
+    def _fix_decoded_values(cls, decoded: dict) -> "ScheduledColdkeySwapInfo":
         """Fixes the decoded values."""
         return cls(
             old_coldkey=decode_account_id(decoded["old_coldkey"]),
@@ -1177,42 +1066,9 @@ class ScheduledColdkeySwapInfo:
             arbitration_block=decoded["arbitration_block"],
         )
 
-    @classmethod
-    def from_vec_u8(cls, vec_u8: list[int]) -> Optional["ScheduledColdkeySwapInfo"]:
-        """Returns a ScheduledColdkeySwapInfo object from a ``vec_u8``."""
-        if len(vec_u8) == 0:
-            return None
-
-        decoded = from_scale_encoding(vec_u8, ChainDataType.ScheduledColdkeySwapInfo)
-        if decoded is None:
-            return None
-
-        return ScheduledColdkeySwapInfo.fix_decoded_values(decoded)
-
-    @classmethod
-    def list_from_vec_u8(cls, vec_u8: list[int]) -> list["ScheduledColdkeySwapInfo"]:
-        """Returns a list of ScheduledColdkeySwapInfo objects from a ``vec_u8``."""
-        decoded = from_scale_encoding(
-            vec_u8, ChainDataType.ScheduledColdkeySwapInfo, is_vec=True
-        )
-        if decoded is None:
-            return []
-
-        return [ScheduledColdkeySwapInfo.fix_decoded_values(d) for d in decoded]
-
-    @classmethod
-    def decode_account_id_list(cls, vec_u8: list[int]) -> Optional[list[str]]:
-        """Decodes a list of AccountIds from vec_u8."""
-        decoded = from_scale_encoding(
-            vec_u8, ChainDataType.ScheduledColdkeySwapInfo.AccountId, is_vec=True
-        )
-        if decoded is None:
-            return None
-        return [decode_account_id(account_id) for account_id in decoded]
-
 
 @dataclass
-class SubnetState:
+class SubnetState(InfoBase):
     netuid: int
     hotkeys: list[str]
     coldkeys: list[str]
@@ -1233,26 +1089,7 @@ class SubnetState:
     emission_history: list[list[int]]
 
     @classmethod
-    def from_vec_u8(cls, vec_u8: list[int]) -> Optional["SubnetState"]:
-        if len(vec_u8) == 0:
-            return None
-        decoded = from_scale_encoding(vec_u8, ChainDataType.SubnetState)
-        if decoded is None:
-            return None
-        return SubnetState.fix_decoded_values(decoded)
-
-    @classmethod
-    def list_from_vec_u8(cls, vec_u8: list[int]) -> list["SubnetState"]:
-        decoded = from_scale_encoding(
-            vec_u8, ChainDataType.SubnetState, is_vec=True, is_option=True
-        )
-        if decoded is None:
-            return []
-        decoded = [SubnetState.fix_decoded_values(d) for d in decoded]
-        return decoded
-
-    @classmethod
-    def fix_decoded_values(cls, decoded: dict) -> "SubnetState":
+    def _fix_decoded_values(cls, decoded: dict) -> "SubnetState":
         netuid = decoded["netuid"]
         return SubnetState(
             netuid=netuid,
