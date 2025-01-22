@@ -1,14 +1,9 @@
 from abc import abstractmethod
 from dataclasses import dataclass
-from enum import Enum
 from typing import Optional, Any, Union
 
 import bt_decode
 import netaddr
-from scalecodec import ScaleBytes
-from scalecodec.base import RuntimeConfiguration
-from scalecodec.type_registry import load_type_registry_preset
-from scalecodec.utils.ss58 import ss58_encode
 
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.networking import int_to_ip
@@ -611,7 +606,7 @@ class DelegateInfoLite(InfoBase): # TODO(cam)
     owner_stake: Balance  # Own stake of the delegate
 
     @classmethod
-    def fix_decoded_values(cls, decoded: Any) -> "DelegateInfoLite":
+    def _fix_decoded_values(cls, decoded: Any) -> "DelegateInfoLite":
         """Fixes the decoded values."""
         decoded_take = decoded["take"]
 
@@ -621,8 +616,8 @@ class DelegateInfoLite(InfoBase): # TODO(cam)
             fixed_take = u16_normalized_float(decoded_take)
 
         return cls(
-            hotkey_ss58=ss58_encode(decoded["delegate_ss58"], SS58_FORMAT),
-            owner_ss58=ss58_encode(decoded["owner_ss58"], SS58_FORMAT),
+            hotkey_ss58=decode_account_id(decoded["delegate_ss58"]),
+            owner_ss58=decode_account_id(decoded["owner_ss58"]),
             take=fixed_take,
             total_stake=Balance.from_rao(decoded["total_stake"]),
             owner_stake=Balance.from_rao(decoded["owner_stake"]),
@@ -743,7 +738,7 @@ class SubnetInfoV2(InfoBase): # TODO(cam)
         if decoded is None:
             return None
 
-        return cls.fix_decoded_values(decoded)
+        return cls._fix_decoded_values(decoded)
 
     @classmethod
     def list_from_vec_u8(cls, vec_u8: bytes) -> list["SubnetInfoV2"]:
@@ -753,12 +748,12 @@ class SubnetInfoV2(InfoBase): # TODO(cam)
         if decoded is None:
             return []
 
-        decoded = [cls.fix_decoded_values(d) for d in decoded]
+        decoded = [cls._fix_decoded_values(d) for d in decoded]
 
         return decoded
 
     @classmethod
-    def fix_decoded_values(cls, decoded: dict) -> "SubnetInfoV2":
+    def _fix_decoded_values(cls, decoded: dict) -> "SubnetInfoV2":
         """Returns a SubnetInfoV2 object from a decoded SubnetInfoV2 dictionary."""
         # init dynamic pool object
         pool_info = decoded["dynamic_pool"]
@@ -777,7 +772,7 @@ class SubnetInfoV2(InfoBase): # TODO(cam)
 
         return SubnetInfoV2(
             netuid=decoded["netuid"],
-            owner_ss58=ss58_encode(decoded["owner"], SS58_FORMAT),
+            owner_ss58=decode_account_id(decoded["owner"]),
             max_allowed_validators=decoded["max_allowed_validators"],
             scaling_law_power=decoded["scaling_law_power"],
             subnetwork_n=decoded["subnetwork_n"],
@@ -871,8 +866,8 @@ class DynamicInfo:
             True if int(decoded["netuid"]) > 0 else False
         )  # TODO: Patching this temporarily for netuid 0
 
-        owner_hotkey = ss58_encode(decoded["owner_hotkey"], SS58_FORMAT)
-        owner_coldkey = ss58_encode(decoded["owner_coldkey"], SS58_FORMAT)
+        owner_hotkey = decode_account_id(decoded["owner_hotkey"])
+        owner_coldkey = decode_account_id(decoded["owner_coldkey"])
 
         emission = Balance.from_rao(decoded["emission"]).set_unit(0)
         alpha_in = Balance.from_rao(decoded["alpha_in"]).set_unit(netuid)
@@ -1177,8 +1172,8 @@ class ScheduledColdkeySwapInfo:
     def fix_decoded_values(cls, decoded: Any) -> "ScheduledColdkeySwapInfo":
         """Fixes the decoded values."""
         return cls(
-            old_coldkey=ss58_encode(decoded["old_coldkey"], SS58_FORMAT),
-            new_coldkey=ss58_encode(decoded["new_coldkey"], SS58_FORMAT),
+            old_coldkey=decode_account_id(decoded["old_coldkey"]),
+            new_coldkey=decode_account_id(decoded["new_coldkey"]),
             arbitration_block=decoded["arbitration_block"],
         )
 
@@ -1213,7 +1208,7 @@ class ScheduledColdkeySwapInfo:
         )
         if decoded is None:
             return None
-        return [ss58_encode(account_id, SS58_FORMAT) for account_id in decoded]
+        return [decode_account_id(account_id) for account_id in decoded]
 
 
 @dataclass
@@ -1261,8 +1256,8 @@ class SubnetState:
         netuid = decoded["netuid"]
         return SubnetState(
             netuid=netuid,
-            hotkeys=[ss58_encode(val, SS58_FORMAT) for val in decoded["hotkeys"]],
-            coldkeys=[ss58_encode(val, SS58_FORMAT) for val in decoded["coldkeys"]],
+            hotkeys=[decode_account_id(val) for val in decoded["hotkeys"]],
+            coldkeys=[decode_account_id(val) for val in decoded["coldkeys"]],
             active=decoded["active"],
             validator_permit=decoded["validator_permit"],
             pruning_score=[
@@ -1301,8 +1296,8 @@ class SubstakeElements:
         for item in descaled:
             result.append(
                 {
-                    "hotkey": ss58_encode(item["hotkey"], SS58_FORMAT),
-                    "coldkey": ss58_encode(item["coldkey"], SS58_FORMAT),
+                    "hotkey": decode_account_id(item["hotkey"]),
+                    "coldkey": decode_account_id(item["coldkey"]),
                     "netuid": item["netuid"],
                     "stake": Balance.from_rao(item["stake"]),
                 }
