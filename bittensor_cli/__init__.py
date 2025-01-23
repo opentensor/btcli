@@ -18,6 +18,6 @@
 from .cli import CLIManager
 
 
-__version__ = "8.4.2"
+__version__ = "8.4.3"
 
 __all__ = ["CLIManager", "__version__"]
