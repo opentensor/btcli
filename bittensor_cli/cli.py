@@ -58,7 +58,7 @@ except ImportError:
         pass
 
 
-__version__ = "8.4.1"
+__version__ = "8.4.2"
 
 
 _core_version = re.match(r"^\d+\.\d+\.\d+", __version__).group(0)
@@ -2353,8 +2353,8 @@ class CLIManager:
                 twitter_url,
                 info_,
                 validator_id,
-                prompt,
                 subnet_netuid,
+                prompt,
             )
         )
 
