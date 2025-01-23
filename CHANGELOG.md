@@ -5,6 +5,7 @@
 ## What's Changed
 * Backmerge main to staging 842 by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/273
 * Fix arg order for set-identity by @thewhaleking in https://github.com/opentensor/btcli/pull/282
+* Adds updates to btwallet3, adds overwrite flag and updates tests by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/275
 
 **Full Changelog**: https://github.com/opentensor/btcli/compare/v8.4.2...v8.4.3
 
