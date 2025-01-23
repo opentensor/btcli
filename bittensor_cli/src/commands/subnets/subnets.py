@@ -115,9 +115,15 @@ async def register_subnetwork_extrinsic(
     has_identity = any(subnet_identity.values())
     if has_identity:
         identity_data = {
-            "subnet_name": subnet_identity["subnet_name"].encode(),
-            "github_repo": subnet_identity["github_repo"].encode(),
-            "subnet_contact": subnet_identity["subnet_contact"].encode(),
+            "subnet_name": subnet_identity["subnet_name"].encode()
+            if subnet_identity.get("subnet_name")
+            else b"",
+            "github_repo": subnet_identity["github_repo"].encode()
+            if subnet_identity.get("github_repo")
+            else b"",
+            "subnet_contact": subnet_identity["subnet_contact"].encode()
+            if subnet_identity.get("subnet_contact")
+            else b"",
         }
         for field, value in identity_data.items():
             max_size = 64  # bytes
