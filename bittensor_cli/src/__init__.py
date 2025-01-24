@@ -869,6 +869,7 @@ HELP_PANELS = {
     "STAKE": {
         "STAKE_MGMT": "Stake Management",
         "CHILD": "Child Hotkeys",
+        "MOVEMENT": "Stake Movement",
     },
     "SUDO": {
         "CONFIG": "Subnet Configuration",

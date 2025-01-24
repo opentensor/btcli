@@ -32,7 +32,7 @@ from bittensor_cli.src.bittensor.async_substrate_interface import (
 from bittensor_cli.src.commands import sudo, wallets
 from bittensor_cli.src.commands import weights as weights_cmds
 from bittensor_cli.src.commands.subnets import price, subnets
-from bittensor_cli.src.commands.stake import children_hotkeys, stake
+from bittensor_cli.src.commands.stake import children_hotkeys, stake, move
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
 from bittensor_cli.src.bittensor.utils import (
@@ -42,7 +42,6 @@ from bittensor_cli.src.bittensor.utils import (
     is_valid_ss58_address,
     print_error,
     validate_chain_endpoint,
-    retry_prompt,
     validate_netuid,
     is_rao_network,
     get_effective_network,
@@ -686,8 +685,14 @@ class CLIManager:
             "list", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
         )(self.stake_list)
         self.stake_app.command(
-            "move", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
+            "move", rich_help_panel=HELP_PANELS["STAKE"]["MOVEMENT"]
         )(self.stake_move)
+        self.stake_app.command(
+            "transfer", rich_help_panel=HELP_PANELS["STAKE"]["MOVEMENT"]
+        )(self.stake_transfer)
+        self.stake_app.command(
+            "swap", rich_help_panel=HELP_PANELS["STAKE"]["MOVEMENT"]
+        )(self.stake_swap)
 
         # stake-children commands
         children_app = typer.Typer()
@@ -2927,14 +2932,18 @@ class CLIManager:
 
     def stake_move(
         self,
-        network=Options.network,
+        network: Optional[list[str]] = Options.network,
         wallet_name=Options.wallet_name,
         wallet_path=Options.wallet_path,
         wallet_hotkey=Options.wallet_hotkey,
-        origin_netuid: int = typer.Option(help="Origin netuid", prompt=True),
-        destination_netuid: int = typer.Option(help="Destination netuid", prompt=True),
+        origin_netuid: Optional[int] = typer.Option(
+            None, "--origin-netuid", help="Origin netuid"
+        ),
+        destination_netuid: Optional[int] = typer.Option(
+            None, "--dest-netuid", help="Destination netuid"
+        ),
         destination_hotkey: Optional[str] = typer.Option(
-            None, help="Destination hotkey", prompt=False
+            None, "--dest-ss58", "--dest", help="Destination hotkey", prompt=False
         ),
         amount: float = typer.Option(
             None,
@@ -2948,40 +2957,343 @@ class CLIManager:
         prompt: bool = Options.prompt,
     ):
         """
-        Move Staked TAO to a hotkey from one subnet to another.
+        Move staked TAO between hotkeys while keeping the same coldkey ownership.
 
-        THe move commands converts the origin subnet's dTao to Tao, and then converts Tao to destination subnet's dTao.
+        This command allows you to:
+        - Move stake from one hotkey to another hotkey
+        - Move stake between different subnets
+        - Keep the same coldkey ownership
+
+        You can specify:
+        - The origin subnet (--origin-netuid)
+        - The destination subnet (--dest-netuid)
+        - The destination hotkey (--dest-hotkey)
+        - The amount to move (--amount)
+
+        If no arguments are provided, an interactive selection menu will be shown.
 
         EXAMPLE
 
         [green]$[/green] btcli stake move
         """
-        # TODO: Improve logic of moving stake (dest hotkey)
-        ask_for = (
-            [WO.NAME, WO.PATH] if destination_hotkey else [WO.NAME, WO.HOTKEY, WO.PATH]
+        console.print(
+            "[dim]This command moves stake from one hotkey to another hotkey while keeping the same coldkey.[/dim]"
         )
-        validate = WV.WALLET if destination_hotkey else WV.WALLET_AND_HOTKEY
+        if not destination_hotkey:
+            dest_wallet_or_ss58 = Prompt.ask(
+                "Enter the [blue]destination wallet[/blue] where destination hotkey is located or [blue]ss58 address[/blue]"
+            )
+            if is_valid_ss58_address(dest_wallet_or_ss58):
+                destination_hotkey = dest_wallet_or_ss58
+            else:
+                dest_wallet = self.wallet_ask(
+                    dest_wallet_or_ss58,
+                    wallet_path,
+                    None,
+                    ask_for=[WO.NAME, WO.PATH],
+                    validate=WV.WALLET,
+                )
+                destination_hotkey = Prompt.ask(
+                    "Enter the [blue]destination hotkey[/blue] name",
+                    default=dest_wallet.hotkey_str,
+                )
+                destination_wallet = self.wallet_ask(
+                    dest_wallet_or_ss58,
+                    wallet_path,
+                    destination_hotkey,
+                    ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+                    validate=WV.WALLET_AND_HOTKEY,
+                )
+                destination_hotkey = destination_wallet.hotkey.ss58_address
+        else:
+            if is_valid_ss58_address(destination_hotkey):
+                destination_hotkey = destination_hotkey
+            else:
+                print_error(
+                    "Invalid destination hotkey ss58 address. Please enter a valid ss58 address or wallet name."
+                )
+                raise typer.Exit()
+
+        if not wallet_name:
+            wallet_name = Prompt.ask(
+                "Enter the [blue]origin wallet name[/blue]",
+                default=self.config.get("wallet_name") or defaults.wallet.name,
+            )
+        wallet = self.wallet_ask(
+            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
+        )
+
+        interactive_selection = False
+        if not wallet_hotkey:
+            origin_hotkey = Prompt.ask(
+                "Enter the [blue]origin hotkey[/blue] name or "
+                "[blue]ss58 address[/blue] where the stake will be moved from "
+                "[dim](or Press Enter to view existing stakes)[/dim]"
+            )
+            if origin_hotkey == "":
+                interactive_selection = True
+
+            elif is_valid_ss58_address(origin_hotkey):
+                origin_hotkey = origin_hotkey
+            else:
+                wallet = self.wallet_ask(
+                    wallet_name,
+                    wallet_path,
+                    origin_hotkey,
+                    ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+                    validate=WV.WALLET_AND_HOTKEY,
+                )
+                origin_hotkey = wallet.hotkey.ss58_address
+        else:
+            wallet = self.wallet_ask(
+                wallet_name,
+                wallet_path,
+                wallet_hotkey,
+                ask_for=[],
+                validate=WV.WALLET_AND_HOTKEY,
+            )
+            origin_hotkey = wallet.hotkey.ss58_address
+
+        if not interactive_selection:
+            if not origin_netuid:
+                origin_netuid = IntPrompt.ask(
+                    "Enter the [blue]origin subnet[/blue] (netuid) to move stake from"
+                )
+
+            if not destination_netuid:
+                destination_netuid = IntPrompt.ask(
+                    "Enter the [blue]destination subnet[/blue] (netuid) to move stake to"
+                )
+
+        return self._run_command(
+            move.move_stake(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                origin_netuid=origin_netuid,
+                origin_hotkey=origin_hotkey,
+                destination_netuid=destination_netuid,
+                destination_hotkey=destination_hotkey,
+                amount=amount,
+                stake_all=stake_all,
+                interactive_selection=interactive_selection,
+                prompt=prompt,
+            )
+        )
+
+    def stake_transfer(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        origin_netuid: Optional[int] = typer.Option(
+            None,
+            "--origin-netuid",
+            help="The netuid to transfer stake from",
+        ),
+        dest_netuid: Optional[int] = typer.Option(
+            None,
+            "--dest-netuid",
+            help="The netuid to transfer stake to",
+        ),
+        dest_ss58: Optional[str] = typer.Option(
+            None,
+            "--dest-ss58",
+            "--dest",
+            "--dest-coldkey",
+            help="The destination wallet name or SS58 address to transfer stake to",
+        ),
+        amount: float = typer.Option(
+            None,
+            "--amount",
+            "-a",
+            help="Amount of stake to transfer",
+        ),
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Transfer stake between coldkeys while keeping the same hotkey ownership.
+
+        This command allows you to:
+        - Transfer stake from one coldkey to another coldkey
+        - Keep the same hotkey ownership
+        - Transfer stake between different subnets
+
+        You can specify:
+        - The origin subnet (--origin-netuid)
+        - The destination subnet (--dest-netuid)
+        - The destination wallet/address (--dest)
+        - The amount to transfer (--amount)
+
+        If no arguments are provided, an interactive selection menu will be shown.
+
+        EXAMPLE
+
+        Transfer 100 TAO from subnet 1 to subnet 2:
+        [green]$[/green] btcli stake transfer --origin-netuid 1 --dest-netuid 2 --dest wallet2 --amount 100
+
+        Using SS58 address:
+        [green]$[/green] btcli stake transfer --origin-netuid 1 --dest-netuid 2 --dest 5FrLxJsyJ5x9n2rmxFwosFraxFCKcXZDngEP9H7qjkKgHLcK --amount 100
+        """
+        console.print(
+            "[dim]This command transfers stake from one coldkey to another while keeping the same hotkey.[/dim]"
+        )
+        self.verbosity_handler(quiet, verbose)
 
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=ask_for,
-            validate=validate,
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
         )
-        if not destination_hotkey:
-            destination_hotkey = wallet.hotkey.ss58_address
+
+        if not dest_ss58:
+            dest_ss58 = Prompt.ask(
+                "Enter the [blue]destination wallet name[/blue] or [blue]coldkey SS58 address[/blue]"
+            )
+
+        if is_valid_ss58_address(dest_ss58):
+            dest_ss58 = dest_ss58
+        else:
+            dest_wallet = self.wallet_ask(
+                dest_ss58,
+                wallet_path,
+                None,
+                ask_for=[WO.NAME, WO.PATH],
+                validate=WV.WALLET,
+            )
+            dest_ss58 = dest_wallet.coldkeypub.ss58_address
+
+        interactive_selection = False
+        if origin_netuid is None and dest_netuid is None and not amount:
+            interactive_selection = True
+        else:
+            if origin_netuid is None:
+                origin_netuid = IntPrompt.ask(
+                    "Enter the [blue]origin subnet[/blue] (netuid)"
+                )
+            if not amount:
+                amount = FloatPrompt.ask("Enter the [blue]amount[/blue] to transfer")
+
+            if dest_netuid is None:
+                dest_netuid = IntPrompt.ask(
+                    "Enter the [blue]destination subnet[/blue] (netuid)"
+                )
 
         return self._run_command(
-            stake.move_stake(
-                subtensor=self.initialize_chain(network),
+            move.transfer_stake(
                 wallet=wallet,
+                subtensor=self.initialize_chain(network),
                 origin_netuid=origin_netuid,
-                destination_netuid=destination_netuid,
-                destination_hotkey=destination_hotkey,
+                dest_netuid=dest_netuid,
+                dest_coldkey_ss58=dest_ss58,
                 amount=amount,
-                stake_all=stake_all,
+                interactive_selection=interactive_selection,
                 prompt=prompt,
+            )
+        )
+
+    def stake_swap(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        origin_netuid: Optional[int] = typer.Option(
+            None,
+            "--origin-netuid",
+            "-o",
+            "--origin",
+            help="The netuid to swap stake from",
+        ),
+        dest_netuid: Optional[int] = typer.Option(
+            None,
+            "--dest-netuid",
+            "-d",
+            "--dest",
+            help="The netuid to swap stake to",
+        ),
+        amount: float = typer.Option(
+            None,
+            "--amount",
+            "-a",
+            help="Amount of stake to swap",
+        ),
+        swap_all: bool = typer.Option(
+            False,
+            "--swap-all",
+            "--all",
+            help="Swap all available stake",
+        ),
+        prompt: bool = Options.prompt,
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Swap stake between different subnets while keeping the same coldkey-hotkey pair ownership.
+
+        This command allows you to:
+        - Move stake from one subnet to another subnet
+        - Keep the same coldkey ownership
+        - Keep the same hotkey ownership
+
+        You can specify:
+        - The origin subnet (--origin-netuid)
+        - The destination subnet (--dest-netuid)
+        - The amount to swap (--amount)
+
+        If no arguments are provided, an interactive selection menu will be shown.
+
+        EXAMPLE
+
+        Swap 100 TAO from subnet 1 to subnet 2:
+        [green]$[/green] btcli stake swap --wallet-name default --wallet-hotkey default --origin-netuid 1 --dest-netuid 2 --amount 100
+        """
+        console.print(
+            "[dim]This command moves stake from one subnet to another subnet while keeping the same coldkey-hotkey pair.[/dim]"
+        )
+        self.verbosity_handler(quiet, verbose)
+
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
+
+        interactive_selection = False
+        if origin_netuid is None and dest_netuid is None and not amount:
+            interactive_selection = True
+        else:
+            if origin_netuid is None:
+                origin_netuid = IntPrompt.ask(
+                    "Enter the [blue]origin subnet[/blue] (netuid)"
+                )
+            if dest_netuid is None:
+                dest_netuid = IntPrompt.ask(
+                    "Enter the [blue]destination subnet[/blue] (netuid)"
+                )
+            if not amount and not swap_all:
+                amount = FloatPrompt.ask("Enter the [blue]amount[/blue] to swap")
+
+        return self._run_command(
+            move.swap_stake(
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                origin_netuid=origin_netuid,
+                destination_netuid=dest_netuid,
+                amount=amount,
+                swap_all=swap_all,
+                interactive_selection=interactive_selection,
+                prompt=prompt,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
             )
         )
 
@@ -3581,6 +3893,12 @@ class CLIManager:
             "--all",
             help="Show the price for all subnets.",
         ),
+        log_scale: bool = typer.Option(
+            False,
+            "--log-scale",
+            "--log",
+            help="Show the price in log scale.",
+        ),
         html_output: bool = Options.html_output,
     ):
         """
@@ -3589,11 +3907,13 @@ class CLIManager:
         This command displays the historical price of a subnet for the past 24 hours.
         If the `--all` flag is used, the command will display the price for all subnets in html format.
         If the `--html` flag is used, the command will display the price in an HTML chart.
+        If the `--log-scale` flag is used, the command will display the price in log scale.
         If no html flag is used, the command will display the price in the cli.
 
         EXAMPLE
 
         [green]$[/green] btcli subnets price --netuid 1
+        [green]$[/green] btcli subnets price --netuid 1 --html --log
         [green]$[/green] btcli subnets price --all --html
         [green]$[/green] btcli subnets price --netuids 1,2,3,4 --html
         """
@@ -3631,6 +3951,7 @@ class CLIManager:
                 all_netuids,
                 interval_hours,
                 html_output,
+                log_scale,
             )
         )
 

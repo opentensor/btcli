@@ -204,7 +204,7 @@ async def subnets_list(
 
     async def fetch_subnet_data():
         block_number = await subtensor.substrate.get_block_number(None)
-        subnets = await subtensor.get_all_subnet_dynamic_info()
+        subnets = await subtensor.all_subnets()
 
         # Sort subnets by market cap, keeping the root subnet in the first position
         root_subnet = next(s for s in subnets if s.netuid == 0)
@@ -800,7 +800,7 @@ async def show(
     prompt: bool = True,
 ) -> Optional[str]:
     async def show_root():
-        all_subnets = await subtensor.get_all_subnet_dynamic_info()
+        all_subnets = await subtensor.all_subnets()
         root_info = next((s for s in all_subnets if s.netuid == 0), None)
         if root_info is None:
             print_error("The root subnet does not exist")
@@ -1024,12 +1024,12 @@ async def show(
             err_console.print(f"[red]Subnet {netuid} does not exist[/red]")
             raise typer.Exit()
         (
-            _subnet_info,
+            subnet_info,
             hex_bytes_result,
             identities,
             old_identities,
         ) = await asyncio.gather(
-            subtensor.get_all_subnet_dynamic_info(),
+            subtensor.subnet(netuid=netuid_),
             subtensor.query_runtime_api(
                 runtime_api="SubnetInfoRuntimeApi",
                 method="get_subnet_state",
@@ -1038,7 +1038,6 @@ async def show(
             subtensor.query_all_identities(),
             subtensor.get_delegate_identities(),
         )
-        subnet_info = next((s for s in _subnet_info if s.netuid == netuid_), None)
         if subnet_info is None:
             print_error(f"Subnet {netuid_} does not exist")
             raise typer.Exit()

@@ -29,7 +29,7 @@ from bittensor_cli.src.bittensor.chain_data import (
     DynamicInfo,
 )
 from bittensor_cli.src import DelegatesDetails
-from bittensor_cli.src.bittensor.balances import Balance
+from bittensor_cli.src.bittensor.balances import Balance, FixedPoint, fixed_to_float
 from bittensor_cli.src import Constants, defaults, TYPE_REGISTRY
 from bittensor_cli.src.bittensor.utils import (
     ss58_to_vec_u8,
@@ -227,7 +227,7 @@ class SubtensorInterface:
         else:
             return []
 
-    async def get_stake_info_for_coldkey(
+    async def get_stake_for_coldkey(
         self,
         coldkey_ss58: str,
         block_hash: Optional[str] = None,
@@ -264,25 +264,61 @@ class SubtensorInterface:
         except ValueError:
             bytes_result = bytes.fromhex(hex_bytes_result)
 
-        return StakeInfo.list_from_vec_u8(bytes_result)
+        stakes = StakeInfo.list_from_vec_u8(bytes_result)
+        return [stake for stake in stakes if stake.stake > 0]
 
     async def get_stake_for_coldkey_and_hotkey(
-        self, hotkey_ss58: str, coldkey_ss58: str, block_hash: Optional[str]
+        self,
+        hotkey_ss58: str,
+        coldkey_ss58: str,
+        netuid: Optional[int] = None,
+        block_hash: Optional[str] = None,
     ) -> Balance:
         """
-        Retrieves stake information associated with a specific coldkey and hotkey.
-        :param hotkey_ss58: the hotkey SS58 address to query
-        :param coldkey_ss58: the coldkey SS58 address to query
-        :param block_hash: the hash of the blockchain block number for the query.
-        :return: Stake Balance for the given coldkey and hotkey
+        Returns the stake under a coldkey - hotkey pairing.
+
+        Args:
+            hotkey_ss58 (str): The SS58 address of the hotkey.
+            coldkey_ss58 (str): The SS58 address of the coldkey.
+            netuid (Optional[int]): The subnet ID to filter by. If provided, only returns stake for this specific subnet.
+            block_hash (Optional[str]): The block hash at which to query the stake information.
+
+        Returns:
+            Balance: The stake under the coldkey - hotkey pairing.
         """
-        _result = await self.substrate.query(
+        alpha_shares = await self.substrate.query(
             module="SubtensorModule",
-            storage_function="Stake",
-            params=[hotkey_ss58, coldkey_ss58],
+            storage_function="Alpha",
+            params=[hotkey_ss58, coldkey_ss58, netuid],
             block_hash=block_hash,
         )
-        return Balance.from_rao(_result or 0)
+
+        hotkey_alpha = await self.substrate.query(
+            module="SubtensorModule",
+            storage_function="TotalHotkeyAlpha",
+            params=[hotkey_ss58, netuid],
+            block_hash=block_hash,
+        )
+
+        hotkey_shares = await self.substrate.query(
+            module="SubtensorModule",
+            storage_function="TotalHotkeyShares",
+            params=[hotkey_ss58, netuid],
+            block_hash=block_hash,
+        )
+
+        alpha_shares_as_float = fixed_to_float(alpha_shares or 0)
+        hotkey_shares_as_float = fixed_to_float(hotkey_shares or 0)
+
+        if hotkey_shares_as_float == 0:
+            return Balance.from_rao(0).set_unit(netuid=netuid)
+
+        stake = alpha_shares_as_float / hotkey_shares_as_float * (hotkey_alpha or 0)
+
+        return Balance.from_rao(int(stake)).set_unit(netuid=netuid)
+
+    # Alias
+    get_stake = get_stake_for_coldkey_and_hotkey
 
     async def query_runtime_api(
         self,
@@ -384,11 +420,11 @@ class SubtensorInterface:
 
         :return: {address: Balance objects}
         """
-        sub_stakes = await self.get_stake_info_for_coldkeys(
+        sub_stakes = await self.get_stake_for_coldkeys(
             ss58_addresses, block_hash=block_hash
         )
         # Token pricing info
-        dynamic_info = await self.get_all_subnet_dynamic_info()
+        dynamic_info = await self.all_subnets()
 
         results = {}
         for ss58, stake_info_list in sub_stakes.items():
@@ -1256,27 +1292,6 @@ class SubtensorInterface:
 
         return DelegateInfoLite.list_from_vec_u8(result)  # TODO this won't work yet
 
-    async def get_subnet_dynamic_info(
-        self, netuid: int, block_hash: Optional[str] = None
-    ) -> "DynamicInfo":
-        hex_bytes_result = await self.query_runtime_api(
-            runtime_api="SubnetInfoRuntimeApi",
-            method="get_dynamic_info",
-            params=[netuid],
-            block_hash=block_hash,
-        )
-
-        if hex_bytes_result is None:
-            return None
-
-        if hex_bytes_result.startswith("0x"):
-            bytes_result = bytes.fromhex(hex_bytes_result[2:])
-        else:
-            bytes_result = bytes.fromhex(hex_bytes_result)
-
-        subnets = DynamicInfo.from_vec_u8(bytes_result)
-        return subnets
-
     async def get_stake_for_coldkey_and_hotkey_on_netuid(
         self,
         hotkey_ss58: str,
@@ -1354,7 +1369,7 @@ class SubtensorInterface:
             results[hotkey_ss58][netuid] = value
         return results
 
-    async def get_stake_info_for_coldkeys(
+    async def get_stake_for_coldkeys(
         self, coldkey_ss58_list: list[str], block_hash: Optional[str] = None
     ) -> Optional[dict[str, list[StakeInfo]]]:
         """
@@ -1392,7 +1407,9 @@ class SubtensorInterface:
 
         return StakeInfo.list_of_tuple_from_vec_u8(bytes_result)  # type: ignore
 
-    async def get_all_subnet_dynamic_info(self, block_hash: Optional[str] = None) -> list["DynamicInfo"]:
+    async def all_subnets(
+        self, block_hash: Optional[str] = None
+    ) -> list["DynamicInfo"]:
         query = await self.substrate.runtime_call(
             "SubnetInfoRuntimeApi",
             "get_all_dynamic_info",
@@ -1401,47 +1418,16 @@ class SubtensorInterface:
         subnets = DynamicInfo.list_from_vec_u8(bytes.fromhex(query.decode()[2:]))
         return subnets
 
-    async def get_global_weights(
-        self, netuids: list[int], block_hash: Optional[str] = None
-    ):
-        result = await self.substrate.query_multiple(
-            module="SubtensorModule",
-            storage_function="GlobalWeight",
-            params=[netuid for netuid in netuids],
+    async def subnet(
+        self, netuid: int, block_hash: Optional[str] = None
+    ) -> "DynamicInfo":
+        query = await self.substrate.runtime_call(
+            "SubnetInfoRuntimeApi",
+            "get_dynamic_info",
+            params=[netuid],
             block_hash=block_hash,
         )
-        return {
-            netuid: u64_normalized_float(weight) for (netuid, weight) in result.items()
-        }
-
-    async def get_subnet_tao(
-        self, netuid: Optional[int] = None, block_hash: Optional[str] = None
-    ) -> dict[int, Balance]:
-        """
-        Retrieves the total TAO for one or all subnets.
-
-        Args:
-            netuid: Optional specific netuid to query. If None, returns data for all subnets.
-            block_hash: Optional block hash to query at.
-
-        Returns:
-            Dictionary mapping netuid to its total TAO balance
-        """
-        if netuid is not None:
-            result = await self.substrate.query(
-                module="SubtensorModule",
-                storage_function="SubnetTAO",
-                params=[netuid],
-                block_hash=block_hash,
-            )
-            return {netuid: Balance.from_rao(result or 0)}
-        else:
-            results = await self.substrate.query_map(
-                module="SubtensorModule",
-                storage_function="SubnetTAO",
-                block_hash=block_hash,
-            )
-            return {netuid: Balance.from_rao(tao or 0) async for netuid, tao in results}
+        return DynamicInfo.from_vec_u8(bytes.fromhex(query.decode()[2:]))
 
     async def get_owned_hotkeys(
         self,

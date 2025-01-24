@@ -497,8 +497,7 @@ async def get_hyperparameters(subtensor: "SubtensorInterface", netuid: int):
         print_error(f"Subnet with netuid {netuid} does not exist.")
         return False
     subnet = await subtensor.get_subnet_hyperparameters(netuid)
-    _subnet_info = await subtensor.get_all_subnet_dynamic_info()
-    subnet_info = next((s for s in _subnet_info if s.netuid == netuid), None)
+    subnet_info = await subtensor.subnet(netuid)
     if subnet_info is None:
         print_error(f"Subnet with netuid {netuid} does not exist.")
         raise typer.Exit()

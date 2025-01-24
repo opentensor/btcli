@@ -1,5 +1,6 @@
 import asyncio
 import json
+import math
 from pywry import PyWry
 from typing import TYPE_CHECKING
 
@@ -24,6 +25,7 @@ async def price(
     all_netuids: bool = False,
     interval_hours: int = 24,
     html_output: bool = False,
+    log_scale: bool = False,
 ):
     """
     Fetch historical price data for subnets and display it in a chart.
@@ -48,17 +50,13 @@ async def price(
         ]
         block_hashes = await asyncio.gather(*block_hash_cors)
 
-        # Subnet info (we fetch all subnets in-case there are more than one)
+        # We fetch all subnets when there is more than one netuid
         if all_netuids or len(netuids) > 1:
-            subnet_info_cors = [
-                subtensor.get_all_subnet_dynamic_info(bh) for bh in block_hashes
-            ]
+            subnet_info_cors = [subtensor.all_subnets(bh) for bh in block_hashes]
         else:
             # If there is only one netuid, we fetch the subnet info for that netuid
             netuid = netuids[0]
-            subnet_info_cors = [
-                subtensor.get_subnet_dynamic_info(netuid, bh) for bh in block_hashes
-            ]
+            subnet_info_cors = [subtensor.subnet(netuid, bh) for bh in block_hashes]
         all_subnet_infos = await asyncio.gather(*subnet_info_cors)
 
         subnet_data = _process_subnet_data(
@@ -70,9 +68,11 @@ async def price(
         return
 
     if html_output:
-        await _generate_html_output(subnet_data, block_numbers, interval_hours)
+        await _generate_html_output(
+            subnet_data, block_numbers, interval_hours, log_scale
+        )
     else:
-        _generate_cli_output(subnet_data, block_numbers, interval_hours)
+        _generate_cli_output(subnet_data, block_numbers, interval_hours, log_scale)
 
 
 def _process_subnet_data(
@@ -86,7 +86,6 @@ def _process_subnet_data(
     Process subnet data into a structured format for price analysis.
     """
     subnet_data = {}
-
     if all_netuids or len(netuids) > 1:
         for netuid in netuids:
             prices = []
@@ -187,6 +186,7 @@ def _generate_html_single_subnet(
     data,
     block_numbers,
     interval_hours,
+    log_scale,
 ):
     """
     Generate an HTML chart for a single subnet.
@@ -203,7 +203,7 @@ def _generate_html_single_subnet(
             name=f"Subnet {netuid} - {stats['name']}"
             if stats["name"]
             else f"Subnet {netuid}",
-            line=dict(width=2, color="#1f77b4"),
+            line=dict(width=2, color="#50C878"),
         )
     )
 
@@ -226,16 +226,22 @@ def _generate_html_single_subnet(
         height=600,
     )
 
+    price_title = f"Price ({stats['symbol']})"
+    if log_scale:
+        price_title += " Log Scale"
+
     # Label axes
     fig.update_xaxes(
         title="Block",
         gridcolor="rgba(128,128,128,0.2)",
         zerolinecolor="rgba(128,128,128,0.2)",
+        type="log" if log_scale else "linear",
     )
     fig.update_yaxes(
-        title=f"Price ({stats['symbol']})",
+        title=price_title,
         gridcolor="rgba(128,128,128,0.2)",
         zerolinecolor="rgba(128,128,128,0.2)",
+        type="log" if log_scale else "linear",
     )
 
     # Price change color
@@ -350,7 +356,7 @@ def _generate_html_single_subnet(
     return html_content
 
 
-def _generate_html_multi_subnet(subnet_data, block_numbers, interval_hours):
+def _generate_html_multi_subnet(subnet_data, block_numbers, interval_hours, log_scale):
     """
     Generate an HTML chart for multiple subnets.
     """
@@ -381,16 +387,22 @@ def _generate_html_multi_subnet(subnet_data, block_numbers, interval_hours):
         height=700,
     )
 
+    price_title = "Price (τ)"
+    if log_scale:
+        price_title += " Log Scale"
+
     # Label axes
     fig.update_xaxes(
         title="Block",
         gridcolor="rgba(128,128,128,0.2)",
         zerolinecolor="rgba(128,128,128,0.2)",
+        type="log" if log_scale else "linear",
     )
     fig.update_yaxes(
-        title="Price (τ)",
+        title=price_title,
         gridcolor="rgba(128,128,128,0.2)",
         zerolinecolor="rgba(128,128,128,0.2)",
+        type="log" if log_scale else "linear",
     )
 
     # Create annotation for top subnet
@@ -573,12 +585,13 @@ def _generate_html_multi_subnet(subnet_data, block_numbers, interval_hours):
             "annotations": json.dumps(mode_data["annotations"]),
         }
 
-    # Build buttons for each subnet
+    # We sort netuids by market cap but for buttons, they are ordered by netuid
+    sorted_subnet_keys = sorted(subnet_data.keys())
     all_button_html = (
         '<button class="subnet-button active" onclick="setAll()">All</button>'
     )
     subnet_buttons_html = ""
-    for netuid in subnet_keys:
+    for netuid in sorted_subnet_keys:
         subnet_buttons_html += f'<button class="subnet-button" onclick="setSubnet({netuid})">S{netuid}</button> '
 
     html_content = f"""
@@ -706,6 +719,7 @@ async def _generate_html_output(
     subnet_data,
     block_numbers,
     interval_hours,
+    log_scale: bool = False,
 ):
     """
     Start PyWry and display the price chart in a window.
@@ -718,53 +732,41 @@ async def _generate_html_output(
             netuid = subnet_keys[0]
             data = subnet_data[netuid]
             html_content = _generate_html_single_subnet(
-                netuid, data, block_numbers, interval_hours
+                netuid, data, block_numbers, interval_hours, log_scale
             )
-            console.print(
-                "[dark_sea_green3]Opening price chart in a window. Press Ctrl+C to close.[/dark_sea_green3]"
-            )
-
-            handler = PyWry()
-            handler.send_html(
-                html=html_content,
-                title=f"Subnet {netuid} Price View",
-                width=1200,
-                height=800,
-            )
-            handler.start()
-            try:
-                while True:
-                    await asyncio.sleep(1)
-            except KeyboardInterrupt:
-                handler.close()
-
+            title = f"Subnet {netuid} Price View"
         else:
             # Multi-subnet
-            console.print(
-                "[dark_sea_green3]Opening price chart in a window. Press Ctrl+C to close.[/dark_sea_green3]"
-            )
             html_content = _generate_html_multi_subnet(
-                subnet_data, block_numbers, interval_hours
+                subnet_data, block_numbers, interval_hours, log_scale
             )
-            handler = PyWry()
-            handler.send_html(
-                html=html_content,
-                title="Multi-Subnet Price Chart",
-                width=1200,
-                height=800,
-            )
-            handler.start()
+            title = "Subnets Price Chart"
+
+        console.print(
+            "[dark_sea_green3]Opening price chart in a window. Press Ctrl+C to close.[/dark_sea_green3]"
+        )
+
+        handler = PyWry()
+        handler.send_html(
+            html=html_content,
+            title=title,
+            width=1200,
+            height=800,
+        )
+        handler.start()
+        try:
+            while True:
+                await asyncio.sleep(1)
+        except KeyboardInterrupt:
             try:
-                while True:
-                    await asyncio.sleep(1)
-            except KeyboardInterrupt:
                 handler.close()
-
+            except (ProcessLookupError, Exception):
+                pass
     except Exception as e:
-        print_error(f"Error: {e}")
+        print_error(f"Error generating price chart: {e}")
 
 
-def _generate_cli_output(subnet_data, block_numbers, interval_hours):
+def _generate_cli_output(subnet_data, block_numbers, interval_hours, log_scale):
     """
     Render the price data in a textual CLI style with plotille ASCII charts.
     """
@@ -779,12 +781,17 @@ def _generate_cli_output(subnet_data, block_numbers, interval_hours):
             return plotille.color(text, fg=(186, 233, 143), mode="rgb")
 
         fig.x_label = color_label("Block")
-        fig.y_label = color_label(f"Price ({data['stats']['symbol']})")
+        y_label_text = f"Price ({data['stats']['symbol']})"
+        fig.y_label = color_label(y_label_text)
+
+        prices = data["prices"]
+        if log_scale:
+            prices = [math.log10(p) for p in prices]
 
         fig.set_x_limits(min_=min(block_numbers), max_=max(block_numbers))
         fig.set_y_limits(
-            min_=data["stats"]["low"] * 0.95,
-            max_=data["stats"]["high"] * 1.05,
+            min_=data["stats"]["low"] * 0.99,
+            max_=data["stats"]["high"] * 1.01,
         )
 
         fig.plot(

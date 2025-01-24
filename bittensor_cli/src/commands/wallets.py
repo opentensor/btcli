@@ -2,7 +2,7 @@ import asyncio
 import itertools
 import os
 from collections import defaultdict
-from typing import Any, Collection, Generator, Optional
+from typing import Any, Generator, Optional
 
 import aiohttp
 from bittensor_wallet import Wallet, Keypair
@@ -23,7 +23,6 @@ from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import (
     DelegateInfo,
     NeuronInfoLite,
-    StakeInfo,
 )
 from bittensor_cli.src.bittensor.extrinsics.registration import (
     run_faucet_extrinsic,
@@ -610,7 +609,7 @@ async def overview(
     all_hotkeys, total_balance = await _get_total_balance(
         total_balance, subtensor, wallet, all_wallets, block_hash=block_hash
     )
-    _dynamic_info = await subtensor.get_all_subnet_dynamic_info()
+    _dynamic_info = await subtensor.all_subnets()
     dynamic_info = {info.netuid: info for info in _dynamic_info}
 
     with console.status(
@@ -1092,55 +1091,6 @@ async def _get_neurons_for_netuids(
         _map_hotkey_to_neurons(neurons, hot_wallets, netuid)
         for netuid, neurons in all_processed_neurons
     ]
-
-
-async def _get_de_registered_stake_for_coldkey_wallet(
-    subtensor: SubtensorInterface,
-    all_hotkey_addresses: Collection[str],
-    coldkey_wallet: Wallet,
-) -> tuple[Wallet, list[tuple[str, float]], Optional[str]]:
-    """
-    Looks at the total stake of a coldkey, then filters this based on the supplied hotkey addresses
-    depending on whether the hotkey is a delegate
-
-    :param subtensor: SubtensorInterface to make queries with
-    :param all_hotkey_addresses: collection of hotkey SS58 addresses
-    :param coldkey_wallet: Wallet containing coldkey
-
-    :return: (original wallet, [(hotkey SS58, stake in TAO), ...], error message)
-    """
-    # Pull all stake for our coldkey
-    all_stake_info_for_coldkey = await subtensor.get_stake_info_for_coldkey(
-        coldkey_ss58=coldkey_wallet.coldkeypub.ss58_address, reuse_block=True
-    )
-
-    # Filter out hotkeys that are in our wallets
-    # Filter out hotkeys that are delegates.
-    async def _filter_stake_info(stake_info: StakeInfo) -> bool:
-        if stake_info.stake == 0:
-            return False  # Skip hotkeys that we have no stake with.
-        if stake_info.hotkey_ss58 in all_hotkey_addresses:
-            return False  # Skip hotkeys that are in our wallets.
-        return not await subtensor.is_hotkey_delegate(
-            hotkey_ss58=stake_info.hotkey_ss58, reuse_block=True
-        )
-
-    all_staked = await asyncio.gather(
-        *[_filter_stake_info(stake_info) for stake_info in all_stake_info_for_coldkey]
-    )
-
-    # Collecting all filtered stake info using async for loop
-    all_staked_hotkeys = []
-    for stake_info, staked in zip(all_stake_info_for_coldkey, all_staked):
-        if staked:
-            all_staked_hotkeys.append(
-                (
-                    stake_info.hotkey_ss58,
-                    stake_info.stake.tao,
-                )
-            )
-
-    return coldkey_wallet, all_staked_hotkeys, None
 
 
 async def transfer(

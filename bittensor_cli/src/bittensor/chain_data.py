@@ -1035,7 +1035,13 @@ class DynamicInfo:
         else:
             alpha_returned = tao.set_unit(self.netuid)
             slippage = Balance.from_tao(0)
-        return alpha_returned, slippage
+
+        slippage_pct_float = (
+            100 * float(slippage) / float(slippage + alpha_returned)
+            if slippage + alpha_returned != 0
+            else 0
+        )
+        return alpha_returned, slippage, slippage_pct_float
 
     def alpha_to_tao_with_slippage(self, alpha: Balance) -> tuple[Balance, Balance]:
         """
@@ -1063,7 +1069,12 @@ class DynamicInfo:
         else:
             tao_returned = alpha.set_unit(0)
             slippage = Balance.from_tao(0)
-        return tao_returned, slippage
+        slippage_pct_float = (
+            100 * float(slippage) / float(slippage + tao_returned)
+            if slippage + tao_returned != 0
+            else 0
+        )
+        return tao_returned, slippage, slippage_pct_float
 
 
 @dataclass
