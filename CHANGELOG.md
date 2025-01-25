@@ -1,5 +1,18 @@
 # Changelog
 
+## 8.2.0rc14 /2025-01-24
+
+## What's Changed
+* Adds stake_swap, stake_transfer. 
+* Updates stake_move with interactive mode
+* Clean up of outdated subtensor methods + code
+* Adds --html option in price command
+
+## 8.2.0rc13 /2025-01-15
+
+## What's Changed
+* Bux fixes
+
 ## 8.2.0rc12 /2025-01-14
 
 ## What's Changed
