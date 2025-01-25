@@ -2,6 +2,7 @@ import ast
 import math
 import os
 import sqlite3
+import platform
 import webbrowser
 import sys
 from pathlib import Path
@@ -1202,17 +1203,36 @@ def is_valid_contact(contact: str) -> bool:
 
 def get_subnet_name(subnet_info) -> str:
     """Get the subnet name, prioritizing subnet_identity.subnet_name over subnet.subnet_name.
-    
+
     Args:
         subnet: The subnet dynamic info
-        
+
     Returns:
         str: The subnet name or empty string if no name is found
     """
     return (
         subnet_info.subnet_identity.subnet_name
-        if hasattr(subnet_info, 'subnet_identity') 
-        and subnet_info.subnet_identity is not None 
+        if hasattr(subnet_info, "subnet_identity")
+        and subnet_info.subnet_identity is not None
         and subnet_info.subnet_identity.subnet_name is not None
         else (subnet_info.subnet_name if subnet_info.subnet_name is not None else "")
     )
+
+
+def print_linux_dependency_message():
+    """Prints the WebKit dependency message for Linux systems."""
+    console.print("[red]This command requires WebKit dependencies on Linux.[/red]")
+    console.print(
+        "\nPlease install the required packages using one of the following commands based on your distribution:"
+    )
+    console.print("\nArch Linux / Manjaro:")
+    console.print("[green]sudo pacman -S webkit2gtk[/green]")
+    console.print("\nDebian / Ubuntu:")
+    console.print("[green]sudo apt install libwebkit2gtk-4.0-dev[/green]")
+    console.print("\nFedora / CentOS / AlmaLinux:")
+    console.print("[green]sudo dnf install gtk3-devel webkit2gtk3-devel[/green]")
+
+
+def is_linux():
+    """Returns True if the operating system is Linux."""
+    return platform.system().lower() == "linux"

@@ -741,11 +741,9 @@ async def _generate_html_output(
                 subnet_data, block_numbers, interval_hours, log_scale
             )
             title = "Subnets Price Chart"
-
         console.print(
             "[dark_sea_green3]Opening price chart in a window. Press Ctrl+C to close.[/dark_sea_green3]"
         )
-
         handler = PyWry()
         handler.send_html(
             html=html_content,
@@ -754,14 +752,22 @@ async def _generate_html_output(
             height=800,
         )
         handler.start()
+        await asyncio.sleep(5)
+
+        # TODO: Improve this logic
         try:
             while True:
+                if _has_exited(handler):
+                    break
                 await asyncio.sleep(1)
         except KeyboardInterrupt:
-            try:
-                handler.close()
-            except (ProcessLookupError, Exception):
-                pass
+            pass
+        finally:
+            if not _has_exited(handler):
+                try:
+                    handler.close()
+                except Exception:
+                    pass
     except Exception as e:
         print_error(f"Error generating price chart: {e}")
 
@@ -850,3 +856,12 @@ def _generate_cli_output(subnet_data, block_numbers, interval_hours, log_scale):
             )
 
         console.print(stats_text)
+
+
+def _has_exited(handler) -> bool:
+    """Check if PyWry process has cleanly exited with returncode 0."""
+    return (
+        hasattr(handler, "runner")
+        and handler.runner is not None
+        and handler.runner.returncode == 0
+    )

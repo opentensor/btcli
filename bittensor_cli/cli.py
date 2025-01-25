@@ -48,6 +48,8 @@ from bittensor_cli.src.bittensor.utils import (
     prompt_for_identity,
     validate_uri,
     prompt_for_subnet_identity,
+    print_linux_dependency_message,
+    is_linux,
 )
 from typing_extensions import Annotated
 from textwrap import dedent
@@ -3943,6 +3945,9 @@ class CLIManager:
 
         if all_netuids:
             html_output = True
+
+        if html_output and is_linux():
+            print_linux_dependency_message()
 
         return self._run_command(
             price.price(

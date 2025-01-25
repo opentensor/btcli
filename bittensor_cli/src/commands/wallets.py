@@ -149,7 +149,7 @@ async def new_hotkey(
                 use_password=use_password,
                 overwrite=False,
             )
-            console.print(f"[dark_sea_green]Hotkey created[/dark_sea_green]")
+            console.print("[dark_sea_green]Hotkey created[/dark_sea_green]")
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
 
@@ -178,7 +178,7 @@ async def new_coldkey(
                 use_password=use_password,
                 overwrite=False,
             )
-            console.print(f"[dark_sea_green]Coldkey created[/dark_sea_green]")
+            console.print("[dark_sea_green]Coldkey created[/dark_sea_green]")
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
 
@@ -193,11 +193,11 @@ async def wallet_create(
     if uri:
         try:
             keypair = Keypair.create_from_uri(uri)
+            wallet.set_coldkey(keypair=keypair, encrypt=False, overwrite=False)
+            wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=False)
+            wallet.set_hotkey(keypair=keypair, encrypt=False, overwrite=False)
         except Exception as e:
             print_error(f"Failed to create keypair from URI: {str(e)}")
-        wallet.set_coldkey(keypair=keypair, encrypt=False, overwrite=False)
-        wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=False)
-        wallet.set_hotkey(keypair=keypair, encrypt=False, overwrite=False)
         console.print(
             f"[dark_sea_green]Wallet created from URI: {uri}[/dark_sea_green]"
         )
@@ -208,7 +208,7 @@ async def wallet_create(
                 use_password=use_password,
                 overwrite=False,
             )
-            console.print(f"[dark_sea_green]Coldkey created[/dark_sea_green]")
+            console.print("[dark_sea_green]Coldkey created[/dark_sea_green]")
         except KeyFileError:
             print_error("KeyFileError: File is not writable")
 
@@ -218,7 +218,7 @@ async def wallet_create(
                 use_password=False,
                 overwrite=False,
             )
-            console.print(f"[dark_sea_green]Hotkey created[/dark_sea_green]")
+            console.print("[dark_sea_green]Hotkey created[/dark_sea_green]")
         except KeyFileError:
             print_error("KeyFileError: File is not writable")
 
