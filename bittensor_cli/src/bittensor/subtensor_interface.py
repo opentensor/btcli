@@ -27,6 +27,7 @@ from bittensor_cli.src.bittensor.chain_data import (
     decode_hex_identity,
     DelegateInfoLite,
     DynamicInfo,
+    SubnetState,
 )
 from bittensor_cli.src import DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance, FixedPoint, fixed_to_float
@@ -587,6 +588,36 @@ class SubtensorInterface:
             reuse_block_hash=reuse_block,
         )
         return result
+
+    async def get_subnet_state(
+        self, netuid: int, block_hash: Optional[str] = None
+    ) -> Optional["SubnetState"]:
+        """
+        Retrieves the state of a specific subnet within the Bittensor network.
+
+        Args:
+            netuid: The network UID of the subnet to query.
+            block_hash: The hash of the blockchain block number for the query.
+
+        Returns:
+            SubnetState object containing the subnet's state information, or None if the subnet doesn't exist.
+        """
+        hex_bytes_result = await self.query_runtime_api(
+            runtime_api="SubnetInfoRuntimeApi",
+            method="get_subnet_state",
+            params=[netuid],
+            block_hash=block_hash,
+        )
+
+        if hex_bytes_result is None:
+            return None
+
+        try:
+            bytes_result = bytes.fromhex(hex_bytes_result[2:])
+        except ValueError:
+            bytes_result = bytes.fromhex(hex_bytes_result)
+
+        return SubnetState.from_vec_u8(bytes_result)
 
     async def get_hyperparameter(
         self,

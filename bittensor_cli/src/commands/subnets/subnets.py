@@ -806,24 +806,16 @@ async def show(
             print_error("The root subnet does not exist")
             raise typer.Exit()
 
-        hex_bytes_result, identities, old_identities = await asyncio.gather(
-            subtensor.query_runtime_api(
-                runtime_api="SubnetInfoRuntimeApi",
-                method="get_subnet_state",
-                params=[0],
-            ),
+        root_state, identities, old_identities = await asyncio.gather(
+            subtensor.get_subnet_state(netuid=0),
             subtensor.query_all_identities(),
             subtensor.get_delegate_identities(),
         )
 
-        if (bytes_result := hex_bytes_result) is None:
+        if root_state is None:
             err_console.print("The root subnet does not exist")
             return
 
-        if bytes_result.startswith("0x"):
-            bytes_result = bytes.fromhex(bytes_result[2:])
-
-        root_state: "SubnetState" = SubnetState.from_vec_u8(bytes_result)
         if len(root_state.hotkeys) == 0:
             err_console.print(
                 "The root-subnet is currently empty with 0 UIDs registered."
@@ -1025,35 +1017,24 @@ async def show(
             raise typer.Exit()
         (
             subnet_info,
-            hex_bytes_result,
+            subnet_state,
             identities,
             old_identities,
         ) = await asyncio.gather(
             subtensor.subnet(netuid=netuid_),
-            subtensor.query_runtime_api(
-                runtime_api="SubnetInfoRuntimeApi",
-                method="get_subnet_state",
-                params=[netuid_],
-            ),
+            subtensor.get_subnet_state(netuid=netuid_),
             subtensor.query_all_identities(),
             subtensor.get_delegate_identities(),
         )
+        if subnet_state is None:
+            print_error(f"Subnet {netuid_} does not exist")
+            raise typer.Exit()
+
         if subnet_info is None:
             print_error(f"Subnet {netuid_} does not exist")
             raise typer.Exit()
 
-        if (bytes_result := hex_bytes_result) is None:
-            print_error(f"Subnet {netuid_} does not exist")
-            raise typer.Exit()
-
-        if bytes_result.startswith("0x"):
-            bytes_result = bytes.fromhex(bytes_result[2:])
-
-        subnet_state: "SubnetState" = SubnetState.from_vec_u8(bytes_result)
-        if subnet_info is None:
-            print_error(f"Subnet {netuid_} does not exist")
-            raise typer.Exit()
-        elif len(subnet_state.hotkeys) == 0:
+        if len(subnet_state.hotkeys) == 0:
             print_error(f"Subnet {netuid_} is currently empty with 0 UIDs registered.")
             raise typer.Exit()
 
@@ -1585,7 +1566,13 @@ async def metagraph_cmd(
                 print_error(f"Subnet with netuid: {netuid} does not exist", status)
                 return False
 
-            neurons, difficulty_, total_issuance_, block = await asyncio.gather(
+            (
+                neurons,
+                difficulty_,
+                total_issuance_,
+                block,
+                subnet_state,
+            ) = await asyncio.gather(
                 subtensor.neurons(netuid, block_hash=block_hash),
                 subtensor.get_hyperparameter(
                     param_name="Difficulty", netuid=netuid, block_hash=block_hash
@@ -1597,21 +1584,8 @@ async def metagraph_cmd(
                     block_hash=block_hash,
                 ),
                 subtensor.substrate.get_block_number(block_hash=block_hash),
+                subtensor.get_subnet_state(netuid=netuid),
             )
-
-            hex_bytes_result = await subtensor.query_runtime_api(
-                runtime_api="SubnetInfoRuntimeApi",
-                method="get_subnet_state",
-                params=[netuid],
-            )
-            if not (bytes_result := hex_bytes_result):
-                err_console.print(f"Subnet {netuid} does not exist")
-                return
-
-            if bytes_result.startswith("0x"):
-                bytes_result = bytes.fromhex(bytes_result[2:])
-
-            subnet_state: "SubnetState" = SubnetState.from_vec_u8(bytes_result)
 
         difficulty = int(difficulty_)
         total_issuance = Balance.from_rao(total_issuance_)
