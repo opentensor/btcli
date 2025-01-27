@@ -4041,8 +4041,10 @@ class CLIManager:
             wallet_hotkey,
             ask_for=[
                 WO.NAME,
+                WO.HOTKEY,
+                WO.PATH,
             ],
-            validate=WV.WALLET,
+            validate=WV.WALLET_AND_HOTKEY,
         )
         identity = prompt_for_subnet_identity(
             subnet_name=subnet_name,
