@@ -843,9 +843,9 @@ class CLIManager:
                 if isinstance(e, SubstrateRequestException):
                     err_console.print(str(e))
                 verbose_console.print(traceback.format_exc())
-            except Exception as e:
-                err_console.print(f"An unknown error has occurred: {e}")
-                verbose_console.print(traceback.format_exc())
+            # except Exception as e:
+            #     err_console.print(f"An unknown error has occurred: {e}")
+            #     verbose_console.print(traceback.format_exc())
             finally:
                 if initiated is False:
                     asyncio.create_task(cmd).cancel()
@@ -2564,6 +2564,7 @@ class CLIManager:
         ),
         reuse_last: bool = Options.reuse_last,
         html_output: bool = Options.html_output,
+        scroll_view: bool = False,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2594,6 +2595,7 @@ class CLIManager:
                 limit_max_col,
                 reuse_last,
                 html_output,
+                scroll_view,
                 not self.config.get("use_cache", True),
             )
         )

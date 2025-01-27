@@ -11,6 +11,10 @@ from rich.table import Column, Table
 from rich.text import Text
 from scalecodec import GenericCall, ScaleType
 from substrateinterface.exceptions import SubstrateRequestException
+from textual.app import App
+from textual.scroll_view import ScrollView
+from textual.widgets import DataTable as TextualTable, Placeholder
+from textual import events
 import typer
 
 from bittensor_cli.src import DelegatesDetails
@@ -836,7 +840,8 @@ async def get_weights(
     limit_max_col: Optional[int],
     reuse_last: bool,
     html_output: bool,
-    no_cache: bool,
+    scroll_view: bool,
+    no_cache: bool
 ):
     """Get weights for root network."""
     if not reuse_last:
@@ -901,7 +906,51 @@ async def get_weights(
         err_console.print("Minimum limit greater than number of netuids")
         return
 
-    if not html_output:
+    if html_output:
+        html_cols = [{"title": "UID", "field": "UID"}]
+        for netuid in sorted_netuids[_min_lim:_max_lim]:
+            html_cols.append({"title": str(netuid), "field": f"_{netuid}"})
+        render_table(
+            "rootgetweights",
+            "Root Network Weights",
+            html_cols,
+        )
+
+    elif scroll_view:
+        class ScrollTable(App):
+            def __init__(self, table, cols, rows_, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.table: TextualTable = table
+                self.cols = cols
+                self.rows = rows_
+
+            async def on_mount(self, event):
+                for col in self.cols:
+                    print(col)
+                    self.table.add_column(col)
+                print(len(self.table.columns))
+                for row in self.rows:
+                    self.table.add_row(*row)
+                return self.table
+
+
+        ttable = TextualTable(
+        )
+        new_rows = []
+        new_cols = ["[white]UID"]
+        for row in rows:
+            new_row = [row[0]] + row[_min_lim + 1 : _max_lim + 1]
+            new_rows.append(new_row)
+
+        for netuid in sorted_netuids[_min_lim:_max_lim]:
+            new_cols.append(f"[white]{netuid}")
+
+        # columns = ["[white]UID"] + [f"[white]{netuid}" for netuid in sorted_netuids]
+        # print(len(columns), len(rows[0]))
+
+        st = ScrollTable(ttable, new_cols, new_rows)
+        await st.run_async()
+    else:
         table = Table(
             show_footer=True,
             box=None,
@@ -936,16 +985,6 @@ async def get_weights(
             table.add_row(*new_row)
 
         return console.print(table)
-
-    else:
-        html_cols = [{"title": "UID", "field": "UID"}]
-        for netuid in sorted_netuids[_min_lim:_max_lim]:
-            html_cols.append({"title": str(netuid), "field": f"_{netuid}"})
-        render_table(
-            "rootgetweights",
-            "Root Network Weights",
-            html_cols,
-        )
 
 
 async def _get_my_weights(
