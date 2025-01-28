@@ -3907,6 +3907,7 @@ class CLIManager:
             help="Show the price in log scale.",
         ),
         html_output: bool = Options.html_output,
+        csv_output: bool = Options.csv_output,
     ):
         """
         Shows the historical price of a subnet for the past 24 hours.
