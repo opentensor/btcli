@@ -91,8 +91,7 @@ async def register_subnetwork_extrinsic(
         return [-1]
 
     print_verbose("Fetching balance")
-    your_balance_ = await subtensor.get_balance(wallet.coldkeypub.ss58_address)
-    your_balance = your_balance_[wallet.coldkeypub.ss58_address]
+    your_balance = await subtensor.get_balance(wallet.coldkeypub.ss58_address)
 
     print_verbose("Fetching burn_cost")
     sn_burn_cost = await burn_cost(subtensor)
@@ -1344,20 +1343,17 @@ async def burn_cost(subtensor: "SubtensorInterface") -> Optional[Balance]:
         f":satellite:Retrieving lock cost from {subtensor.network}...",
         spinner="aesthetic",
     ):
-        lc = await subtensor.query_runtime_api(
-            runtime_api="SubnetRegistrationRuntimeApi",
-            method="get_network_registration_cost",
-            params=[],
-        )
-    if lc:
-        burn_cost_ = Balance(lc)
-        console.print(
-            f"Subnet burn cost: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{burn_cost_}"
-        )
-        return burn_cost_
-    else:
-        err_console.print("Subnet burn cost: [red]Failed to get subnet burn cost[/red]")
-        return None
+        burn_cost = await subtensor.burn_cost()
+        if burn_cost:
+            console.print(
+                f"Subnet burn cost: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{burn_cost}"
+            )
+            return burn_cost
+        else:
+            err_console.print(
+                "Subnet burn cost: [red]Failed to get subnet burn cost[/red]"
+            )
+            return None
 
 
 async def create(
@@ -1453,7 +1449,7 @@ async def register(
 
     # Check current recycle amount
     print_verbose("Fetching recycle amount")
-    current_recycle_, balance_ = await asyncio.gather(
+    current_recycle_, balance = await asyncio.gather(
         subtensor.get_hyperparameter(
             param_name="Burn", netuid=netuid, block_hash=block_hash
         ),
@@ -1462,7 +1458,6 @@ async def register(
     current_recycle = (
         Balance.from_rao(int(current_recycle_)) if current_recycle_ else Balance(0)
     )
-    balance = balance_[wallet.coldkeypub.ss58_address]
 
     # Check balance is sufficient
     if balance < current_recycle:

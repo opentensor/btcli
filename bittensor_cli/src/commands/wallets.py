@@ -288,7 +288,7 @@ async def wallet_balance(
 
         block_hash = await subtensor.substrate.get_chain_head()
         free_balances, staked_balances = await asyncio.gather(
-            subtensor.get_balance(*coldkeys, block_hash=block_hash),
+            subtensor.get_balances(*coldkeys, block_hash=block_hash),
             subtensor.get_total_stake_for_coldkey(*coldkeys, block_hash=block_hash),
         )
 
@@ -552,7 +552,7 @@ async def _get_total_balance(
         ]
         total_balance += sum(
             (
-                await subtensor.get_balance(
+                await subtensor.get_balances(
                     *(x.coldkeypub.ss58_address for x in _balance_cold_wallets),
                     block_hash=block_hash,
                 )
@@ -574,7 +574,7 @@ async def _get_total_balance(
         ):
             total_balance = sum(
                 (
-                    await subtensor.get_balance(
+                    await subtensor.get_balances(
                         coldkey_wallet.coldkeypub.ss58_address, block_hash=block_hash
                     )
                 ).values()
@@ -1038,19 +1038,7 @@ async def _fetch_neuron_for_netuid(
 
     :return: the original netuid, and a mapping of the neurons to their NeuronInfoLite objects
     """
-
-    async def neurons_lite_for_uid(uid: int) -> dict[Any, Any]:
-        block_hash = subtensor.substrate.last_block_hash
-        hex_bytes_result = await subtensor.query_runtime_api(
-            runtime_api="NeuronInfoRuntimeApi",
-            method="get_neurons_lite",
-            params=[uid],
-            block_hash=block_hash,
-        )
-
-        return hex_bytes_result
-
-    neurons = await neurons_lite_for_uid(uid=netuid)
+    neurons = await subtensor.neurons_lite(netuid=netuid)
     return netuid, neurons
 
 
@@ -1075,7 +1063,7 @@ def _process_neurons_for_netuids(
     :return: netuids mapped to decoded neurons
     """
     all_results = [
-        (netuid, NeuronInfoLite.list_from_vec_u8(bytes.fromhex(result[2:])))
+        (netuid, NeuronInfoLite.list_from_any(bytes.fromhex(result[2:])))
         for netuid, result in netuids_with_all_neurons_hex_bytes
     ]
     return all_results
@@ -1211,7 +1199,7 @@ async def inspect(
     all_delegates: list[list[tuple[DelegateInfo, Balance]]]
     with console.status("Pulling balance data...", spinner="aesthetic"):
         balances, all_neurons, all_delegates = await asyncio.gather(
-            subtensor.get_balance(
+            subtensor.get_balances(
                 *[w.coldkeypub.ss58_address for w in wallets_with_ckp_file],
                 block_hash=block_hash,
             ),
