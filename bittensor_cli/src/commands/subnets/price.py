@@ -7,6 +7,10 @@ from typing import TYPE_CHECKING
 import plotille
 import plotly.graph_objects as go
 
+import csv
+import sys
+from datetime import datetime
+
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.utils import (
     console,
@@ -71,6 +75,12 @@ async def price(
         await _generate_html_output(
             subnet_data, block_numbers, interval_hours, log_scale
         )
+
+    if csv_output:
+         await _generate_csv_output(
+            subnet_data, block_numbers, interval_hours, log_scale
+        )
+
     else:
         _generate_cli_output(subnet_data, block_numbers, interval_hours, log_scale)
 
@@ -770,6 +780,42 @@ async def _generate_html_output(
                     pass
     except Exception as e:
         print_error(f"Error generating price chart: {e}")
+
+async def _generate_csv_output(
+    subnet_data,
+    block_numbers,
+    interval_hours,
+    log_scale: bool = False,
+):
+    """
+    Generate CSV output for subnet price data.
+    """
+    try:
+        # Prepare the CSV writer
+        writer = csv.writer(sys.stdout)
+        
+        # Write headers
+        headers = ['timestamp', 'block_number', 'netuid', 'price']
+        writer.writerow(headers)
+        
+        # Process data for all subnets
+        for netuid, data in subnet_data.items():
+            prices = data.get('prices', [])
+            timestamps = data.get('timestamps', [])
+            
+            # Write each data point
+            for block_num, timestamp, price in zip(block_numbers, timestamps, prices):
+                # Convert timestamp to readable format
+                dt = datetime.fromtimestamp(timestamp)
+                writer.writerow([
+                    dt.strftime('%Y-%m-%d %H:%M:%S'),
+                    block_num,
+                    netuid,
+                    price
+                ])
+                
+    except Exception as e:
+        print(f"Error generating CSV output: {e}", file=sys.stderr)
 
 
 def _generate_cli_output(subnet_data, block_numbers, interval_hours, log_scale):
