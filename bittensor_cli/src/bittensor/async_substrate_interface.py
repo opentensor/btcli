@@ -51,33 +51,6 @@ def timeout_handler(signum, frame):
     raise TimeoutException("Operation timed out")
 
 
-class DictWithValue(dict):
-    value: Any
-
-    def __init__(self, value: Any = None):
-        super().__init__()
-        self.value = value
-
-    def __getitem__(self, key: Union[str, int]):
-        result = super().get(key)
-        if not result and isinstance(key, int):
-            # if the key is not found, return the key at the given index
-            return list(chain.from_iterable(self.items()))[key]
-        return result
-
-    @classmethod
-    def from_dict(cls, dict_: dict):
-        inst = cls()
-        # recursively convert all values to DictWithValue
-        for key, value in dict_.items():
-            if isinstance(value, dict):
-                value = cls.from_dict(value)
-            inst[key] = value
-        inst.value = dict_
-
-        return inst
-
-
 class ExtrinsicReceipt:
     """
     Object containing information of submitted extrinsic. Block hash where extrinsic is included is required
@@ -862,64 +835,6 @@ class AsyncSubstrateInterface:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         pass
-
-    @staticmethod
-    def _type_registry_to_scale_info_types(
-        registry_types: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]:
-        scale_info_types = []
-        for type_entry in registry_types:
-            new_type_entry = DictWithValue(value=type_entry)
-            if (
-                "variant" in type_entry["type"]["def"]
-                and len(type_entry["type"]["def"]["variant"]) == 0
-            ):
-                type_entry["type"]["def"]["variant"] = {
-                    "variants": []
-                }  # add empty variants field to variant type if empty
-
-            for key, value in type_entry.items():
-                if isinstance(value, dict):
-                    entry = DictWithValue.from_dict(value)
-                else:
-                    entry = SimpleNamespace(value=value)
-                new_type_entry[key] = entry
-
-            scale_info_types.append(new_type_entry)
-
-        return scale_info_types
-
-    @staticmethod
-    def _type_id_to_name(ty_id: int) -> str:
-        type_string = f"scale_info::{ty_id}"
-
-        return type_string
-
-    def _type_registry_apis_to_runtime_api(
-        self, apis: list[dict[str, Any]]
-    ) -> dict[str, Any]:
-        runtime_api = {}
-        for api in apis:
-            api_name = api["name"]
-            methods = api["methods"]
-
-            runtime_api[api_name] = {
-                "methods": {
-                    method["name"]: {
-                        "description": "\n".join(method["docs"]),
-                        "params": [
-                            {
-                                "name": input["name"],
-                                "type": self._type_id_to_name(input["ty"]),
-                            }
-                            for input in method["inputs"]
-                        ],
-                        "type": self._type_id_to_name(method["output"]),
-                    }
-                    for method in methods
-                }
-            }
-        return runtime_api
 
     @property
     def chain(self):
