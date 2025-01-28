@@ -29,6 +29,7 @@ async def price(
     all_netuids: bool = False,
     interval_hours: int = 24,
     html_output: bool = False,
+    csv_output: bool = False,
     log_scale: bool = False,
 ):
     """

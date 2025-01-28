@@ -195,6 +195,11 @@ class Options:
         "Use this option only if you have already retrieved the metagraph."
         "data",
     )
+    csv_output = typer.Option(
+        False,
+        "--csv",
+        help="Output as a csv",
+    )
     html_output = typer.Option(
         False,
         "--html",
@@ -3956,6 +3961,7 @@ class CLIManager:
                 all_netuids,
                 interval_hours,
                 html_output,
+                csv_output
                 log_scale,
             )
         )
