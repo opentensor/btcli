@@ -801,6 +801,7 @@ async def _generate_csv_output(
         writer.writerow(headers)
 
         print(len(subnet_data))
+        print(subnet_data)
         
         # Process data for all subnets
         for netuid, data in subnet_data.items():
