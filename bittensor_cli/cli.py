@@ -1252,7 +1252,7 @@ class CLIManager:
         """
         Displays all the wallets and their corresponding hotkeys that are located in the wallet path specified in the config.
 
-        The output display shows each wallet and its associated `ss58` addresses for the coldkey public key and any hotkeys. The output is presented in a hierarchical tree format, with each wallet as a root node and any associated hotkeys as child nodes. The `ss58` address is displayed for each coldkey and hotkey that is not encrypted and exists on the device.
+        The output display shows each wallet and its associated `ss58` addresses for the coldkey public key and any hotkeys. The output display shows each wallet and its associated `ss58` addresses for the coldkey public key and any hotkeys. The output is presented in a hierarchical tree format, with each wallet as a root node and any associated hotkeys as child nodes. The `ss58` address (or an `<ENCRYPTED>` marker, for encrypted hotkeys) is displayed for each coldkey and hotkey that exists on the device.
 
         Upon invocation, the command scans the wallet directory and prints a list of all the wallets, indicating whether the
         public keys are available (`?` denotes unavailable or encrypted keys).
