@@ -52,14 +52,8 @@ from bittensor_cli.src.bittensor.utils import (
     retry_prompt,
     unlock_key,
     hex_to_bytes,
+    WalletLike,
 )
-
-
-class WalletLike:
-    def __init__(self, name=None, hotkey_ss58=None, hotkey_str=None):
-        self.name = name
-        self.hotkey_ss58 = hotkey_ss58
-        self.hotkey_str = hotkey_str
 
 
 async def regen_coldkey(
@@ -497,7 +491,9 @@ async def wallet_list(wallet_path: str):
         wallet_tree = root.add(
             f"[bold blue]Coldkey[/bold blue] [green]{wallet.name}[/green]  ss58_address [green]{coldkeypub_str}[/green]"
         )
-        hotkeys = utils.get_hotkey_wallets_for_wallet(wallet, show_nulls=True)
+        hotkeys = utils.get_hotkey_wallets_for_wallet(
+            wallet, show_nulls=True, show_encrypted=True
+        )
         for hkey in hotkeys:
             data = f"[bold red]Hotkey[/bold red][green] {hkey}[/green] (?)"
             if hkey:
