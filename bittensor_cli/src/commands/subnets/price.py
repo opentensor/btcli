@@ -799,6 +799,8 @@ async def _generate_csv_output(
         # Write headers
         headers = ['timestamp', 'block_number', 'netuid', 'price']
         writer.writerow(headers)
+
+        print(len(subnet_data))
         
         # Process data for all subnets
         for netuid, data in subnet_data.items():
