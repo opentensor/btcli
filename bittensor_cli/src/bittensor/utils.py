@@ -235,7 +235,7 @@ def get_hotkey_wallets_for_wallet(
         hotkey_for_name = Wallet(path=str(wallet_path), name=wallet.name, hotkey=h_name)
         try:
             if (
-                exists := hotkey_for_name.hotkey_file.exists_on_device()
+                (exists := hotkey_for_name.hotkey_file.exists_on_device())
                 and not hotkey_for_name.hotkey_file.is_encrypted()
                 # and hotkey_for_name.coldkeypub.ss58_address
                 and hotkey_for_name.hotkey.ss58_address
