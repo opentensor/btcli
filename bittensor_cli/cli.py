@@ -3962,7 +3962,7 @@ class CLIManager:
                 all_netuids,
                 interval_hours,
                 html_output,
-                csv_output
+                csv_output,
                 log_scale,
             )
         )
