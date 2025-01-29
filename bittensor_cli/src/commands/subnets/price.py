@@ -78,7 +78,7 @@ async def price(
         subnet_data, block_numbers, interval_hours, log_scale
     )
 
-    if html_output:
+    elif html_output and not csv_output:
         await _generate_html_output(
             subnet_data, block_numbers, interval_hours, log_scale
         )
