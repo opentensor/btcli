@@ -72,13 +72,14 @@ async def price(
         err_console.print("[red]No valid price data found for any subnet[/red]")
         return
 
+    # check csv first
+    if csv_output:
+     await _generate_csv_output(
+        subnet_data, block_numbers, interval_hours, log_scale
+    )
+
     if html_output:
         await _generate_html_output(
-            subnet_data, block_numbers, interval_hours, log_scale
-        )
-
-    if csv_output:
-         await _generate_csv_output(
             subnet_data, block_numbers, interval_hours, log_scale
         )
 
