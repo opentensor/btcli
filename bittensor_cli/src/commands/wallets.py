@@ -1376,7 +1376,7 @@ async def get_id(subtensor: SubtensorInterface, ss58_address: str, title: str = 
     with console.status(
         ":satellite: [bold green]Querying chain identity...", spinner="earth"
     ):
-        identity = await subtensor.query_identity(ss58_address)
+        identity = getattr(await subtensor.query_identity(ss58_address), "value", None)
 
     if not identity:
         err_console.print(

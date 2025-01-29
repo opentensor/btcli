@@ -215,18 +215,26 @@ class MiniGraph:
         """
 
         async def get_total_subnets():
-            _result = await self.subtensor.substrate.query(
-                module="SubtensorModule",
-                storage_function="TotalNetworks",
-                params=[],
-                reuse_block_hash=True,
+            _result = getattr(
+                await self.subtensor.substrate.query(
+                    module="SubtensorModule",
+                    storage_function="TotalNetworks",
+                    params=[],
+                    reuse_block_hash=True,
+                ),
+                "value",
+                None,
             )
             return _result
 
         async def get_subnets():
-            _result = await self.subtensor.substrate.query(
-                module="SubtensorModule",
-                storage_function="TotalNetworks",
+            _result = getattr(
+                await self.subtensor.substrate.query(
+                    module="SubtensorModule",
+                    storage_function="TotalNetworks",
+                ),
+                "value",
+                None,
             )
             return [i for i in range(_result)]
 

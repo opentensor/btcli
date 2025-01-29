@@ -95,10 +95,14 @@ async def set_hyperparameter_extrinsic(
                       finalization/inclusion, the response is `True`.
     """
     print_verbose("Confirming subnet owner")
-    subnet_owner_ = await subtensor.substrate.query(
-        module="SubtensorModule",
-        storage_function="SubnetOwner",
-        params=[netuid],
+    subnet_owner_ = getattr(
+        await subtensor.substrate.query(
+            module="SubtensorModule",
+            storage_function="SubnetOwner",
+            params=[netuid],
+        ),
+        "value",
+        None,
     )
     subnet_owner = decode_account_id(subnet_owner_[0])
     if subnet_owner != wallet.coldkeypub.ss58_address:
@@ -183,11 +187,15 @@ async def _get_senate_members(
 
     :return: list of the senate members' ss58 addresses
     """
-    senate_members = await subtensor.substrate.query(
-        module="SenateMembers",
-        storage_function="Members",
-        params=None,
-        block_hash=block_hash,
+    senate_members = getattr(
+        await subtensor.substrate.query(
+            module="SenateMembers",
+            storage_function="Members",
+            params=None,
+            block_hash=block_hash,
+        ),
+        "value",
+        None,
     )
     try:
         return [
@@ -202,19 +210,27 @@ async def _get_proposals(
     subtensor: "SubtensorInterface", block_hash: str
 ) -> dict[str, tuple[dict, "ProposalVoteData"]]:
     async def get_proposal_call_data(p_hash: str) -> Optional[GenericCall]:
-        proposal_data = await subtensor.substrate.query(
-            module="Triumvirate",
-            storage_function="ProposalOf",
-            block_hash=block_hash,
-            params=[p_hash],
+        proposal_data = getattr(
+            await subtensor.substrate.query(
+                module="Triumvirate",
+                storage_function="ProposalOf",
+                block_hash=block_hash,
+                params=[p_hash],
+            ),
+            "value",
+            None,
         )
         return proposal_data
 
-    ph = await subtensor.substrate.query(
-        module="Triumvirate",
-        storage_function="Proposals",
-        params=None,
-        block_hash=block_hash,
+    ph = getattr(
+        await subtensor.substrate.query(
+            module="Triumvirate",
+            storage_function="Proposals",
+            params=None,
+            block_hash=block_hash,
+        ),
+        "value",
+        None,
     )
 
     try:

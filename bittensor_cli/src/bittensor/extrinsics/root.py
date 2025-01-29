@@ -342,10 +342,14 @@ async def root_register_extrinsic(
 
         # Successful registration, final check for neuron and pubkey
         else:
-            uid = await subtensor.substrate.query(
-                module="SubtensorModule",
-                storage_function="Uids",
-                params=[0, wallet.hotkey.ss58_address],
+            uid = getattr(
+                await subtensor.substrate.query(
+                    module="SubtensorModule",
+                    storage_function="Uids",
+                    params=[0, wallet.hotkey.ss58_address],
+                ),
+                "value",
+                None,
             )
             if uid is not None:
                 console.print(
@@ -419,8 +423,12 @@ async def set_root_weights_extrinsic(
         else:
             return False, await response.error_message
 
-    my_uid = await subtensor.substrate.query(
-        "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
+    my_uid = getattr(
+        await subtensor.substrate.query(
+            "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
+        ),
+        "value",
+        None,
     )
 
     if my_uid is None:

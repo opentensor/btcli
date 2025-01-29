@@ -438,10 +438,14 @@ async def is_hotkey_registered(
     subtensor: "SubtensorInterface", netuid: int, hotkey_ss58: str
 ) -> bool:
     """Checks to see if the hotkey is registered on a given netuid"""
-    _result = await subtensor.substrate.query(
-        module="SubtensorModule",
-        storage_function="Uids",
-        params=[netuid, hotkey_ss58],
+    _result = getattr(
+        await subtensor.substrate.query(
+            module="SubtensorModule",
+            storage_function="Uids",
+            params=[netuid, hotkey_ss58],
+        ),
+        "value",
+        None,
     )
     if _result is not None:
         return True
@@ -489,8 +493,12 @@ async def register_extrinsic(
     """
 
     async def get_neuron_for_pubkey_and_subnet():
-        uid = await subtensor.substrate.query(
-            "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
+        uid = getattr(
+            await subtensor.substrate.query(
+                "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
+            ),
+            "value",
+            None,
         )
         if uid is None:
             return NeuronInfo.get_null_neuron()
@@ -707,8 +715,12 @@ async def burned_register_extrinsic(
         f":satellite: Checking Account on [bold]subnet:{netuid}[/bold]...",
         spinner="aesthetic",
     ) as status:
-        my_uid = await subtensor.substrate.query(
-            "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
+        my_uid = getattr(
+            await subtensor.substrate.query(
+                "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
+            ),
+            "value",
+            None,
         )
 
         print_verbose("Checking if already registered", status)
@@ -751,7 +763,7 @@ async def burned_register_extrinsic(
     else:
         with console.status(":satellite: Checking Balance...", spinner="aesthetic"):
             block_hash = await subtensor.substrate.get_chain_head()
-            new_balance, netuids_for_hotkey, my_uid = await asyncio.gather(
+            new_balance, netuids_for_hotkey, my_uid_ = await asyncio.gather(
                 subtensor.get_balance(
                     wallet.coldkeypub.ss58_address,
                     block_hash=block_hash,
@@ -764,6 +776,7 @@ async def burned_register_extrinsic(
                     "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
                 ),
             )
+            my_uid = getattr(my_uid_, "value", None)
 
         console.print(
             "Balance:\n"
