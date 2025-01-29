@@ -1,6 +1,5 @@
 import asyncio
-from typing import Optional, Any, Union, TypedDict, Iterable
-
+from typing import Optional, Any, Union, TypedDict, Iterable, Coroutine
 
 import aiohttp
 from bittensor_wallet import Wallet
@@ -10,10 +9,8 @@ from scalecodec import GenericCall
 from substrateinterface.exceptions import SubstrateRequestException
 import typer
 
-from bittensor_cli.src.bittensor.async_substrate_interface import (
-    AsyncSubstrateInterface,
-    TimeoutException,
-)
+
+from async_substrate_interface.async_substrate import AsyncSubstrateInterface
 from bittensor_cli.src.bittensor.chain_data import (
     DelegateInfo,
     StakeInfo,
@@ -38,7 +35,7 @@ from bittensor_cli.src.bittensor.utils import (
     u16_normalized_float,
     u64_normalized_float,
     ss58_to_vec_u8,
-    encode_account_id
+    encode_account_id,
 )
 
 
@@ -67,6 +64,17 @@ class ProposalVoteData:
         Decodes a tuple of ss58 addresses formatted as bytes tuples
         """
         return [decode_account_id(l[x][0]) for x in range(len(l))]
+
+
+async def get_value(coroutine: Coroutine) -> Any:
+    """
+    Helper function for getting the result value from a substrate query, which is usually a ScaleObj, but not always
+    """
+    result = await coroutine
+    if hasattr(result, "value"):
+        return result.value
+    else:
+        return result
 
 
 class SubtensorInterface:
@@ -105,7 +113,7 @@ class SubtensorInterface:
                 self.network = defaults.subtensor.network
 
         self.substrate = AsyncSubstrateInterface(
-            chain_endpoint=self.chain_endpoint,
+            url=self.chain_endpoint,
             ss58_format=SS58_FORMAT,
             type_registry=TYPE_REGISTRY,
             chain_name="Bittensor",
@@ -121,7 +129,7 @@ class SubtensorInterface:
             try:
                 async with self.substrate:
                     return self
-            except TimeoutException:
+            except TimeoutError:  # TODO verify
                 err_console.print(
                     "\n[red]Error[/red]: Timeout occurred connecting to substrate. "
                     f"Verify your chain and network settings: {self}"
@@ -169,11 +177,11 @@ class SubtensorInterface:
             block_hash=block_hash,
             reuse_block_hash=True,
         )
-        return (
-            []
-            if result is None or not hasattr(result, "records")
-            else [netuid async for netuid, exists in result if exists]
-        )
+        res = []
+        async for netuid, exists in result:
+            if exists.value:  # TODO verify type
+                res.append(netuid)
+        return res
 
     async def is_hotkey_delegate(
         self,
@@ -270,25 +278,31 @@ class SubtensorInterface:
         Returns:
             Balance: The stake under the coldkey - hotkey pairing.
         """
-        alpha_shares = await self.substrate.query(
-            module="SubtensorModule",
-            storage_function="Alpha",
-            params=[hotkey_ss58, coldkey_ss58, netuid],
-            block_hash=block_hash,
+        alpha_shares = await get_value(
+            self.substrate.query(
+                module="SubtensorModule",
+                storage_function="Alpha",
+                params=[hotkey_ss58, coldkey_ss58, netuid],
+                block_hash=block_hash,
+            )
         )
 
-        hotkey_alpha = await self.substrate.query(
-            module="SubtensorModule",
-            storage_function="TotalHotkeyAlpha",
-            params=[hotkey_ss58, netuid],
-            block_hash=block_hash,
+        hotkey_alpha = await get_value(
+            self.substrate.query(
+                module="SubtensorModule",
+                storage_function="TotalHotkeyAlpha",
+                params=[hotkey_ss58, netuid],
+                block_hash=block_hash,
+            )
         )
 
-        hotkey_shares = await self.substrate.query(
-            module="SubtensorModule",
-            storage_function="TotalHotkeyShares",
-            params=[hotkey_ss58, netuid],
-            block_hash=block_hash,
+        hotkey_shares = await get_value(
+            self.substrate.query(
+                module="SubtensorModule",
+                storage_function="TotalHotkeyShares",
+                params=[hotkey_ss58, netuid],
+                block_hash=block_hash,
+            )
         )
 
         alpha_shares_as_float = fixed_to_float(alpha_shares or 0)
@@ -342,18 +356,20 @@ class SubtensorInterface:
     ) -> Balance:
         """
         Retrieves the balance for a single coldkey address
-        
+
         :param address: coldkey address
         :param block_hash: the block hash, optional
         :param reuse_block: Whether to reuse the last-used block hash when retrieving info.
         :return: Balance object representing the address's balance
         """
-        result = await self.substrate.query(
-            module="System",
-            storage_function="Account",
-            params=[address],
-            block_hash=block_hash,
-            reuse_block_hash=reuse_block,
+        result = await get_value(
+            self.substrate.query(
+                module="System",
+                storage_function="Account",
+                params=[address],
+                block_hash=block_hash,
+                reuse_block_hash=reuse_block,
+            )
         )
         value = result or {"data": {"free": 0}}
         return Balance(value["data"]["free"])
@@ -505,12 +521,14 @@ class SubtensorInterface:
         The delegate take is a critical parameter in the network's incentive structure, influencing
         the distribution of rewards among neurons and their nominators.
         """
-        result = await self.substrate.query(
-            module="SubtensorModule",
-            storage_function="Delegates",
-            params=[hotkey_ss58],
-            block_hash=block_hash,
-            reuse_block_hash=reuse_block,
+        result = await get_value(
+            self.substrate.query(
+                module="SubtensorModule",
+                storage_function="Delegates",
+                params=[hotkey_ss58],
+                block_hash=block_hash,
+                reuse_block_hash=reuse_block,
+            )
         )
         return u16_normalized_float(result)
 
@@ -539,11 +557,10 @@ class SubtensorInterface:
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
-        return (
-            [record[0] async for record in result if record[1]]
-            if result and hasattr(result, "records")
-            else []
-        )
+        res = []
+        async for record in result:
+            if record[1].value:
+                res.append(record[0])
 
     async def subnet_exists(
         self, netuid: int, block_hash: Optional[str] = None, reuse_block: bool = False
@@ -560,12 +577,14 @@ class SubtensorInterface:
         This function is critical for verifying the presence of specific subnets in the network,
         enabling a deeper understanding of the network's structure and composition.
         """
-        result = await self.substrate.query(
-            module="SubtensorModule",
-            storage_function="NetworksAdded",
-            params=[netuid],
-            block_hash=block_hash,
-            reuse_block_hash=reuse_block,
+        result = await get_value(
+            self.substrate.query(
+                module="SubtensorModule",
+                storage_function="NetworksAdded",
+                params=[netuid],
+                block_hash=block_hash,
+                reuse_block_hash=reuse_block,
+            )
         )
         return result
 
@@ -615,12 +634,14 @@ class SubtensorInterface:
             print("subnet does not exist")
             return None
 
-        result = await self.substrate.query(
-            module="SubtensorModule",
-            storage_function=param_name,
-            params=[netuid],
-            block_hash=block_hash,
-            reuse_block_hash=reuse_block,
+        result = await get_value(
+            self.substrate.query(
+                module="SubtensorModule",
+                storage_function=param_name,
+                params=[netuid],
+                block_hash=block_hash,
+                reuse_block_hash=reuse_block,
+            )
         )
 
         if result is None:
@@ -868,14 +889,12 @@ class SubtensorInterface:
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
+        all_identities = {}
+        async for ss58_address, identity in identities:
+            all_identities[decode_account_id(ss58_address[0])] = decode_hex_identity(
+                identity.value
+            )
 
-        if identities is None:
-            return {}
-
-        all_identities = {
-            decode_account_id(ss58_address[0]): decode_hex_identity(identity)
-            for ss58_address, identity in identities
-        }
         return all_identities
 
     async def query_identity(
@@ -902,12 +921,14 @@ class SubtensorInterface:
         The identity information can include various attributes such as the neuron's stake, rank, and other
         network-specific details, providing insights into the neuron's role and status within the Bittensor network.
         """
-        identity_info = await self.substrate.query(
-            module="SubtensorModule",
-            storage_function="Identities",
-            params=[key],
-            block_hash=block_hash,
-            reuse_block_hash=reuse_block,
+        identity_info = await get_value(
+            self.substrate.query(
+                module="SubtensorModule",
+                storage_function="Identities",
+                params=[key],
+                block_hash=block_hash,
+                reuse_block_hash=reuse_block,
+            )
         )
         if not identity_info:
             return {}
@@ -981,7 +1002,9 @@ class SubtensorInterface:
             params=[netuid],
             block_hash=block_hash,
         )
-        w_map = [(uid, w or []) async for uid, w in w_map_encoded]
+        w_map = []
+        async for uid, w in w_map_encoded:
+            w_map.append((uid, w.value))
 
         return w_map
 
@@ -1009,7 +1032,9 @@ class SubtensorInterface:
             params=[netuid],
             block_hash=block_hash,
         )
-        b_map = [(uid, b) async for uid, b in b_map_encoded]
+        b_map = []
+        async for uid, b in b_map_encoded:
+            b_map.append((uid, b))
 
         return b_map
 
@@ -1028,14 +1053,16 @@ class SubtensorInterface:
 
         :return: `True` if the hotkey is known by the chain and there are accounts, `False` otherwise.
         """
-        _result = await self.substrate.query(
-            module="SubtensorModule",
-            storage_function="Owner",
-            params=[hotkey_ss58],
-            block_hash=block_hash,
-            reuse_block_hash=reuse_block,
+        _result = await get_value(
+            self.substrate.query(
+                module="SubtensorModule",
+                storage_function="Owner",
+                params=[hotkey_ss58],
+                block_hash=block_hash,
+                reuse_block_hash=reuse_block,
+            )
         )
-        result = decode_account_id(_result[0])
+        result = decode_account_id(_result[0])  # TODO verify
         return_val = (
             False
             if result is None
@@ -1046,11 +1073,13 @@ class SubtensorInterface:
     async def get_hotkey_owner(
         self, hotkey_ss58: str, block_hash: str
     ) -> Optional[str]:
-        hk_owner_query = await self.substrate.query(
-            module="SubtensorModule",
-            storage_function="Owner",
-            params=[hotkey_ss58],
-            block_hash=block_hash,
+        hk_owner_query = await get_value(
+            self.substrate.query(
+                module="SubtensorModule",
+                storage_function="Owner",
+                params=[hotkey_ss58],
+                block_hash=block_hash,
+            )
         )
         val = decode_account_id(hk_owner_query[0])
         if val:
@@ -1111,10 +1140,12 @@ class SubtensorInterface:
         message (if applicable)
         """
         try:
-            children = await self.substrate.query(
-                module="SubtensorModule",
-                storage_function="ChildKeys",
-                params=[hotkey, netuid],
+            children = await get_value(
+                self.substrate.query(
+                    module="SubtensorModule",
+                    storage_function="ChildKeys",
+                    params=[hotkey, netuid],
+                )
             )
             if children:
                 formatted_children = []
@@ -1156,9 +1187,7 @@ class SubtensorInterface:
 
         return SubnetHyperparameters.from_any(result)
 
-    async def burn_cost(
-        self, block_hash: Optional[str] = None
-    ) -> Optional[Balance]:
+    async def burn_cost(self, block_hash: Optional[str] = None) -> Optional[Balance]:
         result = await self.query_runtime_api(
             runtime_api="SubnetRegistrationRuntimeApi",
             method="get_network_registration_cost",
@@ -1186,12 +1215,14 @@ class SubtensorInterface:
         This function is important for tracking and understanding the decision-making processes within
         the Bittensor network, particularly how proposals are received and acted upon by the governing body.
         """
-        vote_data = await self.substrate.query(
-            module="Triumvirate",
-            storage_function="Voting",
-            params=[proposal_hash],
-            block_hash=block_hash,
-            reuse_block_hash=reuse_block,
+        vote_data = await get_value(
+            self.substrate.query(
+                module="Triumvirate",
+                storage_function="Voting",
+                params=[proposal_hash],
+                block_hash=block_hash,
+                reuse_block_hash=reuse_block,
+            )
         )
         if vote_data is None:
             return None
@@ -1223,12 +1254,17 @@ class SubtensorInterface:
                 session.get(Constants.delegates_detail_url),
             )
 
-            all_delegates_details = {
-                decode_account_id(ss58_address[0]): DelegatesDetails.from_chain_data(
-                    decode_hex_identity_dict(identity["info"])
+            all_delegates_details = {}
+            async for ss58_address, identity in identities_info:
+                all_delegates_details.update(
+                    {
+                        decode_account_id(
+                            ss58_address[0]
+                        ): DelegatesDetails.from_chain_data(
+                            decode_hex_identity_dict(identity.value["info"])
+                        )
+                    }
                 )
-                for ss58_address, identity in identities_info
-            }
 
             if response.ok:
                 all_delegates: dict[str, Any] = await response.json(content_type=None)
@@ -1298,8 +1334,13 @@ class SubtensorInterface:
         block_hash: Optional[str] = None,
     ) -> "Balance":
         """Returns the stake under a coldkey - hotkey - netuid pairing"""
-        _result = await self.substrate.query(
-            "SubtensorModule", "Alpha", [hotkey_ss58, coldkey_ss58, netuid], block_hash
+        _result = await get_value(
+            self.substrate.query(
+                "SubtensorModule",
+                "Alpha",
+                [hotkey_ss58, coldkey_ss58, netuid],
+                block_hash,
+            )
         )
         if _result is None:
             return Balance(0).set_unit(netuid)
@@ -1435,12 +1476,14 @@ class SubtensorInterface:
 
         :return: A list of hotkey SS58 addresses owned by the coldkey.
         """
-        owned_hotkeys = await self.substrate.query(
-            module="SubtensorModule",
-            storage_function="OwnedHotkeys",
-            params=[coldkey_ss58],
-            block_hash=block_hash,
-            reuse_block_hash=reuse_block,
+        owned_hotkeys = await get_value(
+            self.substrate.query(
+                module="SubtensorModule",
+                storage_function="OwnedHotkeys",
+                params=[coldkey_ss58],
+                block_hash=block_hash,
+                reuse_block_hash=reuse_block,
+            )
         )
 
         return [decode_account_id(hotkey[0]) for hotkey in owned_hotkeys or []]

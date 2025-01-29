@@ -21,3 +21,4 @@ bt-decode==v0.5.0-a0
 plotille
 pywry
 plotly
+git+https://github.com/opentensor/async-substrate-interface.git@staging  # only for testing

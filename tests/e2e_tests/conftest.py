@@ -8,9 +8,7 @@ import subprocess
 import time
 
 import pytest
-from bittensor_cli.src.bittensor.async_substrate_interface import (
-    AsyncSubstrateInterface,
-)
+from async_substrate_interface.async_substrate import AsyncSubstrateInterface
 
 from .utils import setup_wallet
 
