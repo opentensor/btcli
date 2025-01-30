@@ -219,24 +219,6 @@ class StakeInfo(InfoBase):
 
 
 @dataclass
-class PrometheusInfo(InfoBase):
-    """Dataclass for prometheus info."""
-
-    block: int
-    version: int
-    ip: str
-    port: int
-    ip_type: int
-
-    @classmethod
-    def _fix_decoded(cls, decoded: Any) -> "PrometheusInfo":
-        """Returns a PrometheusInfo object from a prometheus_info_decoded dictionary."""
-        decoded["ip"] = int_to_ip(int(decoded["ip"]))
-
-        return cls(**decoded)
-
-
-@dataclass
 class NeuronInfo(InfoBase):
     """Dataclass for neuron metadata."""
 
@@ -261,7 +243,6 @@ class NeuronInfo(InfoBase):
     weights: list[list[int]]
     bonds: list[list[int]]
     pruning_score: int
-    prometheus_info: Optional["PrometheusInfo"] = None
     axon_info: Optional[AxonInfo] = None
     is_null: bool = False
 
@@ -298,7 +279,6 @@ class NeuronInfo(InfoBase):
             validator_permit=False,
             weights=[],
             bonds=[],
-            prometheus_info=None,
             axon_info=None,
             is_null=True,
             coldkey="000000000000000000000000000000000000000000000000",
@@ -315,7 +295,6 @@ class NeuronInfo(InfoBase):
         axon_info = decoded.get("axon_info", {})
         coldkey = decode_account_id(decoded.get("coldkey"))
         hotkey = decode_account_id(decoded.get("hotkey"))
-        prometheus_info = decoded.get("prometheus_info", {})
         return NeuronInfo(
             hotkey=hotkey,
             coldkey=coldkey,
@@ -337,13 +316,6 @@ class NeuronInfo(InfoBase):
             weights=[[e[0], e[1]] for e in decoded.get("weights")],
             bonds=[[e[0], e[1]] for e in decoded.get("bonds")],
             pruning_score=decoded.get("pruning_score"),
-            prometheus_info=PrometheusInfo(
-                block=prometheus_info.get("block"),
-                version=prometheus_info.get("version"),
-                ip=str(netaddr.IPAddress(prometheus_info.get("ip"))),
-                port=prometheus_info.get("port"),
-                ip_type=prometheus_info.get("ip_type"),
-            ),
             axon_info=AxonInfo(
                 version=axon_info.get("version"),
                 ip=str(netaddr.IPAddress(axon_info.get("ip"))),
@@ -381,7 +353,6 @@ class NeuronInfoLite(InfoBase):
     dividends: float
     last_update: int
     validator_permit: bool
-    prometheus_info: Optional["PrometheusInfo"]
     axon_info: AxonInfo
     pruning_score: int
     is_null: bool = False
@@ -404,7 +375,6 @@ class NeuronInfoLite(InfoBase):
             dividends=0,
             last_update=0,
             validator_permit=False,
-            prometheus_info=None,
             axon_info=None,
             is_null=True,
             coldkey="000000000000000000000000000000000000000000000000",
@@ -425,7 +395,6 @@ class NeuronInfoLite(InfoBase):
         incentive = decoded.get("incentive")
         last_update = decoded.get("last_update")
         netuid = decoded.get("netuid")
-        prometheus_info = decoded.get("prometheus_info", {})
         pruning_score = decoded.get("pruning_score")
         rank = decoded.get("rank")
         stake_dict = process_stake_data(decoded.get("stake"), netuid)
@@ -456,13 +425,6 @@ class NeuronInfoLite(InfoBase):
             incentive=u16_normalized_float(incentive),
             last_update=last_update,
             netuid=netuid,
-            prometheus_info=PrometheusInfo(
-                version=prometheus_info.get("version"),
-                ip=str(netaddr.IPAddress(prometheus_info.get("ip"))),
-                port=prometheus_info.get("port"),
-                ip_type=prometheus_info.get("ip_type"),
-                block=prometheus_info.get("block"),
-            ),
             pruning_score=pruning_score,
             rank=u16_normalized_float(rank),
             stake_dict=stake_dict,
@@ -595,29 +557,28 @@ class SubnetInfo(InfoBase):
 
     @classmethod
     def _fix_decoded(cls, decoded: "SubnetInfo") -> "SubnetInfo":
-        d = decoded
         return SubnetInfo(
-            netuid=d.netuid,
-            rho=d.rho,
-            kappa=d.kappa,
-            difficulty=d.difficulty,
-            immunity_period=d.immunity_period,
-            max_allowed_validators=d.max_allowed_validators,
-            min_allowed_weights=d.min_allowed_weights,
-            max_weight_limit=d.max_weights_limit,
-            scaling_law_power=d.scaling_law_power,
-            subnetwork_n=d.subnetwork_n,
-            max_n=d.max_allowed_uids,
-            blocks_since_epoch=d.blocks_since_last_step,
-            tempo=d.tempo,
-            modality=d.network_modality,
+            netuid=decoded.get("netuid"),
+            rho=decoded.get("rho"),
+            kappa=decoded.get("kappa"),
+            difficulty=decoded.get("difficulty"),
+            immunity_period=decoded.get("immunity_period"),
+            max_allowed_validators=decoded.get("max_allowed_validators"),
+            min_allowed_weights=decoded.get("min_allowed_weights"),
+            max_weight_limit=decoded.get("max_weights_limit"),
+            scaling_law_power=decoded.get("scaling_law_power"),
+            subnetwork_n=decoded.get("subnetwork_n"),
+            max_n=decoded.get("max_allowed_uids"),
+            blocks_since_epoch=decoded.get("blocks_since_last_step"),
+            tempo=decoded.get("tempo"),
+            modality=decoded.get("network_modality"),
             connection_requirements={
                 str(int(netuid)): u16_normalized_float(int(req))
-                for (netuid, req) in d.network_connect
+                for (netuid, req) in decoded.get("network_connect")
             },
-            emission_value=d.emission_values,
-            burn=Balance.from_rao(d.burn),
-            owner_ss58=decode_account_id(d.owner),
+            emission_value=decoded.get("emission_values"),
+            burn=Balance.from_rao(decoded.get("burn")),
+            owner_ss58=decode_account_id(decoded.get("owner")),
         )
 
 
