@@ -414,7 +414,7 @@ class NeuronInfoLite(InfoBase):
     @classmethod
     def _fix_decoded(cls, decoded: Union[dict, "NeuronInfoLite"]) -> "NeuronInfoLite":
         active = decoded.get("active")
-        axon_info = decoded.get("axon_info")
+        axon_info = decoded.get("axon_info", {})
         coldkey = decode_account_id(decoded.get("coldkey"))
         consensus = decoded.get("consensus")
         dividends = decoded.get("dividends")
@@ -423,10 +423,10 @@ class NeuronInfoLite(InfoBase):
         incentive = decoded.get("incentive")
         last_update = decoded.get("last_update")
         netuid = decoded.get("netuid")
-        prometheus_info = decoded.get("prometheus_info")
+        prometheus_info = decoded.get("prometheus_info", {})
         pruning_score = decoded.get("pruning_score")
         rank = decoded.get("rank")
-        stake_dict = process_stake_data(decoded.get("stake"))
+        stake_dict = process_stake_data(decoded.get("stake"), netuid)
         stake = sum(stake_dict.values()) if stake_dict else Balance(0)
         trust = decoded.get("trust")
         uid = decoded.get("uid")
@@ -436,13 +436,13 @@ class NeuronInfoLite(InfoBase):
         neuron = cls(
             active=active,
             axon_info=AxonInfo(
-                version=axon_info.version,
-                ip=str(netaddr.IPAddress(axon_info.ip)),
-                port=axon_info.port,
-                ip_type=axon_info.ip_type,
-                placeholder1=axon_info.placeholder1,
-                placeholder2=axon_info.placeholder2,
-                protocol=axon_info.protocol,
+                version=axon_info.get("version"),
+                ip=str(netaddr.IPAddress(axon_info.get("ip"))),
+                port=axon_info.get("port"),
+                ip_type=axon_info.get("ip_type"),
+                placeholder1=axon_info.get("placeholder1"),
+                placeholder2=axon_info.get("placeholder2"),
+                protocol=axon_info.get("protocol"),
                 hotkey=hotkey,
                 coldkey=coldkey,
             ),
@@ -455,11 +455,11 @@ class NeuronInfoLite(InfoBase):
             last_update=last_update,
             netuid=netuid,
             prometheus_info=PrometheusInfo(
-                version=prometheus_info.version,
-                ip=str(netaddr.IPAddress(prometheus_info.ip)),
-                port=prometheus_info.port,
-                ip_type=prometheus_info.ip_type,
-                block=prometheus_info.block,
+                version=prometheus_info.get("version"),
+                ip=str(netaddr.IPAddress(prometheus_info.get("ip"))),
+                port=prometheus_info.get("port"),
+                ip_type=prometheus_info.get("ip_type"),
+                block=prometheus_info.get("block"),
             ),
             pruning_score=pruning_score,
             rank=u16_normalized_float(rank),
