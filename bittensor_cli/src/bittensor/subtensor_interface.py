@@ -663,12 +663,12 @@ class SubtensorInterface:
         The existential deposit is a fundamental economic parameter in the Bittensor network, ensuring
         efficient use of storage and preventing the proliferation of dust accounts.
         """
-        result = await self.substrate.get_constant(
+        result = getattr(await self.substrate.get_constant(
             module_name="Balances",
             constant_name="ExistentialDeposit",
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
-        )
+        ), "value", None)
 
         if result is None:
             raise Exception("Unable to retrieve existential deposit amount.")
@@ -1223,36 +1223,6 @@ class SubtensorInterface:
                     )
 
         return all_delegates_details
-
-    async def get_delegates_by_netuid_light(
-        self, netuid: int, block_hash: Optional[str] = None
-    ) -> list[DelegateInfoLite]:
-        """
-        Retrieves a list of all delegate neurons within the Bittensor network. This function provides an overview of the neurons that are actively involved in the network's delegation system.
-
-        Analyzing the delegate population offers insights into the network's governance dynamics and the distribution of trust and responsibility among participating neurons.
-
-        Args:
-            netuid: the netuid to query
-            block_hash: The hash of the blockchain block number for the query.
-
-        Returns:
-            A list of DelegateInfo objects detailing each delegate's characteristics.
-
-        """
-        # TODO (Ben): doesn't exist
-        params = [netuid] if not block_hash else [netuid, block_hash]
-        json_body = await self.substrate.rpc_request(
-            method="delegateInfo_getDelegatesLight",  # custom rpc method
-            params=params,
-        )
-
-        result = json_body["result"]
-
-        if result in (None, []):
-            return []
-
-        return DelegateInfoLite.list_from_any(result)  # TODO this won't work yet
 
     async def get_stake_for_coldkey_and_hotkey_on_netuid(
         self,
