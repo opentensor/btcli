@@ -353,12 +353,8 @@ The columns are as follows:
             await extrinsics_coroutines[0]
     else:
         with console.status(":satellite: Checking transaction rate limit ..."):
-            tx_rate_limit_blocks = getattr(
-                await subtensor.substrate.query(
-                    module="SubtensorModule", storage_function="TxRateLimit"
-                ),
-                "value",
-                None,
+            tx_rate_limit_blocks = await subtensor.query(
+                module="SubtensorModule", storage_function="TxRateLimit"
             )
         netuid_hk_pairs = [(ni, hk) for ni in netuids for hk in hotkeys_to_stake_to]
         for item, kp in zip(extrinsics_coroutines, netuid_hk_pairs):

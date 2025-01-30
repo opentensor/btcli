@@ -1572,7 +1572,7 @@ async def metagraph_cmd(
                 subtensor.get_hyperparameter(
                     param_name="Difficulty", netuid=netuid, block_hash=block_hash
                 ),
-                subtensor.substrate.query(
+                subtensor.query(
                     module="SubtensorModule",
                     storage_function="TotalIssuance",
                     params=[],

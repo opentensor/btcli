@@ -1376,7 +1376,7 @@ async def get_id(subtensor: SubtensorInterface, ss58_address: str, title: str = 
     with console.status(
         ":satellite: [bold green]Querying chain identity...", spinner="earth"
     ):
-        identity = getattr(await subtensor.query_identity(ss58_address), "value", None)
+        identity = await subtensor.query_identity(ss58_address)
 
     if not identity:
         err_console.print(
@@ -1396,21 +1396,21 @@ async def get_id(subtensor: SubtensorInterface, ss58_address: str, title: str = 
 
 
 async def check_coldkey_swap(wallet: Wallet, subtensor: SubtensorInterface):
-    arbitration_check = len(
+    arbitration_check = len(  # TODO verify this works
         (
-            await subtensor.substrate.query(
+            await subtensor.query(
                 module="SubtensorModule",
                 storage_function="ColdkeySwapDestinations",
                 params=[wallet.coldkeypub.ss58_address],
             )
-        ).decode()
+        )
     )
     if arbitration_check == 0:
         console.print(
             "[green]There has been no previous key swap initiated for your coldkey.[/green]"
         )
     elif arbitration_check == 1:
-        arbitration_block = await subtensor.substrate.query(
+        arbitration_block = await subtensor.query(
             module="SubtensorModule",
             storage_function="ColdkeyArbitrationBlock",
             params=[wallet.coldkeypub.ss58_address],

@@ -227,14 +227,10 @@ async def get_childkey_take(subtensor, hotkey: str, netuid: int) -> Optional[int
     - Optional[float]: The value of the "ChildkeyTake" if found, or None if any error occurs.
     """
     try:
-        childkey_take_ = getattr(
-            await subtensor.substrate.query(
-                module="SubtensorModule",
-                storage_function="ChildkeyTake",
-                params=[hotkey, netuid],
-            ),
-            "value",
-            None,
+        childkey_take_ = await subtensor.query(
+            module="SubtensorModule",
+            storage_function="ChildkeyTake",
+            params=[hotkey, netuid],
         )
         if childkey_take_:
             return int(childkey_take_.value)
