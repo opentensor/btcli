@@ -1,5 +1,5 @@
 import asyncio
-from typing import Optional, Any, Union, TypedDict, Iterable, Coroutine
+from typing import Optional, Any, Union, TypedDict, Iterable
 
 import aiohttp
 from bittensor_wallet import Wallet
@@ -24,7 +24,7 @@ from bittensor_cli.src.bittensor.chain_data import (
     SubnetState,
 )
 from bittensor_cli.src import DelegatesDetails
-from bittensor_cli.src.bittensor.balances import Balance, FixedPoint, fixed_to_float
+from bittensor_cli.src.bittensor.balances import Balance, fixed_to_float
 from bittensor_cli.src import Constants, defaults, TYPE_REGISTRY
 from bittensor_cli.src.bittensor.utils import (
     format_error_message,
@@ -33,9 +33,6 @@ from bittensor_cli.src.bittensor.utils import (
     decode_hex_identity_dict,
     validate_chain_endpoint,
     u16_normalized_float,
-    u64_normalized_float,
-    ss58_to_vec_u8,
-    encode_account_id,
 )
 
 
@@ -128,26 +125,6 @@ class SubtensorInterface:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.substrate.close()
 
-    async def encode_params(
-        self,
-        call_definition: list["ParamWithTypes"],
-        params: Union[list[Any], dict[str, Any]],
-    ) -> str:
-        """Returns a hex encoded string of the params using their types."""
-        param_data = scalecodec.ScaleBytes(b"")
-
-        for i, param in enumerate(call_definition["params"]):  # type: ignore
-            scale_obj = await self.substrate.create_scale_object(param["type"])
-            if isinstance(params, list):
-                param_data += scale_obj.encode(params[i])
-            else:
-                if param["name"] not in params:
-                    raise ValueError(f"Missing param {param['name']} in params dict.")
-
-                param_data += scale_obj.encode(params[param["name"]])
-
-        return param_data.to_hex()
-
     async def query(
         self,
         module: str,
@@ -157,7 +134,10 @@ class SubtensorInterface:
         raw_storage_key: Optional[bytes] = None,
         subscription_handler=None,
         reuse_block_hash: bool = False,
-    ):
+    ) -> Any:
+        """
+        Pass-through to substrate.query which automatically returns the .value if it's a ScaleObj
+        """
         result = await self.substrate.query(
             module,
             storage_function,
@@ -195,49 +175,6 @@ class SubtensorInterface:
             if exists.value:  # TODO verify type
                 res.append(netuid)
         return res
-
-    async def is_hotkey_delegate(
-        self,
-        hotkey_ss58: str,
-        block_hash: Optional[str] = None,
-        reuse_block: Optional[bool] = False,
-    ) -> bool:
-        """
-        Determines whether a given hotkey (public key) is a delegate on the Bittensor network. This function
-        checks if the neuron associated with the hotkey is part of the network's delegation system.
-
-        :param hotkey_ss58: The SS58 address of the neuron's hotkey.
-        :param block_hash: The hash of the blockchain block number for the query.
-        :param reuse_block: Whether to reuse the last-used block hash.
-
-        :return: `True` if the hotkey is a delegate, `False` otherwise.
-
-        Being a delegate is a significant status within the Bittensor network, indicating a neuron's
-        involvement in consensus and governance processes.
-        """
-        delegates = await self.get_delegates(
-            block_hash=block_hash, reuse_block=reuse_block
-        )
-        return hotkey_ss58 in [info.hotkey_ss58 for info in delegates]
-
-    async def get_delegates(
-        self, block_hash: Optional[str] = None, reuse_block: Optional[bool] = False
-    ) -> list[DelegateInfo]:
-        """
-        Fetches all delegates on the chain
-
-        :param block_hash: hash of the blockchain block number for the query.
-        :param reuse_block: whether to reuse the last-used block hash.
-
-        :return: List of DelegateInfo objects, or an empty list if there are no delegates.
-        """
-        result = await self.query_runtime_api(
-            runtime_api="DelegateInfoRuntimeApi",
-            method="get_delegates",
-            params=[],
-            block_hash=block_hash,
-        )
-        return DelegateInfo.list_from_any(result) if result is not None else []
 
     async def get_stake_for_coldkey(
         self,
@@ -329,7 +266,7 @@ class SubtensorInterface:
         self,
         runtime_api: str,
         method: str,
-        params: Optional[Union[list[list[int]], list[int], dict[str, int]]],
+        params: Optional[Union[list, dict]] = None,
         block_hash: Optional[str] = None,
         reuse_block: Optional[bool] = False,
     ) -> Optional[Any]:
@@ -351,9 +288,9 @@ class SubtensorInterface:
         """
         if reuse_block:
             block_hash = self.substrate.last_block_hash
-        result = await self.substrate.runtime_call(
-            runtime_api, method, params, block_hash
-        )
+        result = (
+            await self.substrate.runtime_call(runtime_api, method, params, block_hash)
+        ).value
 
         return result
 
@@ -394,6 +331,8 @@ class SubtensorInterface:
         :param reuse_block: Whether to reuse the last-used block hash when retrieving info.
         :return: dict of {address: Balance objects}
         """
+        if reuse_block:
+            block_hash = self.substrate.last_block_hash
         calls = [
             (
                 await self.substrate.create_storage_key(
@@ -513,17 +452,18 @@ class SubtensorInterface:
         hotkey_ss58: int,
         block_hash: Optional[str] = None,
         reuse_block: bool = False,
-    ) -> bool:
+    ) -> Optional[float]:
         """
         Retrieves the delegate 'take' percentage for a neuron identified by its hotkey. The 'take'
         represents the percentage of rewards that the delegate claims from its nominators' stakes.
 
         Args:
-            hotkey_ss58 (str): The ``SS58`` address of the neuron's hotkey.
-            block (Optional[int], optional): The blockchain block number for the query.
+            hotkey_ss58: The `SS58` address of the neuron's hotkey.
+            block_hash: The hash of the block number to retrieve the stake from.
+            reuse_block: Whether to reuse the last-used block hash when retrieving info.
 
         Returns:
-            Optional[float]: The delegate take percentage, None if not available.
+            The delegate take percentage, None if not available.
 
         The delegate take is a critical parameter in the network's incentive structure, influencing
         the distribution of rewards among neurons and their nominators.
@@ -535,7 +475,10 @@ class SubtensorInterface:
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
-        return u16_normalized_float(result)
+        if result is None:
+            return None
+        else:
+            return u16_normalized_float(result)
 
     async def get_netuids_for_hotkey(
         self,
@@ -566,6 +509,7 @@ class SubtensorInterface:
         async for record in result:
             if record[1].value:
                 res.append(record[0])
+        return res
 
     async def subnet_exists(
         self, netuid: int, block_hash: Optional[str] = None, reuse_block: bool = False
@@ -785,9 +729,7 @@ class SubtensorInterface:
         result = await self.query_runtime_api(
             runtime_api="NeuronInfoRuntimeApi",
             method="get_neurons_lite",
-            params=[
-                netuid
-            ],
+            params=[netuid],
             block_hash=block_hash,
             reuse_block=reuse_block,
         )
@@ -952,8 +894,8 @@ class SubtensorInterface:
         identities = {"coldkeys": {}, "hotkeys": {}}
         if not coldkey_identities:
             return identities
-        query = await self.substrate.query_multiple(
-            params=[(ss58) for ss58, _ in coldkey_identities.items()],
+        query = await self.substrate.query_multiple(  # TODO probably more efficient to do this with query_multi
+            params=list(coldkey_identities.keys()),
             module="SubtensorModule",
             storage_function="OwnedHotkeys",
             block_hash=block_hash,
@@ -994,7 +936,6 @@ class SubtensorInterface:
         The weight distribution is a key factor in the network's consensus algorithm and the ranking of neurons,
         influencing their influence and reward allocation within the subnet.
         """
-        # TODO look into seeing if we can speed this up with storage query
         w_map_encoded = await self.substrate.query_map(
             module="SubtensorModule",
             storage_function="Weights",
@@ -1425,10 +1366,8 @@ class SubtensorInterface:
             stake_info_map[coldkey_ss58] = StakeInfo.list_from_any(stake_info_list)
         return stake_info_map
 
-    async def all_subnets(
-        self, block_hash: Optional[str] = None
-    ) -> list[DynamicInfo]:
-        result = await self.substrate.runtime_call(
+    async def all_subnets(self, block_hash: Optional[str] = None) -> list[DynamicInfo]:
+        result = await self.query_runtime_api(
             "SubnetInfoRuntimeApi",
             "get_all_dynamic_info",
             block_hash=block_hash,
@@ -1438,7 +1377,7 @@ class SubtensorInterface:
     async def subnet(
         self, netuid: int, block_hash: Optional[str] = None
     ) -> "DynamicInfo":
-        result = await self.substrate.runtime_call(
+        result = await self.query_runtime_api(
             "SubnetInfoRuntimeApi",
             "get_dynamic_info",
             params=[netuid],
