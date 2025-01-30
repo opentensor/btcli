@@ -3,9 +3,8 @@ from typing import Optional, TYPE_CHECKING
 import rich.prompt
 from rich.table import Table
 
-from bittensor_cli.src import DelegatesDetails
-from bittensor_cli.src.bittensor.chain_data import DelegateInfo, DelegateInfoLite
-from bittensor_cli.src.bittensor.utils import console, err_console
+from bittensor_cli.src.bittensor.chain_data import DelegateInfoLite
+from bittensor_cli.src.bittensor.utils import console
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface

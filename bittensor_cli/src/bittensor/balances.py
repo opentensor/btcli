@@ -17,7 +17,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-from typing import Union, TypedDict
+from typing import Union
 from bittensor_cli.src import UNITS
 
 
@@ -229,12 +229,6 @@ class Balance:
             except (ValueError, TypeError):
                 raise NotImplementedError("Unsupported type")
 
-    def __int__(self) -> int:
-        return self.rao
-
-    def __float__(self) -> float:
-        return self.tao
-
     def __nonzero__(self) -> bool:
         return bool(self.rao)
 
@@ -306,7 +300,7 @@ class Balance:
 def fixed_to_float(fixed: dict) -> float:
     # Currently this is stored as a U64F64
     # which is 64 bits of integer and 64 bits of fractional
-    uint_bits = 64
+    # uint_bits = 64
     frac_bits = 64
 
     data: int = fixed["bits"]

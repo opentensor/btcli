@@ -1343,6 +1343,7 @@ async def stake_list(
             # Alpha ownership and TAO ownership cells
             if alpha_value.tao > 0.00009:
                 if issuance.tao != 0:
+                    # TODO figure out why this alpha_ownership does nothing
                     alpha_ownership = "{:.4f}".format(
                         (alpha_value.tao / issuance.tao) * 100
                     )

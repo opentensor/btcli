@@ -1489,8 +1489,8 @@ class CLIManager:
             validate=WV.WALLET,
         )
 
-        # For Rao games - temporarilyt commented out
-        effective_network = get_effective_network(self.config, network)
+        # For Rao games - temporarily commented out
+        # effective_network = get_effective_network(self.config, network)
         # if is_rao_network(effective_network):
         #     print_error("This command is disabled on the 'rao' network.")
         #     raise typer.Exit()

@@ -1022,7 +1022,7 @@ async def _block_solver(
     limit = int(math.pow(2, 256)) - 1
 
     # Establish communication queues
-    ## See the _Solver class for more information on the queues.
+    # See the _Solver class for more information on the queues.
     stop_event = Event()
     stop_event.clear()
 
@@ -1035,7 +1035,7 @@ async def _block_solver(
     )
 
     if cuda:
-        ## Create a worker per CUDA device
+        # Create a worker per CUDA device
         num_processes = len(dev_id)
         solvers = [
             _CUDASolver(

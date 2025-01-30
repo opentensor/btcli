@@ -14,7 +14,6 @@ from rich import box
 
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
-from bittensor_cli.src.bittensor.chain_data import SubnetState
 from bittensor_cli.src.bittensor.extrinsics.registration import (
     register_extrinsic,
     burned_register_extrinsic,
@@ -974,7 +973,7 @@ async def show(
         The table displays the root subnet participants and their metrics.
         The columns are as follows:
             - Position: The sorted position of the hotkey by total TAO.
-            - TAO: The sum of all TAO balances for this hotkey accross all subnets. 
+            - TAO: The sum of all TAO balances for this hotkey accross all subnets.
             - Stake: The stake balance of this hotkey on root (measured in TAO).
             - Emission: The emission accrued to this hotkey across all subnets every block measured in TAO.
             - Hotkey: The hotkey ss58 address.

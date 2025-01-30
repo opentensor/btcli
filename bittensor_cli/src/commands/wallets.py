@@ -2,7 +2,7 @@ import asyncio
 import itertools
 import os
 from collections import defaultdict
-from typing import Any, Generator, Optional
+from typing import Generator, Optional
 
 import aiohttp
 from bittensor_wallet import Wallet, Keypair
@@ -14,7 +14,6 @@ from rich.align import Align
 from rich.table import Column, Table
 from rich.tree import Tree
 from rich.padding import Padding
-from scalecodec import ScaleBytes
 import typer
 
 from bittensor_cli.src import COLOR_PALETTE
@@ -1029,7 +1028,7 @@ def _map_hotkey_to_neurons(
 
 async def _fetch_neuron_for_netuid(
     netuid: int, subtensor: SubtensorInterface
-) -> tuple[int, dict[str, list[ScaleBytes]]]:
+) -> tuple[int, list[NeuronInfoLite]]:
     """
     Retrieves all neurons for a specified netuid
 
@@ -1044,7 +1043,7 @@ async def _fetch_neuron_for_netuid(
 
 async def _fetch_all_neurons(
     netuids: list[int], subtensor
-) -> list[tuple[int, list[ScaleBytes]]]:
+) -> list[tuple[int, list[NeuronInfoLite]]]:
     """Retrieves all neurons for each of the specified netuids"""
     return list(
         await asyncio.gather(
@@ -1054,7 +1053,7 @@ async def _fetch_all_neurons(
 
 
 def _process_neurons_for_netuids(
-    netuids_with_all_neurons_hex_bytes: list[tuple[int, list[ScaleBytes]]],
+    netuids_with_all_neurons_hex_bytes: list[tuple[int, list[NeuronInfoLite]]],
 ) -> list[tuple[int, list[NeuronInfoLite]]]:
     """
     Using multiprocessing to decode a list of hex-bytes neurons with their respective netuid

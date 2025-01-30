@@ -15,16 +15,12 @@ from bittensor_wallet import Wallet, Keypair
 from bittensor_wallet.utils import SS58_FORMAT
 from bittensor_wallet.errors import KeyFileError
 from bittensor_wallet import utils
-import bt_decode
 from jinja2 import Template
 from markupsafe import Markup
 import numpy as np
 from numpy.typing import NDArray
 from rich.console import Console
 from rich.prompt import Prompt
-import scalecodec
-from scalecodec.base import RuntimeConfiguration
-from scalecodec.type_registry import load_type_registry_preset
 from scalecodec.utils.ss58 import ss58_encode, ss58_decode
 import typer
 
@@ -374,45 +370,6 @@ def is_valid_bittensor_address_or_public_key(address: Union[str, bytes]) -> bool
     else:
         # Invalid address type
         return False
-
-
-def decode_scale_bytes(
-    return_type: str,
-    scale_bytes: Union["scalecodec.ScaleBytes", bytes],
-    custom_rpc_type_registry: Union[str, "bt_decode.PortableRegistry"],
-) -> Any:
-    """
-    Decodes a ScaleBytes object using our type registry and return type
-
-    :param return_type: the type string to decode the scale bytes to
-    :param scale_bytes: the scale bytes to decode (either a scalecodec.ScaleBytes or bytes)
-    :param custom_rpc_type_registry: contains the type registry
-
-    :return: the decoded object
-    """
-    if isinstance(custom_rpc_type_registry, str):
-        portable_registry = bt_decode.PortableRegistry.from_json(
-            custom_rpc_type_registry
-        )
-    else:
-        portable_registry = custom_rpc_type_registry
-
-    if isinstance(scale_bytes, scalecodec.ScaleBytes):
-        as_bytes = bytes(scale_bytes.data)
-    else:
-        as_bytes = bytes(scale_bytes)
-
-    if as_bytes.hex() == "0x0400":  # RPC returned None result
-        return None
-
-    return bt_decode.decode(return_type, portable_registry, as_bytes)
-
-
-def bytes_from_hex_string_result(hex_string_result: str) -> bytes:
-    if hex_string_result.startswith("0x"):
-        hex_string_result = hex_string_result[2:]
-
-    return bytes.fromhex(hex_string_result)
 
 
 def decode_account_id(account_id_bytes: Union[tuple[int], tuple[tuple[int]]]):
@@ -1216,7 +1173,7 @@ def is_valid_github_url(url: str) -> bool:
             return False
 
         return True
-    except:
+    except Exception:  # TODO figure out the exceptions that can be raised in here
         return False
 
 

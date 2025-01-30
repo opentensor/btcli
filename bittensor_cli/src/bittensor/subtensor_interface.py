@@ -18,7 +18,6 @@ from bittensor_cli.src.bittensor.chain_data import (
     SubnetHyperparameters,
     decode_account_id,
     decode_hex_identity,
-    DelegateInfoLite,
     DynamicInfo,
     SubnetState,
 )
@@ -55,11 +54,11 @@ class ProposalVoteData:
         self.end = proposal_dict["end"]
 
     @staticmethod
-    def decode_ss58_tuples(l: tuple):
+    def decode_ss58_tuples(data: tuple):
         """
         Decodes a tuple of ss58 addresses formatted as bytes tuples
         """
-        return [decode_account_id(l[x][0]) for x in range(len(l))]
+        return [decode_account_id(data[x][0]) for x in range(len(data))]
 
 
 class SubtensorInterface:
