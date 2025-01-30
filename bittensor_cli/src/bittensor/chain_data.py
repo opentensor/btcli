@@ -309,21 +309,23 @@ class NeuronInfo(InfoBase):
 
     @classmethod
     def _fix_decoded(cls, decoded: Any) -> "NeuronInfo":
-        stake_dict = process_stake_data(decoded.stake)
+        netuid = decoded.get("netuid")
+        stake_dict = process_stake_data(decoded.get("stake"), netuid=netuid)
         total_stake = sum(stake_dict.values()) if stake_dict else Balance(0)
-        axon_info = decoded.axon_info
+        axon_info = decoded.get("axon_info", {})
         coldkey = decode_account_id(decoded.get("coldkey"))
         hotkey = decode_account_id(decoded.get("hotkey"))
+        prometheus_info = decoded.get("prometheus_info", {})
         return NeuronInfo(
             hotkey=hotkey,
             coldkey=coldkey,
             uid=decoded.get("uid"),
-            netuid=decoded.get("netuid"),
+            netuid=netuid,
             active=decoded.get("active"),
             stake=total_stake,
             stake_dict=stake_dict,
             total_stake=total_stake,
-            rank=u16_normalized_float(decoded.rget("ank")),
+            rank=u16_normalized_float(decoded.get("rank")),
             emission=decoded.get("emission") / 1e9,
             incentive=u16_normalized_float(decoded.get("incentive")),
             consensus=u16_normalized_float(decoded.get("consensus")),
@@ -336,11 +338,11 @@ class NeuronInfo(InfoBase):
             bonds=[[e[0], e[1]] for e in decoded.get("bonds")],
             pruning_score=decoded.get("pruning_score"),
             prometheus_info=PrometheusInfo(
-                block=decoded.get("prometheus_info").get("block"),
-                version=decoded.get("prometheus_info").get("version"),
-                ip=str(netaddr.IPAddress(decoded.get("prometheus_info").get("ip"))),
-                port=decoded.get("prometheus_info").get("port"),
-                ip_type=decoded.get("prometheus_info").get("ip_type"),
+                block=prometheus_info.get("block"),
+                version=prometheus_info.get("version"),
+                ip=str(netaddr.IPAddress(prometheus_info.get("ip"))),
+                port=prometheus_info.get("port"),
+                ip_type=prometheus_info.get("ip_type"),
             ),
             axon_info=AxonInfo(
                 version=axon_info.get("version"),
@@ -508,10 +510,11 @@ class DelegateInfo(InfoBase):
 
     @classmethod
     def _fix_decoded(cls, decoded: "DelegateInfo") -> "DelegateInfo":
-        hotkey = decode_account_id(decoded.hotkey_ss58)
-        owner = decode_account_id(decoded.owner_ss58)
+        hotkey = decode_account_id(decoded.get("hotkey_ss58"))
+        owner = decode_account_id(decoded.get("owner_ss58"))
         nominators = [
-            (decode_account_id(x), Balance.from_rao(y)) for x, y in decoded.nominators
+            (decode_account_id(x), Balance.from_rao(y))
+            for x, y in decoded.get("nominators")
         ]
         total_stake = sum((x[1] for x in nominators)) if nominators else Balance(0)
         return cls(
@@ -519,11 +522,11 @@ class DelegateInfo(InfoBase):
             total_stake=total_stake,
             nominators=nominators,
             owner_ss58=owner,
-            take=u16_normalized_float(decoded.take),
-            validator_permits=decoded.validator_permits,
-            registrations=decoded.registrations,
-            return_per_1000=Balance.from_rao(decoded.return_per_1000),
-            total_daily_return=Balance.from_rao(decoded.total_daily_return),
+            take=u16_normalized_float(decoded.get("take")),
+            validator_permits=decoded.get("validator_permits"),
+            registrations=decoded.get("registrations"),
+            return_per_1000=Balance.from_rao(decoded.get("return_per_1000")),
+            total_daily_return=Balance.from_rao(decoded.get("total_daily_return")),
         )
 
 

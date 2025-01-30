@@ -663,12 +663,16 @@ class SubtensorInterface:
         The existential deposit is a fundamental economic parameter in the Bittensor network, ensuring
         efficient use of storage and preventing the proliferation of dust accounts.
         """
-        result = getattr(await self.substrate.get_constant(
-            module_name="Balances",
-            constant_name="ExistentialDeposit",
-            block_hash=block_hash,
-            reuse_block_hash=reuse_block,
-        ), "value", None)
+        result = getattr(
+            await self.substrate.get_constant(
+                module_name="Balances",
+                constant_name="ExistentialDeposit",
+                block_hash=block_hash,
+                reuse_block_hash=reuse_block,
+            ),
+            "value",
+            None,
+        )
 
         if result is None:
             raise Exception("Unable to retrieve existential deposit amount.")
