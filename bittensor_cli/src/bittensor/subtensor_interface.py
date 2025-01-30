@@ -787,7 +787,7 @@ class SubtensorInterface:
             method="get_neurons_lite",
             params=[
                 netuid
-            ],  # TODO check to see if this can accept more than one at a time
+            ],
             block_hash=block_hash,
             reuse_block=reuse_block,
         )
@@ -1427,7 +1427,7 @@ class SubtensorInterface:
 
     async def all_subnets(
         self, block_hash: Optional[str] = None
-    ) -> list["DynamicInfo"]:
+    ) -> list[DynamicInfo]:
         result = await self.substrate.runtime_call(
             "SubnetInfoRuntimeApi",
             "get_all_dynamic_info",
