@@ -3,7 +3,7 @@ import asyncio
 from bittensor_wallet import Wallet
 from bittensor_wallet.errors import KeyFileError
 from rich.prompt import Confirm
-from substrateinterface.exceptions import SubstrateRequestException
+from async_substrate_interface.errors import SubstrateRequestException
 
 from bittensor_cli.src import NETWORK_EXPLORER_MAP
 from bittensor_cli.src.bittensor.balances import Balance

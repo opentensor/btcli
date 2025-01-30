@@ -4,9 +4,8 @@ from typing import Optional, Any, Union, TypedDict, Iterable
 import aiohttp
 from bittensor_wallet import Wallet
 from bittensor_wallet.utils import SS58_FORMAT
-import scalecodec
 from scalecodec import GenericCall
-from substrateinterface.exceptions import SubstrateRequestException
+from async_substrate_interface.errors import SubstrateRequestException
 import typer
 
 

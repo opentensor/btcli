@@ -76,7 +76,7 @@ async def register_subnetwork_extrinsic(
         """
         Searches for the attributes of a specified event within an extrinsic receipt.
 
-        :param response_: (substrateinterface.base.ExtrinsicReceipt): The receipt of the extrinsic to be searched.
+        :param response_: The receipt of the extrinsic to be searched.
         :param event_name: The name of the event to search for.
 
         :return: A list of attributes for the specified event. Returns [-1] if the event is not found.

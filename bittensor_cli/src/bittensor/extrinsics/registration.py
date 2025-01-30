@@ -26,7 +26,7 @@ import numpy as np
 from rich.prompt import Confirm
 from rich.console import Console
 from rich.status import Status
-from substrateinterface.exceptions import SubstrateRequestException
+from async_substrate_interface.errors import SubstrateRequestException
 
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.chain_data import NeuronInfo

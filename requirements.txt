@@ -14,7 +14,6 @@ pytest
 python-Levenshtein
 rich~=13.7
 scalecodec==1.2.11
-substrate-interface~=1.7.9
 typer~=0.12
 websockets>=14.1
 bittensor-wallet>=3.0.0

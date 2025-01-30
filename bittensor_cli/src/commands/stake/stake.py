@@ -12,7 +12,7 @@ from rich import box
 from rich.progress import Progress, BarColumn, TextColumn
 from rich.console import Group
 from rich.live import Live
-from substrateinterface.exceptions import SubstrateRequestException
+from async_substrate_interface.errors import SubstrateRequestException
 
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
