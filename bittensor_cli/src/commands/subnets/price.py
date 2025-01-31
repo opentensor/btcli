@@ -27,7 +27,7 @@ async def price(
     subtensor: "SubtensorInterface",
     netuids: list[int],
     all_netuids: bool = False,
-    interval_hours: int = 24,
+    interval_hours: int = 168,
     html_output: bool = False,
     csv_output: bool = False,
     log_scale: bool = False,
@@ -815,7 +815,6 @@ async def _generate_csv_output(
            
            for block_num, price in zip(block_numbers, prices):
                writer.writerow([
-                   datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                    block_num,
                    netuid,
                    price,
