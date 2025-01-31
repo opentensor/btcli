@@ -801,7 +801,7 @@ async def _generate_csv_output(
        
        # Headers
        headers = [
-           'timestamp', 'block_number', 'netuid', 'price', 
+           'block_number', 'netuid', 'price', 
            'current_price', 'high', 'low', 'change_pct', 
            'supply', 'market_cap', 'emission', 'stake', 
            'symbol', 'name'
