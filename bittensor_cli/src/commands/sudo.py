@@ -95,12 +95,11 @@ async def set_hyperparameter_extrinsic(
                       finalization/inclusion, the response is `True`.
     """
     print_verbose("Confirming subnet owner")
-    subnet_owner_ = await subtensor.query(
+    subnet_owner = await subtensor.query(
         module="SubtensorModule",
         storage_function="SubnetOwner",
         params=[netuid],
     )
-    subnet_owner = decode_account_id(subnet_owner_[0])
     if subnet_owner != wallet.coldkeypub.ss58_address:
         err_console.print(
             ":cross_mark: [red]This wallet doesn't own the specified subnet.[/red]"
