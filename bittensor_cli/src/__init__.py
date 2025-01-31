@@ -8,7 +8,7 @@ class Constants:
     finney_entrypoint = "wss://entrypoint-finney.opentensor.ai:443"
     finney_test_entrypoint = "wss://test.finney.opentensor.ai:443"
     archive_entrypoint = "wss://archive.chain.opentensor.ai:443"
-    rao_entrypoint = "wss://rao.chain.opentensor.ai:443/"
+    rao_entrypoint = "wss://rao.chain.opentensor.ai:443"
     dev_entrypoint = "wss://dev.chain.opentensor.ai:443 "
     local_entrypoint = "ws://127.0.0.1:9944"
     network_map = {
