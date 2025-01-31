@@ -64,7 +64,7 @@ except ImportError:
         pass
 
 
-__version__ = "8.2.0rc14"
+__version__ = "8.2.0rc23"
 
 
 _core_version = re.match(r"^\d+\.\d+\.\d+", __version__).group(0)
@@ -194,6 +194,11 @@ class Options:
         help="Reuse the metagraph data you last retrieved."
         "Use this option only if you have already retrieved the metagraph."
         "data",
+    )
+    csv_output = typer.Option(
+        False,
+        "--csv",
+        help="Output as a csv",
     )
     html_output = typer.Option(
         False,
@@ -3902,6 +3907,7 @@ class CLIManager:
             help="Show the price in log scale.",
         ),
         html_output: bool = Options.html_output,
+        csv_output: bool = Options.csv_output,
     ):
         """
         Shows the historical price of a subnet for the past 24 hours.
@@ -3956,6 +3962,7 @@ class CLIManager:
                 all_netuids,
                 interval_hours,
                 html_output,
+                csv_output,
                 log_scale,
             )
         )

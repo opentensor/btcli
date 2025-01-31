@@ -7,6 +7,10 @@ from typing import TYPE_CHECKING
 import plotille
 import plotly.graph_objects as go
 
+import csv
+import sys
+from datetime import datetime
+
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.utils import (
     console,
@@ -23,8 +27,9 @@ async def price(
     subtensor: "SubtensorInterface",
     netuids: list[int],
     all_netuids: bool = False,
-    interval_hours: int = 24,
+    interval_hours: int = 168,
     html_output: bool = False,
+    csv_output: bool = False,
     log_scale: bool = False,
 ):
     """
@@ -67,10 +72,17 @@ async def price(
         err_console.print("[red]No valid price data found for any subnet[/red]")
         return
 
-    if html_output:
+    # check csv first
+    if csv_output:
+     await _generate_csv_output(
+        subnet_data, block_numbers, interval_hours, log_scale
+    )
+
+    elif html_output and not csv_output:
         await _generate_html_output(
             subnet_data, block_numbers, interval_hours, log_scale
         )
+
     else:
         _generate_cli_output(subnet_data, block_numbers, interval_hours, log_scale)
 
@@ -770,6 +782,56 @@ async def _generate_html_output(
                     pass
     except Exception as e:
         print_error(f"Error generating price chart: {e}")
+
+async def _generate_csv_output(
+   subnet_data,
+   block_numbers,
+   interval_hours,
+   log_scale: bool = False,
+):
+   """
+   Generate CSV output to stdout for subnet price data.
+   """
+   try:
+       import csv
+       import sys
+       from datetime import datetime
+       
+       writer = csv.writer(sys.stdout)
+       
+       # Headers
+       headers = [
+           'block_number', 'netuid', 'price', 
+           'current_price', 'high', 'low', 'change_pct', 
+           'supply', 'market_cap', 'emission', 'stake', 
+           'symbol', 'name'
+       ]
+       writer.writerow(headers)
+       
+       # Process data for all subnets
+       for netuid, data in subnet_data.items():
+           prices = data.get('prices', [])
+           stats = data.get('stats', {})
+           
+           for block_num, price in zip(block_numbers, prices):
+               writer.writerow([
+                   block_num,
+                   netuid,
+                   price,
+                   stats.get('current_price', ''),
+                   stats.get('high', ''),
+                   stats.get('low', ''),
+                   stats.get('change_pct', ''),
+                   stats.get('supply', ''),
+                   stats.get('market_cap', ''),
+                   stats.get('emission', ''),
+                   stats.get('stake', ''),
+                   stats.get('symbol', ''),
+                   stats.get('name', '')
+               ])
+               
+   except Exception as e:
+       print(f"Error generating CSV output: {e}", file=sys.stderr)
 
 
 def _generate_cli_output(subnet_data, block_numbers, interval_hours, log_scale):
