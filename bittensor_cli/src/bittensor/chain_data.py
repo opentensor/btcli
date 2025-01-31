@@ -128,7 +128,7 @@ class SubnetHyperparameters(InfoBase):
     kappa: int
     immunity_period: int
     min_allowed_weights: int
-    max_weight_limit: float
+    max_weights_limit: float
     tempo: int
     min_difficulty: int
     max_difficulty: int
@@ -161,7 +161,7 @@ class SubnetHyperparameters(InfoBase):
             kappa=decoded.get("kappa"),
             immunity_period=decoded.get("immunity_period"),
             min_allowed_weights=decoded.get("min_allowed_weights"),
-            max_weight_limit=decoded.get("max_weights_limit"),
+            max_weights_limit=decoded.get("max_weights_limit"),
             tempo=decoded.get("tempo"),
             min_difficulty=decoded.get("min_difficulty"),
             max_difficulty=decoded.get("max_difficulty"),
@@ -543,7 +543,7 @@ class SubnetInfo(InfoBase):
     immunity_period: int
     max_allowed_validators: int
     min_allowed_weights: int
-    max_weight_limit: float
+    max_weights_limit: float
     scaling_law_power: float
     subnetwork_n: int
     max_n: int
@@ -565,7 +565,7 @@ class SubnetInfo(InfoBase):
             immunity_period=decoded.get("immunity_period"),
             max_allowed_validators=decoded.get("max_allowed_validators"),
             min_allowed_weights=decoded.get("min_allowed_weights"),
-            max_weight_limit=decoded.get("max_weights_limit"),
+            max_weights_limit=decoded.get("max_weights_limit"),
             scaling_law_power=decoded.get("scaling_law_power"),
             subnetwork_n=decoded.get("subnetwork_n"),
             max_n=decoded.get("max_allowed_uids"),
