@@ -91,7 +91,8 @@ class SubtensorInterface:
                     f"Network not specified or not valid. Using default chain endpoint: "
                     f"{Constants.network_map[defaults.subtensor.network]}.\n"
                     f"You can set this for commands with the `--network` flag, or by setting this"
-                    f" in the config."
+                    f" in the config. If you're sure you're using the correct URL, ensure it begins"
+                    f" with `ws://` or `wss://`"
                 )
                 self.chain_endpoint = Constants.network_map[defaults.subtensor.network]
                 self.network = defaults.subtensor.network
