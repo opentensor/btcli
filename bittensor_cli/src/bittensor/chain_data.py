@@ -106,12 +106,12 @@ class InfoBase:
         )
 
     @classmethod
-    def from_any(cls, any_: Any) -> "InfoBase":
-        return cls._fix_decoded(any_)
+    def from_any(cls, data: Any) -> "InfoBase":
+        return cls._fix_decoded(data)
 
     @classmethod
-    def list_from_any(cls, any_list: list[Any]) -> list["InfoBase"]:
-        return [cls.from_any(any_) for any_ in any_list]
+    def list_from_any(cls, data_list: list[Any]) -> list["InfoBase"]:
+        return [cls.from_any(data) for data in data_list]
 
     def __getitem__(self, item):
         return getattr(self, item)
