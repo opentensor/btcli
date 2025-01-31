@@ -995,27 +995,27 @@ class SubtensorInterface:
 
         :return: `True` if the hotkey is known by the chain and there are accounts, `False` otherwise.
         """
-        _result = await self.query(
+        result = await self.query(
             module="SubtensorModule",
             storage_function="Owner",
             params=[hotkey_ss58],
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
-        result = decode_account_id(_result[0])  # TODO verify
         return_val = result != "5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM"
         return return_val
 
     async def get_hotkey_owner(
-        self, hotkey_ss58: str, block_hash: str
+        self,
+        hotkey_ss58: str,
+        block_hash: Optional[str] = None,
     ) -> Optional[str]:
-        hk_owner_query = await self.query(
+        val = await self.query(
             module="SubtensorModule",
             storage_function="Owner",
             params=[hotkey_ss58],
             block_hash=block_hash,
         )
-        val = decode_account_id(hk_owner_query[0])
         if val:
             exists = await self.does_hotkey_exist(hotkey_ss58, block_hash=block_hash)
         else:
