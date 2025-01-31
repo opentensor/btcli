@@ -7,7 +7,7 @@ from bittensor_wallet import Wallet
 import numpy as np
 from numpy.typing import NDArray
 from rich.prompt import Confirm
-from substrateinterface.exceptions import SubstrateRequestException
+from async_substrate_interface.errors import SubstrateRequestException
 
 from bittensor_cli.src.bittensor.utils import err_console, console, format_error_message
 from bittensor_cli.src.bittensor.extrinsics.root import (

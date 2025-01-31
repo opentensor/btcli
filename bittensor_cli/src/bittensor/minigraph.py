@@ -215,7 +215,7 @@ class MiniGraph:
         """
 
         async def get_total_subnets():
-            _result = await self.subtensor.substrate.query(
+            _result = await self.subtensor.query(
                 module="SubtensorModule",
                 storage_function="TotalNetworks",
                 params=[],
@@ -224,7 +224,7 @@ class MiniGraph:
             return _result
 
         async def get_subnets():
-            _result = await self.subtensor.substrate.query(
+            _result = await self.subtensor.query(
                 module="SubtensorModule",
                 storage_function="TotalNetworks",
             )

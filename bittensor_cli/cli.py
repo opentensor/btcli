@@ -26,9 +26,7 @@ from bittensor_cli.src import (
 )
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
-from bittensor_cli.src.bittensor.async_substrate_interface import (
-    SubstrateRequestException,
-)
+from async_substrate_interface.errors import SubstrateRequestException
 from bittensor_cli.src.commands import sudo, wallets
 from bittensor_cli.src.commands import weights as weights_cmds
 from bittensor_cli.src.commands.subnets import price, subnets
@@ -1491,8 +1489,8 @@ class CLIManager:
             validate=WV.WALLET,
         )
 
-        # For Rao games - temporarilyt commented out
-        effective_network = get_effective_network(self.config, network)
+        # For Rao games - temporarily commented out
+        # effective_network = get_effective_network(self.config, network)
         # if is_rao_network(effective_network):
         #     print_error("This command is disabled on the 'rao' network.")
         #     raise typer.Exit()

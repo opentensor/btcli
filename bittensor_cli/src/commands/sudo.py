@@ -95,12 +95,11 @@ async def set_hyperparameter_extrinsic(
                       finalization/inclusion, the response is `True`.
     """
     print_verbose("Confirming subnet owner")
-    subnet_owner_ = await subtensor.substrate.query(
+    subnet_owner = await subtensor.query(
         module="SubtensorModule",
         storage_function="SubnetOwner",
         params=[netuid],
     )
-    subnet_owner = decode_account_id(subnet_owner_[0])
     if subnet_owner != wallet.coldkeypub.ss58_address:
         err_console.print(
             ":cross_mark: [red]This wallet doesn't own the specified subnet.[/red]"
@@ -183,7 +182,7 @@ async def _get_senate_members(
 
     :return: list of the senate members' ss58 addresses
     """
-    senate_members = await subtensor.substrate.query(
+    senate_members = await subtensor.query(
         module="SenateMembers",
         storage_function="Members",
         params=None,
@@ -202,7 +201,7 @@ async def _get_proposals(
     subtensor: "SubtensorInterface", block_hash: str
 ) -> dict[str, tuple[dict, "ProposalVoteData"]]:
     async def get_proposal_call_data(p_hash: str) -> Optional[GenericCall]:
-        proposal_data = await subtensor.substrate.query(
+        proposal_data = await subtensor.query(
             module="Triumvirate",
             storage_function="ProposalOf",
             block_hash=block_hash,
@@ -210,7 +209,7 @@ async def _get_proposals(
         )
         return proposal_data
 
-    ph = await subtensor.substrate.query(
+    ph = await subtensor.query(
         module="Triumvirate",
         storage_function="Proposals",
         params=None,

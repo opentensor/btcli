@@ -648,7 +648,7 @@ async def move_stake(
         if not await response.is_success:
             err_console.print(
                 f"\n:cross_mark: [red]Failed[/red] with error:"
-                f" {format_error_message( await response.error_message, subtensor.substrate)}"
+                f" {format_error_message(await response.error_message)}"
             )
             return
         else:

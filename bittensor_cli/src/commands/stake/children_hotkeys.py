@@ -6,7 +6,7 @@ from bittensor_wallet.errors import KeyFileError
 from rich.prompt import Confirm, Prompt, IntPrompt
 from rich.table import Table
 from rich.text import Text
-from substrateinterface.exceptions import SubstrateRequestException
+from async_substrate_interface.errors import SubstrateRequestException
 
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
@@ -227,7 +227,7 @@ async def get_childkey_take(subtensor, hotkey: str, netuid: int) -> Optional[int
     - Optional[float]: The value of the "ChildkeyTake" if found, or None if any error occurs.
     """
     try:
-        childkey_take_ = await subtensor.substrate.query(
+        childkey_take_ = await subtensor.query(
             module="SubtensorModule",
             storage_function="ChildkeyTake",
             params=[hotkey, netuid],

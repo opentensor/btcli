@@ -26,7 +26,7 @@ import numpy as np
 from rich.prompt import Confirm
 from rich.console import Console
 from rich.status import Status
-from substrateinterface.exceptions import SubstrateRequestException
+from async_substrate_interface.errors import SubstrateRequestException
 
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.chain_data import NeuronInfo
@@ -438,7 +438,7 @@ async def is_hotkey_registered(
     subtensor: "SubtensorInterface", netuid: int, hotkey_ss58: str
 ) -> bool:
     """Checks to see if the hotkey is registered on a given netuid"""
-    _result = await subtensor.substrate.query(
+    _result = await subtensor.query(
         module="SubtensorModule",
         storage_function="Uids",
         params=[netuid, hotkey_ss58],
@@ -489,27 +489,18 @@ async def register_extrinsic(
     """
 
     async def get_neuron_for_pubkey_and_subnet():
-        uid = await subtensor.substrate.query(
+        uid = await subtensor.query(
             "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
         )
         if uid is None:
             return NeuronInfo.get_null_neuron()
 
-        hex_bytes_result = await subtensor.query_runtime_api(
-            runtime_api="NeuronInfoRuntimeApi",
-            method="get_neuron",
-            params=[netuid, uid],
+        result = await subtensor.neuron_for_uid(
+            uid=uid,
+            netuid=netuid,
+            block_hash=subtensor.substrate.last_block_hash,
         )
-
-        if not (result := hex_bytes_result):
-            return NeuronInfo.get_null_neuron()
-
-        if result.startswith("0x"):
-            bytes_result = bytes.fromhex(result[2:])
-        else:
-            bytes_result = bytes.fromhex(result)
-
-        return NeuronInfo.from_vec_u8(bytes_result)
+        return result
 
     print_verbose("Checking subnet status")
     if not await subtensor.subnet_exists(netuid):
@@ -716,7 +707,7 @@ async def burned_register_extrinsic(
         f":satellite: Checking Account on [bold]subnet:{netuid}[/bold]...",
         spinner="aesthetic",
     ) as status:
-        my_uid = await subtensor.substrate.query(
+        my_uid = await subtensor.query(
             "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
         )
 
@@ -769,14 +760,14 @@ async def burned_register_extrinsic(
                 subtensor.get_netuids_for_hotkey(
                     wallet.hotkey.ss58_address, block_hash=block_hash
                 ),
-                subtensor.substrate.query(
+                subtensor.query(
                     "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
                 ),
             )
 
         console.print(
             "Balance:\n"
-            f"  [blue]{old_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance[wallet.coldkey.ss58_address]}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
+            f"  [blue]{old_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
         )
 
         if len(netuids_for_hotkey) > 0:
@@ -925,8 +916,8 @@ async def run_faucet_extrinsic(
                     wallet.coldkeypub.ss58_address
                 )
                 console.print(
-                    f"Balance: [blue]{old_balance[wallet.coldkeypub.ss58_address]}[/blue] :arrow_right:"
-                    f" [green]{new_balance[wallet.coldkeypub.ss58_address]}[/green]"
+                    f"Balance: [blue]{old_balance}[/blue] :arrow_right:"
+                    f" [green]{new_balance}[/green]"
                 )
                 old_balance = new_balance
 
@@ -1031,7 +1022,7 @@ async def _block_solver(
     limit = int(math.pow(2, 256)) - 1
 
     # Establish communication queues
-    ## See the _Solver class for more information on the queues.
+    # See the _Solver class for more information on the queues.
     stop_event = Event()
     stop_event.clear()
 
@@ -1044,7 +1035,7 @@ async def _block_solver(
     )
 
     if cuda:
-        ## Create a worker per CUDA device
+        # Create a worker per CUDA device
         num_processes = len(dev_id)
         solvers = [
             _CUDASolver(
