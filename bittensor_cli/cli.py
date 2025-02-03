@@ -937,8 +937,9 @@ class CLIManager:
                     try:
                         raise typer.Exit()
                     except Exception as e:  # ensures we always exit cleanly
-                        err_console.print(f"An unknown error has occurred: {e}")
-                        sys.exit()
+                        if not isinstance(e, typer.Exit):
+                            err_console.print(f"An unknown error has occurred: {e}")
+                            sys.exit()
 
         if sys.version_info < (3, 10):
             # For Python 3.9 or lower
