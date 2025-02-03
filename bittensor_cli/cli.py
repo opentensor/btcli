@@ -5,6 +5,7 @@ import os.path
 import re
 import ssl
 import sys
+import traceback
 from pathlib import Path
 from typing import Coroutine, Optional
 from dataclasses import fields
@@ -857,23 +858,38 @@ class CLIManager:
         """
 
         async def _run():
+            initiated = False
             try:
                 if self.subtensor:
                     async with self.subtensor:
+                        initiated = True
                         result = await cmd
                 else:
+                    initiated = True
                     result = await cmd
                 return result
             except (ConnectionRefusedError, ssl.SSLError):
                 err_console.print(f"Unable to connect to the chain: {self.subtensor}")
-                asyncio.create_task(cmd).cancel()
-                raise typer.Exit()
-            except ConnectionClosed:
-                asyncio.create_task(cmd).cancel()
-                raise typer.Exit()
-            except SubstrateRequestException as e:
-                err_console.print(str(e))
-                raise typer.Exit()
+                verbose_console.print(traceback.format_exc())
+            except (
+                    ConnectionClosed,
+                    SubstrateRequestException,
+                    KeyboardInterrupt,
+            ) as e:
+                if isinstance(e, SubstrateRequestException):
+                    err_console.print(str(e))
+                verbose_console.print(traceback.format_exc())
+            except Exception as e:
+                err_console.print(f"An unknown error has occurred: {e}")
+                verbose_console.print(traceback.format_exc())
+            finally:
+                if initiated is False:
+                    asyncio.create_task(cmd).cancel()
+                try:
+                    raise typer.Exit()
+                except Exception as e:  # ensures we always exit cleanly
+                    err_console.print(f"An unknown error has occurred: {e}")
+                    sys.exit()
 
         if sys.version_info < (3, 10):
             # For Python 3.9 or lower
