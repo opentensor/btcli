@@ -900,7 +900,7 @@ class DynamicInfo:
     pending_root_emission: Balance
     network_registered_at: int
     subnet_identity: Optional[SubnetIdentity]
-    subnet_volume: float
+    subnet_volume: Balance
 
     @classmethod
     def from_vec_u8(cls, vec_u8: list[int]) -> Optional["DynamicInfo"]:
