@@ -1,5 +1,12 @@
 # Changelog
 
+## 8.2.0rc15 /2025-02-03
+
+## What's Changed
+* Adds subnet volume to root DynamicInfo
+* Adds --no-prompt option for stake list
+* Removes index and adds uids/position for delegate selection
+
 ## 8.2.0rc14 /2025-01-24
 
 ## What's Changed

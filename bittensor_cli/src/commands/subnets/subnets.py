@@ -995,15 +995,23 @@ async def show(
 
                 if selection == "":
                     return None
-                
-                uid = int(selection)
-                selected_hotkey = root_state.hotkeys[uid]
-                # Find identity for this UID
-                coldkey_identity = identities.get(root_state.coldkeys[uid], {}).get("name", "")
+
+                position = int(selection)
+                idx = position - 1
+                original_idx = sorted_hotkeys[idx][0]
+                selected_hotkey = root_state.hotkeys[original_idx]
+
+                coldkey_identity = identities.get(
+                    root_state.coldkeys[original_idx], {}
+                ).get("name", "")
                 hotkey_identity = old_identities.get(selected_hotkey)
-                validator_identity = coldkey_identity if coldkey_identity else (hotkey_identity.display if hotkey_identity else "")
+                validator_identity = (
+                    coldkey_identity
+                    if coldkey_identity
+                    else (hotkey_identity.display if hotkey_identity else "")
+                )
                 identity_str = f" ({validator_identity})" if validator_identity else ""
-                
+
                 console.print(
                     f"\nSelected delegate: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{selected_hotkey}{identity_str}"
                 )

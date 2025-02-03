@@ -900,6 +900,7 @@ class DynamicInfo:
     pending_root_emission: Balance
     network_registered_at: int
     subnet_identity: Optional[SubnetIdentity]
+    subnet_volume: float
 
     @classmethod
     def from_vec_u8(cls, vec_u8: list[int]) -> Optional["DynamicInfo"]:
@@ -938,6 +939,7 @@ class DynamicInfo:
         alpha_in = Balance.from_rao(decoded["alpha_in"]).set_unit(netuid)
         alpha_out = Balance.from_rao(decoded["alpha_out"]).set_unit(netuid)
         tao_in = Balance.from_rao(decoded["tao_in"]).set_unit(0)
+        subnet_volume = Balance.from_rao(decoded["subnet_volume"]).set_unit(netuid)
         alpha_out_emission = Balance.from_rao(decoded["alpha_out_emission"]).set_unit(
             netuid
         )
@@ -991,6 +993,7 @@ class DynamicInfo:
             pending_root_emission=pending_root_emission,
             network_registered_at=int(decoded["network_registered_at"]),
             subnet_identity=subnet_identity,
+            subnet_volume=subnet_volume,
         )
 
     def tao_to_alpha(self, tao: Balance) -> Balance:
@@ -1601,6 +1604,7 @@ custom_rpc_type_registry = {
                 ["pending_alpha_emission", "Compact<u64>"],
                 ["pending_root_emission", "Compact<u64>"],
                 ["network_registered_at", "Compact<u64>"],
+                ["subnet_volume", "Compact<u128>"],
                 ["subnet_identity", "Option<SubnetIdentity>"],
             ],
         },
