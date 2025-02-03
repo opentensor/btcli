@@ -17,6 +17,7 @@ from bittensor_wallet import Wallet
 from rich import box
 from rich.prompt import Confirm, FloatPrompt, Prompt, IntPrompt
 from rich.table import Column, Table
+from rich.tree import Tree
 from bittensor_cli.src import (
     defaults,
     HELP_PANELS,
@@ -58,6 +59,7 @@ from yaml import safe_dump, safe_load
 try:
     from git import Repo, GitError
 except ImportError:
+    Repo = None
 
     class GitError(Exception):
         pass
@@ -278,7 +280,8 @@ def parse_to_list(
 def verbosity_console_handler(verbosity_level: int = 1) -> None:
     """
     Sets verbosity level of console output
-    :param verbosity_level: int corresponding to verbosity level of console output (0 is quiet, 1 is normal, 2 is verbose)
+    :param verbosity_level: int corresponding to verbosity level of console output (0 is quiet, 1 is normal, 2 is
+        verbose)
     """
     if verbosity_level not in range(3):
         raise ValueError(
@@ -309,7 +312,8 @@ def get_optional_netuid(netuid: Optional[int], all_netuids: bool) -> Optional[in
         return None
     elif netuid is None and all_netuids is False:
         answer = Prompt.ask(
-            f"Enter the [{COLOR_PALETTE['GENERAL']['SUBHEADING_MAIN']}]netuid[/{COLOR_PALETTE['GENERAL']['SUBHEADING_MAIN']}] to use. Leave blank for all netuids",
+            f"Enter the [{COLOR_PALETTE['GENERAL']['SUBHEADING_MAIN']}]netuid"
+            f"[/{COLOR_PALETTE['GENERAL']['SUBHEADING_MAIN']}] to use. Leave blank for all netuids",
             default=None,
             show_default=False,
         )
@@ -469,6 +473,13 @@ def version_callback(value: bool):
         except (NameError, GitError):
             version = f"BTCLI version: {__version__}"
         typer.echo(version)
+        raise typer.Exit()
+
+
+def commands_callback(value: bool):
+    if value:
+        cli = CLIManager()
+        console.print(cli.generate_command_tree())
         raise typer.Exit()
 
 
@@ -816,6 +827,40 @@ class CLIManager:
         self.sudo_app.command("get_take", hidden=True)(self.sudo_get_take)
         self.sudo_app.command("set_take", hidden=True)(self.sudo_set_take)
 
+    def generate_command_tree(self) -> Tree:
+        """
+        Generates a rich.Tree of the commands, subcommands, and groups of this app
+        """
+
+        def build_rich_tree(data: dict, parent: Tree):
+            for group, content in data.get("groups", {}).items():
+                group_node = parent.add(
+                    f"[bold cyan]{group}[/]"
+                )  # Add group to the tree
+                for command in content.get("commands", []):
+                    group_node.add(f"[green]{command}[/]")  # Add commands to the group
+                build_rich_tree(content, group_node)  # Recurse for subgroups
+
+        def traverse_group(group: typer.Typer) -> dict:
+            tree = {}
+            if commands := [
+                cmd.name for cmd in group.registered_commands if not cmd.hidden
+            ]:
+                tree["commands"] = commands
+            for group in group.registered_groups:
+                if "groups" not in tree:
+                    tree["groups"] = {}
+                if not group.hidden:
+                    if group_transversal := traverse_group(group.typer_instance):
+                        tree["groups"][group.name] = group_transversal
+
+            return tree
+
+        groups_and_commands = traverse_group(self.app)
+        root = Tree("[bold magenta]BTCLI Commands[/]")  # Root node
+        build_rich_tree(groups_and_commands, root)
+        return root
+
     def initialize_chain(
         self,
         network: Optional[list[str]] = None,
@@ -901,13 +946,22 @@ class CLIManager:
     def main_callback(
         self,
         version: Annotated[
-            Optional[bool], typer.Option("--version", callback=version_callback)
+            Optional[bool],
+            typer.Option(
+                "--version", callback=version_callback, help="Show BTCLI version"
+            ),
+        ] = None,
+        commands: Annotated[
+            Optional[bool],
+            typer.Option(
+                "--commands", callback=commands_callback, help="Show BTCLI commands"
+            ),
         ] = None,
     ):
         """
-        Command line interface (CLI) for Bittensor. Uses the values in the configuration file. These values can be overriden by passing them explicitly in the command line.
+        Command line interface (CLI) for Bittensor. Uses the values in the configuration file. These values can be
+            overriden by passing them explicitly in the command line.
         """
-
         # Load or create the config file
         if os.path.exists(self.config_path):
             with open(self.config_path, "r") as f:
