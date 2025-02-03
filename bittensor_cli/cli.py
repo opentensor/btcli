@@ -872,9 +872,9 @@ class CLIManager:
                 err_console.print(f"Unable to connect to the chain: {self.subtensor}")
                 verbose_console.print(traceback.format_exc())
             except (
-                    ConnectionClosed,
-                    SubstrateRequestException,
-                    KeyboardInterrupt,
+                ConnectionClosed,
+                SubstrateRequestException,
+                KeyboardInterrupt,
             ) as e:
                 if isinstance(e, SubstrateRequestException):
                     err_console.print(str(e))

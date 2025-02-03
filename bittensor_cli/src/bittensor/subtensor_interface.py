@@ -158,6 +158,7 @@ class SubtensorInterface:
         Retrieves the list of all subnet unique identifiers (netuids) currently present in the Bittensor network.
 
         :param block_hash: The hash of the block to retrieve the subnet unique identifiers from.
+
         :return: A list of subnet netuids.
 
         This function provides a comprehensive view of the subnets within the Bittensor network,
@@ -218,14 +219,13 @@ class SubtensorInterface:
         """
         Returns the stake under a coldkey - hotkey pairing.
 
-        Args:
-            hotkey_ss58 (str): The SS58 address of the hotkey.
-            coldkey_ss58 (str): The SS58 address of the coldkey.
-            netuid (Optional[int]): The subnet ID to filter by. If provided, only returns stake for this specific subnet.
-            block_hash (Optional[str]): The block hash at which to query the stake information.
+        :param hotkey_ss58: The SS58 address of the hotkey.
+        :param coldkey_ss58: The SS58 address of the coldkey.
+        :param netuid: The subnet ID to filter by. If provided, only returns stake for this specific
+            subnet.
+        :param block_hash: The block hash at which to query the stake information.
 
-        Returns:
-            Balance: The stake under the coldkey - hotkey pairing.
+        :return: Balance: The stake under the coldkey - hotkey pairing.
         """
         alpha_shares = await self.query(
             module="SubtensorModule",
@@ -456,13 +456,11 @@ class SubtensorInterface:
         Retrieves the delegate 'take' percentage for a neuron identified by its hotkey. The 'take'
         represents the percentage of rewards that the delegate claims from its nominators' stakes.
 
-        Args:
-            hotkey_ss58: The `SS58` address of the neuron's hotkey.
-            block_hash: The hash of the block number to retrieve the stake from.
-            reuse_block: Whether to reuse the last-used block hash when retrieving info.
+        :param hotkey_ss58: The `SS58` address of the neuron's hotkey.
+        :param block_hash: The hash of the block number to retrieve the stake from.
+        :param reuse_block: Whether to reuse the last-used block hash when retrieving info.
 
-        Returns:
-            The delegate take percentage, None if not available.
+        :return: The delegate take percentage, None if not available.
 
         The delegate take is a critical parameter in the network's incentive structure, influencing
         the distribution of rewards among neurons and their nominators.
@@ -540,12 +538,10 @@ class SubtensorInterface:
         """
         Retrieves the state of a specific subnet within the Bittensor network.
 
-        Args:
-            netuid: The network UID of the subnet to query.
-            block_hash: The hash of the blockchain block number for the query.
+        :param netuid: The network UID of the subnet to query.
+        :param block_hash: The hash of the blockchain block number for the query.
 
-        Returns:
-            SubnetState object containing the subnet's state information, or None if the subnet doesn't exist.
+        :return: SubnetState object containing the subnet's state information, or None if the subnet doesn't exist.
         """
         result = await self.query_runtime_api(
             runtime_api="SubnetInfoRuntimeApi",
@@ -930,7 +926,6 @@ class SubtensorInterface:
         This function maps each neuron's UID to the weights it assigns to other neurons, reflecting the
         network's trust and value assignment mechanisms.
 
-        Args:
         :param netuid: The network UID of the subnet to query.
         :param block_hash: The hash of the blockchain block for the query.
 
@@ -1168,10 +1163,9 @@ class SubtensorInterface:
         is filled-in by the info from GitHub. At some point, we want to totally move away from fetching this info
         from GitHub, but chain data is still limited in that regard.
 
-        Args:
-            block_hash: the hash of the blockchain block for the query
+        :param block_hash: the hash of the blockchain block for the query
 
-        Returns: {ss58: DelegatesDetails, ...}
+        :return: {ss58: DelegatesDetails, ...}
 
         """
         timeout = aiohttp.ClientTimeout(10.0)
@@ -1256,13 +1250,12 @@ class SubtensorInterface:
         """
         Queries the stake for multiple hotkey - coldkey - netuid pairings.
 
-        Args:
-            hotkey_ss58s: list of hotkey ss58 addresses
-            coldkey_ss58: a single coldkey ss58 address
-            netuids: list of netuids
-            block_hash: hash of the blockchain block, if any
+        :param hotkey_ss58s: list of hotkey ss58 addresses
+        :param coldkey_ss58: a single coldkey ss58 address
+        :param netuids: list of netuids
+        :param block_hash: hash of the blockchain block, if any
 
-        Returns:
+        :return:
             {
                 hotkey_ss58_1: {
                     netuid_1: netuid1_stake,
@@ -1314,12 +1307,10 @@ class SubtensorInterface:
         Retrieves stake information for a list of coldkeys. This function aggregates stake data for multiple
         accounts, providing a collective view of their stakes and delegations.
 
-        Args:
-            coldkey_ss58_list: A list of SS58 addresses of the accounts' coldkeys.
-            block_hash: The blockchain block number for the query.
+        :param coldkey_ss58_list: A list of SS58 addresses of the accounts' coldkeys.
+        :param block_hash: The blockchain block number for the query.
 
-        Returns:
-            A dictionary mapping each coldkey to a list of its StakeInfo objects.
+        :return: A dictionary mapping each coldkey to a list of its StakeInfo objects.
 
         This function is useful for analyzing the stake distribution and delegation patterns of multiple
         accounts simultaneously, offering a broader perspective on network participation and investment strategies.
