@@ -684,6 +684,13 @@ async def get_current_take(subtensor: "SubtensorInterface", wallet: Wallet):
     return current_take
 
 
+async def display_current_take(subtensor: "SubtensorInterface", wallet: Wallet) -> None:
+    current_take = await get_current_take(subtensor, wallet)
+    console.print(
+        f"Current take is [{COLOR_PALETTE['POOLS']['RATE']}]{current_take * 100.:.2f}%"
+    )
+
+
 async def set_take(
     wallet: Wallet, subtensor: "SubtensorInterface", take: float
 ) -> bool:

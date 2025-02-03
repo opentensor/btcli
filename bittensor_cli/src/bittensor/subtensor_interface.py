@@ -172,7 +172,7 @@ class SubtensorInterface:
         )
         res = []
         async for netuid, exists in result:
-            if exists.value:  # TODO verify type
+            if exists.value:
                 res.append(netuid)
         return res
 

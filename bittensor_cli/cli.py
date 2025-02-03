@@ -900,7 +900,7 @@ class CLIManager:
                 self.subtensor = SubtensorInterface(defaults.subtensor.network)
         return self.subtensor
 
-    def _run_command(self, cmd: Coroutine) -> None:
+    def _run_command(self, cmd: Coroutine, exit_early: bool = True):
         """
         Runs the supplied coroutine with `asyncio.run`
         """
@@ -933,11 +933,12 @@ class CLIManager:
             finally:
                 if initiated is False:
                     asyncio.create_task(cmd).cancel()
-                try:
-                    raise typer.Exit()
-                except Exception as e:  # ensures we always exit cleanly
-                    err_console.print(f"An unknown error has occurred: {e}")
-                    sys.exit()
+                if exit_early is True:
+                    try:
+                        raise typer.Exit()
+                    except Exception as e:  # ensures we always exit cleanly
+                        err_console.print(f"An unknown error has occurred: {e}")
+                        sys.exit()
 
         if sys.version_info < (3, 10):
             # For Python 3.9 or lower
@@ -2389,7 +2390,8 @@ class CLIManager:
                 self.initialize_chain(network),
                 wallet.coldkeypub.ss58_address,
                 "Current on-chain identity",
-            )
+            ),
+            exit_early=False,
         )
 
         if prompt:
@@ -2692,7 +2694,8 @@ class CLIManager:
                         max_rows=12,
                         prompt=False,
                         delegate_selection=True,
-                    )
+                    ),
+                    exit_early=False,
                 )
                 if selected_hotkey is None:
                     print_error("No delegate selected. Exiting.")
@@ -2752,7 +2755,8 @@ class CLIManager:
             free_balance, staked_balance = self._run_command(
                 wallets.wallet_balance(
                     wallet, self.initialize_chain(network), False, None
-                )
+                ),
+                exit_early=False,
             )
             if free_balance == Balance.from_tao(0):
                 print_error("You dont have any balance to stake.")
@@ -3669,7 +3673,8 @@ class CLIManager:
         self.verbosity_handler(quiet, verbose)
 
         hyperparams = self._run_command(
-            sudo.get_hyperparameters(self.initialize_chain(network), netuid)
+            sudo.get_hyperparameters(self.initialize_chain(network), netuid),
+            exit_early=False,
         )
 
         if not hyperparams:
@@ -3840,11 +3845,9 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
 
-        current_take = self._run_command(
-            sudo.get_current_take(self.initialize_chain(network), wallet)
-        )
-        console.print(
-            f"Current take is [{COLOR_PALETTE['POOLS']['RATE']}]{current_take * 100.:.2f}%"
+        self._run_command(
+            sudo.display_current_take(self.initialize_chain(network), wallet),
+            exit_early=False,
         )
 
         if not take:
@@ -3888,11 +3891,8 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
 
-        current_take = self._run_command(
-            sudo.get_current_take(self.initialize_chain(network), wallet)
-        )
-        console.print(
-            f"Current take is [{COLOR_PALETTE['POOLS']['RATE']}]{current_take * 100.:.2f}%"
+        self._run_command(
+            sudo.display_current_take(self.initialize_chain(network), wallet)
         )
 
     def subnets_list(
@@ -4123,7 +4123,8 @@ class CLIManager:
             subnet_contact=subnet_contact,
         )
         success = self._run_command(
-            subnets.create(wallet, self.initialize_chain(network), identity, prompt)
+            subnets.create(wallet, self.initialize_chain(network), identity, prompt),
+            exit_early=False,
         )
 
         if success and prompt:
