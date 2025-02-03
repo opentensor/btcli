@@ -477,6 +477,9 @@ def version_callback(value: bool):
 
 
 def commands_callback(value: bool):
+    """
+    Prints a tree of commands for the app
+    """
     if value:
         cli = CLIManager()
         console.print(cli.generate_command_tree())
