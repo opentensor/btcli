@@ -2478,6 +2478,7 @@ class CLIManager:
         live: bool = Options.live,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        no_prompt: bool = Options.prompt,
         # TODO add: all-wallets, reuse_last, html_output
     ):
         """List all stake accounts for wallet."""
@@ -2506,7 +2507,7 @@ class CLIManager:
 
         return self._run_command(
             stake.stake_list(
-                wallet, coldkey_ss58, self.initialize_chain(network), live, verbose
+                wallet, coldkey_ss58, self.initialize_chain(network), live, verbose, no_prompt  
             )
         )
 

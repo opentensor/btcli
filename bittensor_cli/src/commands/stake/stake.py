@@ -1185,6 +1185,7 @@ async def stake_list(
     subtensor: "SubtensorInterface",
     live: bool = False,
     verbose: bool = False,
+    prompt: bool = False,
 ):
     coldkey_address = coldkey_ss58 if coldkey_ss58 else wallet.coldkeypub.ss58_address
 
@@ -1217,8 +1218,9 @@ async def stake_list(
         live: bool = False,
     ):
         title = f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Hotkey: {hotkey_name}\nNetwork: {subtensor.network}\n\n"
-        if not live:
-            title += f"[{COLOR_PALETTE['GENERAL']['HINT']}]See below for an explanation of the columns\n"
+        # TODO: Add hint back in after adding columns descriptions
+        # if not live:
+        #     title += f"[{COLOR_PALETTE['GENERAL']['HINT']}]See below for an explanation of the columns\n"
         table = Table(
             title=title,
             show_footer=True,
@@ -1729,7 +1731,7 @@ async def stake_list(
             all_hotkeys_total_global_tao += stake
             all_hotkeys_total_tao_value += value
 
-            if num_hotkeys > 1 and counter < num_hotkeys:
+            if num_hotkeys > 1 and counter < num_hotkeys and prompt:
                 console.print("\nPress Enter to continue to the next hotkey...")
                 input()
 
