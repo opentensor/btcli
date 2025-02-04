@@ -146,7 +146,7 @@ class SubnetHyperparameters(InfoBase):
     max_validators: int
     adjustment_alpha: int
     difficulty: int
-    commit_reveal_weights_interval: int
+    commit_reveal_period: int
     commit_reveal_weights_enabled: bool
     alpha_high: int
     alpha_low: int
@@ -179,7 +179,7 @@ class SubnetHyperparameters(InfoBase):
             max_validators=decoded.get("max_validators"),
             adjustment_alpha=decoded.get("adjustment_alpha"),
             difficulty=decoded.get("difficulty"),
-            commit_reveal_weights_interval=decoded.get(
+            commit_reveal_period=decoded.get(
                 "commit_reveal_weights_interval"
             ),
             commit_reveal_weights_enabled=decoded.get("commit_reveal_weights_enabled"),
