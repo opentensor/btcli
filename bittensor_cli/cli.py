@@ -2580,7 +2580,12 @@ class CLIManager:
 
         return self._run_command(
             stake.stake_list(
-                wallet, coldkey_ss58, self.initialize_chain(network), live, verbose, no_prompt  
+                wallet,
+                coldkey_ss58,
+                self.initialize_chain(network),
+                live,
+                verbose,
+                no_prompt,
             )
         )
 
@@ -3123,22 +3128,25 @@ class CLIManager:
                 )
                 origin_hotkey = wallet.hotkey.ss58_address
         else:
-            wallet = self.wallet_ask(
-                wallet_name,
-                wallet_path,
-                wallet_hotkey,
-                ask_for=[],
-                validate=WV.WALLET_AND_HOTKEY,
-            )
-            origin_hotkey = wallet.hotkey.ss58_address
+            if is_valid_ss58_address(wallet_hotkey):
+                origin_hotkey = wallet_hotkey
+            else:
+                wallet = self.wallet_ask(
+                    wallet_name,
+                    wallet_path,
+                    wallet_hotkey,
+                    ask_for=[],
+                    validate=WV.WALLET_AND_HOTKEY,
+                )
+                origin_hotkey = wallet.hotkey.ss58_address
 
         if not interactive_selection:
-            if not origin_netuid:
+            if origin_netuid is None:
                 origin_netuid = IntPrompt.ask(
                     "Enter the [blue]origin subnet[/blue] (netuid) to move stake from"
                 )
 
-            if not destination_netuid:
+            if destination_netuid is None:
                 destination_netuid = IntPrompt.ask(
                     "Enter the [blue]destination subnet[/blue] (netuid) to move stake to"
                 )
