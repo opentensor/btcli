@@ -53,7 +53,7 @@ from bittensor_cli.src.bittensor.utils import (
 )
 from typing_extensions import Annotated
 from textwrap import dedent
-from websockets import ConnectionClosed
+from websockets import ConnectionClosed, InvalidHandshake
 from yaml import safe_dump, safe_load
 
 try:
@@ -916,7 +916,7 @@ class CLIManager:
                     initiated = True
                     result = await cmd
                 return result
-            except (ConnectionRefusedError, ssl.SSLError):
+            except (ConnectionRefusedError, ssl.SSLError, InvalidHandshake):
                 err_console.print(f"Unable to connect to the chain: {self.subtensor}")
                 verbose_console.print(traceback.format_exc())
             except (

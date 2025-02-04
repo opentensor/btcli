@@ -426,14 +426,26 @@ class SubtensorInterface:
                 ...
             }
         """
+        if not block_hash:
+            if reuse_block:
+                block_hash = self.substrate.last_block_hash
+            else:
+                block_hash = await self.substrate.get_chain_head()
+
         netuids = netuids or await self.get_all_subnet_netuids(block_hash=block_hash)
-        query: dict[tuple[str, int], int] = await self.substrate.query_multiple(
-            params=[(ss58, netuid) for ss58 in ss58_addresses for netuid in netuids],
-            module="SubtensorModule",
-            storage_function="TotalHotkeyAlpha",
-            block_hash=block_hash,
-            reuse_block_hash=reuse_block,
-        )
+        calls = [
+            (
+                await self.substrate.create_storage_key(
+                    "SubtensorModule",
+                    "TotalHotkeyAlpha",
+                    params=[ss58, netuid],
+                    block_hash=block_hash,
+                )
+            )
+            for ss58 in ss58_addresses
+            for netuid in netuids
+        ]
+        query = await self.substrate.query_multi(calls, block_hash=block_hash)
         results: dict[str, dict[int, "Balance"]] = {
             hk_ss58: {} for hk_ss58 in ss58_addresses
         }
