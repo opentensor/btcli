@@ -1,5 +1,18 @@
 # Changelog
 
+## 9.0.0rc1 /2025-02-04
+
+## What's Changed
+* Uses new Async Substrate Interface
+* Updates how we use runtime calls
+
+## 8.2.0rc15 /2025-02-03
+
+## What's Changed
+* Adds subnet volume to root DynamicInfo
+* Adds --no-prompt option for stake list
+* Removes index and adds uids/position for delegate selection
+
 ## 8.2.0rc14 /2025-01-24
 
 ## What's Changed
