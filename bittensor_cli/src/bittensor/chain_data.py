@@ -623,6 +623,7 @@ class DynamicInfo(InfoBase):
     pending_root_emission: Balance
     network_registered_at: int
     subnet_identity: Optional[SubnetIdentity]
+    subnet_volume: Balance
 
     @classmethod
     def _fix_decoded(cls, decoded: Any) -> "DynamicInfo":
@@ -646,6 +647,7 @@ class DynamicInfo(InfoBase):
         alpha_in_emission = Balance.from_rao(decoded.get("alpha_in_emission")).set_unit(
             netuid
         )
+        subnet_volume = Balance.from_rao(decoded.get("subnet_volume")).set_unit(netuid)
         tao_in_emission = Balance.from_rao(decoded.get("tao_in_emission")).set_unit(0)
         pending_alpha_emission = Balance.from_rao(
             decoded.get("pending_alpha_emission")
@@ -689,6 +691,7 @@ class DynamicInfo(InfoBase):
             pending_root_emission=pending_root_emission,
             network_registered_at=int(decoded.get("network_registered_at")),
             subnet_identity=subnet_identity,
+            subnet_volume=subnet_volume,
         )
 
     def tao_to_alpha(self, tao: Balance) -> Balance:
