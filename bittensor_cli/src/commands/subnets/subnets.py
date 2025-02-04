@@ -981,33 +981,39 @@ async def show(
     """
             )
         if delegate_selection:
+            valid_uids = [str(row[0]) for row in sorted_rows[:max_rows]]
             while True:
                 selection = Prompt.ask(
-                    "\nEnter the position of the delegate you want to stake to [dim](or press Enter to cancel)[/dim]",
+                    "\nEnter the Position of the delegate you want to stake to [dim](or press Enter to cancel)[/dim]",
                     default="",
+                    choices=[""] + valid_uids,
+                    show_choices=False,
+                    show_default=False,
                 )
 
                 if selection == "":
                     return None
 
-                try:
-                    idx = int(selection)
-                    if 1 <= idx <= max_rows:
-                        selected_hotkey = sorted_hks_delegation[idx - 1]
-                        row_data = sorted_rows[idx - 1]
-                        identity = "" if row_data[5] == "~" else row_data[5]
-                        identity_str = f" ({identity})" if identity else ""
-                        console.print(
-                            f"\nSelected delegate: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{selected_hotkey}{identity_str}"
-                        )
+                position = int(selection)
+                idx = position - 1
+                original_idx = sorted_hotkeys[idx][0]
+                selected_hotkey = root_state.hotkeys[original_idx]
 
-                        return selected_hotkey
-                    else:
-                        console.print(
-                            f"[red]Invalid selection. Please enter a number between 1 and {max_rows}[/red]"
-                        )
-                except ValueError:
-                    console.print("[red]Please enter a valid number[/red]")
+                coldkey_identity = identities.get(
+                    root_state.coldkeys[original_idx], {}
+                ).get("name", "")
+                hotkey_identity = old_identities.get(selected_hotkey)
+                validator_identity = (
+                    coldkey_identity
+                    if coldkey_identity
+                    else (hotkey_identity.display if hotkey_identity else "")
+                )
+                identity_str = f" ({validator_identity})" if validator_identity else ""
+
+                console.print(
+                    f"\nSelected delegate: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{selected_hotkey}{identity_str}"
+                )
+                return selected_hotkey
 
     async def show_subnet(netuid_: int):
         if not await subtensor.subnet_exists(netuid=netuid):
@@ -1050,10 +1056,6 @@ async def show(
             show_lines=False,
             pad_edge=True,
         )
-
-        # Add index for selection if selecting delegates
-        if delegate_selection:
-            table.add_column("#", style="cyan", justify="right")
 
         # For hotkey_block_emission calculation
         emission_sum = sum(
@@ -1245,8 +1247,6 @@ async def show(
         )
         for pos, row in enumerate(rows, 1):
             table_row = []
-            if delegate_selection:
-                table_row.append(str(pos))
             table_row.extend(row)
             table.add_row(*table_row)
             if delegate_selection and pos == max_rows:
@@ -1299,20 +1299,24 @@ async def show(
 
         if delegate_selection:
             while True:
+                valid_uids = [str(row[0]) for row in rows[:max_rows]]
                 selection = Prompt.ask(
-                    "\nEnter the number of the delegate you want to stake to [dim](or press Enter to cancel)[/dim]",
+                    "\nEnter the UID of the delegate you want to stake to [dim](or press Enter to cancel)[/dim]",
                     default="",
+                    choices=[""] + valid_uids,
+                    show_choices=False,
+                    show_default=False,
                 )
 
                 if selection == "":
                     return None
 
                 try:
-                    idx = int(selection)
-                    if 1 <= idx <= max_rows:
-                        uid = int(rows[idx - 1][0])
+                    uid = int(selection)
+                    # Check if the UID exists in the subnet
+                    if uid in [int(row[0]) for row in rows]:
+                        row_data = next(row for row in rows if int(row[0]) == uid)
                         hotkey = subnet_state.hotkeys[uid]
-                        row_data = rows[idx - 1]
                         identity = "" if row_data[9] == "~" else row_data[9]
                         identity_str = f" ({identity})" if identity else ""
                         console.print(
@@ -1321,7 +1325,7 @@ async def show(
                         return hotkey
                     else:
                         console.print(
-                            f"[red]Invalid selection. Please enter a number between 1 and {max_rows}[/red]"
+                            f"[red]Invalid UID. Please enter a valid UID from the table above[/red]"
                         )
                 except ValueError:
                     console.print("[red]Please enter a valid number[/red]")

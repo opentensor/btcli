@@ -623,6 +623,7 @@ class DynamicInfo(InfoBase):
     pending_root_emission: Balance
     network_registered_at: int
     subnet_identity: Optional[SubnetIdentity]
+    subnet_volume: Balance
 
     @classmethod
     def _fix_decoded(cls, decoded: Any) -> "DynamicInfo":
@@ -636,14 +637,12 @@ class DynamicInfo(InfoBase):
         owner_hotkey = decode_account_id(decoded.get("owner_hotkey"))
         owner_coldkey = decode_account_id(decoded.get("owner_coldkey"))
 
-        emission = Balance.from_rao(decoded.get("emission")).set_unit(0)
-        alpha_in = Balance.from_rao(decoded.get("alpha_in")).set_unit(netuid)
-        alpha_out = Balance.from_rao(decoded.get("alpha_out")).set_unit(netuid)
-        tao_in = Balance.from_rao(decoded.get("tao_in")).set_unit(0)
-        alpha_out_emission = Balance.from_rao(
-            decoded.get("alpha_out_emission")
-        ).set_unit(netuid)
-        alpha_in_emission = Balance.from_rao(decoded.get("alpha_in_emission")).set_unit(
+        emission = Balance.from_rao(decoded["emission"]).set_unit(0)
+        alpha_in = Balance.from_rao(decoded["alpha_in"]).set_unit(netuid)
+        alpha_out = Balance.from_rao(decoded["alpha_out"]).set_unit(netuid)
+        tao_in = Balance.from_rao(decoded["tao_in"]).set_unit(0)
+        subnet_volume = Balance.from_rao(decoded["subnet_volume"]).set_unit(netuid)
+        alpha_out_emission = Balance.from_rao(decoded["alpha_out_emission"]).set_unit(
             netuid
         )
         tao_in_emission = Balance.from_rao(decoded.get("tao_in_emission")).set_unit(0)
@@ -689,6 +688,7 @@ class DynamicInfo(InfoBase):
             pending_root_emission=pending_root_emission,
             network_registered_at=int(decoded.get("network_registered_at")),
             subnet_identity=subnet_identity,
+            subnet_volume=subnet_volume,
         )
 
     def tao_to_alpha(self, tao: Balance) -> Balance:
