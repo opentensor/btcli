@@ -60,17 +60,25 @@ async def display_stake_movement_cross_subnets(
         price = (
             float(dynamic_origin.price) * 1 / (float(dynamic_destination.price) or 1)
         )
-        received_amount_tao, _, slippage_pct_float = (
-            dynamic_origin.alpha_to_tao_with_slippage(amount_to_move)
+        received_amount_tao, _, _ = dynamic_origin.alpha_to_tao_with_slippage(
+            amount_to_move
         )
         received_amount_tao -= MIN_STAKE_FEE
-        received_amount, _, slippage_pct_float = (
-            dynamic_destination.tao_to_alpha_with_slippage(received_amount_tao)
+        received_amount, _, _ = dynamic_destination.tao_to_alpha_with_slippage(
+            received_amount_tao
         )
         received_amount.set_unit(destination_netuid)
+
+        if received_amount < Balance.from_tao(0):
+            print_error("Not enough Alpha to pay the transaction fee.")
+            raise typer.Exit()
+
+        ideal_amount = amount_to_move * price
+        total_slippage = ideal_amount - received_amount
+        slippage_pct_float = 100 * (total_slippage.tao / ideal_amount.tao)
         slippage_pct = f"{slippage_pct_float:.4f} %"
         price_str = (
-            str(float(price))
+            f"{price:.5f}"
             + f"{Balance.get_unit(destination_netuid)}/{Balance.get_unit(origin_netuid)}"
         )
 
