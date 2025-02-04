@@ -1,6 +1,7 @@
 import time
 
 from bittensor_cli.src.bittensor.balances import Balance
+import pytest
 from .utils import extract_coldkey_balance
 
 """
@@ -15,7 +16,7 @@ Verify commands:
 * btcli root undelegate-stake
 """
 
-
+@pytest.mark.skip(reason="Root no longer applicable. We will update this.")
 def test_root_commands(local_chain, wallet_setup):
     """
     Test the root commands and inspects their output

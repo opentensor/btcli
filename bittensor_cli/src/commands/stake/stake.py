@@ -302,10 +302,6 @@ The columns are as follows:
                 f"\n{failure_prelude} with error: {format_error_message(e, subtensor.substrate)}"
             )
             return
-        if not prompt:  # TODO verbose?
-            console.print(
-                f":white_heavy_check_mark: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]Submitted {amount_} to {netuid_i}[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
-            )
         else:
             await response.process_events()
             if not await response.is_success:
@@ -327,7 +323,7 @@ The columns are as follows:
                     ):
                         new_stake = stake_info.stake.set_unit(netuid_i)
                         break
-
+                console.print(":white_heavy_check_mark: [green]Finalized[/green]")
                 console.print(
                     f"Balance:\n  [blue]{current_wallet_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
                 )
@@ -1086,23 +1082,21 @@ The columns are as follows:
             response = await subtensor.substrate.submit_extrinsic(
                 extrinsic, wait_for_inclusion=True, wait_for_finalization=False
             )
-            if not prompt:
-                console.print(":white_heavy_check_mark: [green]Sent[/green]")
+            await response.process_events()
+            if not await response.is_success:
+                print_error(
+                    f":cross_mark: [red]Failed[/red] with error: "
+                    f"{format_error_message(await response.error_message, subtensor.substrate)}",
+                    status,
+                )
             else:
-                await response.process_events()
-                if not await response.is_success:
-                    print_error(
-                        f":cross_mark: [red]Failed[/red] with error: "
-                        f"{format_error_message(await response.error_message, subtensor.substrate)}",
-                        status,
-                    )
-                else:
-                    new_balance = await subtensor.get_balance(
-                        wallet.coldkeypub.ss58_address
-                    )
-                    console.print(
-                        f"Balance:\n  [blue]{current_wallet_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
-                    )
+                new_balance = await subtensor.get_balance(
+                    wallet.coldkeypub.ss58_address
+                )
+                console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                console.print(
+                    f"Balance:\n  [blue]{current_wallet_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
+                )
         else:
             for op in unstake_operations:
                 netuid_i = op["netuid"]
@@ -1130,38 +1124,36 @@ The columns are as follows:
                 response = await subtensor.substrate.submit_extrinsic(
                     extrinsic, wait_for_inclusion=True, wait_for_finalization=False
                 )
-                if not prompt:
-                    console.print(":white_heavy_check_mark: [green]Sent[/green]")
+                await response.process_events()
+                if not await response.is_success:
+                    print_error(
+                        f":cross_mark: [red]Failed[/red] with error: "
+                        f"{format_error_message(await response.error_message, subtensor.substrate)}",
+                        status,
+                    )
                 else:
-                    await response.process_events()
-                    if not await response.is_success:
-                        print_error(
-                            f":cross_mark: [red]Failed[/red] with error: "
-                            f"{format_error_message(await response.error_message, subtensor.substrate)}",
-                            status,
-                        )
-                    else:
-                        new_balance = await subtensor.get_balance(
-                            wallet.coldkeypub.ss58_address
-                        )
-                        new_stake_info = await subtensor.get_stake_for_coldkey(
-                            coldkey_ss58=wallet.coldkeypub.ss58_address,
-                        )
-                        new_stake = Balance.from_rao(0)
-                        for stake_info in new_stake_info:
-                            if (
-                                stake_info.hotkey_ss58 == staking_address_ss58
-                                and stake_info.netuid == netuid_i
-                            ):
-                                new_stake = stake_info.stake.set_unit(netuid_i)
-                                break
-                        console.print(
-                            f"Balance:\n  [blue]{current_wallet_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
-                        )
-                        console.print(
-                            f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid_i}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
-                            f" Stake:\n  [blue]{current_stake_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}"
-                        )
+                    new_balance = await subtensor.get_balance(
+                        wallet.coldkeypub.ss58_address
+                    )
+                    new_stake_info = await subtensor.get_stake_for_coldkey(
+                        coldkey_ss58=wallet.coldkeypub.ss58_address,
+                    )
+                    new_stake = Balance.from_rao(0)
+                    for stake_info in new_stake_info:
+                        if (
+                            stake_info.hotkey_ss58 == staking_address_ss58
+                            and stake_info.netuid == netuid_i
+                        ):
+                            new_stake = stake_info.stake.set_unit(netuid_i)
+                            break
+                    console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                    console.print(
+                        f"Balance:\n  [blue]{current_wallet_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
+                    )
+                    console.print(
+                        f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid_i}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
+                        f" Stake:\n  [blue]{current_stake_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}"
+                    )
     console.print(
         f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]Unstaking operations completed."
     )

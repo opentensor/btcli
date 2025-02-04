@@ -18,7 +18,7 @@ from .utils import setup_wallet
 def local_chain(request):
     param = request.param if hasattr(request, "param") else None
     # Get the environment variable for the script path
-    script_path = os.getenv("LOCALNET_SH_PATH")
+    script_path = "/Users/ibraheem/Desktop/Bittensor/subtensor/scripts/localnet.sh"
 
     if not script_path:
         # Skip the test if the localhost.sh path is not set
