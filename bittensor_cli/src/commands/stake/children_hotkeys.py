@@ -42,7 +42,7 @@ async def get_childkey_completion_block(
         blocks_since_last_step_query,
         tempo_query,
     )
-    cooldown = block_number + 7200
+    cooldown = block_number + 1
     blocks_left_in_tempo = tempo - blocks_since_last_step
     next_tempo = block_number + blocks_left_in_tempo
     next_epoch_after_cooldown = (cooldown - next_tempo) % tempo + cooldown
