@@ -5,6 +5,7 @@ import os.path
 import re
 import ssl
 import sys
+import traceback
 from pathlib import Path
 from typing import Coroutine, Optional
 from dataclasses import fields
@@ -16,6 +17,7 @@ from bittensor_wallet import Wallet
 from rich import box
 from rich.prompt import Confirm, FloatPrompt, Prompt, IntPrompt
 from rich.table import Column, Table
+from rich.tree import Tree
 from bittensor_cli.src import (
     defaults,
     HELP_PANELS,
@@ -26,9 +28,7 @@ from bittensor_cli.src import (
 )
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
-from bittensor_cli.src.bittensor.async_substrate_interface import (
-    SubstrateRequestException,
-)
+from async_substrate_interface.errors import SubstrateRequestException
 from bittensor_cli.src.commands import sudo, wallets
 from bittensor_cli.src.commands import weights as weights_cmds
 from bittensor_cli.src.commands.subnets import price, subnets
@@ -53,18 +53,19 @@ from bittensor_cli.src.bittensor.utils import (
 )
 from typing_extensions import Annotated
 from textwrap import dedent
-from websockets import ConnectionClosed
+from websockets import ConnectionClosed, InvalidHandshake
 from yaml import safe_dump, safe_load
 
 try:
     from git import Repo, GitError
 except ImportError:
+    Repo = None
 
     class GitError(Exception):
         pass
 
 
-__version__ = "8.2.0rc15"
+__version__ = "9.0.0rc1"
 
 
 _core_version = re.match(r"^\d+\.\d+\.\d+", __version__).group(0)
@@ -279,7 +280,8 @@ def parse_to_list(
 def verbosity_console_handler(verbosity_level: int = 1) -> None:
     """
     Sets verbosity level of console output
-    :param verbosity_level: int corresponding to verbosity level of console output (0 is quiet, 1 is normal, 2 is verbose)
+    :param verbosity_level: int corresponding to verbosity level of console output (0 is quiet, 1 is normal, 2 is
+        verbose)
     """
     if verbosity_level not in range(3):
         raise ValueError(
@@ -310,7 +312,8 @@ def get_optional_netuid(netuid: Optional[int], all_netuids: bool) -> Optional[in
         return None
     elif netuid is None and all_netuids is False:
         answer = Prompt.ask(
-            f"Enter the [{COLOR_PALETTE['GENERAL']['SUBHEADING_MAIN']}]netuid[/{COLOR_PALETTE['GENERAL']['SUBHEADING_MAIN']}] to use. Leave blank for all netuids",
+            f"Enter the [{COLOR_PALETTE['GENERAL']['SUBHEADING_MAIN']}]netuid"
+            f"[/{COLOR_PALETTE['GENERAL']['SUBHEADING_MAIN']}] to use. Leave blank for all netuids",
             default=None,
             show_default=False,
         )
@@ -470,6 +473,16 @@ def version_callback(value: bool):
         except (NameError, GitError):
             version = f"BTCLI version: {__version__}"
         typer.echo(version)
+        raise typer.Exit()
+
+
+def commands_callback(value: bool):
+    """
+    Prints a tree of commands for the app
+    """
+    if value:
+        cli = CLIManager()
+        console.print(cli.generate_command_tree())
         raise typer.Exit()
 
 
@@ -817,6 +830,40 @@ class CLIManager:
         self.sudo_app.command("get_take", hidden=True)(self.sudo_get_take)
         self.sudo_app.command("set_take", hidden=True)(self.sudo_set_take)
 
+    def generate_command_tree(self) -> Tree:
+        """
+        Generates a rich.Tree of the commands, subcommands, and groups of this app
+        """
+
+        def build_rich_tree(data: dict, parent: Tree):
+            for group, content in data.get("groups", {}).items():
+                group_node = parent.add(
+                    f"[bold cyan]{group}[/]"
+                )  # Add group to the tree
+                for command in content.get("commands", []):
+                    group_node.add(f"[green]{command}[/]")  # Add commands to the group
+                build_rich_tree(content, group_node)  # Recurse for subgroups
+
+        def traverse_group(group: typer.Typer) -> dict:
+            tree = {}
+            if commands := [
+                cmd.name for cmd in group.registered_commands if not cmd.hidden
+            ]:
+                tree["commands"] = commands
+            for group in group.registered_groups:
+                if "groups" not in tree:
+                    tree["groups"] = {}
+                if not group.hidden:
+                    if group_transversal := traverse_group(group.typer_instance):
+                        tree["groups"][group.name] = group_transversal
+
+            return tree
+
+        groups_and_commands = traverse_group(self.app)
+        root = Tree("[bold magenta]BTCLI Commands[/]")  # Root node
+        build_rich_tree(groups_and_commands, root)
+        return root
+
     def initialize_chain(
         self,
         network: Optional[list[str]] = None,
@@ -853,29 +900,45 @@ class CLIManager:
                 self.subtensor = SubtensorInterface(defaults.subtensor.network)
         return self.subtensor
 
-    def _run_command(self, cmd: Coroutine) -> None:
+    def _run_command(self, cmd: Coroutine, exit_early: bool = True):
         """
         Runs the supplied coroutine with `asyncio.run`
         """
 
         async def _run():
+            initiated = False
             try:
                 if self.subtensor:
                     async with self.subtensor:
+                        initiated = True
                         result = await cmd
                 else:
+                    initiated = True
                     result = await cmd
                 return result
-            except (ConnectionRefusedError, ssl.SSLError):
+            except (ConnectionRefusedError, ssl.SSLError, InvalidHandshake):
                 err_console.print(f"Unable to connect to the chain: {self.subtensor}")
-                asyncio.create_task(cmd).cancel()
-                raise typer.Exit()
-            except ConnectionClosed:
-                asyncio.create_task(cmd).cancel()
-                raise typer.Exit()
-            except SubstrateRequestException as e:
-                err_console.print(str(e))
-                raise typer.Exit()
+                verbose_console.print(traceback.format_exc())
+            except (
+                ConnectionClosed,
+                SubstrateRequestException,
+                KeyboardInterrupt,
+            ) as e:
+                if isinstance(e, SubstrateRequestException):
+                    err_console.print(str(e))
+                verbose_console.print(traceback.format_exc())
+            except Exception as e:
+                err_console.print(f"An unknown error has occurred: {e}")
+                verbose_console.print(traceback.format_exc())
+            finally:
+                if initiated is False:
+                    asyncio.create_task(cmd).cancel()
+                if exit_early is True:
+                    try:
+                        raise typer.Exit()
+                    except Exception as e:  # ensures we always exit cleanly
+                        if not isinstance(e, typer.Exit):
+                            err_console.print(f"An unknown error has occurred: {e}")
 
         if sys.version_info < (3, 10):
             # For Python 3.9 or lower
@@ -887,13 +950,22 @@ class CLIManager:
     def main_callback(
         self,
         version: Annotated[
-            Optional[bool], typer.Option("--version", callback=version_callback)
+            Optional[bool],
+            typer.Option(
+                "--version", callback=version_callback, help="Show BTCLI version"
+            ),
+        ] = None,
+        commands: Annotated[
+            Optional[bool],
+            typer.Option(
+                "--commands", callback=commands_callback, help="Show BTCLI commands"
+            ),
         ] = None,
     ):
         """
-        Command line interface (CLI) for Bittensor. Uses the values in the configuration file. These values can be overriden by passing them explicitly in the command line.
+        Command line interface (CLI) for Bittensor. Uses the values in the configuration file. These values can be
+            overriden by passing them explicitly in the command line.
         """
-
         # Load or create the config file
         if os.path.exists(self.config_path):
             with open(self.config_path, "r") as f:
@@ -1491,8 +1563,8 @@ class CLIManager:
             validate=WV.WALLET,
         )
 
-        # For Rao games - temporarilyt commented out
-        effective_network = get_effective_network(self.config, network)
+        # For Rao games - temporarily commented out
+        # effective_network = get_effective_network(self.config, network)
         # if is_rao_network(effective_network):
         #     print_error("This command is disabled on the 'rao' network.")
         #     raise typer.Exit()
@@ -2268,7 +2340,7 @@ class CLIManager:
             "--image",
             help="The image URL for the identity.",
         ),
-        discord_handle: str = typer.Option(
+        discord: str = typer.Option(
             "",
             "--discord",
             help="The Discord handle for the identity.",
@@ -2278,10 +2350,15 @@ class CLIManager:
             "--description",
             help="The description for the identity.",
         ),
-        additional_info: str = typer.Option(
+        additional: str = typer.Option(
             "",
             "--additional",
             help="Additional details for the identity.",
+        ),
+        github_repo: str = typer.Option(
+            "",
+            "--github",
+            help="The GitHub repository for the identity.",
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -2318,7 +2395,8 @@ class CLIManager:
                 self.initialize_chain(network),
                 wallet.coldkeypub.ss58_address,
                 "Current on-chain identity",
-            )
+            ),
+            exit_early=False,
         )
 
         if prompt:
@@ -2334,9 +2412,10 @@ class CLIManager:
             name,
             web_url,
             image_url,
-            discord_handle,
+            discord,
             description,
-            additional_info,
+            additional,
+            github_repo,
         )
 
         return self._run_command(
@@ -2349,6 +2428,7 @@ class CLIManager:
                 identity["discord"],
                 identity["description"],
                 identity["additional"],
+                identity["github_repo"],
                 prompt,
             )
         )
@@ -2507,7 +2587,12 @@ class CLIManager:
 
         return self._run_command(
             stake.stake_list(
-                wallet, coldkey_ss58, self.initialize_chain(network), live, verbose, no_prompt  
+                wallet,
+                coldkey_ss58,
+                self.initialize_chain(network),
+                live,
+                verbose,
+                no_prompt,
             )
         )
 
@@ -2622,7 +2707,8 @@ class CLIManager:
                         max_rows=12,
                         prompt=False,
                         delegate_selection=True,
-                    )
+                    ),
+                    exit_early=False,
                 )
                 if selected_hotkey is None:
                     print_error("No delegate selected. Exiting.")
@@ -2682,7 +2768,8 @@ class CLIManager:
             free_balance, staked_balance = self._run_command(
                 wallets.wallet_balance(
                     wallet, self.initialize_chain(network), False, None
-                )
+                ),
+                exit_early=False,
             )
             if free_balance == Balance.from_tao(0):
                 print_error("You dont have any balance to stake.")
@@ -3048,22 +3135,25 @@ class CLIManager:
                 )
                 origin_hotkey = wallet.hotkey.ss58_address
         else:
-            wallet = self.wallet_ask(
-                wallet_name,
-                wallet_path,
-                wallet_hotkey,
-                ask_for=[],
-                validate=WV.WALLET_AND_HOTKEY,
-            )
-            origin_hotkey = wallet.hotkey.ss58_address
+            if is_valid_ss58_address(wallet_hotkey):
+                origin_hotkey = wallet_hotkey
+            else:
+                wallet = self.wallet_ask(
+                    wallet_name,
+                    wallet_path,
+                    wallet_hotkey,
+                    ask_for=[],
+                    validate=WV.WALLET_AND_HOTKEY,
+                )
+                origin_hotkey = wallet.hotkey.ss58_address
 
         if not interactive_selection:
-            if not origin_netuid:
+            if origin_netuid is None:
                 origin_netuid = IntPrompt.ask(
                     "Enter the [blue]origin subnet[/blue] (netuid) to move stake from"
                 )
 
-            if not destination_netuid:
+            if destination_netuid is None:
                 destination_netuid = IntPrompt.ask(
                     "Enter the [blue]destination subnet[/blue] (netuid) to move stake to"
                 )
@@ -3599,7 +3689,8 @@ class CLIManager:
         self.verbosity_handler(quiet, verbose)
 
         hyperparams = self._run_command(
-            sudo.get_hyperparameters(self.initialize_chain(network), netuid)
+            sudo.get_hyperparameters(self.initialize_chain(network), netuid),
+            exit_early=False,
         )
 
         if not hyperparams:
@@ -3770,11 +3861,9 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
 
-        current_take = self._run_command(
-            sudo.get_current_take(self.initialize_chain(network), wallet)
-        )
-        console.print(
-            f"Current take is [{COLOR_PALETTE['POOLS']['RATE']}]{current_take * 100.:.2f}%"
+        self._run_command(
+            sudo.display_current_take(self.initialize_chain(network), wallet),
+            exit_early=False,
         )
 
         if not take:
@@ -3818,11 +3907,8 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
 
-        current_take = self._run_command(
-            sudo.get_current_take(self.initialize_chain(network), wallet)
-        )
-        console.print(
-            f"Current take is [{COLOR_PALETTE['POOLS']['RATE']}]{current_take * 100.:.2f}%"
+        self._run_command(
+            sudo.display_current_take(self.initialize_chain(network), wallet)
         )
 
     def subnets_list(
@@ -4024,6 +4110,18 @@ class CLIManager:
             "--email",
             help="Contact email for subnet",
         ),
+        subnet_url: Optional[str] = typer.Option(
+            None, "--subnet-url", "--url", help="Subnet URL"
+        ),
+        discord: Optional[str] = typer.Option(
+            None, "--discord-handle", "--discord", help="Discord handle"
+        ),
+        description: Optional[str] = typer.Option(
+            None, "--description", help="Description"
+        ),
+        additional_info: Optional[str] = typer.Option(
+            None, "--additional-info", help="Additional information"
+        ),
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -4051,9 +4149,14 @@ class CLIManager:
             subnet_name=subnet_name,
             github_repo=github_repo,
             subnet_contact=subnet_contact,
+            subnet_url=subnet_url,
+            discord=discord,
+            description=description,
+            additional=additional_info,
         )
         success = self._run_command(
-            subnets.create(wallet, self.initialize_chain(network), identity, prompt)
+            subnets.create(wallet, self.initialize_chain(network), identity, prompt),
+            exit_early=False,
         )
 
         if success and prompt:

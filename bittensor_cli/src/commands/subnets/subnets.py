@@ -14,7 +14,6 @@ from rich import box
 
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
-from bittensor_cli.src.bittensor.chain_data import SubnetState
 from bittensor_cli.src.bittensor.extrinsics.registration import (
     register_extrinsic,
     burned_register_extrinsic,
@@ -76,7 +75,7 @@ async def register_subnetwork_extrinsic(
         """
         Searches for the attributes of a specified event within an extrinsic receipt.
 
-        :param response_: (substrateinterface.base.ExtrinsicReceipt): The receipt of the extrinsic to be searched.
+        :param response_: The receipt of the extrinsic to be searched.
         :param event_name: The name of the event to search for.
 
         :return: A list of attributes for the specified event. Returns [-1] if the event is not found.
@@ -91,8 +90,7 @@ async def register_subnetwork_extrinsic(
         return [-1]
 
     print_verbose("Fetching balance")
-    your_balance_ = await subtensor.get_balance(wallet.coldkeypub.ss58_address)
-    your_balance = your_balance_[wallet.coldkeypub.ss58_address]
+    your_balance = await subtensor.get_balance(wallet.coldkeypub.ss58_address)
 
     print_verbose("Fetching burn_cost")
     sn_burn_cost = await burn_cost(subtensor)
@@ -123,6 +121,18 @@ async def register_subnetwork_extrinsic(
             else b"",
             "subnet_contact": subnet_identity["subnet_contact"].encode()
             if subnet_identity.get("subnet_contact")
+            else b"",
+            "subnet_url": subnet_identity["subnet_url"].encode()
+            if subnet_identity.get("subnet_url")
+            else b"",
+            "discord": subnet_identity["discord"].encode()
+            if subnet_identity.get("discord")
+            else b"",
+            "description": subnet_identity["description"].encode()
+            if subnet_identity.get("description")
+            else b"",
+            "additional": subnet_identity["additional"].encode()
+            if subnet_identity.get("additional")
             else b"",
         }
         for field, value in identity_data.items():
@@ -975,7 +985,7 @@ async def show(
         The table displays the root subnet participants and their metrics.
         The columns are as follows:
             - Position: The sorted position of the hotkey by total TAO.
-            - TAO: The sum of all TAO balances for this hotkey accross all subnets. 
+            - TAO: The sum of all TAO balances for this hotkey accross all subnets.
             - Stake: The stake balance of this hotkey on root (measured in TAO).
             - Emission: The emission accrued to this hotkey across all subnets every block measured in TAO.
             - Hotkey: The hotkey ss58 address.
@@ -1348,20 +1358,17 @@ async def burn_cost(subtensor: "SubtensorInterface") -> Optional[Balance]:
         f":satellite:Retrieving lock cost from {subtensor.network}...",
         spinner="aesthetic",
     ):
-        lc = await subtensor.query_runtime_api(
-            runtime_api="SubnetRegistrationRuntimeApi",
-            method="get_network_registration_cost",
-            params=[],
-        )
-    if lc:
-        burn_cost_ = Balance(lc)
-        console.print(
-            f"Subnet burn cost: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{burn_cost_}"
-        )
-        return burn_cost_
-    else:
-        err_console.print("Subnet burn cost: [red]Failed to get subnet burn cost[/red]")
-        return None
+        burn_cost = await subtensor.burn_cost()
+        if burn_cost:
+            console.print(
+                f"Subnet burn cost: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{burn_cost}"
+            )
+            return burn_cost
+        else:
+            err_console.print(
+                "Subnet burn cost: [red]Failed to get subnet burn cost[/red]"
+            )
+            return None
 
 
 async def create(
@@ -1396,9 +1403,10 @@ async def create(
                 name=None,
                 web_url=None,
                 image_url=None,
-                discord_handle=None,
+                discord=None,
                 description=None,
-                additional_info=None,
+                additional=None,
+                github_repo=None,
             )
 
             await set_id(
@@ -1410,6 +1418,7 @@ async def create(
                 identity["discord"],
                 identity["description"],
                 identity["additional"],
+                identity["github_repo"],
                 prompt,
             )
 
@@ -1457,7 +1466,7 @@ async def register(
 
     # Check current recycle amount
     print_verbose("Fetching recycle amount")
-    current_recycle_, balance_ = await asyncio.gather(
+    current_recycle_, balance = await asyncio.gather(
         subtensor.get_hyperparameter(
             param_name="Burn", netuid=netuid, block_hash=block_hash
         ),
@@ -1466,7 +1475,6 @@ async def register(
     current_recycle = (
         Balance.from_rao(int(current_recycle_)) if current_recycle_ else Balance(0)
     )
-    balance = balance_[wallet.coldkeypub.ss58_address]
 
     # Check balance is sufficient
     if balance < current_recycle:
@@ -1581,7 +1589,7 @@ async def metagraph_cmd(
                 subtensor.get_hyperparameter(
                     param_name="Difficulty", netuid=netuid, block_hash=block_hash
                 ),
-                subtensor.substrate.query(
+                subtensor.query(
                     module="SubtensorModule",
                     storage_function="TotalIssuance",
                     params=[],

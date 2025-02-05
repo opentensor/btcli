@@ -7,7 +7,7 @@ from bittensor_wallet import Wallet
 import numpy as np
 from numpy.typing import NDArray
 from rich.prompt import Confirm
-from substrateinterface.exceptions import SubstrateRequestException
+from async_substrate_interface.errors import SubstrateRequestException
 
 from bittensor_cli.src.bittensor.utils import err_console, console, format_error_message
 from bittensor_cli.src.bittensor.extrinsics.root import (
@@ -148,7 +148,7 @@ class SetWeightsExtrinsic:
     ) -> tuple[bool, str]:
         interval = int(
             await self.subtensor.get_hyperparameter(
-                param_name="get_commit_reveal_weights_interval",
+                param_name="get_commit_reveal_period",
                 netuid=self.netuid,
                 reuse_block=False,
             )

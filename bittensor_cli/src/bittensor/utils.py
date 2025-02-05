@@ -21,9 +21,7 @@ import numpy as np
 from numpy.typing import NDArray
 from rich.console import Console
 from rich.prompt import Prompt
-import scalecodec
-from scalecodec.base import RuntimeConfiguration
-from scalecodec.type_registry import load_type_registry_preset
+from scalecodec.utils.ss58 import ss58_encode, ss58_decode
 import typer
 
 
@@ -33,9 +31,7 @@ from bittensor_cli.src import defaults, Constants
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
-    from bittensor_cli.src.bittensor.async_substrate_interface import (
-        AsyncSubstrateInterface,
-    )
+    from async_substrate_interface.async_substrate import AsyncSubstrateInterface
 
 console = Console()
 err_console = Console(stderr=True)
@@ -376,21 +372,15 @@ def is_valid_bittensor_address_or_public_key(address: Union[str, bytes]) -> bool
         return False
 
 
-def decode_scale_bytes(return_type, scale_bytes, custom_rpc_type_registry):
-    """Decodes a ScaleBytes object using our type registry and return type"""
-    rpc_runtime_config = RuntimeConfiguration()
-    rpc_runtime_config.update_type_registry(load_type_registry_preset("legacy"))
-    rpc_runtime_config.update_type_registry(custom_rpc_type_registry)
-    obj = rpc_runtime_config.create_scale_object(return_type, scale_bytes)
-    if obj.data.to_hex() == "0x0400":  # RPC returned None result
-        return None
-    return obj.decode()
+def decode_account_id(account_id_bytes: Union[tuple[int], tuple[tuple[int]]]):
+    if isinstance(account_id_bytes, tuple) and isinstance(account_id_bytes[0], tuple):
+        account_id_bytes = account_id_bytes[0]
+    # Convert the AccountId bytes to a Base64 string
+    return ss58_encode(bytes(account_id_bytes).hex(), SS58_FORMAT)
 
 
-def ss58_address_to_bytes(ss58_address: str) -> bytes:
-    """Converts a ss58 address to a bytes object."""
-    account_id_hex: str = scalecodec.ss58_decode(ss58_address, SS58_FORMAT)
-    return bytes.fromhex(account_id_hex)
+def encode_account_id(ss58_address: str) -> bytes:
+    return bytes.fromhex(ss58_decode(ss58_address, SS58_FORMAT))
 
 
 def ss58_to_vec_u8(ss58_address: str) -> list[int]:
@@ -401,7 +391,7 @@ def ss58_to_vec_u8(ss58_address: str) -> list[int]:
 
     :return: A list of integers representing the byte values of the SS58 address.
     """
-    ss58_bytes: bytes = ss58_address_to_bytes(ss58_address)
+    ss58_bytes: bytes = encode_account_id(ss58_address)
     encoded_address: list[int] = [int(byte) for byte in ss58_bytes]
     return encoded_address
 
@@ -489,7 +479,7 @@ def format_error_message(
                     elif all(x in d for x in ["code", "message", "data"]):
                         new_error_message = d
                         break
-            except ValueError:
+            except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
                 pass
         if new_error_message is None:
             return_val = " ".join(error_message.args)
@@ -1049,9 +1039,10 @@ def prompt_for_identity(
     name: Optional[str],
     web_url: Optional[str],
     image_url: Optional[str],
-    discord_handle: Optional[str],
+    discord: Optional[str],
     description: Optional[str],
-    additional_info: Optional[str],
+    additional: Optional[str],
+    github_repo: Optional[str],
 ):
     """
     Prompts the user for identity fields with validation.
@@ -1063,9 +1054,10 @@ def prompt_for_identity(
         ("name", "[blue]Display name[/blue]", name),
         ("url", "[blue]Web URL[/blue]", web_url),
         ("image", "[blue]Image URL[/blue]", image_url),
-        ("discord", "[blue]Discord handle[/blue]", discord_handle),
+        ("discord", "[blue]Discord handle[/blue]", discord),
         ("description", "[blue]Description[/blue]", description),
-        ("additional", "[blue]Additional information[/blue]", additional_info),
+        ("additional", "[blue]Additional information[/blue]", additional),
+        ("github_repo", "[blue]GitHub repository URL[/blue]", github_repo),
     ]
 
     text_rejection = partial(
@@ -1079,9 +1071,10 @@ def prompt_for_identity(
             name,
             web_url,
             image_url,
-            discord_handle,
+            discord,
             description,
-            additional_info,
+            additional,
+            github_repo,
         ]
     ):
         console.print(
@@ -1106,6 +1099,10 @@ def prompt_for_subnet_identity(
     subnet_name: Optional[str],
     github_repo: Optional[str],
     subnet_contact: Optional[str],
+    subnet_url: Optional[str],
+    discord: Optional[str],
+    description: Optional[str],
+    additional: Optional[str],
 ):
     """
     Prompts the user for required subnet identity fields with validation.
@@ -1142,6 +1139,34 @@ def prompt_for_subnet_identity(
             subnet_contact,
             lambda x: x and not is_valid_contact(x),
             "[red]Error:[/red] Please enter a valid email address.",
+        ),
+        (
+            "subnet_url",
+            "[blue]Subnet URL [dim](optional)[/blue]",
+            subnet_url,
+            lambda x: x and sys.getsizeof(x) > 113,
+            "[red]Error:[/red] Please enter a valid URL.",
+        ),
+        (
+            "discord",
+            "[blue]Discord handle [dim](optional)[/blue]",
+            discord,
+            lambda x: x and sys.getsizeof(x) > 113,
+            "[red]Error:[/red] Please enter a valid Discord handle.",
+        ),
+        (
+            "description",
+            "[blue]Description [dim](optional)[/blue]",
+            description,
+            lambda x: x and sys.getsizeof(x) > 113,
+            "[red]Error:[/red] Description must be <= 64 raw bytes.",
+        ),
+        (
+            "additional",
+            "[blue]Additional information [dim](optional)[/blue]",
+            additional,
+            lambda x: x and sys.getsizeof(x) > 113,
+            "[red]Error:[/red] Additional information must be <= 64 raw bytes.",
         ),
     ]
 
@@ -1183,7 +1208,7 @@ def is_valid_github_url(url: str) -> bool:
             return False
 
         return True
-    except:
+    except Exception:  # TODO figure out the exceptions that can be raised in here
         return False
 
 

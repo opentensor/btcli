@@ -2,7 +2,7 @@ import asyncio
 import itertools
 import os
 from collections import defaultdict
-from typing import Any, Generator, Optional
+from typing import Generator, Optional
 
 import aiohttp
 from bittensor_wallet import Wallet, Keypair
@@ -14,7 +14,6 @@ from rich.align import Align
 from rich.table import Column, Table
 from rich.tree import Tree
 from rich.padding import Padding
-from scalecodec import ScaleBytes
 import typer
 
 from bittensor_cli.src import COLOR_PALETTE
@@ -288,7 +287,7 @@ async def wallet_balance(
 
         block_hash = await subtensor.substrate.get_chain_head()
         free_balances, staked_balances = await asyncio.gather(
-            subtensor.get_balance(*coldkeys, block_hash=block_hash),
+            subtensor.get_balances(*coldkeys, block_hash=block_hash),
             subtensor.get_total_stake_for_coldkey(*coldkeys, block_hash=block_hash),
         )
 
@@ -552,7 +551,7 @@ async def _get_total_balance(
         ]
         total_balance += sum(
             (
-                await subtensor.get_balance(
+                await subtensor.get_balances(
                     *(x.coldkeypub.ss58_address for x in _balance_cold_wallets),
                     block_hash=block_hash,
                 )
@@ -574,7 +573,7 @@ async def _get_total_balance(
         ):
             total_balance = sum(
                 (
-                    await subtensor.get_balance(
+                    await subtensor.get_balances(
                         coldkey_wallet.coldkeypub.ss58_address, block_hash=block_hash
                     )
                 ).values()
@@ -1029,7 +1028,7 @@ def _map_hotkey_to_neurons(
 
 async def _fetch_neuron_for_netuid(
     netuid: int, subtensor: SubtensorInterface
-) -> tuple[int, dict[str, list[ScaleBytes]]]:
+) -> tuple[int, list[NeuronInfoLite]]:
     """
     Retrieves all neurons for a specified netuid
 
@@ -1038,25 +1037,13 @@ async def _fetch_neuron_for_netuid(
 
     :return: the original netuid, and a mapping of the neurons to their NeuronInfoLite objects
     """
-
-    async def neurons_lite_for_uid(uid: int) -> dict[Any, Any]:
-        block_hash = subtensor.substrate.last_block_hash
-        hex_bytes_result = await subtensor.query_runtime_api(
-            runtime_api="NeuronInfoRuntimeApi",
-            method="get_neurons_lite",
-            params=[uid],
-            block_hash=block_hash,
-        )
-
-        return hex_bytes_result
-
-    neurons = await neurons_lite_for_uid(uid=netuid)
+    neurons = await subtensor.neurons_lite(netuid=netuid)
     return netuid, neurons
 
 
 async def _fetch_all_neurons(
     netuids: list[int], subtensor
-) -> list[tuple[int, list[ScaleBytes]]]:
+) -> list[tuple[int, list[NeuronInfoLite]]]:
     """Retrieves all neurons for each of the specified netuids"""
     return list(
         await asyncio.gather(
@@ -1065,31 +1052,13 @@ async def _fetch_all_neurons(
     )
 
 
-def _process_neurons_for_netuids(
-    netuids_with_all_neurons_hex_bytes: list[tuple[int, list[ScaleBytes]]],
-) -> list[tuple[int, list[NeuronInfoLite]]]:
-    """
-    Using multiprocessing to decode a list of hex-bytes neurons with their respective netuid
-
-    :param netuids_with_all_neurons_hex_bytes: netuids with hex-bytes neurons
-    :return: netuids mapped to decoded neurons
-    """
-    all_results = [
-        (netuid, NeuronInfoLite.list_from_vec_u8(bytes.fromhex(result[2:])))
-        for netuid, result in netuids_with_all_neurons_hex_bytes
-    ]
-    return all_results
-
-
 async def _get_neurons_for_netuids(
     subtensor: SubtensorInterface, netuids: list[int], hot_wallets: list[str]
 ) -> list[tuple[int, list["NeuronInfoLite"], Optional[str]]]:
-    all_neurons_hex_bytes = await _fetch_all_neurons(netuids, subtensor)
-
-    all_processed_neurons = _process_neurons_for_netuids(all_neurons_hex_bytes)
+    all_neurons = await _fetch_all_neurons(netuids, subtensor)
     return [
         _map_hotkey_to_neurons(neurons, hot_wallets, netuid)
-        for netuid, neurons in all_processed_neurons
+        for netuid, neurons in all_neurons
     ]
 
 
@@ -1211,7 +1180,7 @@ async def inspect(
     all_delegates: list[list[tuple[DelegateInfo, Balance]]]
     with console.status("Pulling balance data...", spinner="aesthetic"):
         balances, all_neurons, all_delegates = await asyncio.gather(
-            subtensor.get_balance(
+            subtensor.get_balances(
                 *[w.coldkeypub.ss58_address for w in wallets_with_ckp_file],
                 block_hash=block_hash,
             ),
@@ -1327,9 +1296,10 @@ async def set_id(
     name: str,
     web_url: str,
     image_url: str,
-    discord_handle: str,
+    discord: str,
     description: str,
-    additional_info: str,
+    additional: str,
+    github_repo: str,
     prompt: bool,
 ):
     """Create a new or update existing identity on-chain."""
@@ -1338,9 +1308,10 @@ async def set_id(
         "name": name.encode(),
         "url": web_url.encode(),
         "image": image_url.encode(),
-        "discord": discord_handle.encode(),
+        "discord": discord.encode(),
         "description": description.encode(),
-        "additional": additional_info.encode(),
+        "additional": additional.encode(),
+        "github_repo": github_repo.encode(),
     }
 
     for field, value in identity_data.items():
@@ -1408,21 +1379,21 @@ async def get_id(subtensor: SubtensorInterface, ss58_address: str, title: str = 
 
 
 async def check_coldkey_swap(wallet: Wallet, subtensor: SubtensorInterface):
-    arbitration_check = len(
+    arbitration_check = len(  # TODO verify this works
         (
-            await subtensor.substrate.query(
+            await subtensor.query(
                 module="SubtensorModule",
                 storage_function="ColdkeySwapDestinations",
                 params=[wallet.coldkeypub.ss58_address],
             )
-        ).decode()
+        )
     )
     if arbitration_check == 0:
         console.print(
             "[green]There has been no previous key swap initiated for your coldkey.[/green]"
         )
     elif arbitration_check == 1:
-        arbitration_block = await subtensor.substrate.query(
+        arbitration_block = await subtensor.query(
             module="SubtensorModule",
             storage_function="ColdkeyArbitrationBlock",
             params=[wallet.coldkeypub.ss58_address],

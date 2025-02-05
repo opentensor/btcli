@@ -8,7 +8,7 @@ class Constants:
     finney_entrypoint = "wss://entrypoint-finney.opentensor.ai:443"
     finney_test_entrypoint = "wss://test.finney.opentensor.ai:443"
     archive_entrypoint = "wss://archive.chain.opentensor.ai:443"
-    rao_entrypoint = "wss://rao.chain.opentensor.ai:443/"
+    rao_entrypoint = "wss://rao.chain.opentensor.ai:443"
     dev_entrypoint = "wss://dev.chain.opentensor.ai:443 "
     local_entrypoint = "ws://127.0.0.1:9944"
     network_map = {
@@ -142,203 +142,6 @@ class WalletValidationTypes(Enum):
 TYPE_REGISTRY = {
     "types": {
         "Balance": "u64",  # Need to override default u128
-    },
-    "runtime_api": {
-        "DelegateInfoRuntimeApi": {
-            "methods": {
-                "get_delegated": {
-                    "params": [
-                        {
-                            "name": "coldkey",
-                            "type": "Vec<u8>",
-                        },
-                    ],
-                    "type": "Vec<u8>",
-                },
-                "get_delegates": {
-                    "params": [],
-                    "type": "Vec<u8>",
-                },
-            }
-        },
-        "NeuronInfoRuntimeApi": {
-            "methods": {
-                "get_neuron_lite": {
-                    "params": [
-                        {
-                            "name": "netuid",
-                            "type": "u16",
-                        },
-                        {
-                            "name": "uid",
-                            "type": "u16",
-                        },
-                    ],
-                    "type": "Vec<u8>",
-                },
-                "get_neurons_lite": {
-                    "params": [
-                        {
-                            "name": "netuid",
-                            "type": "u16",
-                        },
-                    ],
-                    "type": "Vec<u8>",
-                },
-                "get_neuron": {
-                    "params": [
-                        {
-                            "name": "netuid",
-                            "type": "u16",
-                        },
-                        {
-                            "name": "uid",
-                            "type": "u16",
-                        },
-                    ],
-                    "type": "Vec<u8>",
-                },
-                "get_neurons": {
-                    "params": [
-                        {
-                            "name": "netuid",
-                            "type": "u16",
-                        },
-                    ],
-                    "type": "Vec<u8>",
-                },
-            }
-        },
-        "StakeInfoRuntimeApi": {
-            "methods": {
-                "get_stake_info_for_coldkey": {
-                    "params": [{"name": "coldkey_account_vec", "type": "Vec<u8>"}],
-                    "type": "Vec<u8>",
-                },
-                "get_stake_info_for_coldkeys": {
-                    "params": [
-                        {"name": "coldkey_account_vecs", "type": "Vec<Vec<u8>>"}
-                    ],
-                    "type": "Vec<u8>",
-                },
-                "get_subnet_stake_info_for_coldkeys": {
-                    "params": [
-                        {"name": "coldkey_account_vecs", "type": "Vec<Vec<u8>>"},
-                        {"name": "netuid", "type": "u16"},
-                    ],
-                    "type": "Vec<u8>",
-                },
-                "get_subnet_stake_info_for_coldkey": {
-                    "params": [
-                        {"name": "coldkey_account_vec", "type": "Vec<u8>"},
-                        {"name": "netuid", "type": "u16"},
-                    ],
-                    "type": "Vec<u8>",
-                },
-                "get_total_subnet_stake": {
-                    "params": [{"name": "netuid", "type": "u16"}],
-                    "type": "Vec<u8>",
-                },
-            }
-        },
-        "ValidatorIPRuntimeApi": {
-            "methods": {
-                "get_associated_validator_ip_info_for_subnet": {
-                    "params": [
-                        {
-                            "name": "netuid",
-                            "type": "u16",
-                        },
-                    ],
-                    "type": "Vec<u8>",
-                },
-            },
-        },
-        "SubnetInfoRuntimeApi": {
-            "methods": {
-                "get_subnet_hyperparams": {
-                    "params": [
-                        {
-                            "name": "netuid",
-                            "type": "u16",
-                        },
-                    ],
-                    "type": "Vec<u8>",
-                },
-                "get_subnet_info": {
-                    "params": [
-                        {
-                            "name": "netuid",
-                            "type": "u16",
-                        },
-                    ],
-                    "type": "Vec<u8>",
-                },
-                "get_subnets_info": {
-                    "params": [],
-                    "type": "Vec<u8>",
-                },
-                "get_subnet_info_v2": {
-                    "params": [
-                        {
-                            "name": "netuid",
-                            "type": "u16",
-                        },
-                    ],
-                    "type": "Vec<u8>",
-                },
-                "get_subnets_info_v2": {
-                    "params": [],
-                    "type": "Vec<u8>",
-                },
-                "get_all_dynamic_info": {
-                    "params": [],
-                    "type": "Vec<u8>",
-                },
-                "get_dynamic_info": {
-                    "params": [{"name": "netuid", "type": "u16"}],
-                    "type": "Vec<u8>",
-                },
-                "get_subnet_state": {
-                    "params": [{"name": "netuid", "type": "u16"}],
-                    "type": "Vec<u8>",
-                },
-            }
-        },
-        "SubnetRegistrationRuntimeApi": {
-            "methods": {"get_network_registration_cost": {"params": [], "type": "u64"}}
-        },
-        "ColdkeySwapRuntimeApi": {
-            "methods": {
-                "get_scheduled_coldkey_swap": {
-                    "params": [
-                        {
-                            "name": "coldkey_account_vec",
-                            "type": "Vec<u8>",
-                        },
-                    ],
-                    "type": "Vec<u8>",
-                },
-                "get_remaining_arbitration_period": {
-                    "params": [
-                        {
-                            "name": "coldkey_account_vec",
-                            "type": "Vec<u8>",
-                        },
-                    ],
-                    "type": "Vec<u8>",
-                },
-                "get_coldkey_swap_destinations": {
-                    "params": [
-                        {
-                            "name": "coldkey_account_vec",
-                            "type": "Vec<u8>",
-                        },
-                    ],
-                    "type": "Vec<u8>",
-                },
-            }
-        },
     },
 }
 
@@ -830,7 +633,7 @@ HYPERPARAMS = {
     "max_difficulty": "sudo_set_max_difficulty",
     "weights_version": "sudo_set_weights_version_key",
     "weights_rate_limit": "sudo_set_weights_set_rate_limit",
-    "max_weight_limit": "sudo_set_max_weight_limit",
+    "max_weights_limit": "sudo_set_max_weight_limit",
     "immunity_period": "sudo_set_immunity_period",
     "min_allowed_weights": "sudo_set_min_allowed_weights",
     "activity_cutoff": "sudo_set_activity_cutoff",
@@ -843,7 +646,7 @@ HYPERPARAMS = {
     "kappa": "sudo_set_kappa",
     "difficulty": "sudo_set_difficulty",
     "bonds_moving_avg": "sudo_set_bonds_moving_average",
-    "commit_reveal_weights_interval": "sudo_set_commit_reveal_weights_interval",
+    "commit_reveal_period": "sudo_set_commit_reveal_weights_interval",
     "commit_reveal_weights_enabled": "sudo_set_commit_reveal_weights_enabled",
     "alpha_values": "sudo_set_alpha_values",
     "liquid_alpha_enabled": "sudo_set_liquid_alpha_enabled",

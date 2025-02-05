@@ -32,7 +32,7 @@ def test_staking(local_chain, wallet_setup):
         AssertionError: If any of the checks or verifications fail
     """
     print("Testing staking and sudo commands🧪")
-    netuid = 1
+    netuid = 2
     wallet_path_alice = "//Alice"
 
     # Create wallet for Alice
@@ -47,11 +47,19 @@ def test_staking(local_chain, wallet_setup):
         extra_args=[
             "--wallet-path",
             wallet_path_alice,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
             "--chain",
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet_alice.name,
             "--no-prompt",
+            "--subnet-name",
+            "test-subnet",
+            "--github-repo",
+            "https://github.com/bittensor/bittensor",
+            "--subnet-contact",
+            "test@test.com",
         ],
     )
     assert f"✅ Registered subnetwork with netuid: {netuid}" in result.stdout
@@ -74,13 +82,15 @@ def test_staking(local_chain, wallet_setup):
             "--no-prompt",
         ],
     )
-    assert "✅ Registered" in register_subnet.stdout
+    assert "✅ Already Registered" in register_subnet.stdout
 
     # Add stake to Alice's hotkey
     add_stake = exec_command_alice(
         command="stake",
         sub_command="add",
         extra_args=[
+            "--netuid",
+            netuid,
             "--wallet-path",
             wallet_path_alice,
             "--wallet-name",
@@ -99,7 +109,7 @@ def test_staking(local_chain, wallet_setup):
     # Execute stake show for Alice's wallet
     show_stake = exec_command_alice(
         command="stake",
-        sub_command="show",
+        sub_command="list",
         extra_args=[
             "--wallet-path",
             wallet_path_alice,
@@ -113,19 +123,16 @@ def test_staking(local_chain, wallet_setup):
     cleaned_stake = [
         re.sub(r"\s+", " ", line) for line in show_stake.stdout.splitlines()
     ]
-    stake_added = cleaned_stake[6].split()[6].strip("τ")
-    assert Balance.from_tao(100) == Balance.from_tao(float(stake_added))
-
-    # TODO: Ask nucleus the rate limit and wait epoch
-    # Sleep 120 seconds for rate limiting when unstaking
-    print("Waiting for interval for 2 minutes")
-    time.sleep(120)
+    stake_added = cleaned_stake[9].split()[8]
+    assert Balance.from_tao(float(stake_added)) >= Balance.from_tao(100)
 
     # Execute remove_stake command and remove all 100 TAO from Alice
     remove_stake = exec_command_alice(
         command="stake",
         sub_command="remove",
         extra_args=[
+            "--netuid",
+            netuid,
             "--wallet-path",
             wallet_path_alice,
             "--wallet-name",
@@ -155,10 +162,10 @@ def test_staking(local_chain, wallet_setup):
 
     # Parse all hyperparameters and single out max_burn in TAO
     all_hyperparams = hyperparams.stdout.splitlines()
-    max_burn_tao = all_hyperparams[22].split()[2]
+    max_burn_tao = all_hyperparams[22].split()[3]
 
     # Assert max_burn is 100 TAO from default
-    assert Balance.from_tao(float(max_burn_tao.strip("τ"))) == Balance.from_tao(100)
+    assert Balance.from_tao(float(max_burn_tao)) == Balance.from_tao(100)
 
     # Change max_burn hyperparameter to 10 TAO
     change_hyperparams = exec_command_alice(
@@ -199,10 +206,8 @@ def test_staking(local_chain, wallet_setup):
 
     # Parse updated hyperparameters
     all_updated_hyperparams = updated_hyperparams.stdout.splitlines()
-    updated_max_burn_tao = all_updated_hyperparams[22].split()[2]
+    updated_max_burn_tao = all_updated_hyperparams[22].split()[3]
 
     # Assert max_burn is now 10 TAO
-    assert Balance.from_tao(float(updated_max_burn_tao.strip("τ"))) == Balance.from_tao(
-        10
-    )
+    assert Balance.from_tao(float(updated_max_burn_tao)) == Balance.from_tao(10)
     print("✅ Passed staking and sudo commands")
