@@ -2340,7 +2340,7 @@ class CLIManager:
             "--image",
             help="The image URL for the identity.",
         ),
-        discord_handle: str = typer.Option(
+        discord: str = typer.Option(
             "",
             "--discord",
             help="The Discord handle for the identity.",
@@ -2350,10 +2350,15 @@ class CLIManager:
             "--description",
             help="The description for the identity.",
         ),
-        additional_info: str = typer.Option(
+        additional: str = typer.Option(
             "",
             "--additional",
             help="Additional details for the identity.",
+        ),
+        github_repo: str = typer.Option(
+            "",
+            "--github",
+            help="The GitHub repository for the identity.",
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -2407,9 +2412,10 @@ class CLIManager:
             name,
             web_url,
             image_url,
-            discord_handle,
+            discord,
             description,
-            additional_info,
+            additional,
+            github_repo,
         )
 
         return self._run_command(
@@ -2422,6 +2428,7 @@ class CLIManager:
                 identity["discord"],
                 identity["description"],
                 identity["additional"],
+                identity["github_repo"],
                 prompt,
             )
         )
@@ -4103,6 +4110,18 @@ class CLIManager:
             "--email",
             help="Contact email for subnet",
         ),
+        subnet_url: Optional[str] = typer.Option(
+            None, "--subnet-url", "--url", help="Subnet URL"
+        ),
+        discord: Optional[str] = typer.Option(
+            None, "--discord-handle", "--discord", help="Discord handle"
+        ),
+        description: Optional[str] = typer.Option(
+            None, "--description", help="Description"
+        ),
+        additional_info: Optional[str] = typer.Option(
+            None, "--additional-info", help="Additional information"
+        ),
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -4130,6 +4149,10 @@ class CLIManager:
             subnet_name=subnet_name,
             github_repo=github_repo,
             subnet_contact=subnet_contact,
+            subnet_url=subnet_url,
+            discord=discord,
+            description=description,
+            additional=additional_info,
         )
         success = self._run_command(
             subnets.create(wallet, self.initialize_chain(network), identity, prompt),

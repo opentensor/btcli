@@ -122,6 +122,18 @@ async def register_subnetwork_extrinsic(
             "subnet_contact": subnet_identity["subnet_contact"].encode()
             if subnet_identity.get("subnet_contact")
             else b"",
+            "subnet_url": subnet_identity["subnet_url"].encode()
+            if subnet_identity.get("subnet_url")
+            else b"",
+            "discord": subnet_identity["discord"].encode()
+            if subnet_identity.get("discord")
+            else b"",
+            "description": subnet_identity["description"].encode()
+            if subnet_identity.get("description")
+            else b"",
+            "additional": subnet_identity["additional"].encode()
+            if subnet_identity.get("additional")
+            else b"",
         }
         for field, value in identity_data.items():
             max_size = 64  # bytes
@@ -1391,9 +1403,10 @@ async def create(
                 name=None,
                 web_url=None,
                 image_url=None,
-                discord_handle=None,
+                discord=None,
                 description=None,
-                additional_info=None,
+                additional=None,
+                github_repo=None,
             )
 
             await set_id(
@@ -1405,6 +1418,7 @@ async def create(
                 identity["discord"],
                 identity["description"],
                 identity["additional"],
+                identity["github_repo"],
                 prompt,
             )
 

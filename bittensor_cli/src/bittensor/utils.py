@@ -1039,9 +1039,10 @@ def prompt_for_identity(
     name: Optional[str],
     web_url: Optional[str],
     image_url: Optional[str],
-    discord_handle: Optional[str],
+    discord: Optional[str],
     description: Optional[str],
-    additional_info: Optional[str],
+    additional: Optional[str],
+    github_repo: Optional[str],
 ):
     """
     Prompts the user for identity fields with validation.
@@ -1053,9 +1054,10 @@ def prompt_for_identity(
         ("name", "[blue]Display name[/blue]", name),
         ("url", "[blue]Web URL[/blue]", web_url),
         ("image", "[blue]Image URL[/blue]", image_url),
-        ("discord", "[blue]Discord handle[/blue]", discord_handle),
+        ("discord", "[blue]Discord handle[/blue]", discord),
         ("description", "[blue]Description[/blue]", description),
-        ("additional", "[blue]Additional information[/blue]", additional_info),
+        ("additional", "[blue]Additional information[/blue]", additional),
+        ("github_repo", "[blue]GitHub repository URL[/blue]", github_repo),
     ]
 
     text_rejection = partial(
@@ -1069,9 +1071,10 @@ def prompt_for_identity(
             name,
             web_url,
             image_url,
-            discord_handle,
+            discord,
             description,
-            additional_info,
+            additional,
+            github_repo,
         ]
     ):
         console.print(
@@ -1096,6 +1099,10 @@ def prompt_for_subnet_identity(
     subnet_name: Optional[str],
     github_repo: Optional[str],
     subnet_contact: Optional[str],
+    subnet_url: Optional[str],
+    discord: Optional[str],
+    description: Optional[str],
+    additional: Optional[str],
 ):
     """
     Prompts the user for required subnet identity fields with validation.
@@ -1132,6 +1139,34 @@ def prompt_for_subnet_identity(
             subnet_contact,
             lambda x: x and not is_valid_contact(x),
             "[red]Error:[/red] Please enter a valid email address.",
+        ),
+        (
+            "subnet_url",
+            "[blue]Subnet URL [dim](optional)[/blue]",
+            subnet_url,
+            lambda x: x and sys.getsizeof(x) > 113,
+            "[red]Error:[/red] Please enter a valid URL.",
+        ),
+        (
+            "discord",
+            "[blue]Discord handle [dim](optional)[/blue]",
+            discord,
+            lambda x: x and sys.getsizeof(x) > 113,
+            "[red]Error:[/red] Please enter a valid Discord handle.",
+        ),
+        (
+            "description",
+            "[blue]Description [dim](optional)[/blue]",
+            description,
+            lambda x: x and sys.getsizeof(x) > 113,
+            "[red]Error:[/red] Description must be <= 64 raw bytes.",
+        ),
+        (
+            "additional",
+            "[blue]Additional information [dim](optional)[/blue]",
+            additional,
+            lambda x: x and sys.getsizeof(x) > 113,
+            "[red]Error:[/red] Additional information must be <= 64 raw bytes.",
         ),
     ]
 
