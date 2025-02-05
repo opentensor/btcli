@@ -1052,31 +1052,13 @@ async def _fetch_all_neurons(
     )
 
 
-def _process_neurons_for_netuids(
-    netuids_with_all_neurons_hex_bytes: list[tuple[int, list[NeuronInfoLite]]],
-) -> list[tuple[int, list[NeuronInfoLite]]]:
-    """
-    Using multiprocessing to decode a list of hex-bytes neurons with their respective netuid
-
-    :param netuids_with_all_neurons_hex_bytes: netuids with hex-bytes neurons
-    :return: netuids mapped to decoded neurons
-    """
-    all_results = [
-        (netuid, NeuronInfoLite.list_from_any(bytes.fromhex(result[2:])))
-        for netuid, result in netuids_with_all_neurons_hex_bytes
-    ]
-    return all_results
-
-
 async def _get_neurons_for_netuids(
     subtensor: SubtensorInterface, netuids: list[int], hot_wallets: list[str]
 ) -> list[tuple[int, list["NeuronInfoLite"], Optional[str]]]:
-    all_neurons_hex_bytes = await _fetch_all_neurons(netuids, subtensor)
-
-    all_processed_neurons = _process_neurons_for_netuids(all_neurons_hex_bytes)
+    all_neurons = await _fetch_all_neurons(netuids, subtensor)
     return [
         _map_hotkey_to_neurons(neurons, hot_wallets, netuid)
-        for netuid, neurons in all_processed_neurons
+        for netuid, neurons in all_neurons
     ]
 
 
