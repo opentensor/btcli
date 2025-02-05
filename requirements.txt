@@ -1,6 +1,6 @@
 wheel
 async-property==0.2.2
-async-substrate-interface==1.0.0rc9
+async-substrate-interface==1.0.0rc10
 aiohttp~=3.10.2
 backoff~=2.2.1
 GitPython>=3.0.0
