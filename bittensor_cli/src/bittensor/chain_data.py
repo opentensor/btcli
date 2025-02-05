@@ -179,7 +179,7 @@ class SubnetHyperparameters(InfoBase):
             max_validators=decoded.get("max_validators"),
             adjustment_alpha=decoded.get("adjustment_alpha"),
             difficulty=decoded.get("difficulty"),
-            commit_reveal_period=decoded.get("commit_reveal_weights_interval"),
+            commit_reveal_period=decoded.get("commit_reveal_period"),
             commit_reveal_weights_enabled=decoded.get("commit_reveal_weights_enabled"),
             alpha_high=decoded.get("alpha_high"),
             alpha_low=decoded.get("alpha_low"),
@@ -574,7 +574,7 @@ class SubnetInfo(InfoBase):
                 str(int(netuid)): u16_normalized_float(int(req))
                 for (netuid, req) in decoded.get("network_connect")
             },
-            emission_value=decoded.get("emission_values"),
+            emission_value=decoded.get("emission_value"),
             burn=Balance.from_rao(decoded.get("burn")),
             owner_ss58=decode_account_id(decoded.get("owner")),
         )
@@ -587,6 +587,10 @@ class SubnetIdentity(InfoBase):
     subnet_name: str
     github_repo: str
     subnet_contact: str
+    subnet_url: str
+    discord: str
+    description: str
+    additional: str
 
     @classmethod
     def _fix_decoded(cls, decoded: dict) -> "SubnetIdentity":
@@ -594,6 +598,10 @@ class SubnetIdentity(InfoBase):
             subnet_name=bytes(decoded["subnet_name"]).decode(),
             github_repo=bytes(decoded["github_repo"]).decode(),
             subnet_contact=bytes(decoded["subnet_contact"]).decode(),
+            subnet_url=bytes(decoded["subnet_url"]).decode(),
+            discord=bytes(decoded["discord"]).decode(),
+            description=bytes(decoded["description"]).decode(),
+            additional=bytes(decoded["additional"]).decode(),
         )
 
 

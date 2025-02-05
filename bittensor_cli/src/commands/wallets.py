@@ -1296,9 +1296,10 @@ async def set_id(
     name: str,
     web_url: str,
     image_url: str,
-    discord_handle: str,
+    discord: str,
     description: str,
-    additional_info: str,
+    additional: str,
+    github_repo: str,
     prompt: bool,
 ):
     """Create a new or update existing identity on-chain."""
@@ -1307,9 +1308,10 @@ async def set_id(
         "name": name.encode(),
         "url": web_url.encode(),
         "image": image_url.encode(),
-        "discord": discord_handle.encode(),
+        "discord": discord.encode(),
         "description": description.encode(),
-        "additional": additional_info.encode(),
+        "additional": additional.encode(),
+        "github_repo": github_repo.encode(),
     }
 
     for field, value in identity_data.items():

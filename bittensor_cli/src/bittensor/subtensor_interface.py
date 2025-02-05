@@ -839,7 +839,7 @@ class SubtensorInterface:
 
         identities = await self.substrate.query_map(
             module="SubtensorModule",
-            storage_function="Identities",
+            storage_function="IdentitiesV2",
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
@@ -877,7 +877,7 @@ class SubtensorInterface:
         """
         identity_info = await self.query(
             module="SubtensorModule",
-            storage_function="Identities",
+            storage_function="IdentitiesV2",
             params=[key],
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
