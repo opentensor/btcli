@@ -5,6 +5,10 @@
 ## What's Changed
 * Uses new Async Substrate Interface
 * Updates how we use runtime calls
+* Updates stake move to accept ss58 origin hotkeys
+* Fixes slippage calculation in stake move
+* Adds improved error handling through '--verbose' flag
+* Improved docstrings
 
 ## 8.2.0rc15 /2025-02-03
 
