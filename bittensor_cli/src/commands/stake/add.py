@@ -222,7 +222,7 @@ async def stake_add(
         bool: True if stake operation is successful, False otherwise
     """
 
-    async def send_stake_extrinsic(
+    async def add_stake_extrinsic(
         netuid_i, amount_, current, staking_address_ss58, status=None
     ):
         err_out = partial(print_error, status=status)
@@ -374,12 +374,12 @@ async def stake_add(
             # Add rows for the table
             rows.append(
                 (
-                    str(netuid),
-                    f"{hotkey[1]}",
-                    str(amount_to_stake),
-                    rate + f" {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ",
-                    str(received_amount.set_unit(netuid)),
-                    str(slippage_pct),
+                    str(netuid), # netuid
+                    f"{hotkey[1]}", # hotkey
+                    str(amount_to_stake), # amount
+                    rate + f" {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ", # rate
+                    str(received_amount.set_unit(netuid)), # received
+                    str(slippage_pct), # slippage
                 )
             )
 
@@ -401,7 +401,7 @@ async def stake_add(
         return False
 
     stake_coroutines = [
-        send_stake_extrinsic(ni, am, curr, staking_address)
+        add_stake_extrinsic(ni, am, curr, staking_address)
         for i, (ni, am, curr) in enumerate(
             zip(netuids, amounts_to_stake, current_stake_balances)
         )
