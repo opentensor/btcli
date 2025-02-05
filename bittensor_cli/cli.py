@@ -2601,12 +2601,6 @@ class CLIManager:
         amount: float = typer.Option(
             0.0, "--amount", help="The amount of TAO to stake"
         ),
-        max_stake: float = typer.Option(
-            0.0,
-            "--max-stake",
-            "-m",
-            help="Stake is sent to a hotkey only until the hotkey's total stake is less than or equal to this maximum staked TAO. If a hotkey already has stake greater than this amount, then stake is not added to this hotkey.",
-        ),
         include_hotkeys: str = typer.Option(
             "",
             "--include-hotkeys",
@@ -2757,7 +2751,7 @@ class CLIManager:
             excluded_hotkeys = []
 
         # TODO: Ask amount for each subnet explicitly if more than one
-        if not stake_all and not amount and not max_stake:
+        if not stake_all and not amount:
             free_balance, staked_balance = self._run_command(
                 wallets.wallet_balance(
                     wallet, self.initialize_chain(network), False, None
@@ -2792,9 +2786,7 @@ class CLIManager:
                 netuid,
                 stake_all,
                 amount,
-                False,
                 prompt,
-                max_stake,
                 all_hotkeys,
                 included_hotkeys,
                 excluded_hotkeys,

@@ -35,15 +35,149 @@ if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 
 
+def _get_hotkeys_to_stake_to(
+    wallet: Wallet,
+    all_hotkeys: bool = False,
+    include_hotkeys: list[str] = None,
+    exclude_hotkeys: list[str] = None,
+) -> list[tuple[Optional[str], str]]:
+    """Get list of hotkeys to stake to based on input parameters.
+
+    Args:
+        wallet: The wallet containing hotkeys
+        all_hotkeys: If True, get all hotkeys from wallet except excluded ones
+        include_hotkeys: List of specific hotkeys to include (by name or ss58 address)
+        exclude_hotkeys: List of hotkeys to exclude when all_hotkeys is True
+
+    Returns:
+        List of tuples containing (hotkey_name, hotkey_ss58_address)
+        hotkey_name may be None if ss58 address was provided directly
+    """
+    if all_hotkeys:
+        # Stake to all hotkeys except excluded ones
+        all_hotkeys_: list[Wallet] = get_hotkey_wallets_for_wallet(wallet=wallet)
+        return [
+            (wallet.hotkey_str, wallet.hotkey.ss58_address)
+            for wallet in all_hotkeys_
+            if wallet.hotkey_str not in (exclude_hotkeys or [])
+        ]
+
+    if include_hotkeys:
+        print_verbose("Staking to only included hotkeys")
+        # Stake to specific hotkeys
+        hotkeys = []
+        for hotkey_ss58_or_hotkey_name in include_hotkeys:
+            if is_valid_ss58_address(hotkey_ss58_or_hotkey_name):
+                # If valid ss58 address, add directly
+                hotkeys.append((None, hotkey_ss58_or_hotkey_name))
+            else:
+                # If hotkey name, get ss58 from wallet
+                wallet_ = Wallet(
+                    path=wallet.path,
+                    name=wallet.name,
+                    hotkey=hotkey_ss58_or_hotkey_name,
+                )
+                hotkeys.append((wallet_.hotkey_str, wallet_.hotkey.ss58_address))
+        return hotkeys
+
+    # Default: stake to single hotkey from wallet
+    print_verbose(
+        f"Staking to hotkey: ({wallet.hotkey_str}) in wallet: ({wallet.name})"
+    )
+    assert wallet.hotkey is not None
+    return [(None, wallet.hotkey.ss58_address)]
+
+
+def _define_stake_add_table(wallet: Wallet, subtensor: "SubtensorInterface") -> Table:
+    """Creates and initializes a table for displaying stake information.
+
+    Args:
+        wallet: The wallet being used for staking
+        subtensor: The subtensor interface
+
+    Returns:
+        Table: An initialized rich Table object with appropriate columns
+    """
+    table = Table(
+        title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Staking to:\n"
+        f"Wallet: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.name}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}], "
+        f"Coldkey ss58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
+        f"Network: {subtensor.network}[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n",
+        show_footer=True,
+        show_edge=False,
+        header_style="bold white",
+        border_style="bright_black",
+        style="bold",
+        title_justify="center",
+        show_lines=False,
+        pad_edge=True,
+    )
+
+    table.add_column("Netuid", justify="center", style="grey89")
+    table.add_column(
+        "Hotkey", justify="center", style=COLOR_PALETTE["GENERAL"]["HOTKEY"]
+    )
+    table.add_column(
+        f"Amount ({Balance.get_unit(0)})",
+        justify="center",
+        style=COLOR_PALETTE["POOLS"]["TAO"],
+    )
+    table.add_column(
+        f"Rate (per {Balance.get_unit(0)})",
+        justify="center",
+        style=COLOR_PALETTE["POOLS"]["RATE"],
+    )
+    table.add_column(
+        "Received",
+        justify="center",
+        style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
+    )
+    table.add_column(
+        "Slippage", justify="center", style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"]
+    )
+
+    return table
+
+
+def _print_table_and_slippage(table: Table, max_slippage: float):
+    """Prints the stake table, slippage warning, and table description.
+
+    Args:
+        table: The rich Table object to print
+        max_slippage: The maximum slippage percentage across all operations
+    """
+    console.print(table)
+
+    # Greater than 5%
+    if max_slippage > 5:
+        message = f"[{COLOR_PALETTE['STAKE']['SLIPPAGE_TEXT']}]-------------------------------------------------------------------------------------------------------------------\n"
+        message += f"[bold]WARNING:[/bold]  The slippage on one of your operations is high: [{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}]{max_slippage} %[/{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}], this may result in a loss of funds.\n"
+        message += "-------------------------------------------------------------------------------------------------------------------\n"
+        console.print(message)
+
+    # Table description
+    console.print(
+        """
+[bold white]Description[/bold white]:
+The table displays information about the stake operation you are about to perform.
+The columns are as follows:
+    - [bold white]Netuid[/bold white]: The netuid of the subnet you are staking to.
+    - [bold white]Hotkey[/bold white]: The ss58 address of the hotkey you are staking to. 
+    - [bold white]Amount[/bold white]: The TAO you are staking into this subnet onto this hotkey.
+    - [bold white]Rate[/bold white]: The rate of exchange between your TAO and the subnet's stake.
+    - [bold white]Received[/bold white]: The amount of stake you will receive on this subnet after slippage.
+    - [bold white]Slippage[/bold white]: The slippage percentage of the stake operation. (0% if the subnet is not dynamic i.e. root).
+"""
+    )
+
+
 async def stake_add(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
     netuid: Optional[int],
     stake_all: bool,
     amount: float,
-    delegate: bool,
     prompt: bool,
-    max_stake: float,
     all_hotkeys: bool,
     include_hotkeys: list[str],
     exclude_hotkeys: list[str],
@@ -71,17 +205,11 @@ async def stake_add(
         if netuid is not None
         else await subtensor.get_all_subnet_netuids()
     )
-    # Init the table.
-    table = Table(
-        title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Staking to: \nWallet: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.name}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}], Coldkey ss58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\nNetwork: {subtensor.network}[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n",
-        show_footer=True,
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        style="bold",
-        title_justify="center",
-        show_lines=False,
-        pad_edge=True,
+    hotkeys_to_stake_to = _get_hotkeys_to_stake_to(
+        wallet=wallet,
+        all_hotkeys=all_hotkeys,
+        include_hotkeys=include_hotkeys,
+        exclude_hotkeys=exclude_hotkeys,
     )
 
     # Determine the amount we are staking.
@@ -95,46 +223,6 @@ async def stake_add(
     remaining_wallet_balance = current_wallet_balance
     max_slippage = 0.0
 
-    hotkeys_to_stake_to: list[tuple[Optional[str], str]] = []
-    if all_hotkeys:
-        # Stake to all hotkeys.
-        all_hotkeys_: list[Wallet] = get_hotkey_wallets_for_wallet(wallet=wallet)
-        # Get the hotkeys to exclude. (d)efault to no exclusions.
-        # Exclude hotkeys that are specified.
-        hotkeys_to_stake_to = [
-            (wallet.hotkey_str, wallet.hotkey.ss58_address)
-            for wallet in all_hotkeys_
-            if wallet.hotkey_str not in exclude_hotkeys
-        ]  # definitely wallets
-
-    elif include_hotkeys:
-        print_verbose("Staking to only included hotkeys")
-        # Stake to specific hotkeys.
-        for hotkey_ss58_or_hotkey_name in include_hotkeys:
-            if is_valid_ss58_address(hotkey_ss58_or_hotkey_name):
-                # If the hotkey is a valid ss58 address, we add it to the list.
-                hotkeys_to_stake_to.append((None, hotkey_ss58_or_hotkey_name))
-            else:
-                # If the hotkey is not a valid ss58 address, we assume it is a hotkey name.
-                #  We then get the hotkey from the wallet and add it to the list.
-                wallet_ = Wallet(
-                    path=wallet.path,
-                    name=wallet.name,
-                    hotkey=hotkey_ss58_or_hotkey_name,
-                )
-                hotkeys_to_stake_to.append(
-                    (wallet_.hotkey_str, wallet_.hotkey.ss58_address)
-                )
-    else:
-        # Only config.wallet.hotkey is specified.
-        #  so we stake to that single hotkey.
-        print_verbose(
-            f"Staking to hotkey: ({wallet.hotkey_str}) in wallet: ({wallet.name})"
-        )
-        assert wallet.hotkey is not None
-        hotkey_ss58_or_name = wallet.hotkey.ss58_address
-        hotkeys_to_stake_to = [(None, hotkey_ss58_or_name)]
-
     starting_chain_head = await subtensor.substrate.get_chain_head()
     _all_dynamic_info, stake_info_dict = await asyncio.gather(
         subtensor.all_subnets(),
@@ -145,7 +233,7 @@ async def stake_add(
     )
     all_dynamic_info = {di.netuid: di for di in _all_dynamic_info}
     initial_stake_balances = {}
-    for hotkey_ss58 in [x[1] for x in hotkeys_to_stake_to]:
+    for _, hotkey_ss58 in hotkeys_to_stake_to:
         initial_stake_balances[hotkey_ss58] = {}
         for netuid in netuids:
             initial_stake_balances[hotkey_ss58][netuid] = Balance.from_rao(0)
@@ -177,7 +265,7 @@ async def stake_add(
                 amount_to_stake_as_balance = Balance.from_tao(amount)
             elif stake_all:
                 amount_to_stake_as_balance = current_wallet_balance / len(netuids)
-            elif not amount and not max_stake:
+            elif not amount:
                 if Confirm.ask(f"Stake all: [bold]{remaining_wallet_balance}[/bold]?"):
                     amount_to_stake_as_balance = remaining_wallet_balance
                 else:
@@ -226,50 +314,13 @@ async def stake_add(
                     str(slippage_pct),
                 )
             )
-    table.add_column("Netuid", justify="center", style="grey89")
-    table.add_column(
-        "Hotkey", justify="center", style=COLOR_PALETTE["GENERAL"]["HOTKEY"]
-    )
-    table.add_column(
-        f"Amount ({Balance.get_unit(0)})",
-        justify="center",
-        style=COLOR_PALETTE["POOLS"]["TAO"],
-    )
-    table.add_column(
-        f"Rate (per {Balance.get_unit(0)})",
-        justify="center",
-        style=COLOR_PALETTE["POOLS"]["RATE"],
-    )
-    table.add_column(
-        "Received",
-        justify="center",
-        style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
-    )
-    table.add_column(
-        "Slippage", justify="center", style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"]
-    )
+
+    # Define and print stake table + slippage warning
+    table = _define_stake_add_table(wallet, subtensor)
     for row in rows:
         table.add_row(*row)
-    console.print(table)
-    message = ""
-    if max_slippage > 5:
-        message += f"[{COLOR_PALETTE['STAKE']['SLIPPAGE_TEXT']}]-------------------------------------------------------------------------------------------------------------------\n"
-        message += f"[bold]WARNING:[/bold]  The slippage on one of your operations is high: [{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}]{max_slippage} %[/{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}], this may result in a loss of funds.\n"
-        message += "-------------------------------------------------------------------------------------------------------------------\n"
-        console.print(message)
-    console.print(
-        """
-[bold white]Description[/bold white]:
-The table displays information about the stake operation you are about to perform.
-The columns are as follows:
-    - [bold white]Netuid[/bold white]: The netuid of the subnet you are staking to.
-    - [bold white]Hotkey[/bold white]: The ss58 address of the hotkey you are staking to. 
-    - [bold white]Amount[/bold white]: The TAO you are staking into this subnet onto this hotkey.
-    - [bold white]Rate[/bold white]: The rate of exchange between your TAO and the subnet's stake.
-    - [bold white]Received[/bold white]: The amount of stake you will receive on this subnet after slippage.
-    - [bold white]Slippage[/bold white]: The slippage percentage of the stake operation. (0% if the subnet is not dynamic i.e. root).
-"""
-    )
+    _print_table_and_slippage(table, max_slippage)
+
     if prompt:
         if not Confirm.ask("Would you like to continue?"):
             raise typer.Exit()
