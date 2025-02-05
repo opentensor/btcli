@@ -32,7 +32,12 @@ from async_substrate_interface.errors import SubstrateRequestException
 from bittensor_cli.src.commands import sudo, wallets
 from bittensor_cli.src.commands import weights as weights_cmds
 from bittensor_cli.src.commands.subnets import price, subnets
-from bittensor_cli.src.commands.stake import children_hotkeys, stake, move
+from bittensor_cli.src.commands.stake import (
+    children_hotkeys,
+    stake,
+    move,
+    add as stake_add,
+)
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
 from bittensor_cli.src.bittensor.utils import (
@@ -2780,7 +2785,7 @@ class CLIManager:
                 raise typer.Exit()
 
         return self._run_command(
-            stake.stake_add(
+            stake_add.stake_add(
                 wallet,
                 self.initialize_chain(network),
                 netuid,

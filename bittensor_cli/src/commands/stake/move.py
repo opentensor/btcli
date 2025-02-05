@@ -178,7 +178,7 @@ def prompt_stake_amount(
     """
     while True:
         amount_input = Prompt.ask(
-            f"\nEnter amount to {action_name} from "
+            f"\nEnter the amount to {action_name}"
             f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{Balance.get_unit(netuid)}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] "
             f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}](max: {current_balance})[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] "
             f"or "
