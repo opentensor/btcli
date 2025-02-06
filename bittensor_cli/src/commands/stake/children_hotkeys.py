@@ -544,8 +544,7 @@ async def set_children(
                     subtensor, netuid
                 )
                 console.print(
-                    f"Your childkey request has been submitted. It will be completed around block {completion_block}, "
-                    f"assuming you have the required key swap cost (default: 0.1 Tao) in your coldkey at that time. "
+                    f"Your childkey request has been submitted. It will be completed around block {completion_block}. "
                     f"The current block is {current_block}"
                 )
             console.print(
@@ -577,8 +576,7 @@ async def set_children(
             )
             console.print(
                 f"Your childkey request for netuid {netuid_} has been submitted. It will be completed around "
-                f"block {completion_block}, assuming you have the required key swap cost (default: 0.1 Tao) in your "
-                f"coldkey at that time. The current block is {current_block}."
+                f"block {completion_block}. The current block is {current_block}."
             )
         console.print(
             ":white_heavy_check_mark: [green]Sent set children request for all subnets.[/green]"
