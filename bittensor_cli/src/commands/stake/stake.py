@@ -293,7 +293,12 @@ async def _unstake_all(
             else "Unstaking Summary - All Alpha Stakes"
         )
         table = Table(
-            title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]{table_title}\nWallet: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.name}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}], Coldkey ss58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\nNetwork: {subtensor.network}[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n",
+            title=(
+                f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]{table_title}[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n"
+                f"Wallet: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.name}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}], "
+                f"Coldkey ss58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
+                f"Network: [{COLOR_PALETTE['GENERAL']['HEADER']}]{subtensor.network}[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n"
+            ),
             show_footer=True,
             show_edge=False,
             header_style="bold white",

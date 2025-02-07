@@ -243,6 +243,26 @@ class Options:
         help="Create wallet from uri (e.g. 'Alice', 'Bob', 'Charlie', 'Dave', 'Eve')",
         callback=validate_uri,
     )
+    slippage_tolerance = typer.Option(
+        None,
+        "--slippage",
+        "--slippage-tolerance",
+        "--tolerance",
+        help="Set the slippage tolerance percentage for transactions (default: 0.05%).",
+    )
+    safe_staking = typer.Option(
+        None,
+        "--safe-staking/--no-safe-staking",
+        "--safe/--unsafe",
+        help="Enable or disable safe staking mode (default: enabled).",
+    )
+    allow_partial_stake = typer.Option(
+        None,
+        "--allow-partial-stake/--no-allow-partial-stake",
+        "--partial/--no-partial",
+        "--allow/--not-allow",
+        help="Enable or disable partial stake mode (default: disabled).",
+    )
 
 
 def list_prompt(init_var: list, list_type: type, help_text: str) -> list:
@@ -517,25 +537,29 @@ class CLIManager:
             "wallet_hotkey": None,
             "network": None,
             "use_cache": True,
-            "metagraph_cols": {
-                "UID": True,
-                "GLOBAL_STAKE": True,
-                "LOCAL_STAKE": True,
-                "STAKE_WEIGHT": True,
-                "RANK": True,
-                "TRUST": True,
-                "CONSENSUS": True,
-                "INCENTIVE": True,
-                "DIVIDENDS": True,
-                "EMISSION": True,
-                "VTRUST": True,
-                "VAL": True,
-                "UPDATED": True,
-                "ACTIVE": True,
-                "AXON": True,
-                "HOTKEY": True,
-                "COLDKEY": True,
-            },
+            "slippage_tolerance": None,
+            "safe_staking": True,
+            "allow_partial_stake": False,
+            # Commenting this out as this needs to get updated
+            # "metagraph_cols": {
+            #     "UID": True,
+            #     "GLOBAL_STAKE": True,
+            #     "LOCAL_STAKE": True,
+            #     "STAKE_WEIGHT": True,
+            #     "RANK": True,
+            #     "TRUST": True,
+            #     "CONSENSUS": True,
+            #     "INCENTIVE": True,
+            #     "DIVIDENDS": True,
+            #     "EMISSION": True,
+            #     "VTRUST": True,
+            #     "VAL": True,
+            #     "UPDATED": True,
+            #     "ACTIVE": True,
+            #     "AXON": True,
+            #     "HOTKEY": True,
+            #     "COLDKEY": True,
+            # },
         }
         self.subtensor = None
         self.config_base_path = os.path.expanduser(defaults.config.base_path)
@@ -634,7 +658,7 @@ class CLIManager:
         self.config_app.command("set")(self.set_config)
         self.config_app.command("get")(self.get_config)
         self.config_app.command("clear")(self.del_config)
-        self.config_app.command("metagraph")(self.metagraph_config)
+        self.config_app.command("metagraph", hidden=True)(self.metagraph_config)
 
         # wallet commands
         self.wallet_app.command(
@@ -1057,6 +1081,25 @@ class CLIManager:
             help="Disable caching of some commands. This will disable the `--reuse-last` and `--html` flags on "
             "commands such as `subnets metagraph`, `stake show` and `subnets list`.",
         ),
+        slippage_tolerance: Optional[float] = typer.Option(
+            None,
+            "--slippage",
+            "--slippage-tolerance",
+            "--tolerance",
+            help="Set the slippage tolerance percentage for transactions (e.g. 0.1 for 0.1%).",
+        ),
+        safe_staking: Optional[bool] = typer.Option(
+            None,
+            "--safe-staking/--no-safe-staking",
+            "--safe/--unsafe",
+            help="Enable or disable safe staking mode.",
+        ),
+        allow_partial_stake: Optional[bool] = typer.Option(
+            None,
+            "--allow-partial-stake/--no-allow-partial-stake",
+            "--partial/--no-partial",
+            "--allow/--not-allow",
+        ),
     ):
         """
         Sets the values in the config file. To set the metagraph configuration, use the command `btcli config metagraph`
@@ -1067,8 +1110,11 @@ class CLIManager:
             "wallet_hotkey": wallet_hotkey,
             "network": network,
             "use_cache": use_cache,
+            "slippage_tolerance": slippage_tolerance,
+            "safe_staking": safe_staking,
+            "allow_partial_stake": allow_partial_stake,
         }
-        bools = ["use_cache"]
+        bools = ["use_cache", "safe_staking", "allow_partial_stake"]
         if all(v is None for v in args.values()):
             # Print existing configs
             self.get_config()
@@ -1092,6 +1138,17 @@ class CLIManager:
                     default=True,
                 )
                 self.config[arg] = nc
+
+            elif arg == "slippage_tolerance":
+                val = FloatPrompt.ask(
+                    f"What percentage would you like to set for [red]{arg}[/red]?\nValues are percentages (e.g. 0.05 for 5%)",
+                    default=0.05,
+                )
+                if val < 0 or val > 1:
+                    print_error("Slippage tolerance must be between 0 and 1.")
+                    raise typer.Exit()
+                self.config[arg] = val
+
             else:
                 val = Prompt.ask(
                     f"What value would you like to assign to [red]{arg}[/red]?"
@@ -1149,6 +1206,18 @@ class CLIManager:
         wallet_hotkey: bool = typer.Option(False, *Options.wallet_hotkey.param_decls),
         network: bool = typer.Option(False, *Options.network.param_decls),
         use_cache: bool = typer.Option(False, "--cache"),
+        slippage_tolerance: bool = typer.Option(
+            False, "--slippage", "--slippage-tolerance", "--tolerance"
+        ),
+        safe_staking: bool = typer.Option(
+            False, "--safe-staking/--no-safe-staking", "--safe/--unsafe"
+        ),
+        allow_partial_stake: bool = typer.Option(
+            False,
+            "--allow-partial-stake/--no-allow-partial-stake",
+            "--partial/--no-partial",
+            "--allow/--not-allow",
+        ),
         all_items: bool = typer.Option(False, "--all"),
     ):
         """
@@ -1178,6 +1247,9 @@ class CLIManager:
             "wallet_hotkey": wallet_hotkey,
             "network": network,
             "use_cache": use_cache,
+            "slippage_tolerance": slippage_tolerance,
+            "safe_staking": safe_staking,
+            "allow_partial_stake": allow_partial_stake,
         }
 
         # If no specific argument is provided, iterate over all
@@ -1239,6 +1311,8 @@ class CLIManager:
                 else:
                     if value in Constants.networks:
                         value = value + f" ({Constants.network_map[value]})"
+            if key == "slippage_tolerance":
+                value = f"{value} ({value*100}%)"
 
             elif key in deprecated_configs:
                 continue
@@ -1251,13 +1325,97 @@ class CLIManager:
                 table.add_row(str(key), str(value), "")
 
         console.print(table)
-        console.print(
-            dedent(
-                """
-            [red]Deprecation notice[/red]: The chain endpoint config is now deprecated. You can use the network config to pass chain endpoints.
-            """
+
+    def ask_slippage(
+        self,
+        slippage_tolerance: Optional[float],
+    ) -> float:
+        """
+        Gets slippage tolerance from args, config, or default.
+
+        Args:
+            slippage_tolerance (Optional[float]): Explicitly provided slippage value
+
+        Returns:
+            float: Slippage tolerance value
+        """
+        if slippage_tolerance is not None:
+            console.print(
+                f"[dim][blue]Slippage tolerance[/blue] is: [bold cyan]{slippage_tolerance} ({slippage_tolerance*100}%)[/bold cyan]."
             )
-        )
+            return slippage_tolerance
+        elif self.config.get("slippage_tolerance") is not None:
+            config_slippage = self.config["slippage_tolerance"]
+            console.print(
+                f"[dim][blue]Slippage tolerance[/blue] is: [bold cyan]{config_slippage} ({config_slippage*100}%)[/bold cyan] (from config)."
+            )
+            return config_slippage
+        else:
+            console.print(
+                f"[dim][blue]Slippage tolerance[/blue] is: [bold cyan]{defaults.slippage_tolerance} ({defaults.slippage_tolerance*100}%)[/bold cyan] by default."
+            )
+            return defaults.slippage_tolerance
+
+    def ask_safe_staking(
+        self,
+        safe_staking: Optional[bool],
+    ) -> bool:
+        """
+        Gets safe staking setting from args, config, or default.
+
+        Args:
+            safe_staking (Optional[bool]): Explicitly provided safe staking value
+
+        Returns:
+            bool: Safe staking setting
+        """
+        if safe_staking is not None:
+            console.print(
+                f"[dim][blue]Safe staking[/blue] is: [bold cyan]{'enabled' if safe_staking else 'disabled'}[/bold cyan]."
+            )
+            return safe_staking
+        elif self.config.get("safe_staking") is not None:
+            safe_staking = self.config["safe_staking"]
+            console.print(
+                f"[dim][blue]Safe staking[/blue] is: [bold cyan]{'enabled' if safe_staking else 'disabled'}[/bold cyan] (from config)."
+            )
+            return safe_staking
+        else:
+            safe_staking = True
+            console.print(
+                f"[dim][blue]Safe staking[/blue] is: [bold cyan]{'enabled' if safe_staking else 'disabled'}[/bold cyan] by default."
+            )
+            return safe_staking
+
+    def ask_partial_stake(
+        self,
+        allow_partial_stake: Optional[bool],
+    ) -> bool:
+        """
+        Gets partial stake setting from args, config, or default.
+
+        Args:
+            allow_partial_stake (Optional[bool]): Explicitly provided partial stake value
+
+        Returns:
+            bool: Partial stake setting
+        """
+        if allow_partial_stake is not None:
+            console.print(
+                f"[dim][blue]Partial staking[/blue] is: [bold cyan]{'enabled' if allow_partial_stake else 'disabled'}[/bold cyan]."
+            )
+            return allow_partial_stake
+        elif self.config.get("allow_partial_stake") is not None:
+            config_partial = self.config["allow_partial_stake"]
+            console.print(
+                f"[dim][blue]Partial staking[/blue] is: [bold cyan]{'enabled' if config_partial else 'disabled'}[/bold cyan] (from config)."
+            )
+            return config_partial
+        else:
+            console.print(
+                f"[dim][blue]Partial staking[/blue] is: [bold cyan]{'enabled' if allow_partial_stake else 'disabled'}[/bold cyan] by default."
+            )
+            return False
 
     def wallet_ask(
         self,
@@ -2631,6 +2789,9 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
+        slippage_tolerance: Optional[float] = Options.slippage_tolerance,
+        safe_staking: Optional[bool] = Options.safe_staking,
+        allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -2647,6 +2808,10 @@ class CLIManager:
         [green]$[/green] btcli stake add --amount 100 --wallet-name <my_wallet> --wallet-hotkey <my_hotkey>
         """
         self.verbosity_handler(quiet, verbose)
+        safe_staking = self.ask_safe_staking(safe_staking)
+        if safe_staking:
+            allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
+            slippage_tolerance = self.ask_slippage(slippage_tolerance)
         netuid = get_optional_netuid(netuid, all_netuids)
 
         if stake_all and amount:
@@ -2795,6 +2960,9 @@ class CLIManager:
                 all_hotkeys,
                 included_hotkeys,
                 excluded_hotkeys,
+                safe_staking,
+                slippage_tolerance,
+                allow_partial_stake,
             )
         )
 
@@ -2873,9 +3041,9 @@ class CLIManager:
         [blue bold]Note[/blue bold]: This command is for users who wish to reallocate their stake or withdraw them from the network. It allows for flexible management of TAO stake across different neurons (hotkeys) on the network.
         """
         self.verbosity_handler(quiet, verbose)
-        # TODO: Coldkey related unstakes need to be updated. Patching for now.
-        unstake_all_alpha = False
-        unstake_all = False
+        # # TODO: Coldkey related unstakes need to be updated. Patching for now.
+        # unstake_all_alpha = False
+        # unstake_all = False
 
         if interactive and any(
             [hotkey_ss58_address, include_hotkeys, exclude_hotkeys, all_hotkeys]

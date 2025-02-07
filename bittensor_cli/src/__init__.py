@@ -65,6 +65,7 @@ class DelegatesDetails:
 
 class Defaults:
     netuid = 1
+    slippage_tolerance = 0.005
 
     class config:
         base_path = "~/.bittensor"

@@ -1226,3 +1226,17 @@ def print_linux_dependency_message():
 def is_linux():
     """Returns True if the operating system is Linux."""
     return platform.system().lower() == "linux"
+
+def validate_slippage_tolerance(value: Optional[float]) -> Optional[float]:
+    """Validates slippage tolerance input"""
+    if value is not None:
+        if value < 0:
+            raise typer.BadParameter("Slippage tolerance cannot be negative (less than 0%).")
+        if value > 1:
+            raise typer.BadParameter("Slippage tolerance cannot be greater than 1 (100%).")
+        if value > 0.5:
+            console.print(
+                f"[yellow]Warning: High slippage tolerance of {value*100}% specified. "
+                "This may result in unfavorable transaction execution.[/yellow]"
+            )
+    return value

@@ -4,7 +4,7 @@ from functools import partial
 import typer
 from typing import TYPE_CHECKING, Optional
 from rich.table import Table
-from rich.prompt import Confirm
+from rich.prompt import Confirm, Prompt
 
 from async_substrate_interface.errors import SubstrateRequestException
 from bittensor_cli.src import COLOR_PALETTE
@@ -17,13 +17,55 @@ from bittensor_cli.src.bittensor.utils import (
     is_valid_ss58_address,
     print_error,
     print_verbose,
-    prompt_stake_amount,
 )
 from bittensor_wallet import Wallet
 from bittensor_wallet.errors import KeyFileError
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
+
+# Helper functions
+def prompt_stake_amount(
+    current_balance: Balance, netuid: int, action_name: str
+) -> tuple[Balance, bool]:
+    """Prompts user to input a stake amount with validation.
+
+    Args:
+        current_balance (Balance): The maximum available balance
+        netuid (int): The subnet id to get the correct unit
+        action_name (str): The name of the action (e.g. "transfer", "move", "unstake")
+
+    Returns:
+        tuple[Balance, bool]: (The amount to use as Balance object, whether all balance was selected)
+    """
+    while True:
+        amount_input = Prompt.ask(
+            f"\nEnter the amount to {action_name}"
+            f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{Balance.get_unit(netuid)}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] "
+            f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}](max: {current_balance})[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] "
+            f"or "
+            f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]'all'[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] "
+            f"for entire balance"
+        )
+
+        if amount_input.lower() == "all":
+            return current_balance, True
+
+        try:
+            amount = float(amount_input)
+            if amount <= 0:
+                console.print("[red]Amount must be greater than 0[/red]")
+                continue
+            if amount > current_balance.tao:
+                console.print(
+                    f"[red]Amount exceeds available balance of "
+                    f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{current_balance}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
+                    f"[/red]"
+                )
+                continue
+            return Balance.from_tao(amount), False
+        except ValueError:
+            console.print("[red]Please enter a valid number or 'all'[/red]")
 
 
 def _get_hotkeys_to_stake_to(
@@ -80,7 +122,12 @@ def _get_hotkeys_to_stake_to(
     return [(None, wallet.hotkey.ss58_address)]
 
 
-def define_stake_stable(wallet: Wallet, subtensor: "SubtensorInterface") -> Table:
+def define_stake_table(
+    wallet: Wallet,
+    subtensor: "SubtensorInterface",
+    safe_staking: bool,
+    slippage_tolerance: float,
+) -> Table:
     """Creates and initializes a table for displaying stake information.
 
     Args:
@@ -128,10 +175,21 @@ def define_stake_stable(wallet: Wallet, subtensor: "SubtensorInterface") -> Tabl
         "Slippage", justify="center", style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"]
     )
 
+    if safe_staking:
+        table.add_column(
+            f"Rate with tolerance: [blue]({slippage_tolerance*100}%)[/blue]",
+            justify="center",
+            style=COLOR_PALETTE["POOLS"]["RATE"],
+        )
+        table.add_column(
+            "Partial stake enabled",
+            justify="center",
+            style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"],
+        )
     return table
 
 
-def print_table_and_slippage(table: Table, max_slippage: float):
+def print_table_and_slippage(table: Table, max_slippage: float, safe_staking: bool):
     """Prints the stake table, slippage warning, and table description.
 
     Args:
@@ -148,8 +206,7 @@ def print_table_and_slippage(table: Table, max_slippage: float):
         console.print(message)
 
     # Table description
-    console.print(
-        """
+    base_description = """
 [bold white]Description[/bold white]:
 The table displays information about the stake operation you are about to perform.
 The columns are as follows:
@@ -158,14 +215,16 @@ The columns are as follows:
     - [bold white]Amount[/bold white]: The TAO you are staking into this subnet onto this hotkey.
     - [bold white]Rate[/bold white]: The rate of exchange between your TAO and the subnet's stake.
     - [bold white]Received[/bold white]: The amount of stake you will receive on this subnet after slippage.
-    - [bold white]Slippage[/bold white]: The slippage percentage of the stake operation. (0% if the subnet is not dynamic i.e. root).
-"""
-    )
+    - [bold white]Slippage[/bold white]: The slippage percentage of the stake operation. (0% if the subnet is not dynamic i.e. root)."""
+
+    safe_staking_description = """
+    - [bold white]Rate Tolerance[/bold white]: Maximum acceptable alpha rate. If the rate exceeds this tolerance, the transaction will be limited or rejected.
+    - [bold white]Partial staking[/bold white]: If True, allows staking up to the rate tolerance limit. If False, the entire transaction will fail if rate tolerance is exceeded."""
+
+    console.print(base_description + (safe_staking_description if safe_staking else ""))
 
 
-def calculate_slippage(
-    subnet_info, amount: Balance
-) -> tuple[Balance, str, float]:
+def calculate_slippage(subnet_info, amount: Balance) -> tuple[Balance, str, float]:
     """Calculate slippage when adding stake.
 
     Args:
@@ -192,6 +251,7 @@ def calculate_slippage(
     return received_amount, slippage_str, slippage_pct_float, rate
 
 
+#  Command
 async def stake_add(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
@@ -202,9 +262,11 @@ async def stake_add(
     all_hotkeys: bool,
     include_hotkeys: list[str],
     exclude_hotkeys: list[str],
+    safe_staking: bool,
+    slippage_tolerance: float,
+    allow_partial_stake: bool,
 ):
     """
-
     Args:
         wallet: wallet object
         subtensor: SubtensorInterface object
@@ -217,12 +279,94 @@ async def stake_add(
         all_hotkeys: whether to stake all hotkeys
         include_hotkeys: list of hotkeys to include in staking process (if not specifying `--all`)
         exclude_hotkeys: list of hotkeys to exclude in staking (if specifying `--all`)
+        safe_staking: whether to use safe staking
+        slippage_tolerance: slippage tolerance percentage for stake operations
+        allow_partial_stake: whether to allow partial stake
 
     Returns:
         bool: True if stake operation is successful, False otherwise
     """
+    async def safe_stake_extrinsic(
+        netuid: int,
+        amount: Balance,
+        current_stake: Balance,
+        hotkey_ss58: str,
+        price_limit: Balance,
+        wallet: Wallet,
+        subtensor: "SubtensorInterface",
+        status=None
+    ) -> None:
+        err_out = partial(print_error, status=status)
+        failure_prelude = (
+            f":cross_mark: [red]Failed[/red] to stake {amount} on Netuid {netuid}"
+        )
 
-    async def add_stake_extrinsic(
+        next_nonce = await subtensor.substrate.get_account_next_index(
+            wallet.coldkeypub.ss58_address
+        )
+        call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="add_stake_limit",
+            call_params={
+                "hotkey": hotkey_ss58,
+                "netuid": netuid,
+                "amount_staked": amount.rao,
+                "limit_price": price_limit,
+                "allow_partial": allow_partial_stake,
+            },
+        )
+        extrinsic = await subtensor.substrate.create_signed_extrinsic(
+            call=call, keypair=wallet.coldkey, nonce=next_nonce
+        )
+        try:
+            response = await subtensor.substrate.submit_extrinsic(
+                extrinsic, wait_for_inclusion=True, wait_for_finalization=False
+            )
+        except SubstrateRequestException as e:
+            err_out(
+                f"\n{failure_prelude} with error: {format_error_message(e, subtensor.substrate)}"
+            )
+            return
+        else:
+            await response.process_events()
+            if not await response.is_success:
+                err_out(
+                    f"\n{failure_prelude} with error: {format_error_message(await response.error_message, subtensor.substrate)}"
+                )
+            else:
+                new_balance, new_stake = await asyncio.gather(
+                    subtensor.get_balance(wallet.coldkeypub.ss58_address),
+                    subtensor.get_stake(
+                        hotkey_ss58=hotkey_ss58,
+                        coldkey_ss58=wallet.coldkeypub.ss58_address,
+                        netuid=netuid,
+                    ),
+                )
+                console.print(
+                    f":white_heavy_check_mark: [dark_sea_green3]Finalized. Stake added to netuid: {netuid}[/dark_sea_green3]"
+                )
+                console.print(
+                    f"Balance:\n  [blue]{current_wallet_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
+                )
+
+                amount_staked = current_wallet_balance - new_balance
+                if allow_partial_stake and (amount_staked != amount):
+                    console.print(
+                        "Partial stake transaction. Staked:\n"
+                        f"  [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{amount_staked}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] "
+                        f"instead of "
+                        f"[blue]{amount}[/blue]"
+                    )
+
+                console.print(
+                    f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] "
+                    f"Stake:\n"
+                    f"  [blue]{current_stake}[/blue] "
+                    f":arrow_right: "
+                    f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}\n"
+                )
+
+    async def stake_extrinsic(
         netuid_i, amount_, current, staking_address_ss58, status=None
     ):
         err_out = partial(print_error, status=status)
@@ -232,6 +376,7 @@ async def stake_add(
         next_nonce = await subtensor.substrate.get_account_next_index(
             wallet.coldkeypub.ss58_address
         )
+
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function="add_stake",
@@ -260,20 +405,14 @@ async def stake_add(
                     f"\n{failure_prelude} with error: {format_error_message(await response.error_message, subtensor.substrate)}"
                 )
             else:
-                new_balance, stake_info_dict = await asyncio.gather(
+                new_balance, new_stake = await asyncio.gather(
                     subtensor.get_balance(wallet.coldkeypub.ss58_address),
-                    subtensor.get_stake_for_coldkey(
+                    subtensor.get_stake(
+                        hotkey_ss58=staking_address_ss58,
                         coldkey_ss58=wallet.coldkeypub.ss58_address,
+                        netuid=netuid_i,
                     ),
                 )
-                new_stake = Balance.from_rao(0)
-                for stake_info in stake_info_dict:
-                    if (
-                        stake_info.hotkey_ss58 == staking_address_ss58
-                        and stake_info.netuid == netuid_i
-                    ):
-                        new_stake = stake_info.stake.set_unit(netuid_i)
-                        break
                 console.print(
                     f":white_heavy_check_mark: [dark_sea_green3]Finalized. Stake added to netuid: {netuid_i}[/dark_sea_green3]"
                 )
@@ -330,14 +469,15 @@ async def stake_add(
     rows = []
     amounts_to_stake = []
     current_stake_balances = []
+    prices_with_tolerance = []
     remaining_wallet_balance = current_wallet_balance
     max_slippage = 0.0
 
     for hotkey in hotkeys_to_stake_to:
         for netuid in netuids:
             # Check that the subnet exists.
-            dynamic_info = all_subnets.get(netuid)
-            if not dynamic_info:
+            subnet_info = all_subnets.get(netuid)
+            if not subnet_info:
                 err_console.print(f"Subnet with netuid: {netuid} does not exist.")
                 continue
             current_stake_balances.append(hotkey_stake_map[hotkey[1]][netuid])
@@ -367,44 +507,101 @@ async def stake_add(
 
             # Calculate slippage
             received_amount, slippage_pct, slippage_pct_float, rate = (
-                calculate_slippage(dynamic_info, amount_to_stake)
+                calculate_slippage(subnet_info, amount_to_stake)
             )
             max_slippage = max(slippage_pct_float, max_slippage)
 
             # Add rows for the table
-            rows.append(
-                (
-                    str(netuid), # netuid
-                    f"{hotkey[1]}", # hotkey
-                    str(amount_to_stake), # amount
-                    rate + f" {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ", # rate
-                    str(received_amount.set_unit(netuid)), # received
-                    str(slippage_pct), # slippage
+            base_row = [
+                str(netuid),  # netuid
+                f"{hotkey[1]}",  # hotkey
+                str(amount_to_stake),  # amount
+                str(rate)
+                + f" {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ",  # rate
+                str(received_amount.set_unit(netuid)),  # received
+                str(slippage_pct),  # slippage
+            ]
+
+            # If we are staking safe, add price tolerance
+            if safe_staking:
+                if subnet_info.is_dynamic:
+                    rate = 1 / subnet_info.price.tao or 1
+                    rate_with_tolerance = rate * (1 + slippage_tolerance) # Rate only for display
+                    price_with_tolerance = subnet_info.price.rao * (1 + slippage_tolerance) # Actual price to pass to extrinsic
+                else:
+                    rate_with_tolerance = 1
+                    price_with_tolerance = Balance.from_rao(1)
+                prices_with_tolerance.append(price_with_tolerance)
+
+                base_row.extend(
+                    [
+                        str(rate_with_tolerance)
+                        + f" {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ",
+                        f"[{'dark_sea_green3' if allow_partial_stake else 'red'}]{allow_partial_stake}[/{'dark_sea_green3' if allow_partial_stake else 'red'}]",  # safe staking
+                    ]
                 )
-            )
+
+            rows.append(tuple(base_row))
 
     # Define and print stake table + slippage warning
-    table = define_stake_stable(wallet, subtensor)
+    table = define_stake_table(
+        wallet, subtensor, safe_staking, slippage_tolerance
+    )
     for row in rows:
         table.add_row(*row)
-    print_table_and_slippage(table, max_slippage)
+    print_table_and_slippage(table, max_slippage, safe_staking)
 
     if prompt:
         if not Confirm.ask("Would you like to continue?"):
             raise typer.Exit()
-
-    # Perform staking operation.
     try:
         wallet.unlock_coldkey()
     except KeyFileError:
         err_console.print("Error decrypting coldkey (possibly incorrect password)")
         return False
 
-    stake_coroutines = [
-        add_stake_extrinsic(ni, am, curr, staking_address)
-        for i, (ni, am, curr) in enumerate(
-            zip(netuids, amounts_to_stake, current_stake_balances)
-        )
-        for _, staking_address in hotkeys_to_stake_to
-    ]
-    await asyncio.gather(*stake_coroutines)
+    if safe_staking:
+        stake_coroutines = []
+        for i, (ni, am, curr, price_with_tolerance) in enumerate(
+            zip(netuids, amounts_to_stake, current_stake_balances, prices_with_tolerance)
+        ):
+            for _, staking_address in hotkeys_to_stake_to:
+                # Regular extrinsic for root subnet
+                if ni == 0:
+                    stake_coroutines.append(
+                        stake_extrinsic(
+                            netuid_i=ni,
+                            amount_=am,
+                            current=curr,
+                            staking_address_ss58=staking_address,
+                        )
+                    )
+                else:
+                    stake_coroutines.append(
+                        safe_stake_extrinsic(
+                            netuid=ni,
+                            amount=am,
+                            current_stake=curr,
+                            hotkey_ss58=staking_address,
+                            price_limit=price_with_tolerance,
+                            wallet=wallet,
+                            subtensor=subtensor,
+                        )
+                    )
+    else:
+        stake_coroutines = [
+            stake_extrinsic(
+                netuid_i=ni,
+                amount_=am,
+                current=curr,
+                staking_address_ss58=staking_address,
+            )
+            for i, (ni, am, curr) in enumerate(
+                zip(netuids, amounts_to_stake, current_stake_balances)
+            )
+            for _, staking_address in hotkeys_to_stake_to
+        ]
+    
+    with console.status(f"\n:satellite: Staking on netuid(s): {netuids} ..."):
+        await asyncio.gather(*stake_coroutines)
+    
