@@ -1,5 +1,11 @@
 # Changelog
 
+## 9.0.0rc2 /2025-02-06
+
+## What's Changed
+* Updates to new Async Substrate Interface
+* Other bug fixes and improvements
+
 ## 9.0.0rc1 /2025-02-04
 
 ## What's Changed

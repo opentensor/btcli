@@ -65,7 +65,7 @@ except ImportError:
         pass
 
 
-__version__ = "9.0.0rc1"
+__version__ = "9.0.0rc2"
 
 
 _core_version = re.match(r"^\d+\.\d+\.\d+", __version__).group(0)
@@ -937,7 +937,7 @@ class CLIManager:
                     try:
                         raise typer.Exit()
                     except Exception as e:  # ensures we always exit cleanly
-                        if not isinstance(e, typer.Exit):
+                        if not isinstance(e, (typer.Exit, RuntimeError)): # temporarily to handle multiple run commands in one session
                             err_console.print(f"An unknown error has occurred: {e}")
 
         if sys.version_info < (3, 10):
