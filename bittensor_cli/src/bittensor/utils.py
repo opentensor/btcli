@@ -1010,3 +1010,32 @@ def hex_to_bytes(hex_str: str) -> bytes:
     else:
         bytes_result = bytes.fromhex(hex_str)
     return bytes_result
+
+
+def blocks_to_duration(blocks: int) -> str:
+    """Convert blocks to human readable duration string using two largest units.
+
+    Args:
+        blocks (int): Number of blocks (12s per block)
+
+    Returns:
+        str: Duration string like '2d 5h', '3h 45m', '2m 10s', or '0s'
+    """
+    if blocks <= 0:
+        return "0s"
+
+    seconds = blocks * 12
+    intervals = [
+        ("d", 86400),  # 60 * 60 * 24
+        ("h", 3600),  # 60 * 60
+        ("m", 60),
+        ("s", 1),
+    ]
+    results = []
+    for unit, seconds_per_unit in intervals:
+        unit_count = seconds // seconds_per_unit
+        seconds %= seconds_per_unit
+        if unit_count > 0:
+            results.append(f"{unit_count}{unit}")
+    # Return only the first two non-zero units
+    return " ".join(results[:2]) or "0s"

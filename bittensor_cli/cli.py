@@ -58,7 +58,7 @@ except ImportError:
         pass
 
 
-__version__ = "8.4.3"
+__version__ = "8.4.4"
 
 
 _core_version = re.match(r"^\d+\.\d+\.\d+", __version__).group(0)
@@ -2798,7 +2798,9 @@ class CLIManager:
         [green]$[/green] btcli root proposals
         """
         self.verbosity_handler(quiet, verbose)
-        return self._run_command(root.proposals(self.initialize_chain(network)))
+        return self._run_command(
+            root.proposals(self.initialize_chain(network), verbose)
+        )
 
     def root_set_take(
         self,

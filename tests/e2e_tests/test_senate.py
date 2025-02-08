@@ -98,9 +98,10 @@ def test_senate(local_chain, wallet_setup):
         extra_args=[
             "--chain",
             "ws://127.0.0.1:9945",
+            "--verbose",
         ],
     )
-    proposals_output = proposals.stdout.splitlines()[8].split()
+    proposals_output = proposals.stdout.splitlines()[9].split()
 
     # Assert the hash is of correct format
     assert len(proposals_output[0]) == 66
@@ -110,7 +111,7 @@ def test_senate(local_chain, wallet_setup):
     assert proposals_output[2] == "0"
 
     # 0 Nayes for the proposal
-    assert proposals_output[3] == "0"
+    assert proposals_output[4] == "0"
 
     # Assert initial threshold is 3
     assert proposals_output[1] == "3"
@@ -143,19 +144,20 @@ def test_senate(local_chain, wallet_setup):
         extra_args=[
             "--chain",
             "ws://127.0.0.1:9945",
+            "--verbose",
         ],
     )
-    proposals_after_aye_output = proposals_after_aye.stdout.splitlines()[8].split()
+    proposals_after_aye_output = proposals_after_aye.stdout.splitlines()[9].split()
 
     # Assert Bob's vote is shown as aye
-    assert proposals_after_aye_output[4].strip(":") == wallet_bob.hotkey.ss58_address
-    assert proposals_after_aye_output[5] == "Aye"
+    assert proposals_after_aye_output[6].strip(":") == wallet_bob.hotkey.ss58_address
+    assert proposals_after_aye_output[7] == "Aye"
 
     # Aye votes increased to 1
     assert proposals_after_aye_output[2] == "1"
 
     # Nay votes remain 0
-    assert proposals_after_aye_output[3] == "0"
+    assert proposals_after_aye_output[4] == "0"
 
     # Register Alice to the root network (0)
     # Registering to root automatically makes you a senator if eligible
@@ -204,18 +206,19 @@ def test_senate(local_chain, wallet_setup):
         extra_args=[
             "--chain",
             "ws://127.0.0.1:9945",
+            "--verbose",
         ],
     )
     proposals_after_nay_output = proposals_after_nay.stdout.splitlines()
 
     # Total Ayes to remain 1
-    proposals_after_nay_output[8].split()[2] == "1"
+    proposals_after_nay_output[9].split()[2] == "1"
 
     # Total Nays increased to 1
-    proposals_after_nay_output[8].split()[3] == "1"
+    proposals_after_nay_output[9].split()[4] == "1"
 
     # Assert Alice has voted Nay
-    proposals_after_nay_output[9].split()[0].strip(
+    proposals_after_nay_output[10].split()[0].strip(
         ":"
     ) == wallet_alice.hotkey.ss58_address
 
