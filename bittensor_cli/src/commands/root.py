@@ -42,6 +42,7 @@ from bittensor_cli.src.bittensor.utils import (
     update_metadata_table,
     group_subnets,
     unlock_key,
+    blocks_to_duration,
 )
 
 if TYPE_CHECKING:
@@ -1218,13 +1219,12 @@ async def register(wallet: Wallet, subtensor: SubtensorInterface, prompt: bool):
     )
 
 
-async def proposals(subtensor: SubtensorInterface):
+async def proposals(subtensor: SubtensorInterface, verbose: bool):
     console.print(
         ":satellite: Syncing with chain: [white]{}[/white] ...".format(
             subtensor.network
         )
     )
-    print_verbose("Fetching senate members & proposals")
     block_hash = await subtensor.substrate.get_chain_head()
     senate_members, all_proposals, current_block = await asyncio.gather(
         _get_senate_members(subtensor, block_hash),
@@ -1232,7 +1232,6 @@ async def proposals(subtensor: SubtensorInterface):
         subtensor.substrate.get_block_number(block_hash),
     )
 
-    print_verbose("Fetching member information from Chain")
     registered_delegate_info: dict[
         str, DelegatesDetails
     ] = await subtensor.get_delegate_identities()
@@ -1268,11 +1267,12 @@ async def proposals(subtensor: SubtensorInterface):
     )
     for hash_, (call_data, vote_data) in all_proposals.items():
         blocks_remaining = vote_data.end - current_block
-        vote_end_cell = (
-            f"{vote_data.end} [dim] (in {blocks_remaining} blocks)[/dim]"
-            if blocks_remaining > 0
-            else f"{vote_data.end} [red](expired)[/red]"
-        )
+        if blocks_remaining > 0:
+            duration_str = blocks_to_duration(blocks_remaining)
+            vote_end_cell = f"{vote_data.end} [dim](in {duration_str})[/dim]"
+        else:
+            vote_end_cell = f"{vote_data.end} [red](expired)[/red]"
+
         ayes_threshold = (
             (len(vote_data.ayes) / vote_data.threshold * 100)
             if vote_data.threshold > 0
@@ -1284,7 +1284,7 @@ async def proposals(subtensor: SubtensorInterface):
             else 0
         )
         table.add_row(
-            hash_,
+            hash_ if verbose else f"{hash_[:4]}...{hash_[-4:]}",
             str(vote_data.threshold),
             f"{len(vote_data.ayes)} ({ayes_threshold:.2f}%)",
             f"{len(vote_data.nays)} ({nays_threshold:.2f}%)",
@@ -1293,7 +1293,9 @@ async def proposals(subtensor: SubtensorInterface):
             format_call_data(call_data),
         )
     console.print(table)
-    console.print("\n[dim]* Both Ayes and Nays percentages are calculated relative to the proposal's threshold.[/dim]")
+    console.print(
+        "\n[dim]* Both Ayes and Nays percentages are calculated relative to the proposal's threshold.[/dim]"
+    )
 
 
 async def set_take(wallet: Wallet, subtensor: SubtensorInterface, take: float) -> bool:

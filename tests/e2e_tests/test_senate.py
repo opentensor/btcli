@@ -98,6 +98,7 @@ def test_senate(local_chain, wallet_setup):
         extra_args=[
             "--chain",
             "ws://127.0.0.1:9945",
+            "--verbose",
         ],
     )
     proposals_output = proposals.stdout.splitlines()[9].split()
@@ -143,6 +144,7 @@ def test_senate(local_chain, wallet_setup):
         extra_args=[
             "--chain",
             "ws://127.0.0.1:9945",
+            "--verbose",
         ],
     )
     proposals_after_aye_output = proposals_after_aye.stdout.splitlines()[9].split()
@@ -204,6 +206,7 @@ def test_senate(local_chain, wallet_setup):
         extra_args=[
             "--chain",
             "ws://127.0.0.1:9945",
+            "--verbose",
         ],
     )
     proposals_after_nay_output = proposals_after_nay.stdout.splitlines()

@@ -2798,7 +2798,9 @@ class CLIManager:
         [green]$[/green] btcli root proposals
         """
         self.verbosity_handler(quiet, verbose)
-        return self._run_command(root.proposals(self.initialize_chain(network)))
+        return self._run_command(
+            root.proposals(self.initialize_chain(network), verbose)
+        )
 
     def root_set_take(
         self,
