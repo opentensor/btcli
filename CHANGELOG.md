@@ -1,5 +1,12 @@
 # Changelog
 
+## 8.4.4 /2025-02-07 - 18:30 PST
+
+## What's Changed
+* Proposals info fix (for dtao governance vote) by @ibraheem-opentensor 
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v8.4.3...v8.4.4
+
 ## 8.4.3 /2025-01-23
 
 ## What's Changed

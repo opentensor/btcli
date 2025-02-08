@@ -58,7 +58,7 @@ except ImportError:
         pass
 
 
-__version__ = "8.4.3"
+__version__ = "8.4.4"
 
 
 _core_version = re.match(r"^\d+\.\d+\.\d+", __version__).group(0)
