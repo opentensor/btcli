@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import asyncio
 import curses
+import importlib
 import os.path
 import re
 import ssl
@@ -504,6 +505,7 @@ class CLIManager:
     subnets_app: typer.Typer
     weights_app: typer.Typer
     utils_app = typer.Typer(epilog=_epilog)
+    asyncio_runner = asyncio
 
     def __init__(self):
         self.config = {
@@ -937,15 +939,12 @@ class CLIManager:
                     try:
                         raise typer.Exit()
                     except Exception as e:  # ensures we always exit cleanly
-                        if not isinstance(e, (typer.Exit, RuntimeError)): # temporarily to handle multiple run commands in one session
+                        if not isinstance(
+                            e, (typer.Exit, RuntimeError)
+                        ):  # temporarily to handle multiple run commands in one session
                             err_console.print(f"An unknown error has occurred: {e}")
 
-        if sys.version_info < (3, 10):
-            # For Python 3.9 or lower
-            return asyncio.get_event_loop().run_until_complete(_run())
-        else:
-            # For Python 3.10 or higher
-            return asyncio.run(_run())
+        return self.asyncio_runner(_run())
 
     def main_callback(
         self,
@@ -995,6 +994,20 @@ class CLIManager:
         for k, v in config.items():
             if k in self.config.keys():
                 self.config[k] = v
+
+        if sys.version_info < (3, 10):
+            # For Python 3.9 or lower
+            self.asyncio_runner = asyncio.get_event_loop().run_until_complete
+        else:
+            try:
+                uvloop = importlib.import_module("uvloop")
+                if sys.version_info >= (3, 11):
+                    self.asyncio_runner = uvloop.run
+                else:
+                    uvloop.install()
+                    self.asyncio_runner = asyncio.run
+            except ModuleNotFoundError:
+                self.asyncio_runner = asyncio
 
     def verbosity_handler(self, quiet: bool, verbose: bool):
         if quiet and verbose:
