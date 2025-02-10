@@ -1007,7 +1007,7 @@ class CLIManager:
                     uvloop.install()
                     self.asyncio_runner = asyncio.run
             except ModuleNotFoundError:
-                self.asyncio_runner = asyncio
+                self.asyncio_runner = asyncio.run
 
     def verbosity_handler(self, quiet: bool, verbose: bool):
         if quiet and verbose:
