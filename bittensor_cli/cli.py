@@ -55,9 +55,9 @@ from bittensor_cli.src.bittensor.utils import (
     prompt_for_subnet_identity,
     print_linux_dependency_message,
     is_linux,
+    validate_rate_tolerance,
 )
 from typing_extensions import Annotated
-from textwrap import dedent
 from websockets import ConnectionClosed, InvalidHandshake
 from yaml import safe_dump, safe_load
 
@@ -243,12 +243,13 @@ class Options:
         help="Create wallet from uri (e.g. 'Alice', 'Bob', 'Charlie', 'Dave', 'Eve')",
         callback=validate_uri,
     )
-    slippage_tolerance = typer.Option(
+    rate_tolerance = typer.Option(
         None,
         "--slippage",
         "--slippage-tolerance",
         "--tolerance",
-        help="Set the slippage tolerance percentage for transactions (default: 0.05%).",
+        help="Set the rate tolerance percentage for transactions (default: 0.05%).",
+        callback=validate_rate_tolerance,
     )
     safe_staking = typer.Option(
         None,
@@ -261,6 +262,7 @@ class Options:
         "--allow-partial-stake/--no-allow-partial-stake",
         "--partial/--no-partial",
         "--allow/--not-allow",
+        "--allow-partial/--not-partial",
         help="Enable or disable partial stake mode (default: disabled).",
     )
 
@@ -537,7 +539,7 @@ class CLIManager:
             "wallet_hotkey": None,
             "network": None,
             "use_cache": True,
-            "slippage_tolerance": None,
+            "rate_tolerance": None,
             "safe_staking": True,
             "allow_partial_stake": False,
             # Commenting this out as this needs to get updated
@@ -1081,12 +1083,12 @@ class CLIManager:
             help="Disable caching of some commands. This will disable the `--reuse-last` and `--html` flags on "
             "commands such as `subnets metagraph`, `stake show` and `subnets list`.",
         ),
-        slippage_tolerance: Optional[float] = typer.Option(
+        rate_tolerance: Optional[float] = typer.Option(
             None,
             "--slippage",
             "--slippage-tolerance",
             "--tolerance",
-            help="Set the slippage tolerance percentage for transactions (e.g. 0.1 for 0.1%).",
+            help="Set the rate tolerance percentage for transactions (e.g. 0.1 for 0.1%).",
         ),
         safe_staking: Optional[bool] = typer.Option(
             None,
@@ -1110,7 +1112,7 @@ class CLIManager:
             "wallet_hotkey": wallet_hotkey,
             "network": network,
             "use_cache": use_cache,
-            "slippage_tolerance": slippage_tolerance,
+            "rate_tolerance": rate_tolerance,
             "safe_staking": safe_staking,
             "allow_partial_stake": allow_partial_stake,
         }
@@ -1139,16 +1141,19 @@ class CLIManager:
                 )
                 self.config[arg] = nc
 
-            elif arg == "slippage_tolerance":
-                val = FloatPrompt.ask(
-                    f"What percentage would you like to set for [red]{arg}[/red]?\nValues are percentages (e.g. 0.05 for 5%)",
-                    default=0.05,
-                )
-                if val < 0 or val > 1:
-                    print_error("Slippage tolerance must be between 0 and 1.")
-                    raise typer.Exit()
-                self.config[arg] = val
-
+            elif arg == "rate_tolerance":
+                while True:
+                    val = FloatPrompt.ask(
+                        f"What percentage would you like to set for [red]{arg}[/red]?\nValues are percentages (e.g. 0.05 for 5%)",
+                        default=0.05,
+                    )
+                    try:
+                        validated_val = validate_rate_tolerance(val)
+                        self.config[arg] = validated_val
+                        break
+                    except typer.BadParameter as e:
+                        print_error(str(e))
+                        continue
             else:
                 val = Prompt.ask(
                     f"What value would you like to assign to [red]{arg}[/red]?"
@@ -1206,7 +1211,7 @@ class CLIManager:
         wallet_hotkey: bool = typer.Option(False, *Options.wallet_hotkey.param_decls),
         network: bool = typer.Option(False, *Options.network.param_decls),
         use_cache: bool = typer.Option(False, "--cache"),
-        slippage_tolerance: bool = typer.Option(
+        rate_tolerance: bool = typer.Option(
             False, "--slippage", "--slippage-tolerance", "--tolerance"
         ),
         safe_staking: bool = typer.Option(
@@ -1247,7 +1252,7 @@ class CLIManager:
             "wallet_hotkey": wallet_hotkey,
             "network": network,
             "use_cache": use_cache,
-            "slippage_tolerance": slippage_tolerance,
+            "rate_tolerance": rate_tolerance,
             "safe_staking": safe_staking,
             "allow_partial_stake": allow_partial_stake,
         }
@@ -1311,8 +1316,8 @@ class CLIManager:
                 else:
                     if value in Constants.networks:
                         value = value + f" ({Constants.network_map[value]})"
-            if key == "slippage_tolerance":
-                value = f"{value} ({value*100}%)"
+            if key == "rate_tolerance":
+                value = f"{value} ({value*100}%)" if value is not None else "None"
 
             elif key in deprecated_configs:
                 continue
@@ -1326,35 +1331,35 @@ class CLIManager:
 
         console.print(table)
 
-    def ask_slippage(
+    def ask_rate_tolerance(
         self,
-        slippage_tolerance: Optional[float],
+        rate_tolerance: Optional[float],
     ) -> float:
         """
-        Gets slippage tolerance from args, config, or default.
+        Gets rate tolerance from args, config, or default.
 
         Args:
-            slippage_tolerance (Optional[float]): Explicitly provided slippage value
+            rate_tolerance (Optional[float]): Explicitly provided slippage value
 
         Returns:
-            float: Slippage tolerance value
+            float: rate tolerance value
         """
-        if slippage_tolerance is not None:
+        if rate_tolerance is not None:
             console.print(
-                f"[dim][blue]Slippage tolerance[/blue] is: [bold cyan]{slippage_tolerance} ({slippage_tolerance*100}%)[/bold cyan]."
+                f"[dim][blue]Rate tolerance[/blue]: [bold cyan]{rate_tolerance} ({rate_tolerance*100}%)[/bold cyan]."
             )
-            return slippage_tolerance
-        elif self.config.get("slippage_tolerance") is not None:
-            config_slippage = self.config["slippage_tolerance"]
+            return rate_tolerance
+        elif self.config.get("rate_tolerance") is not None:
+            config_slippage = self.config["rate_tolerance"]
             console.print(
-                f"[dim][blue]Slippage tolerance[/blue] is: [bold cyan]{config_slippage} ({config_slippage*100}%)[/bold cyan] (from config)."
+                f"[dim][blue]Rate tolerance[/blue]: [bold cyan]{config_slippage} ({config_slippage*100}%)[/bold cyan] (from config)."
             )
             return config_slippage
         else:
             console.print(
-                f"[dim][blue]Slippage tolerance[/blue] is: [bold cyan]{defaults.slippage_tolerance} ({defaults.slippage_tolerance*100}%)[/bold cyan] by default."
+                f"[dim][blue]Rate tolerance[/blue]: [bold cyan]{defaults.rate_tolerance} ({defaults.rate_tolerance*100}%)[/bold cyan] by default. You can set this using `btcli config set`"
             )
-            return defaults.slippage_tolerance
+            return defaults.rate_tolerance
 
     def ask_safe_staking(
         self,
@@ -1371,19 +1376,19 @@ class CLIManager:
         """
         if safe_staking is not None:
             console.print(
-                f"[dim][blue]Safe staking[/blue] is: [bold cyan]{'enabled' if safe_staking else 'disabled'}[/bold cyan]."
+                f"[dim][blue]Safe staking[/blue]: [bold cyan]{'enabled' if safe_staking else 'disabled'}[/bold cyan]."
             )
             return safe_staking
         elif self.config.get("safe_staking") is not None:
             safe_staking = self.config["safe_staking"]
             console.print(
-                f"[dim][blue]Safe staking[/blue] is: [bold cyan]{'enabled' if safe_staking else 'disabled'}[/bold cyan] (from config)."
+                f"[dim][blue]Safe staking[/blue]: [bold cyan]{'enabled' if safe_staking else 'disabled'}[/bold cyan] (from config)."
             )
             return safe_staking
         else:
             safe_staking = True
             console.print(
-                f"[dim][blue]Safe staking[/blue] is: [bold cyan]{'enabled' if safe_staking else 'disabled'}[/bold cyan] by default."
+                f"[dim][blue]Safe staking[/blue]: [bold cyan]{'enabled' if safe_staking else 'disabled'}[/bold cyan] by default. You can set this using `btcli config set`"
             )
             return safe_staking
 
@@ -1402,18 +1407,18 @@ class CLIManager:
         """
         if allow_partial_stake is not None:
             console.print(
-                f"[dim][blue]Partial staking[/blue] is: [bold cyan]{'enabled' if allow_partial_stake else 'disabled'}[/bold cyan]."
+                f"[dim][blue]Partial staking[/blue]: [bold cyan]{'enabled' if allow_partial_stake else 'disabled'}[/bold cyan]."
             )
             return allow_partial_stake
         elif self.config.get("allow_partial_stake") is not None:
             config_partial = self.config["allow_partial_stake"]
             console.print(
-                f"[dim][blue]Partial staking[/blue] is: [bold cyan]{'enabled' if config_partial else 'disabled'}[/bold cyan] (from config)."
+                f"[dim][blue]Partial staking[/blue]: [bold cyan]{'enabled' if config_partial else 'disabled'}[/bold cyan] (from config)."
             )
             return config_partial
         else:
             console.print(
-                f"[dim][blue]Partial staking[/blue] is: [bold cyan]{'enabled' if allow_partial_stake else 'disabled'}[/bold cyan] by default."
+                f"[dim][blue]Partial staking[/blue]: [bold cyan]{'enabled' if allow_partial_stake else 'disabled'}[/bold cyan] by default. You can set this using `btcli config set`"
             )
             return False
 
@@ -2789,7 +2794,7 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
-        slippage_tolerance: Optional[float] = Options.slippage_tolerance,
+        rate_tolerance: Optional[float] = Options.rate_tolerance,
         safe_staking: Optional[bool] = Options.safe_staking,
         allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
         prompt: bool = Options.prompt,
@@ -2810,8 +2815,8 @@ class CLIManager:
         self.verbosity_handler(quiet, verbose)
         safe_staking = self.ask_safe_staking(safe_staking)
         if safe_staking:
+            rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
             allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
-            slippage_tolerance = self.ask_slippage(slippage_tolerance)
         netuid = get_optional_netuid(netuid, all_netuids)
 
         if stake_all and amount:
@@ -2961,7 +2966,7 @@ class CLIManager:
                 included_hotkeys,
                 excluded_hotkeys,
                 safe_staking,
-                slippage_tolerance,
+                rate_tolerance,
                 allow_partial_stake,
             )
         )
