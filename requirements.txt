@@ -1,6 +1,6 @@
 wheel
 async-property==0.2.2
-async-substrate-interface==1.0.0rc9
+async-substrate-interface>=1.0.0rc12
 aiohttp~=3.10.2
 backoff~=2.2.1
 GitPython>=3.0.0
@@ -16,7 +16,7 @@ rich~=13.7
 scalecodec==1.2.11
 typer~=0.12
 websockets>=14.1
-bittensor-wallet>=3.0.0
+bittensor-wallet>=3.0.2
 plotille
 pywry
 plotly

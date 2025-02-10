@@ -22,7 +22,7 @@ from bittensor_cli.src.bittensor.utils import (
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 
-MIN_STAKE_FEE = Balance.from_rao(500_000)
+MIN_STAKE_FEE = Balance.from_rao(50_000)
 
 
 # Helpers

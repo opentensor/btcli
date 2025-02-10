@@ -148,7 +148,7 @@ class SetWeightsExtrinsic:
     ) -> tuple[bool, str]:
         interval = int(
             await self.subtensor.get_hyperparameter(
-                param_name="get_commit_reveal_weights_interval",
+                param_name="get_commit_reveal_period",
                 netuid=self.netuid,
                 reuse_block=False,
             )

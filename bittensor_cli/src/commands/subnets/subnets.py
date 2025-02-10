@@ -122,6 +122,18 @@ async def register_subnetwork_extrinsic(
             "subnet_contact": subnet_identity["subnet_contact"].encode()
             if subnet_identity.get("subnet_contact")
             else b"",
+            "subnet_url": subnet_identity["subnet_url"].encode()
+            if subnet_identity.get("subnet_url")
+            else b"",
+            "discord": subnet_identity["discord"].encode()
+            if subnet_identity.get("discord")
+            else b"",
+            "description": subnet_identity["description"].encode()
+            if subnet_identity.get("description")
+            else b"",
+            "additional": subnet_identity["additional"].encode()
+            if subnet_identity.get("additional")
+            else b"",
         }
         for field, value in identity_data.items():
             max_size = 64  # bytes
@@ -798,16 +810,17 @@ async def show(
     prompt: bool = True,
 ) -> Optional[str]:
     async def show_root():
-        all_subnets = await subtensor.all_subnets()
+        block_hash = await subtensor.substrate.get_chain_head()
+        all_subnets = await subtensor.all_subnets(block_hash=block_hash)
         root_info = next((s for s in all_subnets if s.netuid == 0), None)
         if root_info is None:
             print_error("The root subnet does not exist")
             raise typer.Exit()
 
         root_state, identities, old_identities = await asyncio.gather(
-            subtensor.get_subnet_state(netuid=0),
-            subtensor.query_all_identities(),
-            subtensor.get_delegate_identities(),
+            subtensor.get_subnet_state(netuid=0, block_hash=block_hash),
+            subtensor.query_all_identities(block_hash=block_hash),
+            subtensor.get_delegate_identities(block_hash=block_hash),
         )
 
         if root_state is None:
@@ -1019,16 +1032,21 @@ async def show(
         if not await subtensor.subnet_exists(netuid=netuid):
             err_console.print(f"[red]Subnet {netuid} does not exist[/red]")
             raise typer.Exit()
+        block_hash = await subtensor.substrate.get_chain_head()
         (
             subnet_info,
             subnet_state,
             identities,
             old_identities,
+            current_burn_cost,
         ) = await asyncio.gather(
-            subtensor.subnet(netuid=netuid_),
-            subtensor.get_subnet_state(netuid=netuid_),
-            subtensor.query_all_identities(),
-            subtensor.get_delegate_identities(),
+            subtensor.subnet(netuid=netuid_, block_hash=block_hash),
+            subtensor.get_subnet_state(netuid=netuid_, block_hash=block_hash),
+            subtensor.query_all_identities(block_hash=block_hash),
+            subtensor.get_delegate_identities(block_hash=block_hash),
+            subtensor.get_hyperparameter(
+                param_name="Burn", netuid=netuid_, block_hash=block_hash
+            ),
         )
         if subnet_state is None:
             print_error(f"Subnet {netuid_} does not exist")
@@ -1269,6 +1287,11 @@ async def show(
                 if not verbose
                 else f"{subnet_info.alpha_in.tao:,.4f}"
             )
+            current_registration_burn = (
+                Balance.from_rao(int(current_burn_cost))
+                if current_burn_cost
+                else Balance(0)
+            )
 
             console.print(
                 f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]Subnet {netuid_}{subnet_name_display}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
@@ -1279,6 +1302,7 @@ async def show(
                 f"\n  Alpha Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{alpha_pool} {subnet_info.symbol}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
                 # f"\n  Stake: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{subnet_info.alpha_out.tao:,.5f} {subnet_info.symbol}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
                 f"\n  Tempo: [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{subnet_info.blocks_since_last_step}/{subnet_info.tempo}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
+                f"\n  Registration cost (recycled): [{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]τ {current_registration_burn.tao:.4f}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
             )
         #         console.print(
         #             """
@@ -1391,9 +1415,10 @@ async def create(
                 name=None,
                 web_url=None,
                 image_url=None,
-                discord_handle=None,
+                discord=None,
                 description=None,
-                additional_info=None,
+                additional=None,
+                github_repo=None,
             )
 
             await set_id(
@@ -1405,6 +1430,7 @@ async def create(
                 identity["discord"],
                 identity["description"],
                 identity["additional"],
+                identity["github_repo"],
                 prompt,
             )
 

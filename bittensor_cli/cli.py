@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import asyncio
 import curses
+import importlib
 import os.path
 import re
 import ssl
@@ -70,7 +71,7 @@ except ImportError:
         pass
 
 
-__version__ = "9.0.0rc1"
+__version__ = "9.0.0rc2"
 
 
 _core_version = re.match(r"^\d+\.\d+\.\d+", __version__).group(0)
@@ -531,6 +532,7 @@ class CLIManager:
     subnets_app: typer.Typer
     weights_app: typer.Typer
     utils_app = typer.Typer(epilog=_epilog)
+    asyncio_runner = asyncio
 
     def __init__(self):
         self.config = {
@@ -968,15 +970,12 @@ class CLIManager:
                     try:
                         raise typer.Exit()
                     except Exception as e:  # ensures we always exit cleanly
-                        if not isinstance(e, typer.Exit):
+                        if not isinstance(
+                            e, (typer.Exit, RuntimeError)
+                        ):  # temporarily to handle multiple run commands in one session
                             err_console.print(f"An unknown error has occurred: {e}")
 
-        if sys.version_info < (3, 10):
-            # For Python 3.9 or lower
-            return asyncio.get_event_loop().run_until_complete(_run())
-        else:
-            # For Python 3.10 or higher
-            return asyncio.run(_run())
+        return self.asyncio_runner(_run())
 
     def main_callback(
         self,
@@ -1026,6 +1025,20 @@ class CLIManager:
         for k, v in config.items():
             if k in self.config.keys():
                 self.config[k] = v
+
+        if sys.version_info < (3, 10):
+            # For Python 3.9 or lower
+            self.asyncio_runner = asyncio.get_event_loop().run_until_complete
+        else:
+            try:
+                uvloop = importlib.import_module("uvloop")
+                if sys.version_info >= (3, 11):
+                    self.asyncio_runner = uvloop.run
+                else:
+                    uvloop.install()
+                    self.asyncio_runner = asyncio.run
+            except ModuleNotFoundError:
+                self.asyncio_runner = asyncio
 
     def verbosity_handler(self, quiet: bool, verbose: bool):
         if quiet and verbose:
@@ -2508,7 +2521,7 @@ class CLIManager:
             "--image",
             help="The image URL for the identity.",
         ),
-        discord_handle: str = typer.Option(
+        discord: str = typer.Option(
             "",
             "--discord",
             help="The Discord handle for the identity.",
@@ -2518,10 +2531,15 @@ class CLIManager:
             "--description",
             help="The description for the identity.",
         ),
-        additional_info: str = typer.Option(
+        additional: str = typer.Option(
             "",
             "--additional",
             help="Additional details for the identity.",
+        ),
+        github_repo: str = typer.Option(
+            "",
+            "--github",
+            help="The GitHub repository for the identity.",
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -2575,9 +2593,10 @@ class CLIManager:
             name,
             web_url,
             image_url,
-            discord_handle,
+            discord,
             description,
-            additional_info,
+            additional,
+            github_repo,
         )
 
         return self._run_command(
@@ -2590,6 +2609,7 @@ class CLIManager:
                 identity["discord"],
                 identity["description"],
                 identity["additional"],
+                identity["github_repo"],
                 prompt,
             )
         )
@@ -4273,6 +4293,18 @@ class CLIManager:
             "--email",
             help="Contact email for subnet",
         ),
+        subnet_url: Optional[str] = typer.Option(
+            None, "--subnet-url", "--url", help="Subnet URL"
+        ),
+        discord: Optional[str] = typer.Option(
+            None, "--discord-handle", "--discord", help="Discord handle"
+        ),
+        description: Optional[str] = typer.Option(
+            None, "--description", help="Description"
+        ),
+        additional_info: Optional[str] = typer.Option(
+            None, "--additional-info", help="Additional information"
+        ),
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -4300,6 +4332,10 @@ class CLIManager:
             subnet_name=subnet_name,
             github_repo=github_repo,
             subnet_contact=subnet_contact,
+            subnet_url=subnet_url,
+            discord=discord,
+            description=description,
+            additional=additional_info,
         )
         success = self._run_command(
             subnets.create(wallet, self.initialize_chain(network), identity, prompt),

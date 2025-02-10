@@ -22,6 +22,33 @@ from bittensor_cli.src.bittensor.utils import (
 )
 
 
+async def get_childkey_completion_block(
+    subtensor: SubtensorInterface, netuid: int
+) -> tuple[int, int]:
+    """
+    Calculates the block at which the childkey set request will complete
+    """
+    blocks_since_last_step_query = subtensor.query(
+        "SubtensorModule",
+        "BlocksSinceLastStep",
+        params=[netuid],
+    )
+    tempo_query = subtensor.get_hyperparameter(
+        param_name="Tempo",
+        netuid=netuid,
+    )
+    block_number, blocks_since_last_step, tempo = await asyncio.gather(
+        subtensor.substrate.get_block_number(),
+        blocks_since_last_step_query,
+        tempo_query,
+    )
+    cooldown = block_number + 1
+    blocks_left_in_tempo = tempo - blocks_since_last_step
+    next_tempo = block_number + blocks_left_in_tempo
+    next_epoch_after_cooldown = (cooldown - next_tempo) % tempo + cooldown
+    return block_number, next_epoch_after_cooldown
+
+
 async def set_children_extrinsic(
     subtensor: "SubtensorInterface",
     wallet: Wallet,
@@ -513,8 +540,13 @@ async def set_children(
         # Result
         if success:
             if wait_for_inclusion and wait_for_finalization:
-                console.print("New Status:")
-                await get_children(wallet, subtensor, netuid)
+                current_block, completion_block = await get_childkey_completion_block(
+                    subtensor, netuid
+                )
+                console.print(
+                    f"Your childkey request has been submitted. It will be completed around block {completion_block}. "
+                    f"The current block is {current_block}"
+                )
             console.print(
                 ":white_heavy_check_mark: [green]Set children hotkeys.[/green]"
             )
@@ -525,19 +557,26 @@ async def set_children(
     else:
         # set children on all subnets that parent is registered on
         netuids = await subtensor.get_all_subnet_netuids()
-        for netuid in netuids:
-            if netuid == 0:  # dont include root network
+        for netuid_ in netuids:
+            if netuid_ == 0:  # dont include root network
                 continue
-            console.print(f"Setting children on netuid {netuid}.")
+            console.print(f"Setting children on netuid {netuid_}.")
             await set_children_extrinsic(
                 subtensor=subtensor,
                 wallet=wallet,
-                netuid=netuid,
+                netuid=netuid_,
                 hotkey=hotkey,
                 children_with_proportions=children_with_proportions,
                 prompt=prompt,
                 wait_for_inclusion=True,
                 wait_for_finalization=False,
+            )
+            current_block, completion_block = await get_childkey_completion_block(
+                subtensor, netuid_
+            )
+            console.print(
+                f"Your childkey request for netuid {netuid_} has been submitted. It will be completed around "
+                f"block {completion_block}. The current block is {current_block}."
             )
         console.print(
             ":white_heavy_check_mark: [green]Sent set children request for all subnets.[/green]"
