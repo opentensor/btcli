@@ -505,7 +505,7 @@ class CLIManager:
     subnets_app: typer.Typer
     weights_app: typer.Typer
     utils_app = typer.Typer(epilog=_epilog)
-    runner = asyncio
+    asyncio_runner = asyncio
 
     def __init__(self):
         self.config = {
@@ -944,7 +944,7 @@ class CLIManager:
                         ):  # temporarily to handle multiple run commands in one session
                             err_console.print(f"An unknown error has occurred: {e}")
 
-        return self.runner.run(_run())
+        return self.asyncio_runner(_run())
 
     def main_callback(
         self,
@@ -995,15 +995,19 @@ class CLIManager:
             if k in self.config.keys():
                 self.config[k] = v
 
-        try:
-            uvloop = importlib.import_module("uvloop")
-            if sys.version_info >= (3, 11):
-                self.runner = uvloop
-            else:
-                uvloop.install()
-                self.runner = asyncio
-        except ModuleNotFoundError:
-            self.runner = asyncio
+        if sys.version_info < (3, 10):
+            # For Python 3.9 or lower
+            self.asyncio_runner = asyncio.get_event_loop().run_until_complete
+        else:
+            try:
+                uvloop = importlib.import_module("uvloop")
+                if sys.version_info >= (3, 11):
+                    self.asyncio_runner = uvloop.run
+                else:
+                    uvloop.install()
+                    self.asyncio_runner = asyncio.run
+            except ModuleNotFoundError:
+                self.asyncio_runner = asyncio
 
     def verbosity_handler(self, quiet: bool, verbose: bool):
         if quiet and verbose:
