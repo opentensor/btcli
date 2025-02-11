@@ -690,6 +690,9 @@ class CLIManager:
         self.wallet_app.command(
             "sign", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"]
         )(self.wallet_sign)
+        self.wallet_app.command(
+            "verify", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"]
+        )(self.wallet_verify)
 
         # stake commands
         self.stake_app.command(
@@ -2525,7 +2528,7 @@ class CLIManager:
 
         USAGE
 
-        Using the provided wallet (coldkey), the command generates a signature for a given message.
+        Using the provided wallet (coldkey or hotkey), the command generates a signature for a given message.
 
         EXAMPLES
 
@@ -2553,6 +2556,59 @@ class CLIManager:
             message = Prompt.ask("Enter the [blue]message[/blue] to encode and sign")
 
         return self._run_command(wallets.sign(wallet, message, use_hotkey))
+
+    def wallet_verify(
+        self,
+        wallet_path: str = Options.wallet_path,
+        wallet_name: str = Options.wallet_name,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        use_hotkey: Optional[bool] = typer.Option(
+            None,
+            "--use-hotkey/--no-use-hotkey",
+            help="If specified, the message will be signed by the hotkey. If not specified, the user will be prompted.",
+        ),
+        message: str = typer.Option("", help="The message to encode and sign"),
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Allows users to verify a signed message with the provided wallet or wallet hotkey.
+
+        USAGE
+
+        Using the provided wallet (coldkey or hotkey), the command generates a signature for a given message.
+
+        EXAMPLES
+
+        [green]$[/green] btcli wallet verify --wallet-name default --message dasjdi329dm209md32dm329
+
+        [green]$[/green] btcli wallet verify --wallet-name default --wallet-hotkey hotkey --use-hotkey --message dasjdi329dm209md32dm329
+        """
+        self.verbosity_handler(quiet, verbose)
+        if use_hotkey is None:
+            use_hotkey = Confirm.ask(
+                f"Would you like to verify the signed message using your [{COLOR_PALETTE['GENERAL']['HOTKEY']}]hotkey"
+                f"[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]?"
+                f"\n[Type [{COLOR_PALETTE['GENERAL']['HOTKEY']}]y[/{COLOR_PALETTE['GENERAL']['HOTKEY']}] for "
+                f"[{COLOR_PALETTE['GENERAL']['HOTKEY']}]hotkey[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
+                f" and [{COLOR_PALETTE['GENERAL']['COLDKEY']}]n[/{COLOR_PALETTE['GENERAL']['COLDKEY']}] for "
+                f"[{COLOR_PALETTE['GENERAL']['COLDKEY']}]coldkey[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]] "
+                f"(default is [{COLOR_PALETTE['GENERAL']['COLDKEY']}]coldkey[/{COLOR_PALETTE['GENERAL']['COLDKEY']}])",
+                default=False,
+            )
+
+        ask_for = [WO.HOTKEY, WO.PATH, WO.NAME] if use_hotkey else [WO.NAME, WO.PATH]
+        validate = WV.WALLET_AND_HOTKEY if use_hotkey else WV.WALLET
+
+        wallet = self.wallet_ask(
+            wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
+        )
+        if not message:
+            message = Prompt.ask(
+                "Enter the [blue]encoded/signed message[/blue] to verify"
+            )
+
+        return self._run_command(wallets.verify(wallet, message, use_hotkey))
 
     def stake_list(
         self,

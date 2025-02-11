@@ -1415,33 +1415,34 @@ async def check_coldkey_swap(wallet: Wallet, subtensor: SubtensorInterface):
         )
 
 
+def _unlock(wallet: Wallet, key: str):
+    try:
+        getattr(wallet, f"unlock_{key}")()
+        return True
+    except PasswordError:
+        err_console.print(
+            ":cross_mark: [red]The password used to decrypt your keyfile is invalid[/red]"
+        )
+        return False
+    except KeyFileError:
+        err_console.print(
+            ":cross_mark: [red]Keyfile is corrupt, non-writable, or non-readable[/red]:"
+        )
+        return False
+
+
 async def sign(wallet: Wallet, message: str, use_hotkey: str):
     """Sign a message using the provided wallet or hotkey."""
 
-    def _unlock(key: str):
-        try:
-            getattr(wallet, f"unlock_{key}")()
-            return True
-        except PasswordError:
-            err_console.print(
-                ":cross_mark: [red]The password used to decrypt your keyfile is invalid[/red]"
-            )
-            return False
-        except KeyFileError:
-            err_console.print(
-                ":cross_mark: [red]Keyfile is corrupt, non-writable, or non-readable[/red]:"
-            )
-            return False
-
     if not use_hotkey:
-        if not _unlock("coldkey"):
+        if not _unlock(wallet, "coldkey"):
             return False
         keypair = wallet.coldkey
         print_verbose(
             f"Signing using [{COLOR_PALETTE['GENERAL']['COLDKEY']}]coldkey: {wallet.name}"
         )
     else:
-        if not _unlock("hotkey"):
+        if not _unlock(wallet, "hotkey"):
             return False
         keypair = wallet.hotkey
         print_verbose(
@@ -1451,3 +1452,28 @@ async def sign(wallet: Wallet, message: str, use_hotkey: str):
     signed_message = keypair.sign(message.encode("utf-8")).hex()
     console.print("[dark_sea_green3]Message signed successfully:")
     console.print(signed_message)
+
+
+async def verify(wallet: Wallet, message: str, use_hotkey: str):
+    if not use_hotkey:
+        if not _unlock(wallet, "coldkey"):
+            return False
+        keypair = wallet.coldkey
+        print_verbose(
+            f"Verifying using [{COLOR_PALETTE['GENERAL']['COLDKEY']}]coldkey: {wallet.name}"
+        )
+    else:
+        if not _unlock(wallet, "hotkey"):
+            return False
+        keypair = wallet.hotkey
+        print_verbose(
+            f"Verifying using [{COLOR_PALETTE['GENERAL']['HOTKEY']}]hotkey: {wallet.hotkey_str}"
+        )
+    signature = keypair.sign(message)
+    verification = keypair.verify(message, signature)
+    if verification is True:
+        console.print("[dark_sea_green3]Message is verified")
+    else:
+        console.print(
+            "[bold red]Message was not verified as having been signed by wallet[/bold red]"
+        )
