@@ -37,7 +37,8 @@ from bittensor_cli.src.commands.stake import (
     children_hotkeys,
     stake,
     move,
-    add as stake_add,
+    add as add_stake,
+    remove as remove_stake,
 )
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
@@ -1038,7 +1039,7 @@ class CLIManager:
                     uvloop.install()
                     self.asyncio_runner = asyncio.run
             except ModuleNotFoundError:
-                self.asyncio_runner = asyncio
+                self.asyncio_runner = asyncio.run
 
     def verbosity_handler(self, quiet: bool, verbose: bool):
         if quiet and verbose:
@@ -2975,7 +2976,7 @@ class CLIManager:
                 raise typer.Exit()
 
         return self._run_command(
-            stake_add.stake_add(
+            add_stake.stake_add(
                 wallet,
                 self.initialize_chain(network),
                 netuid,
@@ -3019,12 +3020,6 @@ class CLIManager:
         hotkey_ss58_address: str = typer.Option(
             "",
             help="The ss58 address of the hotkey to unstake from.",
-        ),
-        keep_stake: float = typer.Option(
-            0.0,
-            "--keep-stake",
-            "--keep",
-            help="Sets the maximum amount of TAO to remain staked in each hotkey.",
         ),
         include_hotkeys: str = typer.Option(
             "",
@@ -3185,23 +3180,30 @@ class CLIManager:
         else:
             excluded_hotkeys = []
 
-        return self._run_command(
-            stake.unstake(
-                wallet,
-                self.initialize_chain(network),
-                hotkey_ss58_address,
-                all_hotkeys,
-                included_hotkeys,
-                excluded_hotkeys,
-                amount,
-                keep_stake,
-                unstake_all,
-                prompt,
-                interactive,
-                netuid=netuid,
-                unstake_all_alpha=unstake_all_alpha,
+        if unstake_all or unstake_all_alpha:
+            return self._run_command(
+                remove_stake.unstake_all(
+                    wallet=wallet,
+                    subtensor=self.initialize_chain(network),
+                    unstake_all_alpha=unstake_all_alpha,
+                    prompt=prompt,
+                )
             )
-        )
+        else:
+            return self._run_command(
+                remove_stake.unstake(
+                    wallet=wallet,
+                    subtensor=self.initialize_chain(network),
+                    hotkey_ss58_address=hotkey_ss58_address,
+                    all_hotkeys=all_hotkeys,
+                    include_hotkeys=included_hotkeys,
+                    exclude_hotkeys=excluded_hotkeys,
+                    amount=amount,
+                    prompt=prompt,
+                    interactive=interactive,
+                    netuid=netuid,
+                )
+            )
 
     def stake_move(
         self,

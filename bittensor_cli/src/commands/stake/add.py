@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 
 # Helper functions
-def prompt_stake_amount(
+def _prompt_stake_amount(
     current_balance: Balance, netuid: int, action_name: str
 ) -> tuple[Balance, bool]:
     """Prompts user to input a stake amount with validation.
@@ -123,7 +123,7 @@ def _get_hotkeys_to_stake_to(
     return [(None, wallet.hotkey.ss58_address)]
 
 
-def define_stake_table(
+def _define_stake_table(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
     safe_staking: bool,
@@ -190,7 +190,7 @@ def define_stake_table(
     return table
 
 
-def print_table_and_slippage(table: Table, max_slippage: float, safe_staking: bool):
+def _print_table_and_slippage(table: Table, max_slippage: float, safe_staking: bool):
     """Prints the stake table, slippage warning, and table description.
 
     Args:
@@ -225,7 +225,7 @@ The columns are as follows:
     console.print(base_description + (safe_staking_description if safe_staking else ""))
 
 
-def calculate_slippage(subnet_info, amount: Balance) -> tuple[Balance, str, float]:
+def _calculate_slippage(subnet_info, amount: Balance) -> tuple[Balance, str, float]:
     """Calculate slippage when adding stake.
 
     Args:
@@ -244,12 +244,10 @@ def calculate_slippage(subnet_info, amount: Balance) -> tuple[Balance, str, floa
     if subnet_info.is_dynamic:
         slippage_str = f"{slippage_pct_float:.4f} %"
         rate = f"{(1 / subnet_info.price.tao or 1):.4f}"
-        print(f"rate: {rate}")
     else:
         slippage_pct_float = 0
         slippage_str = f"[{COLOR_PALETTE['STAKE']['SLIPPAGE_TEXT']}]N/A[/{COLOR_PALETTE['STAKE']['SLIPPAGE_TEXT']}]"
         rate = "1"
-        print(f"rate: {rate}")
 
     return received_amount, slippage_str, slippage_pct_float, rate
 
@@ -504,7 +502,7 @@ async def stake_add(
             elif stake_all:
                 amount_to_stake = current_wallet_balance / len(netuids)
             elif not amount:
-                amount_to_stake, _ = prompt_stake_amount(
+                amount_to_stake, _ = _prompt_stake_amount(
                     current_balance=remaining_wallet_balance,
                     netuid=netuid,
                     action_name="stake",
@@ -522,7 +520,7 @@ async def stake_add(
 
             # Calculate slippage
             received_amount, slippage_pct, slippage_pct_float, rate = (
-                calculate_slippage(subnet_info, amount_to_stake)
+                _calculate_slippage(subnet_info, amount_to_stake)
             )
             max_slippage = max(slippage_pct_float, max_slippage)
 
@@ -563,10 +561,10 @@ async def stake_add(
             rows.append(tuple(base_row))
 
     # Define and print stake table + slippage warning
-    table = define_stake_table(wallet, subtensor, safe_staking, rate_tolerance)
+    table = _define_stake_table(wallet, subtensor, safe_staking, rate_tolerance)
     for row in rows:
         table.add_row(*row)
-    print_table_and_slippage(table, max_slippage, safe_staking)
+    _print_table_and_slippage(table, max_slippage, safe_staking)
 
     if prompt:
         if not Confirm.ask("Would you like to continue?"):
