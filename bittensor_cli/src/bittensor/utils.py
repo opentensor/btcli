@@ -1261,3 +1261,17 @@ def print_linux_dependency_message():
 def is_linux():
     """Returns True if the operating system is Linux."""
     return platform.system().lower() == "linux"
+
+def validate_rate_tolerance(value: Optional[float]) -> Optional[float]:
+    """Validates rate tolerance input"""
+    if value is not None:
+        if value < 0:
+            raise typer.BadParameter("Rate tolerance cannot be negative (less than 0%).")
+        if value > 1:
+            raise typer.BadParameter("Rate tolerance cannot be greater than 1 (100%).")
+        if value > 0.5:
+            console.print(
+                f"[yellow]Warning: High rate tolerance of {value*100}% specified. "
+                "This may result in unfavorable transaction execution.[/yellow]"
+            )
+    return value

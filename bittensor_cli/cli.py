@@ -33,7 +33,13 @@ from async_substrate_interface.errors import SubstrateRequestException
 from bittensor_cli.src.commands import sudo, wallets
 from bittensor_cli.src.commands import weights as weights_cmds
 from bittensor_cli.src.commands.subnets import price, subnets
-from bittensor_cli.src.commands.stake import children_hotkeys, stake, move
+from bittensor_cli.src.commands.stake import (
+    children_hotkeys,
+    list as list_stake,
+    move as move_stake,
+    add as add_stake,
+    remove as remove_stake,
+)
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
 from bittensor_cli.src.bittensor.utils import (
@@ -51,9 +57,9 @@ from bittensor_cli.src.bittensor.utils import (
     prompt_for_subnet_identity,
     print_linux_dependency_message,
     is_linux,
+    validate_rate_tolerance,
 )
 from typing_extensions import Annotated
-from textwrap import dedent
 from websockets import ConnectionClosed, InvalidHandshake
 from yaml import safe_dump, safe_load
 
@@ -238,6 +244,28 @@ class Options:
         "--uri",
         help="Create wallet from uri (e.g. 'Alice', 'Bob', 'Charlie', 'Dave', 'Eve')",
         callback=validate_uri,
+    )
+    rate_tolerance = typer.Option(
+        None,
+        "--slippage",
+        "--slippage-tolerance",
+        "--tolerance",
+        help="Set the rate tolerance percentage for transactions (default: 0.05%).",
+        callback=validate_rate_tolerance,
+    )
+    safe_staking = typer.Option(
+        None,
+        "--safe-staking/--no-safe-staking",
+        "--safe/--unsafe",
+        help="Enable or disable safe staking mode (default: enabled).",
+    )
+    allow_partial_stake = typer.Option(
+        None,
+        "--allow-partial-stake/--no-allow-partial-stake",
+        "--partial/--no-partial",
+        "--allow/--not-allow",
+        "--allow-partial/--not-partial",
+        help="Enable or disable partial stake mode (default: disabled).",
     )
 
 
@@ -514,25 +542,29 @@ class CLIManager:
             "wallet_hotkey": None,
             "network": None,
             "use_cache": True,
-            "metagraph_cols": {
-                "UID": True,
-                "GLOBAL_STAKE": True,
-                "LOCAL_STAKE": True,
-                "STAKE_WEIGHT": True,
-                "RANK": True,
-                "TRUST": True,
-                "CONSENSUS": True,
-                "INCENTIVE": True,
-                "DIVIDENDS": True,
-                "EMISSION": True,
-                "VTRUST": True,
-                "VAL": True,
-                "UPDATED": True,
-                "ACTIVE": True,
-                "AXON": True,
-                "HOTKEY": True,
-                "COLDKEY": True,
-            },
+            "rate_tolerance": None,
+            "safe_staking": True,
+            "allow_partial_stake": False,
+            # Commenting this out as this needs to get updated
+            # "metagraph_cols": {
+            #     "UID": True,
+            #     "GLOBAL_STAKE": True,
+            #     "LOCAL_STAKE": True,
+            #     "STAKE_WEIGHT": True,
+            #     "RANK": True,
+            #     "TRUST": True,
+            #     "CONSENSUS": True,
+            #     "INCENTIVE": True,
+            #     "DIVIDENDS": True,
+            #     "EMISSION": True,
+            #     "VTRUST": True,
+            #     "VAL": True,
+            #     "UPDATED": True,
+            #     "ACTIVE": True,
+            #     "AXON": True,
+            #     "HOTKEY": True,
+            #     "COLDKEY": True,
+            # },
         }
         self.subtensor = None
         self.config_base_path = os.path.expanduser(defaults.config.base_path)
@@ -631,7 +663,7 @@ class CLIManager:
         self.config_app.command("set")(self.set_config)
         self.config_app.command("get")(self.get_config)
         self.config_app.command("clear")(self.del_config)
-        self.config_app.command("metagraph")(self.metagraph_config)
+        self.config_app.command("metagraph", hidden=True)(self.metagraph_config)
 
         # wallet commands
         self.wallet_app.command(
@@ -1065,6 +1097,25 @@ class CLIManager:
             help="Disable caching of some commands. This will disable the `--reuse-last` and `--html` flags on "
             "commands such as `subnets metagraph`, `stake show` and `subnets list`.",
         ),
+        rate_tolerance: Optional[float] = typer.Option(
+            None,
+            "--slippage",
+            "--slippage-tolerance",
+            "--tolerance",
+            help="Set the rate tolerance percentage for transactions (e.g. 0.1 for 0.1%).",
+        ),
+        safe_staking: Optional[bool] = typer.Option(
+            None,
+            "--safe-staking/--no-safe-staking",
+            "--safe/--unsafe",
+            help="Enable or disable safe staking mode.",
+        ),
+        allow_partial_stake: Optional[bool] = typer.Option(
+            None,
+            "--allow-partial-stake/--no-allow-partial-stake",
+            "--partial/--no-partial",
+            "--allow/--not-allow",
+        ),
     ):
         """
         Sets the values in the config file. To set the metagraph configuration, use the command `btcli config metagraph`
@@ -1075,8 +1126,11 @@ class CLIManager:
             "wallet_hotkey": wallet_hotkey,
             "network": network,
             "use_cache": use_cache,
+            "rate_tolerance": rate_tolerance,
+            "safe_staking": safe_staking,
+            "allow_partial_stake": allow_partial_stake,
         }
-        bools = ["use_cache"]
+        bools = ["use_cache", "safe_staking", "allow_partial_stake"]
         if all(v is None for v in args.values()):
             # Print existing configs
             self.get_config()
@@ -1100,6 +1154,20 @@ class CLIManager:
                     default=True,
                 )
                 self.config[arg] = nc
+
+            elif arg == "rate_tolerance":
+                while True:
+                    val = FloatPrompt.ask(
+                        f"What percentage would you like to set for [red]{arg}[/red]?\nValues are percentages (e.g. 0.05 for 5%)",
+                        default=0.05,
+                    )
+                    try:
+                        validated_val = validate_rate_tolerance(val)
+                        self.config[arg] = validated_val
+                        break
+                    except typer.BadParameter as e:
+                        print_error(str(e))
+                        continue
             else:
                 val = Prompt.ask(
                     f"What value would you like to assign to [red]{arg}[/red]?"
@@ -1157,6 +1225,18 @@ class CLIManager:
         wallet_hotkey: bool = typer.Option(False, *Options.wallet_hotkey.param_decls),
         network: bool = typer.Option(False, *Options.network.param_decls),
         use_cache: bool = typer.Option(False, "--cache"),
+        rate_tolerance: bool = typer.Option(
+            False, "--slippage", "--slippage-tolerance", "--tolerance"
+        ),
+        safe_staking: bool = typer.Option(
+            False, "--safe-staking/--no-safe-staking", "--safe/--unsafe"
+        ),
+        allow_partial_stake: bool = typer.Option(
+            False,
+            "--allow-partial-stake/--no-allow-partial-stake",
+            "--partial/--no-partial",
+            "--allow/--not-allow",
+        ),
         all_items: bool = typer.Option(False, "--all"),
     ):
         """
@@ -1186,6 +1266,9 @@ class CLIManager:
             "wallet_hotkey": wallet_hotkey,
             "network": network,
             "use_cache": use_cache,
+            "rate_tolerance": rate_tolerance,
+            "safe_staking": safe_staking,
+            "allow_partial_stake": allow_partial_stake,
         }
 
         # If no specific argument is provided, iterate over all
@@ -1247,6 +1330,8 @@ class CLIManager:
                 else:
                     if value in Constants.networks:
                         value = value + f" ({Constants.network_map[value]})"
+            if key == "rate_tolerance":
+                value = f"{value} ({value*100}%)" if value is not None else "None"
 
             elif key in deprecated_configs:
                 continue
@@ -1259,13 +1344,112 @@ class CLIManager:
                 table.add_row(str(key), str(value), "")
 
         console.print(table)
-        console.print(
-            dedent(
-                """
-            [red]Deprecation notice[/red]: The chain endpoint config is now deprecated. You can use the network config to pass chain endpoints.
-            """
+
+    def ask_rate_tolerance(
+        self,
+        rate_tolerance: Optional[float],
+    ) -> float:
+        """
+        Gets rate tolerance from args, config, or default.
+
+        Args:
+            rate_tolerance (Optional[float]): Explicitly provided slippage value
+
+        Returns:
+            float: rate tolerance value
+        """
+        if rate_tolerance is not None:
+            console.print(
+                f"[dim][blue]Rate tolerance[/blue]: [bold cyan]{rate_tolerance} ({rate_tolerance*100}%)[/bold cyan]."
             )
-        )
+            return rate_tolerance
+        elif self.config.get("rate_tolerance") is not None:
+            config_slippage = self.config["rate_tolerance"]
+            console.print(
+                f"[dim][blue]Rate tolerance[/blue]: [bold cyan]{config_slippage} ({config_slippage*100}%)[/bold cyan] (from config)."
+            )
+            return config_slippage
+        else:
+            console.print(
+                "[dim][blue]Rate tolerance[/blue]: "
+                + f"[bold cyan]{defaults.rate_tolerance} ({defaults.rate_tolerance*100}%)[/bold cyan] "
+                + "by default. Set this using "
+                + "[dark_sea_green3 italic]`btcli config set`[/dark_sea_green3 italic] "
+                + "or "
+                + "[dark_sea_green3 italic]`--tolerance`[/dark_sea_green3 italic] flag[/dim]"
+            )
+            return defaults.rate_tolerance
+
+    def ask_safe_staking(
+        self,
+        safe_staking: Optional[bool],
+    ) -> bool:
+        """
+        Gets safe staking setting from args, config, or default.
+
+        Args:
+            safe_staking (Optional[bool]): Explicitly provided safe staking value
+
+        Returns:
+            bool: Safe staking setting
+        """
+        if safe_staking is not None:
+            console.print(
+                f"[dim][blue]Safe staking[/blue]: [bold cyan]{'enabled' if safe_staking else 'disabled'}[/bold cyan]."
+            )
+            return safe_staking
+        elif self.config.get("safe_staking") is not None:
+            safe_staking = self.config["safe_staking"]
+            console.print(
+                f"[dim][blue]Safe staking[/blue]: [bold cyan]{'enabled' if safe_staking else 'disabled'}[/bold cyan] (from config)."
+            )
+            return safe_staking
+        else:
+            safe_staking = True
+            console.print(
+                "[dim][blue]Safe staking[/blue]: "
+                + f"[bold cyan]{'enabled' if safe_staking else 'disabled'}[/bold cyan] "
+                + "by default. Set this using "
+                + "[dark_sea_green3 italic]`btcli config set`[/dark_sea_green3 italic] "
+                + "or "
+                + "[dark_sea_green3 italic]`--safe/--unsafe`[/dark_sea_green3 italic] flag[/dim]"
+            )
+            return safe_staking
+
+    def ask_partial_stake(
+        self,
+        allow_partial_stake: Optional[bool],
+    ) -> bool:
+        """
+        Gets partial stake setting from args, config, or default.
+
+        Args:
+            allow_partial_stake (Optional[bool]): Explicitly provided partial stake value
+
+        Returns:
+            bool: Partial stake setting
+        """
+        if allow_partial_stake is not None:
+            console.print(
+                f"[dim][blue]Partial staking[/blue]: [bold cyan]{'enabled' if allow_partial_stake else 'disabled'}[/bold cyan]."
+            )
+            return allow_partial_stake
+        elif self.config.get("allow_partial_stake") is not None:
+            config_partial = self.config["allow_partial_stake"]
+            console.print(
+                f"[dim][blue]Partial staking[/blue]: [bold cyan]{'enabled' if config_partial else 'disabled'}[/bold cyan] (from config)."
+            )
+            return config_partial
+        else:
+            console.print(
+                "[dim][blue]Partial staking[/blue]: "
+                + f"[bold cyan]{'enabled' if allow_partial_stake else 'disabled'}[/bold cyan] "
+                + "by default. Set this using "
+                + "[dark_sea_green3 italic]`btcli config set`[/dark_sea_green3 italic] "
+                + "or "
+                + "[dark_sea_green3 italic]`--partial/--no-partial`[/dark_sea_green3 italic] flag[/dim]"
+            )
+            return False
 
     def wallet_ask(
         self,
@@ -2599,7 +2783,7 @@ class CLIManager:
                 )
 
         return self._run_command(
-            stake.stake_list(
+            list_stake.stake_list(
                 wallet,
                 coldkey_ss58,
                 self.initialize_chain(network),
@@ -2620,12 +2804,6 @@ class CLIManager:
         ),
         amount: float = typer.Option(
             0.0, "--amount", help="The amount of TAO to stake"
-        ),
-        max_stake: float = typer.Option(
-            0.0,
-            "--max-stake",
-            "-m",
-            help="Stake is sent to a hotkey only until the hotkey's total stake is less than or equal to this maximum staked TAO. If a hotkey already has stake greater than this amount, then stake is not added to this hotkey.",
         ),
         include_hotkeys: str = typer.Option(
             "",
@@ -2652,6 +2830,9 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
+        rate_tolerance: Optional[float] = Options.rate_tolerance,
+        safe_staking: Optional[bool] = Options.safe_staking,
+        allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -2668,6 +2849,10 @@ class CLIManager:
         [green]$[/green] btcli stake add --amount 100 --wallet-name <my_wallet> --wallet-hotkey <my_hotkey>
         """
         self.verbosity_handler(quiet, verbose)
+        safe_staking = self.ask_safe_staking(safe_staking)
+        if safe_staking:
+            rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
+            allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
         netuid = get_optional_netuid(netuid, all_netuids)
 
         if stake_all and amount:
@@ -2777,7 +2962,7 @@ class CLIManager:
             excluded_hotkeys = []
 
         # TODO: Ask amount for each subnet explicitly if more than one
-        if not stake_all and not amount and not max_stake:
+        if not stake_all and not amount:
             free_balance, staked_balance = self._run_command(
                 wallets.wallet_balance(
                     wallet, self.initialize_chain(network), False, None
@@ -2806,18 +2991,19 @@ class CLIManager:
                 raise typer.Exit()
 
         return self._run_command(
-            stake.stake_add(
+            add_stake.stake_add(
                 wallet,
                 self.initialize_chain(network),
                 netuid,
                 stake_all,
                 amount,
-                False,
                 prompt,
-                max_stake,
                 all_hotkeys,
                 included_hotkeys,
                 excluded_hotkeys,
+                safe_staking,
+                rate_tolerance,
+                allow_partial_stake,
             )
         )
 
@@ -2850,12 +3036,6 @@ class CLIManager:
             "",
             help="The ss58 address of the hotkey to unstake from.",
         ),
-        keep_stake: float = typer.Option(
-            0.0,
-            "--keep-stake",
-            "--keep",
-            help="Sets the maximum amount of TAO to remain staked in each hotkey.",
-        ),
         include_hotkeys: str = typer.Option(
             "",
             "--include-hotkeys",
@@ -2874,6 +3054,9 @@ class CLIManager:
             help="When set, this command unstakes from all the hotkeys associated with the wallet. Do not use if specifying "
             "hotkeys in `--include-hotkeys`.",
         ),
+        rate_tolerance: Optional[float] = Options.rate_tolerance,
+        safe_staking: Optional[bool] = Options.safe_staking,
+        allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
         prompt: bool = Options.prompt,
         interactive: bool = typer.Option(
             False,
@@ -2896,9 +3079,12 @@ class CLIManager:
         [blue bold]Note[/blue bold]: This command is for users who wish to reallocate their stake or withdraw them from the network. It allows for flexible management of TAO stake across different neurons (hotkeys) on the network.
         """
         self.verbosity_handler(quiet, verbose)
-        # TODO: Coldkey related unstakes need to be updated. Patching for now.
-        unstake_all_alpha = False
-        unstake_all = False
+        if not unstake_all and not unstake_all_alpha:
+            safe_staking = self.ask_safe_staking(safe_staking)
+            if safe_staking:
+                rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
+                allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
+                console.print("\n")
 
         if interactive and any(
             [hotkey_ss58_address, include_hotkeys, exclude_hotkeys, all_hotkeys]
@@ -2974,6 +3160,52 @@ class CLIManager:
                     validate=WV.WALLET_AND_HOTKEY,
                 )
 
+        elif unstake_all or unstake_all_alpha:
+            if not wallet_name:
+                wallet_name = Prompt.ask(
+                    "Enter the [blue]wallet name[/blue]",
+                    default=self.config.get("wallet_name") or defaults.wallet.name,
+                )
+            if include_hotkeys:
+                if len(include_hotkeys) > 1:
+                    print_error("Cannot unstake_all from multiple hotkeys at once.")
+                    raise typer.Exit()
+                elif is_valid_ss58_address(include_hotkeys[0]):
+                    hotkey_ss58_address = include_hotkeys[0]
+                else:
+                    print_error("Invalid hotkey ss58 address.")
+                    raise typer.Exit()
+            else:
+                hotkey_or_ss58 = Prompt.ask(
+                    "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake all from",
+                    default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
+                )
+                if is_valid_ss58_address(hotkey_or_ss58):
+                    hotkey_ss58_address = hotkey_or_ss58
+                    wallet = self.wallet_ask(
+                        wallet_name,
+                        wallet_path,
+                        wallet_hotkey,
+                        ask_for=[WO.NAME, WO.PATH],
+                    )
+                else:
+                    wallet_hotkey = hotkey_or_ss58
+                    wallet = self.wallet_ask(
+                        wallet_name,
+                        wallet_path,
+                        wallet_hotkey,
+                        ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+                        validate=WV.WALLET_AND_HOTKEY,
+                    )
+            return self._run_command(
+                remove_stake.unstake_all(
+                    wallet=wallet,
+                    subtensor=self.initialize_chain(network),
+                    hotkey_ss58_address=hotkey_ss58_address,
+                    unstake_all_alpha=unstake_all_alpha,
+                    prompt=prompt,
+                )
+            )
         elif (
             all_hotkeys
             or include_hotkeys
@@ -3016,20 +3248,20 @@ class CLIManager:
             excluded_hotkeys = []
 
         return self._run_command(
-            stake.unstake(
-                wallet,
-                self.initialize_chain(network),
-                hotkey_ss58_address,
-                all_hotkeys,
-                included_hotkeys,
-                excluded_hotkeys,
-                amount,
-                keep_stake,
-                unstake_all,
-                prompt,
-                interactive,
+            remove_stake.unstake(
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                hotkey_ss58_address=hotkey_ss58_address,
+                all_hotkeys=all_hotkeys,
+                include_hotkeys=included_hotkeys,
+                exclude_hotkeys=excluded_hotkeys,
+                amount=amount,
+                prompt=prompt,
+                interactive=interactive,
                 netuid=netuid,
-                unstake_all_alpha=unstake_all_alpha,
+                safe_staking=safe_staking,
+                rate_tolerance=rate_tolerance,
+                allow_partial_stake=allow_partial_stake,
             )
         )
 
@@ -3172,7 +3404,7 @@ class CLIManager:
                 )
 
         return self._run_command(
-            move.move_stake(
+            move_stake.move_stake(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
                 origin_netuid=origin_netuid,
@@ -3290,7 +3522,7 @@ class CLIManager:
                 )
 
         return self._run_command(
-            move.transfer_stake(
+            move_stake.transfer_stake(
                 wallet=wallet,
                 subtensor=self.initialize_chain(network),
                 origin_netuid=origin_netuid,
@@ -3389,7 +3621,7 @@ class CLIManager:
                 amount = FloatPrompt.ask("Enter the [blue]amount[/blue] to swap")
 
         return self._run_command(
-            move.swap_stake(
+            move_stake.swap_stake(
                 wallet=wallet,
                 subtensor=self.initialize_chain(network),
                 origin_netuid=origin_netuid,
