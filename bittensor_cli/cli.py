@@ -2565,9 +2565,10 @@ class CLIManager:
         use_hotkey: Optional[bool] = typer.Option(
             None,
             "--use-hotkey/--no-use-hotkey",
-            help="If specified, the message will be signed by the hotkey. If not specified, the user will be prompted.",
+            help="If specified, the signed message will be verified by the hotkey. If not specified, the user will be "
+            "prompted.",
         ),
-        message: str = typer.Option("", help="The message to encode and sign"),
+        message: str = typer.Option("", help="The signed message to verify"),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
