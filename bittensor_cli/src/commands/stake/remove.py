@@ -273,17 +273,28 @@ async def unstake(
     with console.status("\n:satellite: Performing unstaking operations...") as status:
         if safe_staking:
             for op in unstake_operations:
-                await _safe_unstake_extrinsic(
-                    wallet=wallet,
-                    subtensor=subtensor,
-                    netuid=op["netuid"],
-                    amount=op["amount_to_unstake"],
-                    current_stake=op["current_stake_balance"],
-                    hotkey_ss58=op["hotkey_ss58"],
-                    price_limit=op["price_with_tolerance"],
-                    allow_partial_stake=allow_partial_stake,
-                    status=status,
-                )
+                if op["netuid"] == 0:
+                    await _unstake_extrinsic(
+                        wallet=wallet,
+                        subtensor=subtensor,
+                        netuid=op["netuid"],
+                        amount=op["amount_to_unstake"],
+                        current_stake=op["current_stake_balance"],
+                        hotkey_ss58=op["hotkey_ss58"],
+                        status=status,
+                    )
+                else:
+                    await _safe_unstake_extrinsic(
+                        wallet=wallet,
+                        subtensor=subtensor,
+                        netuid=op["netuid"],
+                        amount=op["amount_to_unstake"],
+                        current_stake=op["current_stake_balance"],
+                        hotkey_ss58=op["hotkey_ss58"],
+                        price_limit=op["price_with_tolerance"],
+                        allow_partial_stake=allow_partial_stake,
+                        status=status,
+                    )
         else:
             for op in unstake_operations:
                 await _unstake_extrinsic(
