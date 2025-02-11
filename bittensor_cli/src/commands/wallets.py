@@ -6,7 +6,7 @@ from typing import Generator, Optional
 
 import aiohttp
 from bittensor_wallet import Wallet, Keypair
-from bittensor_wallet.errors import KeyFileError
+from bittensor_wallet.errors import KeyFileError, PasswordError
 from bittensor_wallet.keyfile import Keyfile
 from fuzzywuzzy import fuzz
 from rich import box
@@ -1418,19 +1418,31 @@ async def check_coldkey_swap(wallet: Wallet, subtensor: SubtensorInterface):
 async def sign(wallet: Wallet, message: str, use_hotkey: str):
     """Sign a message using the provided wallet or hotkey."""
 
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print(
-            ":cross_mark: [red]Keyfile is corrupt, non-writable, non-readable or the password used to decrypt is "
-            "invalid[/red]:[bold white]\n  [/bold white]"
-        )
+    def _unlock(key: str):
+        try:
+            getattr(wallet, f"unlock_{key}")()
+            return True
+        except PasswordError:
+            err_console.print(
+                ":cross_mark: [red]The password used to decrypt your keyfile is invalid[/red]"
+            )
+            return False
+        except KeyFileError:
+            err_console.print(
+                ":cross_mark: [red]Keyfile is corrupt, non-writable, or non-readable[/red]:"
+            )
+            return False
+
     if not use_hotkey:
+        if not _unlock("coldkey"):
+            return False
         keypair = wallet.coldkey
         print_verbose(
             f"Signing using [{COLOR_PALETTE['GENERAL']['COLDKEY']}]coldkey: {wallet.name}"
         )
     else:
+        if not _unlock("hotkey"):
+            return False
         keypair = wallet.hotkey
         print_verbose(
             f"Signing using [{COLOR_PALETTE['GENERAL']['HOTKEY']}]hotkey: {wallet.hotkey_str}"
