@@ -35,8 +35,8 @@ from bittensor_cli.src.commands import weights as weights_cmds
 from bittensor_cli.src.commands.subnets import price, subnets
 from bittensor_cli.src.commands.stake import (
     children_hotkeys,
-    stake,
-    move,
+    list as list_stake,
+    move as move_stake,
     add as add_stake,
     remove as remove_stake,
 )
@@ -2768,7 +2768,7 @@ class CLIManager:
                 )
 
         return self._run_command(
-            stake.stake_list(
+            list_stake.stake_list(
                 wallet,
                 coldkey_ss58,
                 self.initialize_chain(network),
@@ -3344,7 +3344,7 @@ class CLIManager:
                 )
 
         return self._run_command(
-            move.move_stake(
+            move_stake.move_stake(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
                 origin_netuid=origin_netuid,
@@ -3462,7 +3462,7 @@ class CLIManager:
                 )
 
         return self._run_command(
-            move.transfer_stake(
+            move_stake.transfer_stake(
                 wallet=wallet,
                 subtensor=self.initialize_chain(network),
                 origin_netuid=origin_netuid,
@@ -3561,7 +3561,7 @@ class CLIManager:
                 amount = FloatPrompt.ask("Enter the [blue]amount[/blue] to swap")
 
         return self._run_command(
-            move.swap_stake(
+            move_stake.swap_stake(
                 wallet=wallet,
                 subtensor=self.initialize_chain(network),
                 origin_netuid=origin_netuid,
