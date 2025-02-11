@@ -1371,7 +1371,12 @@ class CLIManager:
             return config_slippage
         else:
             console.print(
-                f"[dim][blue]Rate tolerance[/blue]: [bold cyan]{defaults.rate_tolerance} ({defaults.rate_tolerance*100}%)[/bold cyan] by default. You can set this using `btcli config set`"
+                "[dim][blue]Rate tolerance[/blue]: "
+                + f"[bold cyan]{defaults.rate_tolerance} ({defaults.rate_tolerance*100}%)[/bold cyan] "
+                + "by default. Set this using "
+                + "[dark_sea_green3 italic]`btcli config set`[/dark_sea_green3 italic] "
+                + "or "
+                + "[dark_sea_green3 italic]`--tolerance`[/dark_sea_green3 italic] flag[/dim]"
             )
             return defaults.rate_tolerance
 
@@ -1402,7 +1407,12 @@ class CLIManager:
         else:
             safe_staking = True
             console.print(
-                f"[dim][blue]Safe staking[/blue]: [bold cyan]{'enabled' if safe_staking else 'disabled'}[/bold cyan] by default. You can set this using `btcli config set`"
+                "[dim][blue]Safe staking[/blue]: "
+                + f"[bold cyan]{'enabled' if safe_staking else 'disabled'}[/bold cyan] "
+                + "by default. Set this using "
+                + "[dark_sea_green3 italic]`btcli config set`[/dark_sea_green3 italic] "
+                + "or "
+                + "[dark_sea_green3 italic]`--safe/--unsafe`[/dark_sea_green3 italic] flag[/dim]"
             )
             return safe_staking
 
@@ -1432,7 +1442,12 @@ class CLIManager:
             return config_partial
         else:
             console.print(
-                f"[dim][blue]Partial staking[/blue]: [bold cyan]{'enabled' if allow_partial_stake else 'disabled'}[/bold cyan] by default. You can set this using `btcli config set`"
+                "[dim][blue]Partial staking[/blue]: "
+                + f"[bold cyan]{'enabled' if allow_partial_stake else 'disabled'}[/bold cyan] "
+                + "by default. Set this using "
+                + "[dark_sea_green3 italic]`btcli config set`[/dark_sea_green3 italic] "
+                + "or "
+                + "[dark_sea_green3 italic]`--partial/--no-partial`[/dark_sea_green3 italic] flag[/dim]"
             )
             return False
 
@@ -3039,6 +3054,9 @@ class CLIManager:
             help="When set, this command unstakes from all the hotkeys associated with the wallet. Do not use if specifying "
             "hotkeys in `--include-hotkeys`.",
         ),
+        rate_tolerance: Optional[float] = Options.rate_tolerance,
+        safe_staking: Optional[bool] = Options.safe_staking,
+        allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
         prompt: bool = Options.prompt,
         interactive: bool = typer.Option(
             False,
@@ -3061,9 +3079,12 @@ class CLIManager:
         [blue bold]Note[/blue bold]: This command is for users who wish to reallocate their stake or withdraw them from the network. It allows for flexible management of TAO stake across different neurons (hotkeys) on the network.
         """
         self.verbosity_handler(quiet, verbose)
-        # # TODO: Coldkey related unstakes need to be updated. Patching for now.
-        # unstake_all_alpha = False
-        # unstake_all = False
+        if not unstake_all and not unstake_all_alpha:
+            safe_staking = self.ask_safe_staking(safe_staking)
+            if safe_staking:
+                rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
+                allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
+                console.print("\n")
 
         if interactive and any(
             [hotkey_ss58_address, include_hotkeys, exclude_hotkeys, all_hotkeys]
@@ -3202,6 +3223,9 @@ class CLIManager:
                     prompt=prompt,
                     interactive=interactive,
                     netuid=netuid,
+                    safe_staking=safe_staking,
+                    rate_tolerance=rate_tolerance,
+                    allow_partial_stake=allow_partial_stake,
                 )
             )
 
