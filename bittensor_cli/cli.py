@@ -3160,6 +3160,52 @@ class CLIManager:
                     validate=WV.WALLET_AND_HOTKEY,
                 )
 
+        elif unstake_all or unstake_all_alpha:
+            if not wallet_name:
+                wallet_name = Prompt.ask(
+                    "Enter the [blue]wallet name[/blue]",
+                    default=self.config.get("wallet_name") or defaults.wallet.name,
+                )
+            if include_hotkeys:
+                if len(include_hotkeys) > 1:
+                    print_error("Cannot unstake_all from multiple hotkeys at once.")
+                    raise typer.Exit()
+                elif is_valid_ss58_address(include_hotkeys[0]):
+                    hotkey_ss58_address = include_hotkeys[0]
+                else:
+                    print_error("Invalid hotkey ss58 address.")
+                    raise typer.Exit()
+            else:
+                hotkey_or_ss58 = Prompt.ask(
+                    "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake all from",
+                    default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
+                )
+                if is_valid_ss58_address(hotkey_or_ss58):
+                    hotkey_ss58_address = hotkey_or_ss58
+                    wallet = self.wallet_ask(
+                        wallet_name,
+                        wallet_path,
+                        wallet_hotkey,
+                        ask_for=[WO.NAME, WO.PATH],
+                    )
+                else:
+                    wallet_hotkey = hotkey_or_ss58
+                    wallet = self.wallet_ask(
+                        wallet_name,
+                        wallet_path,
+                        wallet_hotkey,
+                        ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+                        validate=WV.WALLET_AND_HOTKEY,
+                    )
+            return self._run_command(
+                remove_stake.unstake_all(
+                    wallet=wallet,
+                    subtensor=self.initialize_chain(network),
+                    hotkey_ss58_address=hotkey_ss58_address,
+                    unstake_all_alpha=unstake_all_alpha,
+                    prompt=prompt,
+                )
+            )
         elif (
             all_hotkeys
             or include_hotkeys
@@ -3201,33 +3247,23 @@ class CLIManager:
         else:
             excluded_hotkeys = []
 
-        if unstake_all or unstake_all_alpha:
-            return self._run_command(
-                remove_stake.unstake_all(
-                    wallet=wallet,
-                    subtensor=self.initialize_chain(network),
-                    unstake_all_alpha=unstake_all_alpha,
-                    prompt=prompt,
-                )
+        return self._run_command(
+            remove_stake.unstake(
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                hotkey_ss58_address=hotkey_ss58_address,
+                all_hotkeys=all_hotkeys,
+                include_hotkeys=included_hotkeys,
+                exclude_hotkeys=excluded_hotkeys,
+                amount=amount,
+                prompt=prompt,
+                interactive=interactive,
+                netuid=netuid,
+                safe_staking=safe_staking,
+                rate_tolerance=rate_tolerance,
+                allow_partial_stake=allow_partial_stake,
             )
-        else:
-            return self._run_command(
-                remove_stake.unstake(
-                    wallet=wallet,
-                    subtensor=self.initialize_chain(network),
-                    hotkey_ss58_address=hotkey_ss58_address,
-                    all_hotkeys=all_hotkeys,
-                    include_hotkeys=included_hotkeys,
-                    exclude_hotkeys=excluded_hotkeys,
-                    amount=amount,
-                    prompt=prompt,
-                    interactive=interactive,
-                    netuid=netuid,
-                    safe_staking=safe_staking,
-                    rate_tolerance=rate_tolerance,
-                    allow_partial_stake=allow_partial_stake,
-                )
-            )
+        )
 
     def stake_move(
         self,
