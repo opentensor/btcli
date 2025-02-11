@@ -13,7 +13,6 @@ from async_substrate_interface.errors import SubstrateRequestException
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.utils import (
-    # TODO add back in caching
     console,
     err_console,
     print_verbose,
@@ -22,8 +21,6 @@ from bittensor_cli.src.bittensor.utils import (
     is_valid_ss58_address,
     format_error_message,
     group_subnets,
-    millify_tao,
-    get_subnet_name,
 )
 
 if TYPE_CHECKING:

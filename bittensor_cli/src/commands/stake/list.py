@@ -15,7 +15,6 @@ from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import StakeInfo
 from bittensor_cli.src.bittensor.utils import (
-    # TODO add back in caching
     console,
     print_error,
     millify_tao,
