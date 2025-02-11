@@ -1330,7 +1330,7 @@ class SubtensorInterface:
         result = await self.query_runtime_api(
             runtime_api="StakeInfoRuntimeApi",
             method="get_stake_info_for_coldkeys",
-            params=coldkey_ss58_list,
+            params=[coldkey_ss58_list],
             block_hash=block_hash,
         )
         if result is None:
