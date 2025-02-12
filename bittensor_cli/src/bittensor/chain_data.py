@@ -197,6 +197,7 @@ class StakeInfo(InfoBase):
     stake: Balance  # Stake for the hotkey-coldkey pair
     locked: Balance  # Stake which is locked.
     emission: Balance  # Emission for the hotkey-coldkey pair
+    tao_emission: Balance  # TAO emission for the hotkey-coldkey pair
     drain: int
     is_registered: bool
 
@@ -208,11 +209,20 @@ class StakeInfo(InfoBase):
         stake = Balance.from_rao(decoded.get("stake")).set_unit(netuid)
         locked = Balance.from_rao(decoded.get("locked")).set_unit(netuid)
         emission = Balance.from_rao(decoded.get("emission")).set_unit(netuid)
+        tao_emission = Balance.from_rao(decoded.get("tao_emission"))
         drain = int(decoded.get("drain"))
         is_registered = bool(decoded.get("is_registered"))
 
         return StakeInfo(
-            hotkey, coldkey, netuid, stake, locked, emission, drain, is_registered
+            hotkey,
+            coldkey,
+            netuid,
+            stake,
+            locked,
+            emission,
+            tao_emission,
+            drain,
+            is_registered,
         )
 
 
