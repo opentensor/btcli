@@ -661,7 +661,7 @@ async def subnets_list(
         # Calculate totals
         total_netuids = len(subnets)
         _total_emissions = sum(
-            float(subnet.tao_in_emission.tao) for subnet in subnets if subnet.netuid != 0
+            subnet.tao_in_emission.tao for subnet in subnets if subnet.netuid != 0
         )
         total_emissions = (
             f"{millify_tao(_total_emissions)}"
