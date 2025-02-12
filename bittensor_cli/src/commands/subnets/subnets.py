@@ -399,11 +399,7 @@ async def subnets_list(
             )
 
         total_emissions = round(
-            sum(
-                subnet.tao_in_emission.tao
-                for subnet in subnets
-                if subnet.netuid != 0
-            ),
+            sum(subnet.tao_in_emission.tao for subnet in subnets if subnet.netuid != 0),
             4,
         )
         total_rate = round(
@@ -669,9 +665,7 @@ async def subnets_list(
             else f"{_total_emissions:,.2f}"
         )
 
-        total_rate = sum(
-            subnet.price.tao for subnet in subnets if subnet.netuid != 0
-        )
+        total_rate = sum(subnet.price.tao for subnet in subnets if subnet.netuid != 0)
         total_rate = (
             f"{millify_tao(total_rate)}" if not verbose else f"{total_rate:,.2f}"
         )
@@ -1067,14 +1061,6 @@ async def show(
             pad_edge=True,
         )
 
-        # For hotkey_block_emission calculation
-        emission_sum = sum(
-            [
-                subnet_state.emission[idx].tao
-                for idx in range(len(subnet_state.emission))
-            ]
-        )
-
         # For table footers
         alpha_sum = sum(
             [
@@ -1096,6 +1082,12 @@ async def show(
         )
         dividends_sum = sum(
             subnet_state.dividends[idx] for idx in range(len(subnet_state.dividends))
+        )
+        emission_sum = sum(
+            [
+                subnet_state.emission[idx].tao
+                for idx in range(len(subnet_state.emission))
+            ]
         )
 
         owner_hotkeys = await subtensor.get_owned_hotkeys(subnet_info.owner_coldkey)
@@ -1170,9 +1162,7 @@ async def show(
                     if verbose
                     else f"τ {millify_tao(tao_stake)}",  # Tao Stake
                     f"{subnet_state.dividends[idx]:.6f}",  # Dividends
-                    # f"{Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao:.5f}",  # Dividends
                     f"{subnet_state.incentives[idx]:.6f}",  # Incentive
-                    # f"{Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao:.5f}",  # Emissions relative
                     f"{Balance.from_tao(subnet_state.emission[idx].tao).set_unit(netuid_).tao:.6f} {subnet_info.symbol}",  # Emissions
                     f"{subnet_state.hotkeys[idx][:6]}"
                     if not verbose
