@@ -30,7 +30,7 @@ from bittensor_cli.src.bittensor.utils import (
     err_console,
     decode_hex_identity_dict,
     validate_chain_endpoint,
-    u16_normalized_float
+    u16_normalized_float,
 )
 
 

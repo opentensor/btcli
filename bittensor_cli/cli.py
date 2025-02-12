@@ -963,13 +963,13 @@ class CLIManager:
             finally:
                 if initiated is False:
                     asyncio.create_task(cmd).cancel()
-                if exit_early is True:   # temporarily to handle multiple run commands in one session
+                if (
+                    exit_early is True
+                ):  # temporarily to handle multiple run commands in one session
                     try:
                         raise typer.Exit()
                     except Exception as e:  # ensures we always exit cleanly
-                        if not isinstance(
-                            e, (typer.Exit, RuntimeError)
-                        ):
+                        if not isinstance(e, (typer.Exit, RuntimeError)):
                             err_console.print(f"An unknown error has occurred: {e}")
 
         return self.asyncio_runner(_run())
@@ -2209,7 +2209,9 @@ class CLIManager:
         )
         if not uri:
             n_words = get_n_words(n_words)
-        return self._run_command(wallets.new_hotkey(wallet, n_words, use_password, uri, overwrite))
+        return self._run_command(
+            wallets.new_hotkey(wallet, n_words, use_password, uri, overwrite)
+        )
 
     def wallet_new_coldkey(
         self,
@@ -2344,13 +2346,7 @@ class CLIManager:
         if not uri:
             n_words = get_n_words(n_words)
         return self._run_command(
-            wallets.wallet_create(
-                wallet,
-                n_words,
-                use_password,
-                uri,
-                overwrite
-            )
+            wallets.wallet_create(wallet, n_words, use_password, uri, overwrite)
         )
 
     def wallet_balance(

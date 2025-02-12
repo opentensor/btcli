@@ -44,7 +44,6 @@ from bittensor_cli.src.bittensor.utils import (
     get_subnet_name,
     millify_tao,
     unlock_key,
-    hex_to_bytes,
     WalletLike,
 )
 
@@ -1076,12 +1075,11 @@ async def transfer(
 ):
     """Transfer token of amount to destination."""
     await transfer_extrinsic(
-        # TODO verify the order here
-        subtensor,
-        wallet,
-        destination,
-        Balance.from_tao(amount),
-        transfer_all,
+        subtensor=subtensor,
+        wallet=wallet,
+        destination=destination,
+        amount=Balance.from_tao(amount),
+        transfer_all=transfer_all,
         prompt=prompt,
     )
 
@@ -1335,11 +1333,7 @@ async def set_id(
             )
             return False
 
-    try:
-        # TODO unlock fn
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success:
         return False
 
     call = await subtensor.substrate.compose_call(
@@ -1431,30 +1425,15 @@ async def check_coldkey_swap(wallet: Wallet, subtensor: SubtensorInterface):
 async def sign(wallet: Wallet, message: str, use_hotkey: str):
     """Sign a message using the provided wallet or hotkey."""
 
-    def _unlock(key: str):
-        try:
-            getattr(wallet, f"unlock_{key}")()
-            return True
-        except PasswordError:
-            err_console.print(
-                ":cross_mark: [red]The password used to decrypt your keyfile is invalid[/red]"
-            )
-            return False
-        except KeyFileError:
-            err_console.print(
-                ":cross_mark: [red]Keyfile is corrupt, non-writable, or non-readable[/red]:"
-            )
-            return False
-
     if not use_hotkey:
-        if not _unlock("coldkey"):
+        if not unlock_key(wallet, "coldkey").success:
             return False
         keypair = wallet.coldkey
         print_verbose(
             f"Signing using [{COLOR_PALETTE['GENERAL']['COLDKEY']}]coldkey: {wallet.name}"
         )
     else:
-        if not _unlock("hotkey"):
+        if not unlock_key(wallet, "hotkey").success:
             return False
         keypair = wallet.hotkey
         print_verbose(

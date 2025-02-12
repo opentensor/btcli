@@ -4,7 +4,16 @@ from typing import Any, Optional
 
 
 class Constants:
-    networks = ["local", "finney", "test", "archive", "subvortex", "rao", "dev", "latent-lite"]
+    networks = [
+        "local",
+        "finney",
+        "test",
+        "archive",
+        "subvortex",
+        "rao",
+        "dev",
+        "latent-lite",
+    ]
     finney_entrypoint = "wss://entrypoint-finney.opentensor.ai:443"
     finney_test_entrypoint = "wss://test.finney.opentensor.ai:443"
     archive_entrypoint = "wss://archive.chain.opentensor.ai:443"
@@ -664,7 +673,10 @@ HYPERPARAMS = {
     "alpha_values": ("sudo_set_alpha_values", False),
     "liquid_alpha_enabled": ("sudo_set_liquid_alpha_enabled", False),
     "network_registration_allowed": ("sudo_set_network_registration_allowed", False),
-    "network_pow_registration_allowed": ("sudo_set_network_pow_registration_allowed", False)
+    "network_pow_registration_allowed": (
+        "sudo_set_network_pow_registration_allowed",
+        False,
+    ),
 }
 
 # Help Panels for cli help

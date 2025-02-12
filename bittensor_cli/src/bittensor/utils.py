@@ -1293,11 +1293,14 @@ def is_linux():
     """Returns True if the operating system is Linux."""
     return platform.system().lower() == "linux"
 
+
 def validate_rate_tolerance(value: Optional[float]) -> Optional[float]:
     """Validates rate tolerance input"""
     if value is not None:
         if value < 0:
-            raise typer.BadParameter("Rate tolerance cannot be negative (less than 0%).")
+            raise typer.BadParameter(
+                "Rate tolerance cannot be negative (less than 0%)."
+            )
         if value > 1:
             raise typer.BadParameter("Rate tolerance cannot be greater than 1 (100%).")
         if value > 0.5:
