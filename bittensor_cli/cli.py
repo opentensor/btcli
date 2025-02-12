@@ -2963,7 +2963,7 @@ class CLIManager:
 
         # TODO: Ask amount for each subnet explicitly if more than one
         if not stake_all and not amount:
-            free_balance, staked_balance = self._run_command(
+            free_balance = self._run_command(
                 wallets.wallet_balance(
                     wallet, self.initialize_chain(network), False, None
                 ),
