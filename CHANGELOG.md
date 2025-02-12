@@ -1,5 +1,10 @@
 # Changelog
 
+## 9.0.0rc4 /2025-02-12
+* Adds sort option to metagraph/show
+* Updates metagraph/show to use direct dividends instead of relative
+* Updates subnets list to use working tao emissions
+
 ## 9.0.0rc3 /2025-02-11
 
 ## What's Changed

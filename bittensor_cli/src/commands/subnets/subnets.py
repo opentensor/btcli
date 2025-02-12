@@ -326,7 +326,7 @@ async def subnets_list(
             if netuid == 0:
                 emission_tao = 0.0
             else:
-                emission_tao = subnet.emission.tao
+                emission_tao = subnet.tao_in_emission.tao
 
             alpha_in_value = (
                 f"{millify_tao(subnet.alpha_in.tao)}"
@@ -399,7 +399,11 @@ async def subnets_list(
             )
 
         total_emissions = round(
-            sum(float(subnet.emission.tao) for subnet in subnets if subnet.netuid != 0),
+            sum(
+                float(subnet.tao_in_emission)
+                for subnet in subnets
+                if subnet.netuid != 0
+            ),
             4,
         )
         total_rate = round(
@@ -528,7 +532,7 @@ async def subnets_list(
             if netuid == 0:
                 emission_tao = 0.0
             else:
-                emission_tao = subnet.emission.tao
+                emission_tao = subnet.tao_in_emission.tao
 
             market_cap = (subnet.alpha_in.tao + subnet.alpha_out.tao) * subnet.price.tao
             supply = subnet.alpha_in.tao + subnet.alpha_out.tao
@@ -804,6 +808,7 @@ async def subnets_list(
 async def show(
     subtensor: "SubtensorInterface",
     netuid: int,
+    sort: bool = False,
     max_rows: Optional[int] = None,
     delegate_selection: bool = False,
     verbose: bool = False,
@@ -850,18 +855,6 @@ async def show(
         )
 
         table.add_column("[bold white]Position", style="white", justify="center")
-        # table.add_column(
-        #     f"[bold white]Total Stake ({Balance.get_unit(0)})",
-        #     style=COLOR_PALETTE["POOLS"]["ALPHA_IN"],
-        #     justify="center",
-        # )
-        # ------- Temporary columns for testing -------
-        # table.add_column(
-        #     "Alpha (τ)",
-        #     style=COLOR_PALETTE["POOLS"]["EXTRA_2"],
-        #     no_wrap=True,
-        #     justify="right",
-        # )
         table.add_column(
             "Tao (τ)",
             style=COLOR_PALETTE["POOLS"]["EXTRA_2"],
@@ -869,7 +862,6 @@ async def show(
             justify="right",
             footer=f"{tao_sum:.4f} τ" if verbose else f"{millify_tao(tao_sum)} τ",
         )
-        # ------- End Temporary columns for testing -------
         table.add_column(
             f"[bold white]Emission ({Balance.get_unit(0)}/block)",
             style=COLOR_PALETTE["POOLS"]["EMISSION"],
@@ -1102,7 +1094,10 @@ async def show(
                 for idx in range(len(subnet_state.tao_stake))
             ]
         )
-        relative_emissions_sum = 0
+        dividends_sum = sum(
+            subnet_state.dividends[idx] for idx in range(len(subnet_state.dividends))
+        )
+
         owner_hotkeys = await subtensor.get_owned_hotkeys(subnet_info.owner_coldkey)
         if subnet_info.owner_hotkey not in owner_hotkeys:
             owner_hotkeys.append(subnet_info.owner_hotkey)
@@ -1118,25 +1113,24 @@ async def show(
         sorted_indices = sorted(
             range(len(subnet_state.hotkeys)),
             key=lambda i: (
-                # Sort by owner status first
-                not (
-                    subnet_state.coldkeys[i] == subnet_info.owner_coldkey
-                    or subnet_state.hotkeys[i] in owner_hotkeys
-                ),
-                # Then sort by stake amount (higher stakes first)
-                -subnet_state.total_stake[i].tao,
+                # If sort is True, sort only by UIDs
+                i
+                if sort
+                else (
+                    # Otherwise
+                    # Sort by owner status first
+                    not (
+                        subnet_state.coldkeys[i] == subnet_info.owner_coldkey
+                        or subnet_state.hotkeys[i] in owner_hotkeys
+                    ),
+                    # Then sort by stake amount (higher stakes first)
+                    -subnet_state.total_stake[i].tao,
+                )
             ),
         )
 
         rows = []
         for idx in sorted_indices:
-            hotkey_block_emission = (
-                subnet_state.emission[idx].tao / emission_sum
-                if emission_sum != 0
-                else 0
-            )
-            relative_emissions_sum += hotkey_block_emission
-
             # Get identity for this uid
             coldkey_identity = identities.get(subnet_state.coldkeys[idx], {}).get(
                 "name", ""
@@ -1175,11 +1169,11 @@ async def show(
                     f"τ {tao_stake.tao:.4f}"
                     if verbose
                     else f"τ {millify_tao(tao_stake)}",  # Tao Stake
-                    # str(subnet_state.dividends[idx]),
-                    f"{Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao:.5f}",  # Dividends
-                    f"{subnet_state.incentives[idx]:.4f}",  # Incentive
+                    f"{subnet_state.dividends[idx]:.6f}",  # Dividends
+                    # f"{Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao:.5f}",  # Dividends
+                    f"{subnet_state.incentives[idx]:.6f}",  # Incentive
                     # f"{Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao:.5f}",  # Emissions relative
-                    f"{Balance.from_tao(subnet_state.emission[idx].tao).set_unit(netuid_).tao:.5f} {subnet_info.symbol}",  # Emissions
+                    f"{Balance.from_tao(subnet_state.emission[idx].tao).set_unit(netuid_).tao:.6f} {subnet_info.symbol}",  # Emissions
                     f"{subnet_state.hotkeys[idx][:6]}"
                     if not verbose
                     else f"{subnet_state.hotkeys[idx]}",  # Hotkey
@@ -1201,7 +1195,6 @@ async def show(
             if verbose
             else f"{millify_tao(stake_sum)} {subnet_info.symbol}",
         )
-        # ------- Temporary columns for testing -------
         table.add_column(
             f"Alpha ({Balance.get_unit(netuid_)})",
             style=COLOR_PALETTE["POOLS"]["EXTRA_2"],
@@ -1220,24 +1213,14 @@ async def show(
             if verbose
             else f"{millify_tao(tao_sum)} {subnet_info.symbol}",
         )
-        # ------- End Temporary columns for testing -------
         table.add_column(
             "Dividends",
             style=COLOR_PALETTE["POOLS"]["EMISSION"],
             no_wrap=True,
             justify="center",
-            footer=f"{relative_emissions_sum:.3f}",
+            footer=f"{dividends_sum:.3f}",
         )
         table.add_column("Incentive", style="#5fd7ff", no_wrap=True, justify="center")
-
-        # Hiding relative emissions for now
-        # table.add_column(
-        #     "Emissions",
-        #     style="light_goldenrod2",
-        #     no_wrap=True,
-        #     justify="center",
-        #     footer=f"{relative_emissions_sum:.3f}",
-        # )
         table.add_column(
             f"Emissions ({Balance.get_unit(netuid_)})",
             style=COLOR_PALETTE["POOLS"]["EMISSION"],
