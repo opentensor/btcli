@@ -176,13 +176,13 @@ class Options:
     )
     netuid = typer.Option(
         None,
-        help="The netuid of the subnet in the root network, (e.g. 1).",
+        help="The netuid of the subnet in the network, (e.g. 1).",
         prompt=True,
         callback=validate_netuid,
     )
     netuid_not_req = typer.Option(
         None,
-        help="The netuid of the subnet in the root network, (e.g. 1).",
+        help="The netuid of the subnet in the network, (e.g. 1).",
         prompt=False,
     )
     all_netuids = typer.Option(
@@ -957,9 +957,12 @@ class CLIManager:
                 ConnectionClosed,
                 SubstrateRequestException,
                 KeyboardInterrupt,
+                RuntimeError,
             ) as e:
                 if isinstance(e, SubstrateRequestException):
                     err_console.print(str(e))
+                elif isinstance(e, RuntimeError):
+                    pass  # Temporarily to handle loop bound issues
                 verbose_console.print(traceback.format_exc())
             except Exception as e:
                 err_console.print(f"An unknown error has occurred: {e}")
@@ -1118,7 +1121,23 @@ class CLIManager:
         ),
     ):
         """
-        Sets the values in the config file. To set the metagraph configuration, use the command `btcli config metagraph`
+        Sets or updates configuration values in the BTCLI config file.
+
+        This command allows you to set default values that will be used across all BTCLI commands.
+
+        USAGE
+        Interactive mode:
+            [green]$[/green] btcli config set
+
+        Set specific values:
+            [green]$[/green] btcli config set --wallet-name default --network finney
+            [green]$[/green] btcli config set --safe-staking --rate-tolerance 0.1
+
+        [bold]NOTE[/bold]:
+        - Network values can be network names (e.g., 'finney', 'test') or websocket URLs
+        - Rate tolerance is specified as a decimal (e.g., 0.05 for 0.05%)
+        - Changes are saved to ~/.bittensor/btcli.yaml
+        - Use '[green]$[/green] btcli config get' to view current settings
         """
         args = {
             "wallet_name": wallet_name,
@@ -1607,50 +1626,9 @@ class CLIManager:
 
         USAGE
 
-        The command offers various options to customize the output. Users can filter the displayed data by specific
-        netuid, sort by different criteria, and choose to include all the wallets in the user's wallet path location.
-        The output is presented in a tabular format with the following columns:
-
-        - COLDKEY: The SS58 address of the coldkey.
-
-        - HOTKEY: The SS58 address of the hotkey.
-
-        - UID: Unique identifier of the neuron.
-
-        - ACTIVE: Indicates if the neuron is active.
-
-        - STAKE(τ): Amount of stake in the neuron, in TAO.
-
-        - RANK: The rank of the neuron within the network.
-
-        - TRUST: Trust score of the neuron.
-
-        - CONSENSUS: Consensus score of the neuron.
-
-        - INCENTIVE: Incentive score of the neuron.
-
-        - DIVIDENDS: Dividends earned by the neuron.
-
-        - EMISSION(p): Emission received by the neuron, expressed in rho.
-
-        - VTRUST: Validator trust score of the neuron.
-
-        - VPERMIT: Indicates if the neuron has a validator permit.
-
-        - UPDATED: Time since last update.
-
-        - AXON: IP address and port of the neuron.
-
-        - HOTKEY_SS58: Human-readable representation of the hotkey.
-
-
-        # EXAMPLE:
-
         [green]$[/green] btcli wallet overview
 
-        [green]$[/green] btcli wallet overview --all --sort-by stake --sort-order descending
-
-        [green]$[/green] btcli wallet overview -in hk1,hk2 --sort-by stake
+        [green]$[/green] btcli wallet overview --all
 
         [bold]NOTE[/bold]: This command is read-only and does not modify the blockchain state or account configuration.
         It provides a quick and comprehensive view of the user's network presence, making it useful for monitoring account status,
@@ -2758,7 +2736,25 @@ class CLIManager:
         no_prompt: bool = Options.prompt,
         # TODO add: all-wallets, reuse_last, html_output
     ):
-        """List all stake accounts for wallet."""
+        """
+        Display detailed stake information for a wallet across all subnets.
+
+        Shows stake allocations, exchange rates, and emissions for each hotkey.
+
+        [bold]Common Examples:[/bold]
+
+        1. Basic stake overview:
+        [green]$[/green] btcli stake list --wallet.name my_wallet
+
+        2. Live updating view with refresh:
+        [green]$[/green] btcli stake list --wallet.name my_wallet --live
+
+        3. View specific coldkey by address:
+        [green]$[/green] btcli stake list --ss58 5Dk...X3q
+
+        4. Verbose output with full values:
+        [green]$[/green] btcli stake list --wallet.name my_wallet --verbose
+        """
         self.verbosity_handler(quiet, verbose)
 
         wallet = None
@@ -2838,21 +2834,42 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Stake TAO to one or more hotkeys associated with the user's coldkey.
+        Stake TAO to one or more hotkeys on specific netuids with your coldkey.
 
-        This command is used by a subnet validator to stake to their own hotkey. Compare this command with "btcli root delegate" that is typically run by a TAO holder to delegate their TAO to a delegate's hotkey.
+        Stake is always added through your coldkey's free balance. For stake movement, please see `[green]$[/green] btcli stake move` command.
 
-        This command is used by a subnet validator to allocate stake TAO to their different hotkeys, securing their position and influence on the network.
+        [bold]Common Examples:[/bold]
 
-        EXAMPLE
+        1. Interactive staking (guided prompts):
+            [green]$[/green] btcli stake add
 
-        [green]$[/green] btcli stake add --amount 100 --wallet-name <my_wallet> --wallet-hotkey <my_hotkey>
+        2. Safe staking with rate tolerance of 10% with partial transaction disabled:
+            [green]$[/green] btcli stake add --amount 100 --netuid 1 --safe --tolerance 0.1 --no-partial
+
+        3. Allow partial stake if rates change with tolerance of 10%:
+            [green]$[/green] btcli stake add --amount 300 --safe --partial --tolerance 0.1
+
+        4. Unsafe staking with no rate protection:
+            [green]$[/green] btcli stake add --amount 300 --netuid 1 --unsafe
+
+        5. Stake to multiple hotkeys:
+            [green]$[/green] btcli stake add --amount 200 --include-hotkeys hk_ss58_1,hk_ss58_2,hk_ss58_3
+
+        6. Stake all balance to a subnet:
+            [green]$[/green] btcli stake add --all --netuid 3
+
+        [bold]Safe Staking Parameters:[/bold]
+        • [blue]--safe[/blue]: Enables rate tolerance checks
+        • [blue]--tolerance[/blue]: Maximum % rate change allowed (0.05 = 5%)
+        • [blue]--partial[/blue]: Complete partial stake if rates exceed tolerance
+
         """
         self.verbosity_handler(quiet, verbose)
         safe_staking = self.ask_safe_staking(safe_staking)
         if safe_staking:
             rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
             allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
+            console.print("\n")
         netuid = get_optional_netuid(netuid, all_netuids)
 
         if stake_all and amount:
@@ -3068,15 +3085,34 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Unstake TAO from one or more hotkeys and transfer them back to the user's coldkey.
+        Unstake TAO from one or more hotkeys and transfer them back to the user's coldkey wallet.
 
-        This command is used to withdraw TAO previously staked to different hotkeys.
+        This command is used to withdraw TAO or Alpha stake from different hotkeys.
 
-        EXAMPLE
+        [bold]Common Examples:[/bold]
 
-        [green]$[/green] btcli stake remove --amount 100 -in hk1,hk2
+        1. Interactive unstaking (guided prompts):
+            [green]$[/green] btcli stake remove
 
-        [blue bold]Note[/blue bold]: This command is for users who wish to reallocate their stake or withdraw them from the network. It allows for flexible management of TAO stake across different neurons (hotkeys) on the network.
+        2. Safe unstaking with 10% rate tolerance:
+            [green]$[/green] btcli stake remove --amount 100 --netuid 1 --safe --tolerance 0.1
+
+        3. Allow partial unstake if rates change:
+            [green]$[/green] btcli stake remove --amount 300 --safe --partial
+
+        4. Unstake from multiple hotkeys:
+            [green]$[/green] btcli stake remove --amount 200 --include-hotkeys hk1,hk2,hk3
+
+        5. Unstake all from a hotkey:
+            [green]$[/green] btcli stake remove --all
+
+        6. Unstake all Alpha from a hotkey and stake to Root:
+            [green]$[/green] btcli stake remove --all-alpha
+
+        [bold]Safe Staking Parameters:[/bold]
+        • [blue]--safe[/blue]: Enables rate tolerance checks during unstaking
+        • [blue]--tolerance[/blue]: Max allowed rate change (0.05 = 5%)
+        • [blue]--partial[/blue]: Complete partial unstake if rates exceed tolerance
         """
         self.verbosity_handler(quiet, verbose)
         if not unstake_all and not unstake_all_alpha:
@@ -3982,8 +4018,6 @@ class CLIManager:
         """
         Shows a list of the hyperparameters for the specified subnet.
 
-        The output of this command is the same as that of `btcli subnets hyperparameters`.
-
         EXAMPLE
 
         [green]$[/green] btcli sudo get --netuid 1
@@ -4159,40 +4193,37 @@ class CLIManager:
     def subnets_list(
         self,
         network: Optional[list[str]] = Options.network,
-        # reuse_last: bool = Options.reuse_last,
-        # html_output: bool = Options.html_output,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         live_mode: bool = Options.live,
     ):
         """
-        List all subnets and their detailed information.
+         List all subnets and their detailed information.
 
-        This command displays a table with the below columns:
+         [bold]Common Examples:[/bold]
 
-        - NETUID: The subnet's netuid.
-        - N: The number of neurons (subnet validators and subnet miners) in the subnet.
-        - MAX_N: The maximum allowed number of neurons in the subnet.
-        - EMISSION: The percentage of emissions to the subnet as of the last tempo.
-        - TEMPO: The subnet's tempo, expressed in number of blocks.
-        - RECYCLE: The recycle register cost for this subnet.
-        - POW: The proof of work (PoW) difficulty.
-        - SUDO: The subnet owner's name or the owner's ss58 address.
+         1. List all subnets:
+         [green]$[/green] btcli subnets list
 
-        EXAMPLE
+         2. List all subnets in live mode:
+         [green]$[/green] btcli subnets list --live
 
-        [green]$[/green] btcli subnets list
+        [bold]Output Columns:[/bold]
+         • [white]Netuid[/white] - Subnet identifier number
+         • [white]Name[/white] - Subnet name with currency symbol (τ/α/β etc)
+         • [white]Price (τ_in/α_in)[/white] - Exchange rate (TAO per alpha token)
+         • [white]Market Cap (α * Price)[/white] - Total value in TAO (alpha tokens × price)
+         • [white]Emission (τ)[/white] - TAO rewards emitted per block to subnet
+         • [white]P (τ_in, α_in)[/white] - Pool reserves (Tao reserves, alpha reserves) in liquidity pool
+         • [white]Stake (α_out)[/white] - Total staked alpha tokens across all hotkeys (alpha outstanding)
+         • [white]Supply (α)[/white] - Circulating alpha token supply
+         • [white]Tempo (k/n)[/white] - Block interval for subnet updates
+
+         EXAMPLE
+
+         [green]$[/green] btcli subnets list
         """
         self.verbosity_handler(quiet, verbose)
-        # if (reuse_last or html_output) and self.config.get("use_cache") is False:
-        #     err_console.print(
-        #         "Unable to use `--reuse-last` or `--html` when config 'no-cache' is set to 'True'. "
-        #         "Change the config to 'False' using `btcli config set`."
-        #     )
-        #     raise typer.Exit()
-        # if reuse_last:
-        #     subtensor = None
-        # else:
         subtensor = self.initialize_chain(network)
         return self._run_command(
             subnets.subnets_list(
@@ -4372,11 +4403,18 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Registers a new subnet.
+        Registers a new subnet on the network.
 
-        EXAMPLE
+        This command allows you to create a new subnet and set the subnet's identity.
+        You also have the option to set your own identity after the registration is complete.
 
+        [bold]Common Examples:[/bold]
+
+        1. Interactive subnet creation:
         [green]$[/green] btcli subnets create
+
+        2. Create with GitHub repo and contact email:
+        [green]$[/green] btcli subnets create --subnet-name MySubnet --github-repo https://github.com/myorg/mysubnet --subnet-contact team@mysubnet.net
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
