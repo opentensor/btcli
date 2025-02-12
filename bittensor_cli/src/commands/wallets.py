@@ -286,16 +286,12 @@ async def wallet_balance(
             wallet_names = [wallet.name]
 
         block_hash = await subtensor.substrate.get_chain_head()
-        free_balances, staked_balances = await asyncio.gather(
-            subtensor.get_balances(*coldkeys, block_hash=block_hash),
-            subtensor.get_total_stake_for_coldkey(*coldkeys, block_hash=block_hash),
-        )
+        free_balances = await subtensor.get_balances(*coldkeys, block_hash=block_hash)
 
     total_free_balance = sum(free_balances.values())
-    total_staked_balance = sum(staked_balances.values())
 
     balances = {
-        name: (coldkey, free_balances[coldkey], staked_balances[coldkey])
+        name: (coldkey, free_balances[coldkey])
         for (name, coldkey) in zip(wallet_names, coldkeys)
     }
 
@@ -316,18 +312,6 @@ async def wallet_balance(
             style=COLOR_PALETTE["GENERAL"]["BALANCE"],
             no_wrap=True,
         ),
-        Column(
-            "[white]Staked Balance",
-            justify="right",
-            style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
-            no_wrap=True,
-        ),
-        Column(
-            "[white]Total Balance",
-            justify="right",
-            style=COLOR_PALETTE["GENERAL"]["BALANCE"],
-            no_wrap=True,
-        ),
         title=f"\n [{COLOR_PALETTE['GENERAL']['HEADER']}]Wallet Coldkey Balance\nNetwork: {subtensor.network}",
         show_footer=True,
         show_edge=False,
@@ -338,25 +322,21 @@ async def wallet_balance(
         leading=True,
     )
 
-    for name, (coldkey, free, staked) in balances.items():
+    for name, (coldkey, free) in balances.items():
         table.add_row(
             name,
             coldkey,
             str(free),
-            str(staked),
-            str(free + staked),
         )
     table.add_row()
     table.add_row(
         "Total Balance",
         "",
         str(total_free_balance),
-        str(total_staked_balance),
-        str(total_free_balance + total_staked_balance),
     )
     console.print(Padding(table, (0, 0, 0, 4)))
     await subtensor.substrate.close()
-    return total_free_balance, total_staked_balance
+    return total_free_balance
 
 
 async def get_wallet_transfers(wallet_address: str) -> list[dict]:
