@@ -1,5 +1,11 @@
 # Changelog
 
+## 9.0.0rc3 /2025-02-11
+
+## What's Changed
+* Adds safe staking capability to stake add/remove and related configs
+* Other bug fixes and improvements
+
 ## 9.0.0rc2 /2025-02-06
 
 ## What's Changed
