@@ -2,7 +2,6 @@ import asyncio
 from typing import Optional
 
 from bittensor_wallet import Wallet
-from bittensor_wallet.errors import KeyFileError
 from rich.prompt import Confirm, Prompt, IntPrompt
 from rich.table import Table
 from rich.text import Text
@@ -19,6 +18,7 @@ from bittensor_cli.src.bittensor.utils import (
     u64_to_float,
     is_valid_ss58_address,
     format_error_message,
+    unlock_key,
 )
 
 
@@ -99,10 +99,8 @@ async def set_children_extrinsic(
                 return False, "Operation Cancelled"
 
     # Decrypt coldkey.
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        return False, "There was an error unlocking your coldkey."
+    if not (unlock_status := unlock_key(wallet, print_out=False)).success:
+        return False, unlock_status.message
 
     with console.status(
         f":satellite: {operation} on [white]{subtensor.network}[/white] ..."
@@ -185,10 +183,8 @@ async def set_childkey_take_extrinsic(
             return False, "Operation Cancelled"
 
     # Decrypt coldkey.
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        return False, "There was an error unlocking your coldkey."
+    if not (unlock_status := unlock_key(wallet, print_out=False)).success:
+        return False, unlock_status.message
 
     with console.status(
         f":satellite: Setting childkey take on [white]{subtensor.network}[/white] ..."
@@ -239,7 +235,7 @@ async def set_childkey_take_extrinsic(
         except SubstrateRequestException as e:
             return (
                 False,
-                f"Exception occurred while setting childkey take: {format_error_message(e, subtensor.substrate)}",
+                f"Exception occurred while setting childkey take: {format_error_message(e)}",
             )
 
 
@@ -263,9 +259,7 @@ async def get_childkey_take(subtensor, hotkey: str, netuid: int) -> Optional[int
             return int(childkey_take_.value)
 
     except SubstrateRequestException as e:
-        err_console.print(
-            f"Error querying ChildKeys: {format_error_message(e, subtensor.substrate)}"
-        )
+        err_console.print(f"Error querying ChildKeys: {format_error_message(e)}")
         return None
 
 
@@ -502,7 +496,7 @@ async def set_children(
     subtensor: "SubtensorInterface",
     children: list[str],
     proportions: list[float],
-    netuid: Optional[int],
+    netuid: Optional[int] = None,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
     prompt: bool = True,
@@ -589,8 +583,8 @@ async def revoke_children(
     netuid: Optional[int] = None,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
+    prompt: bool = True,
 ):
-    # TODO seek clarification on use of asking hotkey vs how we do it now
     """
     Revokes the children hotkeys associated with a given network identifier (netuid).
     """
@@ -601,7 +595,7 @@ async def revoke_children(
             netuid=netuid,
             hotkey=wallet.hotkey.ss58_address,
             children_with_proportions=[],
-            prompt=True,
+            prompt=prompt,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
         )
@@ -630,7 +624,7 @@ async def revoke_children(
                 netuid=netuid,
                 hotkey=wallet.hotkey.ss58_address,
                 children_with_proportions=[],
-                prompt=False,
+                prompt=prompt,
                 wait_for_inclusion=True,
                 wait_for_finalization=False,
             )
@@ -790,7 +784,7 @@ async def childkey_take(
                     netuid=netuid,
                     hotkey=wallet.hotkey.ss58_address,
                     take=take,
-                    prompt=False,
+                    prompt=prompt,
                     wait_for_inclusion=True,
                     wait_for_finalization=False,
                 )

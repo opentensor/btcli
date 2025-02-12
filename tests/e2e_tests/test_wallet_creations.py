@@ -304,7 +304,7 @@ def test_wallet_creations(wallet_setup):
     assert wallet_status, message
 
 
-def test_wallet_regen(wallet_setup):
+def test_wallet_regen(wallet_setup, capfd):
     """
     Test the regeneration of coldkeys, hotkeys, and coldkeypub files using mnemonics or ss58 address.
 
@@ -342,7 +342,8 @@ def test_wallet_regen(wallet_setup):
     # Verify the command has output, as expected
     assert result.stdout is not None
 
-    mnemonics = extract_mnemonics_from_commands(result.stdout)
+    captured = capfd.readouterr()
+    mnemonics = extract_mnemonics_from_commands(captured.out)
 
     wallet_status, message = verify_wallet_dir(
         wallet_path,
@@ -372,8 +373,8 @@ def test_wallet_regen(wallet_setup):
             "--mnemonic",
             mnemonics["coldkey"],
             "--no-use-password",
+            "--overwrite",
         ],
-        inputs=["y", "y"],
     )
 
     # Wait a bit to ensure file system updates modification time
@@ -412,8 +413,8 @@ def test_wallet_regen(wallet_setup):
             wallet_path,
             "--ss58-address",
             ss58_address,
+            "--overwrite",
         ],
-        inputs=["y"],
     )
 
     # Wait a bit to ensure file system updates modification time
@@ -447,8 +448,8 @@ def test_wallet_regen(wallet_setup):
             "--mnemonic",
             mnemonics["hotkey"],
             "--no-use-password",
+            "--overwrite",
         ],
-        inputs=["y"],
     )
 
     # Wait a bit to ensure file system updates modification time

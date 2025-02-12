@@ -4,10 +4,12 @@ from typing import Any, Optional
 
 
 class Constants:
-    networks = ["local", "finney", "test", "archive", "rao", "dev", "latent-lite"]
+    networks = ["local", "finney", "test", "archive", "subvortex", "rao", "dev", "latent-lite"]
     finney_entrypoint = "wss://entrypoint-finney.opentensor.ai:443"
     finney_test_entrypoint = "wss://test.finney.opentensor.ai:443"
     archive_entrypoint = "wss://archive.chain.opentensor.ai:443"
+    subvortex_entrypoint = "ws://subvortex.info:9944"
+    local_entrypoint = "ws://127.0.0.1:9944"
     rao_entrypoint = "wss://rao.chain.opentensor.ai:443"
     dev_entrypoint = "wss://dev.chain.opentensor.ai:443 "
     local_entrypoint = "ws://127.0.0.1:9944"
@@ -20,6 +22,7 @@ class Constants:
         "dev": dev_entrypoint,
         "rao": rao_entrypoint,
         "latent-lite": latent_lite_entrypoint,
+        "subvortex": subvortex_entrypoint,
     }
     delegates_detail_url = "https://raw.githubusercontent.com/opentensor/bittensor-delegates/main/public/delegates.json"
 
@@ -100,7 +103,7 @@ class Defaults:
         }
 
     class subtensor:
-        network = "test"
+        network = "finney"
         chain_endpoint = None
         _mock = False
 
@@ -631,28 +634,37 @@ NETWORK_EXPLORER_MAP = {
 
 
 HYPERPARAMS = {
-    "serving_rate_limit": "sudo_set_serving_rate_limit",
-    "min_difficulty": "sudo_set_min_difficulty",
-    "max_difficulty": "sudo_set_max_difficulty",
-    "weights_version": "sudo_set_weights_version_key",
-    "weights_rate_limit": "sudo_set_weights_set_rate_limit",
-    "max_weights_limit": "sudo_set_max_weight_limit",
-    "immunity_period": "sudo_set_immunity_period",
-    "min_allowed_weights": "sudo_set_min_allowed_weights",
-    "activity_cutoff": "sudo_set_activity_cutoff",
-    "network_registration_allowed": "sudo_set_network_registration_allowed",
-    "network_pow_registration_allowed": "sudo_set_network_pow_registration_allowed",
-    "min_burn": "sudo_set_min_burn",
-    "max_burn": "sudo_set_max_burn",
-    "adjustment_alpha": "sudo_set_adjustment_alpha",
-    "rho": "sudo_set_rho",
-    "kappa": "sudo_set_kappa",
-    "difficulty": "sudo_set_difficulty",
-    "bonds_moving_avg": "sudo_set_bonds_moving_average",
-    "commit_reveal_period": "sudo_set_commit_reveal_weights_interval",
-    "commit_reveal_weights_enabled": "sudo_set_commit_reveal_weights_enabled",
-    "alpha_values": "sudo_set_alpha_values",
-    "liquid_alpha_enabled": "sudo_set_liquid_alpha_enabled",
+    # btcli name: (subtensor method, root-only bool)
+    "rho": ("sudo_set_rho", False),
+    "kappa": ("sudo_set_kappa", False),
+    "immunity_period": ("sudo_set_immunity_period", False),
+    "min_allowed_weights": ("sudo_set_min_allowed_weights", False),
+    "max_weights_limit": ("sudo_set_max_weight_limit", False),
+    "tempo": ("sudo_set_tempo", True),
+    "min_difficulty": ("sudo_set_min_difficulty", False),
+    "max_difficulty": ("sudo_set_max_difficulty", False),
+    "weights_version": ("sudo_set_weights_version_key", False),
+    "weights_rate_limit": ("sudo_set_weights_set_rate_limit", False),
+    "adjustment_interval": ("sudo_set_adjustment_interval", True),
+    "activity_cutoff": ("sudo_set_activity_cutoff", False),
+    "target_regs_per_interval": ("sudo_set_target_registrations_per_interval", True),
+    "min_burn": ("sudo_set_min_burn", True),
+    "max_burn": ("sudo_set_max_burn", False),
+    "bonds_moving_avg": ("sudo_set_bonds_moving_average", False),
+    "max_regs_per_block": ("sudo_set_max_registrations_per_block", True),
+    "serving_rate_limit": ("sudo_set_serving_rate_limit", False),
+    "max_validators": ("sudo_set_max_allowed_validators", True),
+    "adjustment_alpha": ("sudo_set_adjustment_alpha", False),
+    "difficulty": ("sudo_set_difficulty", False),
+    "commit_reveal_period": (
+        "sudo_set_commit_reveal_weights_interval",
+        False,
+    ),
+    "commit_reveal_weights_enabled": ("sudo_set_commit_reveal_weights_enabled", False),
+    "alpha_values": ("sudo_set_alpha_values", False),
+    "liquid_alpha_enabled": ("sudo_set_liquid_alpha_enabled", False),
+    "network_registration_allowed": ("sudo_set_network_registration_allowed", False),
+    "network_pow_registration_allowed": ("sudo_set_network_pow_registration_allowed", False)
 }
 
 # Help Panels for cli help

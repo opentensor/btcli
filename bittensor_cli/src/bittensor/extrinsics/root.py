@@ -21,7 +21,6 @@ import time
 from typing import Union, List, TYPE_CHECKING
 
 from bittensor_wallet import Wallet, Keypair
-from bittensor_wallet.errors import KeyFileError
 import numpy as np
 from numpy.typing import NDArray
 from rich.prompt import Confirm
@@ -37,6 +36,7 @@ from bittensor_cli.src.bittensor.utils import (
     u16_normalized_float,
     print_verbose,
     format_error_message,
+    unlock_key,
 )
 
 if TYPE_CHECKING:
@@ -306,10 +306,7 @@ async def root_register_extrinsic(
              the response is `True`.
     """
 
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success:
         return False
 
     print_verbose(f"Checking if hotkey ({wallet.hotkey_str}) is registered on root")
@@ -427,10 +424,7 @@ async def set_root_weights_extrinsic(
         err_console.print("Your hotkey is not registered to the root network")
         return False
 
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success:
         return False
 
     # First convert types.
@@ -492,11 +486,11 @@ async def set_root_weights_extrinsic(
                 console.print(":white_heavy_check_mark: [green]Finalized[/green]")
                 return True
             else:
-                fmt_err = format_error_message(error_message, subtensor.substrate)
+                fmt_err = format_error_message(error_message)
                 err_console.print(f":cross_mark: [red]Failed[/red]: {fmt_err}")
                 return False
 
     except SubstrateRequestException as e:
-        fmt_err = format_error_message(e, subtensor.substrate)
+        fmt_err = format_error_message(e)
         err_console.print(":cross_mark: [red]Failed[/red]: error:{}".format(fmt_err))
         return False

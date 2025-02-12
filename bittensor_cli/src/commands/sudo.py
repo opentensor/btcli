@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING, Union, Optional
 
 import typer
 from bittensor_wallet import Wallet
-from bittensor_wallet.errors import KeyFileError
 from rich import box
 from rich.table import Column, Table
 from rich.prompt import Confirm
@@ -17,6 +16,7 @@ from bittensor_cli.src.bittensor.utils import (
     print_error,
     print_verbose,
     normalize_hyperparameters,
+    unlock_key,
 )
 
 if TYPE_CHECKING:
@@ -106,13 +106,10 @@ async def set_hyperparameter_extrinsic(
         )
         return False
 
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success:
         return False
 
-    extrinsic = HYPERPARAMS.get(parameter)
+    extrinsic, sudo_ = HYPERPARAMS.get(parameter, ("", False))
     if extrinsic is None:
         err_console.print(":cross_mark: [red]Invalid hyperparameter specified.[/red]")
         return False
@@ -152,11 +149,17 @@ async def set_hyperparameter_extrinsic(
             call_params[str(value_argument["name"])] = value
 
         # create extrinsic call
-        call = await substrate.compose_call(
+        call_ = await substrate.compose_call(
             call_module="AdminUtils",
             call_function=extrinsic,
             call_params=call_params,
         )
+        if sudo_:
+            call = await substrate.compose_call(
+                call_module="Sudo", call_function="sudo", call_params={"call": call_}
+            )
+        else:
+            call = call_
         success, err_msg = await subtensor.sign_and_send_extrinsic(
             call, wallet, wait_for_inclusion, wait_for_finalization
         )
@@ -464,19 +467,20 @@ async def sudo_set_hyperparameter(
 
     normalized_value: Union[str, bool]
     if param_name in [
-        "network_registration_allowed",
+        "registration_allowed",
         "network_pow_registration_allowed",
         "commit_reveal_weights_enabled",
         "liquid_alpha_enabled",
     ]:
-        normalized_value = param_value.lower() in ["true", "1"]
+        normalized_value = param_value.lower() in ["true", "True", "1"]
     else:
         normalized_value = param_value
 
     is_allowed_value, value = allowed_value(param_name, normalized_value)
     if not is_allowed_value:
         err_console.print(
-            f"Hyperparameter {param_name} value is not within bounds. Value is {normalized_value} but must be {value}"
+            f"Hyperparameter [dark_orange]{param_name}[/dark_orange] value is not within bounds. "
+            f"Value is {normalized_value} but must be {value}"
         )
         return
 

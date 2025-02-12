@@ -43,14 +43,10 @@ from bittensor_cli.src.bittensor.utils import (
     validate_coldkey_presence,
     get_subnet_name,
     millify_tao,
+    unlock_key,
+    hex_to_bytes,
+    WalletLike,
 )
-
-
-class WalletLike:
-    def __init__(self, name=None, hotkey_ss58=None, hotkey_str=None):
-        self.name = name
-        self.hotkey_ss58 = hotkey_ss58
-        self.hotkey_str = hotkey_str
 
 
 async def regen_coldkey(
@@ -60,6 +56,7 @@ async def regen_coldkey(
     json_path: Optional[str] = None,
     json_password: Optional[str] = "",
     use_password: Optional[bool] = True,
+    overwrite: Optional[bool] = False,
 ):
     """Creates a new coldkey under this wallet"""
     json_str: Optional[str] = None
@@ -69,13 +66,21 @@ async def regen_coldkey(
         with open(json_path, "r") as f:
             json_str = f.read()
     try:
-        wallet.regenerate_coldkey(
+        new_wallet = wallet.regenerate_coldkey(
             mnemonic=mnemonic,
             seed=seed,
             json=(json_str, json_password) if all([json_str, json_password]) else None,
             use_password=use_password,
-            overwrite=False,
+            overwrite=overwrite,
         )
+
+        if isinstance(new_wallet, Wallet):
+            console.print(
+                "\n✅ [dark_sea_green]Regenerated coldkey successfully!\n",
+                f"[dark_sea_green]Wallet name: ({new_wallet.name}), path: ({new_wallet.path}), coldkey ss58: ({new_wallet.coldkeypub.ss58_address})",
+            )
+    except ValueError:
+        print_error("Mnemonic phrase is invalid")
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
 
@@ -84,14 +89,20 @@ async def regen_coldkey_pub(
     wallet: Wallet,
     ss58_address: str,
     public_key_hex: str,
+    overwrite: Optional[bool] = False,
 ):
     """Creates a new coldkeypub under this wallet."""
     try:
-        wallet.regenerate_coldkeypub(
+        new_coldkeypub = wallet.regenerate_coldkeypub(
             ss58_address=ss58_address,
             public_key=public_key_hex,
-            overwrite=False,
+            overwrite=overwrite,
         )
+        if isinstance(new_coldkeypub, Wallet):
+            console.print(
+                "\n✅ [dark_sea_green]Regenerated coldkeypub successfully!\n",
+                f"[dark_sea_green]Wallet name: ({new_coldkeypub.name}), path: ({new_coldkeypub.path}), coldkey ss58: ({new_coldkeypub.coldkeypub.ss58_address})",
+            )
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
 
@@ -103,6 +114,7 @@ async def regen_hotkey(
     json_path: Optional[str],
     json_password: Optional[str] = "",
     use_password: Optional[bool] = False,
+    overwrite: Optional[bool] = False,
 ):
     """Creates a new hotkey under this wallet."""
     json_str: Optional[str] = None
@@ -114,13 +126,20 @@ async def regen_hotkey(
             json_str = f.read()
 
     try:
-        wallet.regenerate_hotkey(
+        new_hotkey = wallet.regenerate_hotkey(
             mnemonic=mnemonic,
             seed=seed,
             json=(json_str, json_password) if all([json_str, json_password]) else None,
             use_password=use_password,
-            overwrite=False,
+            overwrite=overwrite,
         )
+        if isinstance(new_hotkey, Wallet):
+            console.print(
+                "\n✅ [dark_sea_green]Regenerated hotkey successfully!\n",
+                f"[dark_sea_green]Wallet name: ({new_hotkey.name}), path: ({new_hotkey.path}), hotkey ss58: ({new_hotkey.hotkey.ss58_address})",
+            )
+    except ValueError:
+        print_error("Mnemonic phrase is invalid")
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
 
@@ -130,6 +149,7 @@ async def new_hotkey(
     n_words: int,
     use_password: bool,
     uri: Optional[str] = None,
+    overwrite: Optional[bool] = False,
 ):
     """Creates a new hotkey under this wallet."""
     try:
@@ -146,7 +166,7 @@ async def new_hotkey(
             wallet.create_new_hotkey(
                 n_words=n_words,
                 use_password=use_password,
-                overwrite=False,
+                overwrite=overwrite,
             )
             console.print("[dark_sea_green]Hotkey created[/dark_sea_green]")
     except KeyFileError:
@@ -158,6 +178,7 @@ async def new_coldkey(
     n_words: int,
     use_password: bool,
     uri: Optional[str] = None,
+    overwrite: Optional[bool] = False,
 ):
     """Creates a new coldkey under this wallet."""
     try:
@@ -175,7 +196,7 @@ async def new_coldkey(
             wallet.create_new_coldkey(
                 n_words=n_words,
                 use_password=use_password,
-                overwrite=False,
+                overwrite=overwrite,
             )
             console.print("[dark_sea_green]Coldkey created[/dark_sea_green]")
     except KeyFileError:
@@ -187,6 +208,7 @@ async def wallet_create(
     n_words: int = 12,
     use_password: bool = True,
     uri: Optional[str] = None,
+    overwrite: Optional[bool] = False,
 ):
     """Creates a new wallet."""
     if uri:
@@ -205,7 +227,7 @@ async def wallet_create(
             wallet.create_new_coldkey(
                 n_words=n_words,
                 use_password=use_password,
-                overwrite=False,
+                overwrite=overwrite,
             )
             console.print("[dark_sea_green]Coldkey created[/dark_sea_green]")
         except KeyFileError:
@@ -215,7 +237,7 @@ async def wallet_create(
             wallet.create_new_hotkey(
                 n_words=n_words,
                 use_password=False,
-                overwrite=False,
+                overwrite=overwrite,
             )
             console.print("[dark_sea_green]Hotkey created[/dark_sea_green]")
         except KeyFileError:
@@ -487,7 +509,9 @@ async def wallet_list(wallet_path: str):
         wallet_tree = root.add(
             f"[bold blue]Coldkey[/bold blue] [green]{wallet.name}[/green]  ss58_address [green]{coldkeypub_str}[/green]"
         )
-        hotkeys = utils.get_hotkey_wallets_for_wallet(wallet, show_nulls=True)
+        hotkeys = utils.get_hotkey_wallets_for_wallet(
+            wallet, show_nulls=True, show_encrypted=True
+        )
         for hkey in hotkeys:
             data = f"[bold red]Hotkey[/bold red][green] {hkey}[/green] (?)"
             if hkey:
@@ -1047,11 +1071,18 @@ async def transfer(
     subtensor: SubtensorInterface,
     destination: str,
     amount: float,
+    transfer_all: bool,
     prompt: bool,
 ):
     """Transfer token of amount to destination."""
     await transfer_extrinsic(
-        subtensor, wallet, destination, Balance.from_tao(amount), prompt=prompt
+        # TODO verify the order here
+        subtensor,
+        wallet,
+        destination,
+        Balance.from_tao(amount),
+        transfer_all,
+        prompt=prompt,
     )
 
 
@@ -1211,13 +1242,14 @@ async def faucet(
     output_in_place: bool,
     log_verbose: bool,
     max_successes: int = 3,
+    prompt: bool = True,
 ):
     # TODO: - work out prompts to be passed through the cli
     success = await run_faucet_extrinsic(
         subtensor,
         wallet,
         tpb=threads_per_block,
-        prompt=False,
+        prompt=prompt,
         update_interval=update_interval,
         num_processes=processes,
         cuda=use_cuda,
@@ -1304,6 +1336,7 @@ async def set_id(
             return False
 
     try:
+        # TODO unlock fn
         wallet.unlock_coldkey()
     except KeyFileError:
         err_console.print("Error decrypting coldkey (possibly incorrect password)")

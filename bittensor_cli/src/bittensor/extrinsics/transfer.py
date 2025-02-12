@@ -1,7 +1,6 @@
 import asyncio
 
 from bittensor_wallet import Wallet
-from bittensor_wallet.errors import KeyFileError
 from rich.prompt import Confirm
 from async_substrate_interface.errors import SubstrateRequestException
 
@@ -15,6 +14,8 @@ from bittensor_cli.src.bittensor.utils import (
     format_error_message,
     get_explorer_url_for_network,
     is_valid_bittensor_address_or_public_key,
+    print_error,
+    unlock_key,
 )
 
 
@@ -23,6 +24,7 @@ async def transfer_extrinsic(
     wallet: Wallet,
     destination: str,
     amount: Balance,
+    transfer_all: bool = False,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     keep_alive: bool = True,
@@ -34,6 +36,7 @@ async def transfer_extrinsic(
     :param wallet: Bittensor wallet object to make transfer from.
     :param destination: Destination public key address (ss58_address or ed25519) of recipient.
     :param amount: Amount to stake as Bittensor balance.
+    :param transfer_all: Whether to transfer all funds from this wallet to the destination address.
     :param wait_for_inclusion: If set, waits for the extrinsic to enter a block before returning `True`,
                                or returns `False` if the extrinsic fails to enter the block within the timeout.
     :param wait_for_finalization:  If set, waits for the extrinsic to be finalized on the chain before returning
@@ -63,9 +66,9 @@ async def transfer_extrinsic(
         except SubstrateRequestException as e:
             payment_info = {"partial_fee": int(2e7)}  # assume  0.02 Tao
             err_console.print(
-                f":cross_mark: [red]Failed to get payment info[/red]:\n"
-                f"  [bold white]{format_error_message(e)}[/bold white]\n"
-                f"  Defaulting to default transfer fee: {payment_info['partial_fee']}"
+                f":cross_mark: [red]Failed to get payment info[/red]:[bold white]\n"
+                f"  {format_error_message(e)}[/bold white]\n"
+                f"  Defaulting to default transfer fee: {payment_info['partialFee']}"
             )
 
         return Balance.from_rao(payment_info["partial_fee"])
@@ -98,11 +101,7 @@ async def transfer_extrinsic(
             block_hash_ = response.block_hash
             return True, block_hash_, ""
         else:
-            return (
-                False,
-                "",
-                format_error_message(await response.error_message, subtensor.substrate),
-            )
+            return False, "", format_error_message(await response.error_message)
 
     # Validate destination address.
     if not is_valid_bittensor_address_or_public_key(destination):
@@ -112,10 +111,7 @@ async def transfer_extrinsic(
         return False
     console.print(f"[dark_orange]Initiating transfer on network: {subtensor.network}")
     # Unlock wallet coldkey.
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success:
         return False
 
     # Check balance.
@@ -139,6 +135,12 @@ async def transfer_extrinsic(
         existential_deposit = Balance(0)
 
     # Check if we have enough balance.
+    if transfer_all is True:
+        amount = account_balance - fee - existential_deposit
+        if amount < Balance(0):
+            print_error("Not enough balance to transfer")
+            return False
+
     if account_balance < (amount + fee + existential_deposit):
         err_console.print(
             ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"

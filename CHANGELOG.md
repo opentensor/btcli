@@ -1,82 +1,73 @@
 # Changelog
 
-## 9.0.0rc3 /2025-02-11
+## 8.4.2 /2024-12-12
 
 ## What's Changed
-* Adds safe staking capability to stake add/remove and related configs
-* Other bug fixes and improvements
+* Removes the `.value` checks as we no longer use SCALE objects. by @thewhaleking in https://github.com/opentensor/btcli/pull/270
+* Backmerge main to staging 842 by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/273
 
-## 9.0.0rc2 /2025-02-06
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v8.4.1...v8.4.2
 
-## What's Changed
-* Updates to new Async Substrate Interface
-* Other bug fixes and improvements
-
-## 9.0.0rc1 /2025-02-04
+## 8.4.1 /2024-12-05
 
 ## What's Changed
-* Uses new Async Substrate Interface
-* Updates how we use runtime calls
-* Updates stake move to accept ss58 origin hotkeys
-* Fixes slippage calculation in stake move
-* Adds improved error handling through '--verbose' flag
-* Improved docstrings
+* Sometimes err_docs is a string. We want to handle this properly. by @thewhaleking in https://github.com/opentensor/btcli/pull/260
+* Sudo Hyperparams by @thewhaleking in https://github.com/opentensor/btcli/pull/261
+* Sorted netuids in `btcli r get-weights` by @thewhaleking in https://github.com/opentensor/btcli/pull/258
+* Show hyperparams during `sudo set` only sometimes by @thewhaleking in https://github.com/opentensor/btcli/pull/262
+* Update stake children help menu by @thewhaleking in https://github.com/opentensor/btcli/pull/264
+* Updates bt-decode to 0.4.0 by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/265
+* Backmerge main to staging for 8.4.1 by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/267
 
-## 8.2.0rc15 /2025-02-03
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v8.4.0...v8.4.1
 
-## What's Changed
-* Adds subnet volume to root DynamicInfo
-* Adds --no-prompt option for stake list
-* Removes index and adds uids/position for delegate selection
-
-## 8.2.0rc14 /2025-01-24
+## 8.4.0 /2024-11-27
 
 ## What's Changed
-* Adds stake_swap, stake_transfer. 
-* Updates stake_move with interactive mode
-* Clean up of outdated subtensor methods + code
-* Adds --html option in price command
+* Use hex to bytes function by @thewhaleking in https://github.com/opentensor/btcli/pull/244
+* Remove deprecated Typer options by @thewhaleking in https://github.com/opentensor/btcli/pull/248
+* Upgrade websockets by @thewhaleking in https://github.com/opentensor/btcli/pull/247
+* Fast block improvements by @thewhaleking in https://github.com/opentensor/btcli/pull/245
+* Fixed overview message discrepancy by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/251
+* Fix hyperparams setting. by @thewhaleking in https://github.com/opentensor/btcli/pull/252
+* Bumps btwallet to 2.1.2 by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/255
+* Bumps btwallet to 2.1.3 by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/256
 
-## 8.2.0rc13 /2025-01-15
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v8.3.1...v8.4.0
 
-## What's Changed
-* Bux fixes
-
-## 8.2.0rc12 /2025-01-14
-
-## What's Changed
-* Bumps requirements
-
-## 8.2.0rc11 /2025-01-14
+## 8.3.1 /2024-11-13
 
 ## What's Changed
-* Adds subnet price command
-* Ports w overview command
+* Better handle incorrect file path for wallets. by @thewhaleking in https://github.com/opentensor/btcli/pull/230
+* Handle websockets version 14, verbose error output by @thewhaleking in https://github.com/opentensor/btcli/pull/236
+* Handles the new PasswordError from bt-wallet by @thewhaleking in https://github.com/opentensor/btcli/pull/232
 
-## 8.2.0rc10 /2025-01-11
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v8.3.0...v.8.3.1
 
-## What's Changed
-* Fixes data ordering in stake list
-
-## 8.2.0rc9 /2025-01-09
+## 8.3.0 /2024-11-06
 
 ## What's Changed
-* Updates delegate selection
+* Better handle incorrect password by @thewhaleking in https://github.com/opentensor/btcli/pull/187
+* Fixes success path of pow register by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/189
+* Adds `--all` flag to transfer by @thewhaleking in https://github.com/opentensor/btcli/pull/181
+* In `do_transfer`, we check the balance with coldkeypub.ss58, but then retrieve it from the dict with coldkey.ss58. Resolve this. by @thewhaleking in https://github.com/opentensor/btcli/pull/199
+* Handle KeyboardInterrupt in CLI to gracefully exit (no traceback) by @thewhaleking in https://github.com/opentensor/btcli/pull/199
+* Handle race conditions where self.metadata may not be set before finishing initialising runtime (this may need optimised in the future) by @thewhaleking in https://github.com/opentensor/btcli/pull/199
+* Error description output by @thewhaleking in https://github.com/opentensor/btcli/pull/199
+* Taostats link fixed by @thewhaleking in https://github.com/opentensor/btcli/pull/199
+* Fixes not showing confirmation if --no-prompt is specified on stake remove by @thewhaleking in https://github.com/opentensor/btcli/pull/199
+* Fix wallets in overview by @thewhaleking in https://github.com/opentensor/btcli/pull/197
+* fix handling null neurons by @thewhaleking in https://github.com/opentensor/btcli/pull/214
+* Fix cuda pow registration by @thewhaleking in https://github.com/opentensor/btcli/pull/215
+* Adds confirmation after each successful regen by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/203
+* Removes wallet path prompt by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/205
+* Support hotkey names for include/exclude in st add/remove by @thewhaleking in https://github.com/opentensor/btcli/pull/216
+* Subvortex network added by @thewhaleking  in https://github.com/opentensor/btcli/pull/223
+* Add prompt option to all commands which use Confirm prompts by @thewhaleking in https://github.com/opentensor/btcli/pull/227
+* fix: local subtensor port by @distributedstatemachine in https://github.com/opentensor/btcli/pull/228
+* Update local subtensor port by @distributedstatemachine in https://github.com/opentensor/btcli/pull/228
 
-## 8.2.0rc8 /2025-01-09
-
-## What's Changed
-* Updates identity parsing
-
-## 8.2.0rc7 /2025-01-09
-
-## What's Changed
-* Returns early in-case of no stake & fixes var
-
-## 8.2.0rc6 /2025-01-09
-
-## What's Changed
-* RAO development version for the rao chain
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v8.2.0...v8.3.0
 
 ## 8.2.0 /2024-10-10
 

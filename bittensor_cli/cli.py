@@ -141,22 +141,15 @@ class Options:
     use_password = typer.Option(
         True,
         help="Set this to `True` to protect the generated Bittensor key with a password.",
-        is_flag=True,
-        flag_value=False,
     )
     public_hex_key = typer.Option(None, help="The public key in hex format.")
     ss58_address = typer.Option(
         None, "--ss58", "--ss58-address", help="The SS58 address of the coldkey."
     )
-    overwrite_coldkey = typer.Option(
+    overwrite = typer.Option(
         False,
-        help="Overwrite the old coldkey with the newly generated coldkey.",
-        prompt=True,
-    )
-    overwrite_hotkey = typer.Option(
-        False,
-        help="Overwrite the old hotkey with the newly generated hotkey.",
-        prompt=True,
+        "--overwrite/--no-overwrite",
+        help="Overwrite the existing wallet file with the new one.",
     )
     network = typer.Option(
         None,
@@ -970,13 +963,13 @@ class CLIManager:
             finally:
                 if initiated is False:
                     asyncio.create_task(cmd).cancel()
-                if exit_early is True:
+                if exit_early is True:   # temporarily to handle multiple run commands in one session
                     try:
                         raise typer.Exit()
                     except Exception as e:  # ensures we always exit cleanly
                         if not isinstance(
                             e, (typer.Exit, RuntimeError)
-                        ):  # temporarily to handle multiple run commands in one session
+                        ):
                             err_console.print(f"An unknown error has occurred: {e}")
 
         return self.asyncio_runner(_run())
@@ -1563,7 +1556,7 @@ class CLIManager:
         """
         Displays all the wallets and their corresponding hotkeys that are located in the wallet path specified in the config.
 
-        The output display shows each wallet and its associated `ss58` addresses for the coldkey public key and any hotkeys. The output is presented in a hierarchical tree format, with each wallet as a root node and any associated hotkeys as child nodes. The `ss58` address is displayed for each coldkey and hotkey that is not encrypted and exists on the device.
+        The output display shows each wallet and its associated `ss58` addresses for the coldkey public key and any hotkeys. The output display shows each wallet and its associated `ss58` addresses for the coldkey public key and any hotkeys. The output is presented in a hierarchical tree format, with each wallet as a root node and any associated hotkeys as child nodes. The `ss58` address (or an `<ENCRYPTED>` marker, for encrypted hotkeys) is displayed for each coldkey and hotkey that exists on the device.
 
         Upon invocation, the command scans the wallet directory and prints a list of all the wallets, indicating whether the
         public keys are available (`?` denotes unavailable or encrypted keys).
@@ -1648,7 +1641,7 @@ class CLIManager:
                 "Netuids must be a comma-separated list of ints, e.g., `--netuids 1,2,3,4`.",
             )
 
-        ask_for = [WO.NAME, WO.PATH] if not all_wallets else [WO.PATH]
+        ask_for = [WO.NAME] if not all_wallets else []
         validate = WV.WALLET if not all_wallets else WV.NONE
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
@@ -1699,6 +1692,9 @@ class CLIManager:
             prompt=True,
             help="Amount (in TAO) to transfer.",
         ),
+        transfer_all: bool = typer.Option(
+            False, "--all", prompt=False, help="Transfer all available balance."
+        ),
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -1734,20 +1730,25 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.PATH],
+            ask_for=[WO.NAME],
             validate=WV.WALLET,
         )
-
-        # For Rao games - temporarily commented out
-        # effective_network = get_effective_network(self.config, network)
-        # if is_rao_network(effective_network):
-        #     print_error("This command is disabled on the 'rao' network.")
-        #     raise typer.Exit()
-
         subtensor = self.initialize_chain(network)
+        if transfer_all and amount:
+            print_error("Cannot specify an amount and '--all' flag.")
+            raise typer.Exit()
+        elif transfer_all:
+            amount = 0
+        elif not amount:
+            amount = FloatPrompt.ask("Enter amount (in TAO) to transfer.")
         return self._run_command(
             wallets.transfer(
-                wallet, subtensor, destination_ss58_address, amount, prompt
+                wallet,
+                subtensor,
+                destination_ss58_address,
+                amount,
+                transfer_all,
+                prompt,
             )
         )
 
@@ -1933,6 +1934,7 @@ class CLIManager:
             "--max-successes",
             help="Set the maximum number of times to successfully run the faucet for this command.",
         ),
+        prompt: bool = Options.prompt,
     ):
         """
         Obtain test TAO tokens by performing Proof of Work (PoW).
@@ -1971,6 +1973,7 @@ class CLIManager:
                 output_in_place,
                 verbose,
                 max_successes,
+                prompt,
             )
         )
 
@@ -1984,6 +1987,7 @@ class CLIManager:
         json: Optional[str] = Options.json,
         json_password: Optional[str] = Options.json_password,
         use_password: Optional[bool] = Options.use_password,
+        overwrite: bool = Options.overwrite,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2030,6 +2034,7 @@ class CLIManager:
                 json,
                 json_password,
                 use_password,
+                overwrite,
             )
         )
 
@@ -2040,6 +2045,7 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         public_key_hex: Optional[str] = Options.public_hex_key,
         ss58_address: Optional[str] = Options.ss58_address,
+        overwrite: bool = Options.overwrite,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2087,7 +2093,7 @@ class CLIManager:
             rich.print("[red]Error: Invalid SS58 address or public key![/red]")
             raise typer.Exit()
         return self._run_command(
-            wallets.regen_coldkey_pub(wallet, ss58_address, public_key_hex)
+            wallets.regen_coldkey_pub(wallet, ss58_address, public_key_hex, overwrite)
         )
 
     def wallet_regen_hotkey(
@@ -2102,9 +2108,8 @@ class CLIManager:
         use_password: bool = typer.Option(
             False,  # Overriden to False
             help="Set to 'True' to protect the generated Bittensor key with a password.",
-            is_flag=True,
-            flag_value=True,
         ),
+        overwrite: bool = Options.overwrite,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2143,6 +2148,7 @@ class CLIManager:
                 json,
                 json_password,
                 use_password,
+                overwrite,
             )
         )
 
@@ -2160,10 +2166,9 @@ class CLIManager:
         use_password: bool = typer.Option(
             False,  # Overriden to False
             help="Set to 'True' to protect the generated Bittensor key with a password.",
-            is_flag=True,
-            flag_value=True,
         ),
         uri: Optional[str] = Options.uri,
+        overwrite: bool = Options.overwrite,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2204,7 +2209,7 @@ class CLIManager:
         )
         if not uri:
             n_words = get_n_words(n_words)
-        return self._run_command(wallets.new_hotkey(wallet, n_words, use_password, uri))
+        return self._run_command(wallets.new_hotkey(wallet, n_words, use_password, uri, overwrite))
 
     def wallet_new_coldkey(
         self,
@@ -2219,6 +2224,7 @@ class CLIManager:
         ),
         use_password: Optional[bool] = Options.use_password,
         uri: Optional[str] = Options.uri,
+        overwrite: bool = Options.overwrite,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2258,7 +2264,7 @@ class CLIManager:
         if not uri:
             n_words = get_n_words(n_words)
         return self._run_command(
-            wallets.new_coldkey(wallet, n_words, use_password, uri)
+            wallets.new_coldkey(wallet, n_words, use_password, uri, overwrite)
         )
 
     def wallet_check_ck_swap(
@@ -2294,6 +2300,7 @@ class CLIManager:
         n_words: Optional[int] = None,
         use_password: bool = Options.use_password,
         uri: Optional[str] = Options.uri,
+        overwrite: bool = Options.overwrite,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2342,6 +2349,7 @@ class CLIManager:
                 n_words,
                 use_password,
                 uri,
+                overwrite
             )
         )
 
@@ -2572,6 +2580,8 @@ class CLIManager:
                 "Current on-chain identity",
             ),
             exit_early=False,
+            ask_for=[WO.HOTKEY, WO.NAME],
+            validate=WV.WALLET_AND_HOTKEY,
         )
 
         if prompt:
@@ -2873,10 +2883,13 @@ class CLIManager:
         netuid = get_optional_netuid(netuid, all_netuids)
 
         if stake_all and amount:
-            err_console.print(
+            print_error(
                 "Cannot specify an amount and 'stake-all'. Choose one or the other."
             )
             raise typer.Exit()
+
+        if not stake_all and not amount and not max_stake:
+            amount = FloatPrompt.ask("Amount to [blue]stake (TAO τ)[/blue]")
 
         if stake_all and not amount:
             if not Confirm.ask("Stake all the available TAO tokens?", default=False):
@@ -2959,17 +2972,15 @@ class CLIManager:
             )
 
         if include_hotkeys:
-            included_hotkeys = parse_to_list(
+            include_hotkeys = parse_to_list(
                 include_hotkeys,
                 str,
                 "Hotkeys must be a comma-separated list of ss58s, e.g., `--include-hotkeys 5Grw....,5Grw....`.",
                 is_ss58=True,
             )
-        else:
-            included_hotkeys = []
 
         if exclude_hotkeys:
-            excluded_hotkeys = parse_to_list(
+            exclude_hotkeys = parse_to_list(
                 exclude_hotkeys,
                 str,
                 "Hotkeys must be a comma-separated list of ss58s, e.g., `--exclude-hotkeys 5Grw....,5Grw....`.",
@@ -3264,24 +3275,20 @@ class CLIManager:
             )
 
         if include_hotkeys:
-            included_hotkeys = parse_to_list(
+            include_hotkeys = parse_to_list(
                 include_hotkeys,
                 str,
                 "Hotkeys must be a comma-separated list of ss58s or names, e.g., `--include-hotkeys hk1,hk2`.",
                 is_ss58=False,
             )
-        else:
-            included_hotkeys = []
 
         if exclude_hotkeys:
-            excluded_hotkeys = parse_to_list(
+            exclude_hotkeys = parse_to_list(
                 exclude_hotkeys,
                 str,
                 "Hotkeys must be a comma-separated list of ss58s or names, e.g., `--exclude-hotkeys hk3,hk4`.",
                 is_ss58=False,
             )
-        else:
-            excluded_hotkeys = []
 
         return self._run_command(
             remove_stake.unstake(
@@ -3752,9 +3759,10 @@ class CLIManager:
         wait_for_finalization: bool = Options.wait_for_finalization,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        prompt: bool = Options.prompt,
     ):
         """
-        Set child hotkeys on specified subnets.
+        Set child hotkeys on a specified subnet (or all). Overrides currently set children.
 
         Users can specify the 'proportion' to delegate to child hotkeys (ss58 address). The sum of proportions cannot be greater than 1.
 
@@ -3791,7 +3799,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
         return self._run_command(
@@ -3803,6 +3811,7 @@ class CLIManager:
                 proportions=proportions,
                 wait_for_finalization=wait_for_finalization,
                 wait_for_inclusion=wait_for_inclusion,
+                prompt=prompt,
             )
         )
 
@@ -3828,9 +3837,10 @@ class CLIManager:
         wait_for_finalization: bool = Options.wait_for_finalization,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        prompt: bool = Options.prompt,
     ):
         """
-        Remove all children hotkeys on a specified subnet.
+        Remove all children hotkeys on a specified subnet (or all).
 
         This command is used to remove delegated authority from all child hotkeys, removing their position and influence on the subnet.
 
@@ -3843,7 +3853,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
         if all_netuids and netuid:
@@ -3862,6 +3872,7 @@ class CLIManager:
                 netuid,
                 wait_for_inclusion,
                 wait_for_finalization,
+                prompt=prompt,
             )
         )
 
@@ -3917,7 +3928,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
         if all_netuids and netuid:
@@ -3969,13 +3980,15 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
 
-        hyperparams = self._run_command(
-            sudo.get_hyperparameters(self.initialize_chain(network), netuid),
-            exit_early=False,
-        )
-
         if not hyperparams:
             raise typer.Exit()
+        if not param_name or not param_value:
+            hyperparams = self._run_command(
+                sudo.get_hyperparameters(self.initialize_chain(network), netuid),
+                exit_early=False,
+            )
+            if not hyperparams:
+                raise typer.Exit()
 
         if not param_name:
             hyperparam_list = [field.name for field in fields(SubnetHyperparameters)]
@@ -3989,6 +4002,16 @@ class CLIManager:
                 show_choices=False,
             )
             param_name = hyperparam_list[choice - 1]
+
+        if param_name in ["alpha_high", "alpha_low"]:
+            param_name = "alpha_values"
+            low_val = FloatPrompt.ask(
+                "Enter the new value for [dark_orange]alpha_low[/dark_orange]"
+            )
+            high_val = FloatPrompt.ask(
+                "Enter the new value for [dark_orange]alpha_high[/dark_orange]"
+            )
+            param_value = f"{low_val},{high_val}"
 
         if not param_value:
             param_value = Prompt.ask(
@@ -4506,6 +4529,7 @@ class CLIManager:
             "-tbp",
             help="Set the number of threads per block for CUDA.",
         ),
+        prompt: bool = Options.prompt,
     ):
         """
         Register a neuron (a subnet validator or a subnet miner) using Proof of Work (POW).
@@ -4543,6 +4567,7 @@ class CLIManager:
                 use_cuda,
                 dev_id,
                 threads_per_block,
+                prompt=prompt,
             )
         )
 
@@ -4573,7 +4598,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
         return self._run_command(
@@ -4708,6 +4733,7 @@ class CLIManager:
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        prompt: bool = Options.prompt,
     ):
         """
         Reveal weights for a specific subnet.
@@ -4779,6 +4805,7 @@ class CLIManager:
                 weights,
                 salt,
                 __version_as_int__,
+                prompt=prompt,
             )
         )
 
@@ -4804,6 +4831,7 @@ class CLIManager:
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        prompt: bool = Options.prompt,
     ):
         """
 
@@ -4874,6 +4902,7 @@ class CLIManager:
                 weights,
                 salt,
                 __version_as_int__,
+                prompt=prompt,
             )
         )
 
