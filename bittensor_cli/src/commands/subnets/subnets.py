@@ -400,7 +400,7 @@ async def subnets_list(
 
         total_emissions = round(
             sum(
-                float(subnet.tao_in_emission)
+                subnet.tao_in_emission.tao
                 for subnet in subnets
                 if subnet.netuid != 0
             ),
@@ -661,7 +661,7 @@ async def subnets_list(
         # Calculate totals
         total_netuids = len(subnets)
         _total_emissions = sum(
-            float(subnet.emission.tao) for subnet in subnets if subnet.netuid != 0
+            float(subnet.tao_in_emission.tao) for subnet in subnets if subnet.netuid != 0
         )
         total_emissions = (
             f"{millify_tao(_total_emissions)}"
@@ -670,7 +670,7 @@ async def subnets_list(
         )
 
         total_rate = sum(
-            float(subnet.price.tao) for subnet in subnets if subnet.netuid != 0
+            subnet.price.tao for subnet in subnets if subnet.netuid != 0
         )
         total_rate = (
             f"{millify_tao(total_rate)}" if not verbose else f"{total_rate:,.2f}"
