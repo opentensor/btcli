@@ -108,7 +108,7 @@ async def stake_add(
                 return
             else:
                 err_out(
-                    f"\n{failure_prelude} with error: {format_error_message(e, subtensor.substrate)}"
+                    f"\n{failure_prelude} with error: {format_error_message(e)}"
                 )
             return
         else:
@@ -181,7 +181,7 @@ async def stake_add(
             )
         except SubstrateRequestException as e:
             err_out(
-                f"\n{failure_prelude} with error: {format_error_message(e, subtensor.substrate)}"
+                f"\n{failure_prelude} with error: {format_error_message(e)}"
             )
             return
         else:
