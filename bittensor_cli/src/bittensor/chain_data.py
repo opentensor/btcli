@@ -750,7 +750,9 @@ class DynamicInfo(InfoBase):
         )
         return alpha_returned, slippage, slippage_pct_float
 
-    def alpha_to_tao_with_slippage(self, alpha: Balance) -> tuple[Balance, Balance]:
+    def alpha_to_tao_with_slippage(
+        self, alpha: Balance
+    ) -> tuple[Balance, Balance, float]:
         """
         Returns an estimate of how much TAO would a staker receive if they unstake their alpha using the current pool state.
         Args:
