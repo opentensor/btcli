@@ -658,8 +658,8 @@ async def senate_vote(
 
     # Unlock the wallet.
     if (
-        not unlock_key(wallet, "hotkey").success
-        and unlock_key(wallet, "coldkey").success
+        not unlock_key(wallet, "hot").success
+        and unlock_key(wallet, "cold").success
     ):
         return False
 
@@ -737,8 +737,8 @@ async def set_take(
     )
 
     if (
-        not unlock_key(wallet, "hotkey").success
-        and unlock_key(wallet, "coldkey").success
+        not unlock_key(wallet, "hot").success
+        and unlock_key(wallet, "cold").success
     ):
         return False
 
