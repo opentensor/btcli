@@ -47,19 +47,27 @@ def test_staking(local_chain, wallet_setup):
         extra_args=[
             "--wallet-path",
             wallet_path_alice,
-            "--wallet-hotkey",
-            wallet_alice.hotkey_str,
             "--chain",
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--name",
+            "Test Subnet",
+            "--repo",
+            "https://github.com/username/repo",
+            "--contact",
+            "alice@opentensor.dev",
+            "--url",
+            "https://testsubnet.com",
+            "--discord",
+            "alice#1234",
+            "--description",
+            "A test subnet for e2e testing",
+            "--additional-info",
+            "Created by Alice",
             "--no-prompt",
-            "--subnet-name",
-            "test-subnet",
-            "--github-repo",
-            "https://github.com/bittensor/bittensor",
-            "--subnet-contact",
-            "test@test.com",
         ],
     )
     assert f"✅ Registered subnetwork with netuid: {netuid}" in result.stdout
@@ -101,6 +109,9 @@ def test_staking(local_chain, wallet_setup):
             "ws://127.0.0.1:9945",
             "--amount",
             "100",
+            "--tolerance",
+            "0.1",
+            "--partial",
             "--no-prompt",
         ],
     )
@@ -123,7 +134,7 @@ def test_staking(local_chain, wallet_setup):
     cleaned_stake = [
         re.sub(r"\s+", " ", line) for line in show_stake.stdout.splitlines()
     ]
-    stake_added = cleaned_stake[9].split()[8]
+    stake_added = cleaned_stake[8].split("│")[3].strip().split()[0]
     assert Balance.from_tao(float(stake_added)) >= Balance.from_tao(100)
 
     # Execute remove_stake command and remove all 100 TAO from Alice
@@ -143,6 +154,9 @@ def test_staking(local_chain, wallet_setup):
             "ws://127.0.0.1:9945",
             "--amount",
             "100",
+            "--tolerance",
+            "0.1",
+            "--partial",
             "--no-prompt",
         ],
     )

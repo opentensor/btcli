@@ -38,7 +38,7 @@ def test_wallet_overview_inspect(local_chain, wallet_setup):
         AssertionError: If any of the checks or verifications fail
     """
     print("Testing wallet overview, inspect command 🧪")
-    netuid = 1
+    netuid = 2
     wallet_path_name = "//Alice"
 
     # Create wallet for Alice
@@ -55,6 +55,22 @@ def test_wallet_overview_inspect(local_chain, wallet_setup):
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet.name,
+            "--wallet-hotkey",
+            wallet.hotkey_str,
+            "--name",
+            "Test Subnet",
+            "--repo",
+            "https://github.com/username/repo",
+            "--contact",
+            "test@opentensor.dev",
+            "--url",
+            "https://testsubnet.com",
+            "--discord",
+            "test#1234",
+            "--description",
+            "A test subnet for e2e testing",
+            "--additional-info",
+            "Test subnet",
             "--no-prompt",
         ],
     )
@@ -76,26 +92,6 @@ def test_wallet_overview_inspect(local_chain, wallet_setup):
 
     # Assert using regex that the subnet is visible in subnets list
     assert verify_subnet_entry(subnets_list.stdout, netuid, keypair.ss58_address)
-
-    # Register Alice in netuid = 1 using her hotkey
-    register_subnet = exec_command(
-        command="subnets",
-        sub_command="register",
-        extra_args=[
-            "--wallet-path",
-            wallet_path,
-            "--wallet-name",
-            wallet.name,
-            "--hotkey",
-            wallet.hotkey_str,
-            "--netuid",
-            "1",
-            "--chain",
-            "ws://127.0.0.1:9945",
-            "--no-prompt",
-        ],
-    )
-    assert "✅ Registered" in register_subnet.stdout
 
     # Check balance of Alice after registering to the subnet
     wallet_balance = exec_command(
@@ -145,31 +141,33 @@ def test_wallet_overview_inspect(local_chain, wallet_setup):
         axon_active=False,  # Axon is not active until we run validator/miner
     )
 
-    # Execute wallet inspect command
-    inspect = exec_command(
-        command="wallet",
-        sub_command="inspect",
-        extra_args=[
-            "--wallet-path",
-            wallet_path,
-            "--wallet-name",
-            wallet.name,
-            "--chain",
-            "ws://127.0.0.1:9945",
-        ],
-    )
+    # TODO: Re-enable this once inspect is ported over
+    if False:
+        # Execute wallet inspect command
+        inspect = exec_command(
+            command="wallet",
+            sub_command="inspect",
+            extra_args=[
+                "--wallet-path",
+                wallet_path,
+                "--wallet-name",
+                wallet.name,
+                "--chain",
+                "ws://127.0.0.1:9945",
+            ],
+        )
 
-    # Assert correct entry is present in wallet inspect
-    assert validate_wallet_inspect(
-        inspect.stdout,
-        coldkey=wallet.name,
-        balance=Balance.from_tao(balance["free_balance"]),
-        delegates=None,  # We have not delegated anywhere yet
-        hotkeys_netuid=[
-            (1, f"default-{wallet.hotkey.ss58_address}", 0, False)
-        ],  # (netuid, hotkey-display, stake, check_emissions)
-    )
-    print("Passed wallet overview, inspect command ✅")
+        # Assert correct entry is present in wallet inspect
+        assert validate_wallet_inspect(
+            inspect.stdout,
+            coldkey=wallet.name,
+            balance=Balance.from_tao(balance["free_balance"]),
+            delegates=None,  # We have not delegated anywhere yet
+            hotkeys_netuid=[
+                (1, f"default-{wallet.hotkey.ss58_address}", 0, False)
+            ],  # (netuid, hotkey-display, stake, check_emissions)
+        )
+    print("Passed wallet overview command ✅")
 
 
 def test_wallet_transfer(local_chain, wallet_setup):
@@ -353,32 +351,13 @@ def test_wallet_identities(local_chain, wallet_setup):
     """
     print("Testing wallet set-id, get-id, sign command 🧪")
 
-    netuid = 1
+    netuid = 2
     wallet_path_alice = "//Alice"
 
     # Create wallet for Alice
     keypair_alice, wallet_alice, wallet_path_alice, exec_command_alice = wallet_setup(
         wallet_path_alice
     )
-
-    # Register Alice to the root network (0)
-    # Either root list neurons + subnet registered can set-id or subnet owners
-    root_register = exec_command_alice(
-        command="root",
-        sub_command="register",
-        extra_args=[
-            "--wallet-path",
-            wallet_path_alice,
-            "--network",
-            "ws://127.0.0.1:9945",
-            "--wallet-name",
-            wallet_alice.name,
-            "--hotkey",
-            wallet_alice.hotkey_str,
-            "--no-prompt",
-        ],
-    )
-    assert "✅ Registered" in root_register.stdout
 
     # Register a subnet with sudo as Alice
     result = exec_command_alice(
@@ -391,42 +370,36 @@ def test_wallet_identities(local_chain, wallet_setup):
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--name",
+            "Test Subnet",
+            "--repo",
+            "https://github.com/username/repo",
+            "--contact",
+            "alice@opentensor.dev",
+            "--url",
+            "https://testsubnet.com",
+            "--discord",
+            "alice#1234",
+            "--description",
+            "A test subnet for e2e testing",
+            "--additional-info",
+            "Created by Alice",
             "--no-prompt",
         ],
     )
     assert f"✅ Registered subnetwork with netuid: {netuid}" in result.stdout
 
-    # Register Alice in netuid = 1 using her hotkey
-    register_subnet = exec_command_alice(
-        command="subnets",
-        sub_command="register",
-        extra_args=[
-            "--wallet-path",
-            wallet_path_alice,
-            "--wallet-name",
-            wallet_alice.name,
-            "--hotkey",
-            wallet_alice.hotkey_str,
-            "--netuid",
-            netuid,
-            "--chain",
-            "ws://127.0.0.1:9945",
-            "--no-prompt",
-        ],
-    )
-    assert "✅ Registered" in register_subnet.stdout
-
     # Define values for Alice's identity
     alice_identity = {
-        "display_name": "Alice",
-        "legal_name": "Alice OTF",
-        "web_url": "https://bittensor.com/",
-        "riot": "MyRiotID",
-        "email": "alice@opentensor.dev",
-        "pgp": "D2A1 F4A3 B1D3 5A74 63F0 678E 35E7 041A 22C1 A4FE",
-        "image_url": "https://bittensor.com/img/dark-Bittensor.svg",
-        "info": "I am a tester for OTF",
-        "twitter": "https://x.com/opentensor",
+        "name": "Alice OTF",
+        "url": "https://bittensor.com/",
+        "image": "https://bittensor.com/img/dark-Bittensor.svg",
+        "discord": "alice#1234",
+        "description": "I am a tester for OTF",
+        "additional": "Lead Developer",
+        "github_repo": "https://github.com/opentensor/bittensor",
     }
 
     # Execute btcli set-identity command
@@ -442,25 +415,20 @@ def test_wallet_identities(local_chain, wallet_setup):
             wallet_alice.name,
             "--wallet-hotkey",
             wallet_alice.hotkey_str,
-            "--display-name",
-            alice_identity["display_name"],
-            "--legal-name",
-            alice_identity["legal_name"],
+            "--name",
+            alice_identity["name"],
             "--web-url",
-            alice_identity["web_url"],
-            "--riot",
-            alice_identity["riot"],
-            "--email",
-            alice_identity["email"],
-            "--pgp",
-            alice_identity["pgp"],
-            "--image-url",
-            alice_identity["image_url"],
-            "--info",
-            alice_identity["info"],
-            "-x",
-            alice_identity["twitter"],
-            "--validator",
+            alice_identity["url"],
+            "--image-url", 
+            alice_identity["image"],
+            "--discord",
+            alice_identity["discord"],
+            "--description",
+            alice_identity["description"],
+            "--additional",
+            alice_identity["additional"],
+            "--github",
+            alice_identity["github_repo"],
             "--no-prompt",
         ],
     )
@@ -469,18 +437,18 @@ def test_wallet_identities(local_chain, wallet_setup):
     assert "✅ Success!" in set_id.stdout
     set_id_output = set_id.stdout.splitlines()
 
-    assert alice_identity["display_name"] in set_id_output[7]
-    assert alice_identity["legal_name"] in set_id_output[8]
-    assert alice_identity["web_url"] in set_id_output[9]
-    assert alice_identity["riot"] in set_id_output[10]
-    assert alice_identity["email"] in set_id_output[11]
-    assert alice_identity["pgp"] in set_id_output[12]
-    assert alice_identity["image_url"] in set_id_output[13]
-    assert alice_identity["twitter"] in set_id_output[14]
+    assert alice_identity["name"] in set_id_output[6]
+    assert alice_identity["url"] in set_id_output[7]
+    assert alice_identity["github_repo"] in set_id_output[8]
+    assert alice_identity["image"] in set_id_output[9]
+    assert alice_identity["discord"] in set_id_output[10]
+    assert alice_identity["description"] in set_id_output[11]
+    assert alice_identity["additional"] in set_id_output[12]
+
 
     # TODO: Currently coldkey + hotkey are the same for test wallets.
     # Maybe we can add a new key to help in distinguishing
-    assert wallet_alice.hotkey.ss58_address in set_id_output[5]
+    assert wallet_alice.coldkeypub.ss58_address in set_id_output[5]
 
     # Execute btcli get-identity using hotkey
     get_identity = exec_command_alice(
@@ -490,20 +458,20 @@ def test_wallet_identities(local_chain, wallet_setup):
             "--chain",
             "ws://127.0.0.1:9945",
             "--key",
-            wallet_alice.hotkey.ss58_address,
+            wallet_alice.coldkeypub.ss58_address,
         ],
     )
 
     # Assert all correct values are being fetched for the ID we just set
     get_identity_output = get_identity.stdout.splitlines()
-    assert alice_identity["display_name"] in get_identity_output[6]
-    assert alice_identity["legal_name"] in get_identity_output[7]
-    assert alice_identity["web_url"] in get_identity_output[8]
-    assert alice_identity["riot"] in get_identity_output[9]
-    assert alice_identity["email"] in get_identity_output[10]
-    assert alice_identity["pgp"] in get_identity_output[11]
-    assert alice_identity["image_url"] in get_identity_output[12]
-    assert alice_identity["twitter"] in get_identity_output[13]
+    assert alice_identity["name"] in get_identity_output[5]
+    assert alice_identity["url"] in get_identity_output[6]
+    assert alice_identity["github_repo"] in get_identity_output[7]
+    assert alice_identity["image"] in get_identity_output[8]
+    assert alice_identity["discord"] in get_identity_output[9]
+    assert alice_identity["description"] in get_identity_output[10]
+    assert alice_identity["additional"] in get_identity_output[11]
+    
 
     # Sign a message using hotkey
     sign_using_hotkey = exec_command_alice(

@@ -1426,14 +1426,14 @@ async def sign(wallet: Wallet, message: str, use_hotkey: str):
     """Sign a message using the provided wallet or hotkey."""
 
     if not use_hotkey:
-        if not unlock_key(wallet, "coldkey").success:
+        if not unlock_key(wallet, "cold").success:
             return False
         keypair = wallet.coldkey
         print_verbose(
             f"Signing using [{COLOR_PALETTE['GENERAL']['COLDKEY']}]coldkey: {wallet.name}"
         )
     else:
-        if not unlock_key(wallet, "hotkey").success:
+        if not unlock_key(wallet, "hot").success:
             return False
         keypair = wallet.hotkey
         print_verbose(
