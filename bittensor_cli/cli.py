@@ -3744,7 +3744,6 @@ class CLIManager:
             [],
             "--proportions",
             "--prop",
-            "-p",
             help="Enter the stake weight proportions for the child hotkeys (sum should be less than or equal to 1)",
             prompt=False,
         ),
