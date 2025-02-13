@@ -40,7 +40,7 @@ from bittensor_cli.src.bittensor.utils import (
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 
-TAO_WEIGHT = 0.018
+TAO_WEIGHT = 0.18
 
 # helpers and extrinsics
 
