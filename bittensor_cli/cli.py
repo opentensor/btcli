@@ -72,7 +72,7 @@ except ImportError:
         pass
 
 
-__version__ = "9.0.0rc3"
+__version__ = "9.0.0rc4"
 
 
 _core_version = re.match(r"^\d+\.\d+\.\d+", __version__).group(0)
@@ -2925,6 +2925,7 @@ class CLIManager:
                     subnets.show(
                         subtensor=self.initialize_chain(network),
                         netuid=netuid,
+                        sort=False,
                         max_rows=12,
                         prompt=False,
                         delegate_selection=True,
@@ -4343,6 +4344,11 @@ class CLIManager:
         self,
         network: Optional[list[str]] = Options.network,
         netuid: int = Options.netuid,
+        sort: bool = typer.Option(
+            False,
+            "--sort",
+            help="Sort the subnets by uid.",
+        ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         prompt: bool = Options.prompt,
@@ -4358,8 +4364,11 @@ class CLIManager:
         subtensor = self.initialize_chain(network)
         return self._run_command(
             subnets.show(
-                subtensor,
-                netuid,
+                subtensor=subtensor,
+                netuid=netuid,
+                sort=sort,
+                max_rows=None,
+                delegate_selection=False,
                 verbose=verbose,
                 prompt=prompt,
             )
