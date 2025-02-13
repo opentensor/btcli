@@ -20,4 +20,4 @@ from .cli import CLIManager
 
 __version__ = "9.0.0rc3"
 
-__all__ = [CLIManager, __version__]
+__all__ = ["CLIManager", "__version__"]

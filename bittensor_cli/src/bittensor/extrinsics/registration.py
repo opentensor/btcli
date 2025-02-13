@@ -693,12 +693,9 @@ async def burned_register_extrinsic(
     :return: Flag is `True` if extrinsic was finalized or included in the block. If we did not wait for
              finalization/inclusion, the response is `True`.
     """
-
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
-        return False
+    
+    if not (unlock_status := unlock_key(wallet, print_out=False)).success:
+        return False, unlock_status.message
 
     with console.status(
         f":satellite: Checking Account on [bold]subnet:{netuid}[/bold]...",
