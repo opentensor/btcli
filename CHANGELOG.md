@@ -3,6 +3,7 @@
 ## 9.0.0 /2025-02-13
 
 ## What's Changed
+* Btcli ported to Rao by @ibraheem-opentensor & @thewhaleking in https://github.com/opentensor/btcli/tree/rao-games/pools
 * fix netuid from str to int by @roman-opentensor in https://github.com/opentensor/btcli/pull/195
 * add runtime apis to reg by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/196
 * Updated tables (st list, s list) by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/200
@@ -27,14 +28,25 @@
 ## New Contributors
 * @camfairchild made their first contribution in https://github.com/opentensor/btcli/pull/293
 
-**Full Changelog**: https://github.com/opentensor/btcli/compare/v8.4.3...v9.0.0
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v8.4.4...v9.0.0
 
-## 9.0.0rc4 /2025-02-12
-* Adds sort option to metagraph/show
-* Updates metagraph/show to use direct dividends instead of relative
-* Updates subnets list to use working tao emissions
+## 8.4.4 /2025-02-07 - 18:30 PST
 
-## 9.0.0rc3 /2025-02-11
+## What's Changed
+* Proposals info fix (for dtao governance vote) by @ibraheem-opentensor 
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v8.4.3...v8.4.4
+
+## 8.4.3 /2025-01-23
+
+## What's Changed
+* Backmerge main to staging 842 by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/273
+* Fix arg order for set-identity by @thewhaleking in https://github.com/opentensor/btcli/pull/282
+* Adds updates to btwallet3, adds overwrite flag and updates tests by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/275
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v8.4.2...v8.4.3
+
+## 8.4.2 /2024-12-12
 
 ## What's Changed
 * Removes the `.value` checks as we no longer use SCALE objects. by @thewhaleking in https://github.com/opentensor/btcli/pull/270

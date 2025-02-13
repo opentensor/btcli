@@ -4072,7 +4072,9 @@ class CLIManager:
         [green]$[/green] btcli sudo proposals
         """
         self.verbosity_handler(quiet, verbose)
-        return self._run_command(sudo.proposals(self.initialize_chain(network)))
+        return self._run_command(
+            sudo.proposals(self.initialize_chain(network), verbose)
+        )
 
     def sudo_senate_vote(
         self,
