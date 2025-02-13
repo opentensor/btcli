@@ -561,7 +561,7 @@ async def _unstake_extrinsic(
         if not await response.is_success:
             err_out(
                 f"{failure_prelude} with error: "
-                f"{format_error_message(await response.error_message, subtensor.substrate)}"
+                f"{format_error_message(await response.error_message)}"
             )
             return
 
@@ -674,7 +674,7 @@ async def _safe_unstake_extrinsic(
     await response.process_events()
     if not await response.is_success:
         err_out(
-            f"\n{failure_prelude} with error: {format_error_message(await response.error_message, subtensor.substrate)}"
+            f"\n{failure_prelude} with error: {format_error_message(await response.error_message)}"
         )
         return
 

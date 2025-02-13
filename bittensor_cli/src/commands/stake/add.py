@@ -115,7 +115,7 @@ async def stake_add(
             await response.process_events()
             if not await response.is_success:
                 err_out(
-                    f"\n{failure_prelude} with error: {format_error_message(await response.error_message, subtensor.substrate)}"
+                    f"\n{failure_prelude} with error: {format_error_message(await response.error_message)}"
                 )
             else:
                 block_hash = await subtensor.substrate.get_chain_head()
@@ -188,7 +188,7 @@ async def stake_add(
             await response.process_events()
             if not await response.is_success:
                 err_out(
-                    f"\n{failure_prelude} with error: {format_error_message(await response.error_message, subtensor.substrate)}"
+                    f"\n{failure_prelude} with error: {format_error_message(await response.error_message)}"
                 )
             else:
                 new_balance, new_stake = await asyncio.gather(
