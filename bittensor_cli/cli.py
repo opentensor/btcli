@@ -2575,8 +2575,6 @@ class CLIManager:
                 "Current on-chain identity",
             ),
             exit_early=False,
-            ask_for=[WO.HOTKEY, WO.NAME],
-            validate=WV.WALLET_AND_HOTKEY,
         )
 
         if prompt:
@@ -3977,13 +3975,6 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
 
-        hyperparams = self._run_command(
-            sudo.get_hyperparameters(self.initialize_chain(network), netuid),
-            exit_early=False,
-        )
-
-        if not hyperparams:
-            raise typer.Exit()
         if not param_name or not param_value:
             hyperparams = self._run_command(
                 sudo.get_hyperparameters(self.initialize_chain(network), netuid),
