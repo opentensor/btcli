@@ -693,7 +693,7 @@ async def burned_register_extrinsic(
     :return: Flag is `True` if extrinsic was finalized or included in the block. If we did not wait for
              finalization/inclusion, the response is `True`.
     """
-    
+
     if not (unlock_status := unlock_key(wallet, print_out=False)).success:
         return False, unlock_status.message
 

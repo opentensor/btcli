@@ -1322,7 +1322,7 @@ async def show(
                         return hotkey
                     else:
                         console.print(
-                            f"[red]Invalid UID. Please enter a valid UID from the table above[/red]"
+                            "[red]Invalid UID. Please enter a valid UID from the table above[/red]"
                         )
                 except ValueError:
                     console.print("[red]Please enter a valid number[/red]")

@@ -32,7 +32,6 @@ from bittensor_cli.src import defaults, Constants
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
-    from async_substrate_interface.async_substrate import AsyncSubstrateInterface
 
 console = Console()
 err_console = Console(stderr=True)

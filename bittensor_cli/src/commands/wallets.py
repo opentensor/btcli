@@ -6,7 +6,7 @@ from typing import Generator, Optional
 
 import aiohttp
 from bittensor_wallet import Wallet, Keypair
-from bittensor_wallet.errors import KeyFileError, PasswordError
+from bittensor_wallet.errors import KeyFileError
 from bittensor_wallet.keyfile import Keyfile
 from fuzzywuzzy import fuzz
 from rich import box
