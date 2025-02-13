@@ -199,7 +199,7 @@ async def stake_list(
             issuance = pool.alpha_out if pool.is_dynamic else tao_locked
 
             # Per block emission cell
-            per_block_emission = substake_.emission.tao / pool.tempo
+            per_block_emission = substake_.emission.tao / (pool.tempo or 1)
             # Alpha ownership and TAO ownership cells
             if alpha_value.tao > 0.00009:
                 if issuance.tao != 0:
@@ -341,7 +341,7 @@ async def stake_list(
                 "price": pool.price.tao,
                 "tao_value": tao_value.tao,
                 "swapped_value": swapped_tao_value.tao,
-                "emission": substake.emission.tao / pool.tempo,
+                "emission": substake.emission.tao / (pool.tempo or 1),
                 "tao_ownership": tao_ownership.tao,
             }
 
@@ -400,7 +400,7 @@ async def stake_list(
             else:
                 swap_cell = f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]N/A[/{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}] ({slippage_pct}%)"
 
-            emission_value = substake.emission.tao / pool.tempo
+            emission_value = substake.emission.tao / (pool.tempo or 1)
             emission_cell = format_cell(
                 emission_value,
                 prev.get("emission"),
