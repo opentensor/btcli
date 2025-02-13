@@ -1,25 +1,59 @@
+from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Optional
+from enum import Enum
+from typing import Optional, Any, Union
 
-import bt_decode
 import netaddr
 from scalecodec.utils.ss58 import ss58_encode
 
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.networking import int_to_ip
-from bittensor_cli.src.bittensor.utils import SS58_FORMAT, u16_normalized_float
+from bittensor_cli.src.bittensor.utils import (
+    SS58_FORMAT,
+    u16_normalized_float,
+    decode_account_id,
+)
 
 
-def decode_account_id(account_id_bytes: tuple):
-    # Convert the AccountId bytes to a Base64 string
-    return ss58_encode(bytes(account_id_bytes).hex(), SS58_FORMAT)
+class ChainDataType(Enum):
+    NeuronInfo = 1
+    DelegateInfo = 2
+    NeuronInfoLite = 3
+    StakeInfo = 4
+    SubnetHyperparameters = 5
+    DelegateInfoLite = 6
+    DynamicInfo = 7
+    ScheduledColdkeySwapInfo = 8
+    SubnetInfo = 9
+    SubnetState = 10
+    SubnetIdentity = 11
 
 
-def process_stake_data(stake_data):
+def decode_hex_identity(info_dictionary):
+    decoded_info = {}
+    for k, v in info_dictionary.items():
+        if isinstance(v, dict):
+            item = next(iter(v.values()))
+        else:
+            item = v
+
+        if isinstance(item, tuple):
+            try:
+                decoded_info[k] = bytes(item).decode()
+            except UnicodeDecodeError:
+                print(f"Could not decode: {k}: {item}")
+        else:
+            decoded_info[k] = item
+    return decoded_info
+
+
+def process_stake_data(stake_data, netuid):
     decoded_stake_data = {}
     for account_id_bytes, stake_ in stake_data:
         account_id = decode_account_id(account_id_bytes)
-        decoded_stake_data.update({account_id: Balance.from_rao(stake_)})
+        decoded_stake_data.update(
+            {account_id: Balance.from_rao(stake_).set_unit(netuid)}
+        )
     return decoded_stake_data
 
 
@@ -62,14 +96,39 @@ class AxonInfo:
 
 
 @dataclass
-class SubnetHyperparameters:
+class InfoBase:
+    """Base dataclass for info objects."""
+
+    @abstractmethod
+    def _fix_decoded(self, decoded: Any) -> "InfoBase":
+        raise NotImplementedError(
+            "This is an abstract method and must be implemented in a subclass."
+        )
+
+    @classmethod
+    def from_any(cls, data: Any) -> "InfoBase":
+        return cls._fix_decoded(data)
+
+    @classmethod
+    def list_from_any(cls, data_list: list[Any]) -> list["InfoBase"]:
+        return [cls.from_any(data) for data in data_list]
+
+    def __getitem__(self, item):
+        return getattr(self, item)
+
+    def get(self, item, default=None):
+        return getattr(self, item, default)
+
+
+@dataclass
+class SubnetHyperparameters(InfoBase):
     """Dataclass for subnet hyperparameters."""
 
     rho: int
     kappa: int
     immunity_period: int
     min_allowed_weights: int
-    max_weight_limit: float
+    max_weights_limit: float
     tempo: int
     min_difficulty: int
     max_difficulty: int
@@ -87,90 +146,78 @@ class SubnetHyperparameters:
     max_validators: int
     adjustment_alpha: int
     difficulty: int
-    commit_reveal_weights_interval: int
+    commit_reveal_period: int
     commit_reveal_weights_enabled: bool
     alpha_high: int
     alpha_low: int
     liquid_alpha_enabled: bool
 
     @classmethod
-    def from_vec_u8(cls, vec_u8: bytes) -> Optional["SubnetHyperparameters"]:
-        decoded = bt_decode.SubnetHyperparameters.decode(vec_u8)
+    def _fix_decoded(
+        cls, decoded: Union[dict, "SubnetHyperparameters"]
+    ) -> "SubnetHyperparameters":
         return SubnetHyperparameters(
-            rho=decoded.rho,
-            kappa=decoded.kappa,
-            immunity_period=decoded.immunity_period,
-            min_allowed_weights=decoded.min_allowed_weights,
-            max_weight_limit=decoded.max_weights_limit,
-            tempo=decoded.tempo,
-            min_difficulty=decoded.min_difficulty,
-            max_difficulty=decoded.max_difficulty,
-            weights_version=decoded.weights_version,
-            weights_rate_limit=decoded.weights_rate_limit,
-            adjustment_interval=decoded.adjustment_interval,
-            activity_cutoff=decoded.activity_cutoff,
-            registration_allowed=decoded.registration_allowed,
-            target_regs_per_interval=decoded.target_regs_per_interval,
-            min_burn=decoded.min_burn,
-            max_burn=decoded.max_burn,
-            bonds_moving_avg=decoded.bonds_moving_avg,
-            max_regs_per_block=decoded.max_regs_per_block,
-            serving_rate_limit=decoded.serving_rate_limit,
-            max_validators=decoded.max_validators,
-            adjustment_alpha=decoded.adjustment_alpha,
-            difficulty=decoded.difficulty,
-            commit_reveal_weights_interval=decoded.commit_reveal_weights_interval,
-            commit_reveal_weights_enabled=decoded.commit_reveal_weights_enabled,
-            alpha_high=decoded.alpha_high,
-            alpha_low=decoded.alpha_low,
-            liquid_alpha_enabled=decoded.liquid_alpha_enabled,
+            rho=decoded.get("rho"),
+            kappa=decoded.get("kappa"),
+            immunity_period=decoded.get("immunity_period"),
+            min_allowed_weights=decoded.get("min_allowed_weights"),
+            max_weights_limit=decoded.get("max_weights_limit"),
+            tempo=decoded.get("tempo"),
+            min_difficulty=decoded.get("min_difficulty"),
+            max_difficulty=decoded.get("max_difficulty"),
+            weights_version=decoded.get("weights_version"),
+            weights_rate_limit=decoded.get("weights_rate_limit"),
+            adjustment_interval=decoded.get("adjustment_interval"),
+            activity_cutoff=decoded.get("activity_cutoff"),
+            registration_allowed=decoded.get("registration_allowed"),
+            target_regs_per_interval=decoded.get("target_regs_per_interval"),
+            min_burn=decoded.get("min_burn"),
+            max_burn=decoded.get("max_burn"),
+            bonds_moving_avg=decoded.get("bonds_moving_avg"),
+            max_regs_per_block=decoded.get("max_regs_per_block"),
+            serving_rate_limit=decoded.get("serving_rate_limit"),
+            max_validators=decoded.get("max_validators"),
+            adjustment_alpha=decoded.get("adjustment_alpha"),
+            difficulty=decoded.get("difficulty"),
+            commit_reveal_period=decoded.get("commit_reveal_period"),
+            commit_reveal_weights_enabled=decoded.get("commit_reveal_weights_enabled"),
+            alpha_high=decoded.get("alpha_high"),
+            alpha_low=decoded.get("alpha_low"),
+            liquid_alpha_enabled=decoded.get("liquid_alpha_enabled"),
         )
 
 
 @dataclass
-class StakeInfo:
+class StakeInfo(InfoBase):
     """Dataclass for stake info."""
 
     hotkey_ss58: str  # Hotkey address
     coldkey_ss58: str  # Coldkey address
+    netuid: int
     stake: Balance  # Stake for the hotkey-coldkey pair
+    locked: Balance  # Stake which is locked.
+    emission: Balance  # Emission for the hotkey-coldkey pair
+    drain: int
+    is_registered: bool
 
     @classmethod
-    def list_from_vec_u8(cls, vec_u8: bytes) -> list["StakeInfo"]:
-        """
-        Returns a list of StakeInfo objects from a `vec_u8`.
-        """
-        decoded = bt_decode.StakeInfo.decode_vec(vec_u8)
-        results = []
-        for d in decoded:
-            hotkey = decode_account_id(d.hotkey)
-            coldkey = decode_account_id(d.coldkey)
-            stake = Balance.from_rao(d.stake)
-            results.append(StakeInfo(hotkey, coldkey, stake))
+    def _fix_decoded(cls, decoded: Any) -> "StakeInfo":
+        hotkey = decode_account_id(decoded.get("hotkey"))
+        coldkey = decode_account_id(decoded.get("coldkey"))
+        netuid = int(decoded.get("netuid"))
+        stake = Balance.from_rao(decoded.get("stake")).set_unit(netuid)
+        locked = Balance.from_rao(decoded.get("locked")).set_unit(netuid)
+        emission = Balance.from_rao(decoded.get("emission")).set_unit(netuid)
+        drain = int(decoded.get("drain"))
+        is_registered = bool(decoded.get("is_registered"))
 
-        return results
+        return StakeInfo(
+            hotkey, coldkey, netuid, stake, locked, emission, drain, is_registered
+        )
 
 
 @dataclass
-class PrometheusInfo:
-    """Dataclass for prometheus info."""
-
-    block: int
-    version: int
-    ip: str
-    port: int
-    ip_type: int
-
-    @classmethod
-    def fix_decoded_values(cls, prometheus_info_decoded: dict) -> "PrometheusInfo":
-        """Returns a PrometheusInfo object from a prometheus_info_decoded dictionary."""
-        prometheus_info_decoded["ip"] = int_to_ip(int(prometheus_info_decoded["ip"]))
-
-        return cls(**prometheus_info_decoded)
-
-
-@dataclass
-class NeuronInfo:
+class NeuronInfo(InfoBase):
     """Dataclass for neuron metadata."""
 
     hotkey: str
@@ -194,7 +241,6 @@ class NeuronInfo:
     weights: list[list[int]]
     bonds: list[list[int]]
     pruning_score: int
-    prometheus_info: Optional["PrometheusInfo"] = None
     axon_info: Optional[AxonInfo] = None
     is_null: bool = False
 
@@ -231,7 +277,6 @@ class NeuronInfo:
             validator_permit=False,
             weights=[],
             bonds=[],
-            prometheus_info=None,
             axon_info=None,
             is_null=True,
             coldkey="000000000000000000000000000000000000000000000000",
@@ -241,49 +286,42 @@ class NeuronInfo:
         return neuron
 
     @classmethod
-    def from_vec_u8(cls, vec_u8: bytes) -> "NeuronInfo":
-        n = bt_decode.NeuronInfo.decode(vec_u8)
-        stake_dict = process_stake_data(n.stake)
+    def _fix_decoded(cls, decoded: Any) -> "NeuronInfo":
+        netuid = decoded.get("netuid")
+        stake_dict = process_stake_data(decoded.get("stake"), netuid=netuid)
         total_stake = sum(stake_dict.values()) if stake_dict else Balance(0)
-        axon_info = n.axon_info
-        coldkey = decode_account_id(n.coldkey)
-        hotkey = decode_account_id(n.hotkey)
+        axon_info = decoded.get("axon_info", {})
+        coldkey = decode_account_id(decoded.get("coldkey"))
+        hotkey = decode_account_id(decoded.get("hotkey"))
         return NeuronInfo(
             hotkey=hotkey,
             coldkey=coldkey,
-            uid=n.uid,
-            netuid=n.netuid,
-            active=n.active,
+            uid=decoded.get("uid"),
+            netuid=netuid,
+            active=decoded.get("active"),
             stake=total_stake,
             stake_dict=stake_dict,
             total_stake=total_stake,
-            rank=u16_normalized_float(n.rank),
-            emission=n.emission / 1e9,
-            incentive=u16_normalized_float(n.incentive),
-            consensus=u16_normalized_float(n.consensus),
-            trust=u16_normalized_float(n.trust),
-            validator_trust=u16_normalized_float(n.validator_trust),
-            dividends=u16_normalized_float(n.dividends),
-            last_update=n.last_update,
-            validator_permit=n.validator_permit,
-            weights=[[e[0], e[1]] for e in n.weights],
-            bonds=[[e[0], e[1]] for e in n.bonds],
-            pruning_score=n.pruning_score,
-            prometheus_info=PrometheusInfo(
-                block=n.prometheus_info.block,
-                version=n.prometheus_info.version,
-                ip=str(netaddr.IPAddress(n.prometheus_info.ip)),
-                port=n.prometheus_info.port,
-                ip_type=n.prometheus_info.ip_type,
-            ),
+            rank=u16_normalized_float(decoded.get("rank")),
+            emission=decoded.get("emission") / 1e9,
+            incentive=u16_normalized_float(decoded.get("incentive")),
+            consensus=u16_normalized_float(decoded.get("consensus")),
+            trust=u16_normalized_float(decoded.get("trust")),
+            validator_trust=u16_normalized_float(decoded.get("validator_trust")),
+            dividends=u16_normalized_float(decoded.get("dividends")),
+            last_update=decoded.get("last_update"),
+            validator_permit=decoded.get("validator_permit"),
+            weights=[[e[0], e[1]] for e in decoded.get("weights")],
+            bonds=[[e[0], e[1]] for e in decoded.get("bonds")],
+            pruning_score=decoded.get("pruning_score"),
             axon_info=AxonInfo(
-                version=axon_info.version,
-                ip=str(netaddr.IPAddress(axon_info.ip)),
-                port=axon_info.port,
-                ip_type=axon_info.ip_type,
-                placeholder1=axon_info.placeholder1,
-                placeholder2=axon_info.placeholder2,
-                protocol=axon_info.protocol,
+                version=axon_info.get("version"),
+                ip=str(netaddr.IPAddress(axon_info.get("ip"))),
+                port=axon_info.get("port"),
+                ip_type=axon_info.get("ip_type"),
+                placeholder1=axon_info.get("placeholder1"),
+                placeholder2=axon_info.get("placeholder2"),
+                protocol=axon_info.get("protocol"),
                 hotkey=hotkey,
                 coldkey=coldkey,
             ),
@@ -292,7 +330,7 @@ class NeuronInfo:
 
 
 @dataclass
-class NeuronInfoLite:
+class NeuronInfoLite(InfoBase):
     """Dataclass for neuron metadata, but without the weights and bonds."""
 
     hotkey: str
@@ -313,7 +351,6 @@ class NeuronInfoLite:
     dividends: float
     last_update: int
     validator_permit: bool
-    prometheus_info: Optional["PrometheusInfo"]
     axon_info: AxonInfo
     pruning_score: int
     is_null: bool = False
@@ -336,7 +373,6 @@ class NeuronInfoLite:
             dividends=0,
             last_update=0,
             validator_permit=False,
-            prometheus_info=None,
             axon_info=None,
             is_null=True,
             coldkey="000000000000000000000000000000000000000000000000",
@@ -346,74 +382,63 @@ class NeuronInfoLite:
         return neuron
 
     @classmethod
-    def list_from_vec_u8(cls, vec_u8: bytes) -> list["NeuronInfoLite"]:
-        decoded = bt_decode.NeuronInfoLite.decode_vec(vec_u8)
-        results = []
-        for item in decoded:
-            active = item.active
-            axon_info = item.axon_info
-            coldkey = decode_account_id(item.coldkey)
-            consensus = item.consensus
-            dividends = item.dividends
-            emission = item.emission
-            hotkey = decode_account_id(item.hotkey)
-            incentive = item.incentive
-            last_update = item.last_update
-            netuid = item.netuid
-            prometheus_info = item.prometheus_info
-            pruning_score = item.pruning_score
-            rank = item.rank
-            stake_dict = process_stake_data(item.stake)
-            stake = sum(stake_dict.values()) if stake_dict else Balance(0)
-            trust = item.trust
-            uid = item.uid
-            validator_permit = item.validator_permit
-            validator_trust = item.validator_trust
-            results.append(
-                NeuronInfoLite(
-                    active=active,
-                    axon_info=AxonInfo(
-                        version=axon_info.version,
-                        ip=str(netaddr.IPAddress(axon_info.ip)),
-                        port=axon_info.port,
-                        ip_type=axon_info.ip_type,
-                        placeholder1=axon_info.placeholder1,
-                        placeholder2=axon_info.placeholder2,
-                        protocol=axon_info.protocol,
-                        hotkey=hotkey,
-                        coldkey=coldkey,
-                    ),
-                    coldkey=coldkey,
-                    consensus=u16_normalized_float(consensus),
-                    dividends=u16_normalized_float(dividends),
-                    emission=emission / 1e9,
-                    hotkey=hotkey,
-                    incentive=u16_normalized_float(incentive),
-                    last_update=last_update,
-                    netuid=netuid,
-                    prometheus_info=PrometheusInfo(
-                        version=prometheus_info.version,
-                        ip=str(netaddr.IPAddress(prometheus_info.ip)),
-                        port=prometheus_info.port,
-                        ip_type=prometheus_info.ip_type,
-                        block=prometheus_info.block,
-                    ),
-                    pruning_score=pruning_score,
-                    rank=u16_normalized_float(rank),
-                    stake_dict=stake_dict,
-                    stake=stake,
-                    total_stake=stake,
-                    trust=u16_normalized_float(trust),
-                    uid=uid,
-                    validator_permit=validator_permit,
-                    validator_trust=u16_normalized_float(validator_trust),
-                )
-            )
-        return results
+    def _fix_decoded(cls, decoded: Union[dict, "NeuronInfoLite"]) -> "NeuronInfoLite":
+        active = decoded.get("active")
+        axon_info = decoded.get("axon_info", {})
+        coldkey = decode_account_id(decoded.get("coldkey"))
+        consensus = decoded.get("consensus")
+        dividends = decoded.get("dividends")
+        emission = decoded.get("emission")
+        hotkey = decode_account_id(decoded.get("hotkey"))
+        incentive = decoded.get("incentive")
+        last_update = decoded.get("last_update")
+        netuid = decoded.get("netuid")
+        pruning_score = decoded.get("pruning_score")
+        rank = decoded.get("rank")
+        stake_dict = process_stake_data(decoded.get("stake"), netuid)
+        stake = sum(stake_dict.values()) if stake_dict else Balance(0)
+        trust = decoded.get("trust")
+        uid = decoded.get("uid")
+        validator_permit = decoded.get("validator_permit")
+        validator_trust = decoded.get("validator_trust")
+
+        neuron = cls(
+            active=active,
+            axon_info=AxonInfo(
+                version=axon_info.get("version"),
+                ip=str(netaddr.IPAddress(axon_info.get("ip"))),
+                port=axon_info.get("port"),
+                ip_type=axon_info.get("ip_type"),
+                placeholder1=axon_info.get("placeholder1"),
+                placeholder2=axon_info.get("placeholder2"),
+                protocol=axon_info.get("protocol"),
+                hotkey=hotkey,
+                coldkey=coldkey,
+            ),
+            coldkey=coldkey,
+            consensus=u16_normalized_float(consensus),
+            dividends=u16_normalized_float(dividends),
+            emission=emission / 1e9,
+            hotkey=hotkey,
+            incentive=u16_normalized_float(incentive),
+            last_update=last_update,
+            netuid=netuid,
+            pruning_score=pruning_score,
+            rank=u16_normalized_float(rank),
+            stake_dict=stake_dict,
+            stake=stake,
+            total_stake=stake,
+            trust=u16_normalized_float(trust),
+            uid=uid,
+            validator_permit=validator_permit,
+            validator_trust=u16_normalized_float(validator_trust),
+        )
+
+        return neuron
 
 
 @dataclass
-class DelegateInfo:
+class DelegateInfo(InfoBase):
     """
     Dataclass for delegate information. For a lighter version of this class, see :func:`DelegateInfoLite`.
 
@@ -444,80 +469,69 @@ class DelegateInfo:
     total_daily_return: Balance  # Total daily return of the delegate
 
     @classmethod
-    def from_vec_u8(cls, vec_u8: bytes) -> Optional["DelegateInfo"]:
-        decoded = bt_decode.DelegateInfo.decode(vec_u8)
-        hotkey = decode_account_id(decoded.delegate_ss58)
-        owner = decode_account_id(decoded.owner_ss58)
+    def _fix_decoded(cls, decoded: "DelegateInfo") -> "DelegateInfo":
+        hotkey = decode_account_id(decoded.get("hotkey_ss58"))
+        owner = decode_account_id(decoded.get("owner_ss58"))
         nominators = [
-            (decode_account_id(x), Balance.from_rao(y)) for x, y in decoded.nominators
+            (decode_account_id(x), Balance.from_rao(y))
+            for x, y in decoded.get("nominators")
         ]
         total_stake = sum((x[1] for x in nominators)) if nominators else Balance(0)
-        return DelegateInfo(
+        return cls(
             hotkey_ss58=hotkey,
             total_stake=total_stake,
             nominators=nominators,
             owner_ss58=owner,
-            take=u16_normalized_float(decoded.take),
-            validator_permits=decoded.validator_permits,
-            registrations=decoded.registrations,
-            return_per_1000=Balance.from_rao(decoded.return_per_1000),
-            total_daily_return=Balance.from_rao(decoded.total_daily_return),
+            take=u16_normalized_float(decoded.get("take")),
+            validator_permits=decoded.get("validator_permits"),
+            registrations=decoded.get("registrations"),
+            return_per_1000=Balance.from_rao(decoded.get("return_per_1000")),
+            total_daily_return=Balance.from_rao(decoded.get("total_daily_return")),
         )
-
-    @classmethod
-    def list_from_vec_u8(cls, vec_u8: bytes) -> list["DelegateInfo"]:
-        decoded = bt_decode.DelegateInfo.decode_vec(vec_u8)
-        results = []
-        for d in decoded:
-            hotkey = decode_account_id(d.delegate_ss58)
-            owner = decode_account_id(d.owner_ss58)
-            nominators = [
-                (decode_account_id(x), Balance.from_rao(y)) for x, y in d.nominators
-            ]
-            total_stake = sum((x[1] for x in nominators)) if nominators else Balance(0)
-            results.append(
-                DelegateInfo(
-                    hotkey_ss58=hotkey,
-                    total_stake=total_stake,
-                    nominators=nominators,
-                    owner_ss58=owner,
-                    take=u16_normalized_float(d.take),
-                    validator_permits=d.validator_permits,
-                    registrations=d.registrations,
-                    return_per_1000=Balance.from_rao(d.return_per_1000),
-                    total_daily_return=Balance.from_rao(d.total_daily_return),
-                )
-            )
-        return results
-
-    @classmethod
-    def delegated_list_from_vec_u8(
-        cls, vec_u8: bytes
-    ) -> list[tuple["DelegateInfo", Balance]]:
-        decoded = bt_decode.DelegateInfo.decode_delegated(vec_u8)
-        results = []
-        for d, b in decoded:
-            nominators = [
-                (decode_account_id(x), Balance.from_rao(y)) for x, y in d.nominators
-            ]
-            total_stake = sum((x[1] for x in nominators)) if nominators else Balance(0)
-            delegate = DelegateInfo(
-                hotkey_ss58=decode_account_id(d.delegate_ss58),
-                total_stake=total_stake,
-                nominators=nominators,
-                owner_ss58=decode_account_id(d.owner_ss58),
-                take=u16_normalized_float(d.take),
-                validator_permits=d.validator_permits,
-                registrations=d.registrations,
-                return_per_1000=Balance.from_rao(d.return_per_1000),
-                total_daily_return=Balance.from_rao(d.total_daily_return),
-            )
-            results.append((delegate, Balance.from_rao(b)))
-        return results
 
 
 @dataclass
-class SubnetInfo:
+class DelegateInfoLite(InfoBase):
+    """
+    Dataclass for light delegate information.
+
+    Args:
+        hotkey_ss58 (str): Hotkey of the delegate for which the information is being fetched.
+        owner_ss58 (str): Coldkey of the owner.
+        total_stake (int): Total stake of the delegate.
+        owner_stake (int): Own stake of the delegate.
+        take (float): Take of the delegate as a percentage. None if custom
+    """
+
+    hotkey_ss58: str  # Hotkey of delegate
+    owner_ss58: str  # Coldkey of owner
+    take: Optional[float]
+    total_stake: Balance  # Total stake of the delegate
+    previous_total_stake: Optional[Balance]  # Total stake of the delegate
+    owner_stake: Balance  # Own stake of the delegate
+
+    @classmethod
+    def _fix_decoded(cls, decoded: Any) -> "DelegateInfoLite":
+        """Fixes the decoded values."""
+        decoded_take = decoded.get("take")
+
+        if decoded_take == 65535:
+            fixed_take = None
+        else:
+            fixed_take = u16_normalized_float(decoded_take)
+
+        return cls(
+            hotkey_ss58=ss58_encode(decoded.get("delegate_ss58"), SS58_FORMAT),
+            owner_ss58=ss58_encode(decoded.get("owner_ss58"), SS58_FORMAT),
+            take=fixed_take,
+            total_stake=Balance.from_rao(decoded.get("total_stake")),
+            owner_stake=Balance.from_rao(decoded.get("owner_stake")),
+            previous_total_stake=None,
+        )
+
+
+@dataclass
+class SubnetInfo(InfoBase):
     """Dataclass for subnet info."""
 
     netuid: int
@@ -527,7 +541,7 @@ class SubnetInfo:
     immunity_period: int
     max_allowed_validators: int
     min_allowed_weights: int
-    max_weight_limit: float
+    max_weights_limit: float
     scaling_law_power: float
     subnetwork_n: int
     max_n: int
@@ -540,193 +554,308 @@ class SubnetInfo:
     owner_ss58: str
 
     @classmethod
-    def list_from_vec_u8(cls, vec_u8: bytes) -> list["SubnetInfo"]:
-        decoded = bt_decode.SubnetInfo.decode_vec_option(vec_u8)
-        result = []
-        for d in decoded:
-            result.append(
-                SubnetInfo(
-                    netuid=d.netuid,
-                    rho=d.rho,
-                    kappa=d.kappa,
-                    difficulty=d.difficulty,
-                    immunity_period=d.immunity_period,
-                    max_allowed_validators=d.max_allowed_validators,
-                    min_allowed_weights=d.min_allowed_weights,
-                    max_weight_limit=d.max_weights_limit,
-                    scaling_law_power=d.scaling_law_power,
-                    subnetwork_n=d.subnetwork_n,
-                    max_n=d.max_allowed_uids,
-                    blocks_since_epoch=d.blocks_since_last_step,
-                    tempo=d.tempo,
-                    modality=d.network_modality,
-                    connection_requirements={
-                        str(int(netuid)): u16_normalized_float(int(req))
-                        for (netuid, req) in d.network_connect
-                    },
-                    emission_value=d.emission_values,
-                    burn=Balance.from_rao(d.burn),
-                    owner_ss58=decode_account_id(d.owner),
-                )
-            )
-        return result
+    def _fix_decoded(cls, decoded: "SubnetInfo") -> "SubnetInfo":
+        return SubnetInfo(
+            netuid=decoded.get("netuid"),
+            rho=decoded.get("rho"),
+            kappa=decoded.get("kappa"),
+            difficulty=decoded.get("difficulty"),
+            immunity_period=decoded.get("immunity_period"),
+            max_allowed_validators=decoded.get("max_allowed_validators"),
+            min_allowed_weights=decoded.get("min_allowed_weights"),
+            max_weights_limit=decoded.get("max_weights_limit"),
+            scaling_law_power=decoded.get("scaling_law_power"),
+            subnetwork_n=decoded.get("subnetwork_n"),
+            max_n=decoded.get("max_allowed_uids"),
+            blocks_since_epoch=decoded.get("blocks_since_last_step"),
+            tempo=decoded.get("tempo"),
+            modality=decoded.get("network_modality"),
+            connection_requirements={
+                str(int(netuid)): u16_normalized_float(int(req))
+                for (netuid, req) in decoded.get("network_connect")
+            },
+            emission_value=decoded.get("emission_value"),
+            burn=Balance.from_rao(decoded.get("burn")),
+            owner_ss58=decode_account_id(decoded.get("owner")),
+        )
 
 
-custom_rpc_type_registry = {
-    "types": {
-        "SubnetInfo": {
-            "type": "struct",
-            "type_mapping": [
-                ["netuid", "Compact<u16>"],
-                ["rho", "Compact<u16>"],
-                ["kappa", "Compact<u16>"],
-                ["difficulty", "Compact<u64>"],
-                ["immunity_period", "Compact<u16>"],
-                ["max_allowed_validators", "Compact<u16>"],
-                ["min_allowed_weights", "Compact<u16>"],
-                ["max_weights_limit", "Compact<u16>"],
-                ["scaling_law_power", "Compact<u16>"],
-                ["subnetwork_n", "Compact<u16>"],
-                ["max_allowed_uids", "Compact<u16>"],
-                ["blocks_since_last_step", "Compact<u64>"],
-                ["tempo", "Compact<u16>"],
-                ["network_modality", "Compact<u16>"],
-                ["network_connect", "Vec<[u16; 2]>"],
-                ["emission_values", "Compact<u64>"],
-                ["burn", "Compact<u64>"],
-                ["owner", "AccountId"],
+@dataclass
+class SubnetIdentity(InfoBase):
+    """Dataclass for subnet identity information."""
+
+    subnet_name: str
+    github_repo: str
+    subnet_contact: str
+    subnet_url: str
+    discord: str
+    description: str
+    additional: str
+
+    @classmethod
+    def _fix_decoded(cls, decoded: dict) -> "SubnetIdentity":
+        return SubnetIdentity(
+            subnet_name=bytes(decoded["subnet_name"]).decode(),
+            github_repo=bytes(decoded["github_repo"]).decode(),
+            subnet_contact=bytes(decoded["subnet_contact"]).decode(),
+            subnet_url=bytes(decoded["subnet_url"]).decode(),
+            discord=bytes(decoded["discord"]).decode(),
+            description=bytes(decoded["description"]).decode(),
+            additional=bytes(decoded["additional"]).decode(),
+        )
+
+
+@dataclass
+class DynamicInfo(InfoBase):
+    netuid: int
+    owner_hotkey: str
+    owner_coldkey: str
+    subnet_name: str
+    symbol: str
+    tempo: int
+    last_step: int
+    blocks_since_last_step: int
+    emission: Balance
+    alpha_in: Balance
+    alpha_out: Balance
+    tao_in: Balance
+    price: Balance
+    k: float
+    is_dynamic: bool
+    alpha_out_emission: Balance
+    alpha_in_emission: Balance
+    tao_in_emission: Balance
+    pending_alpha_emission: Balance
+    pending_root_emission: Balance
+    network_registered_at: int
+    subnet_identity: Optional[SubnetIdentity]
+    subnet_volume: Balance
+
+    @classmethod
+    def _fix_decoded(cls, decoded: Any) -> "DynamicInfo":
+        """Returns a DynamicInfo object from a decoded DynamicInfo dictionary."""
+
+        netuid = int(decoded.get("netuid"))
+        symbol = bytes([int(b) for b in decoded.get("token_symbol")]).decode()
+        subnet_name = bytes([int(b) for b in decoded.get("subnet_name")]).decode()
+        is_dynamic = True if netuid > 0 else False  # Patching for netuid 0
+
+        owner_hotkey = decode_account_id(decoded.get("owner_hotkey"))
+        owner_coldkey = decode_account_id(decoded.get("owner_coldkey"))
+
+        emission = Balance.from_rao(decoded.get("emission")).set_unit(0)
+        alpha_in = Balance.from_rao(decoded.get("alpha_in")).set_unit(netuid)
+        alpha_out = Balance.from_rao(decoded.get("alpha_out")).set_unit(netuid)
+        tao_in = Balance.from_rao(decoded.get("tao_in")).set_unit(0)
+        alpha_out_emission = Balance.from_rao(
+            decoded.get("alpha_out_emission")
+        ).set_unit(netuid)
+        alpha_in_emission = Balance.from_rao(decoded.get("alpha_in_emission")).set_unit(
+            netuid
+        )
+        subnet_volume = Balance.from_rao(decoded.get("subnet_volume")).set_unit(netuid)
+        tao_in_emission = Balance.from_rao(decoded.get("tao_in_emission")).set_unit(0)
+        pending_alpha_emission = Balance.from_rao(
+            decoded.get("pending_alpha_emission")
+        ).set_unit(netuid)
+        pending_root_emission = Balance.from_rao(
+            decoded.get("pending_root_emission")
+        ).set_unit(0)
+        price = (
+            Balance.from_tao(1.0)
+            if netuid == 0
+            else Balance.from_tao(tao_in.tao / alpha_in.tao)
+            if alpha_in.tao > 0
+            else Balance.from_tao(1)
+        )  # TODO: Patching this temporarily for netuid 0
+
+        if decoded.get("subnet_identity"):
+            subnet_identity = SubnetIdentity.from_any(decoded.get("subnet_identity"))
+        else:
+            subnet_identity = None
+
+        return cls(
+            netuid=netuid,
+            owner_hotkey=owner_hotkey,
+            owner_coldkey=owner_coldkey,
+            subnet_name=subnet_name,
+            symbol=symbol,
+            tempo=int(decoded.get("tempo")),
+            last_step=int(decoded.get("last_step")),
+            blocks_since_last_step=int(decoded.get("blocks_since_last_step")),
+            emission=emission,
+            alpha_in=alpha_in,
+            alpha_out=alpha_out,
+            tao_in=tao_in,
+            k=tao_in.rao * alpha_in.rao,
+            is_dynamic=is_dynamic,
+            price=price,
+            alpha_out_emission=alpha_out_emission,
+            alpha_in_emission=alpha_in_emission,
+            tao_in_emission=tao_in_emission,
+            pending_alpha_emission=pending_alpha_emission,
+            pending_root_emission=pending_root_emission,
+            network_registered_at=int(decoded.get("network_registered_at")),
+            subnet_identity=subnet_identity,
+            subnet_volume=subnet_volume,
+        )
+
+    def tao_to_alpha(self, tao: Balance) -> Balance:
+        if self.price.tao != 0:
+            return Balance.from_tao(tao.tao / self.price.tao).set_unit(self.netuid)
+        else:
+            return Balance.from_tao(0)
+
+    def alpha_to_tao(self, alpha: Balance) -> Balance:
+        return Balance.from_tao(alpha.tao * self.price.tao)
+
+    def tao_to_alpha_with_slippage(self, tao: Balance) -> tuple[Balance, Balance]:
+        """
+        Returns an estimate of how much Alpha would a staker receive if they stake their tao using the current pool state.
+        Args:
+            tao: Amount of TAO to stake.
+        Returns:
+            Tuple of balances where the first part is the amount of Alpha received, and the
+            second part (slippage) is the difference between the estimated amount and ideal
+            amount as if there was no slippage
+        """
+        if self.is_dynamic:
+            new_tao_in = self.tao_in + tao
+            if new_tao_in == 0:
+                return tao, Balance.from_rao(0)
+            new_alpha_in = self.k / new_tao_in
+
+            # Amount of alpha given to the staker
+            alpha_returned = Balance.from_rao(
+                self.alpha_in.rao - new_alpha_in.rao
+            ).set_unit(self.netuid)
+
+            # Ideal conversion as if there is no slippage, just price
+            alpha_ideal = self.tao_to_alpha(tao)
+
+            if alpha_ideal.tao > alpha_returned.tao:
+                slippage = Balance.from_tao(
+                    alpha_ideal.tao - alpha_returned.tao
+                ).set_unit(self.netuid)
+            else:
+                slippage = Balance.from_tao(0)
+        else:
+            alpha_returned = tao.set_unit(self.netuid)
+            slippage = Balance.from_tao(0)
+
+        slippage_pct_float = (
+            100 * float(slippage) / float(slippage + alpha_returned)
+            if slippage + alpha_returned != 0
+            else 0
+        )
+        return alpha_returned, slippage, slippage_pct_float
+
+    def alpha_to_tao_with_slippage(self, alpha: Balance) -> tuple[Balance, Balance]:
+        """
+        Returns an estimate of how much TAO would a staker receive if they unstake their alpha using the current pool state.
+        Args:
+            alpha: Amount of Alpha to stake.
+        Returns:
+            Tuple of balances where the first part is the amount of TAO received, and the
+            second part (slippage) is the difference between the estimated amount and ideal
+            amount as if there was no slippage
+        """
+        if self.is_dynamic:
+            new_alpha_in = self.alpha_in + alpha
+            new_tao_reserve = self.k / new_alpha_in
+            # Amount of TAO given to the unstaker
+            tao_returned = Balance.from_rao(self.tao_in - new_tao_reserve)
+
+            # Ideal conversion as if there is no slippage, just price
+            tao_ideal = self.alpha_to_tao(alpha)
+
+            if tao_ideal > tao_returned:
+                slippage = Balance.from_tao(tao_ideal.tao - tao_returned.tao)
+            else:
+                slippage = Balance.from_tao(0)
+        else:
+            tao_returned = alpha.set_unit(0)
+            slippage = Balance.from_tao(0)
+        slippage_pct_float = (
+            100 * float(slippage) / float(slippage + tao_returned)
+            if slippage + tao_returned != 0
+            else 0
+        )
+        return tao_returned, slippage, slippage_pct_float
+
+
+@dataclass
+class ScheduledColdkeySwapInfo(InfoBase):
+    """Dataclass for scheduled coldkey swap information."""
+
+    old_coldkey: str
+    new_coldkey: str
+    arbitration_block: int
+
+    @classmethod
+    def _fix_decoded(cls, decoded: Any) -> "ScheduledColdkeySwapInfo":
+        """Fixes the decoded values."""
+        return cls(
+            old_coldkey=decode_account_id(decoded.get("old_coldkey")),
+            new_coldkey=decode_account_id(decoded.get("new_coldkey")),
+            arbitration_block=decoded.get("arbitration_block"),
+        )
+
+
+@dataclass
+class SubnetState(InfoBase):
+    netuid: int
+    hotkeys: list[str]
+    coldkeys: list[str]
+    active: list[bool]
+    validator_permit: list[bool]
+    pruning_score: list[float]
+    last_update: list[int]
+    emission: list[Balance]
+    dividends: list[float]
+    incentives: list[float]
+    consensus: list[float]
+    trust: list[float]
+    rank: list[float]
+    block_at_registration: list[int]
+    alpha_stake: list[Balance]
+    tao_stake: list[Balance]
+    total_stake: list[Balance]
+    emission_history: list[list[int]]
+
+    @classmethod
+    def _fix_decoded(cls, decoded: Any) -> "SubnetState":
+        netuid = decoded.get("netuid")
+        return SubnetState(
+            netuid=netuid,
+            hotkeys=[decode_account_id(val) for val in decoded.get("hotkeys")],
+            coldkeys=[decode_account_id(val) for val in decoded.get("coldkeys")],
+            active=decoded.get("active"),
+            validator_permit=decoded.get("validator_permit"),
+            pruning_score=[
+                u16_normalized_float(val) for val in decoded.get("pruning_score")
             ],
-        },
-        "DelegateInfo": {
-            "type": "struct",
-            "type_mapping": [
-                ["delegate_ss58", "AccountId"],
-                ["take", "Compact<u16>"],
-                ["nominators", "Vec<(AccountId, Compact<u64>)>"],
-                ["owner_ss58", "AccountId"],
-                ["registrations", "Vec<Compact<u16>>"],
-                ["validator_permits", "Vec<Compact<u16>>"],
-                ["return_per_1000", "Compact<u64>"],
-                ["total_daily_return", "Compact<u64>"],
+            last_update=decoded.get("last_update"),
+            emission=[
+                Balance.from_rao(val).set_unit(netuid)
+                for val in decoded.get("emission")
             ],
-        },
-        "NeuronInfo": {
-            "type": "struct",
-            "type_mapping": [
-                ["hotkey", "AccountId"],
-                ["coldkey", "AccountId"],
-                ["uid", "Compact<u16>"],
-                ["netuid", "Compact<u16>"],
-                ["active", "bool"],
-                ["axon_info", "axon_info"],
-                ["prometheus_info", "PrometheusInfo"],
-                ["stake", "Vec<(AccountId, Compact<u64>)>"],
-                ["rank", "Compact<u16>"],
-                ["emission", "Compact<u64>"],
-                ["incentive", "Compact<u16>"],
-                ["consensus", "Compact<u16>"],
-                ["trust", "Compact<u16>"],
-                ["validator_trust", "Compact<u16>"],
-                ["dividends", "Compact<u16>"],
-                ["last_update", "Compact<u64>"],
-                ["validator_permit", "bool"],
-                ["weights", "Vec<(Compact<u16>, Compact<u16>)>"],
-                ["bonds", "Vec<(Compact<u16>, Compact<u16>)>"],
-                ["pruning_score", "Compact<u16>"],
+            dividends=[u16_normalized_float(val) for val in decoded.get("dividends")],
+            incentives=[u16_normalized_float(val) for val in decoded.get("incentives")],
+            consensus=[u16_normalized_float(val) for val in decoded.get("consensus")],
+            trust=[u16_normalized_float(val) for val in decoded.get("trust")],
+            rank=[u16_normalized_float(val) for val in decoded.get("rank")],
+            block_at_registration=decoded.get("block_at_registration"),
+            alpha_stake=[
+                Balance.from_rao(val).set_unit(netuid)
+                for val in decoded.get("alpha_stake")
             ],
-        },
-        "NeuronInfoLite": {
-            "type": "struct",
-            "type_mapping": [
-                ["hotkey", "AccountId"],
-                ["coldkey", "AccountId"],
-                ["uid", "Compact<u16>"],
-                ["netuid", "Compact<u16>"],
-                ["active", "bool"],
-                ["axon_info", "axon_info"],
-                ["prometheus_info", "PrometheusInfo"],
-                ["stake", "Vec<(AccountId, Compact<u64>)>"],
-                ["rank", "Compact<u16>"],
-                ["emission", "Compact<u64>"],
-                ["incentive", "Compact<u16>"],
-                ["consensus", "Compact<u16>"],
-                ["trust", "Compact<u16>"],
-                ["validator_trust", "Compact<u16>"],
-                ["dividends", "Compact<u16>"],
-                ["last_update", "Compact<u64>"],
-                ["validator_permit", "bool"],
-                ["pruning_score", "Compact<u16>"],
+            tao_stake=[
+                Balance.from_rao(val).set_unit(0) for val in decoded.get("tao_stake")
             ],
-        },
-        "axon_info": {
-            "type": "struct",
-            "type_mapping": [
-                ["block", "u64"],
-                ["version", "u32"],
-                ["ip", "u128"],
-                ["port", "u16"],
-                ["ip_type", "u8"],
-                ["protocol", "u8"],
-                ["placeholder1", "u8"],
-                ["placeholder2", "u8"],
+            total_stake=[
+                Balance.from_rao(val).set_unit(netuid)
+                for val in decoded.get("total_stake")
             ],
-        },
-        "PrometheusInfo": {
-            "type": "struct",
-            "type_mapping": [
-                ["block", "u64"],
-                ["version", "u32"],
-                ["ip", "u128"],
-                ["port", "u16"],
-                ["ip_type", "u8"],
-            ],
-        },
-        "IPInfo": {
-            "type": "struct",
-            "type_mapping": [
-                ["ip", "Compact<u128>"],
-                ["ip_type_and_protocol", "Compact<u8>"],
-            ],
-        },
-        "StakeInfo": {
-            "type": "struct",
-            "type_mapping": [
-                ["hotkey", "AccountId"],
-                ["coldkey", "AccountId"],
-                ["stake", "Compact<u64>"],
-            ],
-        },
-        "SubnetHyperparameters": {
-            "type": "struct",
-            "type_mapping": [
-                ["rho", "Compact<u16>"],
-                ["kappa", "Compact<u16>"],
-                ["immunity_period", "Compact<u16>"],
-                ["min_allowed_weights", "Compact<u16>"],
-                ["max_weights_limit", "Compact<u16>"],
-                ["tempo", "Compact<u16>"],
-                ["min_difficulty", "Compact<u64>"],
-                ["max_difficulty", "Compact<u64>"],
-                ["weights_version", "Compact<u64>"],
-                ["weights_rate_limit", "Compact<u64>"],
-                ["adjustment_interval", "Compact<u16>"],
-                ["activity_cutoff", "Compact<u16>"],
-                ["registration_allowed", "bool"],
-                ["target_regs_per_interval", "Compact<u16>"],
-                ["min_burn", "Compact<u64>"],
-                ["max_burn", "Compact<u64>"],
-                ["bonds_moving_avg", "Compact<u64>"],
-                ["max_regs_per_block", "Compact<u16>"],
-                ["serving_rate_limit", "Compact<u64>"],
-                ["max_validators", "Compact<u16>"],
-                ["adjustment_alpha", "Compact<u64>"],
-                ["difficulty", "Compact<u64>"],
-                ["commit_reveal_weights_interval", "Compact<u64>"],
-                ["commit_reveal_weights_enabled", "bool"],
-                ["alpha_high", "Compact<u16>"],
-                ["alpha_low", "Compact<u16>"],
-                ["liquid_alpha_enabled", "bool"],
-            ],
-        },
-    }
-}
+            emission_history=decoded.get("emission_history"),
+        )

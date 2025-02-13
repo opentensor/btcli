@@ -8,9 +8,7 @@ import subprocess
 import time
 
 import pytest
-from bittensor_cli.src.bittensor.async_substrate_interface import (
-    AsyncSubstrateInterface,
-)
+from async_substrate_interface.async_substrate import AsyncSubstrateInterface
 
 from .utils import setup_wallet
 
@@ -58,7 +56,7 @@ def local_chain(request):
     wait_for_node_start(process, pattern)
 
     # Run the test, passing in substrate interface
-    yield AsyncSubstrateInterface(chain_endpoint="ws://127.0.0.1:9945")
+    yield AsyncSubstrateInterface(url="ws://127.0.0.1:9945")
 
     # Terminate the process group (includes all child processes)
     os.killpg(os.getpgid(process.pid), signal.SIGTERM)

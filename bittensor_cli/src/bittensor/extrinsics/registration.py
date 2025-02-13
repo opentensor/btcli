@@ -24,9 +24,11 @@ import numpy as np
 from rich.prompt import Confirm
 from rich.console import Console
 from rich.status import Status
-from substrateinterface.exceptions import SubstrateRequestException
+from async_substrate_interface.errors import SubstrateRequestException
 
+from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.chain_data import NeuronInfo
+from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
@@ -436,7 +438,7 @@ async def is_hotkey_registered(
     subtensor: "SubtensorInterface", netuid: int, hotkey_ss58: str
 ) -> bool:
     """Checks to see if the hotkey is registered on a given netuid"""
-    _result = await subtensor.substrate.query(
+    _result = await subtensor.query(
         module="SubtensorModule",
         storage_function="Uids",
         params=[netuid, hotkey_ss58],
@@ -487,22 +489,18 @@ async def register_extrinsic(
     """
 
     async def get_neuron_for_pubkey_and_subnet():
-        uid = await subtensor.substrate.query(
+        uid = await subtensor.query(
             "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
         )
         if uid is None:
             return NeuronInfo.get_null_neuron()
 
-        params = [netuid, uid]
-        json_body = await subtensor.substrate.rpc_request(
-            method="neuronInfo_getNeuron",
-            params=params,
+        result = await subtensor.neuron_for_uid(
+            uid=uid,
+            netuid=netuid,
+            block_hash=subtensor.substrate.last_block_hash,
         )
-
-        if not (result := json_body.get("result", None)):
-            return NeuronInfo.get_null_neuron()
-
-        return NeuronInfo.from_vec_u8(bytes(result))
+        return result
 
     print_verbose("Checking subnet status")
     if not await subtensor.subnet_exists(netuid):
@@ -526,9 +524,9 @@ async def register_extrinsic(
     if prompt:
         if not Confirm.ask(
             f"Continue Registration?\n"
-            f"  hotkey ({wallet.hotkey_str}):\t[bold white]{wallet.hotkey.ss58_address}[/bold white]\n"
-            f"  coldkey ({wallet.name}):\t[bold white]{wallet.coldkeypub.ss58_address}[/bold white]\n"
-            f"  network:\t\t[bold white]{subtensor.network}[/bold white]"
+            f"  hotkey [{COLOR_PALETTE['GENERAL']['HOTKEY']}]({wallet.hotkey_str})[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]:\t[{COLOR_PALETTE['GENERAL']['HOTKEY']}]{wallet.hotkey.ss58_address}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]\n"
+            f"  coldkey [{COLOR_PALETTE['GENERAL']['COLDKEY']}]({wallet.name})[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]:\t[{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
+            f"  network:\t\t[{COLOR_PALETTE['GENERAL']['LINKS']}]{subtensor.network}[/{COLOR_PALETTE['GENERAL']['LINKS']}]\n"
         ):
             return False
 
@@ -581,7 +579,7 @@ async def register_extrinsic(
             )
             if is_registered:
                 err_console.print(
-                    f":white_heavy_check_mark: [green]Already registered on netuid:{netuid}[/green]"
+                    f":white_heavy_check_mark: [dark_sea_green3]Already registered on netuid:{netuid}[/dark_sea_green3]"
                 )
                 return True
 
@@ -625,8 +623,8 @@ async def register_extrinsic(
 
                             if "HotKeyAlreadyRegisteredInSubNet" in err_msg:
                                 console.print(
-                                    f":white_heavy_check_mark: [green]Already Registered on "
-                                    f"[bold]subnet:{netuid}[/bold][/green]"
+                                    f":white_heavy_check_mark: [dark_sea_green3]Already Registered on "
+                                    f"[bold]subnet:{netuid}[/bold][/dark_sea_green3]"
                                 )
                                 return True
                             err_console.print(
@@ -644,7 +642,7 @@ async def register_extrinsic(
                         )
                         if is_registered:
                             console.print(
-                                ":white_heavy_check_mark: [green]Registered[/green]"
+                                ":white_heavy_check_mark: [dark_sea_green3]Registered[/dark_sea_green3]"
                             )
                             return True
                         else:
@@ -668,6 +666,114 @@ async def register_extrinsic(
         else:
             # Failed to register after max attempts.
             err_console.print("[red]No more attempts.[/red]")
+            return False
+
+
+async def burned_register_extrinsic(
+    subtensor: "SubtensorInterface",
+    wallet: Wallet,
+    netuid: int,
+    old_balance: Balance,
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = True,
+    prompt: bool = False,
+) -> bool:
+    """Registers the wallet to chain by recycling TAO.
+
+    :param subtensor: The SubtensorInterface object to use for the call, initialized
+    :param wallet: Bittensor wallet object.
+    :param netuid: The `netuid` of the subnet to register on.
+    :param old_balance: The wallet balance prior to the registration burn.
+    :param wait_for_inclusion: If set, waits for the extrinsic to enter a block before returning `True`, or returns
+                               `False` if the extrinsic fails to enter the block within the timeout.
+    :param wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `True`,
+                                  or returns `False` if the extrinsic fails to be finalized within the timeout.
+    :param prompt: If `True`, the call waits for confirmation from the user before proceeding.
+
+    :return: Flag is `True` if extrinsic was finalized or included in the block. If we did not wait for
+             finalization/inclusion, the response is `True`.
+    """
+
+    if not (unlock_status := unlock_key(wallet, print_out=False)).success:
+        return False, unlock_status.message
+
+    with console.status(
+        f":satellite: Checking Account on [bold]subnet:{netuid}[/bold]...",
+        spinner="aesthetic",
+    ) as status:
+        my_uid = await subtensor.query(
+            "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
+        )
+
+        print_verbose("Checking if already registered", status)
+        neuron = await subtensor.neuron_for_uid(
+            uid=my_uid,
+            netuid=netuid,
+            block_hash=subtensor.substrate.last_block_hash,
+        )
+
+    if not neuron.is_null:
+        console.print(
+            ":white_heavy_check_mark: [dark_sea_green3]Already Registered[/dark_sea_green3]:\n"
+            f"uid: [{COLOR_PALETTE['GENERAL']['NETUID_EXTRA']}]{neuron.uid}[/{COLOR_PALETTE['GENERAL']['NETUID_EXTRA']}]\n"
+            f"netuid: [{COLOR_PALETTE['GENERAL']['NETUID']}]{neuron.netuid}[/{COLOR_PALETTE['GENERAL']['NETUID']}]\n"
+            f"hotkey: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{neuron.hotkey}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]\n"
+            f"coldkey: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{neuron.coldkey}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]"
+        )
+        return True
+
+    with console.status(
+        ":satellite: Recycling TAO for Registration...", spinner="aesthetic"
+    ):
+        call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="burned_register",
+            call_params={
+                "netuid": netuid,
+                "hotkey": wallet.hotkey.ss58_address,
+            },
+        )
+        success, err_msg = await subtensor.sign_and_send_extrinsic(
+            call, wallet, wait_for_inclusion, wait_for_finalization
+        )
+
+    if not success:
+        err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+        await asyncio.sleep(0.5)
+        return False
+    # Successful registration, final check for neuron and pubkey
+    else:
+        with console.status(":satellite: Checking Balance...", spinner="aesthetic"):
+            block_hash = await subtensor.substrate.get_chain_head()
+            new_balance, netuids_for_hotkey, my_uid = await asyncio.gather(
+                subtensor.get_balance(
+                    wallet.coldkeypub.ss58_address,
+                    block_hash=block_hash,
+                    reuse_block=False,
+                ),
+                subtensor.get_netuids_for_hotkey(
+                    wallet.hotkey.ss58_address, block_hash=block_hash
+                ),
+                subtensor.query(
+                    "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
+                ),
+            )
+
+        console.print(
+            "Balance:\n"
+            f"  [blue]{old_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
+        )
+
+        if len(netuids_for_hotkey) > 0:
+            console.print(
+                f":white_heavy_check_mark: [green]Registered on netuid {netuid} with UID {my_uid}[/green]"
+            )
+            return True
+        else:
+            # neuron not found, try again
+            err_console.print(
+                ":cross_mark: [red]Unknown error. Neuron not found.[/red]"
+            )
             return False
 
 
@@ -806,8 +912,8 @@ async def run_faucet_extrinsic(
                     wallet.coldkeypub.ss58_address
                 )
                 console.print(
-                    f"Balance: [blue]{old_balance[wallet.coldkeypub.ss58_address]}[/blue] :arrow_right:"
-                    f" [green]{new_balance[wallet.coldkeypub.ss58_address]}[/green]"
+                    f"Balance: [blue]{old_balance}[/blue] :arrow_right:"
+                    f" [green]{new_balance}[/green]"
                 )
                 old_balance = new_balance
 
@@ -912,7 +1018,7 @@ async def _block_solver(
     limit = int(math.pow(2, 256)) - 1
 
     # Establish communication queues
-    ## See the _Solver class for more information on the queues.
+    # See the _Solver class for more information on the queues.
     stop_event = Event()
     stop_event.clear()
 
@@ -928,7 +1034,7 @@ async def _block_solver(
     )
 
     if cuda:
-        ## Create a worker per CUDA device
+        # Create a worker per CUDA device
         solvers = [
             _CUDASolver(
                 i,

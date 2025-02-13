@@ -5,7 +5,7 @@ from bittensor_wallet import Wallet
 from rich.prompt import Confirm, Prompt, IntPrompt
 from rich.table import Table
 from rich.text import Text
-from substrateinterface.exceptions import SubstrateRequestException
+from async_substrate_interface.errors import SubstrateRequestException
 
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
@@ -20,6 +20,33 @@ from bittensor_cli.src.bittensor.utils import (
     format_error_message,
     unlock_key,
 )
+
+
+async def get_childkey_completion_block(
+    subtensor: SubtensorInterface, netuid: int
+) -> tuple[int, int]:
+    """
+    Calculates the block at which the childkey set request will complete
+    """
+    blocks_since_last_step_query = subtensor.query(
+        "SubtensorModule",
+        "BlocksSinceLastStep",
+        params=[netuid],
+    )
+    tempo_query = subtensor.get_hyperparameter(
+        param_name="Tempo",
+        netuid=netuid,
+    )
+    block_number, blocks_since_last_step, tempo = await asyncio.gather(
+        subtensor.substrate.get_block_number(),
+        blocks_since_last_step_query,
+        tempo_query,
+    )
+    cooldown = block_number + 1
+    blocks_left_in_tempo = tempo - blocks_since_last_step
+    next_tempo = block_number + blocks_left_in_tempo
+    next_epoch_after_cooldown = (cooldown - next_tempo) % tempo + cooldown
+    return block_number, next_epoch_after_cooldown
 
 
 async def set_children_extrinsic(
@@ -223,13 +250,13 @@ async def get_childkey_take(subtensor, hotkey: str, netuid: int) -> Optional[int
     - Optional[float]: The value of the "ChildkeyTake" if found, or None if any error occurs.
     """
     try:
-        childkey_take_ = await subtensor.substrate.query(
+        childkey_take_ = await subtensor.query(
             module="SubtensorModule",
             storage_function="ChildkeyTake",
             params=[hotkey, netuid],
         )
         if childkey_take_:
-            return int(childkey_take_)
+            return int(childkey_take_.value)
 
     except SubstrateRequestException as e:
         err_console.print(f"Error querying ChildKeys: {format_error_message(e)}")
@@ -264,6 +291,7 @@ def prepare_child_proportions(children_with_proportions):
 async def get_children(
     wallet: Wallet, subtensor: "SubtensorInterface", netuid: Optional[int] = None
 ):
+    # TODO rao asks separately for the hotkey from the user, should we do this, or the way we do it now?
     """
     Retrieves the child hotkeys for the specified wallet.
 
@@ -281,35 +309,7 @@ async def get_children(
     - If netuid is not specified, generates and prints a summary table of all child hotkeys across all subnets.
     """
 
-    async def get_total_stake_for_hk(hotkey: str, parent: bool = False):
-        """
-        Fetches and displays the total stake for a specified hotkey from the Subtensor blockchain network.
-        If `parent` is True, it prints the hotkey and its corresponding stake.
-
-        Parameters:
-        - hotkey (str): The hotkey for which the stake needs to be fetched.
-        - parent (bool, optional): A flag to indicate whether the hotkey is the parent key. Defaults to False.
-
-        Returns:
-        - Balance: The total stake associated with the specified hotkey.
-        """
-        _result = await subtensor.substrate.query(
-            module="SubtensorModule",
-            storage_function="TotalHotkeyStake",
-            params=[hotkey],
-            reuse_block_hash=True,
-        )
-        stake = Balance.from_rao(_result) if _result is not None else Balance(0)
-        if parent:
-            console.print(
-                f"\nYour Hotkey: [bright_magenta]{hotkey}[/bright_magenta]  |  Total Stake: [dark_orange]{stake}t[/dark_orange]\n",
-                end="",
-                no_wrap=True,
-            )
-
-        return stake
-
-    async def get_take(child: tuple) -> float:
+    async def get_take(child: tuple, netuid__: int) -> float:
         """
         Get the take value for a given subtensor, hotkey, and netuid.
 
@@ -320,7 +320,7 @@ async def get_children(
         """
         child_hotkey = child[1]
         take_u16 = await get_childkey_take(
-            subtensor=subtensor, hotkey=child_hotkey, netuid=netuid
+            subtensor=subtensor, hotkey=child_hotkey, netuid=netuid__
         )
         if take_u16:
             return u16_to_float(take_u16)
@@ -329,7 +329,7 @@ async def get_children(
 
     async def _render_table(
         parent_hotkey: str,
-        netuid_children_tuples: list[tuple[int, list[tuple[int, str]]]],
+        netuid_children_: list[tuple[int, list[tuple[int, str]]]],
     ):
         """
         Retrieves and renders children hotkeys and their details for a given parent hotkey.
@@ -352,10 +352,11 @@ async def get_children(
             "Current Stake Weight", style="bold red", no_wrap=True, justify="right"
         )
 
-        if not netuid_children_tuples:
+        if not netuid_children_:
             console.print(table)
             console.print(
-                f"[bold red]There are currently no child hotkeys with parent hotkey: {wallet.name} ({parent_hotkey}).[/bold red]"
+                f"[bold red]There are currently no child hotkeys with parent hotkey: "
+                f"{wallet.name} | {wallet.hotkey_str} ({parent_hotkey}).[/bold red]"
             )
             return
 
@@ -363,48 +364,64 @@ async def get_children(
         total_proportion = 0
         total_stake_weight = 0
 
-        netuid_children_tuples.sort(
-            key=lambda x: x[0]
-        )  # Sort by netuid in ascending order
+        netuid_children_.sort(key=lambda x: x[0])  # Sort by netuid in ascending order
+        unique_keys = set(
+            [parent_hotkey]
+            + [s for _, child_list in netuid_children_ for _, s in child_list]
+        )
+        hotkey_stake_dict = await subtensor.get_total_stake_for_hotkey(
+            *unique_keys,
+            netuids=[n[0] for n in netuid_children_],
+        )
+        parent_total = sum(hotkey_stake_dict[parent_hotkey].values())
+        insert_text = (
+            " "
+            if netuid is None
+            else f" on netuids: {', '.join(str(n[0]) for n in netuid_children_)} "
+        )
+        console.print(
+            f"The total stake of parent hotkey '{parent_hotkey}'{insert_text}is {parent_total}."
+        )
 
-        for index, (netuid, children_) in enumerate(netuid_children_tuples):
+        for index, (netuid_, children_) in enumerate(netuid_children_):
             # calculate totals
             total_proportion_per_netuid = 0
             total_stake_weight_per_netuid = 0
-            avg_take_per_netuid = 0
+            avg_take_per_netuid = 0.0
 
-            hotkey_stake_dict = await subtensor.get_total_stake_for_hotkey(
-                parent_hotkey
-            )
-            hotkey_stake = hotkey_stake_dict.get(parent_hotkey, Balance(0))
+            hotkey_stake: dict[int, Balance] = hotkey_stake_dict[parent_hotkey]
 
             children_info = []
-            child_stakes = await asyncio.gather(
-                *[get_total_stake_for_hk(c[1]) for c in children_]
+            child_takes = await asyncio.gather(
+                *[get_take(c, netuid_) for c in children_]
             )
-            child_takes = await asyncio.gather(*[get_take(c) for c in children_])
-            for child, child_stake, child_take in zip(
-                children_, child_stakes, child_takes
-            ):
+            for child, child_take in zip(children_, child_takes):
                 proportion = child[0]
                 child_hotkey = child[1]
 
                 # add to totals
                 avg_take_per_netuid += child_take
 
-                proportion = u64_to_float(proportion)
+                converted_proportion = u64_to_float(proportion)
 
                 children_info.append(
-                    (proportion, child_hotkey, child_stake, child_take)
+                    (
+                        converted_proportion,
+                        child_hotkey,
+                        hotkey_stake_dict[child_hotkey][netuid_],
+                        child_take,
+                    )
                 )
 
             children_info.sort(
                 key=lambda x: x[0], reverse=True
             )  # sorting by proportion (highest first)
 
-            for proportion, hotkey, stake, child_take in children_info:
-                proportion_percent = proportion * 100  # Proportion in percent
-                proportion_tao = hotkey_stake.tao * proportion  # Proportion in TAO
+            for proportion_, hotkey, stake, child_take in children_info:
+                proportion_percent = proportion_ * 100  # Proportion in percent
+                proportion_tao = (
+                    hotkey_stake[netuid_].tao * proportion_
+                )  # Proportion in TAO
 
                 total_proportion_per_netuid += proportion_percent
 
@@ -414,9 +431,9 @@ async def get_children(
                 total_stake_weight_per_netuid += stake_weight
                 take_str = f"{child_take * 100:.3f}%"
 
-                hotkey = Text(hotkey, style="italic red" if proportion == 0 else "")
+                hotkey = Text(hotkey, style="italic red" if proportion_ == 0 else "")
                 table.add_row(
-                    str(netuid),
+                    str(netuid_),
                     hotkey,
                     proportion_str,
                     take_str,
@@ -440,7 +457,7 @@ async def get_children(
             total_stake_weight += total_stake_weight_per_netuid
 
             # Add a dividing line if there are more than one netuid
-            if len(netuid_children_tuples) > 1:
+            if len(netuid_children_) > 1:
                 table.add_section()
 
         console.print(table)
@@ -449,17 +466,16 @@ async def get_children(
     if netuid is None:
         # get all netuids
         netuids = await subtensor.get_all_subnet_netuids()
-        await get_total_stake_for_hk(wallet.hotkey.ss58_address, True)
         netuid_children_tuples = []
-        for netuid in netuids:
+        for netuid_ in netuids:
             success, children, err_mg = await subtensor.get_children(
-                wallet.hotkey.ss58_address, netuid
+                wallet.hotkey.ss58_address, netuid_
             )
             if children:
-                netuid_children_tuples.append((netuid, children))
+                netuid_children_tuples.append((netuid_, children))
             if not success:
                 err_console.print(
-                    f"Failed to get children from subtensor {netuid}: {err_mg}"
+                    f"Failed to get children from subtensor {netuid_}: {err_mg}"
                 )
         await _render_table(wallet.hotkey.ss58_address, netuid_children_tuples)
     else:
@@ -468,7 +484,6 @@ async def get_children(
         )
         if not success:
             err_console.print(f"Failed to get children from subtensor: {err_mg}")
-        await get_total_stake_for_hk(wallet.hotkey.ss58_address, True)
         if children:
             netuid_children_tuples = [(netuid, children)]
             await _render_table(wallet.hotkey.ss58_address, netuid_children_tuples)
@@ -488,6 +503,8 @@ async def set_children(
 ):
     """Set children hotkeys."""
     # Validate children SS58 addresses
+    # TODO check to see if this should be allowed to be specified by user instead of pulling from wallet
+    hotkey = wallet.hotkey.ss58_address
     for child in children:
         if not is_valid_ss58_address(child):
             err_console.print(f":cross_mark:[red] Invalid SS58 address: {child}[/red]")
@@ -502,14 +519,13 @@ async def set_children(
             f"Invalid proportion: The sum of all proportions cannot be greater than 1. "
             f"Proposed sum of proportions is {total_proposed}."
         )
-
     children_with_proportions = list(zip(proportions, children))
-    if netuid:
+    if netuid is not None:
         success, message = await set_children_extrinsic(
             subtensor=subtensor,
             wallet=wallet,
             netuid=netuid,
-            hotkey=wallet.hotkey.ss58_address,
+            hotkey=hotkey,
             children_with_proportions=children_with_proportions,
             prompt=prompt,
             wait_for_inclusion=wait_for_inclusion,
@@ -518,8 +534,13 @@ async def set_children(
         # Result
         if success:
             if wait_for_inclusion and wait_for_finalization:
-                console.print("New Status:")
-                await get_children(wallet, subtensor, netuid)
+                current_block, completion_block = await get_childkey_completion_block(
+                    subtensor, netuid
+                )
+                console.print(
+                    f"Your childkey request has been submitted. It will be completed around block {completion_block}. "
+                    f"The current block is {current_block}"
+                )
             console.print(
                 ":white_heavy_check_mark: [green]Set children hotkeys.[/green]"
             )
@@ -530,19 +551,26 @@ async def set_children(
     else:
         # set children on all subnets that parent is registered on
         netuids = await subtensor.get_all_subnet_netuids()
-        for netuid in netuids:
-            if netuid == 0:  # dont include root network
+        for netuid_ in netuids:
+            if netuid_ == 0:  # dont include root network
                 continue
-            console.print(f"Setting children on netuid {netuid}.")
+            console.print(f"Setting children on netuid {netuid_}.")
             await set_children_extrinsic(
                 subtensor=subtensor,
                 wallet=wallet,
-                netuid=netuid,
-                hotkey=wallet.hotkey.ss58_address,
+                netuid=netuid_,
+                hotkey=hotkey,
                 children_with_proportions=children_with_proportions,
                 prompt=prompt,
                 wait_for_inclusion=True,
                 wait_for_finalization=False,
+            )
+            current_block, completion_block = await get_childkey_completion_block(
+                subtensor, netuid_
+            )
+            console.print(
+                f"Your childkey request for netuid {netuid_} has been submitted. It will be completed around "
+                f"block {completion_block}. The current block is {current_block}."
             )
         console.print(
             ":white_heavy_check_mark: [green]Sent set children request for all subnets.[/green]"

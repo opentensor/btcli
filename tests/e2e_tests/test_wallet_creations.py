@@ -373,7 +373,7 @@ def test_wallet_regen(wallet_setup, capfd):
             "--mnemonic",
             mnemonics["coldkey"],
             "--no-use-password",
-            "--overwrite"
+            "--overwrite",
         ],
     )
 
@@ -413,7 +413,7 @@ def test_wallet_regen(wallet_setup, capfd):
             wallet_path,
             "--ss58-address",
             ss58_address,
-            "--overwrite"
+            "--overwrite",
         ],
     )
 

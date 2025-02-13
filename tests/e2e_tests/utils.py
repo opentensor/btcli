@@ -10,9 +10,7 @@ from bittensor_wallet import Keypair, Wallet
 from typer.testing import CliRunner
 
 if TYPE_CHECKING:
-    from bittensor_cli.src.bittensor.async_substrate_interface import (
-        AsyncSubstrateInterface,
-    )
+    from async_substrate_interface.async_substrate import AsyncSubstrateInterface
 
 template_path = os.getcwd() + "/neurons/"
 templates_repo = "templates repository"
@@ -76,9 +74,7 @@ def extract_coldkey_balance(text: str, wallet_name: str, coldkey_address: str) -
     """
     pattern = (
         rf"{wallet_name}\s+{coldkey_address}\s+"
-        r"τ([\d,]+\.\d+)\s+"  # Free Balance
-        r"τ([\d,]+\.\d+)\s+"  # Staked Balance
-        r"τ([\d,]+\.\d+)"  # Total Balance
+        r"τ\s*([\d,]+\.\d+)"  # Free Balance
     )
 
     match = re.search(pattern, text)
@@ -86,15 +82,11 @@ def extract_coldkey_balance(text: str, wallet_name: str, coldkey_address: str) -
     if not match:
         return {
             "free_balance": 0.0,
-            "staked_balance": 0.0,
-            "total_balance": 0.0,
         }
 
     # Return the balances as a dictionary
     return {
         "free_balance": float(match.group(1).replace(",", "")),
-        "staked_balance": float(match.group(2).replace(",", "")),
-        "total_balance": float(match.group(3).replace(",", "")),
     }
 
 
@@ -111,24 +103,11 @@ def verify_subnet_entry(output_text: str, netuid: str, ss58_address: str) -> boo
     bool: True if the entry is found, False otherwise.
     """
 
-    pattern = (
-        rf"\b{re.escape(str(netuid))}\s*\│\s*"  # NETUID
-        r"\d+\s*\│\s*"  # N (any number)
-        r"\d+(?:\.\d+)?\s*[KMB]*\s*\│\s*"  # MAX_N (number with optional decimal and K/M/B suffix)
-        r"\d+\.\d+%\s*\│\s*"  # EMISSION (percentage)
-        r"\d+\s*\│\s*"  # TEMPO (any number)
-        r"τ\d+\.\d+\s*\│\s*"  # RECYCLE (τ followed by a number)
-        r"\d+(?:\.\d+)?\s*[KMB]*\s*\│\s*"  # POW (number with optional decimal and K/M/B suffix)
-        rf"{re.escape(ss58_address)}\b"  # SUDO (exact SS58 address)
-    )
-
-    # Normalize spaces in the output text
-    normalized_output = re.sub(r"\s+", " ", output_text)
-
-    # Search for the pattern
-    match = re.search(pattern, normalized_output)
-
-    return bool(match)
+    pattern = rf"^\s*{re.escape(str(netuid))}\s*[│┃]"
+    for line in output_text.splitlines():
+        if re.search(pattern, line):
+            return True
+    return False
 
 
 def validate_wallet_overview(
@@ -150,20 +129,20 @@ def validate_wallet_overview(
     pattern = rf"{coldkey}\s+"  # COLDKEY
     pattern += rf"{hotkey}\s+"  # HOTKEY
     pattern += rf"{uid}\s+"  # UID
-    pattern += r"True\s+"  # ACTIVE - Always True immediately after we register
-    pattern += r"[\d.]+\s+"  # STAKE(τ)
+    pattern += r"True\s+"  # ACTIVE
+    pattern += r"[\d.]+\s+"  # STAKE
     pattern += r"[\d.]+\s+"  # RANK
     pattern += r"[\d.]+\s+"  # TRUST
     pattern += r"[\d.]+\s+"  # CONSENSUS
     pattern += r"[\d.]+\s+"  # INCENTIVE
     pattern += r"[\d.]+\s+"  # DIVIDENDS
-    pattern += r"\d+\s+"  # EMISSION(ρ)
+    pattern += r"[\d.]+\s+"  # EMISSION
     pattern += r"[\d.]+\s+"  # VTRUST
-    pattern += r"(?:True|False)?\s*"  # VPERMIT (optional)
-    pattern += r"[\d]+\s+"  # UPDATED (any number)
+    pattern += r"\*?\s*"  # VPERMIT (optional *)
+    pattern += r"[\d]+\s+"  # UPDATED
     pattern += (
         r"(?!none)\w+\s+" if axon_active else r"none\s+"
-    )  # AXON - True if axon is active
+    )  # AXON
     pattern += rf"{hotkey_ss58[:10]}\s*"  # HOTKEY_SS58
 
     # Search for the pattern in the wallet information

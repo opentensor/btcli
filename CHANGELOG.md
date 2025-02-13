@@ -1,5 +1,35 @@
 # Changelog
 
+## 9.0.0 /2025-02-13
+
+## What's Changed
+* Btcli ported to Rao by @ibraheem-opentensor & @thewhaleking in https://github.com/opentensor/btcli/tree/rao-games/pools
+* fix netuid from str to int by @roman-opentensor in https://github.com/opentensor/btcli/pull/195
+* add runtime apis to reg by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/196
+* Updated tables (st list, s list) by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/200
+* Modifying descriptions and links in stake and subnets dot py files by @rajkaramchedu in https://github.com/opentensor/btcli/pull/246
+* Fixes Identity Lookup (Rao Games Pools) by @thewhaleking in https://github.com/opentensor/btcli/pull/279
+* Show encrypted hotkeys in w list by @thewhaleking in https://github.com/opentensor/btcli/pull/288
+* Backmerge rao branch to decoding branch by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/290
+* Updates identity, sn identity, and other chain stuff by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/292
+* Updates Rao to decode using chain by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/286
+* Fix/rao remove mention of cost by @camfairchild in https://github.com/opentensor/btcli/pull/293
+* Uses uvloop if it's installed by @thewhaleking in https://github.com/opentensor/btcli/pull/294
+* Feat: Safe staking by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/299
+* Removes stake from w balances by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/301
+* Updates docstrings for commands by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/303
+* Release/9.0.0rc4 by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/306
+* Rao to staging merge (new branch) by @thewhaleking in https://github.com/opentensor/btcli/pull/305
+* [WIP] Rao by @thewhaleking in https://github.com/opentensor/btcli/pull/129
+* Updates e2e tests for rao by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/307
+* Update dividends, adds sort by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/308
+* Final cleanups for Rao by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/309
+
+## New Contributors
+* @camfairchild made their first contribution in https://github.com/opentensor/btcli/pull/293
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v8.4.4...v9.0.0
+
 ## 8.4.4 /2025-02-07 - 18:30 PST
 
 ## What's Changed
