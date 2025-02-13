@@ -18,6 +18,7 @@
 # DEALINGS IN THE SOFTWARE.
 
 from typing import Union
+from bittensor_cli.src import UNITS
 
 
 class Balance:
@@ -72,7 +73,10 @@ class Balance:
         """
         Returns the Balance object as a string in the format "symbolvalue", where the value is in tao.
         """
-        return f"{self.unit}{float(self.tao):,.9f}"
+        if self.unit == UNITS[0]:
+            return f"{self.unit} {float(self.tao):,.4f}"
+        else:
+            return f"{float(self.tao):,.4f} {self.unit}\u200e"
 
     def __rich__(self):
         return "[green]{}[/green][green]{}[/green][green].[/green][dim green]{}[/dim green]".format(
@@ -225,12 +229,6 @@ class Balance:
             except (ValueError, TypeError):
                 raise NotImplementedError("Unsupported type")
 
-    def __int__(self) -> int:
-        return self.rao
-
-    def __float__(self) -> float:
-        return self.tao
-
     def __nonzero__(self) -> bool:
         return bool(self.rao)
 
@@ -278,4 +276,39 @@ class Balance:
 
         :return: A Balance object representing the given amount.
         """
-        return Balance(amount)
+        return Balance(int(amount))
+
+    @staticmethod
+    def get_unit(netuid: int):
+        units = UNITS
+        base = len(units)
+        if netuid < base:
+            return units[netuid]
+        else:
+            result = ""
+            while netuid > 0:
+                result = units[netuid % base] + result
+                netuid //= base
+            return result
+
+    def set_unit(self, netuid: int):
+        self.unit = Balance.get_unit(netuid)
+        self.rao_unit = Balance.get_unit(netuid)
+        return self
+
+
+def fixed_to_float(fixed: dict) -> float:
+    # Currently this is stored as a U64F64
+    # which is 64 bits of integer and 64 bits of fractional
+    # uint_bits = 64
+    frac_bits = 64
+
+    data: int = fixed["bits"]
+
+    # Shift bits to extract integer part (assuming 64 bits for integer part)
+    integer_part = data >> frac_bits
+    fractional_part = data & (2**frac_bits - 1)
+
+    frac_float = fractional_part / (2**frac_bits)
+
+    return integer_part + frac_float

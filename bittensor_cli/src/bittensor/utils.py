@@ -3,10 +3,14 @@ from collections import namedtuple
 import math
 import os
 import sqlite3
+import platform
 import webbrowser
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable
 from urllib.parse import urlparse
+from functools import partial
+import re
 
 from bittensor_wallet import Wallet, Keypair
 from bittensor_wallet.utils import SS58_FORMAT
@@ -17,18 +21,18 @@ from markupsafe import Markup
 import numpy as np
 from numpy.typing import NDArray
 from rich.console import Console
-import scalecodec
-from scalecodec.base import RuntimeConfiguration
-from scalecodec.type_registry import load_type_registry_preset
+from rich.prompt import Prompt
+from scalecodec.utils.ss58 import ss58_encode, ss58_decode
 import typer
 
 
 from bittensor_cli.src.bittensor.balances import Balance
+from bittensor_cli.src import defaults, Constants
 
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
-
+    from async_substrate_interface.async_substrate import AsyncSubstrateInterface
 
 console = Console()
 err_console = Console(stderr=True)
@@ -398,21 +402,15 @@ def is_valid_bittensor_address_or_public_key(address: Union[str, bytes]) -> bool
         return False
 
 
-def decode_scale_bytes(return_type, scale_bytes, custom_rpc_type_registry):
-    """Decodes a ScaleBytes object using our type registry and return type"""
-    rpc_runtime_config = RuntimeConfiguration()
-    rpc_runtime_config.update_type_registry(load_type_registry_preset("legacy"))
-    rpc_runtime_config.update_type_registry(custom_rpc_type_registry)
-    obj = rpc_runtime_config.create_scale_object(return_type, scale_bytes)
-    if obj.data.to_hex() == "0x0400":  # RPC returned None result
-        return None
-    return obj.decode()
+def decode_account_id(account_id_bytes: Union[tuple[int], tuple[tuple[int]]]):
+    if isinstance(account_id_bytes, tuple) and isinstance(account_id_bytes[0], tuple):
+        account_id_bytes = account_id_bytes[0]
+    # Convert the AccountId bytes to a Base64 string
+    return ss58_encode(bytes(account_id_bytes).hex(), SS58_FORMAT)
 
 
-def ss58_address_to_bytes(ss58_address: str) -> bytes:
-    """Converts a ss58 address to a bytes object."""
-    account_id_hex: str = scalecodec.ss58_decode(ss58_address, SS58_FORMAT)
-    return bytes.fromhex(account_id_hex)
+def encode_account_id(ss58_address: str) -> bytes:
+    return bytes.fromhex(ss58_decode(ss58_address, SS58_FORMAT))
 
 
 def ss58_to_vec_u8(ss58_address: str) -> list[int]:
@@ -423,7 +421,7 @@ def ss58_to_vec_u8(ss58_address: str) -> list[int]:
 
     :return: A list of integers representing the byte values of the SS58 address.
     """
-    ss58_bytes: bytes = ss58_address_to_bytes(ss58_address)
+    ss58_bytes: bytes = encode_account_id(ss58_address)
     encoded_address: list[int] = [int(byte) for byte in ss58_bytes]
     return encoded_address
 
@@ -652,6 +650,32 @@ def millify(n: int):
             int(math.floor(0 if n_ == 0 else math.log10(abs(n_)) / 3)),
         ),
     )
+
+    return "{:.2f}{}".format(n_ / 10 ** (3 * mill_idx), mill_names[mill_idx])
+
+
+def millify_tao(n: float, start_at: str = "K") -> str:
+    """
+    Dupe of millify, but for ease in converting tao values.
+    Allows thresholds to be specified for different suffixes.
+    """
+    mill_names = ["", "k", "m", "b", "t"]
+    thresholds = {"K": 1, "M": 2, "B": 3, "T": 4}
+
+    if start_at not in thresholds:
+        raise ValueError(f"start_at must be one of {list(thresholds.keys())}")
+
+    n_ = float(n)
+    if n_ == 0:
+        return "0.00"
+
+    mill_idx = int(math.floor(math.log10(abs(n_)) / 3))
+
+    # Number's index is below our threshold, return with commas
+    if mill_idx < thresholds[start_at]:
+        return f"{n_:,.2f}"
+
+    mill_idx = max(thresholds[start_at], min(len(mill_names) - 1, mill_idx))
 
     return "{:.2f}{}".format(n_ / 10 ** (3 * mill_idx), mill_names[mill_idx])
 
@@ -968,7 +992,7 @@ def retry_prompt(
     rejection_text: str,
     default="",
     show_default=False,
-    prompt_type=typer.prompt,
+    prompt_type=Prompt.ask,
 ):
     """
     Allows for asking prompts again if they do not meet a certain criteria (as defined in `rejection`)
@@ -989,6 +1013,302 @@ def retry_prompt(
             return var
         else:
             err_console.print(rejection_text)
+
+
+def validate_netuid(value: int) -> int:
+    if value is not None and value < 0:
+        raise typer.BadParameter("Negative netuid passed. Please use correct netuid.")
+    return value
+
+
+def validate_uri(uri: str) -> str:
+    if not uri:
+        return None
+    clean_uri = uri.lstrip("/").lower()
+    if not clean_uri.isalnum():
+        raise typer.BadParameter(
+            f"Invalid URI format: {uri}. URI must contain only alphanumeric characters (e.g. 'alice', 'bob')"
+        )
+    return f"//{clean_uri.capitalize()}"
+
+
+def get_effective_network(config, network: Optional[list[str]]) -> str:
+    """
+    Determines the effective network to be used, considering the network parameter,
+    the configuration, and the default.
+    """
+    if network:
+        for item in network:
+            if item.startswith("ws"):
+                network_ = item
+                break
+            else:
+                network_ = item
+        return network_
+    elif config.get("network"):
+        return config["network"]
+    else:
+        return defaults.subtensor.network
+
+
+def is_rao_network(network: str) -> bool:
+    """Check if the given network is 'rao'."""
+    network = network.lower()
+    rao_identifiers = [
+        "rao",
+        Constants.rao_entrypoint,
+    ]
+    return (
+        network == "rao"
+        or network in rao_identifiers
+        or "rao.chain.opentensor.ai" in network
+    )
+
+
+def prompt_for_identity(
+    current_identity: dict,
+    name: Optional[str],
+    web_url: Optional[str],
+    image_url: Optional[str],
+    discord: Optional[str],
+    description: Optional[str],
+    additional: Optional[str],
+    github_repo: Optional[str],
+):
+    """
+    Prompts the user for identity fields with validation.
+    Returns a dictionary with the updated fields.
+    """
+    identity_fields = {}
+
+    fields = [
+        ("name", "[blue]Display name[/blue]", name),
+        ("url", "[blue]Web URL[/blue]", web_url),
+        ("image", "[blue]Image URL[/blue]", image_url),
+        ("discord", "[blue]Discord handle[/blue]", discord),
+        ("description", "[blue]Description[/blue]", description),
+        ("additional", "[blue]Additional information[/blue]", additional),
+        ("github_repo", "[blue]GitHub repository URL[/blue]", github_repo),
+    ]
+
+    text_rejection = partial(
+        retry_prompt,
+        rejection=lambda x: sys.getsizeof(x) > 113,
+        rejection_text="[red]Error:[/red] Identity field must be <= 64 raw bytes.",
+    )
+
+    if not any(
+        [
+            name,
+            web_url,
+            image_url,
+            discord,
+            description,
+            additional,
+            github_repo,
+        ]
+    ):
+        console.print(
+            "\n[yellow]All fields are optional. Press Enter to skip and keep the default/existing value.[/yellow]\n"
+            "[dark_sea_green3]Tip: Entering a space and pressing Enter will clear existing default value.\n"
+        )
+
+    for key, prompt, value in fields:
+        if value:
+            identity_fields[key] = value
+        else:
+            identity_fields[key] = text_rejection(
+                prompt,
+                default=current_identity.get(key, ""),
+                show_default=True,
+            )
+
+    return identity_fields
+
+
+def prompt_for_subnet_identity(
+    subnet_name: Optional[str],
+    github_repo: Optional[str],
+    subnet_contact: Optional[str],
+    subnet_url: Optional[str],
+    discord: Optional[str],
+    description: Optional[str],
+    additional: Optional[str],
+):
+    """
+    Prompts the user for required subnet identity fields with validation.
+    Returns a dictionary with the updated fields.
+
+    Args:
+        subnet_name (Optional[str]): Name of the subnet
+        github_repo (Optional[str]): GitHub repository URL
+        subnet_contact (Optional[str]): Contact information for subnet (email)
+
+    Returns:
+        dict: Dictionary containing the subnet identity fields
+    """
+    identity_fields = {}
+
+    fields = [
+        (
+            "subnet_name",
+            "[blue]Subnet name [dim](optional)[/blue]",
+            subnet_name,
+            lambda x: x and sys.getsizeof(x) > 113,
+            "[red]Error:[/red] Subnet name must be <= 64 raw bytes.",
+        ),
+        (
+            "github_repo",
+            "[blue]GitHub repository URL [dim](optional)[/blue]",
+            github_repo,
+            lambda x: x and not is_valid_github_url(x),
+            "[red]Error:[/red] Please enter a valid GitHub repository URL (e.g., https://github.com/username/repo).",
+        ),
+        (
+            "subnet_contact",
+            "[blue]Contact email [dim](optional)[/blue]",
+            subnet_contact,
+            lambda x: x and not is_valid_contact(x),
+            "[red]Error:[/red] Please enter a valid email address.",
+        ),
+        (
+            "subnet_url",
+            "[blue]Subnet URL [dim](optional)[/blue]",
+            subnet_url,
+            lambda x: x and sys.getsizeof(x) > 113,
+            "[red]Error:[/red] Please enter a valid URL.",
+        ),
+        (
+            "discord",
+            "[blue]Discord handle [dim](optional)[/blue]",
+            discord,
+            lambda x: x and sys.getsizeof(x) > 113,
+            "[red]Error:[/red] Please enter a valid Discord handle.",
+        ),
+        (
+            "description",
+            "[blue]Description [dim](optional)[/blue]",
+            description,
+            lambda x: x and sys.getsizeof(x) > 113,
+            "[red]Error:[/red] Description must be <= 64 raw bytes.",
+        ),
+        (
+            "additional",
+            "[blue]Additional information [dim](optional)[/blue]",
+            additional,
+            lambda x: x and sys.getsizeof(x) > 113,
+            "[red]Error:[/red] Additional information must be <= 64 raw bytes.",
+        ),
+    ]
+
+    for key, prompt, value, rejection_func, rejection_msg in fields:
+        if value:
+            if rejection_func(value):
+                raise ValueError(rejection_msg)
+            identity_fields[key] = value
+        else:
+            identity_fields[key] = retry_prompt(
+                prompt,
+                rejection=rejection_func,
+                rejection_text=rejection_msg,
+                default=None,  # Maybe we can add some defaults later
+                show_default=True,
+            )
+
+    return identity_fields
+
+
+def is_valid_github_url(url: str) -> bool:
+    """
+    Validates if the provided URL is a valid GitHub repository URL.
+
+    Args:
+        url (str): URL to validate
+
+    Returns:
+        bool: True if valid GitHub repo URL, False otherwise
+    """
+    try:
+        parsed = urlparse(url)
+        if parsed.netloc != "github.com":
+            return False
+
+        # Check path follows github.com/user/repo format
+        path_parts = [p for p in parsed.path.split("/") if p]
+        if len(path_parts) < 2:  # Need at least username/repo
+            return False
+
+        return True
+    except Exception:  # TODO figure out the exceptions that can be raised in here
+        return False
+
+
+def is_valid_contact(contact: str) -> bool:
+    """
+    Validates if the provided contact is a valid email address.
+
+    Args:
+        contact (str): Contact information to validate
+
+    Returns:
+        bool: True if valid email, False otherwise
+    """
+    email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+    return bool(re.match(email_pattern, contact))
+
+
+def get_subnet_name(subnet_info) -> str:
+    """Get the subnet name, prioritizing subnet_identity.subnet_name over subnet.subnet_name.
+
+    Args:
+        subnet: The subnet dynamic info
+
+    Returns:
+        str: The subnet name or empty string if no name is found
+    """
+    return (
+        subnet_info.subnet_identity.subnet_name
+        if hasattr(subnet_info, "subnet_identity")
+        and subnet_info.subnet_identity is not None
+        and subnet_info.subnet_identity.subnet_name is not None
+        else (subnet_info.subnet_name if subnet_info.subnet_name is not None else "")
+    )
+
+
+def print_linux_dependency_message():
+    """Prints the WebKit dependency message for Linux systems."""
+    console.print("[red]This command requires WebKit dependencies on Linux.[/red]")
+    console.print(
+        "\nPlease install the required packages using one of the following commands based on your distribution:"
+    )
+    console.print("\nArch Linux / Manjaro:")
+    console.print("[green]sudo pacman -S webkit2gtk[/green]")
+    console.print("\nDebian / Ubuntu:")
+    console.print("[green]sudo apt install libwebkit2gtk-4.0-dev[/green]")
+    console.print("\nFedora / CentOS / AlmaLinux:")
+    console.print("[green]sudo dnf install gtk3-devel webkit2gtk3-devel[/green]")
+
+
+def is_linux():
+    """Returns True if the operating system is Linux."""
+    return platform.system().lower() == "linux"
+
+
+def validate_rate_tolerance(value: Optional[float]) -> Optional[float]:
+    """Validates rate tolerance input"""
+    if value is not None:
+        if value < 0:
+            raise typer.BadParameter(
+                "Rate tolerance cannot be negative (less than 0%)."
+            )
+        if value > 1:
+            raise typer.BadParameter("Rate tolerance cannot be greater than 1 (100%).")
+        if value > 0.5:
+            console.print(
+                f"[yellow]Warning: High rate tolerance of {value*100}% specified. "
+                "This may result in unfavorable transaction execution.[/yellow]"
+            )
+    return value
 
 
 def unlock_key(

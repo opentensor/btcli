@@ -1,39 +1,31 @@
 import asyncio
-import binascii
 import itertools
 import os
-import sys
 from collections import defaultdict
-from functools import partial
-from sys import getsizeof
-from typing import Collection, Generator, Optional
+from typing import Generator, Optional
 
 import aiohttp
-from bittensor_wallet import Wallet
-from bittensor_wallet.errors import KeyFileError
+from bittensor_wallet import Wallet, Keypair
+from bittensor_wallet.errors import KeyFileError, PasswordError
 from bittensor_wallet.keyfile import Keyfile
 from fuzzywuzzy import fuzz
 from rich import box
 from rich.align import Align
-from rich.prompt import Confirm
 from rich.table import Column, Table
 from rich.tree import Tree
 from rich.padding import Padding
-from rich.prompt import IntPrompt
 import typer
 
+from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import (
     DelegateInfo,
     NeuronInfoLite,
-    StakeInfo,
-    decode_account_id,
 )
 from bittensor_cli.src.bittensor.extrinsics.registration import (
     run_faucet_extrinsic,
     swap_hotkey_extrinsic,
-    is_hotkey_registered,
 )
 from bittensor_cli.src.bittensor.extrinsics.transfer import transfer_extrinsic
 from bittensor_cli.src.bittensor.networking import int_to_ip
@@ -49,9 +41,9 @@ from bittensor_cli.src.bittensor.utils import (
     get_hotkey_wallets_for_wallet,
     is_valid_ss58_address,
     validate_coldkey_presence,
-    retry_prompt,
+    get_subnet_name,
+    millify_tao,
     unlock_key,
-    hex_to_bytes,
     WalletLike,
 )
 
@@ -155,15 +147,27 @@ async def new_hotkey(
     wallet: Wallet,
     n_words: int,
     use_password: bool,
+    uri: Optional[str] = None,
     overwrite: Optional[bool] = False,
 ):
     """Creates a new hotkey under this wallet."""
     try:
-        wallet.create_new_hotkey(
-            n_words=n_words,
-            use_password=use_password,
-            overwrite=overwrite,
-        )
+        if uri:
+            try:
+                keypair = Keypair.create_from_uri(uri)
+            except Exception as e:
+                print_error(f"Failed to create keypair from URI {uri}: {str(e)}")
+            wallet.set_hotkey(keypair=keypair, encrypt=use_password)
+            console.print(
+                f"[dark_sea_green]Hotkey created from URI: {uri}[/dark_sea_green]"
+            )
+        else:
+            wallet.create_new_hotkey(
+                n_words=n_words,
+                use_password=use_password,
+                overwrite=overwrite,
+            )
+            console.print("[dark_sea_green]Hotkey created[/dark_sea_green]")
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
 
@@ -172,15 +176,28 @@ async def new_coldkey(
     wallet: Wallet,
     n_words: int,
     use_password: bool,
+    uri: Optional[str] = None,
     overwrite: Optional[bool] = False,
 ):
     """Creates a new coldkey under this wallet."""
     try:
-        wallet.create_new_coldkey(
-            n_words=n_words,
-            use_password=use_password,
-            overwrite=overwrite,
-        )
+        if uri:
+            try:
+                keypair = Keypair.create_from_uri(uri)
+            except Exception as e:
+                print_error(f"Failed to create keypair from URI {uri}: {str(e)}")
+            wallet.set_coldkey(keypair=keypair, encrypt=False, overwrite=False)
+            wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=False)
+            console.print(
+                f"[dark_sea_green]Coldkey created from URI: {uri}[/dark_sea_green]"
+            )
+        else:
+            wallet.create_new_coldkey(
+                n_words=n_words,
+                use_password=use_password,
+                overwrite=overwrite,
+            )
+            console.print("[dark_sea_green]Coldkey created[/dark_sea_green]")
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
 
@@ -189,26 +206,41 @@ async def wallet_create(
     wallet: Wallet,
     n_words: int = 12,
     use_password: bool = True,
+    uri: Optional[str] = None,
     overwrite: Optional[bool] = False,
 ):
     """Creates a new wallet."""
-    try:
-        wallet.create_new_coldkey(
-            n_words=n_words,
-            use_password=use_password,
-            overwrite=overwrite,
+    if uri:
+        try:
+            keypair = Keypair.create_from_uri(uri)
+            wallet.set_coldkey(keypair=keypair, encrypt=False, overwrite=False)
+            wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=False)
+            wallet.set_hotkey(keypair=keypair, encrypt=False, overwrite=False)
+        except Exception as e:
+            print_error(f"Failed to create keypair from URI: {str(e)}")
+        console.print(
+            f"[dark_sea_green]Wallet created from URI: {uri}[/dark_sea_green]"
         )
-    except KeyFileError:
-        print_error("KeyFileError: File is not writable")
+    else:
+        try:
+            wallet.create_new_coldkey(
+                n_words=n_words,
+                use_password=use_password,
+                overwrite=overwrite,
+            )
+            console.print("[dark_sea_green]Coldkey created[/dark_sea_green]")
+        except KeyFileError:
+            print_error("KeyFileError: File is not writable")
 
-    try:
-        wallet.create_new_hotkey(
-            n_words=n_words,
-            use_password=False,
-            overwrite=overwrite,
-        )
-    except KeyFileError:
-        print_error("KeyFileError: File is not writable")
+        try:
+            wallet.create_new_hotkey(
+                n_words=n_words,
+                use_password=False,
+                overwrite=overwrite,
+            )
+            console.print("[dark_sea_green]Hotkey created[/dark_sea_green]")
+        except KeyFileError:
+            print_error("KeyFileError: File is not writable")
 
 
 def get_coldkey_wallets_for_path(path: str) -> list[Wallet]:
@@ -252,7 +284,11 @@ async def wallet_balance(
     """Retrieves the current balance of the specified wallet"""
     if ss58_addresses:
         coldkeys = ss58_addresses
-        wallet_names = [f"Provided Address {i + 1}" for i in range(len(ss58_addresses))]
+        identities = await subtensor.query_all_identities()
+        wallet_names = [
+            f"{identities.get(coldkey, {'name': f'Provided address {i}'})['name']}"
+            for i, coldkey in enumerate(coldkeys)
+        ]
 
     elif not all_balances:
         if not wallet.coldkeypub_file.exists_on_device():
@@ -271,16 +307,12 @@ async def wallet_balance(
             wallet_names = [wallet.name]
 
         block_hash = await subtensor.substrate.get_chain_head()
-        free_balances, staked_balances = await asyncio.gather(
-            subtensor.get_balance(*coldkeys, block_hash=block_hash),
-            subtensor.get_total_stake_for_coldkey(*coldkeys, block_hash=block_hash),
-        )
+        free_balances = await subtensor.get_balances(*coldkeys, block_hash=block_hash)
 
     total_free_balance = sum(free_balances.values())
-    total_staked_balance = sum(staked_balances.values())
 
     balances = {
-        name: (coldkey, free_balances[coldkey], staked_balances[coldkey])
+        name: (coldkey, free_balances[coldkey])
         for (name, coldkey) in zip(wallet_names, coldkeys)
     }
 
@@ -292,28 +324,16 @@ async def wallet_balance(
         ),
         Column(
             "[white]Coldkey Address",
-            style="bright_magenta",
+            style=COLOR_PALETTE["GENERAL"]["COLDKEY"],
             no_wrap=True,
         ),
         Column(
             "[white]Free Balance",
             justify="right",
-            style="light_goldenrod2",
+            style=COLOR_PALETTE["GENERAL"]["BALANCE"],
             no_wrap=True,
         ),
-        Column(
-            "[white]Staked Balance",
-            justify="right",
-            style="orange1",
-            no_wrap=True,
-        ),
-        Column(
-            "[white]Total Balance",
-            justify="right",
-            style="green",
-            no_wrap=True,
-        ),
-        title=f"[underline dark_orange]Wallet Coldkey Balance[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}",
+        title=f"\n [{COLOR_PALETTE['GENERAL']['HEADER']}]Wallet Coldkey Balance\nNetwork: {subtensor.network}",
         show_footer=True,
         show_edge=False,
         border_style="bright_black",
@@ -323,24 +343,21 @@ async def wallet_balance(
         leading=True,
     )
 
-    for name, (coldkey, free, staked) in balances.items():
+    for name, (coldkey, free) in balances.items():
         table.add_row(
             name,
             coldkey,
             str(free),
-            str(staked),
-            str(free + staked),
         )
     table.add_row()
     table.add_row(
         "Total Balance",
         "",
         str(total_free_balance),
-        str(total_staked_balance),
-        str(total_free_balance + total_staked_balance),
     )
     console.print(Padding(table, (0, 0, 0, 4)))
     await subtensor.substrate.close()
+    return total_free_balance
 
 
 async def get_wallet_transfers(wallet_address: str) -> list[dict]:
@@ -537,7 +554,7 @@ async def _get_total_balance(
         ]
         total_balance += sum(
             (
-                await subtensor.get_balance(
+                await subtensor.get_balances(
                     *(x.coldkeypub.ss58_address for x in _balance_cold_wallets),
                     block_hash=block_hash,
                 )
@@ -559,7 +576,7 @@ async def _get_total_balance(
         ):
             total_balance = sum(
                 (
-                    await subtensor.get_balance(
+                    await subtensor.get_balances(
                         coldkey_wallet.coldkeypub.ss58_address, block_hash=block_hash
                     )
                 ).values()
@@ -583,17 +600,19 @@ async def overview(
     include_hotkeys: Optional[list[str]] = None,
     exclude_hotkeys: Optional[list[str]] = None,
     netuids_filter: Optional[list[int]] = None,
+    verbose: bool = False,
 ):
     """Prints an overview for the wallet's coldkey."""
 
     total_balance = Balance(0)
 
     # We are printing for every coldkey.
-    print_verbose("Fetching total balance for coldkey/s")
     block_hash = await subtensor.substrate.get_chain_head()
     all_hotkeys, total_balance = await _get_total_balance(
         total_balance, subtensor, wallet, all_wallets, block_hash=block_hash
     )
+    _dynamic_info = await subtensor.all_subnets()
+    dynamic_info = {info.netuid: info for info in _dynamic_info}
 
     with console.status(
         f":satellite: Synchronizing with chain [white]{subtensor.network}[/white]",
@@ -601,9 +620,6 @@ async def overview(
     ) as status:
         # We are printing for a select number of hotkeys from all_hotkeys.
         if include_hotkeys or exclude_hotkeys:
-            print_verbose(
-                "Fetching for select hotkeys passed in 'include_hotkeys'", status
-            )
             all_hotkeys = _get_hotkeys(include_hotkeys, exclude_hotkeys, all_hotkeys)
 
         # Check we have keys to display.
@@ -613,17 +629,14 @@ async def overview(
 
         # Pull neuron info for all keys.
         neurons: dict[str, list[NeuronInfoLite]] = {}
-        print_verbose("Fetching subnet netuids", status)
         block, all_netuids = await asyncio.gather(
             subtensor.substrate.get_block_number(None),
             subtensor.get_all_subnet_netuids(),
         )
 
-        print_verbose("Filtering netuids by registered hotkeys", status)
         netuids = await subtensor.filter_netuids_by_registered_hotkeys(
             all_netuids, netuids_filter, all_hotkeys, reuse_block=True
         )
-        # bittensor.logging.debug(f"Netuids to check: {netuids}")
 
         for netuid in netuids:
             neurons[str(netuid)] = []
@@ -644,121 +657,16 @@ async def overview(
             )
         all_hotkeys, _ = validate_coldkey_presence(all_hotkeys)
 
-        print_verbose("Fetching key addresses", status)
         all_hotkey_addresses, hotkey_coldkey_to_hotkey_wallet = _get_key_address(
             all_hotkeys
         )
 
-        print_verbose("Pulling and processing neuron information for all keys", status)
         results = await _get_neurons_for_netuids(
             subtensor, netuids, all_hotkey_addresses
         )
         neurons = _process_neuron_results(results, neurons, netuids)
-        total_coldkey_stake_from_metagraph = await _calculate_total_coldkey_stake(
-            neurons
-        )
-
-        has_alerts = False
-        alerts_table = Table(show_header=True, header_style="bold magenta")
-        alerts_table.add_column("🥩 alert!")
-        alerts_table.add_row(
-            "[bold]Detected the following stake(s) associated with coldkey(s) that are not linked to any local hotkeys:[/bold]"
-        )
-        alerts_table.add_row("")
-
-        coldkeys_to_check = []
-        ck_stakes = await subtensor.get_total_stake_for_coldkey(
-            *(
-                coldkey_wallet.coldkeypub.ss58_address
-                for coldkey_wallet in all_coldkey_wallets
-                if coldkey_wallet.coldkeypub
-            ),
-            block_hash=block_hash,
-        )
-        for coldkey_wallet in all_coldkey_wallets:
-            if coldkey_wallet.coldkeypub:
-                # Check if we have any stake with hotkeys that are not registered.
-                difference = (
-                    ck_stakes[coldkey_wallet.coldkeypub.ss58_address]
-                    - total_coldkey_stake_from_metagraph[
-                        coldkey_wallet.coldkeypub.ss58_address
-                    ]
-                )
-                if difference == 0:
-                    continue  # We have all our stake registered.
-
-                has_alerts = True
-                coldkeys_to_check.append(coldkey_wallet)
-                alerts_table.add_row(
-                    "[light_goldenrod2]{}[/light_goldenrod2] stake associated with coldkey [bright_magenta]{}[/bright_magenta] (ss58: [bright_magenta]{}[/bright_magenta])".format(
-                        abs(difference),
-                        coldkey_wallet.name,
-                        coldkey_wallet.coldkeypub.ss58_address,
-                    )
-                )
-        if has_alerts:
-            alerts_table.add_row("")
-            alerts_table.add_row(
-                "[bold yellow]Note:[/bold yellow] This stake might be delegated, staked to another user's hotkey, or associated with a hotkey not present in your wallet."
-            )
-            alerts_table.add_row(
-                "You can find out more by executing `[bold]btcli wallet inspect[/bold]` command."
-            )
-
-        if coldkeys_to_check:
-            # We have some stake that is not with a registered hotkey.
-            if "-1" not in neurons:
-                neurons["-1"] = []
-
-        print_verbose("Checking coldkeys for de-registered stake", status)
-        results = await asyncio.gather(
-            *[
-                _get_de_registered_stake_for_coldkey_wallet(
-                    subtensor, all_hotkey_addresses, coldkey_wallet
-                )
-                for coldkey_wallet in coldkeys_to_check
-            ]
-        )
-
-        for result in results:
-            coldkey_wallet, de_registered_stake, err_msg = result
-            if err_msg is not None:
-                err_console.print(err_msg)
-
-            if len(de_registered_stake) == 0:
-                continue  # We have no de-registered stake with this coldkey.
-
-            de_registered_neurons = []
-            for hotkey_addr, our_stake in de_registered_stake:
-                # Make a neuron info lite for this hotkey and coldkey.
-                de_registered_neuron = NeuronInfoLite.get_null_neuron()
-                de_registered_neuron.hotkey = hotkey_addr
-                de_registered_neuron.coldkey = coldkey_wallet.coldkeypub.ss58_address
-                de_registered_neuron.total_stake = Balance(our_stake)
-                de_registered_neurons.append(de_registered_neuron)
-
-                # Add this hotkey to the wallets dict
-                wallet_ = WalletLike(
-                    name=wallet.name,
-                    hotkey_ss58=hotkey_addr,
-                    hotkey_str=hotkey_addr[:5],
-                )
-                # Indicates a hotkey not on local machine but exists in stake_info obj on-chain
-                if hotkey_coldkey_to_hotkey_wallet.get(hotkey_addr) is None:
-                    hotkey_coldkey_to_hotkey_wallet[hotkey_addr] = {}
-                hotkey_coldkey_to_hotkey_wallet[hotkey_addr][
-                    coldkey_wallet.coldkeypub.ss58_address
-                ] = wallet_
-
-            # Add neurons to overview.
-            neurons["-1"].extend(de_registered_neurons)
-
         # Setup outer table.
         grid = Table.grid(pad_edge=True)
-
-        # If there are any alerts, add them to the grid
-        if has_alerts:
-            grid.add_row(alerts_table)
 
         # Add title
         if not all_wallets:
@@ -778,9 +686,6 @@ async def overview(
             )
         )
         # Generate rows per netuid
-        hotkeys_seen = set()
-        total_neurons = 0
-        total_stake = 0.0
         tempos = await asyncio.gather(
             *[
                 subtensor.get_hyperparameter("Tempo", netuid, block_hash)
@@ -788,7 +693,6 @@ async def overview(
             ]
         )
     for netuid, subnet_tempo in zip(netuids, tempos):
-        last_subnet = netuid == netuids[-1]
         table_data = []
         total_rank = 0.0
         total_trust = 0.0
@@ -797,6 +701,8 @@ async def overview(
         total_incentive = 0.0
         total_dividends = 0.0
         total_emission = 0
+        total_stake = 0
+        total_neurons = 0
 
         for nn in neurons[str(netuid)]:
             hotwallet = hotkey_coldkey_to_hotkey_wallet.get(nn.hotkey, {}).get(
@@ -817,7 +723,7 @@ async def overview(
             validator_trust = nn.validator_trust
             incentive = nn.incentive
             dividends = nn.dividends
-            emission = int(nn.emission / (subnet_tempo + 1) * 1e9)
+            emission = int(nn.emission / (subnet_tempo + 1) * 1e9)  # Per block
             last_update = int(block - nn.last_update)
             validator_permit = nn.validator_permit
             row = [
@@ -825,14 +731,14 @@ async def overview(
                 hotwallet.hotkey_str,
                 str(uid),
                 str(active),
-                "{:.5f}".format(stake),
-                "{:.5f}".format(rank),
-                "{:.5f}".format(trust),
-                "{:.5f}".format(consensus),
-                "{:.5f}".format(incentive),
-                "{:.5f}".format(dividends),
-                "{:_}".format(emission),
-                "{:.5f}".format(validator_trust),
+                f"{stake:.4f}" if verbose else millify_tao(stake),
+                f"{rank:.4f}" if verbose else millify_tao(rank),
+                f"{trust:.4f}" if verbose else millify_tao(trust),
+                f"{consensus:.4f}" if verbose else millify_tao(consensus),
+                f"{incentive:.4f}" if verbose else millify_tao(incentive),
+                f"{dividends:.4f}" if verbose else millify_tao(dividends),
+                f"{emission:.4f}",
+                f"{validator_trust:.4f}" if verbose else millify_tao(validator_trust),
                 "*" if validator_permit else "",
                 str(last_update),
                 (
@@ -850,23 +756,15 @@ async def overview(
             total_dividends += dividends
             total_emission += emission
             total_validator_trust += validator_trust
-
-            if (nn.hotkey, nn.coldkey) not in hotkeys_seen:
-                # Don't double count stake on hotkey-coldkey pairs.
-                hotkeys_seen.add((nn.hotkey, nn.coldkey))
-                total_stake += stake
-
-            # netuid -1 are neurons that are de-registered.
-            if netuid != "-1":
-                total_neurons += 1
+            total_stake += stake
+            total_neurons += 1
 
             table_data.append(row)
 
         # Add subnet header
-        if netuid == "-1":
-            grid.add_row("Deregistered Neurons")
-        else:
-            grid.add_row(f"Subnet: [dark_orange]{netuid}[/dark_orange]")
+        grid.add_row(
+            f"Subnet: [dark_orange]{netuid}: {get_subnet_name(dynamic_info[netuid])} {dynamic_info[netuid].symbol}[/dark_orange]"
+        )
         width = console.width
         table = Table(
             show_footer=False,
@@ -875,45 +773,34 @@ async def overview(
             expand=True,
             width=width - 5,
         )
-        if last_subnet:
-            table.add_column(
-                "[white]COLDKEY", str(total_neurons), style="bold bright_cyan", ratio=2
-            )
-            table.add_column(
-                "[white]HOTKEY", str(total_neurons), style="bright_cyan", ratio=2
-            )
-        else:
-            # No footer for non-last subnet.
-            table.add_column("[white]COLDKEY", style="bold bright_cyan", ratio=2)
-            table.add_column("[white]HOTKEY", style="bright_cyan", ratio=2)
+
+        table.add_column("[white]COLDKEY", style="bold bright_cyan", ratio=2)
+        table.add_column("[white]HOTKEY", style="bright_cyan", ratio=2)
         table.add_column(
             "[white]UID", str(total_neurons), style="rgb(42,161,152)", ratio=1
         )
         table.add_column(
             "[white]ACTIVE", justify="right", style="#8787ff", no_wrap=True, ratio=1
         )
-        if last_subnet:
-            table.add_column(
-                "[white]STAKE(\u03c4)",
-                "\u03c4{:.5f}".format(total_stake),
-                footer_style="bold white",
-                justify="right",
-                style="dark_orange",
-                no_wrap=True,
-                ratio=1,
-            )
-        else:
-            # No footer for non-last subnet.
-            table.add_column(
-                "[white]STAKE(\u03c4)",
-                justify="right",
-                style="dark_orange",
-                no_wrap=True,
-                ratio=1.5,
-            )
+
+        _total_stake_formatted = (
+            f"{total_stake:.4f}" if verbose else millify_tao(total_stake)
+        )
+        table.add_column(
+            "[white]STAKE(\u03c4)"
+            if netuid == 0
+            else f"[white]STAKE({Balance.get_unit(netuid)})",
+            f"{_total_stake_formatted} {Balance.get_unit(netuid)}"
+            if netuid != 0
+            else f"{Balance.get_unit(netuid)} {_total_stake_formatted}",
+            justify="right",
+            style="dark_orange",
+            no_wrap=True,
+            ratio=1.5,
+        )
         table.add_column(
             "[white]RANK",
-            "{:.5f}".format(total_rank),
+            f"{total_rank:.4f}",
             justify="right",
             style="medium_purple",
             no_wrap=True,
@@ -921,7 +808,7 @@ async def overview(
         )
         table.add_column(
             "[white]TRUST",
-            "{:.5f}".format(total_trust),
+            f"{total_trust:.4f}",
             justify="right",
             style="green",
             no_wrap=True,
@@ -929,7 +816,7 @@ async def overview(
         )
         table.add_column(
             "[white]CONSENSUS",
-            "{:.5f}".format(total_consensus),
+            f"{total_consensus:.4f}",
             justify="right",
             style="rgb(42,161,152)",
             no_wrap=True,
@@ -937,7 +824,7 @@ async def overview(
         )
         table.add_column(
             "[white]INCENTIVE",
-            "{:.5f}".format(total_incentive),
+            f"{total_incentive:.4f}",
             justify="right",
             style="#5fd7ff",
             no_wrap=True,
@@ -945,7 +832,7 @@ async def overview(
         )
         table.add_column(
             "[white]DIVIDENDS",
-            "{:.5f}".format(total_dividends),
+            f"{total_dividends:.4f}",
             justify="right",
             style="#8787d7",
             no_wrap=True,
@@ -953,7 +840,7 @@ async def overview(
         )
         table.add_column(
             "[white]EMISSION(\u03c1)",
-            "\u03c1{:_}".format(total_emission),
+            f"\u03c1{total_emission}",
             justify="right",
             style="#d7d7ff",
             no_wrap=True,
@@ -961,7 +848,7 @@ async def overview(
         )
         table.add_column(
             "[white]VTRUST",
-            "{:.5f}".format(total_validator_trust),
+            f"{total_validator_trust:.4f}",
             justify="right",
             style="magenta",
             no_wrap=True,
@@ -1144,7 +1031,7 @@ def _map_hotkey_to_neurons(
 
 async def _fetch_neuron_for_netuid(
     netuid: int, subtensor: SubtensorInterface
-) -> tuple[int, Optional[str]]:
+) -> tuple[int, list[NeuronInfoLite]]:
     """
     Retrieves all neurons for a specified netuid
 
@@ -1153,25 +1040,13 @@ async def _fetch_neuron_for_netuid(
 
     :return: the original netuid, and a mapping of the neurons to their NeuronInfoLite objects
     """
-
-    async def neurons_lite_for_uid(uid: int) -> Optional[str]:
-        block_hash = subtensor.substrate.last_block_hash
-        hex_bytes_result = await subtensor.query_runtime_api(
-            runtime_api="NeuronInfoRuntimeApi",
-            method="get_neurons_lite",
-            params=[uid],
-            block_hash=block_hash,
-        )
-
-        return hex_bytes_result
-
-    neurons = await neurons_lite_for_uid(uid=netuid)
+    neurons = await subtensor.neurons_lite(netuid=netuid)
     return netuid, neurons
 
 
 async def _fetch_all_neurons(
     netuids: list[int], subtensor
-) -> list[tuple[int, Optional[str]]]:
+) -> list[tuple[int, list[NeuronInfoLite]]]:
     """Retrieves all neurons for each of the specified netuids"""
     return list(
         await asyncio.gather(
@@ -1180,83 +1055,14 @@ async def _fetch_all_neurons(
     )
 
 
-def _process_neurons_for_netuids(
-    netuids_with_all_neurons_hex_bytes: list[tuple[int, Optional[str]]],
-) -> list[tuple[int, list[NeuronInfoLite]]]:
-    """
-    Decode a list of hex-bytes neurons with their respective netuid
-
-    :param netuids_with_all_neurons_hex_bytes: netuids with hex-bytes neurons
-    :return: netuids mapped to decoded neurons
-    """
-    all_results = [
-        (netuid, NeuronInfoLite.list_from_vec_u8(hex_to_bytes(result)))
-        if result
-        else (netuid, [])
-        for netuid, result in netuids_with_all_neurons_hex_bytes
-    ]
-    return all_results
-
-
 async def _get_neurons_for_netuids(
     subtensor: SubtensorInterface, netuids: list[int], hot_wallets: list[str]
 ) -> list[tuple[int, list["NeuronInfoLite"], Optional[str]]]:
-    all_neurons_hex_bytes = await _fetch_all_neurons(netuids, subtensor)
-
-    all_processed_neurons = _process_neurons_for_netuids(all_neurons_hex_bytes)
+    all_neurons = await _fetch_all_neurons(netuids, subtensor)
     return [
         _map_hotkey_to_neurons(neurons, hot_wallets, netuid)
-        for netuid, neurons in all_processed_neurons
+        for netuid, neurons in all_neurons
     ]
-
-
-async def _get_de_registered_stake_for_coldkey_wallet(
-    subtensor: SubtensorInterface,
-    all_hotkey_addresses: Collection[str],
-    coldkey_wallet: Wallet,
-) -> tuple[Wallet, list[tuple[str, float]], Optional[str]]:
-    """
-    Looks at the total stake of a coldkey, then filters this based on the supplied hotkey addresses
-    depending on whether the hotkey is a delegate
-
-    :param subtensor: SubtensorInterface to make queries with
-    :param all_hotkey_addresses: collection of hotkey SS58 addresses
-    :param coldkey_wallet: Wallet containing coldkey
-
-    :return: (original wallet, [(hotkey SS58, stake in TAO), ...], error message)
-    """
-    # Pull all stake for our coldkey
-    all_stake_info_for_coldkey = await subtensor.get_stake_info_for_coldkey(
-        coldkey_ss58=coldkey_wallet.coldkeypub.ss58_address, reuse_block=True
-    )
-
-    # Filter out hotkeys that are in our wallets
-    # Filter out hotkeys that are delegates.
-    async def _filter_stake_info(stake_info: StakeInfo) -> bool:
-        if stake_info.stake == 0:
-            return False  # Skip hotkeys that we have no stake with.
-        if stake_info.hotkey_ss58 in all_hotkey_addresses:
-            return False  # Skip hotkeys that are in our wallets.
-        return not await subtensor.is_hotkey_delegate(
-            hotkey_ss58=stake_info.hotkey_ss58, reuse_block=True
-        )
-
-    all_staked = await asyncio.gather(
-        *[_filter_stake_info(stake_info) for stake_info in all_stake_info_for_coldkey]
-    )
-
-    # Collecting all filtered stake info using async for loop
-    all_staked_hotkeys = []
-    for stake_info, staked in zip(all_stake_info_for_coldkey, all_staked):
-        if staked:
-            all_staked_hotkeys.append(
-                (
-                    stake_info.hotkey_ss58,
-                    stake_info.stake.tao,
-                )
-            )
-
-    return coldkey_wallet, all_staked_hotkeys, None
 
 
 async def transfer(
@@ -1269,11 +1075,11 @@ async def transfer(
 ):
     """Transfer token of amount to destination."""
     await transfer_extrinsic(
-        subtensor,
-        wallet,
-        destination,
-        Balance.from_tao(amount),
-        transfer_all,
+        subtensor=subtensor,
+        wallet=wallet,
+        destination=destination,
+        amount=Balance.from_tao(amount),
+        transfer_all=transfer_all,
         prompt=prompt,
     )
 
@@ -1288,6 +1094,8 @@ async def inspect(
         delegates_: list[tuple[DelegateInfo, Balance]],
     ) -> Generator[list[str], None, None]:
         for d_, staked in delegates_:
+            if not staked.tao > 0:
+                continue
             if d_.hotkey_ss58 in registered_delegate_info:
                 delegate_name = registered_delegate_info[d_.hotkey_ss58].display
             else:
@@ -1297,7 +1105,11 @@ async def inspect(
                 + [
                     str(delegate_name),
                     str(staked),
-                    str(d_.total_daily_return.tao * (staked.tao / d_.total_stake.tao)),
+                    str(
+                        d_.total_daily_return.tao * (staked.tao / d_.total_stake.tao)
+                        if d_.total_stake.tao != 0
+                        else 0
+                    ),
                 ]
                 + [""] * 4
             )
@@ -1377,7 +1189,7 @@ async def inspect(
     all_delegates: list[list[tuple[DelegateInfo, Balance]]]
     with console.status("Pulling balance data...", spinner="aesthetic"):
         balances, all_neurons, all_delegates = await asyncio.gather(
-            subtensor.get_balance(
+            subtensor.get_balances(
                 *[w.coldkeypub.ss58_address for w in wallets_with_ckp_file],
                 block_hash=block_hash,
             ),
@@ -1463,210 +1275,94 @@ async def swap_hotkey(
     )
 
 
-def set_id_prompts(
-    validator: bool,
-) -> tuple[str, str, str, str, str, str, str, str, str, bool, int]:
-    """
-    Used to prompt the user to input their info for setting the ID
-    :return: (display_name, legal_name, web_url, riot_handle, email,pgp_fingerprint, image_url, info_, twitter_url,
-             validator_id)
-    """
-    text_rejection = partial(
-        retry_prompt,
-        rejection=lambda x: sys.getsizeof(x) > 113,
-        rejection_text="[red]Error:[/red] Identity field must be <= 64 raw bytes.",
+def create_identity_table(title: str = None):
+    if not title:
+        title = "On-Chain Identity"
+
+    table = Table(
+        Column(
+            "Item",
+            justify="right",
+            style=COLOR_PALETTE["GENERAL"]["SUBHEADING_MAIN"],
+            no_wrap=True,
+        ),
+        Column("Value", style=COLOR_PALETTE["GENERAL"]["SUBHEADING"]),
+        title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]{title}",
+        show_footer=True,
+        show_edge=False,
+        header_style="bold white",
+        border_style="bright_black",
+        style="bold",
+        title_justify="center",
+        show_lines=False,
+        pad_edge=True,
     )
-
-    def pgp_check(s: str):
-        try:
-            if s.startswith("0x"):
-                s = s[2:]  # Strip '0x'
-            pgp_fingerprint_encoded = binascii.unhexlify(s.replace(" ", ""))
-        except Exception:
-            return True
-        return True if len(pgp_fingerprint_encoded) != 20 else False
-
-    display_name = text_rejection("Display name")
-    legal_name = text_rejection("Legal name")
-    web_url = text_rejection("Web URL")
-    riot_handle = text_rejection("Riot handle")
-    email = text_rejection("Email address")
-    pgp_fingerprint = retry_prompt(
-        "PGP fingerprint (Eg: A1B2 C3D4 E5F6 7890 1234 5678 9ABC DEF0 1234 5678)",
-        lambda s: False if not s else pgp_check(s),
-        "[red]Error:[/red] PGP Fingerprint must be exactly 20 bytes.",
-    )
-    image_url = text_rejection("Image URL")
-    info_ = text_rejection("Enter info")
-    twitter_url = text_rejection("𝕏 (Twitter) URL")
-
-    subnet_netuid = None
-    if validator is False:
-        subnet_netuid = IntPrompt.ask("Enter the netuid of the subnet you own")
-
-    return (
-        display_name,
-        legal_name,
-        web_url,
-        pgp_fingerprint,
-        riot_handle,
-        email,
-        image_url,
-        twitter_url,
-        info_,
-        validator,
-        subnet_netuid,
-    )
+    return table
 
 
 async def set_id(
     wallet: Wallet,
     subtensor: SubtensorInterface,
-    display_name: str,
-    legal_name: str,
+    name: str,
     web_url: str,
-    pgp_fingerprint: str,
-    riot_handle: str,
-    email: str,
-    image: str,
-    twitter: str,
-    info_: str,
-    validator_id: bool,
-    subnet_netuid: int,
+    image_url: str,
+    discord: str,
+    description: str,
+    additional: str,
+    github_repo: str,
     prompt: bool,
 ):
     """Create a new or update existing identity on-chain."""
 
-    id_dict = {
-        "additional": [[]],
-        "display": display_name,
-        "legal": legal_name,
-        "web": web_url,
-        "pgp_fingerprint": pgp_fingerprint,
-        "riot": riot_handle,
-        "email": email,
-        "image": image,
-        "twitter": twitter,
-        "info": info_,
+    identity_data = {
+        "name": name.encode(),
+        "url": web_url.encode(),
+        "image": image_url.encode(),
+        "discord": discord.encode(),
+        "description": description.encode(),
+        "additional": additional.encode(),
+        "github_repo": github_repo.encode(),
     }
 
-    try:
-        pgp_fingerprint_encoded = binascii.unhexlify(pgp_fingerprint.replace(" ", ""))
-    except Exception as e:
-        print_error(f"The PGP is not in the correct format: {e}")
-        raise typer.Exit()
-
-    for field, string in id_dict.items():
-        if (
-            field == "pgp_fingerprint"
-            and pgp_fingerprint
-            and len(pgp_fingerprint_encoded) != 20
-        ):
+    for field, value in identity_data.items():
+        max_size = 64  # bytes
+        if len(value) > max_size:
             err_console.print(
-                "[red]Error:[/red] PGP Fingerprint must be exactly 20 bytes."
+                f"[red]Error:[/red] Identity field [white]{field}[/white] must be <= {max_size} bytes.\n"
+                f"Value '{value.decode()}' is {len(value)} bytes."
             )
-            return False
-        elif (size := getsizeof(string)) > 113:  # 64 + 49 overhead bytes for string
-            err_console.print(
-                f"[red]Error:[/red] Identity field [white]{field}[/white] must be <= 64 raw bytes.\n"
-                f"Value: '{string}' currently [white]{size} bytes[/white]."
-            )
-            return False
-
-    identified = (
-        wallet.hotkey.ss58_address if validator_id else wallet.coldkey.ss58_address
-    )
-    encoded_id_dict = {
-        "info": {
-            "additional": [[]],
-            "display": {f"Raw{len(display_name.encode())}": display_name.encode()},
-            "legal": {f"Raw{len(legal_name.encode())}": legal_name.encode()},
-            "web": {f"Raw{len(web_url.encode())}": web_url.encode()},
-            "riot": {f"Raw{len(riot_handle.encode())}": riot_handle.encode()},
-            "email": {f"Raw{len(email.encode())}": email.encode()},
-            "pgp_fingerprint": pgp_fingerprint_encoded if pgp_fingerprint else None,
-            "image": {f"Raw{len(image.encode())}": image.encode()},
-            "info": {f"Raw{len(info_.encode())}": info_.encode()},
-            "twitter": {f"Raw{len(twitter.encode())}": twitter.encode()},
-        },
-        "identified": identified,
-    }
-
-    if prompt:
-        if not Confirm.ask(
-            "Cost to register an Identity is [bold white italic]0.1 Tao[/bold white italic],"
-            " are you sure you wish to continue?"
-        ):
-            console.print(":cross_mark: Aborted!")
-            raise typer.Exit()
-
-    if validator_id:
-        block_hash = await subtensor.substrate.get_chain_head()
-
-        is_registered_on_root, hotkey_owner = await asyncio.gather(
-            is_hotkey_registered(
-                subtensor, netuid=0, hotkey_ss58=wallet.hotkey.ss58_address
-            ),
-            subtensor.get_hotkey_owner(
-                hotkey_ss58=wallet.hotkey.ss58_address, block_hash=block_hash
-            ),
-        )
-
-        if not is_registered_on_root:
-            print_error("The hotkey is not registered on root. Aborting.")
-            return False
-
-        own_hotkey = wallet.coldkeypub.ss58_address == hotkey_owner
-        if not own_hotkey:
-            print_error("The hotkey doesn't belong to the coldkey wallet. Aborting.")
-            return False
-    else:
-        subnet_owner_ = await subtensor.substrate.query(
-            module="SubtensorModule",
-            storage_function="SubnetOwner",
-            params=[subnet_netuid],
-        )
-        subnet_owner = decode_account_id(subnet_owner_[0])
-        if subnet_owner != wallet.coldkeypub.ss58_address:
-            print_error(f":cross_mark: This wallet doesn't own subnet {subnet_netuid}.")
             return False
 
     if not unlock_key(wallet).success:
         return False
 
+    call = await subtensor.substrate.compose_call(
+        call_module="SubtensorModule",
+        call_function="set_identity",
+        call_params=identity_data,
+    )
+
     with console.status(
-        ":satellite: [bold green]Updating identity on-chain...", spinner="earth"
+        " :satellite: [dark_sea_green3]Updating identity on-chain...", spinner="earth"
     ):
-        call = await subtensor.substrate.compose_call(
-            call_module="Registry",
-            call_function="set_identity",
-            call_params=encoded_id_dict,
-        )
         success, err_msg = await subtensor.sign_and_send_extrinsic(call, wallet)
 
         if not success:
             err_console.print(f"[red]:cross_mark: Failed![/red] {err_msg}")
             return
 
-        console.print(":white_heavy_check_mark: Success!")
-        identity = await subtensor.query_identity(
-            identified or wallet.coldkey.ss58_address
-        )
+        console.print(":white_heavy_check_mark: [dark_sea_green3]Success!")
+        identity = await subtensor.query_identity(wallet.coldkeypub.ss58_address)
 
-    table = Table(
-        Column("Key", justify="right", style="cyan", no_wrap=True),
-        Column("Value", style="magenta"),
-        title="[bold white italic]Updated On-Chain Identity",
-    )
-
-    table.add_row("Address", identified or wallet.coldkey.ss58_address)
+    table = create_identity_table(title="New on-chain Identity")
+    table.add_row("Address", wallet.coldkeypub.ss58_address)
     for key, value in identity.items():
-        table.add_row(key, str(value) if value is not None else "~")
+        table.add_row(key, str(value) if value else "~")
 
     return console.print(table)
 
 
-async def get_id(subtensor: SubtensorInterface, ss58_address: str):
+async def get_id(subtensor: SubtensorInterface, ss58_address: str, title: str = None):
     with console.status(
         ":satellite: [bold green]Querying chain identity...", spinner="earth"
     ):
@@ -1674,40 +1370,37 @@ async def get_id(subtensor: SubtensorInterface, ss58_address: str):
 
     if not identity:
         err_console.print(
-            f"[red]Identity not found[/red]"
-            f" for [light_goldenrod3]{ss58_address}[/light_goldenrod3]"
-            f" on [white]{subtensor}[/white]"
+            f"[blue]Existing identity not found[/blue]"
+            f" for [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]"
+            f" on {subtensor}"
         )
-        return
-    table = Table(
-        Column("Item", justify="right", style="cyan", no_wrap=True),
-        Column("Value", style="magenta"),
-        title="[bold white italic]On-Chain Identity",
-    )
+        return {}
 
+    table = create_identity_table(title)
     table.add_row("Address", ss58_address)
     for key, value in identity.items():
-        table.add_row(key, str(value) if value is not None else "~")
+        table.add_row(key, str(value) if value else "~")
 
-    return console.print(table)
+    console.print(table)
+    return identity
 
 
 async def check_coldkey_swap(wallet: Wallet, subtensor: SubtensorInterface):
-    arbitration_check = len(
+    arbitration_check = len(  # TODO verify this works
         (
-            await subtensor.substrate.query(
+            await subtensor.query(
                 module="SubtensorModule",
                 storage_function="ColdkeySwapDestinations",
                 params=[wallet.coldkeypub.ss58_address],
             )
-        ).decode()
+        )
     )
     if arbitration_check == 0:
         console.print(
             "[green]There has been no previous key swap initiated for your coldkey.[/green]"
         )
     elif arbitration_check == 1:
-        arbitration_block = await subtensor.substrate.query(
+        arbitration_block = await subtensor.query(
             module="SubtensorModule",
             storage_function="ColdkeyArbitrationBlock",
             params=[wallet.coldkeypub.ss58_address],
@@ -1731,17 +1424,22 @@ async def check_coldkey_swap(wallet: Wallet, subtensor: SubtensorInterface):
 
 async def sign(wallet: Wallet, message: str, use_hotkey: str):
     """Sign a message using the provided wallet or hotkey."""
+
     if not use_hotkey:
-        if not unlock_key(wallet).success:
+        if not unlock_key(wallet, "coldkey").success:
             return False
         keypair = wallet.coldkey
-        print_verbose(f"Signing using coldkey: {wallet.name}")
+        print_verbose(
+            f"Signing using [{COLOR_PALETTE['GENERAL']['COLDKEY']}]coldkey: {wallet.name}"
+        )
     else:
-        if not unlock_key(wallet, "hot").success:
+        if not unlock_key(wallet, "hotkey").success:
             return False
         keypair = wallet.hotkey
-        print_verbose(f"Signing using hotkey: {wallet.hotkey_str}")
+        print_verbose(
+            f"Signing using [{COLOR_PALETTE['GENERAL']['HOTKEY']}]hotkey: {wallet.hotkey_str}"
+        )
 
     signed_message = keypair.sign(message.encode("utf-8")).hex()
-    console.print("[bold green]Message signed successfully:")
+    console.print("[dark_sea_green3]Message signed successfully:")
     console.print(signed_message)

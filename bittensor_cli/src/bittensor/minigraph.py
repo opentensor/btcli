@@ -3,7 +3,7 @@ import asyncio
 import numpy as np
 from numpy.typing import NDArray
 
-from bittensor_cli.src.bittensor.chain_data import NeuronInfo
+from bittensor_cli.src.bittensor.chain_data import NeuronInfo, SubnetState
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
     convert_root_weight_uids_and_vals_to_tensor,
@@ -18,6 +18,7 @@ class MiniGraph:
         netuid: int,
         neurons: list[NeuronInfo],
         subtensor: "SubtensorInterface",
+        subnet_state: "SubnetState",
         block: int,
     ):
         self.neurons = neurons
@@ -62,12 +63,14 @@ class MiniGraph:
         self.validator_trust = self._create_tensor(
             [neuron.validator_trust for neuron in self.neurons], dtype=np.float32
         )
-        self.total_stake = self._create_tensor(
-            [neuron.total_stake.tao for neuron in self.neurons], dtype=np.float32
+
+        # Fetch stakes from subnet_state until we get updated data in NeuronInfo
+        global_stake_list, local_stake_list, stake_weights_list = self._process_stakes(
+            neurons, subnet_state
         )
-        self.stake = self._create_tensor(
-            [neuron.stake for neuron in self.neurons], dtype=np.float32
-        )
+        self.global_stake = self._create_tensor(global_stake_list, dtype=np.float32)
+        self.local_stake = self._create_tensor(local_stake_list, dtype=np.float32)
+        self.stake_weights = self._create_tensor(stake_weights_list, dtype=np.float32)
 
     async def __aenter__(self):
         if not self.weights:
@@ -119,6 +122,41 @@ class MiniGraph:
             self.bonds = self._process_weights_or_bonds(
                 [neuron.bonds for neuron in self.neurons], "bonds"
             )
+
+    def _process_stakes(
+        self,
+        neurons: list[NeuronInfo],
+        subnet_state: SubnetState,
+    ) -> tuple[list[float], list[float], list[float]]:
+        """
+        Processes the global_stake, local_stake, and stake_weights based on the neuron's hotkey.
+
+        Args:
+            neurons (List[NeuronInfo]): List of neurons.
+            subnet_state (SubnetState): The subnet state containing stake information.
+
+        Returns:
+            tuple[list[float], list[float], list[float]]: Lists of global_stake, local_stake, and stake_weights.
+        """
+        global_stake_list = []
+        local_stake_list = []
+        stake_weights_list = []
+        hotkey_to_index = {
+            hotkey: idx for idx, hotkey in enumerate(subnet_state.hotkeys)
+        }
+
+        for neuron in neurons:
+            idx = hotkey_to_index.get(neuron.hotkey)
+            if idx is not None:
+                global_stake_list.append(subnet_state.global_stake[idx].tao)
+                local_stake_list.append(subnet_state.local_stake[idx].tao)
+                stake_weights_list.append(subnet_state.stake_weight[idx])
+            else:
+                global_stake_list.append(0.0)
+                local_stake_list.append(0.0)
+                stake_weights_list.append(0.0)
+
+        return global_stake_list, local_stake_list, stake_weights_list
 
     def _process_weights_or_bonds(self, data, attribute: str) -> NDArray:
         """
@@ -177,7 +215,7 @@ class MiniGraph:
         """
 
         async def get_total_subnets():
-            _result = await self.subtensor.substrate.query(
+            _result = await self.subtensor.query(
                 module="SubtensorModule",
                 storage_function="TotalNetworks",
                 params=[],
@@ -186,7 +224,7 @@ class MiniGraph:
             return _result
 
         async def get_subnets():
-            _result = await self.subtensor.substrate.query(
+            _result = await self.subtensor.query(
                 module="SubtensorModule",
                 storage_function="TotalNetworks",
             )

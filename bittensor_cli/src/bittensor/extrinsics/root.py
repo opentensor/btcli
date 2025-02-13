@@ -26,7 +26,7 @@ from numpy.typing import NDArray
 from rich.prompt import Confirm
 from rich.table import Table, Column
 from scalecodec import ScaleBytes, U16, Vec
-from substrateinterface.exceptions import SubstrateRequestException
+from async_substrate_interface.errors import SubstrateRequestException
 
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.extrinsics.registration import is_hotkey_registered
@@ -339,7 +339,7 @@ async def root_register_extrinsic(
 
         # Successful registration, final check for neuron and pubkey
         else:
-            uid = await subtensor.substrate.query(
+            uid = await subtensor.query(
                 module="SubtensorModule",
                 storage_function="Uids",
                 params=[0, wallet.hotkey.ss58_address],
@@ -416,7 +416,7 @@ async def set_root_weights_extrinsic(
         else:
             return False, await response.error_message
 
-    my_uid = await subtensor.substrate.query(
+    my_uid = await subtensor.query(
         "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
     )
 

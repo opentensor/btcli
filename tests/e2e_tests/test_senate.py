@@ -44,7 +44,7 @@ def test_senate(local_chain, wallet_setup):
 
     # Fetch existing senate list
     root_senate = exec_command_bob(
-        command="root",
+        command="sudo",
         sub_command="senate",
         extra_args=[
             "--network",
@@ -58,9 +58,11 @@ def test_senate(local_chain, wallet_setup):
     # Register Bob to the root network (0)
     # Registering to root automatically makes you a senator if eligible
     root_register = exec_command_bob(
-        command="root",
+        command="subnets",
         sub_command="register",
         extra_args=[
+            "--netuid",
+            "0",
             "--wallet-path",
             wallet_path_bob,
             "--network",
@@ -76,7 +78,7 @@ def test_senate(local_chain, wallet_setup):
 
     # Fetch the senate members after registering to root
     root_senate_after_reg = exec_command_bob(
-        command="root",
+        command="sudo",
         sub_command="senate",
         extra_args=[
             "--chain",
@@ -93,7 +95,7 @@ def test_senate(local_chain, wallet_setup):
 
     # Fetch proposals after adding one
     proposals = exec_command_bob(
-        command="root",
+        command="sudo",
         sub_command="proposals",
         extra_args=[
             "--chain",
@@ -117,7 +119,7 @@ def test_senate(local_chain, wallet_setup):
 
     # Vote on the proposal by Bob (vote aye)
     vote_aye = exec_command_bob(
-        command="root",
+        command="sudo",
         sub_command="senate-vote",
         extra_args=[
             "--wallet-path",
@@ -138,7 +140,7 @@ def test_senate(local_chain, wallet_setup):
 
     # Fetch proposals after voting aye
     proposals_after_aye = exec_command_bob(
-        command="root",
+        command="sudo",
         sub_command="proposals",
         extra_args=[
             "--chain",
@@ -160,9 +162,11 @@ def test_senate(local_chain, wallet_setup):
     # Register Alice to the root network (0)
     # Registering to root automatically makes you a senator if eligible
     root_register = exec_command_alice(
-        command="root",
+        command="subnets",
         sub_command="register",
         extra_args=[
+            "--netuid",
+            "0",
             "--wallet-path",
             wallet_path_alice,
             "--chain",
@@ -178,7 +182,7 @@ def test_senate(local_chain, wallet_setup):
 
     # Vote on the proposal by Alice (vote nay)
     vote_nay = exec_command_alice(
-        command="root",
+        command="sudo",
         sub_command="senate-vote",
         extra_args=[
             "--wallet-path",
@@ -199,7 +203,7 @@ def test_senate(local_chain, wallet_setup):
 
     # Fetch proposals after voting
     proposals_after_nay = exec_command_bob(
-        command="root",
+        command="sudo",
         sub_command="proposals",
         extra_args=[
             "--chain",
