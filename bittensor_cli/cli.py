@@ -2881,9 +2881,6 @@ class CLIManager:
             )
             raise typer.Exit()
 
-        if not stake_all and not amount:
-            amount = FloatPrompt.ask("Amount to [blue]stake (TAO τ)[/blue]")
-
         if stake_all and not amount:
             if not Confirm.ask("Stake all the available TAO tokens?", default=False):
                 raise typer.Exit()
