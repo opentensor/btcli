@@ -40,7 +40,7 @@ from bittensor_cli.src.bittensor.utils import (
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 
-TAO_WEIGHT = 0.018
+TAO_WEIGHT = 0.18
 
 # helpers and extrinsics
 
@@ -1322,7 +1322,7 @@ async def show(
                         return hotkey
                     else:
                         console.print(
-                            f"[red]Invalid UID. Please enter a valid UID from the table above[/red]"
+                            "[red]Invalid UID. Please enter a valid UID from the table above[/red]"
                         )
                 except ValueError:
                     console.print("[red]Please enter a valid number[/red]")
