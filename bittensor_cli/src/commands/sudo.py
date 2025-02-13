@@ -585,7 +585,7 @@ async def get_senate(subtensor: "SubtensorInterface"):
     return console.print(table)
 
 
-async def proposals(subtensor: SubtensorInterface, verbose: bool):
+async def proposals(subtensor: "SubtensorInterface", verbose: bool):
     console.print(
         ":satellite: Syncing with chain: [white]{}[/white] ...".format(
             subtensor.network
