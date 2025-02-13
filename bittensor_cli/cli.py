@@ -2884,7 +2884,7 @@ class CLIManager:
             )
             raise typer.Exit()
 
-        if not stake_all and not amount and not max_stake:
+        if not stake_all and not amount:
             amount = FloatPrompt.ask("Amount to [blue]stake (TAO τ)[/blue]")
 
         if stake_all and not amount:
@@ -2892,14 +2892,14 @@ class CLIManager:
                 raise typer.Exit()
 
         if all_hotkeys and include_hotkeys:
-            err_console.print(
+            print_error(
                 "You have specified hotkeys to include and also the `--all-hotkeys` flag. The flag"
                 "should only be used standalone (to use all hotkeys) or with `--exclude-hotkeys`."
             )
             raise typer.Exit()
 
         if include_hotkeys and exclude_hotkeys:
-            err_console.print(
+            print_error(
                 "You have specified options for both including and excluding hotkeys. Select one or the other."
             )
             raise typer.Exit()
@@ -2974,6 +2974,8 @@ class CLIManager:
                 "Hotkeys must be a comma-separated list of ss58s, e.g., `--include-hotkeys 5Grw....,5Grw....`.",
                 is_ss58=True,
             )
+        else:
+            include_hotkeys = []
 
         if exclude_hotkeys:
             exclude_hotkeys = parse_to_list(
@@ -2983,7 +2985,7 @@ class CLIManager:
                 is_ss58=True,
             )
         else:
-            excluded_hotkeys = []
+            exclude_hotkeys = []
 
         # TODO: Ask amount for each subnet explicitly if more than one
         if not stake_all and not amount:
@@ -3023,8 +3025,8 @@ class CLIManager:
                 amount,
                 prompt,
                 all_hotkeys,
-                included_hotkeys,
-                excluded_hotkeys,
+                include_hotkeys,
+                exclude_hotkeys,
                 safe_staking,
                 rate_tolerance,
                 allow_partial_stake,
@@ -3132,32 +3134,32 @@ class CLIManager:
         if interactive and any(
             [hotkey_ss58_address, include_hotkeys, exclude_hotkeys, all_hotkeys]
         ):
-            err_console.print(
+            print_error(
                 "Interactive mode cannot be used with hotkey selection options like --include-hotkeys, --exclude-hotkeys, --all-hotkeys, or --hotkey."
             )
             raise typer.Exit()
 
         if unstake_all and unstake_all_alpha:
-            err_console.print("Cannot specify both unstake-all and unstake-all-alpha.")
+            print_error("Cannot specify both unstake-all and unstake-all-alpha.")
             raise typer.Exit()
 
         if not interactive and not unstake_all and not unstake_all_alpha:
             netuid = get_optional_netuid(netuid, all_netuids)
             if all_hotkeys and include_hotkeys:
-                err_console.print(
+                print_error(
                     "You have specified hotkeys to include and also the `--all-hotkeys` flag. The flag"
                     " should only be used standalone (to use all hotkeys) or with `--exclude-hotkeys`."
                 )
                 raise typer.Exit()
 
             if include_hotkeys and exclude_hotkeys:
-                err_console.print(
+                print_error(
                     "You have specified both including and excluding hotkeys options. Select one or the other."
                 )
                 raise typer.Exit()
 
             if unstake_all and amount:
-                err_console.print(
+                print_error(
                     "Cannot specify both a specific amount and 'unstake-all'. Choose one or the other."
                 )
                 raise typer.Exit()
@@ -3292,8 +3294,8 @@ class CLIManager:
                 subtensor=self.initialize_chain(network),
                 hotkey_ss58_address=hotkey_ss58_address,
                 all_hotkeys=all_hotkeys,
-                include_hotkeys=included_hotkeys,
-                exclude_hotkeys=excluded_hotkeys,
+                include_hotkeys=include_hotkeys,
+                exclude_hotkeys=exclude_hotkeys,
                 amount=amount,
                 prompt=prompt,
                 interactive=interactive,
@@ -3975,6 +3977,11 @@ class CLIManager:
         [green]$[/green] btcli sudo set --netuid 1 --param tempo --value 400
         """
         self.verbosity_handler(quiet, verbose)
+
+        hyperparams = self._run_command(
+            sudo.get_hyperparameters(self.initialize_chain(network), netuid),
+            exit_early=False,
+        )
 
         if not hyperparams:
             raise typer.Exit()
