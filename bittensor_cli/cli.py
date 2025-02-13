@@ -72,7 +72,7 @@ except ImportError:
         pass
 
 
-__version__ = "9.0.0rc4"
+__version__ = "9.0.0"
 
 
 _core_version = re.match(r"^\d+\.\d+\.\d+", __version__).group(0)
@@ -4072,7 +4072,9 @@ class CLIManager:
         [green]$[/green] btcli sudo proposals
         """
         self.verbosity_handler(quiet, verbose)
-        return self._run_command(sudo.proposals(self.initialize_chain(network)))
+        return self._run_command(
+            sudo.proposals(self.initialize_chain(network), verbose)
+        )
 
     def sudo_senate_vote(
         self,
