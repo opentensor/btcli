@@ -107,9 +107,7 @@ async def stake_add(
                 )
                 return
             else:
-                err_out(
-                    f"\n{failure_prelude} with error: {format_error_message(e)}"
-                )
+                err_out(f"\n{failure_prelude} with error: {format_error_message(e)}")
             return
         else:
             await response.process_events()
@@ -180,9 +178,7 @@ async def stake_add(
                 extrinsic, wait_for_inclusion=True, wait_for_finalization=False
             )
         except SubstrateRequestException as e:
-            err_out(
-                f"\n{failure_prelude} with error: {format_error_message(e)}"
-            )
+            err_out(f"\n{failure_prelude} with error: {format_error_message(e)}")
             return
         else:
             await response.process_events()

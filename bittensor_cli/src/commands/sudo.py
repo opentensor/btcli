@@ -18,6 +18,8 @@ from bittensor_cli.src.bittensor.utils import (
     normalize_hyperparameters,
     unlock_key,
     blocks_to_duration,
+    float_to_u64,
+    float_to_u16,
 )
 
 if TYPE_CHECKING:
@@ -70,6 +72,44 @@ def allowed_value(
     return True, value
 
 
+def search_metadata(
+    param_name: str, netuid: int, metadata
+) -> tuple[bool, Optional[dict]]:
+    """
+    Searches the substrate metadata AdminUtils pallet for a given parameter name. Crafts a response dict to be used
+        as call parameters for setting this hyperparameter.
+
+    Args:
+        param_name: the name of the hyperparameter
+        netuid: the specified netuid
+        metadata: the subtensor.substrate.metadata
+
+    Returns:
+        (success, dict of call params)
+
+    """
+    arg_types = {"bool": bool, "u16": float_to_u16, "u64": float_to_u64}
+
+    call_crafter = {"netuid": netuid}
+
+    for pallet in metadata.pallets:
+        if pallet.name == "AdminUtils":
+            for call in pallet.calls:
+                if call.name == param_name:
+                    if "netuid" not in [x.name for x in call.args]:
+                        return False, None
+                    for arg in call.args:
+                        if arg.name == "netuid":
+                            continue
+                        raw_val = input(
+                            f"Enter a value for field '{arg.name}' with type '{arg.typeName}'"
+                        )
+                        call_crafter[arg.name] = arg_types[arg.typeName](raw_val)
+                    return True, call_crafter
+    else:
+        return False, None
+
+
 async def set_hyperparameter_extrinsic(
     subtensor: "SubtensorInterface",
     wallet: "Wallet",
@@ -110,44 +150,53 @@ async def set_hyperparameter_extrinsic(
     if not unlock_key(wallet).success:
         return False
 
+    arbitrary_extrinsic = False
+
     extrinsic, sudo_ = HYPERPARAMS.get(parameter, ("", False))
     if extrinsic is None:
-        err_console.print(":cross_mark: [red]Invalid hyperparameter specified.[/red]")
-        return False
+        arbitrary_extrinsic, call_params = search_metadata(
+            parameter, netuid, subtensor.substrate.metadata
+        )
+        if not arbitrary_extrinsic:
+            err_console.print(
+                ":cross_mark: [red]Invalid hyperparameter specified.[/red]"
+            )
+            return False
 
     with console.status(
         f":satellite: Setting hyperparameter [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{parameter}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] to [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{value}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] on subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] ...",
         spinner="earth",
     ):
-        substrate = subtensor.substrate
-        extrinsic_params = await substrate.get_metadata_call_function(
-            "AdminUtils", extrinsic
-        )
-        call_params: dict[str, Union[str, bool, float]] = {"netuid": netuid}
+        if not arbitrary_extrinsic:
+            substrate = subtensor.substrate
+            extrinsic_params = await substrate.get_metadata_call_function(
+                "AdminUtils", extrinsic
+            )
+            call_params = {"netuid": netuid}
 
-        # if input value is a list, iterate through the list and assign values
-        if isinstance(value, list):
-            # Ensure that there are enough values for all non-netuid parameters
-            non_netuid_fields = [
-                param["name"]
-                for param in extrinsic_params["fields"]
-                if "netuid" not in param["name"]
-            ]
+            # if input value is a list, iterate through the list and assign values
+            if isinstance(value, list):
+                # Ensure that there are enough values for all non-netuid parameters
+                non_netuid_fields = [
+                    param["name"]
+                    for param in extrinsic_params["fields"]
+                    if "netuid" not in param["name"]
+                ]
 
-            if len(value) < len(non_netuid_fields):
-                raise ValueError(
-                    "Not enough values provided in the list for all parameters"
+                if len(value) < len(non_netuid_fields):
+                    raise ValueError(
+                        "Not enough values provided in the list for all parameters"
+                    )
+
+                call_params.update(
+                    {str(name): val for name, val in zip(non_netuid_fields, value)}
                 )
 
-            call_params.update(
-                {str(name): val for name, val in zip(non_netuid_fields, value)}
-            )
-
-        else:
-            value_argument = extrinsic_params["fields"][
-                len(extrinsic_params["fields"]) - 1
-            ]
-            call_params[str(value_argument["name"])] = value
+            else:
+                value_argument = extrinsic_params["fields"][
+                    len(extrinsic_params["fields"]) - 1
+                ]
+                call_params[str(value_argument["name"])] = value
 
         # create extrinsic call
         call_ = await substrate.compose_call(
@@ -167,11 +216,16 @@ async def set_hyperparameter_extrinsic(
         if not success:
             err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
             await asyncio.sleep(0.5)
-
+        elif arbitrary_extrinsic:
+            console.print(
+                f":white_heavy_check_mark: "
+                f"[dark_sea_green3]Hyperparameter {parameter} values changed to {call_params}[/dark_sea_green3]"
+            )
         # Successful registration, final check for membership
         else:
             console.print(
-                f":white_heavy_check_mark: [dark_sea_green3]Hyperparameter {parameter} changed to {value}[/dark_sea_green3]"
+                f":white_heavy_check_mark: "
+                f"[dark_sea_green3]Hyperparameter {parameter} changed to {value}[/dark_sea_green3]"
             )
             return True
 
@@ -481,7 +535,9 @@ async def sudo_set_hyperparameter(
         "commit_reveal_weights_enabled",
         "liquid_alpha_enabled",
     ]:
-        normalized_value = param_value.lower() in ["true", "True", "1"]
+        normalized_value = param_value.lower() in ["true", "1"]
+    elif param_value in ("True", "False"):
+        normalized_value = bool(param_value)
     else:
         normalized_value = param_value
 

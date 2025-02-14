@@ -666,9 +666,7 @@ async def _safe_unstake_extrinsic(
             )
             return
         else:
-            err_out(
-                f"\n{failure_prelude} with error: {format_error_message(e)}"
-            )
+            err_out(f"\n{failure_prelude} with error: {format_error_message(e)}")
         return
 
     await response.process_events()
