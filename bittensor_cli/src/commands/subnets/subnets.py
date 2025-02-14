@@ -2134,6 +2134,12 @@ async def get_identity(subtensor: "SubtensorInterface", netuid: int, title: str 
     if not title:
         title = "Subnet Identity"
 
+    if not await subtensor.subnet_exists(netuid):
+        print_error(
+            f"Subnet {netuid} does not exist."
+        )
+        raise typer.Exit()
+
     with console.status(
         ":satellite: [bold green]Querying subnet identity...", spinner="earth"
     ):

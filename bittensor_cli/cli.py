@@ -4577,6 +4577,8 @@ class CLIManager:
             ),
             exit_early=False,
         )
+        if current_identity is None:
+            raise typer.Exit()
 
         identity = prompt_for_subnet_identity(
             current_identity=current_identity,
