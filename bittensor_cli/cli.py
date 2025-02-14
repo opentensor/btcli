@@ -656,7 +656,7 @@ class CLIManager:
         self.config_app.command("set")(self.set_config)
         self.config_app.command("get")(self.get_config)
         self.config_app.command("clear")(self.del_config)
-        self.config_app.command("metagraph", hidden=True)(self.metagraph_config)
+        # self.config_app.command("metagraph", hidden=True)(self.metagraph_config)
 
         # wallet commands
         self.wallet_app.command(
