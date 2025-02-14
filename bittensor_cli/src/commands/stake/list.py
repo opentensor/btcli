@@ -45,7 +45,7 @@ async def stake_list(
                 coldkey_ss58=coldkey_address, block_hash=block_hash
             ),
             subtensor.get_delegate_identities(block_hash=block_hash),
-            subtensor.all_subnets(),
+            subtensor.all_subnets(block_hash=block_hash),
         )
         # sub_stakes = substakes[coldkey_address]
         dynamic_info = {info.netuid: info for info in _dynamic_info}
@@ -434,11 +434,12 @@ async def stake_list(
         return table, current_data
 
     # Main execution
+    block_hash = await subtensor.substrate.get_chain_head()
     (
         sub_stakes,
         registered_delegate_info,
         dynamic_info,
-    ) = await get_stake_data()
+    ) = await get_stake_data(block_hash)
     balance = await subtensor.get_balance(coldkey_address)
 
     # Iterate over substakes and aggregate them by hotkey.
@@ -527,7 +528,7 @@ async def stake_list(
                     table, current_data = create_live_table(
                         selected_stakes,
                         registered_delegate_info,
-                        dynamic_info,
+                        dynamic_info_,
                         hotkey_name,
                         previous_data,
                     )
