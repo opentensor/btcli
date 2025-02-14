@@ -8,6 +8,7 @@
 * Fixes fmt err msg by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/314
 * Adds subnet identities set/get by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/316
 * Fix return type annotation for `alpha_to_tao_with_slippage` by @thewhaleking in https://github.com/opentensor/btcli/pull/311
+* Updates live view of btcli stake list 
 
 **Full Changelog**: https://github.com/opentensor/btcli/compare/v9.0.0...v9.0.1
 
