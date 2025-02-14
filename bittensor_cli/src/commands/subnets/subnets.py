@@ -890,7 +890,7 @@ async def show(
             for netuid_ in range(len(all_subnets)):
                 subnet = all_subnets[netuid_]
                 emission_on_subnet = (
-                    root_state.emission_history[netuid_][idx] / subnet.tempo
+                    root_state.emission_history[netuid_][idx] / (subnet.tempo or 1)
                 )
                 total_emission_per_block += subnet.alpha_to_tao(
                     Balance.from_rao(emission_on_subnet)
