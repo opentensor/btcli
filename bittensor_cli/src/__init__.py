@@ -710,6 +710,7 @@ HELP_PANELS = {
         "INFO": "Subnet Information",
         "CREATION": "Subnet Creation & Management",
         "REGISTER": "Neuron Registration",
+        "IDENTITY": "Subnet Identity Management",
     },
     "WEIGHTS": {"COMMIT_REVEAL": "Commit / Reveal"},
 }

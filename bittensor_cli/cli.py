@@ -804,6 +804,12 @@ class CLIManager:
         self.subnets_app.command(
             "price", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
         )(self.subnets_price)
+        self.subnets_app.command(
+            "set-identity", rich_help_panel=HELP_PANELS["SUBNETS"]["IDENTITY"]
+        )(self.subnets_set_identity)
+        self.subnets_app.command(
+            "get-identity", rich_help_panel=HELP_PANELS["SUBNETS"]["IDENTITY"]
+        )(self.subnets_get_identity)
 
         # weights commands
         self.weights_app.command(
@@ -4452,6 +4458,7 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
         identity = prompt_for_subnet_identity(
+            current_identity={},
             subnet_name=subnet_name,
             github_repo=github_repo,
             subnet_contact=subnet_contact,
@@ -4481,6 +4488,116 @@ class CLIManager:
                     quiet=quiet,
                     verbose=verbose,
                 )
+
+    def subnets_get_identity(
+        self,
+        network: Optional[list[str]] = Options.network,
+        netuid: int = Options.netuid,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Get the identity information for a subnet.
+
+        This command displays the identity information of a subnet including name, GitHub repo, contact details, etc.
+
+        [green]$[/green] btcli subnets get-identity --netuid 1
+        """
+        self.verbosity_handler(quiet, verbose)
+        return self._run_command(
+            subnets.get_identity(
+                self.initialize_chain(network),
+                netuid,
+            )
+        )
+
+    def subnets_set_identity(
+        self,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        network: Optional[list[str]] = Options.network,
+        netuid: int = Options.netuid,
+        subnet_name: Optional[str] = typer.Option(
+            None, "--subnet-name", "--name", help="Name of the subnet"
+        ),
+        github_repo: Optional[str] = typer.Option(
+            None, "--github-repo", "--repo", help="GitHub repository URL"
+        ),
+        subnet_contact: Optional[str] = typer.Option(
+            None,
+            "--subnet-contact",
+            "--contact",
+            "--email",
+            help="Contact email for subnet",
+        ),
+        subnet_url: Optional[str] = typer.Option(
+            None, "--subnet-url", "--url", help="Subnet URL"
+        ),
+        discord: Optional[str] = typer.Option(
+            None, "--discord-handle", "--discord", help="Discord handle"
+        ),
+        description: Optional[str] = typer.Option(
+            None, "--description", help="Description"
+        ),
+        additional_info: Optional[str] = typer.Option(
+            None, "--additional-info", help="Additional information"
+        ),
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Set or update the identity information for a subnet.
+
+        This command allows subnet owners to set or update identity information like name, GitHub repo, contact details, etc.
+
+        [bold]Common Examples:[/bold]
+
+        1. Interactive subnet identity setting:
+        [green]$[/green] btcli subnets set-identity --netuid 1
+
+        2. Set subnet identity with specific values:
+        [green]$[/green] btcli subnets set-identity --netuid 1 --subnet-name MySubnet --github-repo https://github.com/myorg/mysubnet --subnet-contact team@mysubnet.net
+        """
+        self.verbosity_handler(quiet, verbose)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME],
+            validate=WV.WALLET,
+        )
+
+        current_identity = self._run_command(
+            subnets.get_identity(
+                self.initialize_chain(network),
+                netuid,
+                f"Current Subnet {netuid}'s Identity",
+            ),
+            exit_early=False,
+        )
+
+        identity = prompt_for_subnet_identity(
+            current_identity=current_identity,
+            subnet_name=subnet_name,
+            github_repo=github_repo,
+            subnet_contact=subnet_contact,
+            subnet_url=subnet_url,
+            discord=discord,
+            description=description,
+            additional=additional_info,
+        )
+
+        return self._run_command(
+            subnets.set_identity(
+                wallet,
+                self.initialize_chain(network),
+                netuid,
+                identity,
+                prompt,
+            )
+        )
 
     def subnets_pow_register(
         self,
