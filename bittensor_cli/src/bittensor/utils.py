@@ -1126,6 +1126,7 @@ def prompt_for_identity(
 
 
 def prompt_for_subnet_identity(
+    current_identity: dict,
     subnet_name: Optional[str],
     github_repo: Optional[str],
     subnet_contact: Optional[str],
@@ -1210,7 +1211,7 @@ def prompt_for_subnet_identity(
                 prompt,
                 rejection=rejection_func,
                 rejection_text=rejection_msg,
-                default=None,  # Maybe we can add some defaults later
+                default=current_identity.get(key, ""),
                 show_default=True,
             )
 

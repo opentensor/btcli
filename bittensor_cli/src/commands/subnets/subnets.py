@@ -35,6 +35,7 @@ from bittensor_cli.src.bittensor.utils import (
     update_metadata_table,
     prompt_for_identity,
     get_subnet_name,
+    unlock_key,
 )
 
 if TYPE_CHECKING:
@@ -2026,3 +2027,146 @@ async def metagraph_cmd(
                 table.add_row(*row)
 
         console.print(table)
+
+
+def create_identity_table(title: str = None):
+    if not title:
+        title = "Subnet Identity"
+
+    table = Table(
+        Column(
+            "Item",
+            justify="right",
+            style=COLOR_PALETTE["GENERAL"]["SUBHEADING_MAIN"],
+            no_wrap=True,
+        ),
+        Column("Value", style=COLOR_PALETTE["GENERAL"]["SUBHEADING"]),
+        title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]{title}\n",
+        show_footer=True,
+        show_edge=False,
+        header_style="bold white",
+        border_style="bright_black",
+        style="bold",
+        title_justify="center",
+        show_lines=False,
+        pad_edge=True,
+    )
+    return table
+
+
+async def set_identity(
+    wallet: "Wallet",
+    subtensor: "SubtensorInterface",
+    netuid: int,
+    subnet_identity: dict,
+    prompt: bool = False,
+) -> bool:
+    """Set identity information for a subnet"""
+
+    if not await subtensor.subnet_exists(netuid):
+        err_console.print(f"Subnet {netuid} does not exist")
+        return False
+
+    identity_data = {
+        "netuid": netuid,
+        "subnet_name": subnet_identity.get("subnet_name", ""),
+        "github_repo": subnet_identity.get("github_repo", ""),
+        "subnet_contact": subnet_identity.get("subnet_contact", ""),
+        "subnet_url": subnet_identity.get("subnet_url", ""),
+        "discord": subnet_identity.get("discord", ""),
+        "description": subnet_identity.get("description", ""),
+        "additional": subnet_identity.get("additional", ""),
+    }
+
+    if not unlock_key(wallet).success:
+        return False
+
+    if prompt:
+        if not Confirm.ask(
+            "Are you sure you want to set subnet's identity? This is subject to a fee."
+        ):
+            return False
+
+    call = await subtensor.substrate.compose_call(
+        call_module="SubtensorModule",
+        call_function="set_subnet_identity",
+        call_params=identity_data,
+    )
+
+    with console.status(
+        " :satellite: [dark_sea_green3]Setting subnet identity on-chain...",
+        spinner="earth",
+    ):
+        success, err_msg = await subtensor.sign_and_send_extrinsic(call, wallet)
+
+        if not success:
+            err_console.print(f"[red]:cross_mark: Failed![/red] {err_msg}")
+            return False
+
+        console.print(
+            ":white_heavy_check_mark: [dark_sea_green3]Successfully set subnet identity\n"
+        )
+
+        subnet = await subtensor.subnet(netuid)
+        identity = subnet.subnet_identity if subnet else None
+
+    if identity:
+        table = create_identity_table(title=f"New Subnet {netuid} Identity")
+        table.add_row("Netuid", str(netuid))
+        for key in [
+            "subnet_name",
+            "github_repo",
+            "subnet_contact",
+            "subnet_url",
+            "discord",
+            "description",
+            "additional",
+        ]:
+            value = getattr(identity, key, None)
+            table.add_row(key, str(value) if value else "~")
+        console.print(table)
+
+    return True
+
+
+async def get_identity(subtensor: "SubtensorInterface", netuid: int, title: str = None):
+    """Fetch and display existing subnet identity information."""
+    if not title:
+        title = "Subnet Identity"
+
+    if not await subtensor.subnet_exists(netuid):
+        print_error(
+            f"Subnet {netuid} does not exist."
+        )
+        raise typer.Exit()
+
+    with console.status(
+        ":satellite: [bold green]Querying subnet identity...", spinner="earth"
+    ):
+        subnet = await subtensor.subnet(netuid)
+        identity = subnet.subnet_identity if subnet else None
+
+    if not identity:
+        err_console.print(
+            f"Existing subnet identity not found"
+            f" for subnet [blue]{netuid}[/blue]"
+            f" on {subtensor}"
+        )
+        return {}
+
+    if identity:
+        table = create_identity_table(title=f"Current Subnet {netuid} Identity")
+        table.add_row("Netuid", str(netuid))
+        for key in [
+            "subnet_name",
+            "github_repo",
+            "subnet_contact",
+            "subnet_url",
+            "discord",
+            "description",
+            "additional",
+        ]:
+            value = getattr(identity, key, None)
+            table.add_row(key, str(value) if value else "~")
+        console.print(table)
+        return identity
