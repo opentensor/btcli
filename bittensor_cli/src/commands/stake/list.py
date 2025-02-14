@@ -319,7 +319,7 @@ async def stake_list(
             alpha_value = Balance.from_rao(int(substake.stake.rao)).set_unit(netuid)
             tao_value = pool.alpha_to_tao(alpha_value)
             total_tao_value += tao_value
-            swapped_tao_value, slippage = pool.alpha_to_tao_with_slippage(
+            swapped_tao_value, slippage, slippage_pct = pool.alpha_to_tao_with_slippage(
                 substake.stake
             )
             total_swapped_tao_value += swapped_tao_value
@@ -375,15 +375,6 @@ async def stake_list(
                 precision=4,
                 millify=True if not verbose else False,
             )
-
-            if pool.is_dynamic:
-                slippage_pct = (
-                    100 * float(slippage) / float(slippage + swapped_tao_value)
-                    if slippage + swapped_tao_value != 0
-                    else 0
-                )
-            else:
-                slippage_pct = 0
 
             if netuid != 0:
                 swap_cell = (
