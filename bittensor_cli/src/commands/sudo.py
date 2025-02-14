@@ -692,10 +692,7 @@ async def senate_vote(
         return False
 
     # Unlock the wallet.
-    if (
-        not unlock_key(wallet, "hot").success
-        and unlock_key(wallet, "cold").success
-    ):
+    if not unlock_key(wallet, "hot").success and unlock_key(wallet, "cold").success:
         return False
 
     console.print(f"Fetching proposals in [dark_orange]network: {subtensor.network}")
@@ -771,10 +768,7 @@ async def set_take(
         f"Setting take on [{COLOR_PALETTE['GENERAL']['LINKS']}]network: {subtensor.network}"
     )
 
-    if (
-        not unlock_key(wallet, "hot").success
-        and unlock_key(wallet, "cold").success
-    ):
+    if not unlock_key(wallet, "hot").success and unlock_key(wallet, "cold").success:
         return False
 
     result_ = await _do_set_take()

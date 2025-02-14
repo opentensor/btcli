@@ -20,7 +20,7 @@ class Constants:
     subvortex_entrypoint = "ws://subvortex.info:9944"
     local_entrypoint = "ws://127.0.0.1:9944"
     rao_entrypoint = "wss://rao.chain.opentensor.ai:443"
-    dev_entrypoint = "wss://dev.chain.opentensor.ai:443 "
+    dev_entrypoint = "wss://dev.chain.opentensor.ai:443"
     local_entrypoint = "ws://127.0.0.1:9944"
     latent_lite_entrypoint = "wss://lite.sub.latent.to:443"
     network_map = {
@@ -710,6 +710,7 @@ HELP_PANELS = {
         "INFO": "Subnet Information",
         "CREATION": "Subnet Creation & Management",
         "REGISTER": "Neuron Registration",
+        "IDENTITY": "Subnet Identity Management",
     },
     "WEIGHTS": {"COMMIT_REVEAL": "Commit / Reveal"},
 }
