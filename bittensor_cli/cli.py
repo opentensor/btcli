@@ -72,7 +72,7 @@ except ImportError:
         pass
 
 
-__version__ = "9.0.0"
+__version__ = "9.0.1"
 
 
 _core_version = re.match(r"^\d+\.\d+\.\d+", __version__).group(0)
