@@ -284,11 +284,7 @@ async def wallet_balance(
     """Retrieves the current balance of the specified wallet"""
     if ss58_addresses:
         coldkeys = ss58_addresses
-        identities = await subtensor.query_all_identities()
-        wallet_names = [
-            f"{identities.get(coldkey, {'name': f'Provided address {i}'})['name']}"
-            for i, coldkey in enumerate(coldkeys)
-        ]
+        wallet_names = [f"Provided Address {i + 1}" for i in range(len(ss58_addresses))]
 
     elif not all_balances:
         if not wallet.coldkeypub_file.exists_on_device():
@@ -307,19 +303,29 @@ async def wallet_balance(
             wallet_names = [wallet.name]
 
         block_hash = await subtensor.substrate.get_chain_head()
-        free_balances = await subtensor.get_balances(*coldkeys, block_hash=block_hash)
+        free_balances, staked_balances = await asyncio.gather(
+            subtensor.get_balances(*coldkeys, block_hash=block_hash),
+            subtensor.get_total_stake_for_coldkey(*coldkeys, block_hash=block_hash),
+        )
 
     total_free_balance = sum(free_balances.values())
+    total_staked_balance = sum(stake[0] for stake in staked_balances.values())
+    total_staked_with_slippage = sum(stake[1] for stake in staked_balances.values())
 
     balances = {
-        name: (coldkey, free_balances[coldkey])
+        name: (
+            coldkey,
+            free_balances[coldkey],
+            staked_balances[coldkey][0],
+            staked_balances[coldkey][1],
+        )
         for (name, coldkey) in zip(wallet_names, coldkeys)
     }
 
     table = Table(
         Column(
             "[white]Wallet Name",
-            style="bold bright_cyan",
+            style=COLOR_PALETTE["GENERAL"]["SUBHEADING_MAIN"],
             no_wrap=True,
         ),
         Column(
@@ -333,7 +339,31 @@ async def wallet_balance(
             style=COLOR_PALETTE["GENERAL"]["BALANCE"],
             no_wrap=True,
         ),
-        title=f"\n [{COLOR_PALETTE['GENERAL']['HEADER']}]Wallet Coldkey Balance\nNetwork: {subtensor.network}",
+        Column(
+            "[white]Staked Value",
+            justify="right",
+            style=COLOR_PALETTE["STAKE"]["STAKE_ALPHA"],
+            no_wrap=True,
+        ),
+        Column(
+            "[white]Staked (w/slippage)",
+            justify="right",
+            style=COLOR_PALETTE["STAKE"]["STAKE_SWAP"],
+            no_wrap=True,
+        ),
+        Column(
+            "[white]Total Balance",
+            justify="right",
+            style=COLOR_PALETTE["GENERAL"]["BALANCE"],
+            no_wrap=True,
+        ),
+        Column(
+            "[white]Total (w/slippage)",
+            justify="right",
+            style=COLOR_PALETTE["GENERAL"]["BALANCE"],
+            no_wrap=True,
+        ),
+        title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Wallet Coldkey Balance[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Network: {subtensor.network}\n",
         show_footer=True,
         show_edge=False,
         border_style="bright_black",
@@ -343,17 +373,25 @@ async def wallet_balance(
         leading=True,
     )
 
-    for name, (coldkey, free) in balances.items():
+    for name, (coldkey, free, staked, staked_slippage) in balances.items():
         table.add_row(
             name,
             coldkey,
             str(free),
+            str(staked),
+            str(staked_slippage),
+            str(free + staked),
+            str(free + staked_slippage),
         )
     table.add_row()
     table.add_row(
         "Total Balance",
         "",
         str(total_free_balance),
+        str(total_staked_balance),
+        str(total_staked_with_slippage),
+        str(total_free_balance + total_staked_balance),
+        str(total_free_balance + total_staked_with_slippage),
     )
     console.print(Padding(table, (0, 0, 0, 4)))
     await subtensor.substrate.close()
