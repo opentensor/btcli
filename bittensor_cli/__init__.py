@@ -15,9 +15,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-from .cli import CLIManager
+from .cli import CLIManager, __version__
 
-
-__version__ = "9.0.0"
 
 __all__ = ["CLIManager", "__version__"]
