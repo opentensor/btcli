@@ -3078,6 +3078,7 @@ class CLIManager:
         ),
         all_hotkeys: bool = typer.Option(
             False,
+            "--all-hotkeys",
             help="When set, this command unstakes from all the hotkeys associated with the wallet. Do not use if specifying "
             "hotkeys in `--include-hotkeys`.",
         ),
