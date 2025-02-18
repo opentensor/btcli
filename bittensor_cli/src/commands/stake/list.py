@@ -206,7 +206,7 @@ async def stake_list(
 
             # Per block emission cell
             per_block_emission = substake_.emission.tao / (pool.tempo or 1)
-            per_block_tao_emission = unstake.tao_emission.tao / (pool.tempo or 1)
+            per_block_tao_emission = substake_.tao_emission.tao / (pool.tempo or 1)
             # Alpha ownership and TAO ownership cells
             if alpha_value.tao > 0.00009:
                 if issuance.tao != 0:
