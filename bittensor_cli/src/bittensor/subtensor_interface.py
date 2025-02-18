@@ -352,7 +352,7 @@ class SubtensorInterface:
         *ss58_addresses,
         block_hash: Optional[str] = None,
         reuse_block: bool = False,
-    ) -> dict[str, Balance]:
+    ) -> dict[str, tuple[Balance, Balance]]:
         """
         Returns the total stake held on a coldkey.
 
