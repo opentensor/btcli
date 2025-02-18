@@ -73,7 +73,7 @@ def allowed_value(
 
 
 def search_metadata(
-    param_name: str, netuid: int, metadata
+    param_name: str, value: Union[str, bool, float, list[float]], netuid: int, metadata
 ) -> tuple[bool, Optional[dict]]:
     """
     Searches the substrate metadata AdminUtils pallet for a given parameter name. Crafts a response dict to be used
@@ -81,6 +81,7 @@ def search_metadata(
 
     Args:
         param_name: the name of the hyperparameter
+        value: the value to set the hyperparameter
         netuid: the specified netuid
         metadata: the subtensor.substrate.metadata
 
@@ -88,7 +89,19 @@ def search_metadata(
         (success, dict of call params)
 
     """
+
+    def type_converter_with_retry(type_, val, arg_name):
+        try:
+            if val is None:
+                val = input(
+                    f"Enter a value for field '{arg_name}' with type '{arg_type_output[type_]}'"
+                )
+            return arg_types[type_](val)
+        except ValueError:
+            return type_converter_with_retry(type_, None, arg_name)
+
     arg_types = {"bool": bool, "u16": float_to_u16, "u64": float_to_u64}
+    arg_type_output = {"bool": bool, "u16": float, "u64": float}
 
     call_crafter = {"netuid": netuid}
 
@@ -98,13 +111,17 @@ def search_metadata(
                 if call.name == param_name:
                     if "netuid" not in [x.name for x in call.args]:
                         return False, None
-                    for arg in call.args:
-                        if arg.name == "netuid":
-                            continue
-                        raw_val = input(
-                            f"Enter a value for field '{arg.name}' with type '{arg.typeName}'"
+                    call_args = [arg for arg in call.args if arg.name != "netuid"]
+                    if len(call_args) == 1:
+                        arg = call_args[0]
+                        call_crafter[arg.name] = type_converter_with_retry(
+                            arg.typeName, value, arg.name
                         )
-                        call_crafter[arg.name] = arg_types[arg.typeName](raw_val)
+                    else:
+                        for arg in call_args:
+                            call_crafter[arg.name] = type_converter_with_retry(
+                                arg.typeName, None, arg.name
+                            )
                     return True, call_crafter
     else:
         return False, None
@@ -155,7 +172,7 @@ async def set_hyperparameter_extrinsic(
     extrinsic, sudo_ = HYPERPARAMS.get(parameter, ("", False))
     if extrinsic is None:
         arbitrary_extrinsic, call_params = search_metadata(
-            parameter, netuid, subtensor.substrate.metadata
+            parameter, value, netuid, subtensor.substrate.metadata
         )
         if not arbitrary_extrinsic:
             err_console.print(
