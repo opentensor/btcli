@@ -351,7 +351,7 @@ async def stake_list(
                 "swapped_value": swapped_tao_value.tao,
                 "emission": substake.emission.tao / (pool.tempo or 1),
                 "tao_ownership": tao_ownership.tao,
-                "tao_emission": substake.tao_emission.tao / pool.tempo,
+                "tao_emission": substake.tao_emission.tao (pool.tempo or 1),
             }
 
             # Get previous values for delta tracking
@@ -418,7 +418,7 @@ async def stake_list(
                 precision=4,
             )
 
-            tao_emission_value = substake.tao_emission.tao / pool.tempo
+            tao_emission_value = substake.tao_emission.tao / (pool.tempo or 1)
             tao_emission_cell = format_cell(
                 tao_emission_value,
                 prev.get("tao_emission"),
