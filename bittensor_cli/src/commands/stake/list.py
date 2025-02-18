@@ -1,6 +1,7 @@
 import asyncio
 
 from typing import TYPE_CHECKING, Optional
+from bittensor_cli.src.commands.stake.remove import unstake
 import typer
 
 from bittensor_wallet import Wallet
@@ -130,6 +131,11 @@ async def stake_list(
             style=COLOR_PALETTE["POOLS"]["EMISSION"],
             justify="right",
         )
+        table.add_column(
+            f"[white]Emission \n({Balance.get_unit(0)}/block)",
+            style=COLOR_PALETTE["POOLS"]["EMISSION"],
+            justify="right",
+        )
         return table
 
     def create_table(hotkey_: str, substakes: list[StakeInfo]):
@@ -200,6 +206,7 @@ async def stake_list(
 
             # Per block emission cell
             per_block_emission = substake_.emission.tao / (pool.tempo or 1)
+            per_block_tao_emission = substake_.tao_emission.tao / (pool.tempo or 1)
             # Alpha ownership and TAO ownership cells
             if alpha_value.tao > 0.00009:
                 if issuance.tao != 0:
@@ -243,6 +250,7 @@ async def stake_list(
                         # Removing this flag for now, TODO: Confirm correct values are here w.r.t CHKs
                         # if substake_.is_registered
                         # else f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]N/A",  # Emission(α/block)
+                        str(Balance.from_tao(per_block_tao_emission)),
                     ]
                 )
         table = define_table(
@@ -343,6 +351,7 @@ async def stake_list(
                 "swapped_value": swapped_tao_value.tao,
                 "emission": substake.emission.tao / (pool.tempo or 1),
                 "tao_ownership": tao_ownership.tao,
+                "tao_emission": substake.tao_emission.tao (pool.tempo or 1),
             }
 
             # Get previous values for delta tracking
@@ -408,6 +417,16 @@ async def stake_list(
                 unit_first=unit_first,
                 precision=4,
             )
+
+            tao_emission_value = substake.tao_emission.tao / (pool.tempo or 1)
+            tao_emission_cell = format_cell(
+                tao_emission_value,
+                prev.get("tao_emission"),
+                unit="τ",
+                unit_first=unit_first,
+                precision=4,
+            )
+
             subnet_name_cell = (
                 f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{symbol if netuid != 0 else 'τ'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
                 f" {get_subnet_name(dynamic_info[netuid])}"
@@ -425,6 +444,7 @@ async def stake_list(
                     if substake.is_registered
                     else f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]NO",  # Registration status
                     emission_cell,  # Emission rate
+                    tao_emission_cell,  # TAO emission rate
                 ]
             )
 
