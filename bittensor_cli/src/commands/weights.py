@@ -134,9 +134,7 @@ class SetWeightsExtrinsic:
         try:
             success, message = await self.do_commit_weights(commit_hash=commit_hash)
         except SubstrateRequestException as e:
-            err_console.print(
-                f"Error committing weights: {format_error_message(e, self.subtensor.substrate)}"
-            )
+            err_console.print(f"Error committing weights: {format_error_message(e)}")
             # bittensor.logging.error(f"Error committing weights: {e}")
             success = False
             message = "No attempt made. Perhaps it is too soon to commit weights!"
@@ -257,7 +255,7 @@ class SetWeightsExtrinsic:
                     wait_for_finalization=self.wait_for_finalization,
                 )
             except SubstrateRequestException as e:
-                return False, format_error_message(e, self.subtensor.substrate)
+                return False, format_error_message(e)
             # We only wait here if we expect finalization.
             if not self.wait_for_finalization and not self.wait_for_inclusion:
                 return True, "Not waiting for finalization or inclusion."
@@ -266,9 +264,7 @@ class SetWeightsExtrinsic:
             if await response.is_success:
                 return True, "Successfully set weights."
             else:
-                return False, format_error_message(
-                    await response.error_message, self.subtensor.substrate
-                )
+                return False, format_error_message(await response.error_message)
 
         with console.status(
             f":satellite: Setting weights on [white]{self.subtensor.network}[/white] ..."
@@ -314,7 +310,7 @@ class SetWeightsExtrinsic:
                 wait_for_finalization=self.wait_for_finalization,
             )
         except SubstrateRequestException as e:
-            return False, format_error_message(e, self.subtensor.substrate)
+            return False, format_error_message(e)
 
         if not self.wait_for_finalization and not self.wait_for_inclusion:
             success, error_message = True, ""
@@ -326,9 +322,7 @@ class SetWeightsExtrinsic:
             else:
                 success, error_message = (
                     False,
-                    format_error_message(
-                        await response.error_message, self.subtensor.substrate
-                    ),
+                    format_error_message(await response.error_message),
                 )
 
         if success:
@@ -378,6 +372,7 @@ async def reveal_weights(
     weights: list[float],
     salt: list[int],
     version: int,
+    prompt: bool = True,
 ) -> None:
     """Reveal weights for a specific subnet."""
     uids_ = np.array(
@@ -397,7 +392,7 @@ async def reveal_weights(
     )
     # Call the reveal function in the module set_weights from extrinsics package
     extrinsic = SetWeightsExtrinsic(
-        subtensor, wallet, netuid, uids_, weights_, list(salt_), version
+        subtensor, wallet, netuid, uids_, weights_, list(salt_), version, prompt=prompt
     )
     success, message = await extrinsic.reveal(weight_uids, weight_vals)
 
@@ -415,6 +410,7 @@ async def commit_weights(
     weights: list[float],
     salt: list[int],
     version: int,
+    prompt: bool = True,
 ):
     """Commits weights and then reveals them for a specific subnet"""
     uids_ = np.array(
@@ -430,7 +426,7 @@ async def commit_weights(
         dtype=np.int64,
     )
     extrinsic = SetWeightsExtrinsic(
-        subtensor, wallet, netuid, uids_, weights_, list(salt_), version
+        subtensor, wallet, netuid, uids_, weights_, list(salt_), version, prompt=prompt
     )
     success, message = await extrinsic.set_weights_extrinsic()
     if success:

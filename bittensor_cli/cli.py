@@ -72,7 +72,7 @@ except ImportError:
         pass
 
 
-__version__ = "9.0.0rc2"
+__version__ = "9.0.0"
 
 
 _core_version = re.match(r"^\d+\.\d+\.\d+", __version__).group(0)
@@ -141,22 +141,15 @@ class Options:
     use_password = typer.Option(
         True,
         help="Set this to `True` to protect the generated Bittensor key with a password.",
-        is_flag=True,
-        flag_value=False,
     )
     public_hex_key = typer.Option(None, help="The public key in hex format.")
     ss58_address = typer.Option(
         None, "--ss58", "--ss58-address", help="The SS58 address of the coldkey."
     )
-    overwrite_coldkey = typer.Option(
+    overwrite = typer.Option(
         False,
-        help="Overwrite the old coldkey with the newly generated coldkey.",
-        prompt=True,
-    )
-    overwrite_hotkey = typer.Option(
-        False,
-        help="Overwrite the old hotkey with the newly generated hotkey.",
-        prompt=True,
+        "--overwrite/--no-overwrite",
+        help="Overwrite the existing wallet file with the new one.",
     )
     network = typer.Option(
         None,
@@ -176,13 +169,13 @@ class Options:
     )
     netuid = typer.Option(
         None,
-        help="The netuid of the subnet in the root network, (e.g. 1).",
+        help="The netuid of the subnet in the network, (e.g. 1).",
         prompt=True,
         callback=validate_netuid,
     )
     netuid_not_req = typer.Option(
         None,
-        help="The netuid of the subnet in the root network, (e.g. 1).",
+        help="The netuid of the subnet in the network, (e.g. 1).",
         prompt=False,
     )
     all_netuids = typer.Option(
@@ -811,6 +804,12 @@ class CLIManager:
         self.subnets_app.command(
             "price", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
         )(self.subnets_price)
+        self.subnets_app.command(
+            "set-identity", rich_help_panel=HELP_PANELS["SUBNETS"]["IDENTITY"]
+        )(self.subnets_set_identity)
+        self.subnets_app.command(
+            "get-identity", rich_help_panel=HELP_PANELS["SUBNETS"]["IDENTITY"]
+        )(self.subnets_get_identity)
 
         # weights commands
         self.weights_app.command(
@@ -957,9 +956,12 @@ class CLIManager:
                 ConnectionClosed,
                 SubstrateRequestException,
                 KeyboardInterrupt,
+                RuntimeError,
             ) as e:
                 if isinstance(e, SubstrateRequestException):
                     err_console.print(str(e))
+                elif isinstance(e, RuntimeError):
+                    pass  # Temporarily to handle loop bound issues
                 verbose_console.print(traceback.format_exc())
             except Exception as e:
                 err_console.print(f"An unknown error has occurred: {e}")
@@ -967,13 +969,13 @@ class CLIManager:
             finally:
                 if initiated is False:
                     asyncio.create_task(cmd).cancel()
-                if exit_early is True:
+                if (
+                    exit_early is True
+                ):  # temporarily to handle multiple run commands in one session
                     try:
                         raise typer.Exit()
                     except Exception as e:  # ensures we always exit cleanly
-                        if not isinstance(
-                            e, (typer.Exit, RuntimeError)
-                        ):  # temporarily to handle multiple run commands in one session
+                        if not isinstance(e, (typer.Exit, RuntimeError)):
                             err_console.print(f"An unknown error has occurred: {e}")
 
         return self.asyncio_runner(_run())
@@ -1118,7 +1120,23 @@ class CLIManager:
         ),
     ):
         """
-        Sets the values in the config file. To set the metagraph configuration, use the command `btcli config metagraph`
+        Sets or updates configuration values in the BTCLI config file.
+
+        This command allows you to set default values that will be used across all BTCLI commands.
+
+        USAGE
+        Interactive mode:
+            [green]$[/green] btcli config set
+
+        Set specific values:
+            [green]$[/green] btcli config set --wallet-name default --network finney
+            [green]$[/green] btcli config set --safe-staking --rate-tolerance 0.1
+
+        [bold]NOTE[/bold]:
+        - Network values can be network names (e.g., 'finney', 'test') or websocket URLs
+        - Rate tolerance is specified as a decimal (e.g., 0.05 for 0.05%)
+        - Changes are saved to ~/.bittensor/btcli.yaml
+        - Use '[green]$[/green] btcli config get' to view current settings
         """
         args = {
             "wallet_name": wallet_name,
@@ -1544,7 +1562,7 @@ class CLIManager:
         """
         Displays all the wallets and their corresponding hotkeys that are located in the wallet path specified in the config.
 
-        The output display shows each wallet and its associated `ss58` addresses for the coldkey public key and any hotkeys. The output is presented in a hierarchical tree format, with each wallet as a root node and any associated hotkeys as child nodes. The `ss58` address is displayed for each coldkey and hotkey that is not encrypted and exists on the device.
+        The output display shows each wallet and its associated `ss58` addresses for the coldkey public key and any hotkeys. The output is presented in a hierarchical tree format, with each wallet as a root node and any associated hotkeys as child nodes. The `ss58` address (or an `<ENCRYPTED>` marker, for encrypted hotkeys) is displayed for each coldkey and hotkey that exists on the device.
 
         Upon invocation, the command scans the wallet directory and prints a list of all the wallets, indicating whether the
         public keys are available (`?` denotes unavailable or encrypted keys).
@@ -1607,50 +1625,9 @@ class CLIManager:
 
         USAGE
 
-        The command offers various options to customize the output. Users can filter the displayed data by specific
-        netuid, sort by different criteria, and choose to include all the wallets in the user's wallet path location.
-        The output is presented in a tabular format with the following columns:
-
-        - COLDKEY: The SS58 address of the coldkey.
-
-        - HOTKEY: The SS58 address of the hotkey.
-
-        - UID: Unique identifier of the neuron.
-
-        - ACTIVE: Indicates if the neuron is active.
-
-        - STAKE(τ): Amount of stake in the neuron, in TAO.
-
-        - RANK: The rank of the neuron within the network.
-
-        - TRUST: Trust score of the neuron.
-
-        - CONSENSUS: Consensus score of the neuron.
-
-        - INCENTIVE: Incentive score of the neuron.
-
-        - DIVIDENDS: Dividends earned by the neuron.
-
-        - EMISSION(p): Emission received by the neuron, expressed in rho.
-
-        - VTRUST: Validator trust score of the neuron.
-
-        - VPERMIT: Indicates if the neuron has a validator permit.
-
-        - UPDATED: Time since last update.
-
-        - AXON: IP address and port of the neuron.
-
-        - HOTKEY_SS58: Human-readable representation of the hotkey.
-
-
-        # EXAMPLE:
-
         [green]$[/green] btcli wallet overview
 
-        [green]$[/green] btcli wallet overview --all --sort-by stake --sort-order descending
-
-        [green]$[/green] btcli wallet overview -in hk1,hk2 --sort-by stake
+        [green]$[/green] btcli wallet overview --all
 
         [bold]NOTE[/bold]: This command is read-only and does not modify the blockchain state or account configuration.
         It provides a quick and comprehensive view of the user's network presence, making it useful for monitoring account status,
@@ -1670,7 +1647,7 @@ class CLIManager:
                 "Netuids must be a comma-separated list of ints, e.g., `--netuids 1,2,3,4`.",
             )
 
-        ask_for = [WO.NAME, WO.PATH] if not all_wallets else [WO.PATH]
+        ask_for = [WO.NAME] if not all_wallets else []
         validate = WV.WALLET if not all_wallets else WV.NONE
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
@@ -1718,8 +1695,10 @@ class CLIManager:
             None,
             "--amount",
             "-a",
-            prompt=True,
             help="Amount (in TAO) to transfer.",
+        ),
+        transfer_all: bool = typer.Option(
+            False, "--all", prompt=False, help="Transfer all available balance."
         ),
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
@@ -1756,20 +1735,25 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.PATH],
+            ask_for=[WO.NAME],
             validate=WV.WALLET,
         )
-
-        # For Rao games - temporarily commented out
-        # effective_network = get_effective_network(self.config, network)
-        # if is_rao_network(effective_network):
-        #     print_error("This command is disabled on the 'rao' network.")
-        #     raise typer.Exit()
-
         subtensor = self.initialize_chain(network)
+        if transfer_all and amount:
+            print_error("Cannot specify an amount and '--all' flag.")
+            raise typer.Exit()
+        elif transfer_all:
+            amount = 0
+        elif not amount:
+            amount = FloatPrompt.ask("Enter amount (in TAO) to transfer.")
         return self._run_command(
             wallets.transfer(
-                wallet, subtensor, destination_ss58_address, amount, prompt
+                wallet,
+                subtensor,
+                destination_ss58_address,
+                amount,
+                transfer_all,
+                prompt,
             )
         )
 
@@ -1955,6 +1939,7 @@ class CLIManager:
             "--max-successes",
             help="Set the maximum number of times to successfully run the faucet for this command.",
         ),
+        prompt: bool = Options.prompt,
     ):
         """
         Obtain test TAO tokens by performing Proof of Work (PoW).
@@ -1993,6 +1978,7 @@ class CLIManager:
                 output_in_place,
                 verbose,
                 max_successes,
+                prompt,
             )
         )
 
@@ -2006,6 +1992,7 @@ class CLIManager:
         json: Optional[str] = Options.json,
         json_password: Optional[str] = Options.json_password,
         use_password: Optional[bool] = Options.use_password,
+        overwrite: bool = Options.overwrite,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2052,6 +2039,7 @@ class CLIManager:
                 json,
                 json_password,
                 use_password,
+                overwrite,
             )
         )
 
@@ -2062,6 +2050,7 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         public_key_hex: Optional[str] = Options.public_hex_key,
         ss58_address: Optional[str] = Options.ss58_address,
+        overwrite: bool = Options.overwrite,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2109,7 +2098,7 @@ class CLIManager:
             rich.print("[red]Error: Invalid SS58 address or public key![/red]")
             raise typer.Exit()
         return self._run_command(
-            wallets.regen_coldkey_pub(wallet, ss58_address, public_key_hex)
+            wallets.regen_coldkey_pub(wallet, ss58_address, public_key_hex, overwrite)
         )
 
     def wallet_regen_hotkey(
@@ -2124,9 +2113,8 @@ class CLIManager:
         use_password: bool = typer.Option(
             False,  # Overriden to False
             help="Set to 'True' to protect the generated Bittensor key with a password.",
-            is_flag=True,
-            flag_value=True,
         ),
+        overwrite: bool = Options.overwrite,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2165,6 +2153,7 @@ class CLIManager:
                 json,
                 json_password,
                 use_password,
+                overwrite,
             )
         )
 
@@ -2182,10 +2171,9 @@ class CLIManager:
         use_password: bool = typer.Option(
             False,  # Overriden to False
             help="Set to 'True' to protect the generated Bittensor key with a password.",
-            is_flag=True,
-            flag_value=True,
         ),
         uri: Optional[str] = Options.uri,
+        overwrite: bool = Options.overwrite,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2226,7 +2214,9 @@ class CLIManager:
         )
         if not uri:
             n_words = get_n_words(n_words)
-        return self._run_command(wallets.new_hotkey(wallet, n_words, use_password, uri))
+        return self._run_command(
+            wallets.new_hotkey(wallet, n_words, use_password, uri, overwrite)
+        )
 
     def wallet_new_coldkey(
         self,
@@ -2241,6 +2231,7 @@ class CLIManager:
         ),
         use_password: Optional[bool] = Options.use_password,
         uri: Optional[str] = Options.uri,
+        overwrite: bool = Options.overwrite,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2280,7 +2271,7 @@ class CLIManager:
         if not uri:
             n_words = get_n_words(n_words)
         return self._run_command(
-            wallets.new_coldkey(wallet, n_words, use_password, uri)
+            wallets.new_coldkey(wallet, n_words, use_password, uri, overwrite)
         )
 
     def wallet_check_ck_swap(
@@ -2316,6 +2307,7 @@ class CLIManager:
         n_words: Optional[int] = None,
         use_password: bool = Options.use_password,
         uri: Optional[str] = Options.uri,
+        overwrite: bool = Options.overwrite,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2359,12 +2351,7 @@ class CLIManager:
         if not uri:
             n_words = get_n_words(n_words)
         return self._run_command(
-            wallets.wallet_create(
-                wallet,
-                n_words,
-                use_password,
-                uri,
-            )
+            wallets.wallet_create(wallet, n_words, use_password, uri, overwrite)
         )
 
     def wallet_balance(
@@ -2758,7 +2745,25 @@ class CLIManager:
         no_prompt: bool = Options.prompt,
         # TODO add: all-wallets, reuse_last, html_output
     ):
-        """List all stake accounts for wallet."""
+        """
+        Display detailed stake information for a wallet across all subnets.
+
+        Shows stake allocations, exchange rates, and emissions for each hotkey.
+
+        [bold]Common Examples:[/bold]
+
+        1. Basic stake overview:
+        [green]$[/green] btcli stake list --wallet.name my_wallet
+
+        2. Live updating view with refresh:
+        [green]$[/green] btcli stake list --wallet.name my_wallet --live
+
+        3. View specific coldkey by address:
+        [green]$[/green] btcli stake list --ss58 5Dk...X3q
+
+        4. Verbose output with full values:
+        [green]$[/green] btcli stake list --wallet.name my_wallet --verbose
+        """
         self.verbosity_handler(quiet, verbose)
 
         wallet = None
@@ -2838,25 +2843,46 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Stake TAO to one or more hotkeys associated with the user's coldkey.
+        Stake TAO to one or more hotkeys on specific netuids with your coldkey.
 
-        This command is used by a subnet validator to stake to their own hotkey. Compare this command with "btcli root delegate" that is typically run by a TAO holder to delegate their TAO to a delegate's hotkey.
+        Stake is always added through your coldkey's free balance. For stake movement, please see `[green]$[/green] btcli stake move` command.
 
-        This command is used by a subnet validator to allocate stake TAO to their different hotkeys, securing their position and influence on the network.
+        [bold]Common Examples:[/bold]
 
-        EXAMPLE
+        1. Interactive staking (guided prompts):
+            [green]$[/green] btcli stake add
 
-        [green]$[/green] btcli stake add --amount 100 --wallet-name <my_wallet> --wallet-hotkey <my_hotkey>
+        2. Safe staking with rate tolerance of 10% with partial transaction disabled:
+            [green]$[/green] btcli stake add --amount 100 --netuid 1 --safe --tolerance 0.1 --no-partial
+
+        3. Allow partial stake if rates change with tolerance of 10%:
+            [green]$[/green] btcli stake add --amount 300 --safe --partial --tolerance 0.1
+
+        4. Unsafe staking with no rate protection:
+            [green]$[/green] btcli stake add --amount 300 --netuid 1 --unsafe
+
+        5. Stake to multiple hotkeys:
+            [green]$[/green] btcli stake add --amount 200 --include-hotkeys hk_ss58_1,hk_ss58_2,hk_ss58_3
+
+        6. Stake all balance to a subnet:
+            [green]$[/green] btcli stake add --all --netuid 3
+
+        [bold]Safe Staking Parameters:[/bold]
+        • [blue]--safe[/blue]: Enables rate tolerance checks
+        • [blue]--tolerance[/blue]: Maximum % rate change allowed (0.05 = 5%)
+        • [blue]--partial[/blue]: Complete partial stake if rates exceed tolerance
+
         """
         self.verbosity_handler(quiet, verbose)
         safe_staking = self.ask_safe_staking(safe_staking)
         if safe_staking:
             rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
             allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
+            console.print("\n")
         netuid = get_optional_netuid(netuid, all_netuids)
 
         if stake_all and amount:
-            err_console.print(
+            print_error(
                 "Cannot specify an amount and 'stake-all'. Choose one or the other."
             )
             raise typer.Exit()
@@ -2866,14 +2892,14 @@ class CLIManager:
                 raise typer.Exit()
 
         if all_hotkeys and include_hotkeys:
-            err_console.print(
+            print_error(
                 "You have specified hotkeys to include and also the `--all-hotkeys` flag. The flag"
                 "should only be used standalone (to use all hotkeys) or with `--exclude-hotkeys`."
             )
             raise typer.Exit()
 
         if include_hotkeys and exclude_hotkeys:
-            err_console.print(
+            print_error(
                 "You have specified options for both including and excluding hotkeys. Select one or the other."
             )
             raise typer.Exit()
@@ -2902,6 +2928,7 @@ class CLIManager:
                     subnets.show(
                         subtensor=self.initialize_chain(network),
                         netuid=netuid,
+                        sort=False,
                         max_rows=12,
                         prompt=False,
                         delegate_selection=True,
@@ -2942,28 +2969,28 @@ class CLIManager:
             )
 
         if include_hotkeys:
-            included_hotkeys = parse_to_list(
+            include_hotkeys = parse_to_list(
                 include_hotkeys,
                 str,
                 "Hotkeys must be a comma-separated list of ss58s, e.g., `--include-hotkeys 5Grw....,5Grw....`.",
                 is_ss58=True,
             )
         else:
-            included_hotkeys = []
+            include_hotkeys = []
 
         if exclude_hotkeys:
-            excluded_hotkeys = parse_to_list(
+            exclude_hotkeys = parse_to_list(
                 exclude_hotkeys,
                 str,
                 "Hotkeys must be a comma-separated list of ss58s, e.g., `--exclude-hotkeys 5Grw....,5Grw....`.",
                 is_ss58=True,
             )
         else:
-            excluded_hotkeys = []
+            exclude_hotkeys = []
 
         # TODO: Ask amount for each subnet explicitly if more than one
         if not stake_all and not amount:
-            free_balance, staked_balance = self._run_command(
+            free_balance = self._run_command(
                 wallets.wallet_balance(
                     wallet, self.initialize_chain(network), False, None
                 ),
@@ -2999,8 +3026,8 @@ class CLIManager:
                 amount,
                 prompt,
                 all_hotkeys,
-                included_hotkeys,
-                excluded_hotkeys,
+                include_hotkeys,
+                exclude_hotkeys,
                 safe_staking,
                 rate_tolerance,
                 allow_partial_stake,
@@ -3068,15 +3095,34 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Unstake TAO from one or more hotkeys and transfer them back to the user's coldkey.
+        Unstake TAO from one or more hotkeys and transfer them back to the user's coldkey wallet.
 
-        This command is used to withdraw TAO previously staked to different hotkeys.
+        This command is used to withdraw TAO or Alpha stake from different hotkeys.
 
-        EXAMPLE
+        [bold]Common Examples:[/bold]
 
-        [green]$[/green] btcli stake remove --amount 100 -in hk1,hk2
+        1. Interactive unstaking (guided prompts):
+            [green]$[/green] btcli stake remove
 
-        [blue bold]Note[/blue bold]: This command is for users who wish to reallocate their stake or withdraw them from the network. It allows for flexible management of TAO stake across different neurons (hotkeys) on the network.
+        2. Safe unstaking with 10% rate tolerance:
+            [green]$[/green] btcli stake remove --amount 100 --netuid 1 --safe --tolerance 0.1
+
+        3. Allow partial unstake if rates change:
+            [green]$[/green] btcli stake remove --amount 300 --safe --partial
+
+        4. Unstake from multiple hotkeys:
+            [green]$[/green] btcli stake remove --amount 200 --include-hotkeys hk1,hk2,hk3
+
+        5. Unstake all from a hotkey:
+            [green]$[/green] btcli stake remove --all
+
+        6. Unstake all Alpha from a hotkey and stake to Root:
+            [green]$[/green] btcli stake remove --all-alpha
+
+        [bold]Safe Staking Parameters:[/bold]
+        • [blue]--safe[/blue]: Enables rate tolerance checks during unstaking
+        • [blue]--tolerance[/blue]: Max allowed rate change (0.05 = 5%)
+        • [blue]--partial[/blue]: Complete partial unstake if rates exceed tolerance
         """
         self.verbosity_handler(quiet, verbose)
         if not unstake_all and not unstake_all_alpha:
@@ -3089,32 +3135,32 @@ class CLIManager:
         if interactive and any(
             [hotkey_ss58_address, include_hotkeys, exclude_hotkeys, all_hotkeys]
         ):
-            err_console.print(
+            print_error(
                 "Interactive mode cannot be used with hotkey selection options like --include-hotkeys, --exclude-hotkeys, --all-hotkeys, or --hotkey."
             )
             raise typer.Exit()
 
         if unstake_all and unstake_all_alpha:
-            err_console.print("Cannot specify both unstake-all and unstake-all-alpha.")
+            print_error("Cannot specify both unstake-all and unstake-all-alpha.")
             raise typer.Exit()
 
         if not interactive and not unstake_all and not unstake_all_alpha:
             netuid = get_optional_netuid(netuid, all_netuids)
             if all_hotkeys and include_hotkeys:
-                err_console.print(
+                print_error(
                     "You have specified hotkeys to include and also the `--all-hotkeys` flag. The flag"
                     " should only be used standalone (to use all hotkeys) or with `--exclude-hotkeys`."
                 )
                 raise typer.Exit()
 
             if include_hotkeys and exclude_hotkeys:
-                err_console.print(
+                print_error(
                     "You have specified both including and excluding hotkeys options. Select one or the other."
                 )
                 raise typer.Exit()
 
             if unstake_all and amount:
-                err_console.print(
+                print_error(
                     "Cannot specify both a specific amount and 'unstake-all'. Choose one or the other."
                 )
                 raise typer.Exit()
@@ -3228,24 +3274,20 @@ class CLIManager:
             )
 
         if include_hotkeys:
-            included_hotkeys = parse_to_list(
+            include_hotkeys = parse_to_list(
                 include_hotkeys,
                 str,
                 "Hotkeys must be a comma-separated list of ss58s or names, e.g., `--include-hotkeys hk1,hk2`.",
                 is_ss58=False,
             )
-        else:
-            included_hotkeys = []
 
         if exclude_hotkeys:
-            excluded_hotkeys = parse_to_list(
+            exclude_hotkeys = parse_to_list(
                 exclude_hotkeys,
                 str,
                 "Hotkeys must be a comma-separated list of ss58s or names, e.g., `--exclude-hotkeys hk3,hk4`.",
                 is_ss58=False,
             )
-        else:
-            excluded_hotkeys = []
 
         return self._run_command(
             remove_stake.unstake(
@@ -3253,8 +3295,8 @@ class CLIManager:
                 subtensor=self.initialize_chain(network),
                 hotkey_ss58_address=hotkey_ss58_address,
                 all_hotkeys=all_hotkeys,
-                include_hotkeys=included_hotkeys,
-                exclude_hotkeys=excluded_hotkeys,
+                include_hotkeys=include_hotkeys,
+                exclude_hotkeys=exclude_hotkeys,
                 amount=amount,
                 prompt=prompt,
                 interactive=interactive,
@@ -3708,7 +3750,6 @@ class CLIManager:
             [],
             "--proportions",
             "--prop",
-            "-p",
             help="Enter the stake weight proportions for the child hotkeys (sum should be less than or equal to 1)",
             prompt=False,
         ),
@@ -3716,9 +3757,10 @@ class CLIManager:
         wait_for_finalization: bool = Options.wait_for_finalization,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        prompt: bool = Options.prompt,
     ):
         """
-        Set child hotkeys on specified subnets.
+        Set child hotkeys on a specified subnet (or all). Overrides currently set children.
 
         Users can specify the 'proportion' to delegate to child hotkeys (ss58 address). The sum of proportions cannot be greater than 1.
 
@@ -3755,7 +3797,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
         return self._run_command(
@@ -3767,6 +3809,7 @@ class CLIManager:
                 proportions=proportions,
                 wait_for_finalization=wait_for_finalization,
                 wait_for_inclusion=wait_for_inclusion,
+                prompt=prompt,
             )
         )
 
@@ -3792,9 +3835,10 @@ class CLIManager:
         wait_for_finalization: bool = Options.wait_for_finalization,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        prompt: bool = Options.prompt,
     ):
         """
-        Remove all children hotkeys on a specified subnet.
+        Remove all children hotkeys on a specified subnet (or all).
 
         This command is used to remove delegated authority from all child hotkeys, removing their position and influence on the subnet.
 
@@ -3807,7 +3851,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
         if all_netuids and netuid:
@@ -3826,6 +3870,7 @@ class CLIManager:
                 netuid,
                 wait_for_inclusion,
                 wait_for_finalization,
+                prompt=prompt,
             )
         )
 
@@ -3881,7 +3926,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
         if all_netuids and netuid:
@@ -3933,13 +3978,13 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
 
-        hyperparams = self._run_command(
-            sudo.get_hyperparameters(self.initialize_chain(network), netuid),
-            exit_early=False,
-        )
-
-        if not hyperparams:
-            raise typer.Exit()
+        if not param_name or not param_value:
+            hyperparams = self._run_command(
+                sudo.get_hyperparameters(self.initialize_chain(network), netuid),
+                exit_early=False,
+            )
+            if not hyperparams:
+                raise typer.Exit()
 
         if not param_name:
             hyperparam_list = [field.name for field in fields(SubnetHyperparameters)]
@@ -3953,6 +3998,16 @@ class CLIManager:
                 show_choices=False,
             )
             param_name = hyperparam_list[choice - 1]
+
+        if param_name in ["alpha_high", "alpha_low"]:
+            param_name = "alpha_values"
+            low_val = FloatPrompt.ask(
+                "Enter the new value for [dark_orange]alpha_low[/dark_orange]"
+            )
+            high_val = FloatPrompt.ask(
+                "Enter the new value for [dark_orange]alpha_high[/dark_orange]"
+            )
+            param_value = f"{low_val},{high_val}"
 
         if not param_value:
             param_value = Prompt.ask(
@@ -3981,8 +4036,6 @@ class CLIManager:
     ):
         """
         Shows a list of the hyperparameters for the specified subnet.
-
-        The output of this command is the same as that of `btcli subnets hyperparameters`.
 
         EXAMPLE
 
@@ -4025,7 +4078,9 @@ class CLIManager:
         [green]$[/green] btcli sudo proposals
         """
         self.verbosity_handler(quiet, verbose)
-        return self._run_command(sudo.proposals(self.initialize_chain(network)))
+        return self._run_command(
+            sudo.proposals(self.initialize_chain(network), verbose)
+        )
 
     def sudo_senate_vote(
         self,
@@ -4159,40 +4214,37 @@ class CLIManager:
     def subnets_list(
         self,
         network: Optional[list[str]] = Options.network,
-        # reuse_last: bool = Options.reuse_last,
-        # html_output: bool = Options.html_output,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         live_mode: bool = Options.live,
     ):
         """
-        List all subnets and their detailed information.
+         List all subnets and their detailed information.
 
-        This command displays a table with the below columns:
+         [bold]Common Examples:[/bold]
 
-        - NETUID: The subnet's netuid.
-        - N: The number of neurons (subnet validators and subnet miners) in the subnet.
-        - MAX_N: The maximum allowed number of neurons in the subnet.
-        - EMISSION: The percentage of emissions to the subnet as of the last tempo.
-        - TEMPO: The subnet's tempo, expressed in number of blocks.
-        - RECYCLE: The recycle register cost for this subnet.
-        - POW: The proof of work (PoW) difficulty.
-        - SUDO: The subnet owner's name or the owner's ss58 address.
+         1. List all subnets:
+         [green]$[/green] btcli subnets list
 
-        EXAMPLE
+         2. List all subnets in live mode:
+         [green]$[/green] btcli subnets list --live
 
-        [green]$[/green] btcli subnets list
+        [bold]Output Columns:[/bold]
+         • [white]Netuid[/white] - Subnet identifier number
+         • [white]Name[/white] - Subnet name with currency symbol (τ/α/β etc)
+         • [white]Price (τ_in/α_in)[/white] - Exchange rate (TAO per alpha token)
+         • [white]Market Cap (α * Price)[/white] - Total value in TAO (alpha tokens × price)
+         • [white]Emission (τ)[/white] - TAO rewards emitted per block to subnet
+         • [white]P (τ_in, α_in)[/white] - Pool reserves (Tao reserves, alpha reserves) in liquidity pool
+         • [white]Stake (α_out)[/white] - Total staked alpha tokens across all hotkeys (alpha outstanding)
+         • [white]Supply (α)[/white] - Circulating alpha token supply
+         • [white]Tempo (k/n)[/white] - Block interval for subnet updates
+
+         EXAMPLE
+
+         [green]$[/green] btcli subnets list
         """
         self.verbosity_handler(quiet, verbose)
-        # if (reuse_last or html_output) and self.config.get("use_cache") is False:
-        #     err_console.print(
-        #         "Unable to use `--reuse-last` or `--html` when config 'no-cache' is set to 'True'. "
-        #         "Change the config to 'False' using `btcli config set`."
-        #     )
-        #     raise typer.Exit()
-        # if reuse_last:
-        #     subtensor = None
-        # else:
         subtensor = self.initialize_chain(network)
         return self._run_command(
             subnets.subnets_list(
@@ -4296,6 +4348,11 @@ class CLIManager:
         self,
         network: Optional[list[str]] = Options.network,
         netuid: int = Options.netuid,
+        sort: bool = typer.Option(
+            False,
+            "--sort",
+            help="Sort the subnets by uid.",
+        ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         prompt: bool = Options.prompt,
@@ -4311,8 +4368,11 @@ class CLIManager:
         subtensor = self.initialize_chain(network)
         return self._run_command(
             subnets.show(
-                subtensor,
-                netuid,
+                subtensor=subtensor,
+                netuid=netuid,
+                sort=sort,
+                max_rows=None,
+                delegate_selection=False,
                 verbose=verbose,
                 prompt=prompt,
             )
@@ -4372,11 +4432,18 @@ class CLIManager:
         verbose: bool = Options.verbose,
     ):
         """
-        Registers a new subnet.
+        Registers a new subnet on the network.
 
-        EXAMPLE
+        This command allows you to create a new subnet and set the subnet's identity.
+        You also have the option to set your own identity after the registration is complete.
 
+        [bold]Common Examples:[/bold]
+
+        1. Interactive subnet creation:
         [green]$[/green] btcli subnets create
+
+        2. Create with GitHub repo and contact email:
+        [green]$[/green] btcli subnets create --subnet-name MySubnet --github-repo https://github.com/myorg/mysubnet --subnet-contact team@mysubnet.net
         """
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
@@ -4391,6 +4458,7 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
         identity = prompt_for_subnet_identity(
+            current_identity={},
             subnet_name=subnet_name,
             github_repo=github_repo,
             subnet_contact=subnet_contact,
@@ -4420,6 +4488,118 @@ class CLIManager:
                     quiet=quiet,
                     verbose=verbose,
                 )
+
+    def subnets_get_identity(
+        self,
+        network: Optional[list[str]] = Options.network,
+        netuid: int = Options.netuid,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Get the identity information for a subnet.
+
+        This command displays the identity information of a subnet including name, GitHub repo, contact details, etc.
+
+        [green]$[/green] btcli subnets get-identity --netuid 1
+        """
+        self.verbosity_handler(quiet, verbose)
+        return self._run_command(
+            subnets.get_identity(
+                self.initialize_chain(network),
+                netuid,
+            )
+        )
+
+    def subnets_set_identity(
+        self,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        network: Optional[list[str]] = Options.network,
+        netuid: int = Options.netuid,
+        subnet_name: Optional[str] = typer.Option(
+            None, "--subnet-name", "--name", help="Name of the subnet"
+        ),
+        github_repo: Optional[str] = typer.Option(
+            None, "--github-repo", "--repo", help="GitHub repository URL"
+        ),
+        subnet_contact: Optional[str] = typer.Option(
+            None,
+            "--subnet-contact",
+            "--contact",
+            "--email",
+            help="Contact email for subnet",
+        ),
+        subnet_url: Optional[str] = typer.Option(
+            None, "--subnet-url", "--url", help="Subnet URL"
+        ),
+        discord: Optional[str] = typer.Option(
+            None, "--discord-handle", "--discord", help="Discord handle"
+        ),
+        description: Optional[str] = typer.Option(
+            None, "--description", help="Description"
+        ),
+        additional_info: Optional[str] = typer.Option(
+            None, "--additional-info", help="Additional information"
+        ),
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Set or update the identity information for a subnet.
+
+        This command allows subnet owners to set or update identity information like name, GitHub repo, contact details, etc.
+
+        [bold]Common Examples:[/bold]
+
+        1. Interactive subnet identity setting:
+        [green]$[/green] btcli subnets set-identity --netuid 1
+
+        2. Set subnet identity with specific values:
+        [green]$[/green] btcli subnets set-identity --netuid 1 --subnet-name MySubnet --github-repo https://github.com/myorg/mysubnet --subnet-contact team@mysubnet.net
+        """
+        self.verbosity_handler(quiet, verbose)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME],
+            validate=WV.WALLET,
+        )
+
+        current_identity = self._run_command(
+            subnets.get_identity(
+                self.initialize_chain(network),
+                netuid,
+                f"Current Subnet {netuid}'s Identity",
+            ),
+            exit_early=False,
+        )
+        if current_identity is None:
+            raise typer.Exit()
+
+        identity = prompt_for_subnet_identity(
+            current_identity=current_identity,
+            subnet_name=subnet_name,
+            github_repo=github_repo,
+            subnet_contact=subnet_contact,
+            subnet_url=subnet_url,
+            discord=discord,
+            description=description,
+            additional=additional_info,
+        )
+
+        return self._run_command(
+            subnets.set_identity(
+                wallet,
+                self.initialize_chain(network),
+                netuid,
+                identity,
+                prompt,
+            )
+        )
 
     def subnets_pow_register(
         self,
@@ -4468,6 +4648,7 @@ class CLIManager:
             "-tbp",
             help="Set the number of threads per block for CUDA.",
         ),
+        prompt: bool = Options.prompt,
     ):
         """
         Register a neuron (a subnet validator or a subnet miner) using Proof of Work (POW).
@@ -4505,6 +4686,7 @@ class CLIManager:
                 use_cuda,
                 dev_id,
                 threads_per_block,
+                prompt=prompt,
             )
         )
 
@@ -4535,7 +4717,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+            ask_for=[WO.NAME, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
         return self._run_command(
@@ -4670,6 +4852,7 @@ class CLIManager:
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        prompt: bool = Options.prompt,
     ):
         """
         Reveal weights for a specific subnet.
@@ -4741,6 +4924,7 @@ class CLIManager:
                 weights,
                 salt,
                 __version_as_int__,
+                prompt=prompt,
             )
         )
 
@@ -4766,6 +4950,7 @@ class CLIManager:
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        prompt: bool = Options.prompt,
     ):
         """
 
@@ -4836,6 +5021,7 @@ class CLIManager:
                 weights,
                 salt,
                 __version_as_int__,
+                prompt=prompt,
             )
         )
 

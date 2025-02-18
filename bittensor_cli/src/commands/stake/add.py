@@ -108,14 +108,14 @@ async def stake_add(
                 return
             else:
                 err_out(
-                    f"\n{failure_prelude} with error: {format_error_message(e, subtensor.substrate)}"
+                    f"\n{failure_prelude} with error: {format_error_message(e)}"
                 )
             return
         else:
             await response.process_events()
             if not await response.is_success:
                 err_out(
-                    f"\n{failure_prelude} with error: {format_error_message(await response.error_message, subtensor.substrate)}"
+                    f"\n{failure_prelude} with error: {format_error_message(await response.error_message)}"
                 )
             else:
                 block_hash = await subtensor.substrate.get_chain_head()
@@ -181,14 +181,14 @@ async def stake_add(
             )
         except SubstrateRequestException as e:
             err_out(
-                f"\n{failure_prelude} with error: {format_error_message(e, subtensor.substrate)}"
+                f"\n{failure_prelude} with error: {format_error_message(e)}"
             )
             return
         else:
             await response.process_events()
             if not await response.is_success:
                 err_out(
-                    f"\n{failure_prelude} with error: {format_error_message(await response.error_message, subtensor.substrate)}"
+                    f"\n{failure_prelude} with error: {format_error_message(await response.error_message)}"
                 )
             else:
                 new_balance, new_stake = await asyncio.gather(
@@ -593,7 +593,7 @@ The columns are as follows:
 
     safe_staking_description = """
     - [bold white]Rate Tolerance[/bold white]: Maximum acceptable alpha rate. If the rate exceeds this tolerance, the transaction will be limited or rejected.
-    - [bold white]Partial staking[/bold white]: If True, allows staking up to the rate tolerance limit. If False, the entire transaction will fail if rate tolerance is exceeded."""
+    - [bold white]Partial staking[/bold white]: If True, allows staking up to the rate tolerance limit. If False, the entire transaction will fail if rate tolerance is exceeded.\n"""
 
     console.print(base_description + (safe_staking_description if safe_staking else ""))
 

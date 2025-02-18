@@ -561,7 +561,7 @@ async def _unstake_extrinsic(
         if not await response.is_success:
             err_out(
                 f"{failure_prelude} with error: "
-                f"{format_error_message(await response.error_message, subtensor.substrate)}"
+                f"{format_error_message(await response.error_message)}"
             )
             return
 
@@ -667,14 +667,14 @@ async def _safe_unstake_extrinsic(
             return
         else:
             err_out(
-                f"\n{failure_prelude} with error: {format_error_message(e, subtensor.substrate)}"
+                f"\n{failure_prelude} with error: {format_error_message(e)}"
             )
         return
 
     await response.process_events()
     if not await response.is_success:
         err_out(
-            f"\n{failure_prelude} with error: {format_error_message(await response.error_message, subtensor.substrate)}"
+            f"\n{failure_prelude} with error: {format_error_message(await response.error_message)}"
         )
         return
 
@@ -1141,6 +1141,6 @@ The columns are as follows:
 
     safe_staking_description = """
     - [bold white]Rate Tolerance[/bold white]: Maximum acceptable alpha rate. If the rate reduces below this tolerance, the transaction will be limited or rejected.
-    - [bold white]Partial unstaking[/bold white]: If True, allows unstaking up to the rate tolerance limit. If False, the entire transaction will fail if rate tolerance is exceeded."""
+    - [bold white]Partial unstaking[/bold white]: If True, allows unstaking up to the rate tolerance limit. If False, the entire transaction will fail if rate tolerance is exceeded.\n"""
 
     console.print(base_description + (safe_staking_description if safe_staking else ""))

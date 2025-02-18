@@ -1,4 +1,5 @@
 import ast
+from collections import namedtuple
 import math
 import os
 import sqlite3
@@ -13,7 +14,7 @@ import re
 
 from bittensor_wallet import Wallet, Keypair
 from bittensor_wallet.utils import SS58_FORMAT
-from bittensor_wallet.errors import KeyFileError
+from bittensor_wallet.errors import KeyFileError, PasswordError
 from bittensor_wallet import utils
 from jinja2 import Template
 from markupsafe import Markup
@@ -31,11 +32,29 @@ from bittensor_cli.src import defaults, Constants
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
-    from async_substrate_interface.async_substrate import AsyncSubstrateInterface
 
 console = Console()
 err_console = Console(stderr=True)
 verbose_console = Console(quiet=True)
+
+UnlockStatus = namedtuple("UnlockStatus", ["success", "message"])
+
+
+class _Hotkey:
+    def __init__(self, hotkey_ss58=None):
+        self.ss58_address = hotkey_ss58
+
+
+class WalletLike:
+    def __init__(self, name=None, hotkey_ss58=None, hotkey_str=None):
+        self.name = name
+        self.hotkey_ss58 = hotkey_ss58
+        self.hotkey_str = hotkey_str
+        self._hotkey = _Hotkey(hotkey_ss58)
+
+    @property
+    def hotkey(self):
+        return self._hotkey
 
 
 def print_console(message: str, colour: str, title: str, console: Console):
@@ -196,13 +215,14 @@ def convert_root_weight_uids_and_vals_to_tensor(
 
 
 def get_hotkey_wallets_for_wallet(
-    wallet: Wallet, show_nulls: bool = False
+    wallet: Wallet, show_nulls: bool = False, show_encrypted: bool = False
 ) -> list[Optional[Wallet]]:
     """
     Returns wallet objects with hotkeys for a single given wallet
 
     :param wallet: Wallet object to use for the path
     :param show_nulls: will add `None` into the output if a hotkey is encrypted or not on the device
+    :param show_encrypted: will add some basic info about the encrypted hotkey
 
     :return: a list of wallets (with Nones included for cases of a hotkey being encrypted or not on the device, if
              `show_nulls` is set to `True`)
@@ -218,12 +238,18 @@ def get_hotkey_wallets_for_wallet(
         hotkey_for_name = Wallet(path=str(wallet_path), name=wallet.name, hotkey=h_name)
         try:
             if (
-                hotkey_for_name.hotkey_file.exists_on_device()
+                (exists := hotkey_for_name.hotkey_file.exists_on_device())
                 and not hotkey_for_name.hotkey_file.is_encrypted()
                 # and hotkey_for_name.coldkeypub.ss58_address
                 and hotkey_for_name.hotkey.ss58_address
             ):
                 hotkey_wallets.append(hotkey_for_name)
+            elif (
+                show_encrypted and exists and hotkey_for_name.hotkey_file.is_encrypted()
+            ):
+                hotkey_wallets.append(
+                    WalletLike(str(wallet_path), "<ENCRYPTED>", h_name)
+                )
             elif show_nulls:
                 hotkey_wallets.append(None)
         except (
@@ -240,11 +266,14 @@ def get_hotkey_wallets_for_wallet(
 def get_coldkey_wallets_for_path(path: str) -> list[Wallet]:
     """Gets all wallets with coldkeys from a given path"""
     wallet_path = Path(path).expanduser()
-    wallets = [
-        Wallet(name=directory.name, path=path)
-        for directory in wallet_path.iterdir()
-        if directory.is_dir()
-    ]
+    try:
+        wallets = [
+            Wallet(name=directory.name, path=path)
+            for directory in wallet_path.iterdir()
+            if directory.is_dir()
+        ]
+    except FileNotFoundError:
+        wallets = []
     return wallets
 
 
@@ -448,16 +477,13 @@ def get_explorer_url_for_network(
     return explorer_urls
 
 
-def format_error_message(
-    error_message: Union[dict, Exception], substrate: "AsyncSubstrateInterface"
-) -> str:
+def format_error_message(error_message: Union[dict, Exception]) -> str:
     """
     Formats an error message from the Subtensor error information for use in extrinsics.
 
     Args:
         error_message: A dictionary containing the error information from Subtensor, or a SubstrateRequestException
                        containing dictionary literal args.
-        substrate: The initialised SubstrateInterface object to use.
 
     Returns:
         str: A formatted error message string.
@@ -479,7 +505,7 @@ def format_error_message(
                     elif all(x in d for x in ["code", "message", "data"]):
                         new_error_message = d
                         break
-            except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+            except ValueError:
                 pass
         if new_error_message is None:
             return_val = " ".join(error_message.args)
@@ -500,7 +526,10 @@ def format_error_message(
 
             # subtensor custom error marker
             if err_data.startswith("Custom error:"):
-                err_description = f"{err_data} | Please consult https://docs.bittensor.com/subtensor-nodes/subtensor-error-messages"
+                err_description = (
+                    f"{err_data} | Please consult "
+                    f"https://docs.bittensor.com/subtensor-nodes/subtensor-error-messages"
+                )
             else:
                 err_description = err_data
 
@@ -535,7 +564,8 @@ def decode_hex_identity_dict(info_dictionary) -> dict[str, Any]:
     """
     Decodes hex-encoded strings in a dictionary.
 
-    This function traverses the given dictionary, identifies hex-encoded strings, and decodes them into readable strings. It handles nested dictionaries and lists within the dictionary.
+    This function traverses the given dictionary, identifies hex-encoded strings, and decodes them into readable
+        strings. It handles nested dictionaries and lists within the dictionary.
 
     Args:
         info_dictionary (dict): The dictionary containing hex-encoded strings to decode.
@@ -557,7 +587,7 @@ def decode_hex_identity_dict(info_dictionary) -> dict[str, Any]:
     def get_decoded(data: str) -> str:
         """Decodes a hex-encoded string."""
         try:
-            return bytes.fromhex(data[2:]).decode()
+            return hex_to_bytes(data).decode()
         except UnicodeDecodeError:
             print(f"Could not decode: {key}: {item}")
 
@@ -1096,6 +1126,7 @@ def prompt_for_identity(
 
 
 def prompt_for_subnet_identity(
+    current_identity: dict,
     subnet_name: Optional[str],
     github_repo: Optional[str],
     subnet_contact: Optional[str],
@@ -1180,7 +1211,7 @@ def prompt_for_subnet_identity(
                 prompt,
                 rejection=rejection_func,
                 rejection_text=rejection_msg,
-                default=None,  # Maybe we can add some defaults later
+                default=current_identity.get(key, ""),
                 show_default=True,
             )
 
@@ -1262,11 +1293,14 @@ def is_linux():
     """Returns True if the operating system is Linux."""
     return platform.system().lower() == "linux"
 
+
 def validate_rate_tolerance(value: Optional[float]) -> Optional[float]:
     """Validates rate tolerance input"""
     if value is not None:
         if value < 0:
-            raise typer.BadParameter("Rate tolerance cannot be negative (less than 0%).")
+            raise typer.BadParameter(
+                "Rate tolerance cannot be negative (less than 0%)."
+            )
         if value > 1:
             raise typer.BadParameter("Rate tolerance cannot be greater than 1 (100%).")
         if value > 0.5:
@@ -1275,3 +1309,79 @@ def validate_rate_tolerance(value: Optional[float]) -> Optional[float]:
                 "This may result in unfavorable transaction execution.[/yellow]"
             )
     return value
+
+
+def unlock_key(
+    wallet: Wallet, unlock_type="cold", print_out: bool = True
+) -> "UnlockStatus":
+    """
+    Attempts to decrypt a wallet's coldkey or hotkey
+    Args:
+        wallet: a Wallet object
+        unlock_type: the key type, 'cold' or 'hot'
+        print_out:  whether to print out the error message to the err_console
+
+    Returns: UnlockStatus for success status of unlock, with error message if unsuccessful
+
+    """
+    if unlock_type == "cold":
+        unlocker = "unlock_coldkey"
+    elif unlock_type == "hot":
+        unlocker = "unlock_hotkey"
+    else:
+        raise ValueError(
+            f"Invalid unlock type provided: {unlock_type}. Must be 'cold' or 'hot'."
+        )
+    try:
+        getattr(wallet, unlocker)()
+        return UnlockStatus(True, "")
+    except PasswordError:
+        err_msg = f"The password used to decrypt your {unlock_type.capitalize()}key Keyfile is invalid."
+        if print_out:
+            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+        return UnlockStatus(False, err_msg)
+    except KeyFileError:
+        err_msg = f"{unlock_type.capitalize()}key Keyfile is corrupt, non-writable, or non-readable, or non-existent."
+        if print_out:
+            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+        return UnlockStatus(False, err_msg)
+
+
+def hex_to_bytes(hex_str: str) -> bytes:
+    """
+    Converts a hex-encoded string into bytes. Handles 0x-prefixed and non-prefixed hex-encoded strings.
+    """
+    if hex_str.startswith("0x"):
+        bytes_result = bytes.fromhex(hex_str[2:])
+    else:
+        bytes_result = bytes.fromhex(hex_str)
+    return bytes_result
+
+
+def blocks_to_duration(blocks: int) -> str:
+    """Convert blocks to human readable duration string using two largest units.
+
+    Args:
+        blocks (int): Number of blocks (12s per block)
+
+    Returns:
+        str: Duration string like '2d 5h', '3h 45m', '2m 10s', or '0s'
+    """
+    if blocks <= 0:
+        return "0s"
+
+    seconds = blocks * 12
+    intervals = [
+        ("d", 86400),  # 60 * 60 * 24
+        ("h", 3600),  # 60 * 60
+        ("m", 60),
+        ("s", 1),
+    ]
+    results = []
+    for unit, seconds_per_unit in intervals:
+        unit_count = seconds // seconds_per_unit
+        seconds %= seconds_per_unit
+        if unit_count > 0:
+            results.append(f"{unit_count}{unit}")
+    # Return only the first two non-zero units
+    return " ".join(results[:2]) or "0s"

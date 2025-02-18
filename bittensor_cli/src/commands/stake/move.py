@@ -178,7 +178,7 @@ def prompt_stake_amount(
     """
     while True:
         amount_input = Prompt.ask(
-            f"\nEnter the amount to {action_name}"
+            f"\nEnter the amount to {action_name} "
             f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{Balance.get_unit(netuid)}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] "
             f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}](max: {current_balance})[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] "
             f"or "
@@ -812,7 +812,7 @@ async def transfer_stake(
     if not await response.is_success:
         err_console.print(
             f":cross_mark: [red]Failed[/red] with error: "
-            f"{format_error_message(await response.error_message, subtensor.substrate)}"
+            f"{format_error_message(await response.error_message)}"
         )
         return False
 
@@ -971,7 +971,7 @@ async def swap_stake(
     if not await response.is_success:
         err_console.print(
             f":cross_mark: [red]Failed[/red] with error: "
-            f"{format_error_message(await response.error_message, subtensor.substrate)}"
+            f"{format_error_message(await response.error_message)}"
         )
         return False
 

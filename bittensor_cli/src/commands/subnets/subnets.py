@@ -35,12 +35,13 @@ from bittensor_cli.src.bittensor.utils import (
     update_metadata_table,
     prompt_for_identity,
     get_subnet_name,
+    unlock_key,
 )
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 
-TAO_WEIGHT = 0.018
+TAO_WEIGHT = 0.18
 
 # helpers and extrinsics
 
@@ -183,7 +184,7 @@ async def register_subnetwork_extrinsic(
         await response.process_events()
         if not await response.is_success:
             err_console.print(
-                f":cross_mark: [red]Failed[/red]: {format_error_message(await response.error_message, substrate)}"
+                f":cross_mark: [red]Failed[/red]: {format_error_message(await response.error_message)}"
             )
             await asyncio.sleep(0.5)
             return False
@@ -326,7 +327,7 @@ async def subnets_list(
             if netuid == 0:
                 emission_tao = 0.0
             else:
-                emission_tao = subnet.emission.tao
+                emission_tao = subnet.tao_in_emission.tao
 
             alpha_in_value = (
                 f"{millify_tao(subnet.alpha_in.tao)}"
@@ -399,7 +400,7 @@ async def subnets_list(
             )
 
         total_emissions = round(
-            sum(float(subnet.emission.tao) for subnet in subnets if subnet.netuid != 0),
+            sum(subnet.tao_in_emission.tao for subnet in subnets if subnet.netuid != 0),
             4,
         )
         total_rate = round(
@@ -528,7 +529,7 @@ async def subnets_list(
             if netuid == 0:
                 emission_tao = 0.0
             else:
-                emission_tao = subnet.emission.tao
+                emission_tao = subnet.tao_in_emission.tao
 
             market_cap = (subnet.alpha_in.tao + subnet.alpha_out.tao) * subnet.price.tao
             supply = subnet.alpha_in.tao + subnet.alpha_out.tao
@@ -657,7 +658,7 @@ async def subnets_list(
         # Calculate totals
         total_netuids = len(subnets)
         _total_emissions = sum(
-            float(subnet.emission.tao) for subnet in subnets if subnet.netuid != 0
+            subnet.tao_in_emission.tao for subnet in subnets if subnet.netuid != 0
         )
         total_emissions = (
             f"{millify_tao(_total_emissions)}"
@@ -665,9 +666,7 @@ async def subnets_list(
             else f"{_total_emissions:,.2f}"
         )
 
-        total_rate = sum(
-            float(subnet.price.tao) for subnet in subnets if subnet.netuid != 0
-        )
+        total_rate = sum(subnet.price.tao for subnet in subnets if subnet.netuid != 0)
         total_rate = (
             f"{millify_tao(total_rate)}" if not verbose else f"{total_rate:,.2f}"
         )
@@ -804,6 +803,7 @@ async def subnets_list(
 async def show(
     subtensor: "SubtensorInterface",
     netuid: int,
+    sort: bool = False,
     max_rows: Optional[int] = None,
     delegate_selection: bool = False,
     verbose: bool = False,
@@ -850,18 +850,6 @@ async def show(
         )
 
         table.add_column("[bold white]Position", style="white", justify="center")
-        # table.add_column(
-        #     f"[bold white]Total Stake ({Balance.get_unit(0)})",
-        #     style=COLOR_PALETTE["POOLS"]["ALPHA_IN"],
-        #     justify="center",
-        # )
-        # ------- Temporary columns for testing -------
-        # table.add_column(
-        #     "Alpha (τ)",
-        #     style=COLOR_PALETTE["POOLS"]["EXTRA_2"],
-        #     no_wrap=True,
-        #     justify="right",
-        # )
         table.add_column(
             "Tao (τ)",
             style=COLOR_PALETTE["POOLS"]["EXTRA_2"],
@@ -869,7 +857,6 @@ async def show(
             justify="right",
             footer=f"{tao_sum:.4f} τ" if verbose else f"{millify_tao(tao_sum)} τ",
         )
-        # ------- End Temporary columns for testing -------
         table.add_column(
             f"[bold white]Emission ({Balance.get_unit(0)}/block)",
             style=COLOR_PALETTE["POOLS"]["EMISSION"],
@@ -1075,14 +1062,6 @@ async def show(
             pad_edge=True,
         )
 
-        # For hotkey_block_emission calculation
-        emission_sum = sum(
-            [
-                subnet_state.emission[idx].tao
-                for idx in range(len(subnet_state.emission))
-            ]
-        )
-
         # For table footers
         alpha_sum = sum(
             [
@@ -1102,7 +1081,16 @@ async def show(
                 for idx in range(len(subnet_state.tao_stake))
             ]
         )
-        relative_emissions_sum = 0
+        dividends_sum = sum(
+            subnet_state.dividends[idx] for idx in range(len(subnet_state.dividends))
+        )
+        emission_sum = sum(
+            [
+                subnet_state.emission[idx].tao
+                for idx in range(len(subnet_state.emission))
+            ]
+        )
+
         owner_hotkeys = await subtensor.get_owned_hotkeys(subnet_info.owner_coldkey)
         if subnet_info.owner_hotkey not in owner_hotkeys:
             owner_hotkeys.append(subnet_info.owner_hotkey)
@@ -1118,25 +1106,24 @@ async def show(
         sorted_indices = sorted(
             range(len(subnet_state.hotkeys)),
             key=lambda i: (
-                # Sort by owner status first
-                not (
-                    subnet_state.coldkeys[i] == subnet_info.owner_coldkey
-                    or subnet_state.hotkeys[i] in owner_hotkeys
-                ),
-                # Then sort by stake amount (higher stakes first)
-                -subnet_state.total_stake[i].tao,
+                # If sort is True, sort only by UIDs
+                i
+                if sort
+                else (
+                    # Otherwise
+                    # Sort by owner status first
+                    not (
+                        subnet_state.coldkeys[i] == subnet_info.owner_coldkey
+                        or subnet_state.hotkeys[i] in owner_hotkeys
+                    ),
+                    # Then sort by stake amount (higher stakes first)
+                    -subnet_state.total_stake[i].tao,
+                )
             ),
         )
 
         rows = []
         for idx in sorted_indices:
-            hotkey_block_emission = (
-                subnet_state.emission[idx].tao / emission_sum
-                if emission_sum != 0
-                else 0
-            )
-            relative_emissions_sum += hotkey_block_emission
-
             # Get identity for this uid
             coldkey_identity = identities.get(subnet_state.coldkeys[idx], {}).get(
                 "name", ""
@@ -1175,11 +1162,9 @@ async def show(
                     f"τ {tao_stake.tao:.4f}"
                     if verbose
                     else f"τ {millify_tao(tao_stake)}",  # Tao Stake
-                    # str(subnet_state.dividends[idx]),
-                    f"{Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao:.5f}",  # Dividends
-                    f"{subnet_state.incentives[idx]:.4f}",  # Incentive
-                    # f"{Balance.from_tao(hotkey_block_emission).set_unit(netuid_).tao:.5f}",  # Emissions relative
-                    f"{Balance.from_tao(subnet_state.emission[idx].tao).set_unit(netuid_).tao:.5f} {subnet_info.symbol}",  # Emissions
+                    f"{subnet_state.dividends[idx]:.6f}",  # Dividends
+                    f"{subnet_state.incentives[idx]:.6f}",  # Incentive
+                    f"{Balance.from_tao(subnet_state.emission[idx].tao).set_unit(netuid_).tao:.6f} {subnet_info.symbol}",  # Emissions
                     f"{subnet_state.hotkeys[idx][:6]}"
                     if not verbose
                     else f"{subnet_state.hotkeys[idx]}",  # Hotkey
@@ -1201,7 +1186,6 @@ async def show(
             if verbose
             else f"{millify_tao(stake_sum)} {subnet_info.symbol}",
         )
-        # ------- Temporary columns for testing -------
         table.add_column(
             f"Alpha ({Balance.get_unit(netuid_)})",
             style=COLOR_PALETTE["POOLS"]["EXTRA_2"],
@@ -1220,24 +1204,14 @@ async def show(
             if verbose
             else f"{millify_tao(tao_sum)} {subnet_info.symbol}",
         )
-        # ------- End Temporary columns for testing -------
         table.add_column(
             "Dividends",
             style=COLOR_PALETTE["POOLS"]["EMISSION"],
             no_wrap=True,
             justify="center",
-            footer=f"{relative_emissions_sum:.3f}",
+            footer=f"{dividends_sum:.3f}",
         )
         table.add_column("Incentive", style="#5fd7ff", no_wrap=True, justify="center")
-
-        # Hiding relative emissions for now
-        # table.add_column(
-        #     "Emissions",
-        #     style="light_goldenrod2",
-        #     no_wrap=True,
-        #     justify="center",
-        #     footer=f"{relative_emissions_sum:.3f}",
-        # )
         table.add_column(
             f"Emissions ({Balance.get_unit(netuid_)})",
             style=COLOR_PALETTE["POOLS"]["EMISSION"],
@@ -1349,7 +1323,7 @@ async def show(
                         return hotkey
                     else:
                         console.print(
-                            f"[red]Invalid UID. Please enter a valid UID from the table above[/red]"
+                            "[red]Invalid UID. Please enter a valid UID from the table above[/red]"
                         )
                 except ValueError:
                     console.print("[red]Please enter a valid number[/red]")
@@ -2053,3 +2027,146 @@ async def metagraph_cmd(
                 table.add_row(*row)
 
         console.print(table)
+
+
+def create_identity_table(title: str = None):
+    if not title:
+        title = "Subnet Identity"
+
+    table = Table(
+        Column(
+            "Item",
+            justify="right",
+            style=COLOR_PALETTE["GENERAL"]["SUBHEADING_MAIN"],
+            no_wrap=True,
+        ),
+        Column("Value", style=COLOR_PALETTE["GENERAL"]["SUBHEADING"]),
+        title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]{title}\n",
+        show_footer=True,
+        show_edge=False,
+        header_style="bold white",
+        border_style="bright_black",
+        style="bold",
+        title_justify="center",
+        show_lines=False,
+        pad_edge=True,
+    )
+    return table
+
+
+async def set_identity(
+    wallet: "Wallet",
+    subtensor: "SubtensorInterface",
+    netuid: int,
+    subnet_identity: dict,
+    prompt: bool = False,
+) -> bool:
+    """Set identity information for a subnet"""
+
+    if not await subtensor.subnet_exists(netuid):
+        err_console.print(f"Subnet {netuid} does not exist")
+        return False
+
+    identity_data = {
+        "netuid": netuid,
+        "subnet_name": subnet_identity.get("subnet_name", ""),
+        "github_repo": subnet_identity.get("github_repo", ""),
+        "subnet_contact": subnet_identity.get("subnet_contact", ""),
+        "subnet_url": subnet_identity.get("subnet_url", ""),
+        "discord": subnet_identity.get("discord", ""),
+        "description": subnet_identity.get("description", ""),
+        "additional": subnet_identity.get("additional", ""),
+    }
+
+    if not unlock_key(wallet).success:
+        return False
+
+    if prompt:
+        if not Confirm.ask(
+            "Are you sure you want to set subnet's identity? This is subject to a fee."
+        ):
+            return False
+
+    call = await subtensor.substrate.compose_call(
+        call_module="SubtensorModule",
+        call_function="set_subnet_identity",
+        call_params=identity_data,
+    )
+
+    with console.status(
+        " :satellite: [dark_sea_green3]Setting subnet identity on-chain...",
+        spinner="earth",
+    ):
+        success, err_msg = await subtensor.sign_and_send_extrinsic(call, wallet)
+
+        if not success:
+            err_console.print(f"[red]:cross_mark: Failed![/red] {err_msg}")
+            return False
+
+        console.print(
+            ":white_heavy_check_mark: [dark_sea_green3]Successfully set subnet identity\n"
+        )
+
+        subnet = await subtensor.subnet(netuid)
+        identity = subnet.subnet_identity if subnet else None
+
+    if identity:
+        table = create_identity_table(title=f"New Subnet {netuid} Identity")
+        table.add_row("Netuid", str(netuid))
+        for key in [
+            "subnet_name",
+            "github_repo",
+            "subnet_contact",
+            "subnet_url",
+            "discord",
+            "description",
+            "additional",
+        ]:
+            value = getattr(identity, key, None)
+            table.add_row(key, str(value) if value else "~")
+        console.print(table)
+
+    return True
+
+
+async def get_identity(subtensor: "SubtensorInterface", netuid: int, title: str = None):
+    """Fetch and display existing subnet identity information."""
+    if not title:
+        title = "Subnet Identity"
+
+    if not await subtensor.subnet_exists(netuid):
+        print_error(
+            f"Subnet {netuid} does not exist."
+        )
+        raise typer.Exit()
+
+    with console.status(
+        ":satellite: [bold green]Querying subnet identity...", spinner="earth"
+    ):
+        subnet = await subtensor.subnet(netuid)
+        identity = subnet.subnet_identity if subnet else None
+
+    if not identity:
+        err_console.print(
+            f"Existing subnet identity not found"
+            f" for subnet [blue]{netuid}[/blue]"
+            f" on {subtensor}"
+        )
+        return {}
+
+    if identity:
+        table = create_identity_table(title=f"Current Subnet {netuid} Identity")
+        table.add_row("Netuid", str(netuid))
+        for key in [
+            "subnet_name",
+            "github_repo",
+            "subnet_contact",
+            "subnet_url",
+            "discord",
+            "description",
+            "additional",
+        ]:
+            value = getattr(identity, key, None)
+            table.add_row(key, str(value) if value else "~")
+        console.print(table)
+        return identity

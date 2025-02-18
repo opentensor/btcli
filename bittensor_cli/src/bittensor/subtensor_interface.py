@@ -402,7 +402,7 @@ class SubtensorInterface:
         netuids: Optional[list[int]] = None,
         block_hash: Optional[str] = None,
         reuse_block: bool = False,
-    ) -> dict[str, dict[int, "Balance"]]:
+    ) -> dict[str, dict[int, Balance]]:
         """
         Returns the total stake held on a hotkey.
 
@@ -1064,11 +1064,9 @@ class SubtensorInterface:
             if await response.is_success:
                 return True, ""
             else:
-                return False, format_error_message(
-                    await response.error_message, substrate=self.substrate
-                )
+                return False, format_error_message(await response.error_message)
         except SubstrateRequestException as e:
-            return False, format_error_message(e, substrate=self.substrate)
+            return False, format_error_message(e)
 
     async def get_children(self, hotkey, netuid) -> tuple[bool, list, str]:
         """
@@ -1098,7 +1096,7 @@ class SubtensorInterface:
             else:
                 return True, [], ""
         except SubstrateRequestException as e:
-            return False, [], format_error_message(e, self.substrate)
+            return False, [], format_error_message(e)
 
     async def get_subnet_hyperparameters(
         self, netuid: int, block_hash: Optional[str] = None

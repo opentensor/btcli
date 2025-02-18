@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING, Union, Optional
 
 import typer
 from bittensor_wallet import Wallet
-from bittensor_wallet.errors import KeyFileError
 from rich import box
 from rich.table import Column, Table
 from rich.prompt import Confirm
@@ -17,6 +16,8 @@ from bittensor_cli.src.bittensor.utils import (
     print_error,
     print_verbose,
     normalize_hyperparameters,
+    unlock_key,
+    blocks_to_duration,
 )
 
 if TYPE_CHECKING:
@@ -106,13 +107,10 @@ async def set_hyperparameter_extrinsic(
         )
         return False
 
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success:
         return False
 
-    extrinsic = HYPERPARAMS.get(parameter)
+    extrinsic, sudo_ = HYPERPARAMS.get(parameter, ("", False))
     if extrinsic is None:
         err_console.print(":cross_mark: [red]Invalid hyperparameter specified.[/red]")
         return False
@@ -152,11 +150,17 @@ async def set_hyperparameter_extrinsic(
             call_params[str(value_argument["name"])] = value
 
         # create extrinsic call
-        call = await substrate.compose_call(
+        call_ = await substrate.compose_call(
             call_module="AdminUtils",
             call_function=extrinsic,
             call_params=call_params,
         )
+        if sudo_:
+            call = await substrate.compose_call(
+                call_module="Sudo", call_function="sudo", call_params={"call": call_}
+            )
+        else:
+            call = call_
         success, err_msg = await subtensor.sign_and_send_extrinsic(
             call, wallet, wait_for_inclusion, wait_for_finalization
         )
@@ -266,14 +270,22 @@ def format_call_data(call_data: dict) -> str:
     call_info = call_details[0]
     call_function, call_args = next(iter(call_info.items()))
 
-    # Extract the argument, handling tuple values
-    formatted_args = ", ".join(
-        str(arg[0]) if isinstance(arg, tuple) else str(arg)
-        for arg in call_args.values()
-    )
+    # Format arguments, handle nested/large payloads
+    formatted_args = []
+    for arg_name, arg_value in call_args.items():
+        if isinstance(arg_value, (tuple, list, dict)):
+            # For large nested, show abbreviated version
+            content_str = str(arg_value)
+            if len(content_str) > 20:
+                formatted_args.append(f"{arg_name}: ... [{len(content_str)}] ...")
+            else:
+                formatted_args.append(f"{arg_name}: {arg_value}")
+        else:
+            formatted_args.append(f"{arg_name}: {arg_value}")
 
     # Format the final output string
-    return f"{call_function}({formatted_args})"
+    args_str = ", ".join(formatted_args)
+    return f"{module}.{call_function}({args_str})"
 
 
 def _validate_proposal_hash(proposal_hash: str) -> bool:
@@ -464,19 +476,20 @@ async def sudo_set_hyperparameter(
 
     normalized_value: Union[str, bool]
     if param_name in [
-        "network_registration_allowed",
+        "registration_allowed",
         "network_pow_registration_allowed",
         "commit_reveal_weights_enabled",
         "liquid_alpha_enabled",
     ]:
-        normalized_value = param_value.lower() in ["true", "1"]
+        normalized_value = param_value.lower() in ["true", "True", "1"]
     else:
         normalized_value = param_value
 
     is_allowed_value, value = allowed_value(param_name, normalized_value)
     if not is_allowed_value:
         err_console.print(
-            f"Hyperparameter {param_name} value is not within bounds. Value is {normalized_value} but must be {value}"
+            f"Hyperparameter [dark_orange]{param_name}[/dark_orange] value is not within bounds. "
+            f"Value is {normalized_value} but must be {value}"
         )
         return
 
@@ -572,24 +585,30 @@ async def get_senate(subtensor: "SubtensorInterface"):
     return console.print(table)
 
 
-async def proposals(subtensor: "SubtensorInterface"):
+async def proposals(subtensor: "SubtensorInterface", verbose: bool):
     console.print(
         ":satellite: Syncing with chain: [white]{}[/white] ...".format(
             subtensor.network
         )
     )
-    print_verbose("Fetching senate members & proposals")
     block_hash = await subtensor.substrate.get_chain_head()
-    senate_members, all_proposals = await asyncio.gather(
+    senate_members, all_proposals, current_block = await asyncio.gather(
         _get_senate_members(subtensor, block_hash),
         _get_proposals(subtensor, block_hash),
+        subtensor.substrate.get_block_number(block_hash),
     )
 
-    print_verbose("Fetching member information from Chain")
     registered_delegate_info: dict[
         str, DelegatesDetails
     ] = await subtensor.get_delegate_identities()
 
+    title = (
+        f"[bold #4196D6]Bittensor Governance Proposals[/bold #4196D6]\n"
+        f"[steel_blue3]Current Block:[/steel_blue3] {current_block}\t"
+        f"[steel_blue3]Network:[/steel_blue3] {subtensor.network}\n\n"
+        f"[steel_blue3]Active Proposals:[/steel_blue3] {len(all_proposals)}\t"
+        f"[steel_blue3]Senate Size:[/steel_blue3] {len(senate_members)}\n"
+    )
     table = Table(
         Column(
             "[white]HASH",
@@ -604,8 +623,8 @@ async def proposals(subtensor: "SubtensorInterface"):
             style="rgb(50,163,219)",
         ),
         Column("[white]END", style="bright_cyan"),
-        Column("[white]CALLDATA", style="dark_sea_green"),
-        title=f"\n[dark_orange]Proposals\t\t\nActive Proposals: {len(all_proposals)}\t\tSenate Size: {len(senate_members)}\nNetwork: {subtensor.network}",
+        Column("[white]CALLDATA", style="dark_sea_green", width=30),
+        title=title,
         show_footer=True,
         box=box.SIMPLE_HEAVY,
         pad_edge=False,
@@ -613,16 +632,36 @@ async def proposals(subtensor: "SubtensorInterface"):
         border_style="bright_black",
     )
     for hash_, (call_data, vote_data) in all_proposals.items():
+        blocks_remaining = vote_data.end - current_block
+        if blocks_remaining > 0:
+            duration_str = blocks_to_duration(blocks_remaining)
+            vote_end_cell = f"{vote_data.end} [dim](in {duration_str})[/dim]"
+        else:
+            vote_end_cell = f"{vote_data.end} [red](expired)[/red]"
+
+        ayes_threshold = (
+            (len(vote_data.ayes) / vote_data.threshold * 100)
+            if vote_data.threshold > 0
+            else 0
+        )
+        nays_threshold = (
+            (len(vote_data.nays) / vote_data.threshold * 100)
+            if vote_data.threshold > 0
+            else 0
+        )
         table.add_row(
-            hash_,
+            hash_ if verbose else f"{hash_[:4]}...{hash_[-4:]}",
             str(vote_data.threshold),
-            str(len(vote_data.ayes)),
-            str(len(vote_data.nays)),
+            f"{len(vote_data.ayes)} ({ayes_threshold:.2f}%)",
+            f"{len(vote_data.nays)} ({nays_threshold:.2f}%)",
             display_votes(vote_data, registered_delegate_info),
-            str(vote_data.end),
+            vote_end_cell,
             format_call_data(call_data),
         )
-    return console.print(table)
+    console.print(table)
+    console.print(
+        "\n[dim]* Both Ayes and Nays percentages are calculated relative to the proposal's threshold.[/dim]"
+    )
 
 
 async def senate_vote(
@@ -653,10 +692,7 @@ async def senate_vote(
         return False
 
     # Unlock the wallet.
-    try:
-        wallet.unlock_hotkey()
-        wallet.unlock_coldkey()
-    except KeyFileError:
+    if not unlock_key(wallet, "hot").success and unlock_key(wallet, "cold").success:
         return False
 
     console.print(f"Fetching proposals in [dark_orange]network: {subtensor.network}")
@@ -732,10 +768,7 @@ async def set_take(
         f"Setting take on [{COLOR_PALETTE['GENERAL']['LINKS']}]network: {subtensor.network}"
     )
 
-    try:
-        wallet.unlock_hotkey()
-        wallet.unlock_coldkey()
-    except KeyFileError:
+    if not unlock_key(wallet, "hot").success and unlock_key(wallet, "cold").success:
         return False
 
     result_ = await _do_set_take()
