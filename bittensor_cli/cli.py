@@ -72,20 +72,7 @@ except ImportError:
         pass
 
 
-__version__ = "9.0.0"
 
-
-_core_version = re.match(r"^\d+\.\d+\.\d+", __version__).group(0)
-_version_split = _core_version.split(".")
-__version_info__ = tuple(int(part) for part in _version_split)
-_version_int_base = 1000
-assert max(__version_info__) < _version_int_base
-
-__version_as_int__: int = sum(
-    e * (_version_int_base**i) for i, e in enumerate(reversed(__version_info__))
-)
-assert __version_as_int__ < 2**31  # fits in int32
-__new_signature_version__ = 360
 
 _epilog = "Made with [bold red]:heart:[/bold red] by The Openτensor Foundaτion"
 
@@ -484,6 +471,8 @@ def version_callback(value: bool):
     """
     Prints the current version/branch-name
     """
+    from bittensor_cli import __version__
+
     if value:
         try:
             repo = Repo(os.path.dirname(os.path.dirname(__file__)))
@@ -4915,6 +4904,7 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
 
+        from bittensor_cli import __version_as_int__
         return self._run_command(
             weights_cmds.reveal_weights(
                 self.initialize_chain(network),
@@ -5012,6 +5002,7 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
+        from bittensor_cli import __version_as_int__
         return self._run_command(
             weights_cmds.commit_weights(
                 self.initialize_chain(network),

@@ -49,7 +49,7 @@ with open(path.join(here, "README.md"), encoding="utf-8") as f:
 
 # loading version from setup.py
 with codecs.open(
-    os.path.join(here, "bittensor_cli/cli.py"), encoding="utf-8"
+    os.path.join(here, "bittensor_cli/__init__.py"), encoding="utf-8"
 ) as init_file:
     version_match = re.search(
         r"^__version__ = ['\"]([^'\"]*)['\"]", init_file.read(), re.M
