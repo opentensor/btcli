@@ -256,7 +256,7 @@ async def get_childkey_take(subtensor, hotkey: str, netuid: int) -> Optional[int
             params=[hotkey, netuid],
         )
         if childkey_take_:
-            return int(childkey_take_.value)
+            return int(childkey_take_)
 
     except SubstrateRequestException as e:
         err_console.print(f"Error querying ChildKeys: {format_error_message(e)}")
