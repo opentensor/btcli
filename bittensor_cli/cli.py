@@ -3221,13 +3221,34 @@ class CLIManager:
                 else:
                     print_error("Invalid hotkey ss58 address.")
                     raise typer.Exit()
-            else:
-                hotkey_or_ss58 = Prompt.ask(
-                    "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake all from",
-                    default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
+            elif all_hotkeys:
+                wallet = self.wallet_ask(
+                    wallet_name,
+                    wallet_path,
+                    wallet_hotkey,
+                    ask_for=[WO.NAME, WO.PATH],
                 )
+            else:
+                if not hotkey_ss58_address and not wallet_hotkey: 
+                    hotkey_or_ss58 = Prompt.ask(
+                        "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake all from [dim](or enter 'all' to unstake from all hotkeys)[/dim]",
+                        default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
+                    )
+                elif hotkey_ss58_address:
+                    hotkey_or_ss58 = hotkey_ss58_address
+                else:
+                    hotkey_or_ss58 = wallet_hotkey
+
                 if is_valid_ss58_address(hotkey_or_ss58):
                     hotkey_ss58_address = hotkey_or_ss58
+                    wallet = self.wallet_ask(
+                        wallet_name,
+                        wallet_path,
+                        wallet_hotkey,
+                        ask_for=[WO.NAME, WO.PATH],
+                    )
+                elif hotkey_or_ss58 == "all":
+                    all_hotkeys = True
                     wallet = self.wallet_ask(
                         wallet_name,
                         wallet_path,
@@ -3249,6 +3270,9 @@ class CLIManager:
                     subtensor=self.initialize_chain(network),
                     hotkey_ss58_address=hotkey_ss58_address,
                     unstake_all_alpha=unstake_all_alpha,
+                    all_hotkeys=all_hotkeys,
+                    include_hotkeys=include_hotkeys,
+                    exclude_hotkeys=exclude_hotkeys,
                     prompt=prompt,
                 )
             )
