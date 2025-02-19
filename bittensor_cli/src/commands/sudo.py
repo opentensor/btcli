@@ -100,7 +100,7 @@ def search_metadata(
         try:
             if val is None:
                 val = input(
-                    f"Enter a value for field '{arg_name}' with type '{arg_type_output[type_]}'"
+                    f"Enter a value for field '{arg_name}' with type '{arg_type_output[type_]}': "
                 )
             return arg_types[type_](val)
         except ValueError:
