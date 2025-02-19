@@ -156,7 +156,7 @@ class SubnetHyperparameters(InfoBase):
     def _fix_decoded(
         cls, decoded: Union[dict, "SubnetHyperparameters"]
     ) -> "SubnetHyperparameters":
-        return SubnetHyperparameters(
+        return cls(
             rho=decoded.get("rho"),
             kappa=decoded.get("kappa"),
             immunity_period=decoded.get("immunity_period"),
@@ -197,6 +197,7 @@ class StakeInfo(InfoBase):
     stake: Balance  # Stake for the hotkey-coldkey pair
     locked: Balance  # Stake which is locked.
     emission: Balance  # Emission for the hotkey-coldkey pair
+    tao_emission: Balance  # TAO emission for the hotkey-coldkey pair
     drain: int
     is_registered: bool
 
@@ -208,11 +209,20 @@ class StakeInfo(InfoBase):
         stake = Balance.from_rao(decoded.get("stake")).set_unit(netuid)
         locked = Balance.from_rao(decoded.get("locked")).set_unit(netuid)
         emission = Balance.from_rao(decoded.get("emission")).set_unit(netuid)
+        tao_emission = Balance.from_rao(decoded.get("tao_emission"))
         drain = int(decoded.get("drain"))
         is_registered = bool(decoded.get("is_registered"))
 
-        return StakeInfo(
-            hotkey, coldkey, netuid, stake, locked, emission, drain, is_registered
+        return cls(
+            hotkey,
+            coldkey,
+            netuid,
+            stake,
+            locked,
+            emission,
+            tao_emission,
+            drain,
+            is_registered,
         )
 
 
@@ -293,7 +303,7 @@ class NeuronInfo(InfoBase):
         axon_info = decoded.get("axon_info", {})
         coldkey = decode_account_id(decoded.get("coldkey"))
         hotkey = decode_account_id(decoded.get("hotkey"))
-        return NeuronInfo(
+        return cls(
             hotkey=hotkey,
             coldkey=coldkey,
             uid=decoded.get("uid"),
@@ -555,7 +565,7 @@ class SubnetInfo(InfoBase):
 
     @classmethod
     def _fix_decoded(cls, decoded: "SubnetInfo") -> "SubnetInfo":
-        return SubnetInfo(
+        return cls(
             netuid=decoded.get("netuid"),
             rho=decoded.get("rho"),
             kappa=decoded.get("kappa"),
@@ -594,7 +604,7 @@ class SubnetIdentity(InfoBase):
 
     @classmethod
     def _fix_decoded(cls, decoded: dict) -> "SubnetIdentity":
-        return SubnetIdentity(
+        return cls(
             subnet_name=bytes(decoded["subnet_name"]).decode(),
             github_repo=bytes(decoded["github_repo"]).decode(),
             subnet_contact=bytes(decoded["subnet_contact"]).decode(),
@@ -828,7 +838,7 @@ class SubnetState(InfoBase):
     @classmethod
     def _fix_decoded(cls, decoded: Any) -> "SubnetState":
         netuid = decoded.get("netuid")
-        return SubnetState(
+        return cls(
             netuid=netuid,
             hotkeys=[decode_account_id(val) for val in decoded.get("hotkeys")],
             coldkeys=[decode_account_id(val) for val in decoded.get("coldkeys")],
