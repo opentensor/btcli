@@ -76,7 +76,7 @@ class Balance:
         if self.unit == UNITS[0]:
             return f"{self.unit} {float(self.tao):,.4f}"
         else:
-            return f"{float(self.tao):,.4f} {self.unit}\u200e"
+            return f"\u200e{float(self.tao):,.4f} {self.unit}\u200e"
 
     def __rich__(self):
         return "[green]{}[/green][green]{}[/green][green].[/green][dim green]{}[/dim green]".format(
