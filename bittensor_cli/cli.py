@@ -3234,10 +3234,8 @@ class CLIManager:
                         "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake all from [dim](or enter 'all' to unstake from all hotkeys)[/dim]",
                         default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
                     )
-                elif hotkey_ss58_address:
-                    hotkey_or_ss58 = hotkey_ss58_address
                 else:
-                    hotkey_or_ss58 = wallet_hotkey
+                    hotkey_or_ss58 = hotkey_ss58_address or wallet_hotkey
 
                 if is_valid_ss58_address(hotkey_or_ss58):
                     hotkey_ss58_address = hotkey_or_ss58

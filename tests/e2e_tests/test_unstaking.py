@@ -97,7 +97,7 @@ def test_unstaking(local_chain, wallet_setup):
     )
     assert "✅ Registered subnetwork with netuid: 3" in result.stdout
 
-    # Register Bob in both subnets
+    # Register Bob in one subnet
     register_result = exec_command_bob(
         command="subnets",
         sub_command="register",
