@@ -184,11 +184,15 @@ async def set_hyperparameter_extrinsic(
             )
             return False
 
+    substrate = subtensor.substrate
+    msg_value = value if not arbitrary_extrinsic else call_params
     with console.status(
-        f":satellite: Setting hyperparameter [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{parameter}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] to [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{value}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] on subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] ...",
+        f":satellite: Setting hyperparameter [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{parameter}"
+        f"[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] to [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{msg_value}"
+        f"[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] on subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
+        f"{netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] ...",
         spinner="earth",
     ):
-        substrate = subtensor.substrate
         if not arbitrary_extrinsic:
             extrinsic_params = await substrate.get_metadata_call_function(
                 "AdminUtils", extrinsic
