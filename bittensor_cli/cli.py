@@ -124,7 +124,7 @@ class Options:
     )
     mnemonic = typer.Option(
         None,
-        help="Mnemonic used to regenerate your key. For example: horse cart dog ...",
+        help='Mnemonic used to regenerate your key. For example: "horse cart dog ..."',
     )
     seed = typer.Option(
         None, help="Seed hex string used to regenerate your key. For example: 0x1234..."
@@ -2130,6 +2130,7 @@ class CLIManager:
         # Example usage:
 
         [green]$[/green] btcli wallet regen_hotkey --seed 0x1234...
+        [green]$[/green] btcli wallet regen-hotkey --mnemonic "word1 word2 ... word12"
 
         [bold]Note[/bold]: This command is essential for users who need to regenerate their hotkey, possibly for security upgrades or key recovery.
         It should be used with caution to avoid accidental overwriting of existing keys.
@@ -3229,10 +3230,11 @@ class CLIManager:
                     ask_for=[WO.NAME, WO.PATH],
                 )
             else:
-                if not hotkey_ss58_address and not wallet_hotkey: 
+                if not hotkey_ss58_address and not wallet_hotkey:
                     hotkey_or_ss58 = Prompt.ask(
                         "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake all from [dim](or enter 'all' to unstake from all hotkeys)[/dim]",
-                        default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
+                        default=self.config.get("wallet_hotkey")
+                        or defaults.wallet.hotkey,
                     )
                 else:
                     hotkey_or_ss58 = hotkey_ss58_address or wallet_hotkey
