@@ -135,7 +135,7 @@ async def set_hyperparameter_extrinsic(
     wallet: "Wallet",
     netuid: int,
     parameter: str,
-    value: Union[str, bool, float, list[float]],
+    value: Optional[Union[str, bool, float, list[float]]],
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = True,
 ) -> bool:
@@ -549,7 +549,7 @@ async def sudo_set_hyperparameter(
     subtensor: "SubtensorInterface",
     netuid: int,
     param_name: str,
-    param_value: str,
+    param_value: Optional[str],
 ):
     """Set subnet hyperparameters."""
 
