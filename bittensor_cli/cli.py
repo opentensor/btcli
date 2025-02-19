@@ -2589,6 +2589,7 @@ class CLIManager:
             additional,
             github_repo,
         )
+
         return self._run_command(
             wallets.set_id(
                 wallet,
@@ -5021,7 +5022,6 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
-
         return self._run_command(
             weights_cmds.commit_weights(
                 self.initialize_chain(network),
