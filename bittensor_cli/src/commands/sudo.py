@@ -111,16 +111,19 @@ def search_metadata(
                 if call.name == param_name:
                     if "netuid" not in [x.name for x in call.args]:
                         return False, None
-                    call_args = [arg for arg in call.args if arg.name != "netuid"]
+                    call_args = [
+                        arg for arg in call.args if arg.value["name"] != "netuid"
+                    ]
                     if len(call_args) == 1:
-                        arg = call_args[0]
-                        call_crafter[arg.name] = type_converter_with_retry(
-                            arg.typeName, value, arg.name
+                        arg = call_args[0].value
+                        call_crafter[arg["name"]] = type_converter_with_retry(
+                            arg["typeName"], value, arg["name"]
                         )
                     else:
-                        for arg in call_args:
-                            call_crafter[arg.name] = type_converter_with_retry(
-                                arg.typeName, None, arg.name
+                        for arg_ in call_args:
+                            arg = arg_.value
+                            call_crafter[arg["name"]] = type_converter_with_retry(
+                                arg["typeName"], None, arg["name"]
                             )
                     return True, call_crafter
     else:
@@ -170,10 +173,11 @@ async def set_hyperparameter_extrinsic(
     arbitrary_extrinsic = False
 
     extrinsic, sudo_ = HYPERPARAMS.get(parameter, ("", False))
-    if extrinsic is None:
+    if not extrinsic:
         arbitrary_extrinsic, call_params = search_metadata(
             parameter, value, netuid, subtensor.substrate.metadata
         )
+        extrinsic = parameter
         if not arbitrary_extrinsic:
             err_console.print(
                 ":cross_mark: [red]Invalid hyperparameter specified.[/red]"
@@ -184,8 +188,8 @@ async def set_hyperparameter_extrinsic(
         f":satellite: Setting hyperparameter [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{parameter}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] to [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{value}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] on subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] ...",
         spinner="earth",
     ):
+        substrate = subtensor.substrate
         if not arbitrary_extrinsic:
-            substrate = subtensor.substrate
             extrinsic_params = await substrate.get_metadata_call_function(
                 "AdminUtils", extrinsic
             )
@@ -554,7 +558,10 @@ async def sudo_set_hyperparameter(
     ]:
         normalized_value = param_value.lower() in ["true", "1"]
     elif param_value in ("True", "False"):
-        normalized_value = bool(param_value)
+        normalized_value = {
+            "True": True,
+            "False": False,
+        }[param_value]
     else:
         normalized_value = param_value
 
@@ -565,7 +572,6 @@ async def sudo_set_hyperparameter(
             f"Value is {normalized_value} but must be {value}"
         )
         return
-
     success = await set_hyperparameter_extrinsic(
         subtensor, wallet, netuid, param_name, value
     )
