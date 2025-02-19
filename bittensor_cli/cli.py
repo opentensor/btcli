@@ -27,6 +27,7 @@ from bittensor_cli.src import (
     Constants,
     COLOR_PALETTE,
 )
+from bittensor_cli.version import __version__, __version_as_int__
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
 from async_substrate_interface.errors import SubstrateRequestException
@@ -471,8 +472,6 @@ def version_callback(value: bool):
     """
     Prints the current version/branch-name
     """
-    from bittensor_cli import __version__
-
     if value:
         try:
             repo = Repo(os.path.dirname(os.path.dirname(__file__)))
@@ -4904,7 +4903,6 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
 
-        from bittensor_cli import __version_as_int__
         return self._run_command(
             weights_cmds.reveal_weights(
                 self.initialize_chain(network),
@@ -5002,7 +5000,7 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
-        from bittensor_cli import __version_as_int__
+
         return self._run_command(
             weights_cmds.commit_weights(
                 self.initialize_chain(network),
