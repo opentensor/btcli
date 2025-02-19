@@ -2589,7 +2589,6 @@ class CLIManager:
             additional,
             github_repo,
         )
-
         return self._run_command(
             wallets.set_id(
                 wallet,
