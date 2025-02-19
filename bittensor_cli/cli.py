@@ -72,7 +72,7 @@ except ImportError:
         pass
 
 
-__version__ = "9.0.0"
+__version__ = "9.0.1"
 
 
 _core_version = re.match(r"^\d+\.\d+\.\d+", __version__).group(0)
@@ -656,7 +656,7 @@ class CLIManager:
         self.config_app.command("set")(self.set_config)
         self.config_app.command("get")(self.get_config)
         self.config_app.command("clear")(self.del_config)
-        self.config_app.command("metagraph", hidden=True)(self.metagraph_config)
+        # self.config_app.command("metagraph", hidden=True)(self.metagraph_config)
 
         # wallet commands
         self.wallet_app.command(

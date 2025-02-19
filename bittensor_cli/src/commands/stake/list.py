@@ -46,7 +46,7 @@ async def stake_list(
                 coldkey_ss58=coldkey_address, block_hash=block_hash
             ),
             subtensor.get_delegate_identities(block_hash=block_hash),
-            subtensor.all_subnets(),
+            subtensor.all_subnets(block_hash=block_hash),
         )
         # sub_stakes = substakes[coldkey_address]
         dynamic_info = {info.netuid: info for info in _dynamic_info}
@@ -327,7 +327,7 @@ async def stake_list(
             alpha_value = Balance.from_rao(int(substake.stake.rao)).set_unit(netuid)
             tao_value = pool.alpha_to_tao(alpha_value)
             total_tao_value += tao_value
-            swapped_tao_value, slippage = pool.alpha_to_tao_with_slippage(
+            swapped_tao_value, slippage, slippage_pct = pool.alpha_to_tao_with_slippage(
                 substake.stake
             )
             total_swapped_tao_value += swapped_tao_value
@@ -384,15 +384,6 @@ async def stake_list(
                 precision=4,
                 millify=True if not verbose else False,
             )
-
-            if pool.is_dynamic:
-                slippage_pct = (
-                    100 * float(slippage) / float(slippage + swapped_tao_value)
-                    if slippage + swapped_tao_value != 0
-                    else 0
-                )
-            else:
-                slippage_pct = 0
 
             if netuid != 0:
                 swap_cell = (
@@ -463,11 +454,12 @@ async def stake_list(
         return table, current_data
 
     # Main execution
+    block_hash = await subtensor.substrate.get_chain_head()
     (
         sub_stakes,
         registered_delegate_info,
         dynamic_info,
-    ) = await get_stake_data()
+    ) = await get_stake_data(block_hash)
     balance = await subtensor.get_balance(coldkey_address)
 
     # Iterate over substakes and aggregate them by hotkey.
@@ -556,7 +548,7 @@ async def stake_list(
                     table, current_data = create_live_table(
                         selected_stakes,
                         registered_delegate_info,
-                        dynamic_info,
+                        dynamic_info_,
                         hotkey_name,
                         previous_data,
                     )
