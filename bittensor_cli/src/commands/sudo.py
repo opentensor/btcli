@@ -90,6 +90,12 @@ def search_metadata(
 
     """
 
+    def string_to_bool(val) -> bool:
+        try:
+            return {"true": True, "1": True, "0": False, "false": False}[val.lower()]
+        except KeyError:
+            return ValueError
+
     def type_converter_with_retry(type_, val, arg_name):
         try:
             if val is None:
@@ -100,8 +106,8 @@ def search_metadata(
         except ValueError:
             return type_converter_with_retry(type_, None, arg_name)
 
-    arg_types = {"bool": bool, "u16": float_to_u16, "u64": float_to_u64}
-    arg_type_output = {"bool": bool, "u16": float, "u64": float}
+    arg_types = {"bool": string_to_bool, "u16": float_to_u16, "u64": float_to_u64}
+    arg_type_output = {"bool": "bool", "u16": "float", "u64": "float"}
 
     call_crafter = {"netuid": netuid}
 
