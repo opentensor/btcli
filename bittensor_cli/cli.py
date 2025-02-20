@@ -28,6 +28,7 @@ from bittensor_cli.src import (
     COLOR_PALETTE,
     HYPERPARAMS,
 )
+from bittensor_cli.version import __version__, __version_as_int__
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
 from async_substrate_interface.errors import SubstrateRequestException
@@ -73,20 +74,7 @@ except ImportError:
         pass
 
 
-__version__ = "9.0.1"
 
-
-_core_version = re.match(r"^\d+\.\d+\.\d+", __version__).group(0)
-_version_split = _core_version.split(".")
-__version_info__ = tuple(int(part) for part in _version_split)
-_version_int_base = 1000
-assert max(__version_info__) < _version_int_base
-
-__version_as_int__: int = sum(
-    e * (_version_int_base**i) for i, e in enumerate(reversed(__version_info__))
-)
-assert __version_as_int__ < 2**31  # fits in int32
-__new_signature_version__ = 360
 
 _epilog = "Made with [bold red]:heart:[/bold red] by The Openτensor Foundaτion"
 

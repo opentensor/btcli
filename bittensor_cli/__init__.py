@@ -16,8 +16,7 @@
 # DEALINGS IN THE SOFTWARE.
 
 from .cli import CLIManager
+from .version import __version__, __version_as_int__
 
 
-__version__ = "9.0.1"
-
-__all__ = ["CLIManager", "__version__"]
+__all__ = ["CLIManager"]
