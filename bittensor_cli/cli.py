@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import asyncio
+import cProfile
 import curses
 import importlib
 import os.path
+import pstats
 import re
 import ssl
 import sys
@@ -978,8 +980,13 @@ class CLIManager:
                     except Exception as e:  # ensures we always exit cleanly
                         if not isinstance(e, (typer.Exit, RuntimeError)):
                             err_console.print(f"An unknown error has occurred: {e}")
-
-        return self.asyncio_runner(_run())
+        profiler = cProfile.Profile()
+        profiler.enable()
+        result = self.asyncio_runner(_run())
+        profiler.disable()
+        stats = pstats.Stats(profiler).sort_stats('cumulative')
+        stats.print_stats(20)  # Show top 20 time-consuming operations
+        return result
 
     def main_callback(
         self,
