@@ -1,5 +1,28 @@
 # Changelog
 
+## 9.0.2 /2025-02-20
+
+## What's Changed
+* Fix stake child get by @thewhaleking in https://github.com/opentensor/btcli/pull/321
+* Edge case alpha formatting by @thewhaleking in https://github.com/opentensor/btcli/pull/318
+* Adds Tao emissions to stake list by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/300
+* Updates balance command by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/322
+* Backmerge main to staging 101 by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/326
+* Updates stake list (with swap value) by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/327
+* Adds unstaking from all hotkeys + tests by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/325
+* Mnemonic helper text by @thewhaleking in https://github.com/opentensor/btcli/pull/329
+* fix: remove double conversion in stake swap functionality [--swap_all] by @ashikshafi08 in https://github.com/opentensor/btcli/pull/328
+* Arbitrary Hyperparams Setting by @thewhaleking in https://github.com/opentensor/btcli/pull/320
+* Bumps deps for btcli by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/330
+* SubtensorInterface async with logic by @thewhaleking in https://github.com/opentensor/btcli/pull/331
+* remove __version__ from cli.py by @igorsyl in https://github.com/opentensor/btcli/pull/323
+
+## New Contributors
+* @ashikshafi08 made their first contribution in https://github.com/opentensor/btcli/pull/328
+* @igorsyl made their first contribution in https://github.com/opentensor/btcli/pull/323
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.0.1...v9.0.2
+
 ## 9.0.1 /2025-02-13
 
 ## What's Changed
