@@ -26,6 +26,7 @@ from bittensor_cli.src import (
     WalletValidationTypes as WV,
     Constants,
     COLOR_PALETTE,
+    HYPERPARAMS,
 )
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
@@ -3985,7 +3986,7 @@ class CLIManager:
         param_name: str = typer.Option(
             "", "--param", "--parameter", help="The subnet hyperparameter to set"
         ),
-        param_value: str = typer.Option(
+        param_value: Optional[str] = typer.Option(
             "", "--value", help="Value to set the hyperparameter to."
         ),
         quiet: bool = Options.quiet,
@@ -4034,9 +4035,12 @@ class CLIManager:
             param_value = f"{low_val},{high_val}"
 
         if not param_value:
-            param_value = Prompt.ask(
-                f"Enter the new value for [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{param_name}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] in the VALUE column format"
-            )
+            if HYPERPARAMS.get(param_name):
+                param_value = Prompt.ask(
+                    f"Enter the new value for [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{param_name}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] in the VALUE column format"
+                )
+            else:
+                param_value = None
 
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
