@@ -26,6 +26,7 @@ from bittensor_cli.src import (
     WalletValidationTypes as WV,
     Constants,
     COLOR_PALETTE,
+    HYPERPARAMS,
 )
 from bittensor_cli.version import __version__, __version_as_int__
 from bittensor_cli.src.bittensor import utils
@@ -112,7 +113,7 @@ class Options:
     )
     mnemonic = typer.Option(
         None,
-        help="Mnemonic used to regenerate your key. For example: horse cart dog ...",
+        help='Mnemonic used to regenerate your key. For example: "horse cart dog ..."',
     )
     seed = typer.Option(
         None, help="Seed hex string used to regenerate your key. For example: 0x1234..."
@@ -2118,6 +2119,7 @@ class CLIManager:
         # Example usage:
 
         [green]$[/green] btcli wallet regen_hotkey --seed 0x1234...
+        [green]$[/green] btcli wallet regen-hotkey --mnemonic "word1 word2 ... word12"
 
         [bold]Note[/bold]: This command is essential for users who need to regenerate their hotkey, possibly for security upgrades or key recovery.
         It should be used with caution to avoid accidental overwriting of existing keys.
@@ -3217,10 +3219,11 @@ class CLIManager:
                     ask_for=[WO.NAME, WO.PATH],
                 )
             else:
-                if not hotkey_ss58_address and not wallet_hotkey: 
+                if not hotkey_ss58_address and not wallet_hotkey:
                     hotkey_or_ss58 = Prompt.ask(
                         "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake all from [dim](or enter 'all' to unstake from all hotkeys)[/dim]",
-                        default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
+                        default=self.config.get("wallet_hotkey")
+                        or defaults.wallet.hotkey,
                     )
                 else:
                     hotkey_or_ss58 = hotkey_ss58_address or wallet_hotkey
@@ -3971,7 +3974,7 @@ class CLIManager:
         param_name: str = typer.Option(
             "", "--param", "--parameter", help="The subnet hyperparameter to set"
         ),
-        param_value: str = typer.Option(
+        param_value: Optional[str] = typer.Option(
             "", "--value", help="Value to set the hyperparameter to."
         ),
         quiet: bool = Options.quiet,
@@ -4020,9 +4023,12 @@ class CLIManager:
             param_value = f"{low_val},{high_val}"
 
         if not param_value:
-            param_value = Prompt.ask(
-                f"Enter the new value for [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{param_name}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] in the VALUE column format"
-            )
+            if HYPERPARAMS.get(param_name):
+                param_value = Prompt.ask(
+                    f"Enter the new value for [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{param_name}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] in the VALUE column format"
+                )
+            else:
+                param_value = None
 
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
