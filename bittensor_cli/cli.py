@@ -980,13 +980,8 @@ class CLIManager:
                     except Exception as e:  # ensures we always exit cleanly
                         if not isinstance(e, (typer.Exit, RuntimeError)):
                             err_console.print(f"An unknown error has occurred: {e}")
-        profiler = cProfile.Profile()
-        profiler.enable()
-        result = self.asyncio_runner(_run())
-        profiler.disable()
-        stats = pstats.Stats(profiler).sort_stats('cumulative')
-        stats.print_stats(20)  # Show top 20 time-consuming operations
-        return result
+        
+        return self.asyncio_runner(_run())
 
     def main_callback(
         self,
