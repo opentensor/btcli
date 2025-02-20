@@ -112,8 +112,8 @@ class SubtensorInterface:
             f"[yellow]Connecting to Substrate:[/yellow][bold white] {self}..."
         ):
             try:
-                async with self.substrate:
-                    return self
+                await self.substrate.initialize()
+                return self
             except TimeoutError:  # TODO verify
                 err_console.print(
                     "\n[red]Error[/red]: Timeout occurred connecting to substrate. "
