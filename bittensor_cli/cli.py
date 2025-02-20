@@ -978,7 +978,7 @@ class CLIManager:
                     except Exception as e:  # ensures we always exit cleanly
                         if not isinstance(e, (typer.Exit, RuntimeError)):
                             err_console.print(f"An unknown error has occurred: {e}")
-        
+
         return self.asyncio_runner(_run())
 
     def main_callback(
