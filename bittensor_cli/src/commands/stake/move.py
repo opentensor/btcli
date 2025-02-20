@@ -905,7 +905,7 @@ async def swap_stake(
         )
 
     if swap_all:
-        amount_to_swap = Balance.from_tao(current_stake).set_unit(origin_netuid)
+        amount_to_swap = current_stake.set_unit(origin_netuid)
     else:
         amount_to_swap = Balance.from_tao(amount).set_unit(origin_netuid)
 

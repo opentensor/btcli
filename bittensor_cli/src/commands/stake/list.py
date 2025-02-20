@@ -58,7 +58,6 @@ async def stake_list(
     def define_table(
         hotkey_name: str,
         rows: list[list[str]],
-        total_tao_ownership: Balance,
         total_tao_value: Balance,
         total_swapped_tao_value: Balance,
         live: bool = False,
@@ -130,6 +129,11 @@ async def stake_list(
             style=COLOR_PALETTE["POOLS"]["EMISSION"],
             justify="right",
         )
+        table.add_column(
+            f"[white]Emission \n({Balance.get_unit(0)}/block)",
+            style=COLOR_PALETTE["POOLS"]["EMISSION"],
+            justify="right",
+        )
         return table
 
     def create_table(hotkey_: str, substakes: list[StakeInfo]):
@@ -139,7 +143,6 @@ async def stake_list(
             else hotkey_
         )
         rows = []
-        total_tao_ownership = Balance(0)
         total_tao_value = Balance(0)
         total_swapped_tao_value = Balance(0)
         root_stakes = [s for s in substakes if s.netuid == 0]
@@ -155,14 +158,6 @@ async def stake_list(
             netuid = substake_.netuid
             pool = dynamic_info[netuid]
             symbol = f"{Balance.get_unit(netuid)}\u200e"
-            # TODO: what is this price var for?
-            price = (
-                "{:.4f}{}".format(
-                    pool.price.__float__(), f" τ/{Balance.get_unit(netuid)}\u200e"
-                )
-                if pool.is_dynamic
-                else (f" 1.0000 τ/{symbol} ")
-            )
 
             # Alpha value cell
             alpha_value = Balance.from_rao(int(substake_.stake.rao)).set_unit(netuid)
@@ -192,30 +187,11 @@ async def stake_list(
                     else f"{swapped_tao_value} ({slippage_percentage})"
                 )
 
-            # TAO locked cell
-            tao_locked = pool.tao_in
-
-            # Issuance cell
-            issuance = pool.alpha_out if pool.is_dynamic else tao_locked
-
             # Per block emission cell
             per_block_emission = substake_.emission.tao / (pool.tempo or 1)
+            per_block_tao_emission = substake_.tao_emission.tao / (pool.tempo or 1)
             # Alpha ownership and TAO ownership cells
             if alpha_value.tao > 0.00009:
-                if issuance.tao != 0:
-                    # TODO figure out why this alpha_ownership does nothing
-                    alpha_ownership = "{:.4f}".format(
-                        (alpha_value.tao / issuance.tao) * 100
-                    )
-                    tao_ownership = Balance.from_tao(
-                        (alpha_value.tao / issuance.tao) * tao_locked.tao
-                    )
-                    total_tao_ownership += tao_ownership
-                else:
-                    # TODO what's this var for?
-                    alpha_ownership = "0.0000"
-                    tao_ownership = Balance.from_tao(0)
-
                 stake_value = (
                     millify_tao(substake_.stake.tao)
                     if not verbose
@@ -243,15 +219,14 @@ async def stake_list(
                         # Removing this flag for now, TODO: Confirm correct values are here w.r.t CHKs
                         # if substake_.is_registered
                         # else f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]N/A",  # Emission(α/block)
+                        str(Balance.from_tao(per_block_tao_emission)),
                     ]
                 )
-        table = define_table(
-            name, rows, total_tao_ownership, total_tao_value, total_swapped_tao_value
-        )
+        table = define_table(name, rows, total_tao_value, total_swapped_tao_value)
         for row in rows:
             table.add_row(*row)
         console.print(table)
-        return total_tao_ownership, total_tao_value
+        return total_tao_value, total_swapped_tao_value
 
     def create_live_table(
         substakes: list,
@@ -263,7 +238,6 @@ async def stake_list(
         rows = []
         current_data = {}
 
-        total_tao_ownership = Balance(0)
         total_tao_value = Balance(0)
         total_swapped_tao_value = Balance(0)
 
@@ -324,17 +298,6 @@ async def stake_list(
             )
             total_swapped_tao_value += swapped_tao_value
 
-            # Calculate TAO ownership
-            tao_locked = pool.tao_in
-            issuance = pool.alpha_out if pool.is_dynamic else tao_locked
-            if alpha_value.tao > 0.00009 and issuance.tao != 0:
-                tao_ownership = Balance.from_tao(
-                    (alpha_value.tao / issuance.tao) * tao_locked.tao
-                )
-                total_tao_ownership += tao_ownership
-            else:
-                tao_ownership = Balance.from_tao(0)
-
             # Store current values for future delta tracking
             current_data[netuid] = {
                 "stake": alpha_value.tao,
@@ -342,7 +305,7 @@ async def stake_list(
                 "tao_value": tao_value.tao,
                 "swapped_value": swapped_tao_value.tao,
                 "emission": substake.emission.tao / (pool.tempo or 1),
-                "tao_ownership": tao_ownership.tao,
+                "tao_emission": substake.tao_emission.tao / (pool.tempo or 1),
             }
 
             # Get previous values for delta tracking
@@ -399,6 +362,16 @@ async def stake_list(
                 unit_first=unit_first,
                 precision=4,
             )
+
+            tao_emission_value = substake.tao_emission.tao / (pool.tempo or 1)
+            tao_emission_cell = format_cell(
+                tao_emission_value,
+                prev.get("tao_emission"),
+                unit="τ",
+                unit_first=unit_first,
+                precision=4,
+            )
+
             subnet_name_cell = (
                 f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{symbol if netuid != 0 else 'τ'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
                 f" {get_subnet_name(dynamic_info[netuid])}"
@@ -416,13 +389,13 @@ async def stake_list(
                     if substake.is_registered
                     else f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]NO",  # Registration status
                     emission_cell,  # Emission rate
+                    tao_emission_cell,  # TAO emission rate
                 ]
             )
 
         table = define_table(
             hotkey_name,
             rows,
-            total_tao_ownership,
             total_tao_value,
             total_swapped_tao_value,
             live=True,
@@ -458,7 +431,7 @@ async def stake_list(
         raise typer.Exit()
 
     if live:
-        # Select one hokkey for live monitoring
+        # Select one hotkey for live monitoring
         if len(hotkeys_to_substakes) > 1:
             console.print(
                 "\n[bold]Multiple hotkeys found. Please select one for live monitoring:[/bold]"
@@ -562,27 +535,29 @@ async def stake_list(
         # Iterate over each hotkey and make a table
         counter = 0
         num_hotkeys = len(hotkeys_to_substakes)
-        all_hotkeys_total_global_tao = Balance(0)
-        all_hotkeys_total_tao_value = Balance(0)
+        all_hks_swapped_tao_value = Balance(0)
+        all_hks_tao_value = Balance(0)
         for hotkey in hotkeys_to_substakes.keys():
             counter += 1
-            stake, value = create_table(hotkey, hotkeys_to_substakes[hotkey])
-            all_hotkeys_total_global_tao += stake
-            all_hotkeys_total_tao_value += value
+            tao_value, swapped_tao_value = create_table(
+                hotkey, hotkeys_to_substakes[hotkey]
+            )
+            all_hks_tao_value += tao_value
+            all_hks_swapped_tao_value += swapped_tao_value
 
             if num_hotkeys > 1 and counter < num_hotkeys and prompt:
                 console.print("\nPress Enter to continue to the next hotkey...")
                 input()
 
         total_tao_value = (
-            f"τ {millify_tao(all_hotkeys_total_tao_value.tao)}"
+            f"τ {millify_tao(all_hks_tao_value.tao)}"
             if not verbose
-            else all_hotkeys_total_tao_value
+            else all_hks_tao_value
         )
-        total_tao_ownership = (
-            f"τ {millify_tao(all_hotkeys_total_global_tao.tao)}"
+        total_swapped_tao_value = (
+            f"τ {millify_tao(all_hks_swapped_tao_value.tao)}"
             if not verbose
-            else all_hotkeys_total_global_tao
+            else all_hks_swapped_tao_value
         )
 
         console.print("\n\n")
@@ -590,8 +565,8 @@ async def stake_list(
             f"Wallet:\n"
             f"  Coldkey SS58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{coldkey_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
             f"  Free Balance: [{COLOR_PALETTE['GENERAL']['BALANCE']}]{balance}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]\n"
-            f"  Total TAO ({Balance.unit}): [{COLOR_PALETTE['GENERAL']['BALANCE']}]{total_tao_ownership}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]\n"
-            f"  Total Value ({Balance.unit}): [{COLOR_PALETTE['GENERAL']['BALANCE']}]{total_tao_value}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]"
+            f"  Total TAO Value ({Balance.unit}): [{COLOR_PALETTE['GENERAL']['BALANCE']}]{total_tao_value}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]\n"
+            f"  Total TAO Swapped Value ({Balance.unit}): [{COLOR_PALETTE['GENERAL']['BALANCE']}]{total_swapped_tao_value}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]"
         )
         if not sub_stakes:
             console.print(
