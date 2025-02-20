@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 import asyncio
-import cProfile
 import curses
 import importlib
 import os.path
-import pstats
 import re
 import ssl
 import sys
