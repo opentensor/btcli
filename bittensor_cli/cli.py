@@ -74,8 +74,6 @@ except ImportError:
         pass
 
 
-
-
 _epilog = "Made with [bold red]:heart:[/bold red] by The Openτensor Foundaτion"
 
 np.set_printoptions(precision=8, suppress=True, floatmode="fixed")
