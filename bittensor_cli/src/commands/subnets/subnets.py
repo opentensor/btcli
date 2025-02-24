@@ -97,8 +97,10 @@ async def register_subnetwork_extrinsic(
     sn_burn_cost = await burn_cost(subtensor)
     if sn_burn_cost > your_balance:
         err_console.print(
-            f"Your balance of: [{COLOR_PALETTE['POOLS']['TAO']}]{your_balance}[{COLOR_PALETTE['POOLS']['TAO']}] is not enough to pay the subnet lock cost of: "
-            f"[{COLOR_PALETTE['POOLS']['TAO']}]{sn_burn_cost}[{COLOR_PALETTE['POOLS']['TAO']}]"
+            f"Your balance of: [{COLOR_PALETTE['POOLS']['TAO']}]{your_balance}[{COLOR_PALETTE['POOLS']['TAO']}]"
+            f" is not enough to burn "
+            f"[{COLOR_PALETTE['POOLS']['TAO']}]{sn_burn_cost}[{COLOR_PALETTE['POOLS']['TAO']}] "
+            f"to register a subnet."
         )
         return False
 
@@ -107,7 +109,7 @@ async def register_subnetwork_extrinsic(
             f"Your balance is: [{COLOR_PALETTE['POOLS']['TAO']}]{your_balance}"
         )
         if not Confirm.ask(
-            f"Do you want to register a subnet for [{COLOR_PALETTE['POOLS']['TAO']}]{sn_burn_cost}?"
+            f"Do you want to burn [{COLOR_PALETTE['POOLS']['TAO']}]{sn_burn_cost} to register a subnet?"
         ):
             return False
 

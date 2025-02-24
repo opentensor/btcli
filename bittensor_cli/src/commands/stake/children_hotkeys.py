@@ -671,6 +671,8 @@ async def childkey_take(
         chk_take = await get_childkey_take(
             subtensor=subtensor, netuid=netuid, hotkey=ss58
         )
+        if chk_take is None:
+            chk_take = 0
         chk_take = u16_to_float(chk_take)
         console.print(
             f"Child take for {ss58} is: {chk_take * 100:.2f}% on netuid {netuid}."
