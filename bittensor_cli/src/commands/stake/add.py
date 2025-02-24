@@ -17,6 +17,7 @@ from bittensor_cli.src.bittensor.utils import (
     is_valid_ss58_address,
     print_error,
     print_verbose,
+    unlock_key,
 )
 from bittensor_wallet import Wallet
 from bittensor_wallet.errors import KeyFileError
@@ -338,10 +339,7 @@ async def stake_add(
     if prompt:
         if not Confirm.ask("Would you like to continue?"):
             raise typer.Exit()
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success:
         return False
 
     if safe_staking:

@@ -145,10 +145,7 @@ async def register_subnetwork_extrinsic(
                 )
                 return False
 
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success:
         return False
 
     with console.status(":satellite: Registering subnet...", spinner="earth"):
