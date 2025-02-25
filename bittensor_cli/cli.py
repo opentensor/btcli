@@ -3533,14 +3533,20 @@ class CLIManager:
         )
         self.verbosity_handler(quiet, verbose)
 
+        if not wallet_name:
+            wallet_name = Prompt.ask(
+                "Enter the [blue]origin wallet name[/blue]",
+                default=self.config.get("wallet_name") or defaults.wallet.name,
+            )
         wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
+            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
         )
 
         if not wallet_hotkey:
             origin_hotkey = Prompt.ask(
                 "Enter the [blue]origin hotkey[/blue] name or "
-                "[blue]ss58 address[/blue] where the stake will be moved from "
+                "[blue]ss58 address[/blue] where the stake will be moved from",
+                default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
             )
             if is_valid_ss58_address(origin_hotkey):
                 origin_hotkey = origin_hotkey
