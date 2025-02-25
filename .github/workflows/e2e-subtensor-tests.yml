@@ -54,8 +54,8 @@ jobs:
 
       - name: Add wasm32-unknown-unknown target
         run: |
-          rustup target add wasm32-unknown-unknown --toolchain stable-x86_64-unknown-linux-gnu
-          rustup component add rust-src --toolchain stable-x86_64-unknown-linux-gnu
+          rustup target add wasm32-unknown-unknown --toolchain nightly-2024-03-05
+          rustup component add rust-src --toolchain nightly-2024-03-05
 
       - name: Clone subtensor repo
         run: git clone https://github.com/opentensor/subtensor.git
