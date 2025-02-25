@@ -50,6 +50,7 @@ jobs:
           toolchain: ${{ env.RUSTV }}
           components: rustfmt
           profile: minimal
+          override: true
 
       - name: Add wasm32-unknown-unknown target
         run: |
