@@ -17,6 +17,7 @@ from bittensor_cli.src.bittensor.utils import (
     format_error_message,
     group_subnets,
     get_subnet_name,
+    unlock_key,
 )
 
 if TYPE_CHECKING:
@@ -621,10 +622,7 @@ async def move_stake(
             raise typer.Exit()
 
     # Perform moving operation.
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success:
         return False
     with console.status(
         f"\n:satellite: Moving [blue]{amount_to_move_as_balance}[/blue] from [blue]{origin_hotkey}[/blue] on netuid: [blue]{origin_netuid}[/blue] \nto "
@@ -778,10 +776,7 @@ async def transfer_stake(
             raise typer.Exit()
 
     # Perform transfer operation
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success:
         return False
 
     with console.status("\n:satellite: Transferring stake ..."):
@@ -934,10 +929,7 @@ async def swap_stake(
             raise typer.Exit()
 
     # Perform swap operation
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success:
         return False
 
     with console.status(
