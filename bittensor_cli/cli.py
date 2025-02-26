@@ -479,7 +479,7 @@ def version_callback(value: bool):
                 f"{repo.active_branch.name}/"
                 f"{repo.commit()}"
             )
-        except (NameError, GitError):
+        except (TypeError, GitError):
             version = f"BTCLI version: {__version__}"
         typer.echo(version)
         raise typer.Exit()
