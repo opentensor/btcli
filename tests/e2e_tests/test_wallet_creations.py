@@ -461,3 +461,60 @@ def test_wallet_regen(wallet_setup, capfd):
         initial_hotkey_mod_time != new_hotkey_mod_time
     ), "Hotkey file was not regenerated as expected"
     print("Passed wallet regen_hotkey command ✅")
+
+
+def test_wallet_balance_all(local_chain, wallet_setup, capfd):
+    """
+    Test the wallet balance --all command with a large number of wallets.
+
+    Steps:
+        1. Create 100 wallets
+        2. Run wallet balance --all command
+        3. Verify the output contains all wallet names and their balances
+
+    Raises:
+        AssertionError: If any of the checks or verifications fail
+    """
+    wallet_path_name = "//Alice"
+    keypair, wallet, wallet_path, exec_command = wallet_setup(wallet_path_name)
+
+    print("Creating 100 wallets for testing balance --all command 🧪")
+    num_wallets = 100
+    wallet_names = []
+
+    for i in range(num_wallets):
+        wallet_name = f"test_wallet_{i}"
+        wallet_names.append(wallet_name)
+
+        result = exec_command(
+            command="wallet",
+            sub_command="new-coldkey",
+            extra_args=[
+                "--wallet-name",
+                wallet_name,
+                "--wallet-path",
+                wallet_path,
+                "--n-words",
+                "12",
+                "--no-use-password",
+            ],
+        )
+
+        wallet_status, message = verify_wallet_dir(wallet_path, wallet_name)
+        assert wallet_status, message
+
+    print("Testing wallet balance --all command 🧪")
+    result = exec_command(
+        command="wallet",
+        sub_command="balance",
+        extra_args=["--wallet-path", wallet_path, "--all"],
+    )
+
+    output = result.stdout
+
+    for wallet_name in wallet_names:
+        assert (
+            wallet_name in output
+        ), f"Wallet {wallet_name} not found in balance --all output"
+
+    print("Passed wallet balance --all command with 100 wallets ✅")
