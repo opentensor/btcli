@@ -17,6 +17,7 @@ from bittensor_cli.src.bittensor.utils import (
     format_error_message,
     group_subnets,
     get_subnet_name,
+    unlock_key,
 )
 
 if TYPE_CHECKING:
@@ -621,10 +622,7 @@ async def move_stake(
             raise typer.Exit()
 
     # Perform moving operation.
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success:
         return False
     with console.status(
         f"\n:satellite: Moving [blue]{amount_to_move_as_balance}[/blue] from [blue]{origin_hotkey}[/blue] on netuid: [blue]{origin_netuid}[/blue] \nto "
@@ -697,6 +695,7 @@ async def transfer_stake(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
     amount: float,
+    origin_hotkey: str,
     origin_netuid: int,
     dest_netuid: int,
     dest_coldkey_ss58: str,
@@ -709,6 +708,7 @@ async def transfer_stake(
         wallet (Wallet): Bittensor wallet object.
         subtensor (SubtensorInterface): Subtensor interface instance.
         amount (float): Amount to transfer.
+        origin_hotkey (str): The hotkey SS58 to transfer the stake from.
         origin_netuid (int): The netuid to transfer stake from.
         dest_netuid (int): The netuid to transfer stake to.
         dest_coldkey_ss58 (str): The destination coldkey to transfer stake to.
@@ -739,16 +739,15 @@ async def transfer_stake(
         return False
 
     # Get current stake balances
-    hotkey_ss58 = wallet.hotkey.ss58_address
     with console.status(f"Retrieving stake data from {subtensor.network}..."):
         current_stake = await subtensor.get_stake(
             coldkey_ss58=wallet.coldkeypub.ss58_address,
-            hotkey_ss58=hotkey_ss58,
+            hotkey_ss58=origin_hotkey,
             netuid=origin_netuid,
         )
         current_dest_stake = await subtensor.get_stake(
             coldkey_ss58=dest_coldkey_ss58,
-            hotkey_ss58=hotkey_ss58,
+            hotkey_ss58=origin_hotkey,
             netuid=dest_netuid,
         )
     amount_to_transfer = Balance.from_tao(amount).set_unit(origin_netuid)
@@ -768,8 +767,8 @@ async def transfer_stake(
             subtensor=subtensor,
             origin_netuid=origin_netuid,
             destination_netuid=dest_netuid,
-            origin_hotkey=hotkey_ss58,
-            destination_hotkey=hotkey_ss58,
+            origin_hotkey=origin_hotkey,
+            destination_hotkey=origin_hotkey,
             amount_to_move=amount_to_transfer,
         )
 
@@ -777,10 +776,7 @@ async def transfer_stake(
             raise typer.Exit()
 
     # Perform transfer operation
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success:
         return False
 
     with console.status("\n:satellite: Transferring stake ..."):
@@ -789,7 +785,7 @@ async def transfer_stake(
             call_function="transfer_stake",
             call_params={
                 "destination_coldkey": dest_coldkey_ss58,
-                "hotkey": hotkey_ss58,
+                "hotkey": origin_hotkey,
                 "origin_netuid": origin_netuid,
                 "destination_netuid": dest_netuid,
                 "alpha_amount": amount_to_transfer.rao,
@@ -820,12 +816,12 @@ async def transfer_stake(
     new_stake, new_dest_stake = await asyncio.gather(
         subtensor.get_stake(
             coldkey_ss58=wallet.coldkeypub.ss58_address,
-            hotkey_ss58=hotkey_ss58,
+            hotkey_ss58=origin_hotkey,
             netuid=origin_netuid,
         ),
         subtensor.get_stake(
             coldkey_ss58=dest_coldkey_ss58,
-            hotkey_ss58=hotkey_ss58,
+            hotkey_ss58=origin_hotkey,
             netuid=dest_netuid,
         ),
     )
@@ -933,10 +929,7 @@ async def swap_stake(
             raise typer.Exit()
 
     # Perform swap operation
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success:
         return False
 
     with console.status(

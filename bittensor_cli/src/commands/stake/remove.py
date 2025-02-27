@@ -21,6 +21,7 @@ from bittensor_cli.src.bittensor.utils import (
     is_valid_ss58_address,
     format_error_message,
     group_subnets,
+    unlock_key,
 )
 
 if TYPE_CHECKING:
@@ -268,10 +269,7 @@ async def unstake(
             raise typer.Exit()
 
     # Execute extrinsics
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success:
         return False
 
     with console.status("\n:satellite: Performing unstaking operations...") as status:
@@ -465,10 +463,7 @@ async def unstake_all(
     ):
         return False
 
-    try:
-        wallet.unlock_coldkey()
-    except KeyFileError:
-        err_console.print("Error decrypting coldkey (possibly incorrect password)")
+    if not unlock_key(wallet).success:
         return False
 
     with console.status("Unstaking all stakes...") as status:

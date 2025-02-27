@@ -30,7 +30,7 @@ jobs:
     timeout-minutes: 180
     env:
       RELEASE_NAME: development
-      RUSTV: nightly-2024-03-05
+      RUSTV: stable
       RUST_BACKTRACE: full
       RUST_BIN_DIR: target/x86_64-unknown-linux-gnu
       TARGET: x86_64-unknown-linux-gnu

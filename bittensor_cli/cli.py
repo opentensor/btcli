@@ -74,8 +74,6 @@ except ImportError:
         pass
 
 
-
-
 _epilog = "Made with [bold red]:heart:[/bold red] by The Openτensor Foundaτion"
 
 np.set_printoptions(precision=8, suppress=True, floatmode="fixed")
@@ -481,7 +479,7 @@ def version_callback(value: bool):
                 f"{repo.active_branch.name}/"
                 f"{repo.commit()}"
             )
-        except (NameError, GitError):
+        except (TypeError, GitError):
             version = f"BTCLI version: {__version__}"
         typer.echo(version)
         raise typer.Exit()
@@ -3323,9 +3321,9 @@ class CLIManager:
     def stake_move(
         self,
         network: Optional[list[str]] = Options.network,
-        wallet_name=Options.wallet_name,
-        wallet_path=Options.wallet_path,
-        wallet_hotkey=Options.wallet_hotkey,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         origin_netuid: Optional[int] = typer.Option(
             None, "--origin-netuid", help="Origin netuid"
         ),
@@ -3535,13 +3533,44 @@ class CLIManager:
         )
         self.verbosity_handler(quiet, verbose)
 
+        if not wallet_name:
+            wallet_name = Prompt.ask(
+                "Enter the [blue]origin wallet name[/blue]",
+                default=self.config.get("wallet_name") or defaults.wallet.name,
+            )
         wallet = self.wallet_ask(
-            wallet_name,
-            wallet_path,
-            wallet_hotkey,
-            ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
-            validate=WV.WALLET_AND_HOTKEY,
+            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
         )
+
+        if not wallet_hotkey:
+            origin_hotkey = Prompt.ask(
+                "Enter the [blue]origin hotkey[/blue] name or "
+                "[blue]ss58 address[/blue] where the stake will be moved from",
+                default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
+            )
+            if is_valid_ss58_address(origin_hotkey):
+                origin_hotkey = origin_hotkey
+            else:
+                wallet = self.wallet_ask(
+                    wallet_name,
+                    wallet_path,
+                    origin_hotkey,
+                    ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+                    validate=WV.WALLET_AND_HOTKEY,
+                )
+                origin_hotkey = wallet.hotkey.ss58_address
+        else:
+            if is_valid_ss58_address(wallet_hotkey):
+                origin_hotkey = wallet_hotkey
+            else:
+                wallet = self.wallet_ask(
+                    wallet_name,
+                    wallet_path,
+                    wallet_hotkey,
+                    ask_for=[],
+                    validate=WV.WALLET_AND_HOTKEY,
+                )
+                origin_hotkey = wallet.hotkey.ss58_address
 
         if not dest_ss58:
             dest_ss58 = Prompt.ask(
@@ -3580,6 +3609,7 @@ class CLIManager:
             move_stake.transfer_stake(
                 wallet=wallet,
                 subtensor=self.initialize_chain(network),
+                origin_hotkey=origin_hotkey,
                 origin_netuid=origin_netuid,
                 dest_netuid=dest_netuid,
                 dest_coldkey_ss58=dest_ss58,

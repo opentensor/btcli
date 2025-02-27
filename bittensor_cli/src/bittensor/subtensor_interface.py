@@ -1327,20 +1327,29 @@ class SubtensorInterface:
         This function is useful for analyzing the stake distribution and delegation patterns of multiple
         accounts simultaneously, offering a broader perspective on network participation and investment strategies.
         """
-        result = await self.query_runtime_api(
-            runtime_api="StakeInfoRuntimeApi",
-            method="get_stake_info_for_coldkeys",
-            params=[coldkey_ss58_list],
-            block_hash=block_hash,
-        )
-        if result is None:
-            return None
+        BATCH_SIZE = 60
 
+        tasks = []
+        for i in range(0, len(coldkey_ss58_list), BATCH_SIZE):
+            ss58_chunk = coldkey_ss58_list[i : i + BATCH_SIZE]
+            tasks.append(
+                self.query_runtime_api(
+                    runtime_api="StakeInfoRuntimeApi",
+                    method="get_stake_info_for_coldkeys",
+                    params=[ss58_chunk],
+                    block_hash=block_hash,
+                )
+            )
+        results = await asyncio.gather(*tasks)
         stake_info_map = {}
-        for coldkey_bytes, stake_info_list in result:
-            coldkey_ss58 = decode_account_id(coldkey_bytes)
-            stake_info_map[coldkey_ss58] = StakeInfo.list_from_any(stake_info_list)
-        return stake_info_map
+        for result in results:
+            if result is None:
+                continue
+            for coldkey_bytes, stake_info_list in result:
+                coldkey_ss58 = decode_account_id(coldkey_bytes)
+                stake_info_map[coldkey_ss58] = StakeInfo.list_from_any(stake_info_list)
+
+        return stake_info_map if stake_info_map else None
 
     async def all_subnets(self, block_hash: Optional[str] = None) -> list[DynamicInfo]:
         result = await self.query_runtime_api(

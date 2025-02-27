@@ -189,6 +189,11 @@ async def set_hyperparameter_extrinsic(
                 ":cross_mark: [red]Invalid hyperparameter specified.[/red]"
             )
             return False
+    if sudo_:
+        if not Confirm.ask(
+            "This hyperparam is only settable by root sudo users. If you are not, this will fail. Please confirm"
+        ):
+            return False
 
     substrate = subtensor.substrate
     msg_value = value if not arbitrary_extrinsic else call_params

@@ -1,5 +1,6 @@
 import re
 
+
 def version_as_int(version):
     _core_version = re.match(r"^\d+\.\d+\.\d+", version).group(0)
     _version_split = _core_version.split(".")
@@ -14,5 +15,5 @@ def version_as_int(version):
     __new_signature_version__ = 360
     return __version_as_int__
 
-__version__ = "9.0.2"
+__version__ = "9.0.3"
 __version_as_int__ = version_as_int(__version__)
