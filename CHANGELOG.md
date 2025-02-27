@@ -1,5 +1,20 @@
 # Changelog
 
+## 9.0.3 /2025-02-26
+
+## What's Changed
+* Update wording for burn for sn registration by @thewhaleking in https://github.com/opentensor/btcli/pull/333
+* [fix] use chk_take = 0 if None by @camfairchild in https://github.com/opentensor/btcli/pull/335
+* Use `unlock_key` fn globally by @thewhaleking in https://github.com/opentensor/btcli/pull/336
+* Updates Rust version to stable by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/339
+* Warn Users When Setting Root-Only Hyperparams by @thewhaleking in https://github.com/opentensor/btcli/pull/337
+* st transfer allow hotkey ss58 by @thewhaleking in https://github.com/opentensor/btcli/pull/338
+* Git not required by @thewhaleking in https://github.com/opentensor/btcli/pull/341
+* Adds limit of ss58 addresses per call when fetching total_stake by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/340
+* Backmerge/main staging 902 by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/342
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.0.2...v9.0.3
+
 ## 9.0.2 /2025-02-20
 
 ## What's Changed
