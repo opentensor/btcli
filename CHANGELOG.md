@@ -1,5 +1,12 @@
 # Changelog
 
+## 9.0.4 /2025-02-28
+
+## What's Changed
+* Hotkey SS58 in stake transfer interactive selection by @thewhaleking in https://github.com/opentensor/btcli/pull/345
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.0.3...v9.0.4
+
 ## 9.0.2 /2025-02-20
 
 ## What's Changed
