@@ -1271,7 +1271,7 @@ class SubtensorInterface:
         except ValueError:
             bytes_result = bytes.fromhex(hex_bytes_result)
 
-        return MetagraphInfo.from_vec_u8(bytes_result)
+        return MetagraphInfo.from_any(bytes_result)
 
     async def get_all_metagraphs_info(
         self, block_hash: Optional[str] = None
