@@ -32,7 +32,7 @@ from bittensor_cli.version import __version__, __version_as_int__
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
 from async_substrate_interface.errors import SubstrateRequestException
-from bittensor_cli.src.commands import sudo, wallets
+from bittensor_cli.src.commands import sudo, wallets, view
 from bittensor_cli.src.commands import weights as weights_cmds
 from bittensor_cli.src.commands.subnets import price, subnets
 from bittensor_cli.src.commands.stake import (
@@ -193,8 +193,7 @@ class Options:
     )
     wait_for_finalization = typer.Option(
         True,
-        help="If `True`, waits until the transaction is finalized "
-        "on the blockchain.",
+        help="If `True`, waits until the transaction is finalized on the blockchain.",
     )
     prompt = typer.Option(
         True,
@@ -513,6 +512,7 @@ class CLIManager:
     subnets_app: typer.Typer
     weights_app: typer.Typer
     utils_app = typer.Typer(epilog=_epilog)
+    view_app: typer.Typer
     asyncio_runner = asyncio
 
     def __init__(self):
@@ -562,6 +562,7 @@ class CLIManager:
         self.sudo_app = typer.Typer(epilog=_epilog)
         self.subnets_app = typer.Typer(epilog=_epilog)
         self.weights_app = typer.Typer(epilog=_epilog)
+        self.view_app = typer.Typer(epilog=_epilog)
 
         # config alias
         self.app.add_typer(
@@ -638,6 +639,9 @@ class CLIManager:
         self.app.add_typer(
             self.utils_app, name="utils", no_args_is_help=True, hidden=True
         )
+
+        # view app
+        self.app.add_typer(self.view_app, name="view", short_help="HTML view commands", no_args_is_help=True)
 
         # config commands
         self.config_app.command("set")(self.set_config)
@@ -805,6 +809,11 @@ class CLIManager:
         self.weights_app.command(
             "commit", rich_help_panel=HELP_PANELS["WEIGHTS"]["COMMIT_REVEAL"]
         )(self.weights_commit)
+
+        # view commands
+        self.view_app.command(
+            "dashboard", rich_help_panel=HELP_PANELS["VIEW"]["DASHBOARD"]
+        )(self.view_dashboard)
 
         # Sub command aliases
         # Weights
@@ -1336,7 +1345,7 @@ class CLIManager:
                     if value in Constants.networks:
                         value = value + f" ({Constants.network_map[value]})"
             if key == "rate_tolerance":
-                value = f"{value} ({value*100}%)" if value is not None else "None"
+                value = f"{value} ({value * 100}%)" if value is not None else "None"
 
             elif key in deprecated_configs:
                 continue
@@ -1365,19 +1374,19 @@ class CLIManager:
         """
         if rate_tolerance is not None:
             console.print(
-                f"[dim][blue]Rate tolerance[/blue]: [bold cyan]{rate_tolerance} ({rate_tolerance*100}%)[/bold cyan]."
+                f"[dim][blue]Rate tolerance[/blue]: [bold cyan]{rate_tolerance} ({rate_tolerance * 100}%)[/bold cyan]."
             )
             return rate_tolerance
         elif self.config.get("rate_tolerance") is not None:
             config_slippage = self.config["rate_tolerance"]
             console.print(
-                f"[dim][blue]Rate tolerance[/blue]: [bold cyan]{config_slippage} ({config_slippage*100}%)[/bold cyan] (from config)."
+                f"[dim][blue]Rate tolerance[/blue]: [bold cyan]{config_slippage} ({config_slippage * 100}%)[/bold cyan] (from config)."
             )
             return config_slippage
         else:
             console.print(
                 "[dim][blue]Rate tolerance[/blue]: "
-                + f"[bold cyan]{defaults.rate_tolerance} ({defaults.rate_tolerance*100}%)[/bold cyan] "
+                + f"[bold cyan]{defaults.rate_tolerance} ({defaults.rate_tolerance * 100}%)[/bold cyan] "
                 + "by default. Set this using "
                 + "[dark_sea_green3 italic]`btcli config set`[/dark_sea_green3 italic] "
                 + "or "
@@ -5069,6 +5078,26 @@ class CLIManager:
                 __version_as_int__,
                 prompt=prompt,
             )
+        )
+
+    def view_dashboard(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Display html dashboard with subnets list, stake, and neuron information.
+        """
+        self.verbosity_handler(quiet, verbose)
+        wallet = self.wallet_ask(
+            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
+        )
+        return self._run_command(
+            view.display_network_dashboard(wallet, self.initialize_chain(network))
         )
 
     @staticmethod
