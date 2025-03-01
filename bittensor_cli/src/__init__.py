@@ -713,6 +713,9 @@ HELP_PANELS = {
         "IDENTITY": "Subnet Identity Management",
     },
     "WEIGHTS": {"COMMIT_REVEAL": "Commit / Reveal"},
+    "VIEW": {
+        "DASHBOARD": "Network Dashboard",
+    },
 }
 
 COLOR_PALETTE = {

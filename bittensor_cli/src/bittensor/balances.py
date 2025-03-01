@@ -297,17 +297,16 @@ class Balance:
         return self
 
 
-def fixed_to_float(fixed: dict) -> float:
-    # Currently this is stored as a U64F64
+def fixed_to_float(fixed, frac_bits: int = 64, total_bits: int = 128) -> float:
+    # By default, this is a U64F64
     # which is 64 bits of integer and 64 bits of fractional
-    # uint_bits = 64
-    frac_bits = 64
 
     data: int = fixed["bits"]
 
-    # Shift bits to extract integer part (assuming 64 bits for integer part)
-    integer_part = data >> frac_bits
+    # Logical and to get the fractional part; remaining is the integer part
     fractional_part = data & (2**frac_bits - 1)
+    # Shift to get the integer part from the remaining bits
+    integer_part = data >> (total_bits - frac_bits)
 
     frac_float = fractional_part / (2**frac_bits)
 

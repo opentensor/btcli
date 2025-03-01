@@ -335,8 +335,7 @@ async def stake_move_selection(
 
 
 async def stake_transfer_selection(
-    wallet: Wallet,
-    subtensor: "SubtensorInterface",
+    wallet: Wallet, subtensor: "SubtensorInterface", origin_hotkey: str
 ):
     """Selection interface for transferring stakes."""
     (
@@ -353,7 +352,7 @@ async def stake_transfer_selection(
 
     available_stakes = {}
     for stake in stakes:
-        if stake.stake.tao > 0 and stake.hotkey_ss58 == wallet.hotkey.ss58_address:
+        if stake.stake.tao > 0 and stake.hotkey_ss58 == origin_hotkey:
             available_stakes[stake.netuid] = {
                 "hotkey_ss58": stake.hotkey_ss58,
                 "stake": stake.stake,
@@ -718,8 +717,9 @@ async def transfer_stake(
     Returns:
         bool: True if transfer was successful, False otherwise.
     """
+    origin_hotkey = origin_hotkey or wallet.hotkey.ss58_address
     if interactive_selection:
-        selection = await stake_transfer_selection(wallet, subtensor)
+        selection = await stake_transfer_selection(wallet, subtensor, origin_hotkey)
         origin_netuid = selection["origin_netuid"]
         amount = selection["amount"]
         dest_netuid = selection["destination_netuid"]
