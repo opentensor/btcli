@@ -35,9 +35,14 @@ async def display_network_dashboard(
     Generate and display the HTML interface.
     """
     try:
-        _subnet_data = await fetch_subnet_data(wallet, subtensor)
-        subnet_data = process_subnet_data(_subnet_data)
-        html_content = generate_full_page(subnet_data)
+        with console.status("[dark_sea_green3]Fetching data...", spinner="earth"):
+            _subnet_data = await fetch_subnet_data(wallet, subtensor)
+            subnet_data = process_subnet_data(_subnet_data)
+            html_content = generate_full_page(subnet_data)
+
+        console.print(
+            "[dark_sea_green3]Opening dashboard in a window. Press Ctrl+C to close.[/dark_sea_green3]"
+        )
         window = PyWry()
         window.send_html(
             html=html_content,

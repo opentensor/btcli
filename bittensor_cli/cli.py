@@ -641,7 +641,12 @@ class CLIManager:
         )
 
         # view app
-        self.app.add_typer(self.view_app, name="view", short_help="HTML view commands", no_args_is_help=True)
+        self.app.add_typer(
+            self.view_app,
+            name="view",
+            short_help="HTML view commands",
+            no_args_is_help=True,
+        )
 
         # config commands
         self.config_app.command("set")(self.set_config)
@@ -5093,6 +5098,8 @@ class CLIManager:
         Display html dashboard with subnets list, stake, and neuron information.
         """
         self.verbosity_handler(quiet, verbose)
+        if is_linux():
+            print_linux_dependency_message()
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
         )
