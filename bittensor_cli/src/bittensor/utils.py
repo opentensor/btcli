@@ -1279,7 +1279,7 @@ def print_linux_dependency_message():
     """Prints the WebKit dependency message for Linux systems."""
     console.print("[red]This command requires WebKit dependencies on Linux.[/red]")
     console.print(
-        "\nPlease install the required packages using one of the following commands based on your distribution:"
+        "\nPlease make sure these packages are installed on your system for PyWry to work:"
     )
     console.print("\nArch Linux / Manjaro:")
     console.print("[green]sudo pacman -S webkit2gtk[/green]")
