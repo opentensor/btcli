@@ -6,11 +6,12 @@ from typing import Optional, Any, Union
 import netaddr
 from scalecodec.utils.ss58 import ss58_encode
 
-from bittensor_cli.src.bittensor.balances import Balance
+from bittensor_cli.src.bittensor.balances import Balance, fixed_to_float
 from bittensor_cli.src.bittensor.networking import int_to_ip
 from bittensor_cli.src.bittensor.utils import (
     SS58_FORMAT,
-    u16_normalized_float,
+    u16_normalized_float as u16tf,
+    u64_normalized_float as u64tf,
     decode_account_id,
 )
 
@@ -55,6 +56,31 @@ def process_stake_data(stake_data, netuid):
             {account_id: Balance.from_rao(stake_).set_unit(netuid)}
         )
     return decoded_stake_data
+
+
+def _tbwu(val: int, netuid: Optional[int] = 0) -> Balance:
+    """Returns a Balance object from a value and unit."""
+    return Balance.from_rao(val).set_unit(netuid)
+
+
+def _chr_str(codes: tuple[int]) -> str:
+    """Converts a tuple of integer Unicode code points into a string."""
+    return "".join(map(chr, codes))
+
+
+def process_nested(data: Union[tuple, dict], chr_transform):
+    """Processes nested data structures by applying a transformation function to their elements."""
+    if isinstance(data, (list, tuple)):
+        if len(data) > 0 and isinstance(data[0], dict):
+            return [
+                {k: chr_transform(v) for k, v in item.items()}
+                if item is not None
+                else None
+                for item in data
+            ]
+        return {}
+    elif isinstance(data, dict):
+        return {k: chr_transform(v) for k, v in data.items()}
 
 
 @dataclass
@@ -312,13 +338,13 @@ class NeuronInfo(InfoBase):
             stake=total_stake,
             stake_dict=stake_dict,
             total_stake=total_stake,
-            rank=u16_normalized_float(decoded.get("rank")),
+            rank=u16tf(decoded.get("rank")),
             emission=decoded.get("emission") / 1e9,
-            incentive=u16_normalized_float(decoded.get("incentive")),
-            consensus=u16_normalized_float(decoded.get("consensus")),
-            trust=u16_normalized_float(decoded.get("trust")),
-            validator_trust=u16_normalized_float(decoded.get("validator_trust")),
-            dividends=u16_normalized_float(decoded.get("dividends")),
+            incentive=u16tf(decoded.get("incentive")),
+            consensus=u16tf(decoded.get("consensus")),
+            trust=u16tf(decoded.get("trust")),
+            validator_trust=u16tf(decoded.get("validator_trust")),
+            dividends=u16tf(decoded.get("dividends")),
             last_update=decoded.get("last_update"),
             validator_permit=decoded.get("validator_permit"),
             weights=[[e[0], e[1]] for e in decoded.get("weights")],
@@ -426,22 +452,22 @@ class NeuronInfoLite(InfoBase):
                 coldkey=coldkey,
             ),
             coldkey=coldkey,
-            consensus=u16_normalized_float(consensus),
-            dividends=u16_normalized_float(dividends),
+            consensus=u16tf(consensus),
+            dividends=u16tf(dividends),
             emission=emission / 1e9,
             hotkey=hotkey,
-            incentive=u16_normalized_float(incentive),
+            incentive=u16tf(incentive),
             last_update=last_update,
             netuid=netuid,
             pruning_score=pruning_score,
-            rank=u16_normalized_float(rank),
+            rank=u16tf(rank),
             stake_dict=stake_dict,
             stake=stake,
             total_stake=stake,
-            trust=u16_normalized_float(trust),
+            trust=u16tf(trust),
             uid=uid,
             validator_permit=validator_permit,
-            validator_trust=u16_normalized_float(validator_trust),
+            validator_trust=u16tf(validator_trust),
         )
 
         return neuron
@@ -492,7 +518,7 @@ class DelegateInfo(InfoBase):
             total_stake=total_stake,
             nominators=nominators,
             owner_ss58=owner,
-            take=u16_normalized_float(decoded.get("take")),
+            take=u16tf(decoded.get("take")),
             validator_permits=decoded.get("validator_permits"),
             registrations=decoded.get("registrations"),
             return_per_1000=Balance.from_rao(decoded.get("return_per_1000")),
@@ -528,7 +554,7 @@ class DelegateInfoLite(InfoBase):
         if decoded_take == 65535:
             fixed_take = None
         else:
-            fixed_take = u16_normalized_float(decoded_take)
+            fixed_take = u16tf(decoded_take)
 
         return cls(
             hotkey_ss58=ss58_encode(decoded.get("delegate_ss58"), SS58_FORMAT),
@@ -581,7 +607,7 @@ class SubnetInfo(InfoBase):
             tempo=decoded.get("tempo"),
             modality=decoded.get("network_modality"),
             connection_requirements={
-                str(int(netuid)): u16_normalized_float(int(req))
+                str(int(netuid)): u16tf(int(req))
                 for (netuid, req) in decoded.get("network_connect")
             },
             emission_value=decoded.get("emission_value"),
@@ -844,19 +870,17 @@ class SubnetState(InfoBase):
             coldkeys=[decode_account_id(val) for val in decoded.get("coldkeys")],
             active=decoded.get("active"),
             validator_permit=decoded.get("validator_permit"),
-            pruning_score=[
-                u16_normalized_float(val) for val in decoded.get("pruning_score")
-            ],
+            pruning_score=[u16tf(val) for val in decoded.get("pruning_score")],
             last_update=decoded.get("last_update"),
             emission=[
                 Balance.from_rao(val).set_unit(netuid)
                 for val in decoded.get("emission")
             ],
-            dividends=[u16_normalized_float(val) for val in decoded.get("dividends")],
-            incentives=[u16_normalized_float(val) for val in decoded.get("incentives")],
-            consensus=[u16_normalized_float(val) for val in decoded.get("consensus")],
-            trust=[u16_normalized_float(val) for val in decoded.get("trust")],
-            rank=[u16_normalized_float(val) for val in decoded.get("rank")],
+            dividends=[u16tf(val) for val in decoded.get("dividends")],
+            incentives=[u16tf(val) for val in decoded.get("incentives")],
+            consensus=[u16tf(val) for val in decoded.get("consensus")],
+            trust=[u16tf(val) for val in decoded.get("trust")],
+            rank=[u16tf(val) for val in decoded.get("rank")],
             block_at_registration=decoded.get("block_at_registration"),
             alpha_stake=[
                 Balance.from_rao(val).set_unit(netuid)
@@ -870,4 +894,242 @@ class SubnetState(InfoBase):
                 for val in decoded.get("total_stake")
             ],
             emission_history=decoded.get("emission_history"),
+        )
+
+
+@dataclass
+class ChainIdentity(InfoBase):
+    """Dataclass for chain identity information."""
+
+    name: str
+    url: str
+    github: str
+    image: str
+    discord: str
+    description: str
+    additional: str
+
+    @classmethod
+    def _from_dict(cls, decoded: dict) -> "ChainIdentity":
+        """Returns a ChainIdentity object from decoded chain data."""
+        return cls(
+            name=decoded["name"],
+            url=decoded["url"],
+            github=decoded["github_repo"],
+            image=decoded["image"],
+            discord=decoded["discord"],
+            description=decoded["description"],
+            additional=decoded["additional"],
+        )
+
+
+@dataclass
+class MetagraphInfo(InfoBase):
+    # Subnet index
+    netuid: int
+
+    # Name and symbol
+    name: str
+    symbol: str
+    identity: Optional[SubnetIdentity]
+    network_registered_at: int
+
+    # Keys for owner.
+    owner_hotkey: str  # hotkey
+    owner_coldkey: str  # coldkey
+
+    # Tempo terms.
+    block: int  # block at call.
+    tempo: int  # epoch tempo
+    last_step: int
+    blocks_since_last_step: int
+
+    # Subnet emission terms
+    subnet_emission: Balance  # subnet emission via tao
+    alpha_in: Balance  # amount of alpha in reserve
+    alpha_out: Balance  # amount of alpha outstanding
+    tao_in: Balance  # amount of tao injected per block
+    alpha_out_emission: Balance  # amount injected in alpha reserves per block
+    alpha_in_emission: Balance  # amount injected outstanding per block
+    tao_in_emission: Balance  # amount of tao injected per block
+    pending_alpha_emission: Balance  # pending alpha to be distributed
+    pending_root_emission: Balance  # pending tao for root divs to be distributed
+    subnet_volume: Balance  # volume of the subnet in TAO
+    moving_price: Balance  # subnet moving price.
+
+    # Hparams for epoch
+    rho: int  # subnet rho param
+    kappa: float  # subnet kappa param
+
+    # Validator params
+    min_allowed_weights: float  # min allowed weights per val
+    max_weights_limit: float  # max allowed weights per val
+    weights_version: int  # allowed weights version
+    weights_rate_limit: int  # rate limit on weights.
+    activity_cutoff: int  # validator weights cut off period in blocks
+    max_validators: int  # max allowed validators.
+
+    # Registration
+    num_uids: int
+    max_uids: int
+    burn: Balance  # current burn cost.
+    difficulty: float  # current difficulty.
+    registration_allowed: bool  # allows registrations.
+    pow_registration_allowed: bool  # pow registration enabled.
+    immunity_period: int  # subnet miner immunity period
+    min_difficulty: float  # min pow difficulty
+    max_difficulty: float  # max pow difficulty
+    min_burn: Balance  # min tao burn
+    max_burn: Balance  # max tao burn
+    adjustment_alpha: float  # adjustment speed for registration params.
+    adjustment_interval: int  # pow and burn adjustment interval
+    target_regs_per_interval: int  # target registrations per interval
+    max_regs_per_block: int  # max registrations per block.
+    serving_rate_limit: int  # axon serving rate limit
+
+    # CR
+    commit_reveal_weights_enabled: bool  # Is CR enabled.
+    commit_reveal_period: int  # Commit reveal interval
+
+    # Bonds
+    liquid_alpha_enabled: bool  # Bonds liquid enabled.
+    alpha_high: float  # Alpha param high
+    alpha_low: float  # Alpha param low
+    bonds_moving_avg: float  # Bonds moving avg
+
+    # Metagraph info.
+    hotkeys: list[str]  # hotkey per UID
+    coldkeys: list[str]  # coldkey per UID
+    identities: list[Optional[ChainIdentity]]  # coldkeys identities
+    axons: list[AxonInfo]  # UID axons.
+    active: list[bool]  # Active per UID
+    validator_permit: list[bool]  # Val permit per UID
+    pruning_score: list[float]  # Pruning per UID
+    last_update: list[int]  # Last update per UID
+    emission: list[Balance]  # Emission per UID
+    dividends: list[float]  # Dividends per UID
+    incentives: list[float]  # Mining incentives per UID
+    consensus: list[float]  # Consensus per UID
+    trust: list[float]  # Trust per UID
+    rank: list[float]  # Rank per UID
+    block_at_registration: list[int]  # Reg block per UID
+    alpha_stake: list[Balance]  # Alpha staked per UID
+    tao_stake: list[Balance]  # TAO staked per UID
+    total_stake: list[Balance]  # Total stake per UID
+
+    # Dividend break down.
+    tao_dividends_per_hotkey: list[
+        tuple[str, Balance]
+    ]  # List of dividend payouts in tao via root.
+    alpha_dividends_per_hotkey: list[
+        tuple[str, Balance]
+    ]  # List of dividend payout in alpha via subnet.
+
+    @classmethod
+    def _fix_decoded(cls, decoded: dict) -> "MetagraphInfo":
+        """Returns a MetagraphInfo object from decoded chain data."""
+        # Subnet index
+        _netuid = decoded["netuid"]
+
+        # Name and symbol
+        decoded.update({"name": bytes(decoded.get("name")).decode()})
+        decoded.update({"symbol": bytes(decoded.get("symbol")).decode()})
+        for key in ["identities", "identity"]:
+            raw_data = decoded.get(key)
+            processed = process_nested(raw_data, _chr_str)
+            decoded.update({key: processed})
+
+        return cls(
+            # Subnet index
+            netuid=_netuid,
+            # Name and symbol
+            name=decoded["name"],
+            symbol=decoded["symbol"],
+            identity=decoded["identity"],
+            network_registered_at=decoded["network_registered_at"],
+            # Keys for owner.
+            owner_hotkey=decoded["owner_hotkey"],
+            owner_coldkey=decoded["owner_coldkey"],
+            # Tempo terms.
+            block=decoded["block"],
+            tempo=decoded["tempo"],
+            last_step=decoded["last_step"],
+            blocks_since_last_step=decoded["blocks_since_last_step"],
+            # Subnet emission terms
+            subnet_emission=_tbwu(decoded["subnet_emission"]),
+            alpha_in=_tbwu(decoded["alpha_in"], _netuid),
+            alpha_out=_tbwu(decoded["alpha_out"], _netuid),
+            tao_in=_tbwu(decoded["tao_in"]),
+            alpha_out_emission=_tbwu(decoded["alpha_out_emission"], _netuid),
+            alpha_in_emission=_tbwu(decoded["alpha_in_emission"], _netuid),
+            tao_in_emission=_tbwu(decoded["tao_in_emission"]),
+            pending_alpha_emission=_tbwu(decoded["pending_alpha_emission"], _netuid),
+            pending_root_emission=_tbwu(decoded["pending_root_emission"]),
+            subnet_volume=_tbwu(decoded["subnet_volume"], _netuid),
+            moving_price=Balance.from_tao(
+                fixed_to_float(decoded.get("moving_price"), 32)
+            ),
+            # Hparams for epoch
+            rho=decoded["rho"],
+            kappa=decoded["kappa"],
+            # Validator params
+            min_allowed_weights=u16tf(decoded["min_allowed_weights"]),
+            max_weights_limit=u16tf(decoded["max_weights_limit"]),
+            weights_version=decoded["weights_version"],
+            weights_rate_limit=decoded["weights_rate_limit"],
+            activity_cutoff=decoded["activity_cutoff"],
+            max_validators=decoded["max_validators"],
+            # Registration
+            num_uids=decoded["num_uids"],
+            max_uids=decoded["max_uids"],
+            burn=_tbwu(decoded["burn"]),
+            difficulty=u64tf(decoded["difficulty"]),
+            registration_allowed=decoded["registration_allowed"],
+            pow_registration_allowed=decoded["pow_registration_allowed"],
+            immunity_period=decoded["immunity_period"],
+            min_difficulty=u64tf(decoded["min_difficulty"]),
+            max_difficulty=u64tf(decoded["max_difficulty"]),
+            min_burn=_tbwu(decoded["min_burn"]),
+            max_burn=_tbwu(decoded["max_burn"]),
+            adjustment_alpha=u64tf(decoded["adjustment_alpha"]),
+            adjustment_interval=decoded["adjustment_interval"],
+            target_regs_per_interval=decoded["target_regs_per_interval"],
+            max_regs_per_block=decoded["max_regs_per_block"],
+            serving_rate_limit=decoded["serving_rate_limit"],
+            # CR
+            commit_reveal_weights_enabled=decoded["commit_reveal_weights_enabled"],
+            commit_reveal_period=decoded["commit_reveal_period"],
+            # Bonds
+            liquid_alpha_enabled=decoded["liquid_alpha_enabled"],
+            alpha_high=u16tf(decoded["alpha_high"]),
+            alpha_low=u16tf(decoded["alpha_low"]),
+            bonds_moving_avg=u64tf(decoded["bonds_moving_avg"]),
+            # Metagraph info.
+            hotkeys=[decode_account_id(ck) for ck in decoded.get("hotkeys", [])],
+            coldkeys=[decode_account_id(hk) for hk in decoded.get("coldkeys", [])],
+            identities=decoded["identities"],
+            axons=decoded.get("axons", []),
+            active=decoded["active"],
+            validator_permit=decoded["validator_permit"],
+            pruning_score=[u16tf(ps) for ps in decoded.get("pruning_score", [])],
+            last_update=decoded["last_update"],
+            emission=[_tbwu(em, _netuid) for em in decoded.get("emission", [])],
+            dividends=[u16tf(dv) for dv in decoded.get("dividends", [])],
+            incentives=[u16tf(ic) for ic in decoded.get("incentives", [])],
+            consensus=[u16tf(cs) for cs in decoded.get("consensus", [])],
+            trust=[u16tf(tr) for tr in decoded.get("trust", [])],
+            rank=[u16tf(rk) for rk in decoded.get("rank", [])],
+            block_at_registration=decoded["block_at_registration"],
+            alpha_stake=[_tbwu(ast, _netuid) for ast in decoded["alpha_stake"]],
+            tao_stake=[_tbwu(ts) for ts in decoded["tao_stake"]],
+            total_stake=[_tbwu(ts, _netuid) for ts in decoded["total_stake"]],
+            # Dividend break down
+            tao_dividends_per_hotkey=[
+                (decode_account_id(alpha[0]), _tbwu(alpha[1]))
+                for alpha in decoded["tao_dividends_per_hotkey"]
+            ],
+            alpha_dividends_per_hotkey=[
+                (decode_account_id(adphk[0]), _tbwu(adphk[1], _netuid))
+                for adphk in decoded["alpha_dividends_per_hotkey"]
+            ],
         )

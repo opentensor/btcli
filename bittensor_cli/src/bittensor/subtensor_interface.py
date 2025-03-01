@@ -20,6 +20,7 @@ from bittensor_cli.src.bittensor.chain_data import (
     decode_hex_identity,
     DynamicInfo,
     SubnetState,
+    MetagraphInfo,
 )
 from bittensor_cli.src import DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance, fixed_to_float
@@ -1251,6 +1252,38 @@ class SubtensorInterface:
             return Balance(0).set_unit(netuid)
         else:
             return Balance.from_rao(_result).set_unit(int(netuid))
+
+    async def get_metagraph_info(
+        self, netuid: int, block_hash: Optional[str] = None
+    ) -> Optional[MetagraphInfo]:
+        hex_bytes_result = await self.query_runtime_api(
+            runtime_api="SubnetInfoRuntimeApi",
+            method="get_metagraph",
+            params=[netuid],
+            block_hash=block_hash,
+        )
+
+        if hex_bytes_result is None:
+            return None
+
+        try:
+            bytes_result = bytes.fromhex(hex_bytes_result[2:])
+        except ValueError:
+            bytes_result = bytes.fromhex(hex_bytes_result)
+
+        return MetagraphInfo.from_any(bytes_result)
+
+    async def get_all_metagraphs_info(
+        self, block_hash: Optional[str] = None
+    ) -> list[MetagraphInfo]:
+        hex_bytes_result = await self.query_runtime_api(
+            runtime_api="SubnetInfoRuntimeApi",
+            method="get_all_metagraphs",
+            params=[],
+            block_hash=block_hash,
+        )
+
+        return MetagraphInfo.list_from_any(hex_bytes_result)
 
     async def multi_get_stake_for_coldkey_and_hotkey_on_netuid(
         self,
