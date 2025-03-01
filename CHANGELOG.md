@@ -1,5 +1,14 @@
 # Changelog
 
+## 9.1.0 /2025-03-01
+
+## What's Changed
+* Hotkey SS58 in stake transfer interactive selection by @thewhaleking in https://github.com/opentensor/btcli/pull/345
+* Backmerge main staging 903 by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/346
+* Feat/btcli view dashboard by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/348
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.0.3...v9.1.0
+
 ## 9.0.3 /2025-02-26
 
 ## What's Changed
