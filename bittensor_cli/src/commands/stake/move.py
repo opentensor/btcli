@@ -188,7 +188,7 @@ def prompt_stake_amount(
         )
 
         if amount_input.lower() == "all":
-            return current_balance, True
+            return current_balance - Balance.from_rao(1), True
 
         try:
             amount = float(amount_input)
@@ -591,12 +591,11 @@ async def move_stake(
     if amount:
         amount_to_move_as_balance = Balance.from_tao(amount)
     elif stake_all:
-        amount_to_move_as_balance = origin_stake_balance - Balance.from_rao(2)
+        amount_to_move_as_balance = origin_stake_balance - Balance.from_rao(1)
     else:
         amount_to_move_as_balance, _ = prompt_stake_amount(
             origin_stake_balance, origin_netuid, "move"
         )
-    console.print("DEBUGGING", amount_to_move_as_balance.rao, origin_stake_balance.rao)
 
     # Check enough to move.
     amount_to_move_as_balance.set_unit(origin_netuid)
