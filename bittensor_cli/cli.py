@@ -246,6 +246,15 @@ class Options:
         "--allow-partial/--not-partial",
         help="Enable or disable partial stake mode (default: disabled).",
     )
+    dashboard_path = typer.Option(
+        None,
+        "--dashboard-path",
+        "--dashboard_path",
+        "--dash_path",
+        "--dash.path",
+        "--dashboard.path",
+        help="Path to save the dashboard HTML file. For example: `/Users/btuser/.bittensor/dashboard`.",
+    )
 
 
 def list_prompt(init_var: list, list_type: type, help_text: str) -> list:
@@ -525,6 +534,7 @@ class CLIManager:
             "rate_tolerance": None,
             "safe_staking": True,
             "allow_partial_stake": False,
+            "dashboard_path": None,
             # Commenting this out as this needs to get updated
             # "metagraph_cols": {
             #     "UID": True,
@@ -1119,6 +1129,7 @@ class CLIManager:
             "--partial/--no-partial",
             "--allow/--not-allow",
         ),
+        dashboard_path: Optional[str] = Options.dashboard_path,
     ):
         """
         Sets or updates configuration values in the BTCLI config file.
@@ -1148,6 +1159,7 @@ class CLIManager:
             "rate_tolerance": rate_tolerance,
             "safe_staking": safe_staking,
             "allow_partial_stake": allow_partial_stake,
+            "dashboard_path": dashboard_path,
         }
         bools = ["use_cache", "safe_staking", "allow_partial_stake"]
         if all(v is None for v in args.values()):
@@ -1257,6 +1269,7 @@ class CLIManager:
             "--allow/--not-allow",
         ),
         all_items: bool = typer.Option(False, "--all"),
+        dashboard_path: Optional[str] = Options.dashboard_path,
     ):
         """
         Clears the fields in the config file and sets them to 'None'.
@@ -1288,6 +1301,7 @@ class CLIManager:
             "rate_tolerance": rate_tolerance,
             "safe_staking": safe_staking,
             "allow_partial_stake": allow_partial_stake,
+            "dashboard_path": dashboard_path,
         }
 
         # If no specific argument is provided, iterate over all
@@ -5091,6 +5105,19 @@ class CLIManager:
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
+        coldkey_ss58: Optional[str] = typer.Option(
+            None,
+            "--coldkey-ss58",
+            "--ss58",
+            help="Coldkey SS58 address to view dashboard for",
+        ),
+        use_wry: bool = typer.Option(
+            False, "--use-wry", help="Use PyWry instead of browser window"
+        ),
+        save_file: bool = typer.Option(
+            False, "--save-file", "--save", help="Save the dashboard HTML file"
+        ),
+        dashboard_path: Optional[str] = Options.dashboard_path,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -5098,13 +5125,40 @@ class CLIManager:
         Display html dashboard with subnets list, stake, and neuron information.
         """
         self.verbosity_handler(quiet, verbose)
-        if is_linux():
+        if use_wry and is_linux():
             print_linux_dependency_message()
-        wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
-        )
+
+        if use_wry and save_file:
+            print_error("Cannot save file when using PyWry.")
+            raise typer.Exit()
+
+        if save_file:
+            if not dashboard_path:
+                dashboard_path = Prompt.ask(
+                    "Enter the [blue]path[/blue] where the dashboard HTML file will be saved",
+                    default=self.config.get("dashboard_path")
+                    or defaults.dashboard.path,
+                )
+
+        if coldkey_ss58:
+            if not is_valid_ss58_address(coldkey_ss58):
+                print_error(f"Invalid SS58 address: {coldkey_ss58}")
+                raise typer.Exit()
+            wallet = None
+        else:
+            wallet = self.wallet_ask(
+                wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
+            )
+
         return self._run_command(
-            view.display_network_dashboard(wallet, self.initialize_chain(network))
+            view.display_network_dashboard(
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                use_wry=use_wry,
+                save_file=save_file,
+                dashboard_path=dashboard_path,
+                coldkey_ss58=coldkey_ss58,
+            )
         )
 
     @staticmethod
