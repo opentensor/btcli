@@ -591,7 +591,7 @@ async def move_stake(
     if amount:
         amount_to_move_as_balance = Balance.from_tao(amount)
     elif stake_all:
-        amount_to_move_as_balance = origin_stake_balance
+        amount_to_move_as_balance = origin_stake_balance - Balance.from_rao(1)
     else:
         amount_to_move_as_balance, _ = prompt_stake_amount(
             origin_stake_balance, origin_netuid, "move"
