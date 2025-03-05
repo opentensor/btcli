@@ -3528,6 +3528,9 @@ class CLIManager:
             "-a",
             help="Amount of stake to transfer",
         ),
+        stake_all: bool = typer.Option(
+            False, "--stake-all", "--all", help="Stake all", prompt=False
+        ),
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3545,6 +3548,8 @@ class CLIManager:
         - The destination subnet (--dest-netuid)
         - The destination wallet/address (--dest)
         - The amount to transfer (--amount)
+        - The origin wallet (--wallet-name)
+        - The origin hotkey wallet/address (--wallet-hotkey)
 
         If no arguments are provided, an interactive selection menu will be shown.
 
@@ -3553,13 +3558,36 @@ class CLIManager:
         Transfer 100 TAO from subnet 1 to subnet 2:
         [green]$[/green] btcli stake transfer --origin-netuid 1 --dest-netuid 2 --dest wallet2 --amount 100
 
-        Using SS58 address:
+        Using Destination SS58 address:
         [green]$[/green] btcli stake transfer --origin-netuid 1 --dest-netuid 2 --dest 5FrLxJsyJ5x9n2rmxFwosFraxFCKcXZDngEP9H7qjkKgHLcK --amount 100
+
+        Using Origin hotkey SS58 address (useful when transferring stake from a delegate):
+        [green]$[/green] btcli stake transfer --wallet-hotkey 5FrLxJsyJ5x9n2rmxFwosFraxFCKcXZDngEP9H7qjkKgHLcK --wallet-name sample_wallet
+
+        Transfer all available stake from origin hotkey:
+        [green]$[/green] btcli stake transfer --all --origin-netuid 1 --dest-netuid 2
         """
         console.print(
             "[dim]This command transfers stake from one coldkey to another while keeping the same hotkey.[/dim]"
         )
         self.verbosity_handler(quiet, verbose)
+
+        if not dest_ss58:
+            dest_ss58 = Prompt.ask(
+                "Enter the [blue]destination wallet name[/blue] or [blue]coldkey SS58 address[/blue]"
+            )
+
+        if is_valid_ss58_address(dest_ss58):
+            dest_ss58 = dest_ss58
+        else:
+            dest_wallet = self.wallet_ask(
+                dest_ss58,
+                wallet_path,
+                None,
+                ask_for=[WO.NAME, WO.PATH],
+                validate=WV.WALLET,
+            )
+            dest_ss58 = dest_wallet.coldkeypub.ss58_address
 
         if not wallet_name:
             wallet_name = Prompt.ask(
@@ -3570,13 +3598,16 @@ class CLIManager:
             wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
         )
 
+        interactive_selection = False
         if not wallet_hotkey:
             origin_hotkey = Prompt.ask(
-                "Enter the [blue]origin hotkey[/blue] name or "
-                "[blue]ss58 address[/blue] where the stake will be moved from",
-                default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
+                "Enter the [blue]origin hotkey[/blue] name or ss58 address [bold](stake will be transferred FROM here)[/bold] "
+                "[dim](or press Enter to select from existing stakes)[/dim]"
             )
-            if is_valid_ss58_address(origin_hotkey):
+            if origin_hotkey == "":
+                interactive_selection = True
+
+            elif is_valid_ss58_address(origin_hotkey):
                 origin_hotkey = origin_hotkey
             else:
                 wallet = self.wallet_ask(
@@ -3600,33 +3631,11 @@ class CLIManager:
                 )
                 origin_hotkey = wallet.hotkey.ss58_address
 
-        if not dest_ss58:
-            dest_ss58 = Prompt.ask(
-                "Enter the [blue]destination wallet name[/blue] or [blue]coldkey SS58 address[/blue]"
-            )
-
-        if is_valid_ss58_address(dest_ss58):
-            dest_ss58 = dest_ss58
-        else:
-            dest_wallet = self.wallet_ask(
-                dest_ss58,
-                wallet_path,
-                None,
-                ask_for=[WO.NAME, WO.PATH],
-                validate=WV.WALLET,
-            )
-            dest_ss58 = dest_wallet.coldkeypub.ss58_address
-
-        interactive_selection = False
-        if origin_netuid is None and dest_netuid is None and not amount:
-            interactive_selection = True
-        else:
+        if not interactive_selection:
             if origin_netuid is None:
                 origin_netuid = IntPrompt.ask(
                     "Enter the [blue]origin subnet[/blue] (netuid)"
                 )
-            if not amount:
-                amount = FloatPrompt.ask("Enter the [blue]amount[/blue] to transfer")
 
             if dest_netuid is None:
                 dest_netuid = IntPrompt.ask(
@@ -3643,6 +3652,7 @@ class CLIManager:
                 dest_coldkey_ss58=dest_ss58,
                 amount=amount,
                 interactive_selection=interactive_selection,
+                stake_all=stake_all,
                 prompt=prompt,
             )
         )
