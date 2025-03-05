@@ -73,8 +73,7 @@ def extract_coldkey_balance(text: str, wallet_name: str, coldkey_address: str) -
               Returns a dictionary with all zeros if the wallet name or coldkey address is not found.
     """
     pattern = (
-        rf"{wallet_name}\s+{coldkey_address}\s+"
-        r"τ\s*([\d,]+\.\d+)"  # Free Balance
+        rf"{wallet_name}\s+{coldkey_address}\s+" r"τ\s*([\d,]+\.\d+)"  # Free Balance
     )
 
     match = re.search(pattern, text)
@@ -140,9 +139,7 @@ def validate_wallet_overview(
     pattern += r"[\d.]+\s+"  # VTRUST
     pattern += r"\*?\s*"  # VPERMIT (optional *)
     pattern += r"[\d]+\s+"  # UPDATED
-    pattern += (
-        r"(?!none)\w+\s+" if axon_active else r"none\s+"
-    )  # AXON
+    pattern += r"(?!none)\w+\s+" if axon_active else r"none\s+"  # AXON
     pattern += rf"{hotkey_ss58[:10]}\s*"  # HOTKEY_SS58
 
     # Search for the pattern in the wallet information

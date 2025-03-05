@@ -14,7 +14,6 @@ from rich.align import Align
 from rich.table import Column, Table
 from rich.tree import Tree
 from rich.padding import Padding
-import typer
 
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor import utils
@@ -120,7 +119,7 @@ async def regen_hotkey(
     if json_path:
         if not os.path.exists(json_path) or not os.path.isfile(json_path):
             err_console.print(f"File {json_path} does not exist")
-            raise typer.Exit()
+            return False
         with open(json_path, "r") as f:
             json_str = f.read()
 

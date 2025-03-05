@@ -1,7 +1,6 @@
 import asyncio
 from typing import TYPE_CHECKING, Union, Optional
 
-import typer
 from bittensor_wallet import Wallet
 from rich import box
 from rich.table import Column, Table
@@ -593,7 +592,7 @@ async def sudo_set_hyperparameter(
     if success:
         console.print("\n")
         print_verbose("Fetching hyperparameters")
-        await get_hyperparameters(subtensor, netuid=netuid)
+        return await get_hyperparameters(subtensor, netuid=netuid)
 
 
 async def get_hyperparameters(subtensor: "SubtensorInterface", netuid: int):
@@ -606,7 +605,7 @@ async def get_hyperparameters(subtensor: "SubtensorInterface", netuid: int):
     subnet_info = await subtensor.subnet(netuid)
     if subnet_info is None:
         print_error(f"Subnet with netuid {netuid} does not exist.")
-        raise typer.Exit()
+        return False
 
     table = Table(
         Column("[white]HYPERPARAMETER", style=COLOR_PALETTE["SUDO"]["HYPERPARAMETER"]),

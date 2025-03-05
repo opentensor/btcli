@@ -1,10 +1,8 @@
 import asyncio
 
 from typing import TYPE_CHECKING
-import typer
 
 from bittensor_wallet import Wallet
-from bittensor_wallet.errors import KeyFileError
 from rich.table import Table
 from rich.prompt import Confirm, Prompt
 
@@ -72,7 +70,7 @@ async def display_stake_movement_cross_subnets(
 
         if received_amount < Balance.from_tao(0):
             print_error("Not enough Alpha to pay the transaction fee.")
-            raise typer.Exit()
+            raise ValueError
 
         ideal_amount = amount_to_move * price
         total_slippage = ideal_amount - received_amount
@@ -228,7 +226,7 @@ async def stake_move_selection(
 
     if not hotkey_stakes:
         print_error("You have no stakes to move.")
-        raise typer.Exit()
+        raise ValueError
 
     # Display hotkeys with stakes
     table = Table(
@@ -457,7 +455,7 @@ async def stake_swap_selection(
 
     if not hotkey_stakes:
         print_error(f"No stakes found for hotkey: {wallet.hotkey_str}")
-        raise typer.Exit()
+        raise ValueError
 
     # Display available stakes
     table = Table(
@@ -540,7 +538,10 @@ async def move_stake(
     prompt: bool = True,
 ):
     if interactive_selection:
-        selection = await stake_move_selection(subtensor, wallet)
+        try:
+            selection = await stake_move_selection(subtensor, wallet)
+        except ValueError:
+            return False
         origin_hotkey = selection["origin_hotkey"]
         origin_netuid = selection["origin_netuid"]
         amount = selection["amount"]
@@ -571,7 +572,7 @@ async def move_stake(
             f"in Netuid: "
             f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{origin_netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
         )
-        raise typer.Exit()
+        return False
 
     console.print(
         f"\nOrigin Netuid: "
@@ -609,16 +610,19 @@ async def move_stake(
 
     # Slippage warning
     if prompt:
-        await display_stake_movement_cross_subnets(
-            subtensor=subtensor,
-            origin_netuid=origin_netuid,
-            destination_netuid=destination_netuid,
-            origin_hotkey=origin_hotkey,
-            destination_hotkey=destination_hotkey,
-            amount_to_move=amount_to_move_as_balance,
-        )
+        try:
+            await display_stake_movement_cross_subnets(
+                subtensor=subtensor,
+                origin_netuid=origin_netuid,
+                destination_netuid=destination_netuid,
+                origin_hotkey=origin_hotkey,
+                destination_hotkey=destination_hotkey,
+                amount_to_move=amount_to_move_as_balance,
+            )
+        except ValueError:
+            return False
         if not Confirm.ask("Would you like to continue?"):
-            raise typer.Exit()
+            return False
 
     # Perform moving operation.
     if not unlock_key(wallet).success:
@@ -763,17 +767,20 @@ async def transfer_stake(
 
     # Slippage warning
     if prompt:
-        await display_stake_movement_cross_subnets(
-            subtensor=subtensor,
-            origin_netuid=origin_netuid,
-            destination_netuid=dest_netuid,
-            origin_hotkey=origin_hotkey,
-            destination_hotkey=origin_hotkey,
-            amount_to_move=amount_to_transfer,
-        )
+        try:
+            await display_stake_movement_cross_subnets(
+                subtensor=subtensor,
+                origin_netuid=origin_netuid,
+                destination_netuid=dest_netuid,
+                origin_hotkey=origin_hotkey,
+                destination_hotkey=origin_hotkey,
+                amount_to_move=amount_to_transfer,
+            )
+        except ValueError:
+            return False
 
         if not Confirm.ask("Would you like to continue?"):
-            raise typer.Exit()
+            return False
 
     # Perform transfer operation
     if not unlock_key(wallet).success:
@@ -868,7 +875,10 @@ async def swap_stake(
     """
     hotkey_ss58 = wallet.hotkey.ss58_address
     if interactive_selection:
-        selection = await stake_swap_selection(subtensor, wallet)
+        try:
+            selection = await stake_swap_selection(subtensor, wallet)
+        except ValueError:
+            return False
         origin_netuid = selection["origin_netuid"]
         amount = selection["amount"]
         destination_netuid = selection["destination_netuid"]
@@ -916,17 +926,20 @@ async def swap_stake(
 
     # Slippage warning
     if prompt:
-        await display_stake_movement_cross_subnets(
-            subtensor=subtensor,
-            origin_netuid=origin_netuid,
-            destination_netuid=destination_netuid,
-            origin_hotkey=hotkey_ss58,
-            destination_hotkey=hotkey_ss58,
-            amount_to_move=amount_to_swap,
-        )
+        try:
+            await display_stake_movement_cross_subnets(
+                subtensor=subtensor,
+                origin_netuid=origin_netuid,
+                destination_netuid=destination_netuid,
+                origin_hotkey=hotkey_ss58,
+                destination_hotkey=hotkey_ss58,
+                amount_to_move=amount_to_swap,
+            )
+        except ValueError:
+            return False
 
         if not Confirm.ask("Would you like to continue?"):
-            raise typer.Exit()
+            return False
 
     # Perform swap operation
     if not unlock_key(wallet).success:

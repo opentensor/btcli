@@ -2937,7 +2937,7 @@ class CLIManager:
                     ),
                     exit_early=False,
                 )
-                if selected_hotkey is None:
+                if not selected_hotkey:
                     print_error("No delegate selected. Exiting.")
                     raise typer.Exit()
                 include_hotkeys = selected_hotkey
