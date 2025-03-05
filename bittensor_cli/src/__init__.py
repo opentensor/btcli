@@ -138,6 +138,9 @@ class Defaults:
         record_log = False
         logging_dir = "~/.bittensor/miners"
 
+    class dashboard:
+        path = "~/.bittensor/dashboard/"
+
 
 defaults = Defaults
 
