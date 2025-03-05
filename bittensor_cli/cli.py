@@ -3062,14 +3062,12 @@ class CLIManager:
             False,
             "--unstake-all",
             "--all",
-            hidden=True,
             help="When set, this command unstakes all staked TAO + Alpha from the all hotkeys.",
         ),
         unstake_all_alpha: bool = typer.Option(
             False,
             "--unstake-all-alpha",
             "--all-alpha",
-            hidden=True,
             help="When set, this command unstakes all staked Alpha from the all hotkeys.",
         ),
         amount: float = typer.Option(
