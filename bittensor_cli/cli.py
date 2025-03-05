@@ -253,7 +253,7 @@ class Options:
         "--dash_path",
         "--dash.path",
         "--dashboard.path",
-        help="Path to save the dashboard HTML file. For example: `/Users/btuser/.bittensor/dashboard`.",
+        help="Path to save the dashboard HTML file. For example: `~/.bittensor/dashboard`.",
     )
 
 
