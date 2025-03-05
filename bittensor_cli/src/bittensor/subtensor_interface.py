@@ -1251,7 +1251,7 @@ class SubtensorInterface:
         if _result is None:
             return Balance(0).set_unit(netuid)
         else:
-            return Balance.from_rao(_result).set_unit(int(netuid))
+            return Balance.from_rao(fixed_to_float(_result)).set_unit(int(netuid))
 
     async def get_metagraph_info(
         self, netuid: int, block_hash: Optional[str] = None
