@@ -109,6 +109,18 @@ class Options:
         "--wallet.hotkey",
         help="Hotkey of the wallet",
     )
+    wallet_hotkey_ss58 = typer.Option(
+        None,
+        "--hotkey",
+        "--hotkey-ss58",
+        "-H",
+        "--wallet_hotkey",
+        "--wallet_hotkey_ss58",
+        "--wallet-hotkey",
+        "--wallet-hotkey-ss58",
+        "--wallet.hotkey",
+        help="Hotkey name or SS58 address of the hotkey",
+    )
     mnemonic = typer.Option(
         None,
         help='Mnemonic used to regenerate your key. For example: "horse cart dog ..."',
@@ -3349,7 +3361,7 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey_ss58,
         origin_netuid: Optional[int] = typer.Option(
             None, "--origin-netuid", help="Origin netuid"
         ),
@@ -3369,6 +3381,8 @@ class CLIManager:
             False, "--stake-all", "--all", help="Stake all", prompt=False
         ),
         prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Move staked TAO between hotkeys while keeping the same coldkey ownership.
@@ -3390,6 +3404,7 @@ class CLIManager:
 
         [green]$[/green] btcli stake move
         """
+        self.verbosity_handler(quiet, verbose)
         console.print(
             "[dim]This command moves stake from one hotkey to another hotkey while keeping the same coldkey.[/dim]"
         )
@@ -3502,7 +3517,7 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey_ss58,
         origin_netuid: Optional[int] = typer.Option(
             None,
             "--origin-netuid",
