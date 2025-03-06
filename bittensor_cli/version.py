@@ -15,6 +15,5 @@ def version_as_int(version):
     __new_signature_version__ = 360
     return __version_as_int__
 
-
-__version__ = "9.0.3"
+__version__ = "9.1.0"
 __version_as_int__ = version_as_int(__version__)
