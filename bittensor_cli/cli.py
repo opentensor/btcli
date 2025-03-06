@@ -119,7 +119,7 @@ class Options:
         "--wallet-hotkey",
         "--wallet-hotkey-ss58",
         "--wallet.hotkey",
-        help="Hotkey or SS58 address of the wallet",
+        help="Hotkey name or SS58 address of the wallet",
     )
     mnemonic = typer.Option(
         None,
