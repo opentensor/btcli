@@ -2,10 +2,8 @@ import asyncio
 import json
 import sqlite3
 from typing import TYPE_CHECKING, Optional, cast
-import typer
 
 from bittensor_wallet import Wallet
-from bittensor_wallet.errors import KeyFileError
 from rich.prompt import Confirm, Prompt
 from rich.console import Group
 from rich.progress import Progress, BarColumn, TextColumn
@@ -814,7 +812,7 @@ async def show(
         root_info = next((s for s in all_subnets if s.netuid == 0), None)
         if root_info is None:
             print_error("The root subnet does not exist")
-            raise typer.Exit()
+            return False
 
         root_state, identities, old_identities = await asyncio.gather(
             subtensor.get_subnet_state(netuid=0, block_hash=block_hash),
@@ -1017,7 +1015,7 @@ async def show(
     async def show_subnet(netuid_: int):
         if not await subtensor.subnet_exists(netuid=netuid):
             err_console.print(f"[red]Subnet {netuid} does not exist[/red]")
-            raise typer.Exit()
+            return False
         block_hash = await subtensor.substrate.get_chain_head()
         (
             subnet_info,
@@ -1036,15 +1034,15 @@ async def show(
         )
         if subnet_state is None:
             print_error(f"Subnet {netuid_} does not exist")
-            raise typer.Exit()
+            return False
 
         if subnet_info is None:
             print_error(f"Subnet {netuid_} does not exist")
-            raise typer.Exit()
+            return False
 
         if len(subnet_state.hotkeys) == 0:
             print_error(f"Subnet {netuid_} is currently empty with 0 UIDs registered.")
-            raise typer.Exit()
+            return False
 
         # Define table properties
         table = Table(
@@ -1381,7 +1379,7 @@ async def create(
                     " are you sure you wish to continue?"
                 ):
                     console.print(":cross_mark: Aborted!")
-                    raise typer.Exit()
+                    return False
 
             identity = prompt_for_identity(
                 current_identity=current_identity,
@@ -2135,7 +2133,7 @@ async def get_identity(subtensor: "SubtensorInterface", netuid: int, title: str 
 
     if not await subtensor.subnet_exists(netuid):
         print_error(f"Subnet {netuid} does not exist.")
-        raise typer.Exit()
+        return None
 
     with console.status(
         ":satellite: [bold green]Querying subnet identity...", spinner="earth"
