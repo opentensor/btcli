@@ -40,6 +40,11 @@ async def display_stake_movement_cross_subnets(
         received_amount_tao = subnet.alpha_to_tao(amount_to_move)
         received_amount_tao -= MIN_STAKE_FEE
         received_amount = subnet.tao_to_alpha(received_amount_tao)
+
+        if received_amount < Balance.from_tao(0):
+            print_error("Not enough Alpha to pay the transaction fee.")
+            raise ValueError
+
         slippage_pct_float = (
             100 * float(MIN_STAKE_FEE) / float(MIN_STAKE_FEE + received_amount_tao)
             if received_amount_tao != 0
@@ -440,7 +445,7 @@ async def move_stake(
 ):
     if interactive_selection:
         try:
-            selection = stake_move_transfer_selection(subtensor, wallet)
+            selection = await stake_move_transfer_selection(subtensor, wallet)
         except ValueError:
             return False
         origin_hotkey = selection["origin_hotkey"]
