@@ -1,5 +1,22 @@
 # Changelog
 
+## 9.1.1 /2025-03-06
+
+## What's Changed
+* fix: int() argument must be a string, a bytes-like object or a real n… by @0xxfu in https://github.com/opentensor/btcli/pull/352
+* Change to pyproject toml by @thewhaleking in https://github.com/opentensor/btcli/pull/357
+* Feat: Dashboard improvements by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/350
+* Improves stake transfer, adds interactive selection of delegates by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/358
+* Removes hidden flags for unstaking all by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/359
+* Removes `typer.Exit` exceptions in commands by @thewhaleking in https://github.com/opentensor/btcli/pull/353
+* Add transaction fee check inter-subnet movement by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/361
+* Backmerge main to staging 910 by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/362
+
+## New Contributors
+* @0xxfu made their first contribution in https://github.com/opentensor/btcli/pull/352
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.1.0...v9.1.1
+
 ## 9.1.0 /2025-03-01
 
 ## What's Changed
