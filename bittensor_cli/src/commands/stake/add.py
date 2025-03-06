@@ -1,7 +1,6 @@
 import asyncio
 from functools import partial
 
-import typer
 from typing import TYPE_CHECKING, Optional
 from rich.table import Table
 from rich.prompt import Confirm, Prompt
@@ -20,7 +19,6 @@ from bittensor_cli.src.bittensor.utils import (
     unlock_key,
 )
 from bittensor_wallet import Wallet
-from bittensor_wallet.errors import KeyFileError
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
@@ -338,7 +336,7 @@ async def stake_add(
 
     if prompt:
         if not Confirm.ask("Would you like to continue?"):
-            raise typer.Exit()
+            return False
     if not unlock_key(wallet).success:
         return False
 

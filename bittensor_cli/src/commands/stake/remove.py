@@ -2,10 +2,8 @@ import asyncio
 from functools import partial
 
 from typing import TYPE_CHECKING, Optional
-import typer
 
 from bittensor_wallet import Wallet
-from bittensor_wallet.errors import KeyFileError
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
@@ -67,13 +65,16 @@ async def unstake(
         all_sn_dynamic_info = {info.netuid: info for info in all_sn_dynamic_info_}
 
     if interactive:
-        hotkeys_to_unstake_from, unstake_all_from_hk = await _unstake_selection(
-            all_sn_dynamic_info,
-            ck_hk_identities,
-            old_identities,
-            stake_infos,
-            netuid=netuid,
-        )
+        try:
+            hotkeys_to_unstake_from, unstake_all_from_hk = await _unstake_selection(
+                all_sn_dynamic_info,
+                ck_hk_identities,
+                old_identities,
+                stake_infos,
+                netuid=netuid,
+            )
+        except ValueError:
+            return False
         if unstake_all_from_hk:
             hotkey_to_unstake_all = hotkeys_to_unstake_from[0]
             unstake_all_alpha = Confirm.ask(
@@ -266,7 +267,7 @@ async def unstake(
     _print_table_and_slippage(table, max_float_slippage, safe_staking)
     if prompt:
         if not Confirm.ask("Would you like to continue?"):
-            raise typer.Exit()
+            return False
 
     # Execute extrinsics
     if not unlock_key(wallet).success:
@@ -823,7 +824,7 @@ async def _unstake_selection(
 ):
     if not stake_infos:
         print_error("You have no stakes to unstake.")
-        raise typer.Exit()
+        raise ValueError
 
     hotkey_stakes = {}
     for stake_info in stake_infos:
@@ -840,7 +841,7 @@ async def _unstake_selection(
             print_error(f"You have no stakes to unstake in subnet {netuid}.")
         else:
             print_error("You have no stakes to unstake.")
-        raise typer.Exit()
+        raise ValueError
 
     hotkeys_info = []
     for idx, (hotkey_ss58, netuid_stakes) in enumerate(hotkey_stakes.items()):

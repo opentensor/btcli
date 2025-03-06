@@ -1,5 +1,8 @@
 import asyncio
 import json
+import os
+import tempfile
+import webbrowser
 import netaddr
 from dataclasses import asdict, is_dataclass
 from typing import Any, Dict, List
@@ -7,8 +10,9 @@ from pywry import PyWry
 
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
-from bittensor_cli.src.bittensor.utils import console
+from bittensor_cli.src.bittensor.utils import console, WalletLike
 from bittensor_wallet import Wallet
+from bittensor_cli.src import defaults
 
 root_symbol_html = f"&#x{ord('τ'):X};"
 
@@ -29,42 +33,80 @@ class Encoder(json.JSONEncoder):
 async def display_network_dashboard(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
-    prompt: bool = True,
+    use_wry: bool = False,
+    save_file: bool = False,
+    dashboard_path: str = None,
+    coldkey_ss58: str = None,
 ) -> bool:
     """
     Generate and display the HTML interface.
     """
+    if coldkey_ss58:
+        wallet = WalletLike(coldkeypub_ss58=coldkey_ss58, name=coldkey_ss58[:7])
     try:
         with console.status("[dark_sea_green3]Fetching data...", spinner="earth"):
             _subnet_data = await fetch_subnet_data(wallet, subtensor)
             subnet_data = process_subnet_data(_subnet_data)
             html_content = generate_full_page(subnet_data)
 
-        console.print(
-            "[dark_sea_green3]Opening dashboard in a window. Press Ctrl+C to close.[/dark_sea_green3]"
-        )
-        window = PyWry()
-        window.send_html(
-            html=html_content,
-            title="Bittensor View",
-            width=1200,
-            height=800,
-        )
-        window.start()
-        await asyncio.sleep(10)
-        try:
-            while True:
-                if _has_exited(window):
-                    break
-                await asyncio.sleep(1)
-        except KeyboardInterrupt:
-            console.print("\n[yellow]Closing Bittensor View...[/yellow]")
-        finally:
-            if not _has_exited(window):
-                try:
-                    window.close()
-                except Exception:
-                    pass
+        if use_wry:
+            console.print(
+                "[dark_sea_green3]Opening dashboard in a window. Press Ctrl+C to close.[/dark_sea_green3]"
+            )
+            window = PyWry()
+            window.send_html(
+                html=html_content,
+                title="Bittensor View",
+                width=1200,
+                height=800,
+            )
+            window.start()
+            await asyncio.sleep(10)
+            try:
+                while True:
+                    if _has_exited(window):
+                        break
+                    await asyncio.sleep(1)
+            except KeyboardInterrupt:
+                console.print("\n[yellow]Closing Bittensor View...[/yellow]")
+            finally:
+                if not _has_exited(window):
+                    try:
+                        window.close()
+                    except Exception:
+                        pass
+        else:
+            if save_file:
+                dir_path = os.path.expanduser(dashboard_path)
+            else:
+                dir_path = os.path.expanduser(defaults.dashboard.path)
+            if not os.path.exists(dir_path):
+                os.makedirs(dir_path)
+
+            with tempfile.NamedTemporaryFile(
+                delete=not save_file,
+                suffix=".html",
+                mode="w",
+                dir=dir_path,
+                prefix=f"{wallet.name}_{subnet_data['block_number']}_",
+            ) as f:
+                f.write(html_content)
+                temp_path = f.name
+                file_url = f"file://{os.path.abspath(temp_path)}"
+
+                if not save_file:
+                    with console.status(
+                        "[dark_sea_green3]Loading dashboard...[/dark_sea_green3]",
+                        spinner="material",
+                    ):
+                        webbrowser.open(file_url)
+                        await asyncio.sleep(10)
+                        return True
+
+            console.print("[green]Dashboard View opened in your browser[/green]")
+            console.print(f"[yellow]The HTML file is saved at: {temp_path}[/yellow]")
+            webbrowser.open(file_url)
+            return True
 
     except Exception as e:
         print(f"Error: {e}")
@@ -76,21 +118,33 @@ def int_to_ip(int_val: int) -> str:
     return str(netaddr.IPAddress(int_val))
 
 
-def get_hotkey_identity(
+def get_identity(
     hotkey_ss58: str,
     identities: dict,
     old_identities: dict,
     trucate_length: int = 4,
+    return_bool: bool = False,
+    lookup_hk: bool = True,
 ) -> str:
     """Fetch identity of hotkey from both sources"""
-    if hk_identity := identities["hotkeys"].get(hotkey_ss58):
-        return hk_identity.get("identity", {}).get("name", "") or hk_identity.get(
-            "display", "~"
-        )
-    elif old_identity := old_identities.get(hotkey_ss58):
+    if lookup_hk:
+        if hk_identity := identities["hotkeys"].get(hotkey_ss58):
+            return hk_identity.get("identity", {}).get("name", "") or hk_identity.get(
+                "display", "~"
+            )
+    else:
+        if ck_identity := identities["coldkeys"].get(hotkey_ss58):
+            return ck_identity.get("identity", {}).get("name", "") or ck_identity.get(
+                "display", "~"
+            )
+
+    if old_identity := old_identities.get(hotkey_ss58):
         return old_identity.display
     else:
-        return f"{hotkey_ss58[:trucate_length]}...{hotkey_ss58[-trucate_length:]}"
+        if return_bool:
+            return False
+        else:
+            return f"{hotkey_ss58[:trucate_length]}...{hotkey_ss58[-trucate_length:]}"
 
 
 async def fetch_subnet_data(
@@ -164,7 +218,7 @@ def process_subnet_data(raw_data: Dict[str, Any]) -> Dict[str, Any]:
             stake_dict.setdefault(stake.netuid, []).append(
                 {
                     "hotkey": stake.hotkey_ss58,
-                    "hotkey_identity": get_hotkey_identity(
+                    "hotkey_identity": get_identity(
                         stake.hotkey_ss58, ck_hk_identities, old_identities
                     ),
                     "amount": stake.stake.tao,
@@ -228,7 +282,7 @@ def process_subnet_data(raw_data: Dict[str, Any]) -> Dict[str, Any]:
 
         # Add identities
         for hotkey in meta_info.hotkeys:
-            identity = get_hotkey_identity(
+            identity = get_identity(
                 hotkey, ck_hk_identities, old_identities, trucate_length=2
             )
             metagraph_info["updated_identities"].append(identity)
@@ -278,9 +332,22 @@ def process_subnet_data(raw_data: Dict[str, Any]) -> Dict[str, Any]:
             }
         )
     subnets.sort(key=lambda x: x["market_cap"], reverse=True)
+
+    wallet_identity = get_identity(
+        wallet.coldkeypub.ss58_address,
+        ck_hk_identities,
+        old_identities,
+        return_bool=True,
+        lookup_hk=False,
+    )
+    if not wallet_identity:
+        wallet_identity = wallet.name
+    else:
+        wallet_identity = f"{wallet_identity} ({wallet.name})"
+
     return {
         "wallet_info": {
-            "name": wallet.name,
+            "name": wallet_identity,
             "balance": balance.tao,
             "coldkey": wallet.coldkeypub.ss58_address,
             "total_ideal_stake_value": total_ideal_stake_value.tao,
@@ -319,6 +386,7 @@ def generate_full_page(data: Dict[str, Any]) -> str:
     <!DOCTYPE html>
     <html>
     <head>
+        <meta charset="UTF-8">
         <title>Bittensor CLI Interface</title>
         <style>
             {get_css_styles()}
@@ -617,6 +685,7 @@ def generate_main_header(wallet_info: Dict[str, Any], block_number: int) -> str:
 
     return f"""
     <div class="header">
+        <meta charset="UTF-8">
         <div class="wallet-info">
             <span class="wallet-name">{wallet_info["name"]}</span>
             <div class="wallet-address-container" onclick="copyToClipboard('{wallet_info["coldkey"]}', this)">

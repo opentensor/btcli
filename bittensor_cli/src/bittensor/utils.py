@@ -45,16 +45,32 @@ class _Hotkey:
         self.ss58_address = hotkey_ss58
 
 
+class _Coldkeypub:
+    def __init__(self, coldkey_ss58=None):
+        self.ss58_address = coldkey_ss58
+
+
 class WalletLike:
-    def __init__(self, name=None, hotkey_ss58=None, hotkey_str=None):
+    def __init__(
+        self,
+        name=None,
+        hotkey_ss58=None,
+        hotkey_str=None,
+        coldkeypub_ss58=None,
+    ):
         self.name = name
         self.hotkey_ss58 = hotkey_ss58
         self.hotkey_str = hotkey_str
         self._hotkey = _Hotkey(hotkey_ss58)
+        self._coldkeypub = _Coldkeypub(coldkeypub_ss58)
 
     @property
     def hotkey(self):
         return self._hotkey
+
+    @property
+    def coldkeypub(self):
+        return self._coldkeypub
 
 
 def print_console(message: str, colour: str, title: str, console: Console):

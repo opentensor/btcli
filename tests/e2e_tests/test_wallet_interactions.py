@@ -419,7 +419,7 @@ def test_wallet_identities(local_chain, wallet_setup):
             alice_identity["name"],
             "--web-url",
             alice_identity["url"],
-            "--image-url", 
+            "--image-url",
             alice_identity["image"],
             "--discord",
             alice_identity["discord"],
@@ -444,7 +444,6 @@ def test_wallet_identities(local_chain, wallet_setup):
     assert alice_identity["discord"] in set_id_output[10]
     assert alice_identity["description"] in set_id_output[11]
     assert alice_identity["additional"] in set_id_output[12]
-
 
     # TODO: Currently coldkey + hotkey are the same for test wallets.
     # Maybe we can add a new key to help in distinguishing
@@ -471,7 +470,6 @@ def test_wallet_identities(local_chain, wallet_setup):
     assert alice_identity["discord"] in get_identity_output[9]
     assert alice_identity["description"] in get_identity_output[10]
     assert alice_identity["additional"] in get_identity_output[11]
-    
 
     # Sign a message using hotkey
     sign_using_hotkey = exec_command_alice(

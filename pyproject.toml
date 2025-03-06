@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools~=70.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bittensor-cli"
+version = "9.1.1"
+description = "Bittensor CLI"
+readme = "README.md"
+authors = [
+    {name = "bittensor.com"}
+]
+license = { file = "LICENSE" }
+scripts = { btcli = "bittensor_cli.cli:main" }
+requires-python = ">=3.9,<3.13"
+dependencies = [
+    "wheel",
+    "async-property==0.2.2",
+    "async-substrate-interface>=1.0.5",
+    "aiohttp~=3.10.2",
+    "backoff~=2.2.1",
+    "GitPython>=3.0.0",
+    "fuzzywuzzy~=0.18.0",
+    "netaddr~=1.3.0",
+    "numpy>=2.0.1",
+    "Jinja2",
+    "pycryptodome>=3.0.0,<4.0.0",
+    "PyYAML~=6.0.1",
+    "pytest",
+    "python-Levenshtein",
+    "rich~=13.7",
+    "scalecodec==1.2.11",
+    "typer~=0.12",
+    "websockets>=14.1",
+    "bittensor-wallet>=3.0.4",
+    "plotille>=5.0.0",
+    "pywry>=0.6.2",
+    "plotly>=6.0.0",
+]
+
+[project.optional-dependencies]
+cuda = [
+    "torch>=1.13.1,<2.6.0",
+    "cubit>=1.1.0"
+]
+
+[project.urls]
+# more details can be found here
+homepage = "https://github.com/opentensor/btcli"
+Repository = "https://github.com/opentensor/btcli"
+
+[tool.flit.metadata]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Utilities"
+]
+
+[tool.setuptools]
+package-dir = {"bittensor_cli" = "bittensor_cli"}

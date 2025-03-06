@@ -109,6 +109,18 @@ class Options:
         "--wallet.hotkey",
         help="Hotkey of the wallet",
     )
+    wallet_hotkey_ss58 = typer.Option(
+        None,
+        "--hotkey",
+        "--hotkey-ss58",
+        "-H",
+        "--wallet_hotkey",
+        "--wallet_hotkey_ss58",
+        "--wallet-hotkey",
+        "--wallet-hotkey-ss58",
+        "--wallet.hotkey",
+        help="Hotkey name or SS58 address of the hotkey",
+    )
     mnemonic = typer.Option(
         None,
         help='Mnemonic used to regenerate your key. For example: "horse cart dog ..."',
@@ -245,6 +257,15 @@ class Options:
         "--allow/--not-allow",
         "--allow-partial/--not-partial",
         help="Enable or disable partial stake mode (default: disabled).",
+    )
+    dashboard_path = typer.Option(
+        None,
+        "--dashboard-path",
+        "--dashboard_path",
+        "--dash_path",
+        "--dash.path",
+        "--dashboard.path",
+        help="Path to save the dashboard HTML file. For example: `~/.bittensor/dashboard`.",
     )
 
 
@@ -525,6 +546,7 @@ class CLIManager:
             "rate_tolerance": None,
             "safe_staking": True,
             "allow_partial_stake": False,
+            "dashboard_path": None,
             # Commenting this out as this needs to get updated
             # "metagraph_cols": {
             #     "UID": True,
@@ -1119,6 +1141,7 @@ class CLIManager:
             "--partial/--no-partial",
             "--allow/--not-allow",
         ),
+        dashboard_path: Optional[str] = Options.dashboard_path,
     ):
         """
         Sets or updates configuration values in the BTCLI config file.
@@ -1148,6 +1171,7 @@ class CLIManager:
             "rate_tolerance": rate_tolerance,
             "safe_staking": safe_staking,
             "allow_partial_stake": allow_partial_stake,
+            "dashboard_path": dashboard_path,
         }
         bools = ["use_cache", "safe_staking", "allow_partial_stake"]
         if all(v is None for v in args.values()):
@@ -1257,6 +1281,7 @@ class CLIManager:
             "--allow/--not-allow",
         ),
         all_items: bool = typer.Option(False, "--all"),
+        dashboard_path: Optional[str] = Options.dashboard_path,
     ):
         """
         Clears the fields in the config file and sets them to 'None'.
@@ -1288,6 +1313,7 @@ class CLIManager:
             "rate_tolerance": rate_tolerance,
             "safe_staking": safe_staking,
             "allow_partial_stake": allow_partial_stake,
+            "dashboard_path": dashboard_path,
         }
 
         # If no specific argument is provided, iterate over all
@@ -2937,7 +2963,7 @@ class CLIManager:
                     ),
                     exit_early=False,
                 )
-                if selected_hotkey is None:
+                if not selected_hotkey:
                     print_error("No delegate selected. Exiting.")
                     raise typer.Exit()
                 include_hotkeys = selected_hotkey
@@ -3048,14 +3074,12 @@ class CLIManager:
             False,
             "--unstake-all",
             "--all",
-            hidden=True,
             help="When set, this command unstakes all staked TAO + Alpha from the all hotkeys.",
         ),
         unstake_all_alpha: bool = typer.Option(
             False,
             "--unstake-all-alpha",
             "--all-alpha",
-            hidden=True,
             help="When set, this command unstakes all staked Alpha from the all hotkeys.",
         ),
         amount: float = typer.Option(
@@ -3337,7 +3361,7 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey_ss58,
         origin_netuid: Optional[int] = typer.Option(
             None, "--origin-netuid", help="Origin netuid"
         ),
@@ -3357,6 +3381,8 @@ class CLIManager:
             False, "--stake-all", "--all", help="Stake all", prompt=False
         ),
         prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Move staked TAO between hotkeys while keeping the same coldkey ownership.
@@ -3378,6 +3404,7 @@ class CLIManager:
 
         [green]$[/green] btcli stake move
         """
+        self.verbosity_handler(quiet, verbose)
         console.print(
             "[dim]This command moves stake from one hotkey to another hotkey while keeping the same coldkey.[/dim]"
         )
@@ -3490,7 +3517,7 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey_ss58,
         origin_netuid: Optional[int] = typer.Option(
             None,
             "--origin-netuid",
@@ -3514,6 +3541,9 @@ class CLIManager:
             "-a",
             help="Amount of stake to transfer",
         ),
+        stake_all: bool = typer.Option(
+            False, "--stake-all", "--all", help="Stake all", prompt=False
+        ),
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3531,6 +3561,8 @@ class CLIManager:
         - The destination subnet (--dest-netuid)
         - The destination wallet/address (--dest)
         - The amount to transfer (--amount)
+        - The origin wallet (--wallet-name)
+        - The origin hotkey wallet/address (--wallet-hotkey)
 
         If no arguments are provided, an interactive selection menu will be shown.
 
@@ -3539,13 +3571,36 @@ class CLIManager:
         Transfer 100 TAO from subnet 1 to subnet 2:
         [green]$[/green] btcli stake transfer --origin-netuid 1 --dest-netuid 2 --dest wallet2 --amount 100
 
-        Using SS58 address:
+        Using Destination SS58 address:
         [green]$[/green] btcli stake transfer --origin-netuid 1 --dest-netuid 2 --dest 5FrLxJsyJ5x9n2rmxFwosFraxFCKcXZDngEP9H7qjkKgHLcK --amount 100
+
+        Using Origin hotkey SS58 address (useful when transferring stake from a delegate):
+        [green]$[/green] btcli stake transfer --wallet-hotkey 5FrLxJsyJ5x9n2rmxFwosFraxFCKcXZDngEP9H7qjkKgHLcK --wallet-name sample_wallet
+
+        Transfer all available stake from origin hotkey:
+        [green]$[/green] btcli stake transfer --all --origin-netuid 1 --dest-netuid 2
         """
         console.print(
             "[dim]This command transfers stake from one coldkey to another while keeping the same hotkey.[/dim]"
         )
         self.verbosity_handler(quiet, verbose)
+
+        if not dest_ss58:
+            dest_ss58 = Prompt.ask(
+                "Enter the [blue]destination wallet name[/blue] or [blue]coldkey SS58 address[/blue]"
+            )
+
+        if is_valid_ss58_address(dest_ss58):
+            dest_ss58 = dest_ss58
+        else:
+            dest_wallet = self.wallet_ask(
+                dest_ss58,
+                wallet_path,
+                None,
+                ask_for=[WO.NAME, WO.PATH],
+                validate=WV.WALLET,
+            )
+            dest_ss58 = dest_wallet.coldkeypub.ss58_address
 
         if not wallet_name:
             wallet_name = Prompt.ask(
@@ -3556,13 +3611,16 @@ class CLIManager:
             wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
         )
 
+        interactive_selection = False
         if not wallet_hotkey:
             origin_hotkey = Prompt.ask(
-                "Enter the [blue]origin hotkey[/blue] name or "
-                "[blue]ss58 address[/blue] where the stake will be moved from",
-                default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
+                "Enter the [blue]origin hotkey[/blue] name or ss58 address [bold](stake will be transferred FROM here)[/bold] "
+                "[dim](or press Enter to select from existing stakes)[/dim]"
             )
-            if is_valid_ss58_address(origin_hotkey):
+            if origin_hotkey == "":
+                interactive_selection = True
+
+            elif is_valid_ss58_address(origin_hotkey):
                 origin_hotkey = origin_hotkey
             else:
                 wallet = self.wallet_ask(
@@ -3586,33 +3644,11 @@ class CLIManager:
                 )
                 origin_hotkey = wallet.hotkey.ss58_address
 
-        if not dest_ss58:
-            dest_ss58 = Prompt.ask(
-                "Enter the [blue]destination wallet name[/blue] or [blue]coldkey SS58 address[/blue]"
-            )
-
-        if is_valid_ss58_address(dest_ss58):
-            dest_ss58 = dest_ss58
-        else:
-            dest_wallet = self.wallet_ask(
-                dest_ss58,
-                wallet_path,
-                None,
-                ask_for=[WO.NAME, WO.PATH],
-                validate=WV.WALLET,
-            )
-            dest_ss58 = dest_wallet.coldkeypub.ss58_address
-
-        interactive_selection = False
-        if origin_netuid is None and dest_netuid is None and not amount:
-            interactive_selection = True
-        else:
+        if not interactive_selection:
             if origin_netuid is None:
                 origin_netuid = IntPrompt.ask(
                     "Enter the [blue]origin subnet[/blue] (netuid)"
                 )
-            if not amount:
-                amount = FloatPrompt.ask("Enter the [blue]amount[/blue] to transfer")
 
             if dest_netuid is None:
                 dest_netuid = IntPrompt.ask(
@@ -3629,6 +3665,7 @@ class CLIManager:
                 dest_coldkey_ss58=dest_ss58,
                 amount=amount,
                 interactive_selection=interactive_selection,
+                stake_all=stake_all,
                 prompt=prompt,
             )
         )
@@ -5091,6 +5128,19 @@ class CLIManager:
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
+        coldkey_ss58: Optional[str] = typer.Option(
+            None,
+            "--coldkey-ss58",
+            "--ss58",
+            help="Coldkey SS58 address to view dashboard for",
+        ),
+        use_wry: bool = typer.Option(
+            False, "--use-wry", help="Use PyWry instead of browser window"
+        ),
+        save_file: bool = typer.Option(
+            False, "--save-file", "--save", help="Save the dashboard HTML file"
+        ),
+        dashboard_path: Optional[str] = Options.dashboard_path,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -5098,13 +5148,40 @@ class CLIManager:
         Display html dashboard with subnets list, stake, and neuron information.
         """
         self.verbosity_handler(quiet, verbose)
-        if is_linux():
+        if use_wry and is_linux():
             print_linux_dependency_message()
-        wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
-        )
+
+        if use_wry and save_file:
+            print_error("Cannot save file when using PyWry.")
+            raise typer.Exit()
+
+        if save_file:
+            if not dashboard_path:
+                dashboard_path = Prompt.ask(
+                    "Enter the [blue]path[/blue] where the dashboard HTML file will be saved",
+                    default=self.config.get("dashboard_path")
+                    or defaults.dashboard.path,
+                )
+
+        if coldkey_ss58:
+            if not is_valid_ss58_address(coldkey_ss58):
+                print_error(f"Invalid SS58 address: {coldkey_ss58}")
+                raise typer.Exit()
+            wallet = None
+        else:
+            wallet = self.wallet_ask(
+                wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
+            )
+
         return self._run_command(
-            view.display_network_dashboard(wallet, self.initialize_chain(network))
+            view.display_network_dashboard(
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                use_wry=use_wry,
+                save_file=save_file,
+                dashboard_path=dashboard_path,
+                coldkey_ss58=coldkey_ss58,
+            )
         )
 
     @staticmethod

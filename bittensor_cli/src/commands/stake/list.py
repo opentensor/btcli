@@ -1,7 +1,6 @@
 import asyncio
 
 from typing import TYPE_CHECKING, Optional
-import typer
 
 from bittensor_wallet import Wallet
 from rich.prompt import Prompt
@@ -428,7 +427,7 @@ async def stake_list(
 
     if not hotkeys_to_substakes:
         print_error(f"No stakes found for coldkey ss58: ({coldkey_address})")
-        raise typer.Exit()
+        return
 
     if live:
         # Select one hotkey for live monitoring

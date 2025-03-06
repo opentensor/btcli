@@ -16,6 +16,7 @@ Verify commands:
 * btcli root undelegate-stake
 """
 
+
 @pytest.mark.skip(reason="Root no longer applicable. We will update this.")
 def test_root_commands(local_chain, wallet_setup):
     """
