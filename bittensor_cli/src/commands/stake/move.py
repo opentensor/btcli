@@ -205,7 +205,7 @@ def prompt_stake_amount(
             console.print("[red]Please enter a valid number or 'all'[/red]")
 
 
-async def stake_move_selection(
+async def stake_move_transfer_selection(
     subtensor: "SubtensorInterface",
     wallet: Wallet,
 ):
@@ -291,25 +291,24 @@ async def stake_move_selection(
         title_justify="center",
         width=len(origin_hotkey_ss58) + 20,
     )
-    table.add_column("Index", justify="right")
     table.add_column("Netuid", style="cyan")
     table.add_column("Stake Amount", style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"])
 
     available_netuids = []
-    for idx, netuid in enumerate(origin_hotkey_info["netuids"]):
+    for netuid in origin_hotkey_info["netuids"]:
         stake = origin_hotkey_info["stakes"][netuid]
         if stake.tao > 0:
             available_netuids.append(netuid)
-            table.add_row(str(idx), str(netuid), str(stake))
+            table.add_row(str(netuid), str(stake))
 
     console.print("\n", table)
 
     # Select origin netuid
-    netuid_idx = Prompt.ask(
-        "\nEnter the index of the subnet you want to move stake from",
-        choices=[str(i) for i in range(len(available_netuids))],
+    origin_netuid = Prompt.ask(
+        "\nEnter the netuid you want to move stake from",
+        choices=[str(netuid) for netuid in available_netuids],
     )
-    origin_netuid = available_netuids[int(netuid_idx)]
+    origin_netuid = int(origin_netuid)
     origin_stake = origin_hotkey_info["stakes"][origin_netuid]
 
     # Ask for amount to move
@@ -328,104 +327,6 @@ async def stake_move_selection(
         "origin_netuid": origin_netuid,
         "amount": amount.tao,
         "stake_all": stake_all,
-        "destination_netuid": int(destination_netuid),
-    }
-
-
-async def stake_transfer_selection(
-    wallet: Wallet, subtensor: "SubtensorInterface", origin_hotkey: str
-):
-    """Selection interface for transferring stakes."""
-    (
-        stakes,
-        all_netuids,
-        all_subnets,
-    ) = await asyncio.gather(
-        subtensor.get_stake_for_coldkey(coldkey_ss58=wallet.coldkeypub.ss58_address),
-        subtensor.get_all_subnet_netuids(),
-        subtensor.all_subnets(),
-    )
-    all_netuids = sorted(all_netuids)
-    all_subnets = {di.netuid: di for di in all_subnets}
-
-    available_stakes = {}
-    for stake in stakes:
-        if stake.stake.tao > 0 and stake.hotkey_ss58 == origin_hotkey:
-            available_stakes[stake.netuid] = {
-                "hotkey_ss58": stake.hotkey_ss58,
-                "stake": stake.stake,
-                "is_registered": stake.is_registered,
-            }
-
-    if not available_stakes:
-        console.print("[red]No stakes available to transfer.[/red]")
-        return None
-
-    table = Table(
-        title=(
-            f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]"
-            f"Available Stakes to Transfer\n"
-            f"for wallet hotkey:\n"
-            f"[{COLOR_PALETTE['GENERAL']['HOTKEY']}]{wallet.hotkey_str}: {wallet.hotkey.ss58_address}"
-            f"[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]\n"
-        ),
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        title_justify="center",
-        width=len(wallet.hotkey_str + wallet.hotkey.ss58_address) + 10,
-    )
-
-    table.add_column("Index", justify="right", style="cyan")
-    table.add_column("Netuid")
-    table.add_column("Name", style="cyan", justify="left")
-    table.add_column("Stake Amount", style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"])
-    table.add_column("Registered", justify="center")
-
-    for idx, (netuid, stake_info) in enumerate(available_stakes.items()):
-        subnet_name_cell = (
-            f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{all_subnets[netuid].symbol if netuid != 0 else 'τ'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
-            f" {get_subnet_name(all_subnets[netuid])}"
-        )
-        table.add_row(
-            str(idx),
-            str(netuid),
-            subnet_name_cell,
-            str(stake_info["stake"]),
-            "[dark_sea_green3]YES"
-            if stake_info["is_registered"]
-            else f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]NO",
-        )
-
-    console.print(table)
-
-    if not available_stakes:
-        console.print("[red]No stakes available to transfer.[/red]")
-        return None
-
-    # Prompt to select index of stake to transfer
-    selection = Prompt.ask(
-        "\nEnter the index of the stake you want to transfer",
-        choices=[str(i) for i in range(len(available_stakes))],
-    )
-    selected_netuid = list(available_stakes.keys())[int(selection)]
-    selected_stake = available_stakes[selected_netuid]
-
-    # Prompt for amount
-    stake_balance = selected_stake["stake"]
-    amount, _ = prompt_stake_amount(stake_balance, selected_netuid, "transfer")
-
-    # Prompt for destination subnet
-    destination_netuid = Prompt.ask(
-        "\nEnter the netuid of the subnet you want to move stake to"
-        + f" ([dim]{group_subnets(all_netuids)}[/dim])",
-        choices=[str(netuid) for netuid in all_netuids],
-        show_choices=False,
-    )
-
-    return {
-        "origin_netuid": selected_netuid,
-        "amount": amount.tao,
         "destination_netuid": int(destination_netuid),
     }
 
@@ -539,7 +440,7 @@ async def move_stake(
 ):
     if interactive_selection:
         try:
-            selection = await stake_move_selection(subtensor, wallet)
+            selection = stake_move_transfer_selection(subtensor, wallet)
         except ValueError:
             return False
         origin_hotkey = selection["origin_hotkey"]
@@ -703,6 +604,7 @@ async def transfer_stake(
     dest_netuid: int,
     dest_coldkey_ss58: str,
     interactive_selection: bool = False,
+    stake_all: bool = False,
     prompt: bool = True,
 ) -> bool:
     """Transfers stake from one network to another.
@@ -721,12 +623,13 @@ async def transfer_stake(
     Returns:
         bool: True if transfer was successful, False otherwise.
     """
-    origin_hotkey = origin_hotkey or wallet.hotkey.ss58_address
     if interactive_selection:
-        selection = await stake_transfer_selection(wallet, subtensor, origin_hotkey)
+        selection = await stake_move_transfer_selection(subtensor, wallet)
         origin_netuid = selection["origin_netuid"]
         amount = selection["amount"]
         dest_netuid = selection["destination_netuid"]
+        stake_all = selection["stake_all"]
+        origin_hotkey = selection["origin_hotkey"]
 
     # Check if both subnets exist
     block_hash = await subtensor.substrate.get_chain_head()
@@ -754,7 +657,22 @@ async def transfer_stake(
             hotkey_ss58=origin_hotkey,
             netuid=dest_netuid,
         )
-    amount_to_transfer = Balance.from_tao(amount).set_unit(origin_netuid)
+
+    if current_stake.tao == 0:
+        err_console.print(
+            f"[red]No stake found for hotkey: {origin_hotkey} on netuid: {origin_netuid}[/red]"
+        )
+        return False
+
+    amount_to_transfer = None
+    if amount:
+        amount_to_transfer = Balance.from_tao(amount).set_unit(origin_netuid)
+    elif stake_all:
+        amount_to_transfer = current_stake
+    else:
+        amount_to_transfer, _ = prompt_stake_amount(
+            current_stake, origin_netuid, "transfer"
+        )
 
     # Check if enough stake to transfer
     if amount_to_transfer > current_stake:
