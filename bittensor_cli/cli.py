@@ -3369,6 +3369,8 @@ class CLIManager:
             False, "--stake-all", "--all", help="Stake all", prompt=False
         ),
         prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
     ):
         """
         Move staked TAO between hotkeys while keeping the same coldkey ownership.
@@ -3390,6 +3392,7 @@ class CLIManager:
 
         [green]$[/green] btcli stake move
         """
+        self.verbosity_handler(quiet, verbose)
         console.print(
             "[dim]This command moves stake from one hotkey to another hotkey while keeping the same coldkey.[/dim]"
         )
