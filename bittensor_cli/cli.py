@@ -14,11 +14,16 @@ from dataclasses import fields
 import rich
 import typer
 import numpy as np
+from async_substrate_interface.errors import SubstrateRequestException
 from bittensor_wallet import Wallet
 from rich import box
 from rich.prompt import Confirm, FloatPrompt, Prompt, IntPrompt
 from rich.table import Column, Table
 from rich.tree import Tree
+from typing_extensions import Annotated
+from websockets import ConnectionClosed, InvalidHandshake
+from yaml import safe_dump, safe_load
+
 from bittensor_cli.src import (
     defaults,
     HELP_PANELS,
@@ -31,7 +36,6 @@ from bittensor_cli.src import (
 from bittensor_cli.version import __version__, __version_as_int__
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
-from async_substrate_interface.errors import SubstrateRequestException
 from bittensor_cli.src.commands import sudo, wallets, view
 from bittensor_cli.src.commands import weights as weights_cmds
 from bittensor_cli.src.commands.subnets import price, subnets
@@ -61,9 +65,6 @@ from bittensor_cli.src.bittensor.utils import (
     is_linux,
     validate_rate_tolerance,
 )
-from typing_extensions import Annotated
-from websockets import ConnectionClosed, InvalidHandshake
-from yaml import safe_dump, safe_load
 
 try:
     from git import Repo, GitError
@@ -266,6 +267,12 @@ class Options:
         "--dash.path",
         "--dashboard.path",
         help="Path to save the dashboard HTML file. For example: `~/.bittensor/dashboard`.",
+    )
+    json_output = typer.Option(
+        False,
+        "--json-output",
+        "--json-out",
+        help="Outputs the result of the command as JSON.",
     )
 
 
@@ -933,6 +940,7 @@ class CLIManager:
         """
         if not self.subtensor:
             if network:
+                network_ = None
                 for item in network:
                     if item.startswith("ws"):
                         network_ = item
@@ -950,7 +958,8 @@ class CLIManager:
             elif self.config["network"]:
                 self.subtensor = SubtensorInterface(self.config["network"])
                 console.print(
-                    f"Using the specified network [{COLOR_PALETTE['GENERAL']['LINKS']}]{self.config['network']}[/{COLOR_PALETTE['GENERAL']['LINKS']}] from config"
+                    f"Using the specified network [{COLOR_PALETTE['GENERAL']['LINKS']}]{self.config['network']}"
+                    f"[/{COLOR_PALETTE['GENERAL']['LINKS']}] from config"
                 )
             else:
                 self.subtensor = SubtensorInterface(defaults.subtensor.network)
@@ -1201,7 +1210,8 @@ class CLIManager:
             elif arg == "rate_tolerance":
                 while True:
                     val = FloatPrompt.ask(
-                        f"What percentage would you like to set for [red]{arg}[/red]?\nValues are percentages (e.g. 0.05 for 5%)",
+                        f"What percentage would you like to set for [red]{arg}[/red]?\n"
+                        f"Values are percentages (e.g. 0.05 for 5%)",
                         default=0.05,
                     )
                     try:
@@ -1501,7 +1511,7 @@ class CLIManager:
         wallet_name: Optional[str],
         wallet_path: Optional[str],
         wallet_hotkey: Optional[str],
-        ask_for: list[str] = [],
+        ask_for: list[str] = None,
         validate: WV = WV.WALLET,
     ) -> Wallet:
         """
@@ -1510,9 +1520,10 @@ class CLIManager:
         :param wallet_path: root path of the wallets
         :param wallet_hotkey: name of the wallet hotkey file
         :param validate: flag whether to check for the wallet's validity
-        :param ask_type: aspect of the wallet (name, path, hotkey) to prompt the user for
+        :param ask_for: aspect of the wallet (name, path, hotkey) to prompt the user for
         :return: created Wallet object
         """
+        ask_for = ask_for or []
         # Prompt for missing attributes specified in ask_for
         if WO.NAME in ask_for and not wallet_name:
             if self.config.get("wallet_name"):
@@ -1585,6 +1596,7 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Displays all the wallets and their corresponding hotkeys that are located in the wallet path specified in the config.
@@ -1604,7 +1616,7 @@ class CLIManager:
         wallet = self.wallet_ask(
             None, wallet_path, None, ask_for=[WO.PATH], validate=WV.NONE
         )
-        return self._run_command(wallets.wallet_list(wallet.path))
+        return self._run_command(wallets.wallet_list(wallet.path, json_output))
 
     def wallet_overview(
         self,
@@ -1644,6 +1656,7 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Displays a detailed overview of the user's registered accounts on the Bittensor network.
@@ -1705,6 +1718,7 @@ class CLIManager:
                 exclude_hotkeys,
                 netuids_filter=netuids,
                 verbose=verbose,
+                json_output=json_output,
             )
         )
 

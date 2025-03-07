@@ -1,5 +1,6 @@
 import asyncio
 import itertools
+import json
 import os
 from collections import defaultdict
 from typing import Generator, Optional
@@ -525,7 +526,7 @@ async def wallet_history(wallet: Wallet):
     console.print(table)
 
 
-async def wallet_list(wallet_path: str):
+async def wallet_list(wallet_path: str, json_output: bool):
     """Lists wallets."""
     wallets = utils.get_coldkey_wallets_for_path(wallet_path)
     print_verbose(f"Using wallets path: {wallet_path}")
@@ -533,6 +534,7 @@ async def wallet_list(wallet_path: str):
         err_console.print(f"[red]No wallets found in dir: {wallet_path}[/red]")
 
     root = Tree("Wallets")
+    d_out = {"wallets": []}
     for wallet in wallets:
         if (
             wallet.coldkeypub_file.exists_on_device()
@@ -545,23 +547,40 @@ async def wallet_list(wallet_path: str):
         wallet_tree = root.add(
             f"[bold blue]Coldkey[/bold blue] [green]{wallet.name}[/green]  ss58_address [green]{coldkeypub_str}[/green]"
         )
+        wallet_hotkeys = []
+        wallet_d = {
+            "name": wallet.name,
+            "ss58_address": coldkeypub_str,
+            "hotkeys": wallet_hotkeys,
+        }
+        d_out["wallets"].append(wallet_d)
         hotkeys = utils.get_hotkey_wallets_for_wallet(
             wallet, show_nulls=True, show_encrypted=True
         )
         for hkey in hotkeys:
             data = f"[bold red]Hotkey[/bold red][green] {hkey}[/green] (?)"
+            hk_data = {"name": hkey.name, "ss58_address": "?"}
             if hkey:
                 try:
-                    data = f"[bold red]Hotkey[/bold red] [green]{hkey.hotkey_str}[/green]  ss58_address [green]{hkey.hotkey.ss58_address}[/green]\n"
+                    data = (
+                        f"[bold red]Hotkey[/bold red] [green]{hkey.hotkey_str}[/green]  "
+                        f"ss58_address [green]{hkey.hotkey.ss58_address}[/green]\n"
+                    )
+                    hk_data["name"] = hkey.hotkey_str
+                    hk_data["ss58_address"] = hkey.hotkey.ss58_address
                 except UnicodeDecodeError:
                     pass
             wallet_tree.add(data)
+            wallet_hotkeys.append(hk_data)
 
     if not wallets:
         print_verbose(f"No wallets found in path: {wallet_path}")
         root.add("[bold red]No wallets found.")
-
-    console.print(root)
+    if json_output:
+        console.print("[JSON_OUTPUT]")
+        console.print(json.dumps(d_out))
+    else:
+        console.print(root)
 
 
 async def _get_total_balance(
@@ -638,6 +657,7 @@ async def overview(
     exclude_hotkeys: Optional[list[str]] = None,
     netuids_filter: Optional[list[int]] = None,
     verbose: bool = False,
+    json_output: bool = False,
 ):
     """Prints an overview for the wallet's coldkey."""
 
