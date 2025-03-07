@@ -1266,22 +1266,28 @@ def is_valid_contact(contact: str) -> bool:
     return bool(re.match(email_pattern, contact))
 
 
-def get_subnet_name(subnet_info) -> str:
+def get_subnet_name(subnet_info, max_length: int = 20) -> str:
     """Get the subnet name, prioritizing subnet_identity.subnet_name over subnet.subnet_name.
+    Truncates the name if it exceeds max_length.
 
     Args:
-        subnet: The subnet dynamic info
+        subnet_info: The subnet dynamic info
+        max_length: Maximum length of the returned name. Names longer than this will be truncated with '...'
 
     Returns:
-        str: The subnet name or empty string if no name is found
+        str: The subnet name (truncated if necessary) or empty string if no name is found
     """
-    return (
+    name = (
         subnet_info.subnet_identity.subnet_name
         if hasattr(subnet_info, "subnet_identity")
         and subnet_info.subnet_identity is not None
         and subnet_info.subnet_identity.subnet_name is not None
         else (subnet_info.subnet_name if subnet_info.subnet_name is not None else "")
     )
+
+    if len(name) > max_length:
+        return name[: max_length - 3] + "..."
+    return name
 
 
 def print_linux_dependency_message():
