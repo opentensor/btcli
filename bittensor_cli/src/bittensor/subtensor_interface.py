@@ -9,7 +9,7 @@ from async_substrate_interface.errors import SubstrateRequestException
 import typer
 
 
-from async_substrate_interface.async_substrate import AsyncSubstrateInterface
+from async_substrate_interface.async_substrate import DiskCachedAsyncSubstrateInterface as AsyncSubstrateInterface
 from bittensor_cli.src.bittensor.chain_data import (
     DelegateInfo,
     StakeInfo,
