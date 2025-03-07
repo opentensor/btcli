@@ -663,18 +663,27 @@ async def overview(
 
     total_balance = Balance(0)
 
-    # We are printing for every coldkey.
-    block_hash = await subtensor.substrate.get_chain_head()
-    all_hotkeys, total_balance = await _get_total_balance(
-        total_balance, subtensor, wallet, all_wallets, block_hash=block_hash
-    )
-    _dynamic_info = await subtensor.all_subnets()
-    dynamic_info = {info.netuid: info for info in _dynamic_info}
-
     with console.status(
         f":satellite: Synchronizing with chain [white]{subtensor.network}[/white]",
         spinner="aesthetic",
     ) as status:
+        # We are printing for every coldkey.
+        block_hash = await subtensor.substrate.get_chain_head()
+        (
+            (all_hotkeys, total_balance),
+            _dynamic_info,
+            block,
+            all_netuids,
+        ) = await asyncio.gather(
+            _get_total_balance(
+                total_balance, subtensor, wallet, all_wallets, block_hash=block_hash
+            ),
+            subtensor.all_subnets(block_hash=block_hash),
+            subtensor.substrate.get_block_number(block_hash=block_hash),
+            subtensor.get_all_subnet_netuids(block_hash=block_hash),
+        )
+        dynamic_info = {info.netuid: info for info in _dynamic_info}
+
         # We are printing for a select number of hotkeys from all_hotkeys.
         if include_hotkeys or exclude_hotkeys:
             all_hotkeys = _get_hotkeys(include_hotkeys, exclude_hotkeys, all_hotkeys)
@@ -686,10 +695,6 @@ async def overview(
 
         # Pull neuron info for all keys.
         neurons: dict[str, list[NeuronInfoLite]] = {}
-        block, all_netuids = await asyncio.gather(
-            subtensor.substrate.get_block_number(None),
-            subtensor.get_all_subnet_netuids(),
-        )
 
         netuids = await subtensor.filter_netuids_by_registered_hotkeys(
             all_netuids, netuids_filter, all_hotkeys, reuse_block=True
