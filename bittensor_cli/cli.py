@@ -1511,7 +1511,7 @@ class CLIManager:
         wallet_name: Optional[str],
         wallet_path: Optional[str],
         wallet_hotkey: Optional[str],
-        ask_for: list[str] = None,
+        ask_for: Optional[list[str]] = None,
         validate: WV = WV.WALLET,
     ) -> Wallet:
         """
