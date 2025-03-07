@@ -2682,23 +2682,29 @@ class CLIManager:
         [bold]Note[/bold]: This command is primarily used for informational purposes and has no side effects on the blockchain network state.
         """
         wallet = None
-        if coldkey_ss58:
-            if not is_valid_ss58_address(coldkey_ss58):
-                print_error("You entered an invalid ss58 address")
-                raise typer.Exit()
-        else:
-            coldkey_or_ss58 = Prompt.ask(
-                "Enter the [blue]wallet name[/blue] or [blue]coldkey ss58 address[/blue]",
-                default=self.config.get("wallet_name") or defaults.wallet.name,
-            )
-            if is_valid_ss58_address(coldkey_or_ss58):
-                coldkey_ss58 = coldkey_or_ss58
+        if not wallet_name:
+            if coldkey_ss58:
+                if not is_valid_ss58_address(coldkey_ss58):
+                    print_error("You entered an invalid ss58 address")
+                    raise typer.Exit()
             else:
-                wallet_name = coldkey_or_ss58 if coldkey_or_ss58 else wallet_name
-                wallet = self.wallet_ask(
-                    wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+                coldkey_or_ss58 = Prompt.ask(
+                    "Enter the [blue]wallet name[/blue] or [blue]coldkey ss58 address[/blue]",
+                    default=self.config.get("wallet_name") or defaults.wallet.name,
                 )
-                coldkey_ss58 = wallet.coldkeypub.ss58_address
+                if is_valid_ss58_address(coldkey_or_ss58):
+                    coldkey_ss58 = coldkey_or_ss58
+                else:
+                    wallet_name = coldkey_or_ss58 if coldkey_or_ss58 else wallet_name
+                    wallet = self.wallet_ask(
+                        wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+                    )
+                    coldkey_ss58 = wallet.coldkeypub.ss58_address
+        else:
+            wallet = self.wallet_ask(
+                wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME]
+            )
+            coldkey_ss58 = wallet.coldkeypub.ss58_address
 
         self.verbosity_handler(quiet, verbose)
         return self._run_command(
