@@ -1361,15 +1361,6 @@ async def set_id(
         "github_repo": github_repo.encode(),
     }
 
-    for field, value in identity_data.items():
-        max_size = 64  # bytes
-        if len(value) > max_size:
-            err_console.print(
-                f"[red]Error:[/red] Identity field [white]{field}[/white] must be <= {max_size} bytes.\n"
-                f"Value '{value.decode()}' is {len(value)} bytes."
-            )
-            return False
-
     if not unlock_key(wallet).success:
         return False
 
