@@ -729,6 +729,12 @@ async def overview(
         neurons = _process_neuron_results(results, neurons, netuids)
         # Setup outer table.
         grid = Table.grid(pad_edge=True)
+        d_grid = {
+            "wallet": "",
+            "network": subtensor.network,
+            "subnets": [],
+            "total_balance": 0.0,
+        }
 
         # Add title
         if not all_wallets:
@@ -736,9 +742,11 @@ async def overview(
             details = f"[bright_cyan]{wallet.name}[/bright_cyan] : [bright_magenta]{wallet.coldkeypub.ss58_address}[/bright_magenta]"
             grid.add_row(Align(title, vertical="middle", align="center"))
             grid.add_row(Align(details, vertical="middle", align="center"))
+            d_grid["wallet"] = f"{wallet.name}|{wallet.coldkeypub.ss58_address}"
         else:
             title = "[underline dark_orange]All Wallets:[/underline dark_orange]"
             grid.add_row(Align(title, vertical="middle", align="center"))
+            d_grid["wallet"] = "All"
 
         grid.add_row(
             Align(
@@ -756,6 +764,14 @@ async def overview(
         )
     for netuid, subnet_tempo in zip(netuids, tempos):
         table_data = []
+        d_data = {
+            "netuid": netuid,
+            "tempo": subnet_tempo,
+            "neurons": [],
+            "name": "",
+            "symbol": "",
+        }
+        d_grid["subnets"].append(d_data)
         total_rank = 0.0
         total_trust = 0.0
         total_consensus = 0.0
@@ -810,6 +826,26 @@ async def overview(
                 ),
                 nn.hotkey[:10],
             ]
+            d_row = {
+                "coldkey": hotwallet.name,
+                "hotkey": hotwallet.hotkey_str,
+                "uid": uid,
+                "active": active,
+                "stake": stake,
+                "rank": rank,
+                "trust": trust,
+                "consensus": consensus,
+                "incentive": incentive,
+                "dividends": dividends,
+                "emission": emission,
+                "validator_trust": validator_trust,
+                "validator_permit": validator_permit,
+                "last_update": last_update,
+                "axon": int_to_ip(nn.axon_info.ip) + ":" + str(nn.axon_info.port)
+                if nn.axon_info.port != 0
+                else None,
+                "hotkey_ss58": nn.hotkey,
+            }
 
             total_rank += rank
             total_trust += trust
@@ -822,11 +858,16 @@ async def overview(
             total_neurons += 1
 
             table_data.append(row)
+            d_data["neurons"].append(d_row)
 
         # Add subnet header
+        sn_name = get_subnet_name(dynamic_info[netuid])
+        sn_symbol = dynamic_info[netuid].symbol
         grid.add_row(
-            f"Subnet: [dark_orange]{netuid}: {get_subnet_name(dynamic_info[netuid])} {dynamic_info[netuid].symbol}[/dark_orange]"
+            f"Subnet: [dark_orange]{netuid}: {sn_name} {sn_symbol}[/dark_orange]"
         )
+        d_data["name"] = sn_name
+        d_data["symbol"] = sn_symbol
         width = console.width
         table = Table(
             show_footer=False,
@@ -961,6 +1002,7 @@ async def overview(
     caption = "\n[italic][dim][bright_cyan]Wallet balance: [dark_orange]\u03c4" + str(
         total_balance.tao
     )
+    d_grid["total_balance"] = total_balance.tao
     grid.add_row(Align(caption, vertical="middle", align="center"))
 
     if console.width < 150:
@@ -968,7 +1010,11 @@ async def overview(
             "[yellow]Warning: Your terminal width might be too small to view all information clearly"
         )
     # Print the entire table/grid
-    console.print(grid, width=None)
+    if not json_output:
+        console.print(grid, width=None)
+    else:
+        console.print("[JSON_OUTPUT]")
+        console.print(json.dumps(d_grid))
 
 
 def _get_hotkeys(
