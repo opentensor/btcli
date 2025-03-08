@@ -1,5 +1,6 @@
 import asyncio
 import itertools
+import json
 import os
 from collections import defaultdict
 from typing import Generator, Optional
@@ -525,7 +526,7 @@ async def wallet_history(wallet: Wallet):
     console.print(table)
 
 
-async def wallet_list(wallet_path: str):
+async def wallet_list(wallet_path: str, json_output: bool):
     """Lists wallets."""
     wallets = utils.get_coldkey_wallets_for_path(wallet_path)
     print_verbose(f"Using wallets path: {wallet_path}")
@@ -533,6 +534,7 @@ async def wallet_list(wallet_path: str):
         err_console.print(f"[red]No wallets found in dir: {wallet_path}[/red]")
 
     root = Tree("Wallets")
+    main_data_dict = {"wallets": []}
     for wallet in wallets:
         if (
             wallet.coldkeypub_file.exists_on_device()
@@ -545,23 +547,40 @@ async def wallet_list(wallet_path: str):
         wallet_tree = root.add(
             f"[bold blue]Coldkey[/bold blue] [green]{wallet.name}[/green]  ss58_address [green]{coldkeypub_str}[/green]"
         )
+        wallet_hotkeys = []
+        wallet_dict = {
+            "name": wallet.name,
+            "ss58_address": coldkeypub_str,
+            "hotkeys": wallet_hotkeys,
+        }
+        main_data_dict["wallets"].append(wallet_dict)
         hotkeys = utils.get_hotkey_wallets_for_wallet(
             wallet, show_nulls=True, show_encrypted=True
         )
         for hkey in hotkeys:
             data = f"[bold red]Hotkey[/bold red][green] {hkey}[/green] (?)"
+            hk_data = {"name": hkey.name, "ss58_address": "?"}
             if hkey:
                 try:
-                    data = f"[bold red]Hotkey[/bold red] [green]{hkey.hotkey_str}[/green]  ss58_address [green]{hkey.hotkey.ss58_address}[/green]\n"
+                    data = (
+                        f"[bold red]Hotkey[/bold red] [green]{hkey.hotkey_str}[/green]  "
+                        f"ss58_address [green]{hkey.hotkey.ss58_address}[/green]\n"
+                    )
+                    hk_data["name"] = hkey.hotkey_str
+                    hk_data["ss58_address"] = hkey.hotkey.ss58_address
                 except UnicodeDecodeError:
                     pass
             wallet_tree.add(data)
+            wallet_hotkeys.append(hk_data)
 
     if not wallets:
         print_verbose(f"No wallets found in path: {wallet_path}")
         root.add("[bold red]No wallets found.")
-
-    console.print(root)
+    if json_output:
+        console.print("[JSON_OUTPUT]")
+        console.print(json.dumps(main_data_dict))
+    else:
+        console.print(root)
 
 
 async def _get_total_balance(
@@ -638,23 +657,33 @@ async def overview(
     exclude_hotkeys: Optional[list[str]] = None,
     netuids_filter: Optional[list[int]] = None,
     verbose: bool = False,
+    json_output: bool = False,
 ):
     """Prints an overview for the wallet's coldkey."""
 
     total_balance = Balance(0)
 
-    # We are printing for every coldkey.
-    block_hash = await subtensor.substrate.get_chain_head()
-    all_hotkeys, total_balance = await _get_total_balance(
-        total_balance, subtensor, wallet, all_wallets, block_hash=block_hash
-    )
-    _dynamic_info = await subtensor.all_subnets()
-    dynamic_info = {info.netuid: info for info in _dynamic_info}
-
     with console.status(
         f":satellite: Synchronizing with chain [white]{subtensor.network}[/white]",
         spinner="aesthetic",
     ) as status:
+        # We are printing for every coldkey.
+        block_hash = await subtensor.substrate.get_chain_head()
+        (
+            (all_hotkeys, total_balance),
+            _dynamic_info,
+            block,
+            all_netuids,
+        ) = await asyncio.gather(
+            _get_total_balance(
+                total_balance, subtensor, wallet, all_wallets, block_hash=block_hash
+            ),
+            subtensor.all_subnets(block_hash=block_hash),
+            subtensor.substrate.get_block_number(block_hash=block_hash),
+            subtensor.get_all_subnet_netuids(block_hash=block_hash),
+        )
+        dynamic_info = {info.netuid: info for info in _dynamic_info}
+
         # We are printing for a select number of hotkeys from all_hotkeys.
         if include_hotkeys or exclude_hotkeys:
             all_hotkeys = _get_hotkeys(include_hotkeys, exclude_hotkeys, all_hotkeys)
@@ -666,10 +695,6 @@ async def overview(
 
         # Pull neuron info for all keys.
         neurons: dict[str, list[NeuronInfoLite]] = {}
-        block, all_netuids = await asyncio.gather(
-            subtensor.substrate.get_block_number(None),
-            subtensor.get_all_subnet_netuids(),
-        )
 
         netuids = await subtensor.filter_netuids_by_registered_hotkeys(
             all_netuids, netuids_filter, all_hotkeys, reuse_block=True
@@ -704,16 +729,27 @@ async def overview(
         neurons = _process_neuron_results(results, neurons, netuids)
         # Setup outer table.
         grid = Table.grid(pad_edge=True)
+        data_dict = {
+            "wallet": "",
+            "network": subtensor.network,
+            "subnets": [],
+            "total_balance": 0.0,
+        }
 
         # Add title
         if not all_wallets:
             title = "[underline dark_orange]Wallet[/underline dark_orange]\n"
-            details = f"[bright_cyan]{wallet.name}[/bright_cyan] : [bright_magenta]{wallet.coldkeypub.ss58_address}[/bright_magenta]"
+            details = (
+                f"[bright_cyan]{wallet.name}[/bright_cyan] : "
+                f"[bright_magenta]{wallet.coldkeypub.ss58_address}[/bright_magenta]"
+            )
             grid.add_row(Align(title, vertical="middle", align="center"))
             grid.add_row(Align(details, vertical="middle", align="center"))
+            data_dict["wallet"] = f"{wallet.name}|{wallet.coldkeypub.ss58_address}"
         else:
             title = "[underline dark_orange]All Wallets:[/underline dark_orange]"
             grid.add_row(Align(title, vertical="middle", align="center"))
+            data_dict["wallet"] = "All"
 
         grid.add_row(
             Align(
@@ -731,6 +767,14 @@ async def overview(
         )
     for netuid, subnet_tempo in zip(netuids, tempos):
         table_data = []
+        subnet_dict = {
+            "netuid": netuid,
+            "tempo": subnet_tempo,
+            "neurons": [],
+            "name": "",
+            "symbol": "",
+        }
+        data_dict["subnets"].append(subnet_dict)
         total_rank = 0.0
         total_trust = 0.0
         total_consensus = 0.0
@@ -785,6 +829,26 @@ async def overview(
                 ),
                 nn.hotkey[:10],
             ]
+            neuron_dict = {
+                "coldkey": hotwallet.name,
+                "hotkey": hotwallet.hotkey_str,
+                "uid": uid,
+                "active": active,
+                "stake": stake,
+                "rank": rank,
+                "trust": trust,
+                "consensus": consensus,
+                "incentive": incentive,
+                "dividends": dividends,
+                "emission": emission,
+                "validator_trust": validator_trust,
+                "validator_permit": validator_permit,
+                "last_update": last_update,
+                "axon": int_to_ip(nn.axon_info.ip) + ":" + str(nn.axon_info.port)
+                if nn.axon_info.port != 0
+                else None,
+                "hotkey_ss58": nn.hotkey,
+            }
 
             total_rank += rank
             total_trust += trust
@@ -797,11 +861,16 @@ async def overview(
             total_neurons += 1
 
             table_data.append(row)
+            subnet_dict["neurons"].append(neuron_dict)
 
         # Add subnet header
+        sn_name = get_subnet_name(dynamic_info[netuid])
+        sn_symbol = dynamic_info[netuid].symbol
         grid.add_row(
-            f"Subnet: [dark_orange]{netuid}: {get_subnet_name(dynamic_info[netuid])} {dynamic_info[netuid].symbol}[/dark_orange]"
+            f"Subnet: [dark_orange]{netuid}: {sn_name} {sn_symbol}[/dark_orange]"
         )
+        subnet_dict["name"] = sn_name
+        subnet_dict["symbol"] = sn_symbol
         width = console.width
         table = Table(
             show_footer=False,
@@ -936,6 +1005,7 @@ async def overview(
     caption = "\n[italic][dim][bright_cyan]Wallet balance: [dark_orange]\u03c4" + str(
         total_balance.tao
     )
+    data_dict["total_balance"] = total_balance.tao
     grid.add_row(Align(caption, vertical="middle", align="center"))
 
     if console.width < 150:
@@ -943,7 +1013,11 @@ async def overview(
             "[yellow]Warning: Your terminal width might be too small to view all information clearly"
         )
     # Print the entire table/grid
-    console.print(grid, width=None)
+    if not json_output:
+        console.print(grid, width=None)
+    else:
+        console.print("[JSON_OUTPUT]")
+        console.print(json.dumps(data_dict))
 
 
 def _get_hotkeys(
