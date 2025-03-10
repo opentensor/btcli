@@ -57,6 +57,7 @@ async def regen_coldkey(
     json_password: Optional[str] = "",
     use_password: Optional[bool] = True,
     overwrite: Optional[bool] = False,
+    json_output: bool = False,
 ):
     """Creates a new coldkey under this wallet"""
     json_str: Optional[str] = None
@@ -79,10 +80,34 @@ async def regen_coldkey(
                 "\n✅ [dark_sea_green]Regenerated coldkey successfully!\n",
                 f"[dark_sea_green]Wallet name: ({new_wallet.name}), path: ({new_wallet.path}), coldkey ss58: ({new_wallet.coldkeypub.ss58_address})",
             )
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {
+                            "success": True,
+                            "data": {
+                                "name": new_wallet.name,
+                                "path": new_wallet.path,
+                                "hotkey": new_wallet.hotkey_str,
+                                "hotkey_ss58": new_wallet.hotkey.ss58_address,
+                                "coldkey_ss58": new_wallet.coldkeypub.ss58_address,
+                            },
+                            "error": "",
+                        }
+                    )
+                )
     except ValueError:
         print_error("Mnemonic phrase is invalid")
+        if json_output:
+            json_console.print(
+                '{"success": false, "error": "Mnemonic phrase is invalid", "data": null}'
+            )
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
+        if json_output:
+            json_console.print(
+                '{"success": false, "error": "Keyfile is not writable", "data": null}'
+            )
 
 
 async def regen_coldkey_pub(
@@ -1182,9 +1207,10 @@ async def transfer(
     amount: float,
     transfer_all: bool,
     prompt: bool,
+    json_output: bool,
 ):
     """Transfer token of amount to destination."""
-    await transfer_extrinsic(
+    result = await transfer_extrinsic(
         subtensor=subtensor,
         wallet=wallet,
         destination=destination,
@@ -1192,6 +1218,9 @@ async def transfer(
         transfer_all=transfer_all,
         prompt=prompt,
     )
+    if json_output:
+        json_console.print(json.dumps({"success": result}))
+    return result
 
 
 async def inspect(
@@ -1200,6 +1229,7 @@ async def inspect(
     netuids_filter: list[int],
     all_wallets: bool = False,
 ):
+    # TODO add json_output when this is re-enabled and updated for dTAO
     def delegate_row_maker(
         delegates_: list[tuple[DelegateInfo, Balance]],
     ) -> Generator[list[str], None, None]:
@@ -1375,14 +1405,18 @@ async def swap_hotkey(
     new_wallet: Wallet,
     subtensor: SubtensorInterface,
     prompt: bool,
+    json_output: bool,
 ):
     """Swap your hotkey for all registered axons on the network."""
-    return await swap_hotkey_extrinsic(
+    result = await swap_hotkey_extrinsic(
         subtensor,
         original_wallet,
         new_wallet,
         prompt=prompt,
     )
+    if json_output:
+        json_console.print(json.dumps({"success": result}))
+    return result
 
 
 def create_identity_table(title: str = None):

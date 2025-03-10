@@ -1752,6 +1752,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Send TAO tokens from one wallet to another wallet on the Bittensor network.
@@ -1775,7 +1776,7 @@ class CLIManager:
             print_error("You have entered an incorrect ss58 address. Please try again.")
             raise typer.Exit()
 
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -1799,6 +1800,7 @@ class CLIManager:
                 amount,
                 transfer_all,
                 prompt,
+                json_output,
             )
         )
 
@@ -1814,6 +1816,7 @@ class CLIManager:
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         prompt: bool = Options.prompt,
+        json_output: bool = Options.json_output,
     ):
         """
         Swap hotkeys of a given wallet on the blockchain. For a registered key pair, for example, a (coldkeyA, hotkeyA) pair, this command swaps the hotkeyA with a new, unregistered, hotkeyB to move the original registration to the (coldkeyA, hotkeyB) pair.
@@ -1832,7 +1835,7 @@ class CLIManager:
 
         [green]$[/green] btcli wallet swap_hotkey destination_hotkey_name --wallet-name your_wallet_name --wallet-hotkey original_hotkey
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
         original_wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -1854,7 +1857,9 @@ class CLIManager:
         )
         self.initialize_chain(network)
         return self._run_command(
-            wallets.swap_hotkey(original_wallet, new_wallet, self.subtensor, prompt)
+            wallets.swap_hotkey(
+                original_wallet, new_wallet, self.subtensor, prompt, json_output
+            )
         )
 
     def wallet_inspect(
@@ -1873,6 +1878,7 @@ class CLIManager:
         netuids: str = Options.netuids,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Displays the details of the user's wallet pairs (coldkey, hotkey) on the Bittensor network.
@@ -1907,7 +1913,7 @@ class CLIManager:
         """
         print_error("This command is disabled on the 'rao' network.")
         raise typer.Exit()
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
 
         if netuids:
             netuids = parse_to_list(
@@ -2004,6 +2010,7 @@ class CLIManager:
 
         [bold]Note[/bold]: This command is meant for used in local environments where users can experiment with the blockchain without using real TAO tokens. Users must have the necessary hardware setup, especially when opting for CUDA-based GPU calculations. It is currently disabled on testnet and mainnet (finney). You can only use this command on a local blockchain.
         """
+        # TODO should we add json_output?
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -2040,6 +2047,7 @@ class CLIManager:
         overwrite: bool = Options.overwrite,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Regenerate a coldkey for a wallet on the Bittensor blockchain network.
@@ -2057,7 +2065,7 @@ class CLIManager:
 
         [bold]Note[/bold]: This command is critical for users who need to regenerate their coldkey either for recovery or for security reasons.
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
 
         if not wallet_path:
             wallet_path = Prompt.ask(
@@ -2085,6 +2093,7 @@ class CLIManager:
                 json_password,
                 use_password,
                 overwrite,
+                json_output,
             )
         )
 

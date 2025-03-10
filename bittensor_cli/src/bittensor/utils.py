@@ -5,7 +5,6 @@ import os
 import sqlite3
 import platform
 import webbrowser
-import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable
 from urllib.parse import urlparse
