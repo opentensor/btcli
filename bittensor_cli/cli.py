@@ -2107,6 +2107,7 @@ class CLIManager:
         overwrite: bool = Options.overwrite,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Regenerates the public part of a coldkey (coldkeypub.txt) for a wallet.
@@ -2123,7 +2124,7 @@ class CLIManager:
 
         [bold]Note[/bold]: This command is particularly useful for users who need to regenerate their coldkeypub, perhaps due to file corruption or loss. You will need either ss58 address or public hex key from your old coldkeypub.txt for the wallet. It is a recovery-focused utility that ensures continued access to your wallet functionalities.
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
 
         if not wallet_path:
             wallet_path = Prompt.ask(
@@ -2152,7 +2153,9 @@ class CLIManager:
             rich.print("[red]Error: Invalid SS58 address or public key![/red]")
             raise typer.Exit()
         return self._run_command(
-            wallets.regen_coldkey_pub(wallet, ss58_address, public_key_hex, overwrite)
+            wallets.regen_coldkey_pub(
+                wallet, ss58_address, public_key_hex, overwrite, json_output
+            )
         )
 
     def wallet_regen_hotkey(
@@ -2171,6 +2174,7 @@ class CLIManager:
         overwrite: bool = Options.overwrite,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Regenerates a hotkey for a wallet.
@@ -2189,7 +2193,7 @@ class CLIManager:
         [bold]Note[/bold]: This command is essential for users who need to regenerate their hotkey, possibly for security upgrades or key recovery.
         It should be used with caution to avoid accidental overwriting of existing keys.
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -2209,6 +2213,7 @@ class CLIManager:
                 json_password,
                 use_password,
                 overwrite,
+                json_output,
             )
         )
 
@@ -2231,6 +2236,7 @@ class CLIManager:
         overwrite: bool = Options.overwrite,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Create a new hotkey for a wallet.
@@ -2246,7 +2252,7 @@ class CLIManager:
 
         [italic]Note[/italic]: This command is useful to create additional hotkeys for different purposes, such as running multiple subnet miners or subnet validators or separating operational roles within the Bittensor network.
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
 
         if not wallet_name:
             wallet_name = Prompt.ask(
@@ -2270,7 +2276,9 @@ class CLIManager:
         if not uri:
             n_words = get_n_words(n_words)
         return self._run_command(
-            wallets.new_hotkey(wallet, n_words, use_password, uri, overwrite)
+            wallets.new_hotkey(
+                wallet, n_words, use_password, uri, overwrite, json_output
+            )
         )
 
     def wallet_new_coldkey(
@@ -2289,6 +2297,7 @@ class CLIManager:
         overwrite: bool = Options.overwrite,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Create a new coldkey. A coldkey is required for holding TAO balances and performing high-value transactions.
@@ -2303,7 +2312,7 @@ class CLIManager:
 
         [bold]Note[/bold]: This command is crucial for users who need to create a new coldkey for enhanced security or as part of setting up a new wallet. It is a foundational step in establishing a secure presence on the Bittensor network.
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
 
         if not wallet_path:
             wallet_path = Prompt.ask(
@@ -2326,7 +2335,9 @@ class CLIManager:
         if not uri:
             n_words = get_n_words(n_words)
         return self._run_command(
-            wallets.new_coldkey(wallet, n_words, use_password, uri, overwrite)
+            wallets.new_coldkey(
+                wallet, n_words, use_password, uri, overwrite, json_output
+            )
         )
 
     def wallet_check_ck_swap(
@@ -2349,6 +2360,7 @@ class CLIManager:
 
         [green]$[/green] btcli wallet check_coldkey_swap
         """
+        # TODO add json_output if this ever gets used again (doubtful)
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         self.initialize_chain(network)
@@ -2365,6 +2377,7 @@ class CLIManager:
         overwrite: bool = Options.overwrite,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Create a complete wallet by setting up both coldkey and hotkeys.
@@ -2379,6 +2392,7 @@ class CLIManager:
 
         [bold]Note[/bold]: This command is for new users setting up their wallet for the first time, or for those who wish to completely renew their wallet keys. It ensures a fresh start with new keys for secure and effective participation in the Bittensor network.
         """
+        self.verbosity_handler(quiet, verbose, json_output)
         if not wallet_path:
             wallet_path = Prompt.ask(
                 "Enter the path of wallets directory", default=defaults.wallet.path
@@ -2395,7 +2409,6 @@ class CLIManager:
                 default=defaults.wallet.hotkey,
             )
 
-        self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -2406,7 +2419,9 @@ class CLIManager:
         if not uri:
             n_words = get_n_words(n_words)
         return self._run_command(
-            wallets.wallet_create(wallet, n_words, use_password, uri, overwrite)
+            wallets.wallet_create(
+                wallet, n_words, use_password, uri, overwrite, json_output
+            )
         )
 
     def wallet_balance(
@@ -2424,6 +2439,7 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Check the balance of the wallet. This command shows a detailed view of the wallet's coldkey balances, including free and staked balances.
@@ -2449,7 +2465,7 @@ class CLIManager:
             [green]$[/green] btcli w balance --ss58 <ss58_address> --ss58 <ss58_address>
 
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
         wallet = None
         if all_balances:
             ask_for = [WO.PATH]
@@ -2512,7 +2528,9 @@ class CLIManager:
                 )
         subtensor = self.initialize_chain(network)
         return self._run_command(
-            wallets.wallet_balance(wallet, subtensor, all_balances, ss58_addresses)
+            wallets.wallet_balance(
+                wallet, subtensor, all_balances, ss58_addresses, json_output
+            )
         )
 
     def wallet_history(
@@ -2536,6 +2554,7 @@ class CLIManager:
 
         """
         # TODO: Fetch effective network and redirect users accordingly - this only works on finney
+        # TODO: Add json_output if this gets re-enabled
         # no_use_config_str = "Using the network [dark_orange]finney[/dark_orange] and ignoring network/chain configs"
 
         # if self.config.get("network"):
@@ -2602,6 +2621,7 @@ class CLIManager:
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         prompt: bool = Options.prompt,
+        json_output: bool = Options.json_output,
     ):
         """
         Create or update the on-chain identity of a coldkey or a hotkey on the Bittensor network. [bold]Incurs a 1 TAO transaction fee.[/bold]
@@ -2620,7 +2640,7 @@ class CLIManager:
 
         [bold]Note[/bold]: This command should only be used if the user is willing to incur the a recycle fee associated with setting an identity on the blockchain. It is a high-level command that makes changes to the blockchain state and should not be used programmatically as part of other scripts or applications.
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -2669,6 +2689,7 @@ class CLIManager:
                 identity["additional"],
                 identity["github_repo"],
                 prompt,
+                json_output,
             )
         )
 
@@ -2690,6 +2711,7 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Shows the identity details of a user's coldkey or hotkey.
@@ -2708,7 +2730,7 @@ class CLIManager:
 
         [bold]Note[/bold]: This command is primarily used for informational purposes and has no side effects on the blockchain network state.
         """
-        wallet = None
+        self.verbosity_handler(quiet, verbose, json_output)
         if not wallet_name:
             if coldkey_ss58:
                 if not is_valid_ss58_address(coldkey_ss58):
@@ -2733,9 +2755,8 @@ class CLIManager:
             )
             coldkey_ss58 = wallet.coldkeypub.ss58_address
 
-        self.verbosity_handler(quiet, verbose)
         return self._run_command(
-            wallets.get_id(self.initialize_chain(network), coldkey_ss58)
+            wallets.get_id(self.initialize_chain(network), coldkey_ss58, json_output)
         )
 
     def wallet_sign(
@@ -2751,6 +2772,7 @@ class CLIManager:
         message: str = typer.Option("", help="The message to encode and sign"),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Allows users to sign a message with the provided wallet or wallet hotkey. Use this command to easily prove your ownership of a coldkey or a hotkey.
@@ -2766,12 +2788,17 @@ class CLIManager:
         [green]$[/green] btcli wallet sign --wallet-name default --wallet-hotkey hotkey --message
         '{"something": "here", "timestamp": 1719908486}'
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
         if use_hotkey is None:
             use_hotkey = Confirm.ask(
-                f"Would you like to sign the transaction using your [{COLOR_PALETTE['GENERAL']['HOTKEY']}]hotkey[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]?"
-                f"\n[Type [{COLOR_PALETTE['GENERAL']['HOTKEY']}]y[/{COLOR_PALETTE['GENERAL']['HOTKEY']}] for [{COLOR_PALETTE['GENERAL']['HOTKEY']}]hotkey[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
-                f" and [{COLOR_PALETTE['GENERAL']['COLDKEY']}]n[/{COLOR_PALETTE['GENERAL']['COLDKEY']}] for [{COLOR_PALETTE['GENERAL']['COLDKEY']}]coldkey[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]] (default is [{COLOR_PALETTE['GENERAL']['COLDKEY']}]coldkey[/{COLOR_PALETTE['GENERAL']['COLDKEY']}])",
+                f"Would you like to sign the transaction using your "
+                f"[{COLOR_PALETTE['GENERAL']['HOTKEY']}]hotkey[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]?"
+                f"\n[Type [{COLOR_PALETTE['GENERAL']['HOTKEY']}]y"
+                f"[/{COLOR_PALETTE['GENERAL']['HOTKEY']}] for "
+                f"[{COLOR_PALETTE['GENERAL']['HOTKEY']}]hotkey[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
+                f" and [{COLOR_PALETTE['GENERAL']['COLDKEY']}]n[/{COLOR_PALETTE['GENERAL']['COLDKEY']}] for "
+                f"[{COLOR_PALETTE['GENERAL']['COLDKEY']}]coldkey[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]] "
+                f"(default is [{COLOR_PALETTE['GENERAL']['COLDKEY']}]coldkey[/{COLOR_PALETTE['GENERAL']['COLDKEY']}])",
                 default=False,
             )
 
@@ -2784,7 +2811,7 @@ class CLIManager:
         if not message:
             message = Prompt.ask("Enter the [blue]message[/blue] to encode and sign")
 
-        return self._run_command(wallets.sign(wallet, message, use_hotkey))
+        return self._run_command(wallets.sign(wallet, message, use_hotkey, json_output))
 
     def stake_list(
         self,

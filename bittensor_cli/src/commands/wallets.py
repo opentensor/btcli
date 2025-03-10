@@ -115,6 +115,7 @@ async def regen_coldkey_pub(
     ss58_address: str,
     public_key_hex: str,
     overwrite: Optional[bool] = False,
+    json_output: bool = False,
 ):
     """Creates a new coldkeypub under this wallet."""
     try:
@@ -126,10 +127,31 @@ async def regen_coldkey_pub(
         if isinstance(new_coldkeypub, Wallet):
             console.print(
                 "\n✅ [dark_sea_green]Regenerated coldkeypub successfully!\n",
-                f"[dark_sea_green]Wallet name: ({new_coldkeypub.name}), path: ({new_coldkeypub.path}), coldkey ss58: ({new_coldkeypub.coldkeypub.ss58_address})",
+                f"[dark_sea_green]Wallet name: ({new_coldkeypub.name}), path: ({new_coldkeypub.path}), "
+                f"coldkey ss58: ({new_coldkeypub.coldkeypub.ss58_address})",
             )
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {
+                            "success": True,
+                            "data": {
+                                "name": new_coldkeypub.name,
+                                "path": new_coldkeypub.path,
+                                "hotkey": new_coldkeypub.hotkey_str,
+                                "hotkey_ss58": new_coldkeypub.hotkey.ss58_address,
+                                "coldkey_ss58": new_coldkeypub.coldkeypub.ss58_address,
+                            },
+                            "error": "",
+                        }
+                    )
+                )
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
+        if json_output:
+            json_console.print(
+                '{"success": false, "error": "Keyfile is not writable", "data": null}'
+            )
 
 
 async def regen_hotkey(
@@ -140,6 +162,7 @@ async def regen_hotkey(
     json_password: Optional[str] = "",
     use_password: Optional[bool] = False,
     overwrite: Optional[bool] = False,
+    json_output: bool = False,
 ):
     """Creates a new hotkey under this wallet."""
     json_str: Optional[str] = None
@@ -151,22 +174,47 @@ async def regen_hotkey(
             json_str = f.read()
 
     try:
-        new_hotkey = wallet.regenerate_hotkey(
+        new_hotkey_ = wallet.regenerate_hotkey(
             mnemonic=mnemonic,
             seed=seed,
             json=(json_str, json_password) if all([json_str, json_password]) else None,
             use_password=use_password,
             overwrite=overwrite,
         )
-        if isinstance(new_hotkey, Wallet):
+        if isinstance(new_hotkey_, Wallet):
             console.print(
                 "\n✅ [dark_sea_green]Regenerated hotkey successfully!\n",
-                f"[dark_sea_green]Wallet name: ({new_hotkey.name}), path: ({new_hotkey.path}), hotkey ss58: ({new_hotkey.hotkey.ss58_address})",
+                f"[dark_sea_green]Wallet name: ({new_hotkey_.name}), path: ({new_hotkey_.path}), "
+                f"hotkey ss58: ({new_hotkey_.hotkey.ss58_address})",
             )
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {
+                            "success": True,
+                            "data": {
+                                "name": new_hotkey_.name,
+                                "path": new_hotkey_.path,
+                                "hotkey": new_hotkey_.hotkey_str,
+                                "hotkey_ss58": new_hotkey_.hotkey.ss58_address,
+                                "coldkey_ss58": new_hotkey_.coldkeypub.ss58_address,
+                            },
+                            "error": "",
+                        }
+                    )
+                )
     except ValueError:
         print_error("Mnemonic phrase is invalid")
+        if json_output:
+            json_console.print(
+                '{"success": false, "error": "Mnemonic phrase is invalid", "data": null}'
+            )
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
+        if json_output:
+            json_console.print(
+                '{"success": false, "error": "Keyfile is not writable", "data": null}'
+            )
 
 
 async def new_hotkey(
@@ -175,6 +223,7 @@ async def new_hotkey(
     use_password: bool,
     uri: Optional[str] = None,
     overwrite: Optional[bool] = False,
+    json_output: bool = False,
 ):
     """Creates a new hotkey under this wallet."""
     try:
@@ -183,6 +232,7 @@ async def new_hotkey(
                 keypair = Keypair.create_from_uri(uri)
             except Exception as e:
                 print_error(f"Failed to create keypair from URI {uri}: {str(e)}")
+                return
             wallet.set_hotkey(keypair=keypair, encrypt=use_password)
             console.print(
                 f"[dark_sea_green]Hotkey created from URI: {uri}[/dark_sea_green]"
@@ -194,8 +244,28 @@ async def new_hotkey(
                 overwrite=overwrite,
             )
             console.print("[dark_sea_green]Hotkey created[/dark_sea_green]")
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": True,
+                        "data": {
+                            "name": wallet.name,
+                            "path": wallet.path,
+                            "hotkey": wallet.hotkey_str,
+                            "hotkey_ss58": wallet.hotkey.ss58_address,
+                            "coldkey_ss58": wallet.coldkeypub.ss58_address,
+                        },
+                        "error": "",
+                    }
+                )
+            )
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
+        if json_output:
+            json_console.print(
+                '{"success": false, "error": "Keyfile is not writable", "data": null}'
+            )
 
 
 async def new_coldkey(
@@ -204,6 +274,7 @@ async def new_coldkey(
     use_password: bool,
     uri: Optional[str] = None,
     overwrite: Optional[bool] = False,
+    json_output: bool = False,
 ):
     """Creates a new coldkey under this wallet."""
     try:
@@ -224,8 +295,28 @@ async def new_coldkey(
                 overwrite=overwrite,
             )
             console.print("[dark_sea_green]Coldkey created[/dark_sea_green]")
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": True,
+                        "data": {
+                            "name": wallet.name,
+                            "path": wallet.path,
+                            "hotkey": wallet.hotkey_str,
+                            "hotkey_ss58": wallet.hotkey.ss58_address,
+                            "coldkey_ss58": wallet.coldkeypub.ss58_address,
+                        },
+                        "error": "",
+                    }
+                )
+            )
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
+        if json_output:
+            json_console.print(
+                '{"success": false, "error": "Keyfile is not writable", "data": null}'
+            )
 
 
 async def wallet_create(
@@ -234,16 +325,28 @@ async def wallet_create(
     use_password: bool = True,
     uri: Optional[str] = None,
     overwrite: Optional[bool] = False,
+    json_output: bool = False,
 ):
     """Creates a new wallet."""
+    output_dict = {"success": False, "error": "", "data": None}
     if uri:
         try:
             keypair = Keypair.create_from_uri(uri)
             wallet.set_coldkey(keypair=keypair, encrypt=False, overwrite=False)
             wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=False)
             wallet.set_hotkey(keypair=keypair, encrypt=False, overwrite=False)
+            output_dict["success"] = True
+            output_dict["data"] = {
+                "name": wallet.name,
+                "path": wallet.path,
+                "hotkey": wallet.hotkey_str,
+                "hotkey_ss58": wallet.hotkey.ss58_address,
+                "coldkey_ss58": wallet.coldkeypub.ss58_address,
+            }
         except Exception as e:
-            print_error(f"Failed to create keypair from URI: {str(e)}")
+            err = f"Failed to create keypair from URI: {str(e)}"
+            print_error(err)
+            output_dict["error"] = err
         console.print(
             f"[dark_sea_green]Wallet created from URI: {uri}[/dark_sea_green]"
         )
@@ -255,9 +358,18 @@ async def wallet_create(
                 overwrite=overwrite,
             )
             console.print("[dark_sea_green]Coldkey created[/dark_sea_green]")
+            output_dict["success"] = True
+            output_dict["data"] = {
+                "name": wallet.name,
+                "path": wallet.path,
+                "hotkey": wallet.hotkey_str,
+                "hotkey_ss58": wallet.hotkey.ss58_address,
+                "coldkey_ss58": wallet.coldkeypub.ss58_address,
+            }
         except KeyFileError:
-            print_error("KeyFileError: File is not writable")
-
+            err = "KeyFileError: File is not writable"
+            print_error(err)
+            output_dict["error"] = err
         try:
             wallet.create_new_hotkey(
                 n_words=n_words,
@@ -265,8 +377,20 @@ async def wallet_create(
                 overwrite=overwrite,
             )
             console.print("[dark_sea_green]Hotkey created[/dark_sea_green]")
+            output_dict["success"] = True
+            output_dict["data"] = {
+                "name": wallet.name,
+                "path": wallet.path,
+                "hotkey": wallet.hotkey_str,
+                "hotkey_ss58": wallet.hotkey.ss58_address,
+                "coldkey_ss58": wallet.coldkeypub.ss58_address,
+            }
         except KeyFileError:
-            print_error("KeyFileError: File is not writable")
+            err = "KeyFileError: File is not writable"
+            print_error(err)
+            output_dict["error"] = err
+    if json_output:
+        json_console.print(json.dumps(output_dict))
 
 
 def get_coldkey_wallets_for_path(path: str) -> list[Wallet]:
@@ -306,6 +430,7 @@ async def wallet_balance(
     subtensor: SubtensorInterface,
     all_balances: bool,
     ss58_addresses: Optional[str] = None,
+    json_output: bool = False,
 ):
     """Retrieves the current balance of the specified wallet"""
     if ss58_addresses:
@@ -421,6 +546,31 @@ async def wallet_balance(
     )
     console.print(Padding(table, (0, 0, 0, 4)))
     await subtensor.substrate.close()
+    if json_output:
+        output_balances = {
+            key: {
+                "coldkey": value[0],
+                "free": value[1].tao,
+                "staked": value[2].tao,
+                "staked_with_slippage": value[3].tao,
+                "total": (value[1] + value[2]).tao,
+                "total_with_slippage": (value[1] + value[3]).tao,
+            }
+            for (key, value) in balances.items()
+        }
+        output_dict = {
+            "balances": output_balances,
+            "totals": {
+                "free": total_free_balance.tao,
+                "staked": total_staked_balance.tao,
+                "staked_with_slippage": total_staked_with_slippage.tao,
+                "total": (total_free_balance + total_staked_balance).tao,
+                "total_with_slippage": (
+                    total_free_balance + total_staked_with_slippage
+                ).tao,
+            },
+        }
+        json_console.print(json.dumps(output_dict))
     return total_free_balance
 
 
@@ -1455,9 +1605,10 @@ async def set_id(
     additional: str,
     github_repo: str,
     prompt: bool,
+    json_output: bool = False,
 ):
     """Create a new or update existing identity on-chain."""
-
+    output_dict = {"success": False, "identity": None, "error": ""}
     identity_data = {
         "name": name.encode(),
         "url": web_url.encode(),
@@ -1484,20 +1635,31 @@ async def set_id(
 
         if not success:
             err_console.print(f"[red]:cross_mark: Failed![/red] {err_msg}")
+            output_dict["error"] = err_msg
+            if json_output:
+                json_console.print(json.dumps(output_dict))
             return
-
-        console.print(":white_heavy_check_mark: [dark_sea_green3]Success!")
-        identity = await subtensor.query_identity(wallet.coldkeypub.ss58_address)
+        else:
+            console.print(":white_heavy_check_mark: [dark_sea_green3]Success!")
+            output_dict["success"] = True
+            identity = await subtensor.query_identity(wallet.coldkeypub.ss58_address)
 
     table = create_identity_table(title="New on-chain Identity")
     table.add_row("Address", wallet.coldkeypub.ss58_address)
     for key, value in identity.items():
         table.add_row(key, str(value) if value else "~")
+    output_dict["identity"] = identity
+    console.print(table)
+    if json_output:
+        json_console.print(json.dumps(output_dict))
 
-    return console.print(table)
 
-
-async def get_id(subtensor: SubtensorInterface, ss58_address: str, title: str = None):
+async def get_id(
+    subtensor: SubtensorInterface,
+    ss58_address: str,
+    title: str = None,
+    json_output: bool = False,
+):
     with console.status(
         ":satellite: [bold green]Querying chain identity...", spinner="earth"
     ):
@@ -1509,6 +1671,8 @@ async def get_id(subtensor: SubtensorInterface, ss58_address: str, title: str = 
             f" for [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]"
             f" on {subtensor}"
         )
+        if json_output:
+            json_console.print("{}")
         return {}
 
     table = create_identity_table(title)
@@ -1517,6 +1681,8 @@ async def get_id(subtensor: SubtensorInterface, ss58_address: str, title: str = 
         table.add_row(key, str(value) if value else "~")
 
     console.print(table)
+    if json_output:
+        json_console.print(json.dumps(identity))
     return identity
 
 
@@ -1557,7 +1723,9 @@ async def check_coldkey_swap(wallet: Wallet, subtensor: SubtensorInterface):
         )
 
 
-async def sign(wallet: Wallet, message: str, use_hotkey: str):
+async def sign(
+    wallet: Wallet, message: str, use_hotkey: str, json_output: bool = False
+):
     """Sign a message using the provided wallet or hotkey."""
 
     if not use_hotkey:
@@ -1577,4 +1745,6 @@ async def sign(wallet: Wallet, message: str, use_hotkey: str):
 
     signed_message = keypair.sign(message.encode("utf-8")).hex()
     console.print("[dark_sea_green3]Message signed successfully:")
+    if json_output:
+        json_console.print(json.dumps({"signed_message": signed_message}))
     console.print(signed_message)
