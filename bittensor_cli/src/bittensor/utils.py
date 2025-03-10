@@ -5,7 +5,6 @@ import os
 import sqlite3
 import platform
 import webbrowser
-import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable
 from urllib.parse import urlparse
@@ -34,6 +33,7 @@ if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
 
 console = Console()
+json_console = Console()
 err_console = Console(stderr=True)
 verbose_console = Console(quiet=True)
 
