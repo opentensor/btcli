@@ -1098,38 +1098,30 @@ def prompt_for_identity(
     identity_fields = {}
 
     fields = [
-        ("name", "[blue]Display name[/blue]", name),
-        ("url", "[blue]Web URL[/blue]", web_url),
-        ("image", "[blue]Image URL[/blue]", image_url),
-        ("discord", "[blue]Discord handle[/blue]", discord),
-        ("description", "[blue]Description[/blue]", description),
-        ("additional", "[blue]Additional information[/blue]", additional),
-        ("github_repo", "[blue]GitHub repository URL[/blue]", github_repo),
+        ("name", "[blue]Display name[/blue]", name, 256),
+        ("url", "[blue]Web URL[/blue]", web_url, 256),
+        ("image", "[blue]Image URL[/blue]", image_url, 1024),
+        ("discord", "[blue]Discord handle[/blue]", discord, 256),
+        ("description", "[blue]Description[/blue]", description, 1024),
+        ("additional", "[blue]Additional information[/blue]", additional, 1024),
+        ("github_repo", "[blue]GitHub repository URL[/blue]", github_repo, 256),
     ]
 
-    text_rejection = partial(
-        retry_prompt,
-        rejection=lambda x: sys.getsizeof(x) > 113,
-        rejection_text="[red]Error:[/red] Identity field must be <= 64 raw bytes.",
-    )
-
     if not any(
-        [
-            name,
-            web_url,
-            image_url,
-            discord,
-            description,
-            additional,
-            github_repo,
-        ]
+        [name, web_url, image_url, discord, description, additional, github_repo]
     ):
         console.print(
             "\n[yellow]All fields are optional. Press Enter to skip and keep the default/existing value.[/yellow]\n"
             "[dark_sea_green3]Tip: Entering a space and pressing Enter will clear existing default value.\n"
         )
 
-    for key, prompt, value in fields:
+    for key, prompt, value, byte_limit in fields:
+        text_rejection = partial(
+            retry_prompt,
+            rejection=lambda x: len(x.encode("utf-8")) > byte_limit,
+            rejection_text=f"[red]Error:[/red] {key} field must be <= {byte_limit} bytes.",
+        )
+
         if value:
             identity_fields[key] = value
         else:
@@ -1171,50 +1163,51 @@ def prompt_for_subnet_identity(
             "subnet_name",
             "[blue]Subnet name [dim](optional)[/blue]",
             subnet_name,
-            lambda x: x and sys.getsizeof(x) > 113,
-            "[red]Error:[/red] Subnet name must be <= 64 raw bytes.",
+            lambda x: x and len(x.encode("utf-8")) > 256,
+            "[red]Error:[/red] Subnet name must be <= 256 bytes.",
         ),
         (
             "github_repo",
             "[blue]GitHub repository URL [dim](optional)[/blue]",
             github_repo,
-            lambda x: x and not is_valid_github_url(x),
+            lambda x: x
+            and (not is_valid_github_url(x) or len(x.encode("utf-8")) > 1024),
             "[red]Error:[/red] Please enter a valid GitHub repository URL (e.g., https://github.com/username/repo).",
         ),
         (
             "subnet_contact",
             "[blue]Contact email [dim](optional)[/blue]",
             subnet_contact,
-            lambda x: x and not is_valid_contact(x),
+            lambda x: x and (not is_valid_contact(x) or len(x.encode("utf-8")) > 1024),
             "[red]Error:[/red] Please enter a valid email address.",
         ),
         (
             "subnet_url",
             "[blue]Subnet URL [dim](optional)[/blue]",
             subnet_url,
-            lambda x: x and sys.getsizeof(x) > 113,
-            "[red]Error:[/red] Please enter a valid URL.",
+            lambda x: x and len(x.encode("utf-8")) > 1024,
+            "[red]Error:[/red] Please enter a valid URL <= 1024 bytes.",
         ),
         (
             "discord",
             "[blue]Discord handle [dim](optional)[/blue]",
             discord,
-            lambda x: x and sys.getsizeof(x) > 113,
-            "[red]Error:[/red] Please enter a valid Discord handle.",
+            lambda x: x and len(x.encode("utf-8")) > 256,
+            "[red]Error:[/red] Please enter a valid Discord handle <= 256 bytes.",
         ),
         (
             "description",
             "[blue]Description [dim](optional)[/blue]",
             description,
-            lambda x: x and sys.getsizeof(x) > 113,
-            "[red]Error:[/red] Description must be <= 64 raw bytes.",
+            lambda x: x and len(x.encode("utf-8")) > 1024,
+            "[red]Error:[/red] Description must be <= 1024 bytes.",
         ),
         (
             "additional",
             "[blue]Additional information [dim](optional)[/blue]",
             additional,
-            lambda x: x and sys.getsizeof(x) > 113,
-            "[red]Error:[/red] Additional information must be <= 64 raw bytes.",
+            lambda x: x and len(x.encode("utf-8")) > 1024,
+            "[red]Error:[/red] Additional information must be <= 1024 bytes.",
         ),
     ]
 
@@ -1274,22 +1267,28 @@ def is_valid_contact(contact: str) -> bool:
     return bool(re.match(email_pattern, contact))
 
 
-def get_subnet_name(subnet_info) -> str:
+def get_subnet_name(subnet_info, max_length: int = 20) -> str:
     """Get the subnet name, prioritizing subnet_identity.subnet_name over subnet.subnet_name.
+    Truncates the name if it exceeds max_length.
 
     Args:
-        subnet: The subnet dynamic info
+        subnet_info: The subnet dynamic info
+        max_length: Maximum length of the returned name. Names longer than this will be truncated with '...'
 
     Returns:
-        str: The subnet name or empty string if no name is found
+        str: The subnet name (truncated if necessary) or empty string if no name is found
     """
-    return (
+    name = (
         subnet_info.subnet_identity.subnet_name
         if hasattr(subnet_info, "subnet_identity")
         and subnet_info.subnet_identity is not None
         and subnet_info.subnet_identity.subnet_name is not None
         else (subnet_info.subnet_name if subnet_info.subnet_name is not None else "")
     )
+
+    if len(name) > max_length:
+        return name[: max_length - 3] + "..."
+    return name
 
 
 def print_linux_dependency_message():
