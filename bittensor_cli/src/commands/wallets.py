@@ -35,6 +35,7 @@ from bittensor_cli.src.bittensor.utils import (
     console,
     convert_blocks_to_time,
     err_console,
+    json_console,
     print_error,
     print_verbose,
     get_all_wallets_for_path,
@@ -577,8 +578,7 @@ async def wallet_list(wallet_path: str, json_output: bool):
         print_verbose(f"No wallets found in path: {wallet_path}")
         root.add("[bold red]No wallets found.")
     if json_output:
-        console.print("[JSON_OUTPUT]")
-        console.print(json.dumps(main_data_dict))
+        json_console.print(json.dumps(main_data_dict))
     else:
         console.print(root)
 
@@ -1016,8 +1016,7 @@ async def overview(
     if not json_output:
         console.print(grid, width=None)
     else:
-        console.print("[JSON_OUTPUT]")
-        console.print(json.dumps(data_dict))
+        json_console.print(json.dumps(data_dict))
 
 
 def _get_hotkeys(

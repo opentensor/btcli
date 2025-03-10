@@ -1075,12 +1075,16 @@ class CLIManager:
             except ModuleNotFoundError:
                 self.asyncio_runner = asyncio.run
 
-    def verbosity_handler(self, quiet: bool, verbose: bool):
+    def verbosity_handler(
+        self, quiet: bool, verbose: bool, json_output: bool = False
+    ) -> None:
         if quiet and verbose:
             err_console.print("Cannot specify both `--quiet` and `--verbose`")
             raise typer.Exit()
-
-        if quiet:
+        elif json_output and verbose:
+            err_console.print("Cannot specify both `--verbose` and `--json-output`")
+            raise typer.Exit()
+        if json_output or quiet:
             verbosity_console_handler(0)
         elif verbose:
             verbosity_console_handler(2)
@@ -1612,7 +1616,7 @@ class CLIManager:
 
         [bold]NOTE[/bold]: This command is read-only and does not modify the filesystem or the blockchain state. It is intended for use with the Bittensor CLI to provide a quick overview of the user's wallets.
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
         wallet = self.wallet_ask(
             None, wallet_path, None, ask_for=[WO.PATH], validate=WV.NONE
         )
@@ -1673,7 +1677,7 @@ class CLIManager:
         It provides a quick and comprehensive view of the user's network presence, making it useful for monitoring account status,
         stake distribution, and overall contribution to the Bittensor network.
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
         if include_hotkeys and exclude_hotkeys:
             utils.err_console.print(
                 "[red]You have specified both the inclusion and exclusion options. Only one of these options is allowed currently."
