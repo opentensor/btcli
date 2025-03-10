@@ -52,6 +52,7 @@ from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
     verbose_console,
+    json_console,
     is_valid_ss58_address,
     print_error,
     validate_chain_endpoint,
@@ -319,22 +320,31 @@ def verbosity_console_handler(verbosity_level: int = 1) -> None:
     :param verbosity_level: int corresponding to verbosity level of console output (0 is quiet, 1 is normal, 2 is
         verbose)
     """
-    if verbosity_level not in range(3):
+    if verbosity_level not in range(4):
         raise ValueError(
-            f"Invalid verbosity level: {verbosity_level}. Must be one of: 0 (quiet), 1 (normal), 2 (verbose)"
+            f"Invalid verbosity level: {verbosity_level}. "
+            f"Must be one of: 0 (quiet + json output), 1 (normal), 2 (verbose), 3 (json output + verbose)"
         )
     if verbosity_level == 0:
         console.quiet = True
         err_console.quiet = True
         verbose_console.quiet = True
+        json_console.quiet = False
     elif verbosity_level == 1:
         console.quiet = False
         err_console.quiet = False
         verbose_console.quiet = True
+        json_console.quiet = True
     elif verbosity_level == 2:
         console.quiet = False
         err_console.quiet = False
         verbose_console.quiet = False
+        json_console.quiet = True
+    elif verbosity_level == 3:
+        console.quiet = True
+        err_console.quiet = True
+        verbose_console.quiet = False
+        json_console.quiet = False
 
 
 def get_optional_netuid(netuid: Optional[int], all_netuids: bool) -> Optional[int]:
@@ -1081,10 +1091,9 @@ class CLIManager:
         if quiet and verbose:
             err_console.print("Cannot specify both `--quiet` and `--verbose`")
             raise typer.Exit()
-        elif json_output and verbose:
-            err_console.print("Cannot specify both `--verbose` and `--json-output`")
-            raise typer.Exit()
-        if json_output or quiet:
+        if json_console and verbose:
+            verbosity_console_handler(3)
+        elif json_output or quiet:
             verbosity_console_handler(0)
         elif verbose:
             verbosity_console_handler(2)
@@ -2831,6 +2840,7 @@ class CLIManager:
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         no_prompt: bool = Options.prompt,
+        json_output: bool = Options.json_output,
         # TODO add: all-wallets, reuse_last, html_output
     ):
         """
@@ -2852,7 +2862,7 @@ class CLIManager:
         4. Verbose output with full values:
         [green]$[/green] btcli stake list --wallet.name my_wallet --verbose
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
 
         wallet = None
         if coldkey_ss58:
@@ -2883,6 +2893,7 @@ class CLIManager:
                 live,
                 verbose,
                 no_prompt,
+                json_output,
             )
         )
 
