@@ -3192,6 +3192,7 @@ class CLIManager:
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Unstake TAO from one or more hotkeys and transfer them back to the user's coldkey wallet.
@@ -3223,7 +3224,7 @@ class CLIManager:
         • [blue]--tolerance[/blue]: Max allowed rate change (0.05 = 5%)
         • [blue]--partial[/blue]: Complete partial unstake if rates exceed tolerance
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
         if not unstake_all and not unstake_all_alpha:
             safe_staking = self.ask_safe_staking(safe_staking)
             if safe_staking:
@@ -3235,7 +3236,8 @@ class CLIManager:
             [hotkey_ss58_address, include_hotkeys, exclude_hotkeys, all_hotkeys]
         ):
             print_error(
-                "Interactive mode cannot be used with hotkey selection options like --include-hotkeys, --exclude-hotkeys, --all-hotkeys, or --hotkey."
+                "Interactive mode cannot be used with hotkey selection options like "
+                "--include-hotkeys, --exclude-hotkeys, --all-hotkeys, or --hotkey."
             )
             raise typer.Exit()
 
@@ -3372,6 +3374,7 @@ class CLIManager:
                     include_hotkeys=include_hotkeys,
                     exclude_hotkeys=exclude_hotkeys,
                     prompt=prompt,
+                    json_output=json_output,
                 )
             )
         elif (
@@ -3426,6 +3429,7 @@ class CLIManager:
                 safe_staking=safe_staking,
                 rate_tolerance=rate_tolerance,
                 allow_partial_stake=allow_partial_stake,
+                json_output=json_output,
             )
         )
 
