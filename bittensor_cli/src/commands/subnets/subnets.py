@@ -1417,6 +1417,7 @@ async def pow_register(
     use_cuda,
     dev_id,
     threads_per_block,
+    prompt: bool
 ):
     """Register neuron."""
 
@@ -1424,7 +1425,7 @@ async def pow_register(
         subtensor,
         wallet=wallet,
         netuid=netuid,
-        prompt=True,
+        prompt=prompt,
         tpb=threads_per_block,
         update_interval=update_interval,
         num_processes=processors,
