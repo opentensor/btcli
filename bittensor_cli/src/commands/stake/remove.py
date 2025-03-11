@@ -46,7 +46,6 @@ async def unstake(
     json_output: bool,
 ):
     """Unstake from hotkey(s)."""
-    unstake_all_from_hk = False
     with console.status(
         f"Retrieving subnet data & identities from {subtensor.network}...",
         spinner="earth",

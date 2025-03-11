@@ -2,6 +2,7 @@
 import asyncio
 import curses
 import importlib
+import json
 import os.path
 import re
 import ssl
@@ -3460,6 +3461,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Move staked TAO between hotkeys while keeping the same coldkey ownership.
@@ -3481,13 +3483,14 @@ class CLIManager:
 
         [green]$[/green] btcli stake move
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
         console.print(
             "[dim]This command moves stake from one hotkey to another hotkey while keeping the same coldkey.[/dim]"
         )
         if not destination_hotkey:
             dest_wallet_or_ss58 = Prompt.ask(
-                "Enter the [blue]destination wallet[/blue] where destination hotkey is located or [blue]ss58 address[/blue]"
+                "Enter the [blue]destination wallet[/blue] where destination hotkey is located or "
+                "[blue]ss58 address[/blue]"
             )
             if is_valid_ss58_address(dest_wallet_or_ss58):
                 destination_hotkey = dest_wallet_or_ss58
@@ -3574,7 +3577,7 @@ class CLIManager:
                     "Enter the [blue]destination subnet[/blue] (netuid) to move stake to"
                 )
 
-        return self._run_command(
+        result = self._run_command(
             move_stake.move_stake(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
@@ -3588,6 +3591,9 @@ class CLIManager:
                 prompt=prompt,
             )
         )
+        if json_output:
+            json_console.print(json.dumps({"success": result}))
+        return result
 
     def stake_transfer(
         self,
@@ -3624,6 +3630,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Transfer stake between coldkeys while keeping the same hotkey ownership.
@@ -3657,10 +3664,10 @@ class CLIManager:
         Transfer all available stake from origin hotkey:
         [green]$[/green] btcli stake transfer --all --origin-netuid 1 --dest-netuid 2
         """
+        self.verbosity_handler(quiet, verbose, json_output)
         console.print(
             "[dim]This command transfers stake from one coldkey to another while keeping the same hotkey.[/dim]"
         )
-        self.verbosity_handler(quiet, verbose)
 
         if not dest_ss58:
             dest_ss58 = Prompt.ask(
@@ -3732,7 +3739,7 @@ class CLIManager:
                     "Enter the [blue]destination subnet[/blue] (netuid)"
                 )
 
-        return self._run_command(
+        result = self._run_command(
             move_stake.transfer_stake(
                 wallet=wallet,
                 subtensor=self.initialize_chain(network),
@@ -3746,6 +3753,9 @@ class CLIManager:
                 prompt=prompt,
             )
         )
+        if json_output:
+            json_console.print(json.dumps({"success": result}))
+        return result
 
     def stake_swap(
         self,
@@ -3784,6 +3794,7 @@ class CLIManager:
         wait_for_finalization: bool = Options.wait_for_finalization,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Swap stake between different subnets while keeping the same coldkey-hotkey pair ownership.
@@ -3805,10 +3816,10 @@ class CLIManager:
         Swap 100 TAO from subnet 1 to subnet 2:
         [green]$[/green] btcli stake swap --wallet-name default --wallet-hotkey default --origin-netuid 1 --dest-netuid 2 --amount 100
         """
+        self.verbosity_handler(quiet, verbose, json_output)
         console.print(
             "[dim]This command moves stake from one subnet to another subnet while keeping the same coldkey-hotkey pair.[/dim]"
         )
-        self.verbosity_handler(quiet, verbose)
 
         wallet = self.wallet_ask(
             wallet_name,
@@ -3833,7 +3844,7 @@ class CLIManager:
             if not amount and not swap_all:
                 amount = FloatPrompt.ask("Enter the [blue]amount[/blue] to swap")
 
-        return self._run_command(
+        result = self._run_command(
             move_stake.swap_stake(
                 wallet=wallet,
                 subtensor=self.initialize_chain(network),
@@ -3847,6 +3858,9 @@ class CLIManager:
                 wait_for_finalization=wait_for_finalization,
             )
         )
+        if json_output:
+            json_console.print(json.dumps({"success": result}))
+        return result
 
     def stake_get_children(
         self,
@@ -3868,6 +3882,7 @@ class CLIManager:
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Get all the child hotkeys on a specified subnet.
@@ -3879,7 +3894,7 @@ class CLIManager:
         [green]$[/green] btcli stake child get --netuid 1
         [green]$[/green] btcli stake child get --all-netuids
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -3900,11 +3915,14 @@ class CLIManager:
                 "Enter a netuid (leave blank for all)", default=None, show_default=True
             )
 
-        return self._run_command(
+        result = self._run_command(
             children_hotkeys.get_children(
                 wallet, self.initialize_chain(network), netuid
             )
         )
+        if json_output:
+            json_console.print(json.dumps(result))
+        return result
 
     def stake_set_children(
         self,
