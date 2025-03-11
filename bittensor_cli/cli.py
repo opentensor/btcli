@@ -2940,6 +2940,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Stake TAO to one or more hotkeys on specific netuids with your coldkey.
@@ -2972,7 +2973,7 @@ class CLIManager:
         • [blue]--partial[/blue]: Complete partial stake if rates exceed tolerance
 
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
         safe_staking = self.ask_safe_staking(safe_staking)
         if safe_staking:
             rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
@@ -3130,6 +3131,7 @@ class CLIManager:
                 safe_staking,
                 rate_tolerance,
                 allow_partial_stake,
+                json_output,
             )
         )
 
