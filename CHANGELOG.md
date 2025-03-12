@@ -1,5 +1,12 @@
 # Changelog
 
+## 9.1.2 /2025-03-07
+
+## What's Changed
+* Updates subnet and neuron identity by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/370
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.1.1...v9.1.2
+
 ## 9.1.1 /2025-03-06
 
 ## What's Changed
