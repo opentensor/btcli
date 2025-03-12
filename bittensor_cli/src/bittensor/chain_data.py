@@ -745,7 +745,9 @@ class DynamicInfo(InfoBase):
     def alpha_to_tao(self, alpha: Balance) -> Balance:
         return Balance.from_tao(alpha.tao * self.price.tao)
 
-    def tao_to_alpha_with_slippage(self, tao: Balance) -> tuple[Balance, Balance]:
+    def tao_to_alpha_with_slippage(
+        self, tao: Balance
+    ) -> tuple[Balance, Balance, float]:
         """
         Returns an estimate of how much Alpha would a staker receive if they stake their tao using the current pool state.
         Args:
