@@ -16,7 +16,7 @@ requires-python = ">=3.9,<3.13"
 dependencies = [
     "wheel",
     "async-property==0.2.2",
-    "async-substrate-interface>=1.0.6",
+    "async-substrate-interface>=1.0.7",
     "aiohttp~=3.10.2",
     "backoff~=2.2.1",
     "GitPython>=3.0.0",
