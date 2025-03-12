@@ -1,4 +1,5 @@
 import asyncio
+import json
 from typing import Optional
 
 from bittensor_wallet import Wallet
@@ -19,6 +20,7 @@ from bittensor_cli.src.bittensor.utils import (
     is_valid_ss58_address,
     format_error_message,
     unlock_key,
+    json_console,
 )
 
 
@@ -500,6 +502,7 @@ async def set_children(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
     prompt: bool = True,
+    json_output: bool = False,
 ):
     """Set children hotkeys."""
     # Validate children SS58 addresses
@@ -520,6 +523,7 @@ async def set_children(
             f"Proposed sum of proportions is {total_proposed}."
         )
     children_with_proportions = list(zip(proportions, children))
+    successes = {}
     if netuid is not None:
         success, message = await set_children_extrinsic(
             subtensor=subtensor,
@@ -531,12 +535,20 @@ async def set_children(
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
         )
+        successes[netuid] = {
+            "success": success,
+            "error": message,
+            "completion_block": None,
+            "set_block": None,
+        }
         # Result
         if success:
             if wait_for_inclusion and wait_for_finalization:
                 current_block, completion_block = await get_childkey_completion_block(
                     subtensor, netuid
                 )
+                successes[netuid]["completion_block"] = completion_block
+                successes[netuid]["set_block"] = current_block
                 console.print(
                     f"Your childkey request has been submitted. It will be completed around block {completion_block}. "
                     f"The current block is {current_block}"
@@ -555,7 +567,7 @@ async def set_children(
             if netuid_ == 0:  # dont include root network
                 continue
             console.print(f"Setting children on netuid {netuid_}.")
-            await set_children_extrinsic(
+            success, message = await set_children_extrinsic(
                 subtensor=subtensor,
                 wallet=wallet,
                 netuid=netuid_,
@@ -568,6 +580,12 @@ async def set_children(
             current_block, completion_block = await get_childkey_completion_block(
                 subtensor, netuid_
             )
+            successes[netuid_] = {
+                "success": success,
+                "error": message,
+                "completion_block": completion_block,
+                "set_block": current_block,
+            }
             console.print(
                 f"Your childkey request for netuid {netuid_} has been submitted. It will be completed around "
                 f"block {completion_block}. The current block is {current_block}."
@@ -575,6 +593,8 @@ async def set_children(
         console.print(
             ":white_heavy_check_mark: [green]Sent set children request for all subnets.[/green]"
         )
+    if json_output:
+        json_console.print(json.dumps(successes))
 
 
 async def revoke_children(
@@ -584,10 +604,12 @@ async def revoke_children(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
     prompt: bool = True,
+    json_output: bool = False,
 ):
     """
     Revokes the children hotkeys associated with a given network identifier (netuid).
     """
+    dict_output = {}
     if netuid:
         success, message = await set_children_extrinsic(
             subtensor=subtensor,
@@ -599,6 +621,7 @@ async def revoke_children(
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
         )
+        dict_output[netuid] = {"success": success, "error": message}
 
         # Result
         if success:
@@ -618,7 +641,7 @@ async def revoke_children(
             if netuid == 0:  # dont include root network
                 continue
             console.print(f"Revoking children from netuid {netuid}.")
-            await set_children_extrinsic(
+            success, message = await set_children_extrinsic(
                 subtensor=subtensor,
                 wallet=wallet,
                 netuid=netuid,
@@ -628,9 +651,12 @@ async def revoke_children(
                 wait_for_inclusion=True,
                 wait_for_finalization=False,
             )
+            dict_output[netuid] = {"success": success, "error": message}
         console.print(
             ":white_heavy_check_mark: [green]Sent revoke children command. Finalization may take a few minutes.[/green]"
         )
+    if json_output:
+        json_console.print(json.dumps(dict_output))
 
 
 async def childkey_take(

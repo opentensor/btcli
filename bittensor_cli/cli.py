@@ -3947,6 +3947,7 @@ class CLIManager:
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         prompt: bool = Options.prompt,
+        json_output: bool = Options.json_output,
     ):
         """
         Set child hotkeys on a specified subnet (or all). Overrides currently set children.
@@ -3959,7 +3960,7 @@ class CLIManager:
 
         [green]$[/green] btcli stake child set -c 5FCL3gmjtQV4xxxxuEPEFQVhyyyyqYgNwX7drFLw7MSdBnxP -c 5Hp5dxxxxtGg7pu8dN2btyyyyVA1vELmM9dy8KQv3LxV8PA7 --hotkey default --netuid 1 -p 0.3 -p 0.7
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
         netuid = get_optional_netuid(netuid, all_netuids)
 
         children = list_prompt(
@@ -3999,6 +4000,7 @@ class CLIManager:
                 wait_for_finalization=wait_for_finalization,
                 wait_for_inclusion=wait_for_inclusion,
                 prompt=prompt,
+                json_output=json_output,
             )
         )
 
@@ -4025,6 +4027,7 @@ class CLIManager:
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         prompt: bool = Options.prompt,
+        json_output: bool = Options.json_output,
     ):
         """
         Remove all children hotkeys on a specified subnet (or all).
@@ -4035,7 +4038,7 @@ class CLIManager:
 
         [green]$[/green] btcli stake child revoke --hotkey <parent_hotkey> --netuid 1
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -4060,6 +4063,7 @@ class CLIManager:
                 wait_for_inclusion,
                 wait_for_finalization,
                 prompt=prompt,
+                json_output=json_output,
             )
         )
 
@@ -4094,6 +4098,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Get and set your child hotkey take on a specified subnet.
@@ -4110,7 +4115,7 @@ class CLIManager:
 
             [green]$[/green] btcli stake child take --hotkey <child_hotkey> --take 0.12 --netuid 1
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
