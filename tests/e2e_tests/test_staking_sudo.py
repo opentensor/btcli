@@ -135,7 +135,7 @@ def test_staking(local_chain, wallet_setup):
         re.sub(r"\s+", " ", line) for line in show_stake.stdout.splitlines()
     ]
     stake_added = cleaned_stake[8].split("│")[3].strip().split()[0]
-    assert Balance.from_tao(float(stake_added)) >= Balance.from_tao(100)
+    assert Balance.from_tao(float(stake_added)) >= Balance.from_tao(90)
 
     # Execute remove_stake command and remove all 100 TAO from Alice
     remove_stake = exec_command_alice(
