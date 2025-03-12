@@ -1,5 +1,14 @@
 # Changelog
 
+## 9.1.3 /2025-03-12
+
+## What's Changed
+* Allows childkey take of 0 by @thewhaleking in https://github.com/opentensor/btcli/pull/376
+* Passes prompt for pow_register by @thewhaleking in https://github.com/opentensor/btcli/pull/379
+* Updates staking test by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/382
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.1.2...v9.1.3
+
 ## 9.1.2 /2025-03-07
 
 ## What's Changed
