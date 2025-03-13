@@ -1,5 +1,12 @@
 # Changelog
 
+## 9.1.4 /2025-03-13
+
+## What's Changed
+* Disk-Cache Async-Substrate-Interface Calls by @thewhaleking in https://github.com/opentensor/btcli/pull/368
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.1.3...v9.1.4
+
 ## 9.1.3 /2025-03-12
 
 ## What's Changed
