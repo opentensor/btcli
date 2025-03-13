@@ -721,64 +721,110 @@ HELP_PANELS = {
     },
 }
 
-COLOR_PALETTE = {
-    "GENERAL": {
-        "HEADER": "#4196D6",  # Light Blue
-        "LINKS": "#8CB9E9",  # Sky Blue
-        "HINT": "#A2E5B8",  # Mint Green
-        "COLDKEY": "#9EF5E4",  # Aqua
-        "HOTKEY": "#ECC39D",  # Light Orange/Peach
-        "SUBHEADING_MAIN": "#7ECFEC",  # Light Cyan
-        "SUBHEADING": "#AFEFFF",  # Pale Blue
-        "SUBHEADING_EXTRA_1": "#96A3C5",  # Grayish Blue
-        "SUBHEADING_EXTRA_2": "#6D7BAF",  # Slate Blue
-        "CONFIRMATION_Y_N_Q": "#EE8DF8",  # Light Purple/Pink
-        "SYMBOL": "#E7CC51",  # Gold
-        "BALANCE": "#4F91C6",  # Medium Blue
-        "COST": "#53B5A0",  # Teal
-        "SUCCESS": "#53B5A0",  # Teal
-        "NETUID": "#CBA880",  # Tan
-        "NETUID_EXTRA": "#DDD5A9",  # Light Khaki
-        "TEMPO": "#67A3A5",  # Grayish Teal
-    },
-    "STAKE": {
-        "STAKE_AMOUNT": "#53B5A0",  # Teal
-        "STAKE_ALPHA": "#53B5A0",  # Teal
-        "STAKE_SWAP": "#67A3A5",  # Grayish Teal
-        "TAO": "#4F91C6",  # Medium Blue
-        "SLIPPAGE_TEXT": "#C25E7C",  # Rose
-        "SLIPPAGE_PERCENT": "#E7B195",  # Light Coral
-        "NOT_REGISTERED": "#EB6A6C",  # Salmon Red
-        "EXTRA_1": "#D781BB",  # Pink
-    },
-    "POOLS": {
-        "TAO": "#4F91C6",  # Medium Blue
-        "ALPHA_IN": "#D09FE9",  # Light Purple
-        "ALPHA_OUT": "#AB7CC8",  # Medium Purple
-        "RATE": "#F8D384",  # Light Orange
-        "TAO_EQUIV": "#8CB9E9",  # Sky Blue
-        "EMISSION": "#F8D384",  # Light Orange
-        "EXTRA_1": "#CAA8FB",  # Lavender
-        "EXTRA_2": "#806DAF",  # Dark Purple
-    },
-    "GREY": {
-        "GREY_100": "#F8F9FA",  # Almost White
-        "GREY_200": "#F1F3F4",  # Very Light Grey
-        "GREY_300": "#DBDDE1",  # Light Grey
-        "GREY_400": "#BDC1C6",  # Medium Light Grey
-        "GREY_500": "#5F6368",  # Medium Grey
-        "GREY_600": "#2E3134",  # Medium Dark Grey
-        "GREY_700": "#282A2D",  # Dark Grey
-        "GREY_800": "#17181B",  # Very Dark Grey
-        "GREY_900": "#0E1013",  # Almost Black
-        "BLACK": "#000000",  # Pure Black
-    },
-    "SUDO": {
-        "HYPERPARAMETER": "#4F91C6",  # Medium Blue
-        "VALUE": "#D09FE9",  # Light Purple
-        "NORMALIZED": "#AB7CC8",  # Medium Purple
-    },
-}
+
+class Gettable:
+    def __getitem__(self, item):
+        return getattr(self, item)
+
+
+class ColorPalette(Gettable):
+    def __init__(self):
+        self.GENERAL = self.General()
+        self.STAKE = self.Stake()
+        self.POOLS = self.Pools()
+        self.GREY = self.Grey()
+        self.SUDO = self.Sudo()
+        # aliases
+        self.G = self.GENERAL
+        self.S = self.STAKE
+        self.P = self.POOLS
+        self.GR = self.GREY
+        self.SU = self.SUDO
+
+    class General(Gettable):
+        HEADER = "#4196D6"  # Light Blue
+        LINKS = "#8CB9E9"  # Sky Blue
+        HINT = "#A2E5B8"  # Mint Green
+        COLDKEY = "#9EF5E4"  # Aqua
+        HOTKEY = "#ECC39D"  # Light Orange/Peach
+        SUBHEADING_MAIN = "#7ECFEC"  # Light Cyan
+        SUBHEADING = "#AFEFFF"  # Pale Blue
+        SUBHEADING_EXTRA_1 = "#96A3C5"  # Grayish Blue
+        SUBHEADING_EXTRA_2 = "#6D7BAF"  # Slate Blue
+        CONFIRMATION_Y_N_Q = "#EE8DF8"  # Light Purple/Pink
+        SYMBOL = "#E7CC51"  # Gold
+        BALANCE = "#4F91C6"  # Medium Blue
+        COST = "#53B5A0"  # Teal
+        SUCCESS = "#53B5A0"  # Teal
+        NETUID = "#CBA880"  # Tan
+        NETUID_EXTRA = "#DDD5A9"  # Light Khaki
+        TEMPO = "#67A3A5"  # Grayish Teal
+        # aliases
+        CK = COLDKEY
+        HK = HOTKEY
+        SUBHEAD_MAIN = SUBHEADING_MAIN
+        SUBHEAD = SUBHEADING
+        SUBHEAD_EX_1 = SUBHEADING_EXTRA_1
+        SUBHEAD_EX_2 = SUBHEADING_EXTRA_2
+        SYM = SYMBOL
+        BAL = BALANCE
+
+    class Stake(Gettable):
+        STAKE_AMOUNT = "#53B5A0"  # Teal
+        STAKE_ALPHA = "#53B5A0"  # Teal
+        STAKE_SWAP = "#67A3A5"  # Grayish Teal
+        TAO = "#4F91C6"  # Medium Blue
+        SLIPPAGE_TEXT = "#C25E7C"  # Rose
+        SLIPPAGE_PERCENT = "#E7B195"  # Light Coral
+        NOT_REGISTERED = "#EB6A6C"  # Salmon Red
+        EXTRA_1 = "#D781BB"  # Pink
+        # aliases
+        AMOUNT = STAKE_AMOUNT
+        ALPHA = STAKE_ALPHA
+        SWAP = STAKE_SWAP
+
+    class Pools(Gettable):
+        TAO = "#4F91C6"  # Medium Blue
+        ALPHA_IN = "#D09FE9"  # Light Purple
+        ALPHA_OUT = "#AB7CC8"  # Medium Purple
+        RATE = "#F8D384"  # Light Orange
+        TAO_EQUIV = "#8CB9E9"  # Sky Blue
+        EMISSION = "#F8D384"  # Light Orange
+        EXTRA_1 = "#CAA8FB"  # Lavender
+        EXTRA_2 = "#806DAF"  # Dark Purple
+
+    class Grey(Gettable):
+        GREY_100 = "#F8F9FA"  # Almost White
+        GREY_200 = "#F1F3F4"  # Very Light Grey
+        GREY_300 = "#DBDDE1"  # Light Grey
+        GREY_400 = "#BDC1C6"  # Medium Light Grey
+        GREY_500 = "#5F6368"  # Medium Grey
+        GREY_600 = "#2E3134"  # Medium Dark Grey
+        GREY_700 = "#282A2D"  # Dark Grey
+        GREY_800 = "#17181B"  # Very Dark Grey
+        GREY_900 = "#0E1013"  # Almost Black
+        BLACK = "#000000"  # Pure Black
+        # aliases
+        G_100 = GREY_100
+        G_200 = GREY_200
+        G_300 = GREY_300
+        G_400 = GREY_400
+        G_500 = GREY_500
+        G_600 = GREY_600
+        G_700 = GREY_700
+        G_800 = GREY_800
+        G_900 = GREY_900
+
+    class Sudo(Gettable):
+        HYPERPARAMETER = "#4F91C6"  # Medium Blue
+        VALUE = "#D09FE9"  # Light Purple
+        NORMALIZED = "#AB7CC8"  # Medium Purple
+        # aliases
+        HYPERPARAM = HYPERPARAMETER
+        NORMAL = NORMALIZED
+
+
+COLOR_PALETTE = ColorPalette()
 
 
 SUBNETS = {
