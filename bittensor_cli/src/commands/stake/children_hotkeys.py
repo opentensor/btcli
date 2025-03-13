@@ -192,7 +192,7 @@ async def set_childkey_take_extrinsic(
         f":satellite: Setting childkey take on [white]{subtensor.network}[/white] ..."
     ):
         try:
-            if 0 < take <= 0.18:
+            if 0 <= take <= 0.18:
                 take_u16 = float_to_u16(take)
             else:
                 return False, "Invalid take value"
@@ -315,9 +315,12 @@ async def get_children(
         """
         Get the take value for a given subtensor, hotkey, and netuid.
 
-        @param child: The hotkey to retrieve the take value for.
+        Arguments:
+            child: The hotkey to retrieve the take value for.
+            netuid__: the netuid to retrieve the take value for.
 
-        @return: The take value as a float. If the take value is not available, it returns 0.
+        Returns:
+            The take value as a float. If the take value is not available, it returns 0.
 
         """
         child_hotkey = child[1]
@@ -385,7 +388,7 @@ async def get_children(
             f"The total stake of parent hotkey '{parent_hotkey}'{insert_text}is {parent_total}."
         )
 
-        for index, (netuid_, children_) in enumerate(netuid_children_):
+        for index, (child_netuid, children_) in enumerate(netuid_children_):
             # calculate totals
             total_proportion_per_netuid = 0
             total_stake_weight_per_netuid = 0
@@ -395,7 +398,7 @@ async def get_children(
 
             children_info = []
             child_takes = await asyncio.gather(
-                *[get_take(c, netuid_) for c in children_]
+                *[get_take(c, child_netuid) for c in children_]
             )
             for child, child_take in zip(children_, child_takes):
                 proportion = child[0]
@@ -410,7 +413,7 @@ async def get_children(
                     (
                         converted_proportion,
                         child_hotkey,
-                        hotkey_stake_dict[child_hotkey][netuid_],
+                        hotkey_stake_dict[child_hotkey][child_netuid],
                         child_take,
                     )
                 )
@@ -422,7 +425,7 @@ async def get_children(
             for proportion_, hotkey, stake, child_take in children_info:
                 proportion_percent = proportion_ * 100  # Proportion in percent
                 proportion_tao = (
-                    hotkey_stake[netuid_].tao * proportion_
+                    hotkey_stake[child_netuid].tao * proportion_
                 )  # Proportion in TAO
 
                 total_proportion_per_netuid += proportion_percent
@@ -435,7 +438,7 @@ async def get_children(
 
                 hotkey = Text(hotkey, style="italic red" if proportion_ == 0 else "")
                 table.add_row(
-                    str(netuid_),
+                    str(child_netuid),
                     hotkey,
                     proportion_str,
                     take_str,
@@ -687,28 +690,28 @@ async def childkey_take(
         table.add_column("Netuid", justify="center", style="cyan")
         table.add_column("Take (%)", justify="right", style="magenta")
 
-        for netuid, take_value in takes:
-            table.add_row(str(netuid), f"{take_value:.2f}%")
+        for take_netuid, take_value in takes:
+            table.add_row(str(take_netuid), f"{take_value:.2f}%")
 
         console.print(table)
 
-    async def display_chk_take(ss58, netuid):
+    async def display_chk_take(ss58, take_netuid):
         """Print single key take for hotkey and netuid"""
         chk_take = await get_childkey_take(
-            subtensor=subtensor, netuid=netuid, hotkey=ss58
+            subtensor=subtensor, netuid=take_netuid, hotkey=ss58
         )
         if chk_take is None:
             chk_take = 0
         chk_take = u16_to_float(chk_take)
         console.print(
-            f"Child take for {ss58} is: {chk_take * 100:.2f}% on netuid {netuid}."
+            f"Child take for {ss58} is: {chk_take * 100:.2f}% on netuid {take_netuid}."
         )
 
     async def chk_all_subnets(ss58):
         """Aggregate data for childkey take from all subnets"""
-        netuids = await subtensor.get_all_subnet_netuids()
+        all_netuids = await subtensor.get_all_subnet_netuids()
         takes = []
-        for subnet in netuids:
+        for subnet in all_netuids:
             if subnet == 0:
                 continue
             curr_take = await get_childkey_take(

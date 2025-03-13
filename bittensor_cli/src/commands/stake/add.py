@@ -50,9 +50,7 @@ async def stake_add(
         netuid: the netuid to stake to (None indicates all subnets)
         stake_all: whether to stake all available balance
         amount: specified amount of balance to stake
-        delegate: whether to delegate stake, currently unused
         prompt: whether to prompt the user
-        max_stake: maximum amount to stake (used in combination with stake_all), currently unused
         all_hotkeys: whether to stake all hotkeys
         include_hotkeys: list of hotkeys to include in staking process (if not specifying `--all`)
         exclude_hotkeys: list of hotkeys to exclude in staking (if specifying `--all`)
@@ -65,20 +63,17 @@ async def stake_add(
         bool: True if stake operation is successful, False otherwise
     """
 
-    # TODO name shadowing
     async def safe_stake_extrinsic(
-        netuid: int,
-        amount: Balance,
+        netuid_: int,
+        amount_: Balance,
         current_stake: Balance,
-        hotkey_ss58: str,
+        hotkey_ss58_: str,
         price_limit: Balance,
-        wallet: Wallet,
-        subtensor: "SubtensorInterface",
         status=None,
     ) -> bool:
         err_out = partial(print_error, status=status)
         failure_prelude = (
-            f":cross_mark: [red]Failed[/red] to stake {amount} on Netuid {netuid}"
+            f":cross_mark: [red]Failed[/red] to stake {amount_} on Netuid {netuid_}"
         )
         current_balance, next_nonce, call = await asyncio.gather(
             subtensor.get_balance(wallet.coldkeypub.ss58_address),
@@ -87,9 +82,9 @@ async def stake_add(
                 call_module="SubtensorModule",
                 call_function="add_stake_limit",
                 call_params={
-                    "hotkey": hotkey_ss58,
-                    "netuid": netuid,
-                    "amount_staked": amount.rao,
+                    "hotkey": hotkey_ss58_,
+                    "netuid": netuid_,
+                    "amount_staked": amount_.rao,
                     "limit_price": price_limit,
                     "allow_partial": allow_partial_stake,
                 },
@@ -127,15 +122,15 @@ async def stake_add(
             new_balance, new_stake = await asyncio.gather(
                 subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash),
                 subtensor.get_stake(
-                    hotkey_ss58=hotkey_ss58,
+                    hotkey_ss58=hotkey_ss58_,
                     coldkey_ss58=wallet.coldkeypub.ss58_address,
-                    netuid=netuid,
+                    netuid=netuid_,
                     block_hash=block_hash,
                 ),
             )
             console.print(
                 f":white_heavy_check_mark: [dark_sea_green3]Finalized. "
-                f"Stake added to netuid: {netuid}[/dark_sea_green3]"
+                f"Stake added to netuid: {netuid_}[/dark_sea_green3]"
             )
             console.print(
                 f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: "
@@ -143,18 +138,18 @@ async def stake_add(
             )
 
             amount_staked = current_balance - new_balance
-            if allow_partial_stake and (amount_staked != amount):
+            if allow_partial_stake and (amount_staked != amount_):
                 console.print(
                     "Partial stake transaction. Staked:\n"
                     f"  [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{amount_staked}"
                     f"[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] "
                     f"instead of "
-                    f"[blue]{amount}[/blue]"
+                    f"[blue]{amount_}[/blue]"
                 )
 
             console.print(
                 f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
-                f"{netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] "
+                f"{netuid_}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] "
                 f"Stake:\n"
                 f"  [blue]{current_stake}[/blue] "
                 f":arrow_right: "
@@ -384,13 +379,11 @@ async def stake_add(
                     )
                 else:
                     stake_coroutines[(ni, staking_address)] = safe_stake_extrinsic(
-                        netuid=ni,
-                        amount=am,
+                        netuid_=ni,
+                        amount_=am,
                         current_stake=curr,
-                        hotkey_ss58=staking_address,
+                        hotkey_ss58_=staking_address,
                         price_limit=price_with_tolerance,
-                        wallet=wallet,
-                        subtensor=subtensor,
                     )
     else:
         stake_coroutines = {

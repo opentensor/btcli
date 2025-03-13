@@ -228,8 +228,10 @@ def test_unstaking(local_chain, wallet_setup):
             "ws://127.0.0.1:9945",
             "--all-alpha",
             "--no-prompt",
+            "--verbose",
         ],
     )
+
     assert (
         "✅ Finalized: Successfully unstaked all Alpha stakes" in unstake_alpha.stdout
     )

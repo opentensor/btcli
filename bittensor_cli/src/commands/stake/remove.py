@@ -147,7 +147,7 @@ async def unstake(
             staking_address_name, staking_address_ss58, netuid = hotkey
             netuids_to_process = [netuid]
         else:
-            staking_address_name, staking_address_ss58 = hotkey
+            staking_address_name, staking_address_ss58, _ = hotkey
             netuids_to_process = netuids
 
         initial_amount = amount
@@ -181,7 +181,6 @@ async def unstake(
                     if staking_address_name
                     else staking_address_ss58,
                     staking_address_ss58,
-                    interactive,
                 )
                 if amount_to_unstake_as_balance is None:
                     skip_remaining_subnets = True
@@ -191,8 +190,10 @@ async def unstake(
             amount_to_unstake_as_balance.set_unit(netuid)
             if amount_to_unstake_as_balance > current_stake_balance:
                 err_console.print(
-                    f"[red]Not enough stake to remove[/red]:\n Stake balance: [dark_orange]{current_stake_balance}[/dark_orange]"
-                    f" < Unstaking amount: [dark_orange]{amount_to_unstake_as_balance}[/dark_orange] on netuid: {netuid}"
+                    f"[red]Not enough stake to remove[/red]:\n"
+                    f" Stake balance: [dark_orange]{current_stake_balance}[/dark_orange]"
+                    f" < Unstaking amount: [dark_orange]{amount_to_unstake_as_balance}[/dark_orange]"
+                    f" on netuid: {netuid}"
                 )
                 continue  # Skip to the next subnet - useful when single amount is specified for all subnets
 
@@ -286,7 +287,7 @@ async def unstake(
                 "subtensor": subtensor,
                 "netuid": op["netuid"],
                 "amount": op["amount_to_unstake"],
-                "current_stake": op["current_stake_balance"],
+                # TODO verify current_stake used in both
                 "hotkey_ss58": op["hotkey_ss58"],
                 "status": status,
             }
@@ -325,13 +326,14 @@ async def unstake_all(
     hotkey_ss58_address: str,
     unstake_all_alpha: bool = False,
     all_hotkeys: bool = False,
-    include_hotkeys: list[str] = [],
-    exclude_hotkeys: list[str] = [],
+    include_hotkeys: Optional[list[str]] = None,
+    exclude_hotkeys: Optional[list[str]] = None,
     prompt: bool = True,
     json_output: bool = False,
 ) -> bool:
     """Unstakes all stakes from all hotkeys in all subnets."""
-
+    include_hotkeys = include_hotkeys or []
+    exclude_hotkeys = exclude_hotkeys or []
     with console.status(
         f"Retrieving stake information & identities from {subtensor.network}...",
         spinner="earth",
@@ -362,12 +364,12 @@ async def unstake_all(
                 old_identities=old_identities,
             )
         elif not hotkey_ss58_address:
-            hotkeys = [(wallet.hotkey_str, wallet.hotkey.ss58_address)]
+            hotkeys = [(wallet.hotkey_str, wallet.hotkey.ss58_address, None)]
         else:
-            hotkeys = [(None, hotkey_ss58_address)]
+            hotkeys = [(None, hotkey_ss58_address, None)]
 
-        hotkey_names = {ss58: name for name, ss58 in hotkeys if name is not None}
-        hotkey_ss58s = [ss58 for _, ss58 in hotkeys]
+        hotkey_names = {ss58: name for name, ss58, _ in hotkeys if name is not None}
+        hotkey_ss58s = [item[1] for item in hotkeys]
         stake_info = [
             stake for stake in stake_info if stake.hotkey_ss58 in hotkey_ss58s
         ]
@@ -581,7 +583,6 @@ async def _safe_unstake_extrinsic(
     subtensor: "SubtensorInterface",
     netuid: int,
     amount: Balance,
-    current_stake: Balance,
     hotkey_ss58: str,
     price_limit: Balance,
     allow_partial_stake: bool,
@@ -592,7 +593,6 @@ async def _safe_unstake_extrinsic(
     Args:
         netuid: The subnet ID
         amount: Amount to unstake
-        current_stake: Current stake balance
         hotkey_ss58: Hotkey SS58 address
         price_limit: Maximum acceptable price
         wallet: Wallet instance
@@ -738,6 +738,7 @@ async def _unstake_all_extrinsic(
         current_balance = await subtensor.get_balance(
             wallet.coldkeypub.ss58_address, block_hash=block_hash
         )
+        previous_root_stake = None
 
     call_function = "unstake_all_alpha" if unstake_all_alpha else "unstake_all"
     call = await subtensor.substrate.compose_call(
@@ -782,6 +783,7 @@ async def _unstake_all_extrinsic(
             new_balance = await subtensor.get_balance(
                 wallet.coldkeypub.ss58_address, block_hash=block_hash
             )
+            new_root_stake = None
 
         success_message = (
             ":white_heavy_check_mark: [green]Finalized: Successfully unstaked all stakes[/green]"
@@ -795,7 +797,9 @@ async def _unstake_all_extrinsic(
 
         if unstake_all_alpha:
             console.print(
-                f"Root Stake for {hotkey_name}:\n [blue]{previous_root_stake}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_root_stake}"
+                f"Root Stake for {hotkey_name}:\n "
+                f"[blue]{previous_root_stake}[/blue] :arrow_right: "
+                f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_root_stake}"
             )
 
     except Exception as e:
@@ -807,7 +811,7 @@ def _calculate_slippage(subnet_info, amount: Balance) -> tuple[Balance, str, flo
     """Calculate slippage and received amount for unstaking operation.
 
     Args:
-        dynamic_info: Subnet information containing price data
+        subnet_info: Subnet information containing price data
         amount: Amount being unstaked
 
     Returns:
@@ -835,7 +839,7 @@ async def _unstake_selection(
     old_identities,
     stake_infos,
     netuid: Optional[int] = None,
-):
+) -> tuple[list[tuple[str, str, int]], bool]:
     if not stake_infos:
         print_error("You have no stakes to unstake.")
         raise ValueError
@@ -913,7 +917,9 @@ async def _unstake_selection(
 
     # Display hotkey's staked netuids with amount.
     table = Table(
-        title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Stakes for hotkey \n[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{selected_hotkey_name}\n{selected_hotkey_ss58}\n",
+        title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Stakes for hotkey \n"
+        f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{selected_hotkey_name}\n"
+        f"{selected_hotkey_ss58}\n",
         show_footer=True,
         show_edge=False,
         header_style="bold white",
@@ -939,19 +945,20 @@ async def _unstake_selection(
     console.print("\n", table, "\n")
 
     # Ask which netuids to unstake from for the selected hotkey.
-    unstake_all = False
+    unstake_all_ = False
     if netuid is not None:
         selected_netuids = [netuid]
     else:
         while True:
             netuid_input = Prompt.ask(
-                "\nEnter the netuids of the [blue]subnets to unstake[/blue] from (comma-separated), or '[blue]all[/blue]' to unstake from all",
+                "\nEnter the netuids of the [blue]subnets to unstake[/blue] from (comma-separated), or "
+                "'[blue]all[/blue]' to unstake from all",
                 default="all",
             )
 
             if netuid_input.lower() == "all":
                 selected_netuids = list(netuid_stakes.keys())
-                unstake_all = True
+                unstake_all_ = True
                 break
             else:
                 try:
@@ -974,7 +981,7 @@ async def _unstake_selection(
         hotkeys_to_unstake_from.append(
             (selected_hotkey_name, selected_hotkey_ss58, netuid_)
         )
-    return hotkeys_to_unstake_from, unstake_all
+    return hotkeys_to_unstake_from, unstake_all_
 
 
 def _ask_unstake_amount(
@@ -982,7 +989,6 @@ def _ask_unstake_amount(
     netuid: int,
     staking_address_name: str,
     staking_address_ss58: str,
-    interactive: bool,
 ) -> Optional[Balance]:
     """Prompt the user to decide the amount to unstake.
 
@@ -991,7 +997,6 @@ def _ask_unstake_amount(
         netuid: The subnet ID
         staking_address_name: Display name of the staking address
         staking_address_ss58: SS58 address of the staking address
-        interactive: Whether in interactive mode (affects default choice)
 
     Returns:
         Balance amount to unstake, or None if user chooses to quit
@@ -1069,7 +1074,7 @@ def _get_hotkeys_to_unstake(
     stake_infos: list,
     identities: dict,
     old_identities: dict,
-) -> list[tuple[Optional[str], str]]:
+) -> list[tuple[Optional[str], str, None]]:
     """Get list of hotkeys to unstake from based on input parameters.
 
     Args:
@@ -1080,26 +1085,28 @@ def _get_hotkeys_to_unstake(
         exclude_hotkeys: List of hotkey names to exclude
 
     Returns:
-        List of tuples containing (hotkey_name, hotkey_ss58) pairs to unstake from
+        List of tuples containing (hotkey_name, hotkey_ss58, None) pairs to unstake from. The final None is important
+            for compatibility with the `_unstake_selection` function.
     """
     if hotkey_ss58_address:
         print_verbose(f"Unstaking from ss58 ({hotkey_ss58_address})")
-        return [(None, hotkey_ss58_address)]
+        return [(None, hotkey_ss58_address, None)]
 
     if all_hotkeys:
         print_verbose("Unstaking from all hotkeys")
         all_hotkeys_ = get_hotkey_wallets_for_wallet(wallet=wallet)
         wallet_hotkeys = [
-            (wallet.hotkey_str, wallet.hotkey.ss58_address)
+            (wallet.hotkey_str, wallet.hotkey.ss58_address, None)
             for wallet in all_hotkeys_
             if wallet.hotkey_str not in exclude_hotkeys
         ]
 
-        wallet_hotkey_addresses = {addr for _, addr in wallet_hotkeys}
+        wallet_hotkey_addresses = {hk[1] for hk in wallet_hotkeys}
         chain_hotkeys = [
             (
                 get_hotkey_identity(stake_info.hotkey_ss58, identities, old_identities),
                 stake_info.hotkey_ss58,
+                None,
             )
             for stake_info in stake_infos
             if (
@@ -1114,14 +1121,14 @@ def _get_hotkeys_to_unstake(
         result = []
         for hotkey_identifier in include_hotkeys:
             if is_valid_ss58_address(hotkey_identifier):
-                result.append((None, hotkey_identifier))
+                result.append((None, hotkey_identifier, None))
             else:
                 wallet_ = Wallet(
                     name=wallet.name,
                     path=wallet.path,
                     hotkey=hotkey_identifier,
                 )
-                result.append((wallet_.hotkey_str, wallet_.hotkey.ss58_address))
+                result.append((wallet_.hotkey_str, wallet_.hotkey.ss58_address, None))
         return result
 
     # Only cli.config.wallet.hotkey is specified
@@ -1129,7 +1136,7 @@ def _get_hotkeys_to_unstake(
         f"Unstaking from wallet: ({wallet.name}) from hotkey: ({wallet.hotkey_str})"
     )
     assert wallet.hotkey is not None
-    return [(wallet.hotkey_str, wallet.hotkey.ss58_address)]
+    return [(wallet.hotkey_str, wallet.hotkey.ss58_address, None)]
 
 
 def _create_unstake_table(

@@ -73,8 +73,8 @@ class WalletLike:
         return self._coldkeypub
 
 
-def print_console(message: str, colour: str, title: str, console: Console):
-    console.print(
+def print_console(message: str, colour: str, title: str, console_: Console):
+    console_.print(
         f"[bold {colour}][{title}]:[/bold {colour}] [{colour}]{message}[/{colour}]\n"
     )
 
