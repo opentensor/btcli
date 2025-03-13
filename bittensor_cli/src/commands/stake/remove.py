@@ -356,12 +356,12 @@ async def unstake_all(
                 old_identities=old_identities,
             )
         elif not hotkey_ss58_address:
-            hotkeys = [(wallet.hotkey_str, wallet.hotkey.ss58_address)]
+            hotkeys = [(wallet.hotkey_str, wallet.hotkey.ss58_address, None)]
         else:
-            hotkeys = [(None, hotkey_ss58_address)]
+            hotkeys = [(None, hotkey_ss58_address, None)]
 
-        hotkey_names = {ss58: name for name, ss58 in hotkeys if name is not None}
-        hotkey_ss58s = [ss58 for _, ss58 in hotkeys]
+        hotkey_names = {ss58: name for name, ss58, _ in hotkeys if name is not None}
+        hotkey_ss58s = [item[1] for item in hotkeys]
         stake_info = [
             stake for stake in stake_info if stake.hotkey_ss58 in hotkey_ss58s
         ]
@@ -1058,7 +1058,7 @@ def _get_hotkeys_to_unstake(
     stake_infos: list,
     identities: dict,
     old_identities: dict,
-) -> list[tuple[Optional[str], str]]:
+) -> list[tuple[Optional[str], str, None]]:
     """Get list of hotkeys to unstake from based on input parameters.
 
     Args:
@@ -1069,26 +1069,28 @@ def _get_hotkeys_to_unstake(
         exclude_hotkeys: List of hotkey names to exclude
 
     Returns:
-        List of tuples containing (hotkey_name, hotkey_ss58) pairs to unstake from
+        List of tuples containing (hotkey_name, hotkey_ss58, None) pairs to unstake from. The final None is important
+            for compatibility with the `_unstake_selection` function.
     """
     if hotkey_ss58_address:
         print_verbose(f"Unstaking from ss58 ({hotkey_ss58_address})")
-        return [(None, hotkey_ss58_address)]
+        return [(None, hotkey_ss58_address, None)]
 
     if all_hotkeys:
         print_verbose("Unstaking from all hotkeys")
         all_hotkeys_ = get_hotkey_wallets_for_wallet(wallet=wallet)
         wallet_hotkeys = [
-            (wallet.hotkey_str, wallet.hotkey.ss58_address)
+            (wallet.hotkey_str, wallet.hotkey.ss58_address, None)
             for wallet in all_hotkeys_
             if wallet.hotkey_str not in exclude_hotkeys
         ]
 
-        wallet_hotkey_addresses = {addr for _, addr in wallet_hotkeys}
+        wallet_hotkey_addresses = {hk[1] for hk in wallet_hotkeys}
         chain_hotkeys = [
             (
                 get_hotkey_identity(stake_info.hotkey_ss58, identities, old_identities),
                 stake_info.hotkey_ss58,
+                None,
             )
             for stake_info in stake_infos
             if (
@@ -1103,14 +1105,14 @@ def _get_hotkeys_to_unstake(
         result = []
         for hotkey_identifier in include_hotkeys:
             if is_valid_ss58_address(hotkey_identifier):
-                result.append((None, hotkey_identifier))
+                result.append((None, hotkey_identifier, None))
             else:
                 wallet_ = Wallet(
                     name=wallet.name,
                     path=wallet.path,
                     hotkey=hotkey_identifier,
                 )
-                result.append((wallet_.hotkey_str, wallet_.hotkey.ss58_address))
+                result.append((wallet_.hotkey_str, wallet_.hotkey.ss58_address, None))
         return result
 
     # Only cli.config.wallet.hotkey is specified
@@ -1118,7 +1120,7 @@ def _get_hotkeys_to_unstake(
         f"Unstaking from wallet: ({wallet.name}) from hotkey: ({wallet.hotkey_str})"
     )
     assert wallet.hotkey is not None
-    return [(wallet.hotkey_str, wallet.hotkey.ss58_address)]
+    return [(wallet.hotkey_str, wallet.hotkey.ss58_address, None)]
 
 
 def _create_unstake_table(
