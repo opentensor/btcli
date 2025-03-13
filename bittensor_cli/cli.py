@@ -241,6 +241,7 @@ class Options:
         "--slippage",
         "--slippage-tolerance",
         "--tolerance",
+        "--rate-tolerance",
         help="Set the rate tolerance percentage for transactions (default: 0.05%).",
         callback=validate_rate_tolerance,
     )
