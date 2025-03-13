@@ -3,7 +3,7 @@ import json
 from typing import Optional
 
 from bittensor_wallet import Wallet
-from rich.prompt import Confirm, Prompt, IntPrompt
+from rich.prompt import Confirm, IntPrompt, FloatPrompt
 from rich.table import Table
 from rich.text import Text
 from async_substrate_interface.errors import SubstrateRequestException
@@ -671,8 +671,13 @@ async def childkey_take(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
     prompt: bool = True,
-):
-    """Get or Set childkey take."""
+) -> list[tuple[Optional[int], bool]]:
+    """
+    Get or Set childkey take.
+
+    Returns:
+        List of (netuid, success) for specified netuid (or all) and their success in setting take
+    """
 
     def validate_take_value(take_value: float) -> bool:
         if not (0 <= take_value <= 0.18):
@@ -682,20 +687,7 @@ async def childkey_take(
             return False
         return True
 
-    def print_all_takes(takes: list[tuple[int, float]], ss58: str):
-        """Print table with netuids and Takes"""
-        table = Table(
-            title=f"Current Child Takes for [bright_magenta]{ss58}[/bright_magenta]"
-        )
-        table.add_column("Netuid", justify="center", style="cyan")
-        table.add_column("Take (%)", justify="right", style="magenta")
-
-        for take_netuid, take_value in takes:
-            table.add_row(str(take_netuid), f"{take_value:.2f}%")
-
-        console.print(table)
-
-    async def display_chk_take(ss58, take_netuid):
+    async def display_chk_take(ss58, take_netuid) -> float:
         """Print single key take for hotkey and netuid"""
         chk_take = await get_childkey_take(
             subtensor=subtensor, netuid=take_netuid, hotkey=ss58
@@ -706,6 +698,7 @@ async def childkey_take(
         console.print(
             f"Child take for {ss58} is: {chk_take * 100:.2f}% on netuid {take_netuid}."
         )
+        return chk_take
 
     async def chk_all_subnets(ss58):
         """Aggregate data for childkey take from all subnets"""
@@ -720,10 +713,18 @@ async def childkey_take(
             if curr_take is not None:
                 take_value = u16_to_float(curr_take)
                 takes.append((subnet, take_value * 100))
+        table = Table(
+            title=f"Current Child Takes for [bright_magenta]{ss58}[/bright_magenta]"
+        )
+        table.add_column("Netuid", justify="center", style="cyan")
+        table.add_column("Take (%)", justify="right", style="magenta")
 
-        print_all_takes(takes, ss58)
+        for take_netuid, take_value in takes:
+            table.add_row(str(take_netuid), f"{take_value:.2f}%")
 
-    async def set_chk_take_subnet(subnet, chk_take):
+        console.print(table)
+
+    async def set_chk_take_subnet(subnet: int, chk_take: float) -> bool:
         """Set the childkey take for a single subnet"""
         success, message = await set_childkey_take_extrinsic(
             subtensor=subtensor,
@@ -741,13 +742,17 @@ async def childkey_take(
             console.print(
                 f"The childkey take for {wallet.hotkey.ss58_address} is now set to {take * 100:.2f}%."
             )
+            return True
         else:
             console.print(
                 f":cross_mark:[red] Unable to set childkey take.[/red] {message}"
             )
+            return False
 
     # Print childkey take for other user and return (dont offer to change take rate)
-    if hotkey and hotkey != wallet.hotkey.ss58_address:
+    if not hotkey or hotkey == wallet.hotkey.ss58_address:
+        hotkey = wallet.hotkey.ss58_address
+    if hotkey != wallet.hotkey.ss58_address or not take:
         # display childkey take for other users
         if netuid:
             await display_chk_take(hotkey, netuid)
@@ -755,70 +760,64 @@ async def childkey_take(
                 console.print(
                     f"Hotkey {hotkey} not associated with wallet {wallet.name}."
                 )
-            return
+                return [(netuid, False)]
         else:
-            # show childhotkey take on all subnets
+            # show child hotkey take on all subnets
             await chk_all_subnets(hotkey)
             if take:
                 console.print(
                     f"Hotkey {hotkey} not associated with wallet {wallet.name}."
                 )
-            return
+                return [(netuid, False)]
 
     # Validate child SS58 addresses
     if not take:
-        # print current Take, ask if change
-        if netuid:
-            await display_chk_take(wallet.hotkey.ss58_address, netuid)
-        else:
-            # print take from all netuids
-            await chk_all_subnets(wallet.hotkey.ss58_address)
-
         if not Confirm.ask("Would you like to change the child take?"):
-            return
-        new_take_str = Prompt.ask("Enter the new take value (between 0 and 0.18)")
-        try:
-            new_take_value = float(new_take_str)
-            if not validate_take_value(new_take_value):
-                return
-        except ValueError:
-            err_console.print(
-                ":cross_mark:[red] Invalid input. Please enter a number between 0 and 0.18.[/red]"
+            return [(netuid, False)]
+        new_take_value = -1.0
+        while not validate_take_value(new_take_value):
+            new_take_value = FloatPrompt.ask(
+                "Enter the new take value (between 0 and 0.18)"
             )
-            return
         take = new_take_value
     else:
         if not validate_take_value(take):
-            return
+            return [(netuid, False)]
 
     if netuid:
-        await set_chk_take_subnet(subnet=netuid, chk_take=take)
-        return
+        return [(netuid, await set_chk_take_subnet(subnet=netuid, chk_take=take))]
     else:
         new_take_netuids = IntPrompt.ask(
             "Enter netuid (leave blank for all)", default=None, show_default=True
         )
 
         if new_take_netuids:
-            await set_chk_take_subnet(subnet=new_take_netuids, chk_take=take)
-            return
+            return [
+                (
+                    new_take_netuids,
+                    await set_chk_take_subnet(subnet=new_take_netuids, chk_take=take),
+                )
+            ]
 
         else:
             netuids = await subtensor.get_all_subnet_netuids()
-            for netuid in netuids:
-                if netuid == 0:
+            output_list = []
+            for netuid_ in netuids:
+                if netuid_ == 0:
                     continue
-                console.print(f"Sending to netuid {netuid} take of {take * 100:.2f}%")
-                await set_childkey_take_extrinsic(
+                console.print(f"Sending to netuid {netuid_} take of {take * 100:.2f}%")
+                result = await set_childkey_take_extrinsic(
                     subtensor=subtensor,
                     wallet=wallet,
-                    netuid=netuid,
+                    netuid=netuid_,
                     hotkey=wallet.hotkey.ss58_address,
                     take=take,
                     prompt=prompt,
                     wait_for_inclusion=True,
                     wait_for_finalization=False,
                 )
+                output_list.append((netuid_, result))
             console.print(
                 f":white_heavy_check_mark: [green]Sent childkey take of {take * 100:.2f}% to all subnets.[/green]"
             )
+            return output_list

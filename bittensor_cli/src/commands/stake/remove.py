@@ -299,9 +299,7 @@ async def unstake(
                 }
             else:
                 func = _unstake_extrinsic
-                specific_args = {
-                    "current_stake": op["current_stake_balance"]
-                }
+                specific_args = {"current_stake": op["current_stake_balance"]}
 
             suc = await func(**common_args, **specific_args)
 

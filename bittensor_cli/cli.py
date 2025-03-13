@@ -4128,7 +4128,7 @@ class CLIManager:
             netuid = IntPrompt.ask(
                 "Enter netuid (leave blank for all)", default=None, show_default=True
             )
-        return self._run_command(
+        results: list[tuple[Optional[int], bool]] = self._run_command(
             children_hotkeys.childkey_take(
                 wallet=wallet,
                 subtensor=self.initialize_chain(network),
@@ -4140,6 +4140,12 @@ class CLIManager:
                 prompt=prompt,
             )
         )
+        if json_output:
+            output = {}
+            for netuid_, success in results:
+                output[netuid_] = success
+            json_console.print(json.dumps(output))
+        return results
 
     def sudo_set(
         self,
