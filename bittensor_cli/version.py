@@ -16,5 +16,5 @@ def version_as_int(version):
     return __version_as_int__
 
 
-__version__ = "9.1.2"
+__version__ = "9.1.3"
 __version_as_int__ = version_as_int(__version__)
