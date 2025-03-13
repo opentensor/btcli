@@ -217,7 +217,7 @@ class SubtensorInterface:
 
         if result is None:
             return []
-        stakes = StakeInfo.list_from_any(result)
+        stakes: list[StakeInfo] = StakeInfo.list_from_any(result)
         return [stake for stake in stakes if stake.stake > 0]
 
     async def get_stake_for_coldkey_and_hotkey(
@@ -362,14 +362,12 @@ class SubtensorInterface:
         self,
         *ss58_addresses,
         block_hash: Optional[str] = None,
-        reuse_block: bool = False,
     ) -> dict[str, tuple[Balance, Balance]]:
         """
         Returns the total stake held on a coldkey.
 
         :param ss58_addresses: The SS58 address(es) of the coldkey(s)
         :param block_hash: The hash of the block number to retrieve the stake from.
-        :param reuse_block: Whether to reuse the last-used block hash when retrieving info.
 
         :return: {address: Balance objects}
         """

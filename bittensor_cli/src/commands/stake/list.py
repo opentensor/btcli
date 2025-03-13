@@ -34,38 +34,37 @@ async def stake_list(
 ):
     coldkey_address = coldkey_ss58 if coldkey_ss58 else wallet.coldkeypub.ss58_address
 
-    async def get_stake_data(block_hash: str = None):
+    async def get_stake_data(block_hash_: str = None):
         (
-            sub_stakes,
-            registered_delegate_info,
+            sub_stakes_,
+            registered_delegate_info_,
             _dynamic_info,
         ) = await asyncio.gather(
             subtensor.get_stake_for_coldkey(
-                coldkey_ss58=coldkey_address, block_hash=block_hash
+                coldkey_ss58=coldkey_address, block_hash=block_hash_
             ),
-            subtensor.get_delegate_identities(block_hash=block_hash),
-            subtensor.all_subnets(block_hash=block_hash),
+            subtensor.get_delegate_identities(block_hash=block_hash_),
+            subtensor.all_subnets(block_hash=block_hash_),
         )
         # sub_stakes = substakes[coldkey_address]
-        dynamic_info = {info.netuid: info for info in _dynamic_info}
+        dynamic_info__ = {info.netuid: info for info in _dynamic_info}
         return (
-            sub_stakes,
-            registered_delegate_info,
-            dynamic_info,
+            sub_stakes_,
+            registered_delegate_info_,
+            dynamic_info__,
         )
 
     def define_table(
-        hotkey_name: str,
+        hotkey_name_: str,
         rows: list[list[str]],
-        total_tao_value: Balance,
-        total_swapped_tao_value: Balance,
-        live: bool = False,
+        total_tao_value_: Balance,
+        total_swapped_tao_value_: Balance,
     ):
-        title = f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Hotkey: {hotkey_name}\nNetwork: {subtensor.network}\n\n"
+        title = f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Hotkey: {hotkey_name_}\nNetwork: {subtensor.network}\n\n"
         # TODO: Add hint back in after adding columns descriptions
         # if not live:
         #     title += f"[{COLOR_PALETTE['GENERAL']['HINT']}]See below for an explanation of the columns\n"
-        table = Table(
+        defined_table = Table(
             title=title,
             show_footer=True,
             show_edge=False,
@@ -76,74 +75,74 @@ async def stake_list(
             show_lines=False,
             pad_edge=True,
         )
-        table.add_column(
+        defined_table.add_column(
             "[white]Netuid",
             footer=f"{len(rows)}",
             footer_style="overline white",
             style="grey89",
         )
-        table.add_column(
+        defined_table.add_column(
             "[white]Name",
             style="cyan",
             justify="left",
             no_wrap=True,
         )
-        table.add_column(
+        defined_table.add_column(
             f"[white]Value \n({Balance.get_unit(1)} x {Balance.unit}/{Balance.get_unit(1)})",
             footer_style="overline white",
             style=COLOR_PALETTE["STAKE"]["TAO"],
             justify="right",
-            footer=f"τ {millify_tao(total_tao_value.tao)}"
+            footer=f"τ {millify_tao(total_tao_value_.tao)}"
             if not verbose
-            else f"{total_tao_value}",
+            else f"{total_tao_value_}",
         )
-        table.add_column(
+        defined_table.add_column(
             f"[white]Stake ({Balance.get_unit(1)})",
             footer_style="overline white",
             style=COLOR_PALETTE["STAKE"]["STAKE_ALPHA"],
             justify="center",
         )
-        table.add_column(
+        defined_table.add_column(
             f"[white]Price \n({Balance.unit}_in/{Balance.get_unit(1)}_in)",
             footer_style="white",
             style=COLOR_PALETTE["POOLS"]["RATE"],
             justify="center",
         )
-        table.add_column(
+        defined_table.add_column(
             f"[white]Swap ({Balance.get_unit(1)} -> {Balance.unit})",
             footer_style="overline white",
             style=COLOR_PALETTE["STAKE"]["STAKE_SWAP"],
             justify="right",
-            footer=f"τ {millify_tao(total_swapped_tao_value.tao)}"
+            footer=f"τ {millify_tao(total_swapped_tao_value_.tao)}"
             if not verbose
-            else f"{total_swapped_tao_value}",
+            else f"{total_swapped_tao_value_}",
         )
-        table.add_column(
+        defined_table.add_column(
             "[white]Registered",
             style=COLOR_PALETTE["STAKE"]["STAKE_ALPHA"],
             justify="right",
         )
-        table.add_column(
+        defined_table.add_column(
             f"[white]Emission \n({Balance.get_unit(1)}/block)",
             style=COLOR_PALETTE["POOLS"]["EMISSION"],
             justify="right",
         )
-        table.add_column(
+        defined_table.add_column(
             f"[white]Emission \n({Balance.get_unit(0)}/block)",
             style=COLOR_PALETTE["POOLS"]["EMISSION"],
             justify="right",
         )
-        return table
+        return defined_table
 
     def create_table(hotkey_: str, substakes: list[StakeInfo]):
-        name = (
+        name_ = (
             f"{registered_delegate_info[hotkey_].display} ({hotkey_})"
             if hotkey_ in registered_delegate_info
             else hotkey_
         )
         rows = []
-        total_tao_value = Balance(0)
-        total_swapped_tao_value = Balance(0)
+        total_tao_value_ = Balance(0)
+        total_swapped_tao_value_ = Balance(0)
         root_stakes = [s for s in substakes if s.netuid == 0]
         other_stakes = sorted(
             [s for s in substakes if s.netuid != 0],
@@ -162,14 +161,14 @@ async def stake_list(
             alpha_value = Balance.from_rao(int(substake_.stake.rao)).set_unit(netuid)
 
             # TAO value cell
-            tao_value = pool.alpha_to_tao(alpha_value)
-            total_tao_value += tao_value
+            tao_value_ = pool.alpha_to_tao(alpha_value)
+            total_tao_value_ += tao_value_
 
             # Swapped TAO value and slippage cell
-            swapped_tao_value, _, slippage_percentage_ = (
+            swapped_tao_value_, _, slippage_percentage_ = (
                 pool.alpha_to_tao_with_slippage(substake_.stake)
             )
-            total_swapped_tao_value += swapped_tao_value
+            total_swapped_tao_value_ += swapped_tao_value_
 
             # Slippage percentage cell
             if pool.is_dynamic:
@@ -181,9 +180,9 @@ async def stake_list(
                 swap_value = f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]N/A[/{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}] ({slippage_percentage})"
             else:
                 swap_value = (
-                    f"τ {millify_tao(swapped_tao_value.tao)} ({slippage_percentage})"
+                    f"τ {millify_tao(swapped_tao_value_.tao)} ({slippage_percentage})"
                     if not verbose
-                    else f"{swapped_tao_value} ({slippage_percentage})"
+                    else f"{swapped_tao_value_} ({slippage_percentage})"
                 )
 
             # Per block emission cell
@@ -202,9 +201,9 @@ async def stake_list(
                     [
                         str(netuid),  # Number
                         subnet_name_cell,  # Symbol + name
-                        f"τ {millify_tao(tao_value.tao)}"
+                        f"τ {millify_tao(tao_value_.tao)}"
                         if not verbose
-                        else f"{tao_value}",  # Value (α x τ/α)
+                        else f"{tao_value_}",  # Value (α x τ/α)
                         f"{stake_value} {symbol}"
                         if netuid != 0
                         else f"{symbol} {stake_value}",  # Stake (a)
@@ -221,27 +220,33 @@ async def stake_list(
                         str(Balance.from_tao(per_block_tao_emission)),
                     ]
                 )
-        table = define_table(name, rows, total_tao_value, total_swapped_tao_value)
+        created_table = define_table(
+            name_, rows, total_tao_value_, total_swapped_tao_value_
+        )
         for row in rows:
-            table.add_row(*row)
-        console.print(table)
-        return total_tao_value, total_swapped_tao_value
+            created_table.add_row(*row)
+        console.print(created_table)
+        return total_tao_value_, total_swapped_tao_value_
 
     def create_live_table(
         substakes: list,
-        registered_delegate_info: dict,
-        dynamic_info: dict,
-        hotkey_name: str,
-        previous_data: Optional[dict] = None,
-    ) -> tuple[Table, dict, Balance, Balance, Balance]:
+        dynamic_info_for_lt: dict,
+        hotkey_name_: str,
+        previous_data_: Optional[dict] = None,
+    ) -> tuple[Table, dict]:
         rows = []
-        current_data = {}
+        current_data_ = {}
 
-        total_tao_value = Balance(0)
-        total_swapped_tao_value = Balance(0)
+        total_tao_value_ = Balance(0)
+        total_swapped_tao_value_ = Balance(0)
 
         def format_cell(
-            value, previous_value, unit="", unit_first=False, precision=4, millify=False
+            value,
+            previous_value,
+            unit="",
+            unit_first_=False,
+            precision=4,
+            millify=False,
         ):
             if previous_value is not None:
                 change = value - previous_value
@@ -265,7 +270,7 @@ async def stake_list(
             )
             return (
                 f"{formatted_value} {unit}{change_text}"
-                if not unit_first
+                if not unit_first_
                 else f"{unit} {formatted_value}{change_text}"
             )
 
@@ -273,7 +278,7 @@ async def stake_list(
         root_stakes = [s for s in substakes if s.netuid == 0]
         other_stakes = sorted(
             [s for s in substakes if s.netuid != 0],
-            key=lambda x: dynamic_info[x.netuid]
+            key=lambda x: dynamic_info_for_lt[x.netuid]
             .alpha_to_tao(Balance.from_rao(int(x.stake.rao)).set_unit(x.netuid))
             .tao,
             reverse=True,
@@ -281,41 +286,41 @@ async def stake_list(
         sorted_substakes = root_stakes + other_stakes
 
         # Process each stake
-        for substake in sorted_substakes:
-            netuid = substake.netuid
-            pool = dynamic_info.get(netuid)
-            if substake.stake.rao == 0 or not pool:
+        for substake_ in sorted_substakes:
+            netuid = substake_.netuid
+            pool = dynamic_info_for_lt.get(netuid)
+            if substake_.stake.rao == 0 or not pool:
                 continue
 
             # Calculate base values
             symbol = f"{Balance.get_unit(netuid)}\u200e"
-            alpha_value = Balance.from_rao(int(substake.stake.rao)).set_unit(netuid)
-            tao_value = pool.alpha_to_tao(alpha_value)
-            total_tao_value += tao_value
-            swapped_tao_value, slippage, slippage_pct = pool.alpha_to_tao_with_slippage(
-                substake.stake
+            alpha_value = Balance.from_rao(int(substake_.stake.rao)).set_unit(netuid)
+            tao_value_ = pool.alpha_to_tao(alpha_value)
+            total_tao_value_ += tao_value_
+            swapped_tao_value_, slippage, slippage_pct = (
+                pool.alpha_to_tao_with_slippage(substake_.stake)
             )
-            total_swapped_tao_value += swapped_tao_value
+            total_swapped_tao_value_ += swapped_tao_value_
 
             # Store current values for future delta tracking
-            current_data[netuid] = {
+            current_data_[netuid] = {
                 "stake": alpha_value.tao,
                 "price": pool.price.tao,
-                "tao_value": tao_value.tao,
-                "swapped_value": swapped_tao_value.tao,
-                "emission": substake.emission.tao / (pool.tempo or 1),
-                "tao_emission": substake.tao_emission.tao / (pool.tempo or 1),
+                "tao_value": tao_value_.tao,
+                "swapped_value": swapped_tao_value_.tao,
+                "emission": substake_.emission.tao / (pool.tempo or 1),
+                "tao_emission": substake_.tao_emission.tao / (pool.tempo or 1),
             }
 
             # Get previous values for delta tracking
-            prev = previous_data.get(netuid, {}) if previous_data else {}
+            prev = previous_data_.get(netuid, {}) if previous_data_ else {}
             unit_first = True if netuid == 0 else False
 
             stake_cell = format_cell(
                 alpha_value.tao,
                 prev.get("stake"),
                 unit=symbol,
-                unit_first=unit_first,
+                unit_first_=unit_first,
                 precision=4,
                 millify=True if not verbose else False,
             )
@@ -324,16 +329,16 @@ async def stake_list(
                 pool.price.tao,
                 prev.get("price"),
                 unit=f"τ/{symbol}",
-                unit_first=False,
+                unit_first_=False,
                 precision=5,
                 millify=True if not verbose else False,
             )
 
             exchange_cell = format_cell(
-                tao_value.tao,
+                tao_value_.tao,
                 prev.get("tao_value"),
                 unit="τ",
-                unit_first=True,
+                unit_first_=True,
                 precision=4,
                 millify=True if not verbose else False,
             )
@@ -341,10 +346,10 @@ async def stake_list(
             if netuid != 0:
                 swap_cell = (
                     format_cell(
-                        swapped_tao_value.tao,
+                        swapped_tao_value_.tao,
                         prev.get("swapped_value"),
                         unit="τ",
-                        unit_first=True,
+                        unit_first_=True,
                         precision=4,
                         millify=True if not verbose else False,
                     )
@@ -353,27 +358,27 @@ async def stake_list(
             else:
                 swap_cell = f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]N/A[/{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}] ({slippage_pct}%)"
 
-            emission_value = substake.emission.tao / (pool.tempo or 1)
+            emission_value = substake_.emission.tao / (pool.tempo or 1)
             emission_cell = format_cell(
                 emission_value,
                 prev.get("emission"),
                 unit=symbol,
-                unit_first=unit_first,
+                unit_first_=unit_first,
                 precision=4,
             )
 
-            tao_emission_value = substake.tao_emission.tao / (pool.tempo or 1)
+            tao_emission_value = substake_.tao_emission.tao / (pool.tempo or 1)
             tao_emission_cell = format_cell(
                 tao_emission_value,
                 prev.get("tao_emission"),
                 unit="τ",
-                unit_first=unit_first,
+                unit_first_=unit_first,
                 precision=4,
             )
 
             subnet_name_cell = (
                 f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{symbol if netuid != 0 else 'τ'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
-                f" {get_subnet_name(dynamic_info[netuid])}"
+                f" {get_subnet_name(dynamic_info_for_lt[netuid])}"
             )
 
             rows.append(
@@ -385,25 +390,21 @@ async def stake_list(
                     rate_cell,  # Rate
                     swap_cell,  # Swap value with slippage
                     "YES"
-                    if substake.is_registered
+                    if substake_.is_registered
                     else f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]NO",  # Registration status
                     emission_cell,  # Emission rate
                     tao_emission_cell,  # TAO emission rate
                 ]
             )
 
-        table = define_table(
-            hotkey_name,
-            rows,
-            total_tao_value,
-            total_swapped_tao_value,
-            live=True,
+        live_table = define_table(
+            hotkey_name_, rows, total_tao_value_, total_swapped_tao_value_
         )
 
         for row in rows:
-            table.add_row(*row)
+            live_table.add_row(*row)
 
-        return table, current_data
+        return live_table, current_data_
 
     # Main execution
     block_hash = await subtensor.substrate.get_chain_head()
@@ -448,10 +449,8 @@ async def stake_list(
                 choices=[str(i) for i in range(len(hotkeys_to_substakes))],
             )
             selected_hotkey = list(hotkeys_to_substakes.keys())[int(selected_idx)]
-            selected_stakes = hotkeys_to_substakes[selected_hotkey]
         else:
             selected_hotkey = list(hotkeys_to_substakes.keys())[0]
-            selected_stakes = hotkeys_to_substakes[selected_hotkey]
 
         hotkey_name = (
             f"{registered_delegate_info[selected_hotkey].display} ({selected_hotkey})"
@@ -499,7 +498,6 @@ async def stake_list(
 
                     table, current_data = create_live_table(
                         selected_stakes,
-                        registered_delegate_info,
                         dynamic_info_,
                         hotkey_name,
                         previous_data,

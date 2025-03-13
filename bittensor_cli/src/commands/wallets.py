@@ -124,17 +124,18 @@ async def regen_hotkey(
             json_str = f.read()
 
     try:
-        new_hotkey = wallet.regenerate_hotkey(
+        new_hotkey_ = wallet.regenerate_hotkey(
             mnemonic=mnemonic,
             seed=seed,
             json=(json_str, json_password) if all([json_str, json_password]) else None,
             use_password=use_password,
             overwrite=overwrite,
         )
-        if isinstance(new_hotkey, Wallet):
+        if isinstance(new_hotkey_, Wallet):
             console.print(
                 "\n✅ [dark_sea_green]Regenerated hotkey successfully!\n",
-                f"[dark_sea_green]Wallet name: ({new_hotkey.name}), path: ({new_hotkey.path}), hotkey ss58: ({new_hotkey.hotkey.ss58_address})",
+                f"[dark_sea_green]Wallet name: "
+                f"({new_hotkey_.name}), path: ({new_hotkey_.path}), hotkey ss58: ({new_hotkey_.hotkey.ss58_address})",
             )
     except ValueError:
         print_error("Mnemonic phrase is invalid")

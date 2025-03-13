@@ -155,7 +155,6 @@ async def set_hyperparameter_extrinsic(
                                `False` if the extrinsic fails to enter the block within the timeout.
     :param wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `True`,
                                   or returns `False` if the extrinsic fails to be finalized within the timeout.
-    :param prompt: If `True`, the call waits for confirmation from the user before proceeding.
 
     :return: success: `True` if extrinsic was finalized or included in the block. If we did not wait for
                       finalization/inclusion, the response is `True`.
@@ -178,6 +177,7 @@ async def set_hyperparameter_extrinsic(
     arbitrary_extrinsic = False
 
     extrinsic, sudo_ = HYPERPARAMS.get(parameter, ("", False))
+    call_params = {"netuid": netuid}
     if not extrinsic:
         arbitrary_extrinsic, call_params = search_metadata(
             parameter, value, netuid, subtensor.substrate.metadata
@@ -207,7 +207,6 @@ async def set_hyperparameter_extrinsic(
             extrinsic_params = await substrate.get_metadata_call_function(
                 "AdminUtils", extrinsic
             )
-            call_params = {"netuid": netuid}
 
             # if input value is a list, iterate through the list and assign values
             if isinstance(value, list):

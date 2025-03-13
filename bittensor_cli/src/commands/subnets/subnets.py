@@ -111,6 +111,12 @@ async def register_subnetwork_extrinsic(
         ):
             return False
 
+    call_params = {
+        "hotkey": wallet.hotkey.ss58_address,
+        "mechid": 1,
+    }
+    call_function = "register_network"
+
     has_identity = any(subnet_identity.values())
     if has_identity:
         identity_data = {
@@ -136,6 +142,8 @@ async def register_subnetwork_extrinsic(
             if subnet_identity.get("additional")
             else b"",
         }
+        call_params["identity"] = identity_data
+        call_function = "register_network_with_identity"
         for field, value in identity_data.items():
             max_size = 64  # bytes
             if len(value) > max_size:
@@ -149,15 +157,6 @@ async def register_subnetwork_extrinsic(
         return False
 
     with console.status(":satellite: Registering subnet...", spinner="earth"):
-        call_params = {
-            "hotkey": wallet.hotkey.ss58_address,
-            "mechid": 1,
-        }
-        call_function = "register_network"
-        if has_identity:
-            call_params["identity"] = identity_data
-            call_function = "register_network_with_identity"
-
         substrate = subtensor.substrate
         # create extrinsic call
         call = await substrate.compose_call(
@@ -1341,12 +1340,12 @@ async def burn_cost(subtensor: "SubtensorInterface") -> Optional[Balance]:
         f":satellite:Retrieving lock cost from {subtensor.network}...",
         spinner="aesthetic",
     ):
-        burn_cost = await subtensor.burn_cost()
-        if burn_cost:
+        current_burn_cost = await subtensor.burn_cost()
+        if current_burn_cost:
             console.print(
-                f"Subnet burn cost: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{burn_cost}"
+                f"Subnet burn cost: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{current_burn_cost}"
             )
-            return burn_cost
+            return current_burn_cost
         else:
             err_console.print(
                 "Subnet burn cost: [red]Failed to get subnet burn cost[/red]"

@@ -494,7 +494,6 @@ async def move_stake(
     )
 
     # Determine the amount we are moving.
-    amount_to_move_as_balance = None
     if amount:
         amount_to_move_as_balance = Balance.from_tao(amount)
     elif stake_all:
@@ -669,7 +668,6 @@ async def transfer_stake(
         )
         return False
 
-    amount_to_transfer = None
     if amount:
         amount_to_transfer = Balance.from_tao(amount).set_unit(origin_netuid)
     elif stake_all:
@@ -784,7 +782,6 @@ async def swap_stake(
     Args:
         wallet (Wallet): The wallet to swap stake from.
         subtensor (SubtensorInterface): Subtensor interface instance.
-        hotkey_ss58 (str): The SS58 address of the hotkey whose stake is being swapped.
         origin_netuid (int): The netuid from which stake is removed.
         destination_netuid (int): The netuid to which stake is added.
         amount (float): The amount to swap.
