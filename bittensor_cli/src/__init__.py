@@ -825,6 +825,7 @@ class ColorPalette(Gettable):
 
 
 COLOR_PALETTE = ColorPalette()
+COLORS = COLOR_PALETTE
 
 
 SUBNETS = {
