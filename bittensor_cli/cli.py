@@ -25,7 +25,7 @@ from bittensor_cli.src import (
     WalletOptions as WO,
     WalletValidationTypes as WV,
     Constants,
-    COLOR_PALETTE,
+    COLORS,
     HYPERPARAMS,
 )
 from bittensor_cli.version import __version__, __version_as_int__
@@ -241,6 +241,7 @@ class Options:
         "--slippage",
         "--slippage-tolerance",
         "--tolerance",
+        "--rate-tolerance",
         help="Set the rate tolerance percentage for transactions (default: 0.05%).",
         callback=validate_rate_tolerance,
     )
@@ -341,8 +342,8 @@ def get_optional_netuid(netuid: Optional[int], all_netuids: bool) -> Optional[in
         return None
     elif netuid is None and all_netuids is False:
         answer = Prompt.ask(
-            f"Enter the [{COLOR_PALETTE['GENERAL']['SUBHEADING_MAIN']}]netuid"
-            f"[/{COLOR_PALETTE['GENERAL']['SUBHEADING_MAIN']}] to use. Leave blank for all netuids",
+            f"Enter the [{COLORS.G.SUBHEAD_MAIN}]netuid"
+            f"[/{COLORS.G.SUBHEAD_MAIN}] to use. Leave blank for all netuids",
             default=None,
             show_default=False,
         )
@@ -950,7 +951,8 @@ class CLIManager:
             elif self.config["network"]:
                 self.subtensor = SubtensorInterface(self.config["network"])
                 console.print(
-                    f"Using the specified network [{COLOR_PALETTE['GENERAL']['LINKS']}]{self.config['network']}[/{COLOR_PALETTE['GENERAL']['LINKS']}] from config"
+                    f"Using the specified network [{COLORS.G.LINKS}]{self.config['network']}"
+                    f"[/{COLORS.G.LINKS}] from config"
                 )
             else:
                 self.subtensor = SubtensorInterface(defaults.subtensor.network)
@@ -1523,7 +1525,7 @@ class CLIManager:
             else:
                 wallet_name = Prompt.ask(
                     "Enter the [blue]wallet name[/blue]"
-                    + f" [{COLOR_PALETTE['GENERAL']['HINT']} italic](Hint: You can set this with `btcli config set --wallet-name`)",
+                    + f" [{COLORS.G.HINT} italic](Hint: You can set this with `btcli config set --wallet-name`)",
                     default=defaults.wallet.name,
                 )
 
@@ -2049,7 +2051,7 @@ class CLIManager:
 
         if not wallet_name:
             wallet_name = Prompt.ask(
-                f"Enter the name of the [{COLOR_PALETTE['GENERAL']['COLDKEY']}]new wallet (coldkey)",
+                f"Enter the name of the [{COLORS.G.CK}]new wallet (coldkey)",
                 default=defaults.wallet.name,
             )
 
@@ -2106,7 +2108,7 @@ class CLIManager:
 
         if not wallet_name:
             wallet_name = Prompt.ask(
-                f"Enter the name of the [{COLOR_PALETTE['GENERAL']['COLDKEY']}]new wallet (coldkey)",
+                f"Enter the name of the [{COLORS.G.CK}]new wallet (coldkey)",
                 default=defaults.wallet.name,
             )
         wallet = Wallet(wallet_name, wallet_hotkey, wallet_path)
@@ -2223,13 +2225,13 @@ class CLIManager:
 
         if not wallet_name:
             wallet_name = Prompt.ask(
-                f"Enter the [{COLOR_PALETTE['GENERAL']['COLDKEY']}]wallet name",
+                f"Enter the [{COLORS.G.CK}]wallet name",
                 default=defaults.wallet.name,
             )
 
         if not wallet_hotkey:
             wallet_hotkey = Prompt.ask(
-                f"Enter the name of the [{COLOR_PALETTE['GENERAL']['HOTKEY']}]new hotkey",
+                f"Enter the name of the [{COLORS.G.HK}]new hotkey",
                 default=defaults.wallet.hotkey,
             )
 
@@ -2285,7 +2287,7 @@ class CLIManager:
 
         if not wallet_name:
             wallet_name = Prompt.ask(
-                f"Enter the name of the [{COLOR_PALETTE['GENERAL']['COLDKEY']}]new wallet (coldkey)",
+                f"Enter the name of the [{COLORS.G.CK}]new wallet (coldkey)",
                 default=defaults.wallet.name,
             )
 
@@ -2359,12 +2361,12 @@ class CLIManager:
 
         if not wallet_name:
             wallet_name = Prompt.ask(
-                f"Enter the name of the [{COLOR_PALETTE['GENERAL']['COLDKEY']}]new wallet (coldkey)",
+                f"Enter the name of the [{COLORS.G.CK}]new wallet (coldkey)",
                 default=defaults.wallet.name,
             )
         if not wallet_hotkey:
             wallet_hotkey = Prompt.ask(
-                f"Enter the the name of the [{COLOR_PALETTE['GENERAL']['HOTKEY']}]new hotkey",
+                f"Enter the the name of the [{COLORS.G.HK}]new hotkey",
                 default=defaults.wallet.hotkey,
             )
 
@@ -2742,9 +2744,10 @@ class CLIManager:
         self.verbosity_handler(quiet, verbose)
         if use_hotkey is None:
             use_hotkey = Confirm.ask(
-                f"Would you like to sign the transaction using your [{COLOR_PALETTE['GENERAL']['HOTKEY']}]hotkey[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]?"
-                f"\n[Type [{COLOR_PALETTE['GENERAL']['HOTKEY']}]y[/{COLOR_PALETTE['GENERAL']['HOTKEY']}] for [{COLOR_PALETTE['GENERAL']['HOTKEY']}]hotkey[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
-                f" and [{COLOR_PALETTE['GENERAL']['COLDKEY']}]n[/{COLOR_PALETTE['GENERAL']['COLDKEY']}] for [{COLOR_PALETTE['GENERAL']['COLDKEY']}]coldkey[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]] (default is [{COLOR_PALETTE['GENERAL']['COLDKEY']}]coldkey[/{COLOR_PALETTE['GENERAL']['COLDKEY']}])",
+                f"Would you like to sign the transaction using your [{COLORS.G.HK}]hotkey[/{COLORS.G.HK}]?"
+                f"\n[Type [{COLORS.G.HK}]y[/{COLORS.G.HK}] for [{COLORS.G.HK}]hotkey[/{COLORS.G.HK}]"
+                f" and [{COLORS.G.CK}]n[/{COLORS.G.CK}] for [{COLORS.G.CK}]coldkey[/{COLORS.G.CK}]] "
+                f"(default is [{COLORS.G.CK}]coldkey[/{COLORS.G.CK}])",
                 default=False,
             )
 
@@ -3035,11 +3038,11 @@ class CLIManager:
                 raise typer.Exit()
             if netuid is not None:
                 amount = FloatPrompt.ask(
-                    f"Amount to [{COLOR_PALETTE['GENERAL']['SUBHEADING_MAIN']}]stake (TAO τ)"
+                    f"Amount to [{COLORS.G.SUBHEAD_MAIN}]stake (TAO τ)"
                 )
             else:
                 amount = FloatPrompt.ask(
-                    f"Amount to [{COLOR_PALETTE['GENERAL']['SUBHEADING_MAIN']}]stake to each netuid (TAO τ)"
+                    f"Amount to [{COLORS.G.SUBHEAD_MAIN}]stake to each netuid (TAO τ)"
                 )
 
             if amount <= 0:
@@ -4112,7 +4115,8 @@ class CLIManager:
         if not param_value:
             if HYPERPARAMS.get(param_name):
                 param_value = Prompt.ask(
-                    f"Enter the new value for [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{param_name}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] in the VALUE column format"
+                    f"Enter the new value for [{COLORS.G.SUBHEAD}]{param_name}[/{COLORS.G.SUBHEAD}] "
+                    f"in the VALUE column format"
                 )
             else:
                 param_value = None

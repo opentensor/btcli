@@ -5,7 +5,6 @@ import os
 import sqlite3
 import platform
 import webbrowser
-import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable
 from urllib.parse import urlparse
@@ -73,8 +72,8 @@ class WalletLike:
         return self._coldkeypub
 
 
-def print_console(message: str, colour: str, title: str, console: Console):
-    console.print(
+def print_console(message: str, colour: str, title: str, console_: Console):
+    console_.print(
         f"[bold {colour}][{title}]:[/bold {colour}] [{colour}]{message}[/{colour}]\n"
     )
 
