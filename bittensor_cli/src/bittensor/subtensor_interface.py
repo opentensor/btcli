@@ -1,4 +1,5 @@
 import asyncio
+import os
 from typing import Optional, Any, Union, TypedDict, Iterable
 
 import aiohttp
@@ -9,7 +10,10 @@ from async_substrate_interface.errors import SubstrateRequestException
 import typer
 
 
-from async_substrate_interface.async_substrate import AsyncSubstrateInterface
+from async_substrate_interface.async_substrate import (
+    DiskCachedAsyncSubstrateInterface,
+    AsyncSubstrateInterface,
+)
 from bittensor_cli.src.bittensor.chain_data import (
     DelegateInfo,
     StakeInfo,
@@ -32,6 +36,12 @@ from bittensor_cli.src.bittensor.utils import (
     decode_hex_identity_dict,
     validate_chain_endpoint,
     u16_normalized_float,
+)
+
+SubstrateClass = (
+    DiskCachedAsyncSubstrateInterface
+    if os.getenv("DISK_CACHE", "0") == "1"
+    else AsyncSubstrateInterface
 )
 
 
@@ -98,7 +108,7 @@ class SubtensorInterface:
                 self.chain_endpoint = Constants.network_map[defaults.subtensor.network]
                 self.network = defaults.subtensor.network
 
-        self.substrate = AsyncSubstrateInterface(
+        self.substrate = SubstrateClass(
             url=self.chain_endpoint,
             ss58_format=SS58_FORMAT,
             type_registry=TYPE_REGISTRY,
