@@ -287,7 +287,6 @@ async def unstake(
                 "subtensor": subtensor,
                 "netuid": op["netuid"],
                 "amount": op["amount_to_unstake"],
-                # TODO verify current_stake used in both
                 "hotkey_ss58": op["hotkey_ss58"],
                 "status": status,
             }
@@ -300,7 +299,9 @@ async def unstake(
                 }
             else:
                 func = _unstake_extrinsic
-                specific_args = {}
+                specific_args = {
+                    "current_stake": op["current_stake_balance"]
+                }
 
             suc = await func(**common_args, **specific_args)
 
