@@ -1462,18 +1462,30 @@ async def get_stake_fee(
 
     :return: The calculated stake fee as a Balance object
 
-    Example scenarios:
-    - Adding stake: origin_hotkey=None, origin_netuid=None
-    - Removing stake: destination_hotkey=None, destination_netuid=None
-    - Moving stake between subnets: Both origin and destination parameters provided
+    When to use None:
+
+    1. Adding new stake (default fee):
+       - origin_hotkey_ss58 = None
+       - origin_netuid = None
+       - All other fields required
+
+    2. Removing stake (default fee):
+       - destination_hotkey_ss58 = None
+       - destination_netuid = None
+       - All other fields required
+
+    For all other operations, no None values - provide all parameters:
+    3. Moving between subnets
+    4. Moving between hotkeys
+    5. Moving between coldkeys
     """
 
     origin = (
-        (origin_hotkey_ss58, origin_netuid) 
-        if origin_hotkey_ss58 is not None and origin_netuid is not None 
+        (origin_hotkey_ss58, origin_netuid)
+        if origin_hotkey_ss58 is not None and origin_netuid is not None
         else None
     )
-    
+
     destination = (
         (destination_hotkey_ss58, destination_netuid)
         if destination_hotkey_ss58 is not None and destination_netuid is not None
@@ -1492,5 +1504,5 @@ async def get_stake_fee(
         ],
         block_hash=block_hash,
     )
-    
+
     return Balance.from_rao(result if result is not None else 0)
