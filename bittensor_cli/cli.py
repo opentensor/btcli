@@ -4163,6 +4163,7 @@ class CLIManager:
         ),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Used to set hyperparameters for a specific subnet.
@@ -4173,7 +4174,7 @@ class CLIManager:
 
         [green]$[/green] btcli sudo set --netuid 1 --param tempo --value 400
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
 
         if not param_name or not param_value:
             hyperparams = self._run_command(
@@ -4218,15 +4219,19 @@ class CLIManager:
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
         )
-        return self._run_command(
+        result = self._run_command(
             sudo.sudo_set_hyperparameter(
                 wallet,
                 self.initialize_chain(network),
                 netuid,
                 param_name,
                 param_value,
+                json_output,
             )
         )
+        if json_output:
+            json_console.print(json.dumps({"success": result}))
+        return result
 
     def sudo_get(
         self,
@@ -4234,6 +4239,7 @@ class CLIManager:
         netuid: int = Options.netuid,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Shows a list of the hyperparameters for the specified subnet.
@@ -4244,7 +4250,9 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
         return self._run_command(
-            sudo.get_hyperparameters(self.initialize_chain(network), netuid)
+            sudo.get_hyperparameters(
+                self.initialize_chain(network), netuid, json_output
+            )
         )
 
     def sudo_senate(
@@ -4252,6 +4260,7 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Shows the Senate members of the Bittensor's governance protocol.
@@ -4261,14 +4270,17 @@ class CLIManager:
         EXAMPLE
         [green]$[/green] btcli sudo senate
         """
-        self.verbosity_handler(quiet, verbose)
-        return self._run_command(sudo.get_senate(self.initialize_chain(network)))
+        self.verbosity_handler(quiet, verbose, json_output)
+        return self._run_command(
+            sudo.get_senate(self.initialize_chain(network), json_output)
+        )
 
     def sudo_proposals(
         self,
         network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         View active proposals for the senate in the Bittensor's governance protocol.
@@ -4278,7 +4290,7 @@ class CLIManager:
         EXAMPLE
         [green]$[/green] btcli sudo proposals
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
         return self._run_command(
             sudo.proposals(self.initialize_chain(network), verbose)
         )
@@ -4317,6 +4329,7 @@ class CLIManager:
         EXAMPLE
         [green]$[/green] btcli sudo senate_vote --proposal <proposal_hash>
         """
+        # TODO discuss whether this should receive json_output. I don't think it should.
         self.verbosity_handler(quiet, verbose)
         wallet = self.wallet_ask(
             wallet_name,
@@ -4340,6 +4353,7 @@ class CLIManager:
         take: float = typer.Option(None, help="The new take value."),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Allows users to change their delegate take percentage.
@@ -4352,7 +4366,7 @@ class CLIManager:
         """
         max_value = 0.18
         min_value = 0.00
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
 
         wallet = self.wallet_ask(
             wallet_name,
@@ -4377,9 +4391,12 @@ class CLIManager:
             )
             raise typer.Exit()
 
-        return self._run_command(
+        result = self._run_command(
             sudo.set_take(wallet, self.initialize_chain(network), take)
         )
+        if json_output:
+            json_console.print(json.dumps({"success": result}))
+        return result
 
     def sudo_get_take(
         self,
@@ -4389,6 +4406,7 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Allows users to check their delegate take percentage.
@@ -4398,7 +4416,7 @@ class CLIManager:
         EXAMPLE
         [green]$[/green] btcli sudo get-take --wallet-name my_wallet --wallet-hotkey my_hotkey
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
 
         wallet = self.wallet_ask(
             wallet_name,
@@ -4407,10 +4425,15 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
-
-        self._run_command(
-            sudo.display_current_take(self.initialize_chain(network), wallet)
-        )
+        if json_output:
+            result = self._run_command(
+                sudo.get_current_take(self.initialize_chain(network), wallet)
+            )
+            json_console.print(json.dumps({"current_take": result}))
+        else:
+            self._run_command(
+                sudo.display_current_take(self.initialize_chain(network), wallet)
+            )
 
     def subnets_list(
         self,
