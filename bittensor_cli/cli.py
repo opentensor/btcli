@@ -4441,6 +4441,7 @@ class CLIManager:
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         live_mode: bool = Options.live,
+        json_output: bool = Options.json_output,
     ):
         """
          List all subnets and their detailed information.
@@ -4468,7 +4469,10 @@ class CLIManager:
 
          [green]$[/green] btcli subnets list
         """
-        self.verbosity_handler(quiet, verbose)
+        if json_output and live_mode:
+            print_error("Cannot use --json-output and --live at the same time.")
+            return
+        self.verbosity_handler(quiet, verbose, json_output)
         subtensor = self.initialize_chain(network)
         return self._run_command(
             subnets.subnets_list(
@@ -4478,6 +4482,7 @@ class CLIManager:
                 not self.config.get("use_cache", True),
                 verbose,
                 live_mode,
+                json_output,
             )
         )
 
