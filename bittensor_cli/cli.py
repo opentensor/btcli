@@ -4593,6 +4593,7 @@ class CLIManager:
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         prompt: bool = Options.prompt,
+        json_output: bool = Options.json_output,
     ):
         """
         Displays detailed information about a subnet including participants and their state.
@@ -4601,7 +4602,7 @@ class CLIManager:
 
         [green]$[/green] btcli subnets list
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
         subtensor = self.initialize_chain(network)
         return self._run_command(
             subnets.show(
@@ -4612,6 +4613,7 @@ class CLIManager:
                 delegate_selection=False,
                 verbose=verbose,
                 prompt=prompt,
+                json_output=json_output,
             )
         )
 

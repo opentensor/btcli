@@ -862,20 +862,22 @@ async def show(
     delegate_selection: bool = False,
     verbose: bool = False,
     prompt: bool = True,
+    json_output: bool = False,
 ) -> Optional[str]:
     async def show_root():
+        # TODO json_output for this, don't forget
         block_hash = await subtensor.substrate.get_chain_head()
-        all_subnets = await subtensor.all_subnets(block_hash=block_hash)
-        root_info = next((s for s in all_subnets if s.netuid == 0), None)
-        if root_info is None:
-            print_error("The root subnet does not exist")
-            return False
 
-        root_state, identities, old_identities = await asyncio.gather(
+        all_subnets, root_state, identities, old_identities = await asyncio.gather(
+            subtensor.all_subnets(block_hash=block_hash),
             subtensor.get_subnet_state(netuid=0, block_hash=block_hash),
             subtensor.query_all_identities(block_hash=block_hash),
             subtensor.get_delegate_identities(block_hash=block_hash),
         )
+        root_info = next((s for s in all_subnets if s.netuid == 0), None)
+        if root_info is None:
+            print_error("The root subnet does not exist")
+            return False
 
         if root_state is None:
             err_console.print("The root subnet does not exist")
@@ -887,12 +889,11 @@ async def show(
             )
             return
 
-        tao_sum = sum(
-            [root_state.tao_stake[idx].tao for idx in range(len(root_state.tao_stake))]
-        )
+        tao_sum = sum(root_state.tao_stake).tao
 
         table = Table(
-            title=f"[{COLOR_PALETTE['GENERAL']['HEADER']}]Root Network\n[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]Network: {subtensor.network}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]\n",
+            title=f"[{COLOR_PALETTE.G.HEADER}]Root Network\n[{COLOR_PALETTE.G.SUBHEAD}]"
+            f"Network: {subtensor.network}[/{COLOR_PALETTE.G.SUBHEAD}]\n",
             show_footer=True,
             show_edge=False,
             header_style="bold white",
@@ -1177,6 +1178,7 @@ async def show(
         )
 
         rows = []
+        json_out_rows = []
         for idx in sorted_indices:
             # Get identity for this uid
             coldkey_identity = identities.get(subnet_state.coldkeys[idx], {}).get(
@@ -1227,6 +1229,22 @@ async def show(
                     else f"{subnet_state.coldkeys[idx]}",  # Coldkey
                     uid_identity,  # Identity
                 )
+            )
+            json_out_rows.append(
+                {
+                    "uid": idx,
+                    "stake": subnet_state.total_stake[idx].tao,
+                    "alpha_stake": subnet_state.alpha_stake[idx].tao,
+                    "tao_stake": tao_stake.tao,
+                    "dividends": subnet_state.dividends[idx],
+                    "incentive": subnet_state.incentives[idx],
+                    "emissions": Balance.from_tao(subnet_state.emission[idx].tao)
+                    .set_unit(netuid_)
+                    .tao,
+                    "hotkey": subnet_state.hotkeys[idx],
+                    "coldkey": subnet_state.coldkeys[idx],
+                    "identity": uid_identity,
+                }
             )
 
         # Add columns to the table
@@ -1320,6 +1338,24 @@ async def show(
                 if current_burn_cost
                 else Balance(0)
             )
+            output_dict = {
+                "netuid": netuid_,
+                "name": subnet_name_display,
+                "owner": subnet_info.owner_coldkey,
+                "owner_identity": owner_identity,
+                "rate": subnet_info.price.tao,
+                "emission": subnet_info.emission.tao,
+                "tao_pool": subnet_info.tao_in.tao,
+                "alpha_pool": subnet_info.alpha_in.tao,
+                "tempo": {
+                    "block_since_last_step": subnet_info.blocks_since_last_step,
+                    "tempo": subnet_info.tempo,
+                },
+                "registration_cost": current_registration_burn.tao,
+                "uids": json_out_rows,
+            }
+            if json_output:
+                json_console.print(json.dumps(output_dict))
 
             console.print(
                 f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]Subnet {netuid_}{subnet_name_display}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
