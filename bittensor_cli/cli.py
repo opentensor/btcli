@@ -4470,7 +4470,7 @@ class CLIManager:
          [green]$[/green] btcli subnets list
         """
         if json_output and live_mode:
-            print_error("Cannot use --json-output and --live at the same time.")
+            print_error("Cannot use `--json-output` and `--live` at the same time.")
             return
         self.verbosity_handler(quiet, verbose, json_output)
         subtensor = self.initialize_chain(network)
@@ -4515,6 +4515,9 @@ class CLIManager:
             help="Show the price in log scale.",
         ),
         html_output: bool = Options.html_output,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Shows the historical price of a subnet for the past 24 hours.
@@ -4532,6 +4535,10 @@ class CLIManager:
         [green]$[/green] btcli subnets price --all --html
         [green]$[/green] btcli subnets price --netuids 1,2,3,4 --html
         """
+        if json_output and html_output:
+            print_error("Cannot specify both `--json-output` and `--html`")
+            return
+        self.verbosity_handler(quiet=quiet, verbose=verbose, json_output=json_output)
         if netuids:
             netuids = parse_to_list(
                 netuids,
@@ -4540,15 +4547,15 @@ class CLIManager:
             )
         if all_netuids and netuids:
             print_error("Cannot specify both --netuid and --all-netuids")
-            raise typer.Exit()
+            return
 
         if not netuids and not all_netuids:
             netuids = Prompt.ask(
-                "Enter the [blue]netuid(s)[/blue] to view the price of in comma-separated format [dim](or Press Enter to view all subnets)[/dim]",
+                "Enter the [blue]netuid(s)[/blue] to view the price of in comma-separated format [dim]"
+                "(or Press Enter to view all subnets)[/dim]",
             )
             if not netuids:
                 all_netuids = True
-                html_output = True
             else:
                 netuids = parse_to_list(
                     netuids,
@@ -4556,7 +4563,7 @@ class CLIManager:
                     "Netuids must be a comma-separated list of ints, e.g., `--netuids 1,2,3,4`.",
                 )
 
-        if all_netuids:
+        if all_netuids and not json_output:
             html_output = True
 
         if html_output and is_linux():
@@ -4570,6 +4577,7 @@ class CLIManager:
                 interval_hours,
                 html_output,
                 log_scale,
+                json_output,
             )
         )
 
