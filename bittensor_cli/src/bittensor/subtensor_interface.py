@@ -36,8 +36,6 @@ from bittensor_cli.src.bittensor.utils import (
     decode_hex_identity_dict,
     validate_chain_endpoint,
     u16_normalized_float,
-    encode_account_id,
-    decode_account_id,
 )
 
 SubstrateClass = (
