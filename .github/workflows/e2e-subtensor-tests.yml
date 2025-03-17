@@ -81,8 +81,8 @@ jobs:
 
       - name: install dependencies
         run: |
-          uv pip install .
-          uv pip install pytest
+          uv pip install --system . 
+          uv pip install --system pytest
 
       - name: Download Cached Docker Image
         uses: actions/download-artifact@v4
