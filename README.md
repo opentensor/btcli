@@ -39,7 +39,20 @@ Installation steps are described below. For a full documentation on how to use `
 
 ## Install on macOS and Linux
 
-You can install `btcli` on your local machine directly from source. **Make sure you verify your installation after you install**:
+You can install `btcli` on your local machine directly from source, or from from PyPI. **Make sure you verify your installation after you install**:
+
+
+### Install from PyPI
+
+Run 
+```
+pip install -U bittensor-cli
+```
+
+Alternatively, if you prefer to use [uv](https://pypi.org/project/uv/):
+```
+uv pip install bittensor-cli
+```
 
 ### Install from source
 
@@ -67,6 +80,14 @@ cd btcli
 
 ```bash
 pip3 install .
+```
+
+### Also install bittensor (SDK)
+
+If you prefer to install the btcli alongside the bittensor SDK, you can do this in a single command with
+
+```
+pip install -U bittensor[cli]
 ```
 
 ---
