@@ -81,7 +81,7 @@ jobs:
 
       - name: install dependencies
         run: |
-          uv pip install . --without-extras
+          uv pip install . -- --without-extras
           uv pop install pytest
 
       - name: Download Cached Docker Image
