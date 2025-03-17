@@ -60,6 +60,7 @@ jobs:
           path: subtensor-localnet.tar
 
   run-e2e-tests:
+    name: ${{ matrix.test-file }} / Python ${{ matrix.python-version }}
     needs:
       - find-tests
       - pull-docker-image
