@@ -1500,4 +1500,4 @@ class SubtensorInterface:
             block_hash=block_hash,
         )
 
-        return Balance.from_rao(result if result is not None else 0)
+        return Balance.from_rao(result)
