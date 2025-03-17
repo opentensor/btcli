@@ -61,7 +61,7 @@ jobs:
 
       - name: Setup subtensor repo
         working-directory: ${{ github.workspace }}/subtensor
-        run: git checkout testnet
+        run: git checkout devnet-ready
 
       - name: Install Python dependencies
         run: python3 -m pip install -e . pytest
