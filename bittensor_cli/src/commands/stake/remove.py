@@ -853,7 +853,6 @@ def _calculate_slippage(
     if subnet_info.is_dynamic:
         # Ideal amount w/o slippage
         ideal_amount = subnet_info.alpha_to_tao(amount)
-        ideal_amount -= stake_fee
 
         # Total slippage including fees
         total_slippage = ideal_amount - received_amount
