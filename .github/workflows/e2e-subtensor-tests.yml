@@ -87,7 +87,7 @@ jobs:
           uv venv .venv
           source .venv/bin/activate
           uv pip install .
-          uv pip install --verbose git+https://github.com/opentensor/cubit.git
+#          pip install --verbose git+https://github.com/opentensor/cubit.git
           uv pip install pytest
 
       - name: Download Cached Docker Image
