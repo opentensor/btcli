@@ -216,17 +216,17 @@ def test_senate(local_chain, wallet_setup):
     proposals_after_nay_output = proposals_after_nay.stdout.splitlines()
 
     # Total Ayes to remain 1
-    proposals_after_nay_output[9].split()[2] == "1"
+    assert proposals_after_nay_output[9].split()[2] == "1"
 
     # Total Nays increased to 1
-    proposals_after_nay_output[9].split()[4] == "1"
+    assert proposals_after_nay_output[9].split()[4] == "1"
 
     # Assert Alice has voted Nay
-    proposals_after_nay_output[10].split()[0].strip(
+    assert proposals_after_nay_output[10].split()[0].strip(
         ":"
     ) == wallet_alice.hotkey.ss58_address
 
     # Assert vote casted as Nay
-    proposals_after_nay_output[9].split()[1] == "Nay"
+    assert proposals_after_nay_output[9].split()[1] == "Nay"
 
     print("✅ Passed senate commands")

@@ -486,20 +486,6 @@ def test_wallet_balance_all(local_chain, wallet_setup, capfd):
         wallet_name = f"test_wallet_{i}"
         wallet_names.append(wallet_name)
 
-        result = exec_command(
-            command="wallet",
-            sub_command="new-coldkey",
-            extra_args=[
-                "--wallet-name",
-                wallet_name,
-                "--wallet-path",
-                wallet_path,
-                "--n-words",
-                "12",
-                "--no-use-password",
-            ],
-        )
-
         wallet_status, message = verify_wallet_dir(wallet_path, wallet_name)
         assert wallet_status, message
 
