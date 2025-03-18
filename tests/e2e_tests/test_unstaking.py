@@ -213,6 +213,16 @@ def test_unstaking(local_chain, wallet_setup):
         float(inital_stake_netuid_2)
     )
 
+    print(
+        "Bob wallet deets: ",
+        "hotkey: ",
+        wallet_bob.hotkey_str,
+        "name: ",
+        wallet_bob.name,
+        "path: ",
+        wallet_bob.path,
+    )
+
     # Remove all alpha stakes
     unstake_alpha = exec_command_bob(
         command="stake",
@@ -222,7 +232,7 @@ def test_unstaking(local_chain, wallet_setup):
             wallet_path_bob,
             "--wallet-name",
             wallet_bob.name,
-            "--hotkey",
+            "--wallet-hotkey",
             wallet_bob.hotkey_str,
             "--chain",
             "ws://127.0.0.1:9945",
