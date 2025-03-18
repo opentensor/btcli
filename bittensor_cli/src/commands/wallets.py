@@ -14,6 +14,7 @@ from rich.align import Align
 from rich.table import Column, Table
 from rich.tree import Tree
 from rich.padding import Padding
+from rich.prompt import Confirm
 
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor import utils
@@ -1472,3 +1473,74 @@ async def sign(wallet: Wallet, message: str, use_hotkey: str):
     signed_message = keypair.sign(message.encode("utf-8")).hex()
     console.print("[dark_sea_green3]Message signed successfully:")
     console.print(signed_message)
+
+
+async def schedule_coldkey_swap(
+    wallet: Wallet,
+    subtensor: SubtensorInterface,
+    new_coldkey_ss58: str,
+    force_swap: bool = False,
+) -> bool:
+    """Schedules a coldkey swap operation to be executed at a future block.
+
+    Args:
+        wallet (Wallet): The wallet initiating the coldkey swap
+        subtensor (SubtensorInterface): Connection to the Bittensor network
+        new_coldkey_ss58 (str): SS58 address of the new coldkey
+        force_swap (bool, optional): Whether to force the swap even if the new coldkey is already scheduled for a swap. Defaults to False.
+    Returns:
+        bool: True if the swap was scheduled successfully, False otherwise
+    """
+    if not is_valid_ss58_address(new_coldkey_ss58):
+        print_error(f"Invalid SS58 address format: {new_coldkey_ss58}")
+        return False
+
+    scheduled_coldkey_swap = await subtensor.get_scheduled_coldkey_swap()
+    if wallet.coldkeypub.ss58_address in scheduled_coldkey_swap:
+        print_error(
+            f"Coldkey {wallet.coldkeypub.ss58_address} is already scheduled for a swap."
+        )
+        console.print("[dim]Use the force_swap (--force) flag to override this.[/dim]")
+        if not force_swap:
+            return False
+        else:
+            console.print(
+                "[yellow]Continuing with the swap due to force_swap flag.[/yellow]\n"
+            )
+
+    prompt = (
+        "You are [red]swapping[/red] your [blue]coldkey[/blue] to a new address.\n"
+        f"Current ss58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
+        f"New ss58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{new_coldkey_ss58}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
+        "Are you sure you want to continue?"
+    )
+    if not Confirm.ask(prompt):
+        return False
+
+    if not unlock_key(wallet).success:
+        return False
+
+    call = await subtensor.substrate.compose_call(
+        call_module="SubtensorModule",
+        call_function="schedule_swap_coldkey",
+        call_params={
+            "new_coldkey": new_coldkey_ss58,
+        },
+    )
+
+    with console.status(":satellite: Scheduling coldkey swap on-chain..."):
+        success, err_msg = await subtensor.sign_and_send_extrinsic(
+            call,
+            wallet,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+        )
+
+        if not success:
+            print_error(f"Failed to schedule coldkey swap: {err_msg}")
+            return False
+
+        console.print(
+            ":white_heavy_check_mark: [green]Successfully scheduled coldkey swap"
+        )
+        return True
