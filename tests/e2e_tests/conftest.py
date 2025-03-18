@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import re
@@ -142,7 +143,7 @@ def docker_runner(params):
         return False
 
     container_name = f"test_local_chain_{str(time.time()).replace('.', '_')}"
-    image_name = "ghcr.io/opentensor/subtensor-localnet:latest"
+    image_name = "ghcr.io/opentensor/subtensor-localnet:devnet-ready"
 
     # Command to start container
     cmds = [
@@ -184,16 +185,15 @@ def docker_runner(params):
             )
             if not result.stdout.strip():
                 raise RuntimeError("Docker container failed to start.")
-
             substrate = AsyncSubstrateInterface(url="ws://127.0.0.1:9944")
             yield substrate
 
         finally:
             try:
                 if substrate:
-                    substrate.close()
+                    asyncio.run(substrate.close())
             except Exception:
-                pass
+                logging.warning("Failed to close substrate connection.")
 
             try:
                 subprocess.run(["docker", "kill", container_name])
