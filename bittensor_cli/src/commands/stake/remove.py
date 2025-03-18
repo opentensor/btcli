@@ -839,7 +839,7 @@ def _calculate_slippage(
 
     Returns:
         tuple containing:
-        - received_amount: Balance after slippage
+        - received_amount: Balance after slippage deduction
         - slippage_pct: Formatted string of slippage percentage
         - slippage_pct_float: Float value of slippage percentage
     """
