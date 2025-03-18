@@ -1,5 +1,15 @@
 # Changelog
 
+## 9.2.0 /2025-03-18
+
+## What's Changed
+* Updates to E2E suubtensor tests to devnet ready by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/390
+* Allow Py 3.13 install by @thewhaleking in https://github.com/opentensor/btcli/pull/392
+* pip install readme by @thewhaleking in https://github.com/opentensor/btcli/pull/391
+* Feat/dynamic staking fee by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/389
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.1.4...v9.2.0
+
 ## 9.1.4 /2025-03-13
 
 ## What's Changed
