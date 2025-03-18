@@ -227,6 +227,6 @@ def test_senate(local_chain, wallet_setup):
     ) == wallet_alice.hotkey.ss58_address
 
     # Assert vote casted as Nay
-    assert proposals_after_nay_output[9].split()[1] == "Nay"
+    assert proposals_after_nay_output[10].split()[1] == "Nay"
 
     print("✅ Passed senate commands")
