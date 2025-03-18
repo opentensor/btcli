@@ -87,7 +87,7 @@ jobs:
         run: |
           uv venv .venv
           source .venv/bin/activate
-          uv pip install .
+          uv pip install .[dev]
           uv pip install pytest
 
       - name: Download Cached Docker Image
