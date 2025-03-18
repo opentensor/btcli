@@ -197,7 +197,7 @@ def docker_runner(params):
 
             try:
                 subprocess.run(["docker", "kill", container_name])
-                process.wait()
+                process.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 os.killpg(os.getpgid(process.pid), signal.SIGKILL)
 
