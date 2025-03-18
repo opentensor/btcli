@@ -3,6 +3,7 @@
 ## 9.2.0 /2025-03-18
 
 ## What's Changed
+* Improve e2e tests' workflow by @roman-opentensor in https://github.com/opentensor/btcli/pull/393
 * Updates to E2E suubtensor tests to devnet ready by @ibraheem-opentensor in https://github.com/opentensor/btcli/pull/390
 * Allow Py 3.13 install by @thewhaleking in https://github.com/opentensor/btcli/pull/392
 * pip install readme by @thewhaleking in https://github.com/opentensor/btcli/pull/391
