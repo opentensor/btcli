@@ -685,6 +685,9 @@ class CLIManager:
             "swap-hotkey", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
         )(self.wallet_swap_hotkey)
         self.wallet_app.command(
+            "swap-coldkey", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
+        )(self.wallet_swap_coldkey)
+        self.wallet_app.command(
             "regen-coldkey", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
         )(self.wallet_regen_coldkey)
         self.wallet_app.command(
@@ -2761,6 +2764,91 @@ class CLIManager:
             message = Prompt.ask("Enter the [blue]message[/blue] to encode and sign")
 
         return self._run_command(wallets.sign(wallet, message, use_hotkey))
+
+    def wallet_swap_coldkey(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        new_wallet_or_ss58: Optional[str] = typer.Option(
+            None,
+            "--new-coldkey",
+            "--new-coldkey-ss58",
+            "--new-wallet",
+            "--new",
+            help="SS58 address of the new coldkey that will replace the current one.",
+        ),
+        network: Optional[list[str]] = Options.network,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        force_swap: bool = typer.Option(
+            False,
+            "--force",
+            "-f",
+            "--force-swap",
+            help="Force the swap even if the new coldkey is already scheduled for a swap.",
+        ),
+    ):
+        """
+        Schedule a coldkey swap for a wallet.
+
+        This command allows you to schedule a coldkey swap for a wallet. You can either provide a new wallet name, or SS58 address.
+
+        EXAMPLES
+
+        [green]$[/green] btcli wallet schedule-coldkey-swap --new-wallet my_new_wallet
+
+        [green]$[/green] btcli wallet schedule-coldkey-swap --new-coldkey-ss58 5Dk...X3q
+        """
+        self.verbosity_handler(quiet, verbose)
+
+        if not wallet_name:
+            wallet_name = Prompt.ask(
+                "Enter the [blue]wallet name[/blue] which you want to swap the coldkey for",
+                default=self.config.get("wallet_name") or defaults.wallet.name,
+            )
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME],
+            validate=WV.WALLET,
+        )
+        console.print(
+            f"\nWallet selected to swap the [blue]coldkey[/blue] from: \n"
+            f"[dark_sea_green3]{wallet}[/dark_sea_green3]\n"
+        )
+
+        if not new_wallet_or_ss58:
+            new_wallet_or_ss58 = Prompt.ask(
+                "Enter the [blue]new wallet name[/blue] or [blue]SS58 address[/blue] of the new coldkey",
+            )
+
+        if is_valid_ss58_address(new_wallet_or_ss58):
+            new_wallet_coldkey_ss58 = new_wallet_or_ss58
+        else:
+            new_wallet_name = new_wallet_or_ss58
+            new_wallet = self.wallet_ask(
+                new_wallet_name,
+                wallet_path,
+                wallet_hotkey,
+                ask_for=[WO.NAME],
+                validate=WV.WALLET,
+            )
+            console.print(
+                f"\nNew wallet to swap the [blue]coldkey[/blue] to: \n"
+                f"[dark_sea_green3]{new_wallet}[/dark_sea_green3]\n"
+            )
+            new_wallet_coldkey_ss58 = new_wallet.coldkeypub.ss58_address
+
+        return self._run_command(
+            wallets.schedule_coldkey_swap(
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                new_coldkey_ss58=new_wallet_coldkey_ss58,
+                force_swap=force_swap,
+            )
+        )
 
     def stake_list(
         self,
