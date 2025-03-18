@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
 
 console = Console()
+json_console = Console()
 err_console = Console(stderr=True)
 verbose_console = Console(quiet=True)
 
