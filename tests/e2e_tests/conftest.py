@@ -184,17 +184,9 @@ def docker_runner(params):
             )
             if not result.stdout.strip():
                 raise RuntimeError("Docker container failed to start.")
-
-            substrate = AsyncSubstrateInterface(url="ws://127.0.0.1:9944")
-            yield substrate
+            yield AsyncSubstrateInterface(url="ws://127.0.0.1:9944")
 
         finally:
-            try:
-                if substrate:
-                    substrate.close()
-            except Exception:
-                pass
-
             try:
                 subprocess.run(["docker", "kill", container_name])
                 process.wait(timeout=10)
