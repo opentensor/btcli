@@ -1501,3 +1501,28 @@ class SubtensorInterface:
         )
 
         return Balance.from_rao(result)
+
+    async def get_scheduled_coldkey_swap(
+        self,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> Optional[list[str]]:
+        """
+        Queries the chain to fetch the list of coldkeys that are scheduled for a swap.
+
+        :param block_hash: Block hash at which to perform query.
+        :param reuse_block: Whether to reuse the last-used block hash.
+
+        :return: A list of SS58 addresses of the coldkeys that are scheduled for a coldkey swap.
+        """
+        result = await self.substrate.query_map(
+            module="SubtensorModule",
+            storage_function="ColdkeySwapScheduled",
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        keys_pending_swap = []
+        async for ss58, _ in result:
+            keys_pending_swap.append(decode_account_id(ss58))
+        return keys_pending_swap
