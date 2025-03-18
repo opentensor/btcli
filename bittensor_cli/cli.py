@@ -2762,6 +2762,71 @@ class CLIManager:
 
         return self._run_command(wallets.sign(wallet, message, use_hotkey))
 
+    def stake_fee(
+        self,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        network: Optional[list[str]] = Options.network,
+        operation: str = typer.Option(
+            None,
+            "--operation",
+            "-o",
+            help="Stake operation type (add/remove/move/transfer/swap)"
+        ),
+        amount: float = typer.Option(
+            0.0, "--amount", help="The amount of TAO to stake"
+        ),
+        origin_netuid: int = typer.Option(
+            None, "--origin-netuid", "--origin", help="The netuid of the origin"
+        ),
+        destination_netuid: int = typer.Option(
+            None, "--destination-netuid", "--destination", "--dest", help="The netuid of the destination"
+        )        
+    ):
+        wallet = self.wallet_ask(
+            wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.HOTKEY]
+        )
+        if not operation:
+            operation = Prompt.ask(
+                "Select stake operation",
+                choices=["add", "remove", "move", "transfer", "swap"],
+            )
+        else:
+            if operation.lower() not in ["add", "remove", "move", "transfer", "swap"]:
+                print_error("Invalid operation passed - must be one of: add, remove, move, transfer, swap")
+                return False
+        
+        if not amount:
+            amount = FloatPrompt.ask(
+                "Enter the amount of TAO",
+            )
+        
+        if operation.lower() in ["remove", "move", "transfer", "swap"]:
+            if not origin_netuid:
+                origin_netuid = Prompt.ask(
+                    "Enter the netuid of the origin",
+                )
+        
+        if operation.lower() in ["add", "move", "transfer", "swap"]:
+            if not destination_netuid:
+                destination_netuid = Prompt.ask(
+                    "Enter the netuid of the destination",
+                )
+
+        
+        return self._run_command(
+            stake_fee.stake_fee(
+                wallet,
+                operation,
+                amount,
+                origin_netuid,
+                destination_netuid,
+            )
+        )
+        
+
+
     def stake_list(
         self,
         network: Optional[list[str]] = Options.network,
