@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import re
@@ -184,9 +185,16 @@ def docker_runner(params):
             )
             if not result.stdout.strip():
                 raise RuntimeError("Docker container failed to start.")
-            yield AsyncSubstrateInterface(url="ws://127.0.0.1:9944")
+            substrate = AsyncSubstrateInterface(url="ws://127.0.0.1:9944")
+            yield substrate
 
         finally:
+            try:
+                if substrate:
+                    asyncio.run(substrate.close())
+            except Exception:
+                logging.warning("Failed to close substrate connection.")
+
             try:
                 subprocess.run(["docker", "kill", container_name])
                 process.wait(timeout=10)
