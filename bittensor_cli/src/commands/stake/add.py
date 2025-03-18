@@ -282,10 +282,24 @@ async def stake_add(
                 return False
             remaining_wallet_balance -= amount_to_stake
 
-            # Calculate slippage
-            received_amount, slippage_pct, slippage_pct_float, rate = (
-                _calculate_slippage(subnet_info, amount_to_stake)
+            stake_fee = await subtensor.get_stake_fee(
+                origin_hotkey_ss58=None,
+                origin_netuid=None,
+                origin_coldkey_ss58=wallet.coldkeypub.ss58_address,
+                destination_hotkey_ss58=hotkey[1],
+                destination_netuid=netuid,
+                destination_coldkey_ss58=wallet.coldkeypub.ss58_address,
+                amount=amount_to_stake.rao,
             )
+
+            # Calculate slippage
+            try:
+                received_amount, slippage_pct, slippage_pct_float, rate = (
+                    _calculate_slippage(subnet_info, amount_to_stake, stake_fee)
+                )
+            except ValueError:
+                return False
+
             max_slippage = max(slippage_pct_float, max_slippage)
 
             # Add rows for the table
@@ -296,6 +310,7 @@ async def stake_add(
                 str(rate)
                 + f" {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ",  # rate
                 str(received_amount.set_unit(netuid)),  # received
+                str(stake_fee),  # fee
                 str(slippage_pct),  # slippage
             ]
 
@@ -532,6 +547,11 @@ def _define_stake_table(
         style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
     )
     table.add_column(
+        "Fee (τ)",
+        justify="center",
+        style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
+    )
+    table.add_column(
         "Slippage", justify="center", style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"]
     )
 
@@ -585,29 +605,41 @@ The columns are as follows:
 
 
 def _calculate_slippage(
-    subnet_info, amount: Balance
+    subnet_info, amount: Balance, stake_fee: Balance
 ) -> tuple[Balance, str, float, str]:
     """Calculate slippage when adding stake.
 
     Args:
         subnet_info: Subnet dynamic info
         amount: Amount being staked
+        stake_fee: Transaction fee for the stake operation
 
     Returns:
         tuple containing:
-        - received_amount: Amount received after slippage
+        - received_amount: Amount received after slippage and fees
         - slippage_str: Formatted slippage percentage string
         - slippage_float: Raw slippage percentage value
+        - rate: Exchange rate string
     """
-    received_amount, _, slippage_pct_float = subnet_info.tao_to_alpha_with_slippage(
-        amount
-    )
+    amount_after_fee = amount - stake_fee
+
+    if amount_after_fee < 0:
+        print_error("You don't have enough balance to cover the stake fee.")
+        raise ValueError()
+
+    received_amount, _, _ = subnet_info.tao_to_alpha_with_slippage(amount_after_fee)
+
     if subnet_info.is_dynamic:
+        ideal_amount = subnet_info.tao_to_alpha(amount)
+        total_slippage = ideal_amount - received_amount
+        slippage_pct_float = 100 * (total_slippage.tao / ideal_amount.tao)
         slippage_str = f"{slippage_pct_float:.4f} %"
         rate = f"{(1 / subnet_info.price.tao or 1):.4f}"
     else:
-        slippage_pct_float = 0
-        slippage_str = f"[{COLOR_PALETTE['STAKE']['SLIPPAGE_TEXT']}]N/A[/{COLOR_PALETTE['STAKE']['SLIPPAGE_TEXT']}]"
+        slippage_pct_float = (
+            100 * float(stake_fee.tao) / float(amount.tao) if amount.tao != 0 else 0
+        )
+        slippage_str = f"{slippage_pct_float:.4f} %"
         rate = "1"
 
     return received_amount, slippage_str, slippage_pct_float, rate
