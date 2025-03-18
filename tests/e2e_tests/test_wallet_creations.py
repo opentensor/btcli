@@ -486,7 +486,7 @@ def test_wallet_balance_all(local_chain, wallet_setup, capfd):
         wallet_name = f"test_wallet_{i}"
         wallet_names.append(wallet_name)
 
-        result = exec_command(
+        exec_command(
             command="wallet",
             sub_command="new-coldkey",
             extra_args=[
