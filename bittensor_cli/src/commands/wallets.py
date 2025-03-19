@@ -16,7 +16,7 @@ from rich.tree import Tree
 from rich.padding import Padding
 from rich.prompt import Confirm
 
-from bittensor_cli.src import COLOR_PALETTE
+from bittensor_cli.src import COLOR_PALETTE, COLORS
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import (
@@ -1510,8 +1510,8 @@ async def schedule_coldkey_swap(
 
     prompt = (
         "You are [red]swapping[/red] your [blue]coldkey[/blue] to a new address.\n"
-        f"Current ss58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
-        f"New ss58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{new_coldkey_ss58}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
+        f"Current ss58: [{COLORS.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.G.CK}]\n"
+        f"New ss58: [{COLORS.G.CK}]{new_coldkey_ss58}[/{COLORS.G.CK}]\n"
         "Are you sure you want to continue?"
     )
     if not Confirm.ask(prompt):
@@ -1520,12 +1520,15 @@ async def schedule_coldkey_swap(
     if not unlock_key(wallet).success:
         return False
 
-    call = await subtensor.substrate.compose_call(
-        call_module="SubtensorModule",
-        call_function="schedule_swap_coldkey",
-        call_params={
-            "new_coldkey": new_coldkey_ss58,
-        },
+    block_pre_call, call = await asyncio.gather(
+        subtensor.substrate.get_block_number(),
+        subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="schedule_swap_coldkey",
+            call_params={
+                "new_coldkey": new_coldkey_ss58,
+            },
+        ),
     )
 
     with console.status(":satellite: Scheduling coldkey swap on-chain..."):
@@ -1535,6 +1538,7 @@ async def schedule_coldkey_swap(
             wait_for_inclusion=True,
             wait_for_finalization=True,
         )
+        block_post_call = await subtensor.substrate.get_block_number()
 
         if not success:
             print_error(f"Failed to schedule coldkey swap: {err_msg}")
@@ -1543,4 +1547,59 @@ async def schedule_coldkey_swap(
         console.print(
             ":white_heavy_check_mark: [green]Successfully scheduled coldkey swap"
         )
+
+    block_num, dest_coldkey = await find_coldkey_swap_extrinsic(
+        subtensor=subtensor,
+        start_block=block_pre_call,
+        end_block=block_post_call,
+        wallet_ss58=wallet.coldkeypub.ss58_address,
+    )
+
+    if block_num is not None:
+        console.print(
+            f"\n[green]Coldkey swap details:[/green]"
+            f"\nBlock number: {block_num}"
+            f"\nOriginal address: [{COLORS.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.G.CK}]"
+            f"\nDestination address: [{COLORS.G.CK}]{dest_coldkey}[/{COLORS.G.CK}]"
+            f"\n\nYou can provide this block number to `btcli wallet swap check`"
+        )
+    else:
+        console.print(
+            "[yellow]Warning: Could not find the swap extrinsic in recent blocks"
+        )
         return True
+
+
+async def find_coldkey_swap_extrinsic(
+    subtensor: SubtensorInterface,
+    start_block: int,
+    end_block: int,
+    wallet_ss58: str,
+) -> tuple[Optional[int], Optional[str]]:
+    """Search for a coldkey swap extrinsic in a range of blocks.
+
+    Args:
+        subtensor: SubtensorInterface for chain queries
+        start_block: Starting block number to search
+        end_block: Ending block number to search (inclusive)
+        wallet_ss58: SS58 address of the signing wallet
+
+    Returns:
+        tuple[Optional[int], Optional[str]]:
+            (block number, destination coldkey ss58) if found,
+            (None, None) if not found
+    """
+    for block_num in range(start_block, end_block + 1):
+        block_data = await subtensor.substrate.get_block(block_number=block_num)
+        for extrinsic in block_data["extrinsics"]:
+            extrinsic_data = extrinsic.value
+            if (
+                "call" in extrinsic_data
+                and extrinsic_data["call"].get("call_function")
+                == "schedule_swap_coldkey"
+                and extrinsic_data.get("address") == wallet_ss58
+            ):
+                new_coldkey_ss58 = extrinsic_data["call"]["call_args"][0]["value"]
+                return block_num, new_coldkey_ss58
+
+    return None, None
