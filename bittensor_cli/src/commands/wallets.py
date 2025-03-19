@@ -45,6 +45,7 @@ from bittensor_cli.src.bittensor.utils import (
     millify_tao,
     unlock_key,
     WalletLike,
+    blocks_to_duration,
 )
 
 
@@ -1548,11 +1549,14 @@ async def schedule_coldkey_swap(
             ":white_heavy_check_mark: [green]Successfully scheduled coldkey swap"
         )
 
-    block_num, dest_coldkey = await find_coldkey_swap_extrinsic(
-        subtensor=subtensor,
-        start_block=block_pre_call,
-        end_block=block_post_call,
-        wallet_ss58=wallet.coldkeypub.ss58_address,
+    (block_num, dest_coldkey), schedule_duration = await asyncio.gather(
+        find_coldkey_swap_extrinsic(
+            subtensor=subtensor,
+            start_block=block_pre_call,
+            end_block=block_post_call,
+            wallet_ss58=wallet.coldkeypub.ss58_address,
+        ),
+        subtensor.get_coldkey_swap_schedule_duration()
     )
 
     if block_num is not None:
@@ -1561,7 +1565,8 @@ async def schedule_coldkey_swap(
             f"\nBlock number: {block_num}"
             f"\nOriginal address: [{COLORS.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.G.CK}]"
             f"\nDestination address: [{COLORS.G.CK}]{dest_coldkey}[/{COLORS.G.CK}]"
-            f"\n\nYou can provide this block number to `btcli wallet swap check`"
+            f"\nThe swap will be completed in [green]{blocks_to_duration(schedule_duration)} (Block: {block_num+schedule_duration})[/green] from now."
+            f"\n[dim]You can provide the block number to `btcli wallet swap-check`[/dim]"
         )
     else:
         console.print(
