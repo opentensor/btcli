@@ -1526,3 +1526,28 @@ class SubtensorInterface:
         async for ss58, _ in result:
             keys_pending_swap.append(decode_account_id(ss58))
         return keys_pending_swap
+
+    async def get_coldkey_swap_schedule_duration(
+        self,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> int:
+        """
+        Retrieves the duration (in blocks) required for a coldkey swap to be executed.
+
+        Args:
+            block_hash: The hash of the blockchain block number for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            int: The number of blocks required for the coldkey swap schedule duration.
+        """
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="ColdkeySwapScheduleDuration",
+            params=[],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        return result
