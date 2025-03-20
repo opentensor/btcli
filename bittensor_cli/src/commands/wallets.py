@@ -1556,7 +1556,7 @@ async def schedule_coldkey_swap(
             end_block=block_post_call,
             wallet_ss58=wallet.coldkeypub.ss58_address,
         ),
-        subtensor.get_coldkey_swap_schedule_duration()
+        subtensor.get_coldkey_swap_schedule_duration(),
     )
 
     if block_num is not None:
@@ -1608,3 +1608,108 @@ async def find_coldkey_swap_extrinsic(
                 return block_num, new_coldkey_ss58
 
     return None, None
+
+
+async def check_swap_status(
+    subtensor: SubtensorInterface,
+    origin_ss58: Optional[str] = None,
+    expected_block_number: Optional[int] = None,
+) -> None:
+    """
+    Check the status of a coldkey swap.
+
+    Args:
+        subtensor: Connection to the network
+        origin_ss58: The SS58 address of the original coldkey
+        block_number: Optional block number where the swap was scheduled
+    """
+    scheduled_swaps = await subtensor.get_scheduled_coldkey_swap()
+
+    if not origin_ss58:
+        if not scheduled_swaps:
+            console.print("[yellow]No pending coldkey swaps found.[/yellow]")
+            return
+
+        table = Table(
+            Column(
+                "Original Coldkey",
+                justify="Left",
+                style=COLOR_PALETTE["GENERAL"]["SUBHEADING_MAIN"],
+                no_wrap=True,
+            ),
+            Column(
+                "Status",
+                style="dark_sea_green3"
+            ),
+            title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Pending Coldkey Swaps\n",
+            show_header=True,
+            show_edge=False,
+            header_style="bold white",
+            border_style="bright_black",
+            style="bold",
+            title_justify="center",
+            show_lines=False,
+            pad_edge=True,
+        )
+
+        for coldkey in scheduled_swaps:
+            table.add_row(
+                coldkey,
+                "Pending"
+            )
+
+        console.print(table)
+        console.print(
+            "\n[dim]Tip: Check specific swap details by providing the original coldkey SS58 address[/dim]"
+        )
+        return
+
+    is_pending = origin_ss58 in scheduled_swaps
+
+    if not is_pending:
+        console.print(
+            f"[red]No pending swap found for coldkey:[/red] [{COLORS.G.CK}]{origin_ss58}[/{COLORS.G.CK}]"
+        )
+        return
+
+    console.print(
+        f"[green]Found pending swap for coldkey:[/green] [{COLORS.G.CK}]{origin_ss58}[/{COLORS.G.CK}]"
+    )
+
+    if expected_block_number is None:
+        return
+
+    # Find the swap extrinsic details
+    block_num, dest_coldkey = await find_coldkey_swap_extrinsic(
+        subtensor=subtensor,
+        start_block=expected_block_number,
+        end_block=expected_block_number,
+        wallet_ss58=origin_ss58,
+    )
+
+    if block_num is None:
+        console.print(
+            f"[yellow]Warning: Could not find swap extrinsic at block {expected_block_number}[/yellow]"
+        )
+        return
+
+    current_block, schedule_duration = await asyncio.gather(
+        subtensor.substrate.get_block_number(),
+        subtensor.get_coldkey_swap_schedule_duration(),
+    )
+
+    completion_block = block_num + schedule_duration
+    remaining_blocks = completion_block - current_block
+
+    if remaining_blocks <= 0:
+        console.print("[green]Swap period has completed![/green]")
+        return
+
+    console.print(
+        "\n[green]Coldkey swap details:[/green]"
+        f"\nScheduled at block: {block_num}"
+        f"\nOriginal address: [{COLORS.G.CK}]{origin_ss58}[/{COLORS.G.CK}]"
+        f"\nDestination address: [{COLORS.G.CK}]{dest_coldkey}[/{COLORS.G.CK}]"
+        f"\nCompletion block: {completion_block}"
+        f"\nTime remaining: {blocks_to_duration(remaining_blocks)}"
+    )
