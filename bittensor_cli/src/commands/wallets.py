@@ -46,6 +46,7 @@ from bittensor_cli.src.bittensor.utils import (
     unlock_key,
     WalletLike,
     blocks_to_duration,
+    decode_account_id,
 )
 
 
@@ -1549,30 +1550,27 @@ async def schedule_coldkey_swap(
             ":white_heavy_check_mark: [green]Successfully scheduled coldkey swap"
         )
 
-    (block_num, dest_coldkey), schedule_duration = await asyncio.gather(
-        find_coldkey_swap_extrinsic(
-            subtensor=subtensor,
-            start_block=block_pre_call,
-            end_block=block_post_call,
-            wallet_ss58=wallet.coldkeypub.ss58_address,
-        ),
-        subtensor.get_coldkey_swap_schedule_duration(),
+    swap_info = await find_coldkey_swap_extrinsic(
+        subtensor=subtensor,
+        start_block=block_pre_call,
+        end_block=block_post_call,
+        wallet_ss58=wallet.coldkeypub.ss58_address,
     )
 
-    if block_num is not None:
-        console.print(
-            f"\n[green]Coldkey swap details:[/green]"
-            f"\nBlock number: {block_num}"
-            f"\nOriginal address: [{COLORS.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.G.CK}]"
-            f"\nDestination address: [{COLORS.G.CK}]{dest_coldkey}[/{COLORS.G.CK}]"
-            f"\nThe swap will be completed in [green]{blocks_to_duration(schedule_duration)} (Block: {block_num+schedule_duration})[/green] from now."
-            f"\n[dim]You can provide the block number to `btcli wallet swap-check`[/dim]"
-        )
-    else:
+    if not swap_info:
         console.print(
             "[yellow]Warning: Could not find the swap extrinsic in recent blocks"
         )
         return True
+
+    console.print(
+        "\n[green]Coldkey swap details:[/green]"
+        f"\nBlock number: {swap_info['block_num']}"
+        f"\nOriginal address: [{COLORS.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.G.CK}]"
+        f"\nDestination address: [{COLORS.G.CK}]{swap_info['dest_coldkey']}[/{COLORS.G.CK}]"
+        f"\nThe swap will be completed at block: [green]{swap_info['execution_block']}[/green]"
+        f"\n[dim]You can provide the block number to `btcli wallet swap-check`[/dim]"
+    )
 
 
 async def find_coldkey_swap_extrinsic(
@@ -1580,8 +1578,8 @@ async def find_coldkey_swap_extrinsic(
     start_block: int,
     end_block: int,
     wallet_ss58: str,
-) -> tuple[Optional[int], Optional[str]]:
-    """Search for a coldkey swap extrinsic in a range of blocks.
+) -> dict:
+    """Search for a coldkey swap event in a range of blocks.
 
     Args:
         subtensor: SubtensorInterface for chain queries
@@ -1590,24 +1588,42 @@ async def find_coldkey_swap_extrinsic(
         wallet_ss58: SS58 address of the signing wallet
 
     Returns:
-        tuple[Optional[int], Optional[str]]:
-            (block number, destination coldkey ss58) if found,
-            (None, None) if not found
+        dict: Contains the following keys if found:
+            - block_num: Block number where swap was scheduled
+            - dest_coldkey: SS58 address of destination coldkey
+            - execution_block: Block number when swap will execute
+        Empty dict if not found
     """
-    for block_num in range(start_block, end_block + 1):
-        block_data = await subtensor.substrate.get_block(block_number=block_num)
-        for extrinsic in block_data["extrinsics"]:
-            extrinsic_data = extrinsic.value
-            if (
-                "call" in extrinsic_data
-                and extrinsic_data["call"].get("call_function")
-                == "schedule_swap_coldkey"
-                and extrinsic_data.get("address") == wallet_ss58
-            ):
-                new_coldkey_ss58 = extrinsic_data["call"]["call_args"][0]["value"]
-                return block_num, new_coldkey_ss58
+    block_hashes = await asyncio.gather(
+        *[
+            subtensor.substrate.get_block_hash(block_num)
+            for block_num in range(start_block, end_block + 1)
+        ]
+    )
+    block_events = await asyncio.gather(
+        *[
+            subtensor.substrate.get_events(block_hash=block_hash)
+            for block_hash in block_hashes
+        ]
+    )
 
-    return None, None
+    for block_num, events in zip(range(start_block, end_block + 1), block_events):
+        for event in events:
+            if (
+                event.get("event", {}).get("module_id") == "SubtensorModule"
+                and event.get("event", {}).get("event_id") == "ColdkeySwapScheduled"
+            ):
+                attributes = event["event"].get("attributes", {})
+                old_coldkey = decode_account_id(attributes["old_coldkey"][0])
+
+                if old_coldkey == wallet_ss58:
+                    return {
+                        "block_num": block_num,
+                        "dest_coldkey": decode_account_id(attributes["new_coldkey"][0]),
+                        "execution_block": attributes["execution_block"],
+                    }
+
+    return {}
 
 
 async def check_swap_status(
@@ -1637,10 +1653,7 @@ async def check_swap_status(
                 style=COLOR_PALETTE["GENERAL"]["SUBHEADING_MAIN"],
                 no_wrap=True,
             ),
-            Column(
-                "Status",
-                style="dark_sea_green3"
-            ),
+            Column("Status", style="dark_sea_green3"),
             title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Pending Coldkey Swaps\n",
             show_header=True,
             show_edge=False,
@@ -1653,10 +1666,7 @@ async def check_swap_status(
         )
 
         for coldkey in scheduled_swaps:
-            table.add_row(
-                coldkey,
-                "Pending"
-            )
+            table.add_row(coldkey, "Pending")
 
         console.print(table)
         console.print(
@@ -1680,26 +1690,21 @@ async def check_swap_status(
         return
 
     # Find the swap extrinsic details
-    block_num, dest_coldkey = await find_coldkey_swap_extrinsic(
+    swap_info = await find_coldkey_swap_extrinsic(
         subtensor=subtensor,
         start_block=expected_block_number,
         end_block=expected_block_number,
         wallet_ss58=origin_ss58,
     )
 
-    if block_num is None:
+    if not swap_info:
         console.print(
             f"[yellow]Warning: Could not find swap extrinsic at block {expected_block_number}[/yellow]"
         )
         return
 
-    current_block, schedule_duration = await asyncio.gather(
-        subtensor.substrate.get_block_number(),
-        subtensor.get_coldkey_swap_schedule_duration(),
-    )
-
-    completion_block = block_num + schedule_duration
-    remaining_blocks = completion_block - current_block
+    current_block = await subtensor.substrate.get_block_number()
+    remaining_blocks = swap_info["execution_block"] - current_block
 
     if remaining_blocks <= 0:
         console.print("[green]Swap period has completed![/green]")
@@ -1707,9 +1712,9 @@ async def check_swap_status(
 
     console.print(
         "\n[green]Coldkey swap details:[/green]"
-        f"\nScheduled at block: {block_num}"
+        f"\nScheduled at block: {swap_info['block_num']}"
         f"\nOriginal address: [{COLORS.G.CK}]{origin_ss58}[/{COLORS.G.CK}]"
-        f"\nDestination address: [{COLORS.G.CK}]{dest_coldkey}[/{COLORS.G.CK}]"
-        f"\nCompletion block: {completion_block}"
+        f"\nDestination address: [{COLORS.G.CK}]{swap_info['dest_coldkey']}[/{COLORS.G.CK}]"
+        f"\nCompletion block: {swap_info['execution_block']}"
         f"\nTime remaining: {blocks_to_duration(remaining_blocks)}"
     )
