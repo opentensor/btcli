@@ -2357,45 +2357,42 @@ class CLIManager:
         [green]$[/green] btcli wallet swap-check --all
 
         Check specific wallet's swap:
-        [green]$[/green] btcli wallet swap-check --wallet.name my_wallet
+        [green]$[/green] btcli wallet swap-check --wallet-name my_wallet
 
         Check swap using SS58 address:
-        [green]$[/green] btcli wallet swap-check --ss58-address 5DkQ4...
+        [green]$[/green] btcli wallet swap-check --ss58 5DkQ4...
 
         Check swap details with block number:
-        [green]$[/green] btcli wallet swap-check --wallet.name my_wallet --block 12345
+        [green]$[/green] btcli wallet swap-check --wallet-name my_wallet --block 12345
         """
         self.verbosity_handler(quiet, verbose)
         self.initialize_chain(network)
-
-        if not wallet_ss58_address:
-            wallet_or_ss58_address = Prompt.ask(
-                "Enter the [blue]SS58 address[/blue] or the [blue]wallet name[/blue]. [dim]Leave blank to check all pending swaps[/dim]"
-            )
-            if not wallet_or_ss58_address:
-                show_all = True
-            else:
-                if is_valid_ss58_address(wallet_or_ss58_address):
-                    return self._run_command(
-                        wallets.check_swap_status(
-                            self.subtensor, wallet_or_ss58_address, scheduled_block
-                        )
-                    )
-                else:
-                    wallet_name = wallet_or_ss58_address
 
         if show_all:
             return self._run_command(
                 wallets.check_swap_status(self.subtensor, None, None)
             )
 
-        wallet = self.wallet_ask(
-            wallet_name,
-            wallet_path,
-            wallet_hotkey,
-            ask_for=[WO.NAME, WO.PATH],
-            validate=WV.WALLET,
-        )
+        if not wallet_ss58_address:
+            wallet_ss58_address = Prompt.ask(
+                "Enter [blue]wallet name[/blue] or [blue]SS58 address[/blue] [dim](leave blank to show all pending swaps)[/dim]"
+            )
+            if not wallet_ss58_address:
+                return self._run_command(
+                    wallets.check_swap_status(self.subtensor, None, None)
+                )
+
+        if is_valid_ss58_address(wallet_ss58_address):
+            ss58_address = wallet_ss58_address
+        else:
+            wallet = self.wallet_ask(
+                wallet_ss58_address,
+                wallet_path,
+                wallet_hotkey,
+                ask_for=[WO.NAME, WO.PATH],
+                validate=WV.WALLET,
+            )
+            ss58_address = wallet.coldkeypub.ss58_address
 
         if not scheduled_block:
             block_input = Prompt.ask(
@@ -2406,14 +2403,11 @@ class CLIManager:
                 try:
                     scheduled_block = int(block_input)
                 except ValueError:
-                    console.print(
-                        "[red]Invalid block number. Skipping block check.[/red]"
-                    )
+                    print_error("Invalid block number")
+                    raise typer.Exit()
 
         return self._run_command(
-            wallets.check_swap_status(
-                self.subtensor, wallet.coldkeypub.ss58_address, scheduled_block
-            )
+            wallets.check_swap_status(self.subtensor, ss58_address, scheduled_block)
         )
 
     def wallet_create_wallet(

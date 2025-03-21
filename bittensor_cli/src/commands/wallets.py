@@ -1683,7 +1683,7 @@ async def check_swap_status(
 
         console.print(table)
         console.print(
-            "\n[dim]Tip: Check specific swap details by providing the original coldkey SS58 address[/dim]"
+            "\n[dim]Tip: Check specific swap details by providing the original coldkey SS58 address and the block number.[/dim]"
         )
         return
 
