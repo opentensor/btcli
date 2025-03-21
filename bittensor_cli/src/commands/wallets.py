@@ -16,7 +16,7 @@ from rich.tree import Tree
 from rich.padding import Padding
 from rich.prompt import Confirm
 
-from bittensor_cli.src import COLOR_PALETTE, COLORS
+from bittensor_cli.src import COLOR_PALETTE, COLORS, Constants
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import (
@@ -1594,6 +1594,19 @@ async def find_coldkey_swap_extrinsic(
             - execution_block: Block number when swap will execute
         Empty dict if not found
     """
+
+    current_block, genesis_block = await asyncio.gather(
+        subtensor.substrate.get_block_number(),
+        subtensor.substrate.get_block_hash(0)
+    )
+    if (
+        current_block - start_block > 300
+        and genesis_block == Constants.genesis_block_hash_map["finney"]
+    ):
+        console.print("Querying archive node for coldkey swap events...")
+        await subtensor.substrate.close()
+        subtensor = SubtensorInterface("archive")
+
     block_hashes = await asyncio.gather(
         *[
             subtensor.substrate.get_block_hash(block_num)
