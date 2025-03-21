@@ -554,6 +554,7 @@ def test_wallet_associate_hotkey(local_chain, wallet_setup):
     assert "Successfully associated hotkey" in result.stdout
     assert wallet_alice.hotkey.ss58_address in result.stdout
     assert wallet_alice.coldkeypub.ss58_address in result.stdout
+    assert wallet_alice.hotkey_str in result.stdout
 
     # Try to associate Alice's hotkey with Bob's wallet (should fail)
     result = exec_command_bob(
