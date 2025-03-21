@@ -54,6 +54,7 @@ async def associate_hotkey(
     wallet: Wallet,
     subtensor: SubtensorInterface,
     hotkey_ss58: str,
+    prompt: bool = False,
 ):
     """Associates a hotkey with a wallet"""
     owner_ss58 = await subtensor.get_hotkey_owner(hotkey_ss58)
@@ -78,7 +79,9 @@ async def associate_hotkey(
             f"Hotkey [{COLORS.GENERAL.HK}]{hotkey_ss58}[/{COLORS.GENERAL.HK}] is not associated with any wallet"
         )
 
-    if not Confirm.ask("Do you want to continue with the association?"):
+    if prompt and not Confirm.ask(
+        "Do you want to continue with the association?"
+    ):
         return False
 
     if not unlock_key(wallet).success:

@@ -2274,6 +2274,7 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey_ss58,
         network: Optional[list[str]] = Options.network,
+        prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -2296,33 +2297,33 @@ class CLIManager:
                 default=self.config.get("wallet_name") or defaults.wallet.name,
             )
         if not wallet_hotkey:
-            hotkey_or_wallet = Prompt.ask(
+            wallet_hotkey = Prompt.ask(
                 "Enter the [blue]hotkey[/blue] name or "
                 "[blue]hotkey ss58 address[/blue] [dim](to associate with your coldkey)[/dim]"
             )
-            if is_valid_ss58_address(hotkey_or_wallet):
-                hotkey_ss58 = hotkey_or_wallet
-                wallet = self.wallet_ask(
-                    wallet_name,
-                    wallet_path,
-                    wallet_hotkey,
-                    ask_for=[WO.NAME, WO.PATH],
-                    validate=WV.WALLET,
-                )
-            else:
-                wallet = self.wallet_ask(
-                    wallet_name,
-                    wallet_path,
-                    hotkey_or_wallet,
-                    ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
-                    validate=WV.WALLET_AND_HOTKEY,
-                )
-                hotkey_ss58 = wallet.hotkey.ss58_address
+
+        if is_valid_ss58_address(wallet_hotkey):
+            hotkey_ss58 = wallet_hotkey
+            wallet = self.wallet_ask(
+                wallet_name,
+                wallet_path,
+                None,
+                ask_for=[WO.NAME, WO.PATH],
+                validate=WV.WALLET,
+            )
+        else:
+            wallet = self.wallet_ask(
+                wallet_name,
+                wallet_path,
+                wallet_hotkey,
+                ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+                validate=WV.WALLET_AND_HOTKEY,
+            )
+            hotkey_ss58 = wallet.hotkey.ss58_address
+
         return self._run_command(
             wallets.associate_hotkey(
-                wallet,
-                self.initialize_chain(network),
-                hotkey_ss58,
+                wallet, self.initialize_chain(network), hotkey_ss58, prompt
             )
         )
 
