@@ -54,14 +54,16 @@ async def associate_hotkey(
     wallet: Wallet,
     subtensor: SubtensorInterface,
     hotkey_ss58: str,
+    hotkey_display: str,
     prompt: bool = False,
 ):
     """Associates a hotkey with a wallet"""
+
     owner_ss58 = await subtensor.get_hotkey_owner(hotkey_ss58)
     if owner_ss58:
         if owner_ss58 == wallet.coldkeypub.ss58_address:
             console.print(
-                f":white_heavy_check_mark: Hotkey [{COLORS.GENERAL.HK}]{hotkey_ss58}[/{COLORS.GENERAL.HK}] is already "
+                f":white_heavy_check_mark: {hotkey_display} is already "
                 f"associated with \nwallet [blue]{wallet.name}[/blue], "
                 f"SS58: [{COLORS.GENERAL.CK}]{owner_ss58}[/{COLORS.GENERAL.CK}]"
             )
@@ -70,18 +72,14 @@ async def associate_hotkey(
             owner_wallet = _get_wallet_by_ss58(wallet.path, owner_ss58)
             wallet_name = owner_wallet.name if owner_wallet else "unknown wallet"
             console.print(
-                f"[yellow]Warning[/yellow]: Hotkey [{COLORS.GENERAL.HK}]{hotkey_ss58}[/{COLORS.GENERAL.HK}] is already associated with \n"
+                f"[yellow]Warning[/yellow]: {hotkey_display} is already associated with \n"
                 f"wallet: [blue]{wallet_name}[/blue], SS58: [{COLORS.GENERAL.CK}]{owner_ss58}[/{COLORS.GENERAL.CK}]"
             )
             return False
     else:
-        console.print(
-            f"Hotkey [{COLORS.GENERAL.HK}]{hotkey_ss58}[/{COLORS.GENERAL.HK}] is not associated with any wallet"
-        )
+        console.print(f"{hotkey_display} is not associated with any wallet")
 
-    if prompt and not Confirm.ask(
-        "Do you want to continue with the association?"
-    ):
+    if prompt and not Confirm.ask("Do you want to continue with the association?"):
         return False
 
     if not unlock_key(wallet).success:
@@ -110,8 +108,8 @@ async def associate_hotkey(
             return False
 
         console.print(
-            f"[green]:white_heavy_check_mark: Successfully associated hotkey[/green] "
-            f"[{COLORS.GENERAL.HK}]{hotkey_ss58}[/{COLORS.GENERAL.HK}] with \nwallet [blue]{wallet.name}[/blue], "
+            f"[green]:white_heavy_check_mark: Successfully associated {hotkey_display} with \n"
+            f"wallet [blue]{wallet.name}[/blue], "
             f"SS58: [{COLORS.GENERAL.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.GENERAL.CK}]"
         )
         return True
