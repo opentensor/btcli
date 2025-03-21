@@ -33,6 +33,10 @@ class Constants:
         "latent-lite": latent_lite_entrypoint,
         "subvortex": subvortex_entrypoint,
     }
+    genesis_block_hash_map = {
+        "finney": "0x2f0555cc76fc2840a25a6ea3b9637146806f1f44b090c175ffde2a7e5ab36c03",
+        "test": "0x8f9cf856bf558a14440e75569c9e58594757048d7b3a84b5d25f6bd978263105",
+    }
     delegates_detail_url = "https://raw.githubusercontent.com/opentensor/bittensor-delegates/main/public/delegates.json"
 
 
