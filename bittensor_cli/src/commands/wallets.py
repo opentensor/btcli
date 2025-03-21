@@ -1702,7 +1702,6 @@ async def check_swap_status(
     if expected_block_number is None:
         return
 
-    # Find the swap extrinsic details
     swap_info = await find_coldkey_swap_extrinsic(
         subtensor=subtensor,
         start_block=expected_block_number,
