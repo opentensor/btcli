@@ -510,3 +510,112 @@ def test_wallet_identities(local_chain, wallet_setup):
     assert "Message signed successfully" in sign_using_coldkey.stdout
 
     print("✅ Passed wallet set-id, get-id, sign command")
+
+
+def test_wallet_associate_hotkey(local_chain, wallet_setup):
+    """
+    Test the associating hotkeys and their different cases.
+
+    Steps:
+        1. Create wallets for Alice, Bob, and Charlie
+        2. Associate a hotkey with Alice's wallet using hotkey name
+        3. Verify the association is successful
+        4. Try to associate Alice's hotkey with Bob's wallet (should fail)
+        5. Try to associate Alice's hotkey again (should show already associated)
+        6. Associate Charlie's hotkey with Bob's wallet using SS58 address
+
+    Raises:
+        AssertionError: If any of the checks or verifications fail
+    """
+    print("Testing wallet associate-hotkey command 🧪")
+
+    _, wallet_alice, wallet_path_alice, exec_command_alice = wallet_setup("//Alice")
+    _, wallet_bob, wallet_path_bob, exec_command_bob = wallet_setup("//Bob")
+    _, wallet_charlie, _, _ = wallet_setup("//Charlie")
+
+    # Associate Alice's default hotkey with her wallet
+    result = exec_command_alice(
+        command="wallet",
+        sub_command="associate-hotkey",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--no-prompt",
+        ],
+    )
+
+    # Assert successful association
+    assert "Successfully associated hotkey" in result.stdout
+    assert wallet_alice.hotkey.ss58_address in result.stdout
+    assert wallet_alice.coldkeypub.ss58_address in result.stdout
+    assert wallet_alice.hotkey_str in result.stdout
+
+    # Try to associate Alice's hotkey with Bob's wallet (should fail)
+    result = exec_command_bob(
+        command="wallet",
+        sub_command="associate-hotkey",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_bob,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_bob.name,
+            "--hotkey-ss58",
+            wallet_alice.hotkey.ss58_address,
+            "--no-prompt",
+        ],
+    )
+
+    assert "Warning" in result.stdout
+    assert "is already associated with" in result.stdout
+
+    # Try to associate Alice's hotkey again with Alice's wallet
+    result = exec_command_alice(
+        command="wallet",
+        sub_command="associate-hotkey",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--no-prompt",
+        ],
+    )
+
+    assert "is already associated with" in result.stdout
+    assert "wallet" in result.stdout
+    assert wallet_alice.name in result.stdout
+
+    # Associate Charlie's hotkey with Bob's wallet using SS58 address
+    result = exec_command_bob(
+        command="wallet",
+        sub_command="associate-hotkey",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_bob,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_bob.name,
+            "--hotkey-ss58",
+            wallet_charlie.hotkey.ss58_address,
+            "--no-prompt",
+        ],
+    )
+
+    assert "Successfully associated hotkey" in result.stdout
+    assert wallet_charlie.hotkey.ss58_address in result.stdout
+    assert wallet_bob.coldkeypub.ss58_address in result.stdout
+
+    print("✅ Passed wallet associate-hotkey command")

@@ -50,6 +50,73 @@ from bittensor_cli.src.bittensor.utils import (
 )
 
 
+async def associate_hotkey(
+    wallet: Wallet,
+    subtensor: SubtensorInterface,
+    hotkey_ss58: str,
+    hotkey_display: str,
+    prompt: bool = False,
+):
+    """Associates a hotkey with a wallet"""
+
+    owner_ss58 = await subtensor.get_hotkey_owner(hotkey_ss58)
+    if owner_ss58:
+        if owner_ss58 == wallet.coldkeypub.ss58_address:
+            console.print(
+                f":white_heavy_check_mark: {hotkey_display.capitalize()} is already "
+                f"associated with \nwallet [blue]{wallet.name}[/blue], "
+                f"SS58: [{COLORS.GENERAL.CK}]{owner_ss58}[/{COLORS.GENERAL.CK}]"
+            )
+            return True
+        else:
+            owner_wallet = _get_wallet_by_ss58(wallet.path, owner_ss58)
+            wallet_name = owner_wallet.name if owner_wallet else "unknown wallet"
+            console.print(
+                f"[yellow]Warning[/yellow]: {hotkey_display.capitalize()} is already associated with \n"
+                f"wallet: [blue]{wallet_name}[/blue], SS58: [{COLORS.GENERAL.CK}]{owner_ss58}[/{COLORS.GENERAL.CK}]"
+            )
+            return False
+    else:
+        console.print(
+            f"{hotkey_display.capitalize()} is not associated with any wallet"
+        )
+
+    if prompt and not Confirm.ask("Do you want to continue with the association?"):
+        return False
+
+    if not unlock_key(wallet).success:
+        return False
+
+    call = await subtensor.substrate.compose_call(
+        call_module="SubtensorModule",
+        call_function="try_associate_hotkey",
+        call_params={
+            "hotkey": hotkey_ss58,
+        },
+    )
+
+    with console.status(":satellite: Associating hotkey on-chain..."):
+        success, err_msg = await subtensor.sign_and_send_extrinsic(
+            call,
+            wallet,
+            wait_for_inclusion=True,
+            wait_for_finalization=False,
+        )
+
+        if not success:
+            console.print(
+                f"[red]:cross_mark: Failed to associate hotkey: {err_msg}[/red]"
+            )
+            return False
+
+        console.print(
+            f":white_heavy_check_mark: Successfully associated {hotkey_display} with \n"
+            f"wallet [blue]{wallet.name}[/blue], "
+            f"SS58: [{COLORS.GENERAL.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.GENERAL.CK}]"
+        )
+        return True
+
+
 async def regen_coldkey(
     wallet: Wallet,
     mnemonic: Optional[str],
@@ -255,6 +322,15 @@ def get_coldkey_wallets_for_path(path: str) -> list[Wallet]:
         # No wallet files found.
         wallets = []
     return wallets
+
+
+def _get_wallet_by_ss58(path: str, ss58_address: str) -> Optional[Wallet]:
+    """Find a wallet by its SS58 address in the given path."""
+    ss58_addresses, wallet_names = _get_coldkey_ss58_addresses_for_path(path)
+    for wallet_name, addr in zip(wallet_names, ss58_addresses):
+        if addr == ss58_address:
+            return Wallet(path=path, name=wallet_name)
+    return None
 
 
 def _get_coldkey_ss58_addresses_for_path(path: str) -> tuple[list[str], list[str]]:
@@ -1596,8 +1672,7 @@ async def find_coldkey_swap_extrinsic(
     """
 
     current_block, genesis_block = await asyncio.gather(
-        subtensor.substrate.get_block_number(),
-        subtensor.substrate.get_block_hash(0)
+        subtensor.substrate.get_block_number(), subtensor.substrate.get_block_hash(0)
     )
     if (
         current_block - start_block > 300

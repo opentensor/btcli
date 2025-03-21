@@ -717,6 +717,9 @@ class CLIManager:
             "new-coldkey", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"]
         )(self.wallet_new_coldkey)
         self.wallet_app.command(
+            "associate-hotkey", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"]
+        )(self.wallet_associate_hotkey)
+        self.wallet_app.command(
             "create", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"]
         )(self.wallet_create_wallet)
         self.wallet_app.command(
@@ -2263,6 +2266,74 @@ class CLIManager:
             n_words = get_n_words(n_words)
         return self._run_command(
             wallets.new_hotkey(wallet, n_words, use_password, uri, overwrite)
+        )
+
+    def wallet_associate_hotkey(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey_ss58,
+        network: Optional[list[str]] = Options.network,
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Associate a hotkey with a wallet(coldkey).
+
+        USAGE
+
+        This command is used to associate a hotkey with a wallet(coldkey).
+
+        EXAMPLE
+
+        [green]$[/green] btcli wallet associate-hotkey --hotkey-name hotkey_name
+        [green]$[/green] btcli wallet associate-hotkey --hotkey-ss58 5DkQ4...
+        """
+        self.verbosity_handler(quiet, verbose)
+        if not wallet_name:
+            wallet_name = Prompt.ask(
+                "Enter the [blue]wallet name[/blue] [dim](which you want to associate with the hotkey)[/dim]",
+                default=self.config.get("wallet_name") or defaults.wallet.name,
+            )
+        if not wallet_hotkey:
+            wallet_hotkey = Prompt.ask(
+                "Enter the [blue]hotkey[/blue] name or "
+                "[blue]hotkey ss58 address[/blue] [dim](to associate with your coldkey)[/dim]"
+            )
+
+        hotkey_display = None
+        if is_valid_ss58_address(wallet_hotkey):
+            hotkey_ss58 = wallet_hotkey
+            wallet = self.wallet_ask(
+                wallet_name,
+                wallet_path,
+                None,
+                ask_for=[WO.NAME, WO.PATH],
+                validate=WV.WALLET,
+            )
+            hotkey_display = (
+                f"hotkey [{COLORS.GENERAL.HK}]{hotkey_ss58}[/{COLORS.GENERAL.HK}]"
+            )
+        else:
+            wallet = self.wallet_ask(
+                wallet_name,
+                wallet_path,
+                wallet_hotkey,
+                ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+                validate=WV.WALLET_AND_HOTKEY,
+            )
+            hotkey_ss58 = wallet.hotkey.ss58_address
+            hotkey_display = f"hotkey [blue]{wallet_hotkey}[/blue] [{COLORS.GENERAL.HK}]({hotkey_ss58})[/{COLORS.GENERAL.HK}]"
+
+        return self._run_command(
+            wallets.associate_hotkey(
+                wallet,
+                self.initialize_chain(network),
+                hotkey_ss58,
+                hotkey_display,
+                prompt,
+            )
         )
 
     def wallet_new_coldkey(
