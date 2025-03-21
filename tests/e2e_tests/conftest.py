@@ -14,6 +14,8 @@ from async_substrate_interface.async_substrate import AsyncSubstrateInterface
 
 from .utils import setup_wallet
 
+LOCALNET_IMAGE_NAME = "ghcr.io/opentensor/subtensor-localnet:devnet-ready"
+
 
 def wait_for_node_start(process, pattern, timestamp: int = None):
     for line in process.stdout:
@@ -113,6 +115,7 @@ def docker_runner(params):
                 stderr=subprocess.DEVNULL,
                 check=True,
             )
+            subprocess.run(["docker", "pull", LOCALNET_IMAGE_NAME], check=True)
             return True
         except subprocess.CalledProcessError:
             return False
@@ -143,7 +146,6 @@ def docker_runner(params):
         return False
 
     container_name = f"test_local_chain_{str(time.time()).replace('.', '_')}"
-    image_name = "ghcr.io/opentensor/subtensor-localnet:devnet-ready"
 
     # Command to start container
     cmds = [
@@ -156,7 +158,7 @@ def docker_runner(params):
         "9944:9944",
         "-p",
         "9945:9945",
-        image_name,
+        LOCALNET_IMAGE_NAME,
         params,
     ]
 
