@@ -2302,6 +2302,7 @@ class CLIManager:
                 "[blue]hotkey ss58 address[/blue] [dim](to associate with your coldkey)[/dim]"
             )
 
+        hotkey_display = None
         if is_valid_ss58_address(wallet_hotkey):
             hotkey_ss58 = wallet_hotkey
             wallet = self.wallet_ask(
@@ -2310,6 +2311,9 @@ class CLIManager:
                 None,
                 ask_for=[WO.NAME, WO.PATH],
                 validate=WV.WALLET,
+            )
+            hotkey_display = (
+                f"hotkey [{COLORS.GENERAL.HK}]{hotkey_ss58}[/{COLORS.GENERAL.HK}]"
             )
         else:
             wallet = self.wallet_ask(
@@ -2320,10 +2324,15 @@ class CLIManager:
                 validate=WV.WALLET_AND_HOTKEY,
             )
             hotkey_ss58 = wallet.hotkey.ss58_address
+            hotkey_display = f"hotkey [blue]{wallet_hotkey}[/blue] [{COLORS.GENERAL.HK}]({hotkey_ss58})[/{COLORS.GENERAL.HK}]"
 
         return self._run_command(
             wallets.associate_hotkey(
-                wallet, self.initialize_chain(network), hotkey_ss58, prompt
+                wallet,
+                self.initialize_chain(network),
+                hotkey_ss58,
+                hotkey_display,
+                prompt,
             )
         )
 
