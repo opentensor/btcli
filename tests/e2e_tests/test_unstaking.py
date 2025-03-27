@@ -208,19 +208,9 @@ def test_unstaking(local_chain, wallet_setup):
     cleaned_stake = [
         re.sub(r"\s+", " ", line) for line in stake_list.stdout.splitlines()
     ]
-    stake_after_unstaking_netuid_2 = cleaned_stake[9].split("│")[3].strip().split()[0]
+    stake_after_unstaking_netuid_2 = cleaned_stake[10].split("│")[3].strip().split()[0]
     assert Balance.from_tao(float(stake_after_unstaking_netuid_2)) <= Balance.from_tao(
         float(inital_stake_netuid_2)
-    )
-
-    print(
-        "Bob wallet deets: ",
-        "hotkey: ",
-        wallet_bob.hotkey_str,
-        "name: ",
-        wallet_bob.name,
-        "path: ",
-        wallet_bob.path,
     )
 
     # Remove all alpha stakes
