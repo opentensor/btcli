@@ -152,7 +152,7 @@ def test_staking(local_chain, wallet_setup):
             "--chain",
             "ws://127.0.0.1:9945",
             "--amount",
-            "100",
+            str(float(stake_added) - 5),
             "--tolerance",
             "0.1",
             "--partial",
