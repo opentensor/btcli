@@ -8,7 +8,7 @@ Verify commands:
 """
 
 import asyncio
-from .utils import call_add_proposal
+from .utils import call_add_proposal, run_async
 
 
 def test_senate(local_chain, wallet_setup):
@@ -90,7 +90,7 @@ def test_senate(local_chain, wallet_setup):
     assert wallet_bob.hotkey.ss58_address in root_senate_after_reg.stdout
 
     # Manually add a proposal on the chain & assert
-    success = asyncio.run(call_add_proposal(local_chain, wallet_bob))
+    success = run_async(call_add_proposal(local_chain, wallet_bob))
     assert success is True
 
     # Fetch proposals after adding one

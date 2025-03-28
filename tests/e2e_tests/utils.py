@@ -1,3 +1,4 @@
+import asyncio
 import os
 import re
 import shutil
@@ -299,3 +300,12 @@ async def call_add_proposal(
 
         await response.process_events()
         return await response.is_success
+
+def run_async(coro):
+    """Simple helper to run async code in tests (for 3.9)."""
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    return loop.run_until_complete(coro)
