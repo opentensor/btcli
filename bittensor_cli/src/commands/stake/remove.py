@@ -41,6 +41,7 @@ async def unstake(
     safe_staking: bool,
     rate_tolerance: float,
     allow_partial_stake: bool,
+    era: int,
 ):
     """Unstake from hotkey(s)."""
     with console.status(
@@ -302,6 +303,7 @@ async def unstake(
                         current_stake=op["current_stake_balance"],
                         hotkey_ss58=op["hotkey_ss58"],
                         status=status,
+                        era=era,
                     )
                 else:
                     await _safe_unstake_extrinsic(
@@ -313,6 +315,7 @@ async def unstake(
                         price_limit=op["price_with_tolerance"],
                         allow_partial_stake=allow_partial_stake,
                         status=status,
+                        era=era,
                     )
         else:
             for op in unstake_operations:
@@ -324,6 +327,7 @@ async def unstake(
                     current_stake=op["current_stake_balance"],
                     hotkey_ss58=op["hotkey_ss58"],
                     status=status,
+                    era=era,
                 )
     console.print(
         f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]Unstaking operations completed."
@@ -338,6 +342,7 @@ async def unstake_all(
     all_hotkeys: bool = False,
     include_hotkeys: Optional[list[str]] = None,
     exclude_hotkeys: Optional[list[str]] = None,
+    era: int = 3,
     prompt: bool = True,
 ) -> bool:
     """Unstakes all stakes from all hotkeys in all subnets."""
@@ -512,6 +517,7 @@ async def unstake_all(
                 hotkey_name=hotkey_names.get(hotkey_ss58, hotkey_ss58),
                 unstake_all_alpha=unstake_all_alpha,
                 status=status,
+                era=era,
             )
 
 
@@ -524,6 +530,7 @@ async def _unstake_extrinsic(
     current_stake: Balance,
     hotkey_ss58: str,
     status=None,
+    era: int = 3,
 ) -> None:
     """Execute a standard unstake extrinsic.
 
@@ -535,6 +542,7 @@ async def _unstake_extrinsic(
         wallet: Wallet instance
         subtensor: Subtensor interface
         status: Optional status for console updates
+        era: blocks for which the transaction is valid
     """
     err_out = partial(print_error, status=status)
     failure_prelude = (
@@ -557,7 +565,7 @@ async def _unstake_extrinsic(
         },
     )
     extrinsic = await subtensor.substrate.create_signed_extrinsic(
-        call=call, keypair=wallet.coldkey
+        call=call, keypair=wallet.coldkey, era={"period": era}
     )
 
     try:
@@ -607,6 +615,7 @@ async def _safe_unstake_extrinsic(
     price_limit: Balance,
     allow_partial_stake: bool,
     status=None,
+    era: int = 3,
 ) -> None:
     """Execute a safe unstake extrinsic with price limit.
 
@@ -655,7 +664,7 @@ async def _safe_unstake_extrinsic(
     )
 
     extrinsic = await subtensor.substrate.create_signed_extrinsic(
-        call=call, keypair=wallet.coldkey, nonce=next_nonce
+        call=call, keypair=wallet.coldkey, nonce=next_nonce, era={"period": era}
     )
 
     try:
@@ -720,6 +729,7 @@ async def _unstake_all_extrinsic(
     hotkey_name: str,
     unstake_all_alpha: bool,
     status=None,
+    era: int = 3,
 ) -> None:
     """Execute an unstake all extrinsic.
 
@@ -770,8 +780,7 @@ async def _unstake_all_extrinsic(
     try:
         response = await subtensor.substrate.submit_extrinsic(
             extrinsic=await subtensor.substrate.create_signed_extrinsic(
-                call=call,
-                keypair=wallet.coldkey,
+                call=call, keypair=wallet.coldkey, era={"period": era}
             ),
             wait_for_inclusion=True,
             wait_for_finalization=False,
