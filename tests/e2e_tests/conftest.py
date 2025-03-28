@@ -61,7 +61,7 @@ def local_chain(request):
 def legacy_runner(request):
     param = request.param if hasattr(request, "param") else None
     # Get the environment variable for the script path
-    script_path = os.getenv("LOCALNET_SH_PATH")
+    script_path = "/Users/ibraheem/Desktop/Bittensor/subtensor/scripts/localnet.sh"
 
     if not script_path:
         # Skip the test if the localhost.sh path is not set
@@ -199,6 +199,7 @@ def docker_runner(params):
 
             try:
                 subprocess.run(["docker", "kill", container_name])
+                subprocess.run(["docker", "wait", container_name], check=False)
                 process.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 os.killpg(os.getpgid(process.pid), signal.SIGKILL)
