@@ -13,6 +13,7 @@ from bittensor_cli.src.bittensor.utils import (
     err_console,
     get_subnet_name,
     print_error,
+    json_console,
 )
 
 if TYPE_CHECKING:
@@ -26,6 +27,7 @@ async def price(
     interval_hours: int = 24,
     html_output: bool = False,
     log_scale: bool = False,
+    json_output: bool = False,
 ):
     """
     Fetch historical price data for subnets and display it in a chart.
@@ -60,7 +62,7 @@ async def price(
         all_subnet_infos = await asyncio.gather(*subnet_info_cors)
 
         subnet_data = _process_subnet_data(
-            block_numbers, all_subnet_infos, netuids, all_netuids, interval_hours
+            block_numbers, all_subnet_infos, netuids, all_netuids
         )
 
     if not subnet_data:
@@ -71,17 +73,13 @@ async def price(
         await _generate_html_output(
             subnet_data, block_numbers, interval_hours, log_scale
         )
+    elif json_output:
+        json_console.print(json.dumps(_generate_json_output(subnet_data)))
     else:
         _generate_cli_output(subnet_data, block_numbers, interval_hours, log_scale)
 
 
-def _process_subnet_data(
-    block_numbers,
-    all_subnet_infos,
-    netuids,
-    all_netuids,
-    interval_hours,
-):
+def _process_subnet_data(block_numbers, all_subnet_infos, netuids, all_netuids):
     """
     Process subnet data into a structured format for price analysis.
     """
@@ -772,6 +770,10 @@ async def _generate_html_output(
         print_error(f"Error generating price chart: {e}")
 
 
+def _generate_json_output(subnet_data):
+    return {netuid: data for netuid, data in subnet_data.items()}
+
+
 def _generate_cli_output(subnet_data, block_numbers, interval_hours, log_scale):
     """
     Render the price data in a textual CLI style with plotille ASCII charts.
@@ -802,7 +804,7 @@ def _generate_cli_output(subnet_data, block_numbers, interval_hours, log_scale):
 
         fig.plot(
             block_numbers,
-            data["prices"],
+            prices,
             label=f"Subnet {netuid} Price",
             interp="linear",
             lc="bae98f",
