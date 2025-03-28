@@ -173,6 +173,7 @@ def docker_runner(params):
         start_new_session=True,
     ) as process:
         try:
+            loop = None
             substrate = None
             try:
                 pattern = re.compile(r"Imported #1")
@@ -187,13 +188,16 @@ def docker_runner(params):
             )
             if not result.stdout.strip():
                 raise RuntimeError("Docker container failed to start.")
+            
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             substrate = AsyncSubstrateInterface(url="ws://127.0.0.1:9944")
             yield substrate
 
         finally:
             try:
-                if substrate:
-                    asyncio.run(substrate.close())
+                if substrate and loop:
+                    loop.run_until_complete(substrate.close())
             except Exception:
                 logging.warning("Failed to close substrate connection.")
 
@@ -203,6 +207,9 @@ def docker_runner(params):
                 process.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+
+            if loop:
+                loop.close()
 
 
 @pytest.fixture(scope="function")
