@@ -279,6 +279,9 @@ class Options:
         "--dashboard.path",
         help="Path to save the dashboard HTML file. For example: `~/.bittensor/dashboard`.",
     )
+    era = typer.Option(
+        3, help="Length (in blocks) for which the transaction should be valid."
+    )
 
 
 def list_prompt(init_var: list, list_type: type, help_text: str) -> list:
@@ -3112,6 +3115,7 @@ class CLIManager:
         rate_tolerance: Optional[float] = Options.rate_tolerance,
         safe_staking: Optional[bool] = Options.safe_staking,
         allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
+        era: int = Options.era,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3305,6 +3309,7 @@ class CLIManager:
                 safe_staking,
                 rate_tolerance,
                 allow_partial_stake,
+                era,
             )
         )
 
@@ -3356,6 +3361,7 @@ class CLIManager:
         rate_tolerance: Optional[float] = Options.rate_tolerance,
         safe_staking: Optional[bool] = Options.safe_staking,
         allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
+        era: int = Options.era,
         prompt: bool = Options.prompt,
         interactive: bool = typer.Option(
             False,
@@ -3545,6 +3551,7 @@ class CLIManager:
                     include_hotkeys=include_hotkeys,
                     exclude_hotkeys=exclude_hotkeys,
                     prompt=prompt,
+                    era=era,
                 )
             )
         elif (
@@ -3599,6 +3606,7 @@ class CLIManager:
                 safe_staking=safe_staking,
                 rate_tolerance=rate_tolerance,
                 allow_partial_stake=allow_partial_stake,
+                era=era,
             )
         )
 
@@ -3626,6 +3634,7 @@ class CLIManager:
         stake_all: bool = typer.Option(
             False, "--stake-all", "--all", help="Stake all", prompt=False
         ),
+        era: int = Options.era,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3753,6 +3762,7 @@ class CLIManager:
                 destination_hotkey=destination_hotkey,
                 amount=amount,
                 stake_all=stake_all,
+                era=era,
                 interactive_selection=interactive_selection,
                 prompt=prompt,
             )
@@ -3790,6 +3800,7 @@ class CLIManager:
         stake_all: bool = typer.Option(
             False, "--stake-all", "--all", help="Stake all", prompt=False
         ),
+        era: int = Options.era,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3910,6 +3921,7 @@ class CLIManager:
                 dest_netuid=dest_netuid,
                 dest_coldkey_ss58=dest_ss58,
                 amount=amount,
+                era=era,
                 interactive_selection=interactive_selection,
                 stake_all=stake_all,
                 prompt=prompt,
@@ -3948,6 +3960,7 @@ class CLIManager:
             "--all",
             help="Swap all available stake",
         ),
+        era: int = Options.era,
         prompt: bool = Options.prompt,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
@@ -4010,6 +4023,7 @@ class CLIManager:
                 destination_netuid=dest_netuid,
                 amount=amount,
                 swap_all=swap_all,
+                era=era,
                 interactive_selection=interactive_selection,
                 prompt=prompt,
                 wait_for_inclusion=wait_for_inclusion,

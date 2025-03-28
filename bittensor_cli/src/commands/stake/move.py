@@ -444,6 +444,7 @@ async def move_stake(
     destination_hotkey: str,
     amount: float,
     stake_all: bool,
+    era: int,
     interactive_selection: bool = False,
     prompt: bool = True,
 ):
@@ -563,7 +564,7 @@ async def move_stake(
             },
         )
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey
+            call=call, keypair=wallet.coldkey, era={"period": era}
         )
         response = await subtensor.substrate.submit_extrinsic(
             extrinsic, wait_for_inclusion=True, wait_for_finalization=False
@@ -622,6 +623,7 @@ async def transfer_stake(
     origin_netuid: int,
     dest_netuid: int,
     dest_coldkey_ss58: str,
+    era: int,
     interactive_selection: bool = False,
     stake_all: bool = False,
     prompt: bool = True,
@@ -747,7 +749,7 @@ async def transfer_stake(
         )
 
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey
+            call=call, keypair=wallet.coldkey, era={"period": era}
         )
 
         response = await subtensor.substrate.submit_extrinsic(
@@ -798,6 +800,7 @@ async def swap_stake(
     destination_netuid: int,
     amount: float,
     swap_all: bool = False,
+    era: int = 3,
     interactive_selection: bool = False,
     prompt: bool = True,
     wait_for_inclusion: bool = True,
@@ -917,7 +920,7 @@ async def swap_stake(
         )
 
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey
+            call=call, keypair=wallet.coldkey, era={"period": era}
         )
 
         response = await subtensor.substrate.submit_extrinsic(
