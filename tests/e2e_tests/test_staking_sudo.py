@@ -52,7 +52,7 @@ def test_staking(local_chain, wallet_setup):
             wallet_alice.name,
             "--wallet-hotkey",
             wallet_alice.hotkey_str,
-            "--name",
+            "--subnet-name",
             "Test Subnet",
             "--repo",
             "https://github.com/username/repo",
