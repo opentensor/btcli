@@ -112,9 +112,11 @@ def test_staking(local_chain, wallet_setup):
             "0.1",
             "--partial",
             "--no-prompt",
+            "--era",
+            "144",
         ],
     )
-    assert "✅ Finalized" in add_stake.stdout
+    assert "✅ Finalized" in add_stake.stdout, add_stake.stderr
 
     # Execute stake show for Alice's wallet
     show_stake = exec_command_alice(
@@ -157,6 +159,8 @@ def test_staking(local_chain, wallet_setup):
             "0.1",
             "--partial",
             "--no-prompt",
+            "--era",
+            "144",
         ],
     )
     assert "✅ Finalized" in remove_stake.stdout

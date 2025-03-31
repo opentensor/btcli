@@ -88,7 +88,10 @@ async def stake_add(
             },
         )
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey, nonce=next_nonce, era={"period": era}
+            call=call,
+            keypair=wallet.coldkey,
+            nonce=next_nonce,
+            era={"period": era},
         )
         try:
             response = await subtensor.substrate.submit_extrinsic(
