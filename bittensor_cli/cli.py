@@ -279,7 +279,7 @@ class Options:
         "--dashboard.path",
         help="Path to save the dashboard HTML file. For example: `~/.bittensor/dashboard`.",
     )
-    era = typer.Option(
+    era: int = typer.Option(
         3, help="Length (in blocks) for which the transaction should be valid."
     )
 
@@ -1752,6 +1752,7 @@ class CLIManager:
         transfer_all: bool = typer.Option(
             False, "--all", prompt=False, help="Transfer all available balance."
         ),
+        era: int = Options.era,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -1800,12 +1801,13 @@ class CLIManager:
             amount = FloatPrompt.ask("Enter amount (in TAO) to transfer.")
         return self._run_command(
             wallets.transfer(
-                wallet,
-                subtensor,
-                destination_ss58_address,
-                amount,
-                transfer_all,
-                prompt,
+                wallet=wallet,
+                subtensor=subtensor,
+                destination=destination_ss58_address,
+                amount=amount,
+                transfer_all=transfer_all,
+                era=era,
+                prompt=prompt,
             )
         )
 
@@ -5055,6 +5057,13 @@ class CLIManager:
         wallet_hotkey: str = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
         netuid: int = Options.netuid,
+        era: Optional[
+            int
+        ] = typer.Option(  # Should not be Options.era bc this needs to be an Optional[int]
+            None,
+            help="Length (in blocks) for which the transaction should be valid. Note that it is possible that if you "
+            "use an era for this transaction that you may pay a different fee to register than the one stated.",
+        ),
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -5083,6 +5092,7 @@ class CLIManager:
                 wallet,
                 self.initialize_chain(network),
                 netuid,
+                era,
                 prompt,
             )
         )

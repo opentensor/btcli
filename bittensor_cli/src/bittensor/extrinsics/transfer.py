@@ -24,6 +24,7 @@ async def transfer_extrinsic(
     wallet: Wallet,
     destination: str,
     amount: Balance,
+    era: int = 3,
     transfer_all: bool = False,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
@@ -84,7 +85,7 @@ async def transfer_extrinsic(
             call_params={"dest": destination, "value": amount.rao},
         )
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey
+            call=call, keypair=wallet.coldkey, era={"period": era}
         )
         response = await subtensor.substrate.submit_extrinsic(
             extrinsic,
