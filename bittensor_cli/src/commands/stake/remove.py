@@ -307,7 +307,7 @@ async def unstake(
                 "amount": op["amount_to_unstake"],
                 "hotkey_ss58": op["hotkey_ss58"],
                 "status": status,
-                "era": era
+                "era": era,
             }
 
             if safe_staking and op["netuid"] != 0:
