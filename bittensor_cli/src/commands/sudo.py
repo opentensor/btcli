@@ -657,7 +657,8 @@ async def get_hyperparameters(
         )
     if json_output:
         json_console.print(json.dumps(dict_out))
-    console.print(table)
+    else:
+        console.print(table)
     return True
 
 

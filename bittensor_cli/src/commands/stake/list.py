@@ -229,8 +229,8 @@ async def stake_list(
                     {
                         "netuid": netuid,
                         "subnet_name": subnet_name,
-                        "value": tao_value.tao,
-                        "stake_value": stake_value,
+                        "value": tao_value_.tao,
+                        "stake_value": substake_.stake.tao,
                         "rate": pool.price.tao,
                         "swap_value": swap_value,
                         "registered": True if substake_.is_registered else False,

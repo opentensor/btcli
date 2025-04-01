@@ -4501,7 +4501,7 @@ class CLIManager:
 
         [green]$[/green] btcli sudo get --netuid 1
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
         return self._run_command(
             sudo.get_hyperparameters(
                 self.initialize_chain(network), netuid, json_output
