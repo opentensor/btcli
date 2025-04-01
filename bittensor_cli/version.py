@@ -1,4 +1,13 @@
 import re
+import toml
+import pathlib
+
+
+def get_toml_version():
+    toml_file = pathlib.Path(__file__).parent.parent / "pyproject.toml"
+    with open(toml_file, "r") as f:
+        tf = toml.load(f)
+    return tf["project"]["version"]
 
 
 def version_as_int(version):
@@ -16,5 +25,9 @@ def version_as_int(version):
     return __version_as_int__
 
 
-__version__ = "9.2.0"
+__version__ = get_toml_version()
 __version_as_int__ = version_as_int(__version__)
+
+
+if __name__ == "__main__":
+    print(get_toml_version())
