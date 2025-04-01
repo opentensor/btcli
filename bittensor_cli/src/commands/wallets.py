@@ -1188,6 +1188,7 @@ async def transfer(
     destination: str,
     amount: float,
     transfer_all: bool,
+    era: int,
     prompt: bool,
 ):
     """Transfer token of amount to destination."""
@@ -1197,6 +1198,7 @@ async def transfer(
         destination=destination,
         amount=Balance.from_tao(amount),
         transfer_all=transfer_all,
+        era=era,
         prompt=prompt,
     )
 

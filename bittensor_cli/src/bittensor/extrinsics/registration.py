@@ -676,6 +676,7 @@ async def burned_register_extrinsic(
     old_balance: Balance,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
+    era: Optional[int] = None,
     prompt: bool = False,
 ) -> bool:
     """Registers the wallet to chain by recycling TAO.
@@ -704,13 +705,32 @@ async def burned_register_extrinsic(
         my_uid = await subtensor.query(
             "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
         )
+        block_hash = await subtensor.substrate.get_chain_head()
 
         print_verbose("Checking if already registered", status)
         neuron = await subtensor.neuron_for_uid(
-            uid=my_uid,
-            netuid=netuid,
-            block_hash=subtensor.substrate.last_block_hash,
+            uid=my_uid, netuid=netuid, block_hash=block_hash
         )
+        if not era:
+            current_block, tempo, blocks_since_last_step = await asyncio.gather(
+                subtensor.substrate.get_block_number(block_hash=block_hash),
+                subtensor.get_hyperparameter(
+                    "Tempo", netuid=netuid, block_hash=block_hash
+                ),
+                subtensor.query(
+                    "SubtensorModule",
+                    "BlocksSinceLastStep",
+                    [netuid],
+                    block_hash=block_hash,
+                ),
+            )
+            validity_period = tempo - blocks_since_last_step
+            era_ = {
+                "period": validity_period,
+                "current": current_block,
+            }
+        else:
+            era_ = {"period": era}
 
     if not neuron.is_null:
         console.print(
@@ -734,7 +754,7 @@ async def burned_register_extrinsic(
             },
         )
         success, err_msg = await subtensor.sign_and_send_extrinsic(
-            call, wallet, wait_for_inclusion, wait_for_finalization
+            call, wallet, wait_for_inclusion, wait_for_finalization, era=era_
         )
 
     if not success:

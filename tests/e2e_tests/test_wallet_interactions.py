@@ -245,6 +245,8 @@ def test_wallet_transfer(local_chain, wallet_setup):
             "--amount",
             "100",
             "--no-prompt",
+            "--era",
+            "144",
         ],
     )
 

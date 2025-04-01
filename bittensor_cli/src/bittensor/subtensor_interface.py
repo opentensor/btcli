@@ -1048,6 +1048,7 @@ class SubtensorInterface:
         wallet: Wallet,
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = False,
+        era: Optional[dict[str, int]] = None,
     ) -> tuple[bool, str]:
         """
         Helper method to sign and submit an extrinsic call to chain.
@@ -1059,8 +1060,11 @@ class SubtensorInterface:
 
         :return: (success, error message)
         """
+        call_args = {"call": call, "keypair": wallet.coldkey}
+        if era is not None:
+            call_args["era"] = era
         extrinsic = await self.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey
+            **call_args
         )  # sign with coldkey
         try:
             response = await self.substrate.submit_extrinsic(

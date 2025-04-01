@@ -38,6 +38,7 @@ async def stake_add(
     safe_staking: bool,
     rate_tolerance: float,
     allow_partial_stake: bool,
+    era: int,
 ):
     """
     Args:
@@ -53,6 +54,7 @@ async def stake_add(
         safe_staking: whether to use safe staking
         rate_tolerance: rate tolerance percentage for stake operations
         allow_partial_stake: whether to allow partial stake
+        era: Blocks for which the transaction should be valid.
 
     Returns:
         bool: True if stake operation is successful, False otherwise
@@ -86,7 +88,10 @@ async def stake_add(
             },
         )
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey, nonce=next_nonce
+            call=call,
+            keypair=wallet.coldkey,
+            nonce=next_nonce,
+            era={"period": era},
         )
         try:
             response = await subtensor.substrate.submit_extrinsic(
@@ -105,7 +110,6 @@ async def stake_add(
                 err_out(f"\n{failure_prelude} with error: {format_error_message(e)}")
             return
         else:
-            await response.process_events()
             if not await response.is_success:
                 err_out(
                     f"\n{failure_prelude} with error: {format_error_message(await response.error_message)}"
@@ -166,7 +170,7 @@ async def stake_add(
             },
         )
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey, nonce=next_nonce
+            call=call, keypair=wallet.coldkey, nonce=next_nonce, era={"period": era}
         )
         try:
             response = await subtensor.substrate.submit_extrinsic(

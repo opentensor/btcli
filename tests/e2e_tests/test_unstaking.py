@@ -139,6 +139,8 @@ def test_unstaking(local_chain, wallet_setup):
                 "--partial",
                 "--tolerance",
                 "0.5",
+                "--era",
+                "144",
             ],
         )
         assert "✅ Finalized" in stake_result.stdout
@@ -184,6 +186,8 @@ def test_unstaking(local_chain, wallet_setup):
             "--partial",
             "--tolerance",
             "0.5",
+            "--era",
+            "144",
         ],
     )
     assert "✅ Finalized" in partial_unstake_netuid_2.stdout
@@ -229,6 +233,8 @@ def test_unstaking(local_chain, wallet_setup):
             "--all-alpha",
             "--no-prompt",
             "--verbose",
+            "--era",
+            "144",
         ],
     )
 
@@ -258,6 +264,8 @@ def test_unstaking(local_chain, wallet_setup):
                 "--partial",
                 "--tolerance",
                 "0.5",
+                "--era",
+                "144",
             ],
         )
         assert "✅ Finalized" in stake_result.stdout
@@ -277,6 +285,8 @@ def test_unstaking(local_chain, wallet_setup):
             "ws://127.0.0.1:9945",
             "--all",
             "--no-prompt",
+            "--era",
+            "144",
         ],
     )
     assert "✅ Finalized: Successfully unstaked all stakes from" in unstake_all.stdout
