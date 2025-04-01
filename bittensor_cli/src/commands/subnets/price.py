@@ -804,9 +804,7 @@ def _generate_cli_output(subnet_data, block_numbers, interval_hours, log_scale):
 
         fig.plot(
             block_numbers,
-            data[
-                "prices"
-            ],  # TODO should this use `prices` instead of `data["prices"]`?
+            prices,
             label=f"Subnet {netuid} Price",
             interp="linear",
             lc="bae98f",
