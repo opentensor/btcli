@@ -44,6 +44,7 @@ async def unstake(
     rate_tolerance: float,
     allow_partial_stake: bool,
     json_output: bool,
+    era: int,
 ):
     """Unstake from hotkey(s)."""
     with console.status(
@@ -197,9 +198,25 @@ async def unstake(
                 )
                 continue  # Skip to the next subnet - useful when single amount is specified for all subnets
 
-            received_amount, slippage_pct, slippage_pct_float = _calculate_slippage(
-                subnet_info=subnet_info, amount=amount_to_unstake_as_balance
+            stake_fee = await subtensor.get_stake_fee(
+                origin_hotkey_ss58=staking_address_ss58,
+                origin_netuid=netuid,
+                origin_coldkey_ss58=wallet.coldkeypub.ss58_address,
+                destination_hotkey_ss58=None,
+                destination_netuid=None,
+                destination_coldkey_ss58=wallet.coldkeypub.ss58_address,
+                amount=amount_to_unstake_as_balance.rao,
             )
+
+            try:
+                received_amount, slippage_pct, slippage_pct_float = _calculate_slippage(
+                    subnet_info=subnet_info,
+                    amount=amount_to_unstake_as_balance,
+                    stake_fee=stake_fee,
+                )
+            except ValueError:
+                continue
+
             total_received_amount += received_amount
             max_float_slippage = max(max_float_slippage, slippage_pct_float)
 
@@ -223,6 +240,7 @@ async def unstake(
                 str(amount_to_unstake_as_balance),  # Amount to Unstake
                 str(subnet_info.price.tao)
                 + f"({Balance.get_unit(0)}/{Balance.get_unit(netuid)})",  # Rate
+                str(stake_fee),  # Fee
                 str(received_amount),  # Received Amount
                 slippage_pct,  # Slippage Percent
             ]
@@ -289,6 +307,7 @@ async def unstake(
                 "amount": op["amount_to_unstake"],
                 "hotkey_ss58": op["hotkey_ss58"],
                 "status": status,
+                "era": era
             }
 
             if safe_staking and op["netuid"] != 0:
@@ -327,6 +346,7 @@ async def unstake_all(
     all_hotkeys: bool = False,
     include_hotkeys: Optional[list[str]] = None,
     exclude_hotkeys: Optional[list[str]] = None,
+    era: int = 3,
     prompt: bool = True,
     json_output: bool = False,
 ) -> bool:
@@ -419,6 +439,11 @@ async def unstake_all(
             style=COLOR_PALETTE["POOLS"]["RATE"],
         )
         table.add_column(
+            f"Fee ({Balance.unit})",
+            justify="center",
+            style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
+        )
+        table.add_column(
             f"Recieved ({Balance.unit})",
             justify="center",
             style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
@@ -439,9 +464,22 @@ async def unstake_all(
             hotkey_display = hotkey_names.get(stake.hotkey_ss58, stake.hotkey_ss58)
             subnet_info = all_sn_dynamic_info.get(stake.netuid)
             stake_amount = stake.stake
-            received_amount, slippage_pct, slippage_pct_float = _calculate_slippage(
-                subnet_info=subnet_info, amount=stake_amount
+            stake_fee = await subtensor.get_stake_fee(
+                origin_hotkey_ss58=stake.hotkey_ss58,
+                origin_netuid=stake.netuid,
+                origin_coldkey_ss58=wallet.coldkeypub.ss58_address,
+                destination_hotkey_ss58=None,
+                destination_netuid=None,
+                destination_coldkey_ss58=wallet.coldkeypub.ss58_address,
+                amount=stake_amount.rao,
             )
+            try:
+                received_amount, slippage_pct, slippage_pct_float = _calculate_slippage(
+                    subnet_info=subnet_info, amount=stake_amount, stake_fee=stake_fee
+                )
+            except ValueError:
+                continue
+
             max_slippage = max(max_slippage, slippage_pct_float)
             total_received_value += received_amount
 
@@ -451,6 +489,7 @@ async def unstake_all(
                 str(stake_amount),
                 str(float(subnet_info.price))
                 + f"({Balance.get_unit(0)}/{Balance.get_unit(stake.netuid)})",
+                str(stake_fee),
                 str(received_amount),
                 slippage_pct,
             )
@@ -488,6 +527,7 @@ async def unstake_all(
                 hotkey_name=hotkey_names.get(hotkey_ss58, hotkey_ss58),
                 unstake_all_alpha=unstake_all_alpha,
                 status=status,
+                era=era,
             )
     if json_output:
         return json_console.print(json.dumps({"success": successes}))
@@ -502,6 +542,7 @@ async def _unstake_extrinsic(
     current_stake: Balance,
     hotkey_ss58: str,
     status=None,
+    era: int = 3,
 ) -> bool:
     """Execute a standard unstake extrinsic.
 
@@ -513,6 +554,7 @@ async def _unstake_extrinsic(
         wallet: Wallet instance
         subtensor: Subtensor interface
         status: Optional status for console updates
+        era: blocks for which the transaction is valid
     """
     err_out = partial(print_error, status=status)
     failure_prelude = (
@@ -537,7 +579,7 @@ async def _unstake_extrinsic(
         ),
     )
     extrinsic = await subtensor.substrate.create_signed_extrinsic(
-        call=call, keypair=wallet.coldkey
+        call=call, keypair=wallet.coldkey, era={"period": era}
     )
 
     try:
@@ -586,6 +628,7 @@ async def _safe_unstake_extrinsic(
     price_limit: Balance,
     allow_partial_stake: bool,
     status=None,
+    era: int = 3,
 ) -> bool:
     """Execute a safe unstake extrinsic with price limit.
 
@@ -635,7 +678,7 @@ async def _safe_unstake_extrinsic(
     )
 
     extrinsic = await subtensor.substrate.create_signed_extrinsic(
-        call=call, keypair=wallet.coldkey, nonce=next_nonce
+        call=call, keypair=wallet.coldkey, nonce=next_nonce, era={"period": era}
     )
 
     try:
@@ -699,6 +742,7 @@ async def _unstake_all_extrinsic(
     hotkey_name: str,
     unstake_all_alpha: bool,
     status=None,
+    era: int = 3,
 ) -> None:
     """Execute an unstake all extrinsic.
 
@@ -749,8 +793,7 @@ async def _unstake_all_extrinsic(
     try:
         response = await subtensor.substrate.submit_extrinsic(
             extrinsic=await subtensor.substrate.create_signed_extrinsic(
-                call=call,
-                keypair=wallet.coldkey,
+                call=call, keypair=wallet.coldkey, era={"period": era}
             ),
             wait_for_inclusion=True,
             wait_for_finalization=False,
@@ -806,28 +849,47 @@ async def _unstake_all_extrinsic(
 
 
 # Helpers
-def _calculate_slippage(subnet_info, amount: Balance) -> tuple[Balance, str, float]:
+def _calculate_slippage(
+    subnet_info, amount: Balance, stake_fee: Balance
+) -> tuple[Balance, str, float]:
     """Calculate slippage and received amount for unstaking operation.
 
     Args:
         subnet_info: Subnet information containing price data
         amount: Amount being unstaked
+        stake_fee: Stake fee to include in slippage calculation
 
     Returns:
         tuple containing:
-        - received_amount: Balance after slippage
+        - received_amount: Balance after slippage deduction
         - slippage_pct: Formatted string of slippage percentage
         - slippage_pct_float: Float value of slippage percentage
     """
-    received_amount, _, slippage_pct_float = subnet_info.alpha_to_tao_with_slippage(
-        amount
-    )
+    received_amount, _, _ = subnet_info.alpha_to_tao_with_slippage(amount)
+    received_amount -= stake_fee
+
+    if received_amount < Balance.from_tao(0):
+        print_error("Not enough Alpha to pay the transaction fee.")
+        raise ValueError
 
     if subnet_info.is_dynamic:
+        # Ideal amount w/o slippage
+        ideal_amount = subnet_info.alpha_to_tao(amount)
+
+        # Total slippage including fees
+        total_slippage = ideal_amount - received_amount
+        slippage_pct_float = (
+            100 * (float(total_slippage.tao) / float(ideal_amount.tao))
+            if ideal_amount.tao != 0
+            else 0
+        )
         slippage_pct = f"{slippage_pct_float:.4f} %"
     else:
-        slippage_pct_float = 0
-        slippage_pct = "[red]N/A[/red]"
+        # Root will only have fee-based slippage
+        slippage_pct_float = (
+            100 * float(stake_fee.tao) / float(amount.tao) if amount.tao != 0 else 0
+        )
+        slippage_pct = f"{slippage_pct_float:.4f} %"
 
     return received_amount, slippage_pct, slippage_pct_float
 
@@ -1190,6 +1252,11 @@ def _create_unstake_table(
         style=COLOR_PALETTE["POOLS"]["RATE"],
     )
     table.add_column(
+        f"Fee ({Balance.get_unit(0)})",
+        justify="center",
+        style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
+    )
+    table.add_column(
         f"Received ({Balance.get_unit(0)})",
         justify="center",
         style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
@@ -1242,7 +1309,8 @@ The columns are as follows:
     - [bold white]Hotkey[/bold white]: The ss58 address or identity of the hotkey you are unstaking from. 
     - [bold white]Amount to Unstake[/bold white]: The stake amount you are removing from this key.
     - [bold white]Rate[/bold white]: The rate of exchange between TAO and the subnet's stake.
-    - [bold white]Received[/bold white]: The amount of free balance TAO you will receive on this subnet after slippage.
+    - [bold white]Fee[/bold white]: The transaction fee for this unstake operation.
+    - [bold white]Received[/bold white]: The amount of free balance TAO you will receive on this subnet after slippage and fees.
     - [bold white]Slippage[/bold white]: The slippage percentage of the unstake operation. (0% if the subnet is not dynamic i.e. root)."""
 
     safe_staking_description = """

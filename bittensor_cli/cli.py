@@ -112,6 +112,17 @@ class Options:
         "--wallet.hotkey",
         help="Hotkey of the wallet",
     )
+    wallet_ss58_address = typer.Option(
+        None,
+        "--wallet-name",
+        "--name",
+        "--wallet_name",
+        "--wallet.name",
+        "--address",
+        "--ss58",
+        "--ss58-address",
+        help="SS58 address or wallet name to check. Leave empty to be prompted.",
+    )
     wallet_hotkey_ss58 = typer.Option(
         None,
         "--hotkey",
@@ -276,6 +287,9 @@ class Options:
         "--json-output",
         "--json-out",
         help="Outputs the result of the command as JSON.",
+    )
+    era: int = typer.Option(
+        3, help="Length (in blocks) for which the transaction should be valid."
     )
 
 
@@ -703,6 +717,12 @@ class CLIManager:
             "swap-hotkey", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
         )(self.wallet_swap_hotkey)
         self.wallet_app.command(
+            "swap-coldkey", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
+        )(self.wallet_swap_coldkey)
+        self.wallet_app.command(
+            "swap-check", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
+        )(self.wallet_check_ck_swap)
+        self.wallet_app.command(
             "regen-coldkey", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
         )(self.wallet_regen_coldkey)
         self.wallet_app.command(
@@ -717,6 +737,9 @@ class CLIManager:
         self.wallet_app.command(
             "new-coldkey", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"]
         )(self.wallet_new_coldkey)
+        self.wallet_app.command(
+            "associate-hotkey", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"]
+        )(self.wallet_associate_hotkey)
         self.wallet_app.command(
             "create", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"]
         )(self.wallet_create_wallet)
@@ -1756,6 +1779,7 @@ class CLIManager:
         transfer_all: bool = typer.Option(
             False, "--all", prompt=False, help="Transfer all available balance."
         ),
+        era: int = Options.era,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -1805,13 +1829,14 @@ class CLIManager:
             amount = FloatPrompt.ask("Enter amount (in TAO) to transfer.")
         return self._run_command(
             wallets.transfer(
-                wallet,
-                subtensor,
-                destination_ss58_address,
-                amount,
-                transfer_all,
-                prompt,
-                json_output,
+                wallet=wallet,
+                subtensor=subtensor,
+                destination=destination_ss58_address,
+                amount=amount,
+                transfer_all=transfer_all,
+                era=era,
+                prompt=prompt,
+                json_output=json_output,
             )
         )
 
@@ -2292,6 +2317,74 @@ class CLIManager:
             )
         )
 
+    def wallet_associate_hotkey(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey_ss58,
+        network: Optional[list[str]] = Options.network,
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Associate a hotkey with a wallet(coldkey).
+
+        USAGE
+
+        This command is used to associate a hotkey with a wallet(coldkey).
+
+        EXAMPLE
+
+        [green]$[/green] btcli wallet associate-hotkey --hotkey-name hotkey_name
+        [green]$[/green] btcli wallet associate-hotkey --hotkey-ss58 5DkQ4...
+        """
+        self.verbosity_handler(quiet, verbose)
+        if not wallet_name:
+            wallet_name = Prompt.ask(
+                "Enter the [blue]wallet name[/blue] [dim](which you want to associate with the hotkey)[/dim]",
+                default=self.config.get("wallet_name") or defaults.wallet.name,
+            )
+        if not wallet_hotkey:
+            wallet_hotkey = Prompt.ask(
+                "Enter the [blue]hotkey[/blue] name or "
+                "[blue]hotkey ss58 address[/blue] [dim](to associate with your coldkey)[/dim]"
+            )
+
+        hotkey_display = None
+        if is_valid_ss58_address(wallet_hotkey):
+            hotkey_ss58 = wallet_hotkey
+            wallet = self.wallet_ask(
+                wallet_name,
+                wallet_path,
+                None,
+                ask_for=[WO.NAME, WO.PATH],
+                validate=WV.WALLET,
+            )
+            hotkey_display = (
+                f"hotkey [{COLORS.GENERAL.HK}]{hotkey_ss58}[/{COLORS.GENERAL.HK}]"
+            )
+        else:
+            wallet = self.wallet_ask(
+                wallet_name,
+                wallet_path,
+                wallet_hotkey,
+                ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+                validate=WV.WALLET_AND_HOTKEY,
+            )
+            hotkey_ss58 = wallet.hotkey.ss58_address
+            hotkey_display = f"hotkey [blue]{wallet_hotkey}[/blue] [{COLORS.GENERAL.HK}]({hotkey_ss58})[/{COLORS.GENERAL.HK}]"
+
+        return self._run_command(
+            wallets.associate_hotkey(
+                wallet,
+                self.initialize_chain(network),
+                hotkey_ss58,
+                hotkey_display,
+                prompt,
+            )
+        )
+
     def wallet_new_coldkey(
         self,
         wallet_name: Optional[str] = Options.wallet_name,
@@ -2353,29 +2446,93 @@ class CLIManager:
 
     def wallet_check_ck_swap(
         self,
-        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_ss58_address: Optional[str] = Options.wallet_ss58_address,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        scheduled_block: Optional[int] = typer.Option(
+            None,
+            "--block",
+            help="Block number where the swap was scheduled",
+        ),
+        show_all: bool = typer.Option(
+            False,
+            "--all",
+            "-a",
+            help="Show all pending coldkey swaps",
+        ),
         network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
         """
-        Check the status of your scheduled coldkey swap.
+        Check the status of scheduled coldkey swaps.
 
         USAGE
 
-        Users should provide the old coldkey wallet to check the swap status.
+        This command can be used in three ways:
+        1. Show all pending swaps (--all)
+        2. Check status of a specific wallet's swap or SS58 address
+        3. Check detailed swap status with block number (--block)
 
-        EXAMPLE
+        EXAMPLES
 
-        [green]$[/green] btcli wallet check_coldkey_swap
+        Show all pending swaps:
+        [green]$[/green] btcli wallet swap-check --all
+
+        Check specific wallet's swap:
+        [green]$[/green] btcli wallet swap-check --wallet-name my_wallet
+
+        Check swap using SS58 address:
+        [green]$[/green] btcli wallet swap-check --ss58 5DkQ4...
+
+        Check swap details with block number:
+        [green]$[/green] btcli wallet swap-check --wallet-name my_wallet --block 12345
         """
         # TODO add json_output if this ever gets used again (doubtful)
         self.verbosity_handler(quiet, verbose)
-        wallet = self.wallet_ask(wallet_name, wallet_path, wallet_hotkey)
         self.initialize_chain(network)
-        return self._run_command(wallets.check_coldkey_swap(wallet, self.subtensor))
+
+        if show_all:
+            return self._run_command(
+                wallets.check_swap_status(self.subtensor, None, None)
+            )
+
+        if not wallet_ss58_address:
+            wallet_ss58_address = Prompt.ask(
+                "Enter [blue]wallet name[/blue] or [blue]SS58 address[/blue] [dim](leave blank to show all pending swaps)[/dim]"
+            )
+            if not wallet_ss58_address:
+                return self._run_command(
+                    wallets.check_swap_status(self.subtensor, None, None)
+                )
+
+        if is_valid_ss58_address(wallet_ss58_address):
+            ss58_address = wallet_ss58_address
+        else:
+            wallet = self.wallet_ask(
+                wallet_ss58_address,
+                wallet_path,
+                wallet_hotkey,
+                ask_for=[WO.NAME, WO.PATH],
+                validate=WV.WALLET,
+            )
+            ss58_address = wallet.coldkeypub.ss58_address
+
+        if not scheduled_block:
+            block_input = Prompt.ask(
+                "[blue]Enter the block number[/blue] where the swap was scheduled [dim](optional, press enter to skip)[/dim]",
+                default="",
+            )
+            if block_input:
+                try:
+                    scheduled_block = int(block_input)
+                except ValueError:
+                    print_error("Invalid block number")
+                    raise typer.Exit()
+
+        return self._run_command(
+            wallets.check_swap_status(self.subtensor, ss58_address, scheduled_block)
+        )
 
     def wallet_create_wallet(
         self,
@@ -2820,6 +2977,91 @@ class CLIManager:
 
         return self._run_command(wallets.sign(wallet, message, use_hotkey, json_output))
 
+    def wallet_swap_coldkey(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        new_wallet_or_ss58: Optional[str] = typer.Option(
+            None,
+            "--new-coldkey",
+            "--new-coldkey-ss58",
+            "--new-wallet",
+            "--new",
+            help="SS58 address of the new coldkey that will replace the current one.",
+        ),
+        network: Optional[list[str]] = Options.network,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        force_swap: bool = typer.Option(
+            False,
+            "--force",
+            "-f",
+            "--force-swap",
+            help="Force the swap even if the new coldkey is already scheduled for a swap.",
+        ),
+    ):
+        """
+        Schedule a coldkey swap for a wallet.
+
+        This command allows you to schedule a coldkey swap for a wallet. You can either provide a new wallet name, or SS58 address.
+
+        EXAMPLES
+
+        [green]$[/green] btcli wallet schedule-coldkey-swap --new-wallet my_new_wallet
+
+        [green]$[/green] btcli wallet schedule-coldkey-swap --new-coldkey-ss58 5Dk...X3q
+        """
+        self.verbosity_handler(quiet, verbose)
+
+        if not wallet_name:
+            wallet_name = Prompt.ask(
+                "Enter the [blue]wallet name[/blue] which you want to swap the coldkey for",
+                default=self.config.get("wallet_name") or defaults.wallet.name,
+            )
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME],
+            validate=WV.WALLET,
+        )
+        console.print(
+            f"\nWallet selected to swap the [blue]coldkey[/blue] from: \n"
+            f"[dark_sea_green3]{wallet}[/dark_sea_green3]\n"
+        )
+
+        if not new_wallet_or_ss58:
+            new_wallet_or_ss58 = Prompt.ask(
+                "Enter the [blue]new wallet name[/blue] or [blue]SS58 address[/blue] of the new coldkey",
+            )
+
+        if is_valid_ss58_address(new_wallet_or_ss58):
+            new_wallet_coldkey_ss58 = new_wallet_or_ss58
+        else:
+            new_wallet_name = new_wallet_or_ss58
+            new_wallet = self.wallet_ask(
+                new_wallet_name,
+                wallet_path,
+                wallet_hotkey,
+                ask_for=[WO.NAME],
+                validate=WV.WALLET,
+            )
+            console.print(
+                f"\nNew wallet to swap the [blue]coldkey[/blue] to: \n"
+                f"[dark_sea_green3]{new_wallet}[/dark_sea_green3]\n"
+            )
+            new_wallet_coldkey_ss58 = new_wallet.coldkeypub.ss58_address
+
+        return self._run_command(
+            wallets.schedule_coldkey_swap(
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                new_coldkey_ss58=new_wallet_coldkey_ss58,
+                force_swap=force_swap,
+            )
+        )
+
     def stake_list(
         self,
         network: Optional[list[str]] = Options.network,
@@ -2935,6 +3177,7 @@ class CLIManager:
         rate_tolerance: Optional[float] = Options.rate_tolerance,
         safe_staking: Optional[bool] = Options.safe_staking,
         allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
+        era: int = Options.era,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3130,6 +3373,7 @@ class CLIManager:
                 rate_tolerance,
                 allow_partial_stake,
                 json_output,
+                era,
             )
         )
 
@@ -3181,6 +3425,7 @@ class CLIManager:
         rate_tolerance: Optional[float] = Options.rate_tolerance,
         safe_staking: Optional[bool] = Options.safe_staking,
         allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
+        era: int = Options.era,
         prompt: bool = Options.prompt,
         interactive: bool = typer.Option(
             False,
@@ -3373,6 +3618,7 @@ class CLIManager:
                     exclude_hotkeys=exclude_hotkeys,
                     prompt=prompt,
                     json_output=json_output,
+                    era=era,
                 )
             )
         elif (
@@ -3428,6 +3674,7 @@ class CLIManager:
                 rate_tolerance=rate_tolerance,
                 allow_partial_stake=allow_partial_stake,
                 json_output=json_output,
+                era=era,
             )
         )
 
@@ -3455,6 +3702,7 @@ class CLIManager:
         stake_all: bool = typer.Option(
             False, "--stake-all", "--all", help="Stake all", prompt=False
         ),
+        era: int = Options.era,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3584,6 +3832,7 @@ class CLIManager:
                 destination_hotkey=destination_hotkey,
                 amount=amount,
                 stake_all=stake_all,
+                era=era,
                 interactive_selection=interactive_selection,
                 prompt=prompt,
             )
@@ -3624,6 +3873,7 @@ class CLIManager:
         stake_all: bool = typer.Option(
             False, "--stake-all", "--all", help="Stake all", prompt=False
         ),
+        era: int = Options.era,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3745,6 +3995,7 @@ class CLIManager:
                 dest_netuid=dest_netuid,
                 dest_coldkey_ss58=dest_ss58,
                 amount=amount,
+                era=era,
                 interactive_selection=interactive_selection,
                 stake_all=stake_all,
                 prompt=prompt,
@@ -3786,6 +4037,7 @@ class CLIManager:
             "--all",
             help="Swap all available stake",
         ),
+        era: int = Options.era,
         prompt: bool = Options.prompt,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
@@ -3849,6 +4101,7 @@ class CLIManager:
                 destination_netuid=dest_netuid,
                 amount=amount,
                 swap_all=swap_all,
+                era=era,
                 interactive_selection=interactive_selection,
                 prompt=prompt,
                 wait_for_inclusion=wait_for_inclusion,
@@ -4642,7 +4895,7 @@ class CLIManager:
         wallet_hotkey: str = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
         subnet_name: Optional[str] = typer.Option(
-            None, "--subnet-name", "--name", help="Name of the subnet"
+            None, "--subnet-name", help="Name of the subnet"
         ),
         github_repo: Optional[str] = typer.Option(
             None, "--github-repo", "--repo", help="GitHub repository URL"
@@ -4936,6 +5189,13 @@ class CLIManager:
         wallet_hotkey: str = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
         netuid: int = Options.netuid,
+        era: Optional[
+            int
+        ] = typer.Option(  # Should not be Options.era bc this needs to be an Optional[int]
+            None,
+            help="Length (in blocks) for which the transaction should be valid. Note that it is possible that if you "
+            "use an era for this transaction that you may pay a different fee to register than the one stated.",
+        ),
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -4964,6 +5224,7 @@ class CLIManager:
                 wallet,
                 self.initialize_chain(network),
                 netuid,
+                era,
                 prompt,
             )
         )

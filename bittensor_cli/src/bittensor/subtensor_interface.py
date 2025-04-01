@@ -1048,6 +1048,7 @@ class SubtensorInterface:
         wallet: Wallet,
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = False,
+        era: Optional[dict[str, int]] = None,
     ) -> tuple[bool, str]:
         """
         Helper method to sign and submit an extrinsic call to chain.
@@ -1059,8 +1060,11 @@ class SubtensorInterface:
 
         :return: (success, error message)
         """
+        call_args = {"call": call, "keypair": wallet.coldkey}
+        if era is not None:
+            call_args["era"] = era
         extrinsic = await self.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey
+            **call_args
         )  # sign with coldkey
         try:
             response = await self.substrate.submit_extrinsic(
@@ -1435,3 +1439,119 @@ class SubtensorInterface:
         )
 
         return [decode_account_id(hotkey[0]) for hotkey in owned_hotkeys or []]
+
+    async def get_stake_fee(
+        self,
+        origin_hotkey_ss58: Optional[str],
+        origin_netuid: Optional[int],
+        origin_coldkey_ss58: str,
+        destination_hotkey_ss58: Optional[str],
+        destination_netuid: Optional[int],
+        destination_coldkey_ss58: str,
+        amount: int,
+        block_hash: Optional[str] = None,
+    ) -> Balance:
+        """
+        Calculates the fee for a staking operation.
+
+        :param origin_hotkey_ss58: SS58 address of source hotkey (None for new stake)
+        :param origin_netuid: Netuid of source subnet (None for new stake)
+        :param origin_coldkey_ss58: SS58 address of source coldkey
+        :param destination_hotkey_ss58: SS58 address of destination hotkey (None for removing stake)
+        :param destination_netuid: Netuid of destination subnet (None for removing stake)
+        :param destination_coldkey_ss58: SS58 address of destination coldkey
+        :param amount: Amount of stake to transfer in RAO
+        :param block_hash: Optional block hash at which to perform the calculation
+
+        :return: The calculated stake fee as a Balance object
+
+        When to use None:
+
+        1. Adding new stake (default fee):
+        - origin_hotkey_ss58 = None
+        - origin_netuid = None
+        - All other fields required
+
+        2. Removing stake (default fee):
+        - destination_hotkey_ss58 = None
+        - destination_netuid = None
+        - All other fields required
+
+        For all other operations, no None values - provide all parameters:
+        3. Moving between subnets
+        4. Moving between hotkeys
+        5. Moving between coldkeys
+        """
+
+        origin = None
+        if origin_hotkey_ss58 is not None and origin_netuid is not None:
+            origin = (origin_hotkey_ss58, origin_netuid)
+
+        destination = None
+        if destination_hotkey_ss58 is not None and destination_netuid is not None:
+            destination = (destination_hotkey_ss58, destination_netuid)
+
+        result = await self.query_runtime_api(
+            runtime_api="StakeInfoRuntimeApi",
+            method="get_stake_fee",
+            params=[
+                origin,
+                origin_coldkey_ss58,
+                destination,
+                destination_coldkey_ss58,
+                amount,
+            ],
+            block_hash=block_hash,
+        )
+
+        return Balance.from_rao(result)
+
+    async def get_scheduled_coldkey_swap(
+        self,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> Optional[list[str]]:
+        """
+        Queries the chain to fetch the list of coldkeys that are scheduled for a swap.
+
+        :param block_hash: Block hash at which to perform query.
+        :param reuse_block: Whether to reuse the last-used block hash.
+
+        :return: A list of SS58 addresses of the coldkeys that are scheduled for a coldkey swap.
+        """
+        result = await self.substrate.query_map(
+            module="SubtensorModule",
+            storage_function="ColdkeySwapScheduled",
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        keys_pending_swap = []
+        async for ss58, _ in result:
+            keys_pending_swap.append(decode_account_id(ss58))
+        return keys_pending_swap
+
+    async def get_coldkey_swap_schedule_duration(
+        self,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> int:
+        """
+        Retrieves the duration (in blocks) required for a coldkey swap to be executed.
+
+        Args:
+            block_hash: The hash of the blockchain block number for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            int: The number of blocks required for the coldkey swap schedule duration.
+        """
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="ColdkeySwapScheduleDuration",
+            params=[],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        return result

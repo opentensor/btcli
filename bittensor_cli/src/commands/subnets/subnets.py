@@ -1530,7 +1530,11 @@ async def pow_register(
 
 
 async def register(
-    wallet: Wallet, subtensor: "SubtensorInterface", netuid: int, prompt: bool
+    wallet: Wallet,
+    subtensor: "SubtensorInterface",
+    netuid: int,
+    era: Optional[int],
+    prompt: bool,
 ):
     """Register neuron by recycling some TAO."""
 
@@ -1628,6 +1632,7 @@ async def register(
             netuid=netuid,
             prompt=False,
             old_balance=balance,
+            era=era,
         )
 
 

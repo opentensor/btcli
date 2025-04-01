@@ -15,8 +15,9 @@ from rich.align import Align
 from rich.table import Column, Table
 from rich.tree import Tree
 from rich.padding import Padding
+from rich.prompt import Confirm
 
-from bittensor_cli.src import COLOR_PALETTE
+from bittensor_cli.src import COLOR_PALETTE, COLORS, Constants
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import (
@@ -46,7 +47,76 @@ from bittensor_cli.src.bittensor.utils import (
     millify_tao,
     unlock_key,
     WalletLike,
+    blocks_to_duration,
+    decode_account_id,
 )
+
+
+async def associate_hotkey(
+    wallet: Wallet,
+    subtensor: SubtensorInterface,
+    hotkey_ss58: str,
+    hotkey_display: str,
+    prompt: bool = False,
+):
+    """Associates a hotkey with a wallet"""
+
+    owner_ss58 = await subtensor.get_hotkey_owner(hotkey_ss58)
+    if owner_ss58:
+        if owner_ss58 == wallet.coldkeypub.ss58_address:
+            console.print(
+                f":white_heavy_check_mark: {hotkey_display.capitalize()} is already "
+                f"associated with \nwallet [blue]{wallet.name}[/blue], "
+                f"SS58: [{COLORS.GENERAL.CK}]{owner_ss58}[/{COLORS.GENERAL.CK}]"
+            )
+            return True
+        else:
+            owner_wallet = _get_wallet_by_ss58(wallet.path, owner_ss58)
+            wallet_name = owner_wallet.name if owner_wallet else "unknown wallet"
+            console.print(
+                f"[yellow]Warning[/yellow]: {hotkey_display.capitalize()} is already associated with \n"
+                f"wallet: [blue]{wallet_name}[/blue], SS58: [{COLORS.GENERAL.CK}]{owner_ss58}[/{COLORS.GENERAL.CK}]"
+            )
+            return False
+    else:
+        console.print(
+            f"{hotkey_display.capitalize()} is not associated with any wallet"
+        )
+
+    if prompt and not Confirm.ask("Do you want to continue with the association?"):
+        return False
+
+    if not unlock_key(wallet).success:
+        return False
+
+    call = await subtensor.substrate.compose_call(
+        call_module="SubtensorModule",
+        call_function="try_associate_hotkey",
+        call_params={
+            "hotkey": hotkey_ss58,
+        },
+    )
+
+    with console.status(":satellite: Associating hotkey on-chain..."):
+        success, err_msg = await subtensor.sign_and_send_extrinsic(
+            call,
+            wallet,
+            wait_for_inclusion=True,
+            wait_for_finalization=False,
+        )
+
+        if not success:
+            console.print(
+                f"[red]:cross_mark: Failed to associate hotkey: {err_msg}[/red]"
+            )
+            return False
+
+        console.print(
+            f":white_heavy_check_mark: Successfully associated {hotkey_display} with \n"
+            f"wallet [blue]{wallet.name}[/blue], "
+            f"SS58: [{COLORS.GENERAL.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.GENERAL.CK}]"
+        )
+        return True
 
 
 async def regen_coldkey(
@@ -402,6 +472,15 @@ def get_coldkey_wallets_for_path(path: str) -> list[Wallet]:
         # No wallet files found.
         wallets = []
     return wallets
+
+
+def _get_wallet_by_ss58(path: str, ss58_address: str) -> Optional[Wallet]:
+    """Find a wallet by its SS58 address in the given path."""
+    ss58_addresses, wallet_names = _get_coldkey_ss58_addresses_for_path(path)
+    for wallet_name, addr in zip(wallet_names, ss58_addresses):
+        if addr == ss58_address:
+            return Wallet(path=path, name=wallet_name)
+    return None
 
 
 def _get_coldkey_ss58_addresses_for_path(path: str) -> tuple[list[str], list[str]]:
@@ -1356,6 +1435,7 @@ async def transfer(
     destination: str,
     amount: float,
     transfer_all: bool,
+    era: int,
     prompt: bool,
     json_output: bool,
 ):
@@ -1366,6 +1446,7 @@ async def transfer(
         destination=destination,
         amount=Balance.from_tao(amount),
         transfer_all=transfer_all,
+        era=era,
         prompt=prompt,
     )
     if json_output:
@@ -1748,3 +1829,257 @@ async def sign(
     if json_output:
         json_console.print(json.dumps({"signed_message": signed_message}))
     console.print(signed_message)
+
+
+async def schedule_coldkey_swap(
+    wallet: Wallet,
+    subtensor: SubtensorInterface,
+    new_coldkey_ss58: str,
+    force_swap: bool = False,
+) -> bool:
+    """Schedules a coldkey swap operation to be executed at a future block.
+
+    Args:
+        wallet (Wallet): The wallet initiating the coldkey swap
+        subtensor (SubtensorInterface): Connection to the Bittensor network
+        new_coldkey_ss58 (str): SS58 address of the new coldkey
+        force_swap (bool, optional): Whether to force the swap even if the new coldkey is already scheduled for a swap. Defaults to False.
+    Returns:
+        bool: True if the swap was scheduled successfully, False otherwise
+    """
+    if not is_valid_ss58_address(new_coldkey_ss58):
+        print_error(f"Invalid SS58 address format: {new_coldkey_ss58}")
+        return False
+
+    scheduled_coldkey_swap = await subtensor.get_scheduled_coldkey_swap()
+    if wallet.coldkeypub.ss58_address in scheduled_coldkey_swap:
+        print_error(
+            f"Coldkey {wallet.coldkeypub.ss58_address} is already scheduled for a swap."
+        )
+        console.print("[dim]Use the force_swap (--force) flag to override this.[/dim]")
+        if not force_swap:
+            return False
+        else:
+            console.print(
+                "[yellow]Continuing with the swap due to force_swap flag.[/yellow]\n"
+            )
+
+    prompt = (
+        "You are [red]swapping[/red] your [blue]coldkey[/blue] to a new address.\n"
+        f"Current ss58: [{COLORS.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.G.CK}]\n"
+        f"New ss58: [{COLORS.G.CK}]{new_coldkey_ss58}[/{COLORS.G.CK}]\n"
+        "Are you sure you want to continue?"
+    )
+    if not Confirm.ask(prompt):
+        return False
+
+    if not unlock_key(wallet).success:
+        return False
+
+    block_pre_call, call = await asyncio.gather(
+        subtensor.substrate.get_block_number(),
+        subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="schedule_swap_coldkey",
+            call_params={
+                "new_coldkey": new_coldkey_ss58,
+            },
+        ),
+    )
+
+    with console.status(":satellite: Scheduling coldkey swap on-chain..."):
+        success, err_msg = await subtensor.sign_and_send_extrinsic(
+            call,
+            wallet,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+        )
+        block_post_call = await subtensor.substrate.get_block_number()
+
+        if not success:
+            print_error(f"Failed to schedule coldkey swap: {err_msg}")
+            return False
+
+        console.print(
+            ":white_heavy_check_mark: [green]Successfully scheduled coldkey swap"
+        )
+
+    swap_info = await find_coldkey_swap_extrinsic(
+        subtensor=subtensor,
+        start_block=block_pre_call,
+        end_block=block_post_call,
+        wallet_ss58=wallet.coldkeypub.ss58_address,
+    )
+
+    if not swap_info:
+        console.print(
+            "[yellow]Warning: Could not find the swap extrinsic in recent blocks"
+        )
+        return True
+
+    console.print(
+        "\n[green]Coldkey swap details:[/green]"
+        f"\nBlock number: {swap_info['block_num']}"
+        f"\nOriginal address: [{COLORS.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.G.CK}]"
+        f"\nDestination address: [{COLORS.G.CK}]{swap_info['dest_coldkey']}[/{COLORS.G.CK}]"
+        f"\nThe swap will be completed at block: [green]{swap_info['execution_block']}[/green]"
+        f"\n[dim]You can provide the block number to `btcli wallet swap-check`[/dim]"
+    )
+
+
+async def find_coldkey_swap_extrinsic(
+    subtensor: SubtensorInterface,
+    start_block: int,
+    end_block: int,
+    wallet_ss58: str,
+) -> dict:
+    """Search for a coldkey swap event in a range of blocks.
+
+    Args:
+        subtensor: SubtensorInterface for chain queries
+        start_block: Starting block number to search
+        end_block: Ending block number to search (inclusive)
+        wallet_ss58: SS58 address of the signing wallet
+
+    Returns:
+        dict: Contains the following keys if found:
+            - block_num: Block number where swap was scheduled
+            - dest_coldkey: SS58 address of destination coldkey
+            - execution_block: Block number when swap will execute
+        Empty dict if not found
+    """
+
+    current_block, genesis_block = await asyncio.gather(
+        subtensor.substrate.get_block_number(), subtensor.substrate.get_block_hash(0)
+    )
+    if (
+        current_block - start_block > 300
+        and genesis_block == Constants.genesis_block_hash_map["finney"]
+    ):
+        console.print("Querying archive node for coldkey swap events...")
+        await subtensor.substrate.close()
+        subtensor = SubtensorInterface("archive")
+
+    block_hashes = await asyncio.gather(
+        *[
+            subtensor.substrate.get_block_hash(block_num)
+            for block_num in range(start_block, end_block + 1)
+        ]
+    )
+    block_events = await asyncio.gather(
+        *[
+            subtensor.substrate.get_events(block_hash=block_hash)
+            for block_hash in block_hashes
+        ]
+    )
+
+    for block_num, events in zip(range(start_block, end_block + 1), block_events):
+        for event in events:
+            if (
+                event.get("event", {}).get("module_id") == "SubtensorModule"
+                and event.get("event", {}).get("event_id") == "ColdkeySwapScheduled"
+            ):
+                attributes = event["event"].get("attributes", {})
+                old_coldkey = decode_account_id(attributes["old_coldkey"][0])
+
+                if old_coldkey == wallet_ss58:
+                    return {
+                        "block_num": block_num,
+                        "dest_coldkey": decode_account_id(attributes["new_coldkey"][0]),
+                        "execution_block": attributes["execution_block"],
+                    }
+
+    return {}
+
+
+async def check_swap_status(
+    subtensor: SubtensorInterface,
+    origin_ss58: Optional[str] = None,
+    expected_block_number: Optional[int] = None,
+) -> None:
+    """
+    Check the status of a coldkey swap.
+
+    Args:
+        subtensor: Connection to the network
+        origin_ss58: The SS58 address of the original coldkey
+        block_number: Optional block number where the swap was scheduled
+    """
+    scheduled_swaps = await subtensor.get_scheduled_coldkey_swap()
+
+    if not origin_ss58:
+        if not scheduled_swaps:
+            console.print("[yellow]No pending coldkey swaps found.[/yellow]")
+            return
+
+        table = Table(
+            Column(
+                "Original Coldkey",
+                justify="Left",
+                style=COLOR_PALETTE["GENERAL"]["SUBHEADING_MAIN"],
+                no_wrap=True,
+            ),
+            Column("Status", style="dark_sea_green3"),
+            title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Pending Coldkey Swaps\n",
+            show_header=True,
+            show_edge=False,
+            header_style="bold white",
+            border_style="bright_black",
+            style="bold",
+            title_justify="center",
+            show_lines=False,
+            pad_edge=True,
+        )
+
+        for coldkey in scheduled_swaps:
+            table.add_row(coldkey, "Pending")
+
+        console.print(table)
+        console.print(
+            "\n[dim]Tip: Check specific swap details by providing the original coldkey SS58 address and the block number.[/dim]"
+        )
+        return
+
+    is_pending = origin_ss58 in scheduled_swaps
+
+    if not is_pending:
+        console.print(
+            f"[red]No pending swap found for coldkey:[/red] [{COLORS.G.CK}]{origin_ss58}[/{COLORS.G.CK}]"
+        )
+        return
+
+    console.print(
+        f"[green]Found pending swap for coldkey:[/green] [{COLORS.G.CK}]{origin_ss58}[/{COLORS.G.CK}]"
+    )
+
+    if expected_block_number is None:
+        return
+
+    swap_info = await find_coldkey_swap_extrinsic(
+        subtensor=subtensor,
+        start_block=expected_block_number,
+        end_block=expected_block_number,
+        wallet_ss58=origin_ss58,
+    )
+
+    if not swap_info:
+        console.print(
+            f"[yellow]Warning: Could not find swap extrinsic at block {expected_block_number}[/yellow]"
+        )
+        return
+
+    current_block = await subtensor.substrate.get_block_number()
+    remaining_blocks = swap_info["execution_block"] - current_block
+
+    if remaining_blocks <= 0:
+        console.print("[green]Swap period has completed![/green]")
+        return
+
+    console.print(
+        "\n[green]Coldkey swap details:[/green]"
+        f"\nScheduled at block: {swap_info['block_num']}"
+        f"\nOriginal address: [{COLORS.G.CK}]{origin_ss58}[/{COLORS.G.CK}]"
+        f"\nDestination address: [{COLORS.G.CK}]{swap_info['dest_coldkey']}[/{COLORS.G.CK}]"
+        f"\nCompletion block: {swap_info['execution_block']}"
+        f"\nTime remaining: {blocks_to_duration(remaining_blocks)}"
+    )

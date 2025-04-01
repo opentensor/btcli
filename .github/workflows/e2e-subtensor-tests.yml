@@ -24,48 +24,81 @@ env:
   VERBOSE: ${{ github.event.inputs.verbose }}
 
 jobs:
-  run-tests:
-    runs-on: SubtensorCI
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
-    timeout-minutes: 180
-    env:
-      RELEASE_NAME: development
-      RUSTV: stable
-      RUST_BACKTRACE: full
-      RUST_BIN_DIR: target/x86_64-unknown-linux-gnu
-      TARGET: x86_64-unknown-linux-gnu
 
+  find-tests:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    outputs:
+      test-files: ${{ steps.get-tests.outputs.test-files }}
     steps:
       - name: Check-out repository under $GITHUB_WORKSPACE
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Find test files
+        id: get-tests
         run: |
-          sudo apt-get update &&
-          sudo apt-get install -y clang curl libssl-dev llvm libudev-dev protobuf-compiler
+          test_files=$(find tests/e2e_tests -name "test*.py" | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          echo "::set-output name=test-files::$test_files"
+        shell: bash
 
-      - name: Install Rust ${{ env.RUSTV }}
-        uses: actions-rs/toolchain@v1.0.6
+  pull-docker-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
+
+      - name: Pull Docker Image
+        run: docker pull ghcr.io/opentensor/subtensor-localnet:devnet-ready
+
+      - name: Save Docker Image to Cache
+        run: docker save -o subtensor-localnet.tar ghcr.io/opentensor/subtensor-localnet:devnet-ready
+
+      - name: Upload Docker Image as Artifact
+        uses: actions/upload-artifact@v4
         with:
-          toolchain: ${{ env.RUSTV }}
-          components: rustfmt
-          profile: minimal
+          name: subtensor-localnet
+          path: subtensor-localnet.tar
 
-      - name: Add wasm32-unknown-unknown target
+  run-e2e-tests:
+    name: ${{ matrix.test-file }} / Python ${{ matrix.python-version }}
+    needs:
+      - find-tests
+      - pull-docker-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false  # Allow other matrix jobs to run even if this job fails
+      max-parallel: 32  # Set the maximum number of parallel jobs (same as we have cores in SubtensorCI runner)
+      matrix:
+        os:
+          - ubuntu-latest
+        test-file: ${{ fromJson(needs.find-tests.outputs.test-files) }}
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - name: Check-out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          python-version: 3.13
+
+      - name: install dependencies
         run: |
-          rustup target add wasm32-unknown-unknown --toolchain stable-x86_64-unknown-linux-gnu
-          rustup component add rust-src --toolchain stable-x86_64-unknown-linux-gnu
+          uv venv .venv
+          source .venv/bin/activate
+          uv pip install .[dev]
+          uv pip install pytest
 
-      - name: Clone subtensor repo
-        run: git clone https://github.com/opentensor/subtensor.git
+      - name: Download Cached Docker Image
+        uses: actions/download-artifact@v4
+        with:
+          name: subtensor-localnet
 
-      - name: Setup subtensor repo
-        working-directory: ${{ github.workspace }}/subtensor
-        run: git checkout testnet
+      - name: Load Docker Image
+        run: docker load -i subtensor-localnet.tar
 
-      - name: Install Python dependencies
-        run: python3 -m pip install -e . pytest
-
-      - name: Run all tests
+      - name: Run tests
         run: |
-          LOCALNET_SH_PATH="${{ github.workspace }}/subtensor/scripts/localnet.sh" pytest tests/e2e_tests -s
+          source .venv/bin/activate
+          uv run pytest ${{ matrix.test-file }} -s

@@ -32,13 +32,14 @@ async def display_stake_movement_cross_subnets(
     origin_hotkey: str,
     destination_hotkey: str,
     amount_to_move: Balance,
+    stake_fee: Balance,
 ) -> tuple[Balance, float, str, str]:
     """Calculate and display slippage information"""
 
     if origin_netuid == destination_netuid:
         subnet = await subtensor.subnet(origin_netuid)
         received_amount_tao = subnet.alpha_to_tao(amount_to_move)
-        received_amount_tao -= MIN_STAKE_FEE
+        received_amount_tao -= stake_fee
 
         if received_amount_tao < Balance.from_tao(0):
             print_error("Not enough Alpha to pay the transaction fee.")
@@ -46,7 +47,7 @@ async def display_stake_movement_cross_subnets(
 
         received_amount = subnet.tao_to_alpha(received_amount_tao)
         slippage_pct_float = (
-            100 * float(MIN_STAKE_FEE) / float(MIN_STAKE_FEE + received_amount_tao)
+            100 * float(stake_fee) / float(stake_fee + received_amount_tao)
             if received_amount_tao != 0
             else 0
         )
@@ -67,7 +68,7 @@ async def display_stake_movement_cross_subnets(
         received_amount_tao, _, _ = dynamic_origin.alpha_to_tao_with_slippage(
             amount_to_move
         )
-        received_amount_tao -= MIN_STAKE_FEE
+        received_amount_tao -= stake_fee
         received_amount, _, _ = dynamic_destination.tao_to_alpha_with_slippage(
             received_amount_tao
         )
@@ -136,6 +137,11 @@ async def display_stake_movement_cross_subnets(
         style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
     )
     table.add_column(
+        "Fee (τ)",
+        justify="center",
+        style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
+    )
+    table.add_column(
         "slippage",
         justify="center",
         style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"],
@@ -149,13 +155,11 @@ async def display_stake_movement_cross_subnets(
         str(amount_to_move),
         price_str,
         str(received_amount),
+        str(stake_fee),
         str(slippage_pct),
     )
 
     console.print(table)
-    # console.print(
-    #     f"[dim]A fee of {MIN_STAKE_FEE} applies.[/dim]"
-    # )
 
     # Display slippage warning if necessary
     if slippage_pct_float > 5:
@@ -440,6 +444,7 @@ async def move_stake(
     destination_hotkey: str,
     amount: float,
     stake_all: bool,
+    era: int,
     interactive_selection: bool = False,
     prompt: bool = True,
 ) -> bool:
@@ -515,6 +520,16 @@ async def move_stake(
         )
         return False
 
+    stake_fee = await subtensor.get_stake_fee(
+        origin_hotkey_ss58=origin_hotkey,
+        origin_netuid=origin_netuid,
+        origin_coldkey_ss58=wallet.coldkeypub.ss58_address,
+        destination_hotkey_ss58=destination_hotkey,
+        destination_netuid=destination_netuid,
+        destination_coldkey_ss58=wallet.coldkeypub.ss58_address,
+        amount=amount_to_move_as_balance.rao,
+    )
+
     # Slippage warning
     if prompt:
         try:
@@ -525,6 +540,7 @@ async def move_stake(
                 origin_hotkey=origin_hotkey,
                 destination_hotkey=destination_hotkey,
                 amount_to_move=amount_to_move_as_balance,
+                stake_fee=stake_fee,
             )
         except ValueError:
             return False
@@ -550,7 +566,7 @@ async def move_stake(
             },
         )
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey
+            call=call, keypair=wallet.coldkey, era={"period": era}
         )
         response = await subtensor.substrate.submit_extrinsic(
             extrinsic, wait_for_inclusion=True, wait_for_finalization=False
@@ -608,6 +624,7 @@ async def transfer_stake(
     origin_netuid: int,
     dest_netuid: int,
     dest_coldkey_ss58: str,
+    era: int,
     interactive_selection: bool = False,
     stake_all: bool = False,
     prompt: bool = True,
@@ -687,6 +704,16 @@ async def transfer_stake(
         )
         return False
 
+    stake_fee = await subtensor.get_stake_fee(
+        origin_hotkey_ss58=origin_hotkey,
+        origin_netuid=origin_netuid,
+        origin_coldkey_ss58=wallet.coldkeypub.ss58_address,
+        destination_hotkey_ss58=origin_hotkey,
+        destination_netuid=dest_netuid,
+        destination_coldkey_ss58=dest_coldkey_ss58,
+        amount=amount_to_transfer.rao,
+    )
+
     # Slippage warning
     if prompt:
         try:
@@ -697,6 +724,7 @@ async def transfer_stake(
                 origin_hotkey=origin_hotkey,
                 destination_hotkey=origin_hotkey,
                 amount_to_move=amount_to_transfer,
+                stake_fee=stake_fee,
             )
         except ValueError:
             return False
@@ -722,7 +750,7 @@ async def transfer_stake(
         )
 
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey
+            call=call, keypair=wallet.coldkey, era={"period": era}
         )
 
         response = await subtensor.substrate.submit_extrinsic(
@@ -772,6 +800,7 @@ async def swap_stake(
     destination_netuid: int,
     amount: float,
     swap_all: bool = False,
+    era: int = 3,
     interactive_selection: bool = False,
     prompt: bool = True,
     wait_for_inclusion: bool = True,
@@ -844,6 +873,16 @@ async def swap_stake(
         )
         return False
 
+    stake_fee = await subtensor.get_stake_fee(
+        origin_hotkey_ss58=hotkey_ss58,
+        origin_netuid=origin_netuid,
+        origin_coldkey_ss58=wallet.coldkeypub.ss58_address,
+        destination_hotkey_ss58=hotkey_ss58,
+        destination_netuid=destination_netuid,
+        destination_coldkey_ss58=wallet.coldkeypub.ss58_address,
+        amount=amount_to_swap.rao,
+    )
+
     # Slippage warning
     if prompt:
         try:
@@ -854,6 +893,7 @@ async def swap_stake(
                 origin_hotkey=hotkey_ss58,
                 destination_hotkey=hotkey_ss58,
                 amount_to_move=amount_to_swap,
+                stake_fee=stake_fee,
             )
         except ValueError:
             return False
@@ -881,7 +921,7 @@ async def swap_stake(
         )
 
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey
+            call=call, keypair=wallet.coldkey, era={"period": era}
         )
 
         response = await subtensor.substrate.submit_extrinsic(
