@@ -4545,7 +4545,7 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose, json_output)
         return self._run_command(
-            sudo.proposals(self.initialize_chain(network), verbose)
+            sudo.proposals(self.initialize_chain(network), verbose, json_output)
         )
 
     def sudo_senate_vote(

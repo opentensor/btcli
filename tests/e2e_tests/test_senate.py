@@ -8,6 +8,7 @@ Verify commands:
 """
 
 import asyncio
+import json
 from .utils import call_add_proposal
 
 
@@ -103,6 +104,7 @@ def test_senate(local_chain, wallet_setup):
             "--verbose",
         ],
     )
+    print(">>>", proposals.stdout, proposals.stderr)
     proposals_output = proposals.stdout.splitlines()[9].split()
 
     # Assert the hash is of correct format
@@ -117,6 +119,19 @@ def test_senate(local_chain, wallet_setup):
 
     # Assert initial threshold is 3
     assert proposals_output[1] == "3"
+
+    json_proposals = exec_command_bob(
+        command="sudo",
+        sub_command="proposals",
+        extra_args=[
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--json-output"
+        ]
+    )
+    json_proposals_outout = json.loads(json_proposals.stdout)
+
+    assert False, json_proposals_outout
 
     # Vote on the proposal by Bob (vote aye)
     vote_aye = exec_command_bob(

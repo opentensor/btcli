@@ -138,6 +138,20 @@ def test_staking(local_chain, wallet_setup):
     stake_added = cleaned_stake[8].split("│")[3].strip().split()[0]
     assert Balance.from_tao(float(stake_added)) >= Balance.from_tao(90)
 
+    show_stake_json = exec_command_alice(
+        command="stake",
+        sub_command="list",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--json-output"
+        ],
+    )
+
     # Execute remove_stake command and remove all alpha stakes from Alice
     remove_stake = exec_command_alice(
         command="stake",
