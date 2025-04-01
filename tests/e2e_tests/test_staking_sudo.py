@@ -148,7 +148,7 @@ def test_staking(local_chain, wallet_setup):
             wallet_alice.name,
             "--chain",
             "ws://127.0.0.1:9945",
-            "--json-output"
+            "--json-output",
         ],
     )
 

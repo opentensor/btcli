@@ -1116,7 +1116,7 @@ class CLIManager:
         if quiet and verbose:
             err_console.print("Cannot specify both `--quiet` and `--verbose`")
             raise typer.Exit()
-        if json_console and verbose:
+        if json_output and verbose:
             verbosity_console_handler(3)
         elif json_output or quiet:
             verbosity_console_handler(0)

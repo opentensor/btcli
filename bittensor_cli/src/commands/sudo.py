@@ -355,13 +355,13 @@ def display_votes(
 def serialize_vote_data(
     vote_data: "ProposalVoteData", delegate_info: dict[str, DelegatesDetails]
 ) -> list[dict[str, bool]]:
-    vote_list = []
+    vote_list = {}
     for address in vote_data.ayes:
         f_add = delegate_info[address].display if address in delegate_info else address
-        vote_list.append({f_add: True})
+        vote_list[f_add] = True
     for address in vote_data.nays:
         f_add = delegate_info[address].display if address in delegate_info else address
-        vote_list.append({f_add: False})
+        vote_list[f_add] = False
     return vote_list
 
 
