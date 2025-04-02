@@ -32,7 +32,7 @@ dependencies = [
     "scalecodec==1.2.11",
     "typer~=0.12",
     "websockets>=14.1",
-    "bittensor-wallet>=3.0.4",
+    "bittensor-wallet>=3.0.5",
     "plotille>=5.0.0",
     "pywry>=0.6.2",
     "plotly>=6.0.0",
