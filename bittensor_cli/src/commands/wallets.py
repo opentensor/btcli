@@ -144,11 +144,12 @@ async def regen_coldkey(
             use_password=use_password,
             overwrite=overwrite,
         )
-
         if isinstance(new_wallet, Wallet):
             console.print(
                 "\n✅ [dark_sea_green]Regenerated coldkey successfully!\n",
-                f"[dark_sea_green]Wallet name: ({new_wallet.name}), path: ({new_wallet.path}), coldkey ss58: ({new_wallet.coldkeypub.ss58_address})",
+                f"[dark_sea_green]Wallet name: ({new_wallet.name}), "
+                f"path: ({new_wallet.path}), "
+                f"coldkey ss58: ({new_wallet.coldkeypub.ss58_address})",
             )
             if json_output:
                 json_console.print(
@@ -373,19 +374,23 @@ async def new_coldkey(
                         "data": {
                             "name": wallet.name,
                             "path": wallet.path,
-                            "hotkey": wallet.hotkey_str,
-                            "hotkey_ss58": wallet.hotkey.ss58_address,
                             "coldkey_ss58": wallet.coldkeypub.ss58_address,
                         },
                         "error": "",
                     }
                 )
             )
-    except KeyFileError:
+    except KeyFileError as e:
         print_error("KeyFileError: File is not writable")
         if json_output:
             json_console.print(
-                '{"success": false, "error": "Keyfile is not writable", "data": null}'
+                json.dumps(
+                    {
+                        "success": False,
+                        "error": f"Keyfile is not writable: {e}",
+                        "data": None,
+                    }
+                )
             )
 
 
