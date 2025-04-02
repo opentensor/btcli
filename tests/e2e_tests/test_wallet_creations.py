@@ -588,4 +588,15 @@ def test_wallet_balance_all(local_chain, wallet_setup, capfd):
             wallet_name in output
         ), f"Wallet {wallet_name} not found in balance --all output"
 
+    json_results = exec_command(
+        "wallet",
+        "balance",
+        extra_args=["--wallet-path", wallet_path, "--all", "--json-output"],
+    )
+    json_results_output = json.loads(json_results.stdout)
+    for wallet_name in wallet_names:
+        assert wallet_name in json_results_output["balances"].keys()
+        assert json_results_output["balances"][wallet_name]["total"] == 0.0
+        assert "coldkey" in json_results_output["balances"][wallet_name]
+
     print("Passed wallet balance --all command with 100 wallets ✅")
