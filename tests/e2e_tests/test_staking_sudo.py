@@ -1,3 +1,4 @@
+import json
 import re
 
 from bittensor_cli.src.bittensor.balances import Balance
@@ -129,14 +130,33 @@ def test_staking(local_chain, wallet_setup):
             wallet_alice.name,
             "--chain",
             "ws://127.0.0.1:9945",
+            "--verbose",
         ],
     )
+
     # Assert correct stake is added
     cleaned_stake = [
         re.sub(r"\s+", " ", line) for line in show_stake.stdout.splitlines()
     ]
     stake_added = cleaned_stake[8].split("│")[3].strip().split()[0]
     assert Balance.from_tao(float(stake_added)) >= Balance.from_tao(90)
+
+    show_stake_json = exec_command_alice(
+        command="stake",
+        sub_command="list",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--json-output",
+        ],
+    )
+    show_stake_json_output = json.loads(show_stake_json.stdout)
+    alice_stake = show_stake_json_output["stake_info"][keypair_alice.ss58_address][0]
+    assert Balance.from_tao(alice_stake["stake_value"]) > Balance.from_tao(90.0)
 
     # Execute remove_stake command and remove all alpha stakes from Alice
     remove_stake = exec_command_alice(
@@ -182,7 +202,24 @@ def test_staking(local_chain, wallet_setup):
     max_burn_tao = all_hyperparams[22].split()[3]
 
     # Assert max_burn is 100 TAO from default
-    assert Balance.from_tao(float(max_burn_tao)) == Balance.from_tao(100)
+    assert Balance.from_tao(float(max_burn_tao)) == Balance.from_tao(100.0)
+
+    hyperparams_json = exec_command_alice(
+        command="sudo",
+        sub_command="get",
+        extra_args=[
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--netuid",
+            netuid,
+            "--json-output",
+        ],
+    )
+    hyperparams_json_output = json.loads(hyperparams_json.stdout)
+    max_burn_tao_from_json = next(
+        filter(lambda x: x["hyperparameter"] == "max_burn", hyperparams_json_output)
+    )["value"]
+    assert Balance.from_rao(max_burn_tao_from_json) == Balance.from_tao(100.0)
 
     # Change max_burn hyperparameter to 10 TAO
     change_hyperparams = exec_command_alice(
@@ -227,4 +264,24 @@ def test_staking(local_chain, wallet_setup):
 
     # Assert max_burn is now 10 TAO
     assert Balance.from_tao(float(updated_max_burn_tao)) == Balance.from_tao(10)
+
+    updated_hyperparams_json = exec_command_alice(
+        command="sudo",
+        sub_command="get",
+        extra_args=[
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--netuid",
+            netuid,
+            "--json-output",
+        ],
+    )
+    updated_hyperparams_json_output = json.loads(updated_hyperparams_json.stdout)
+    max_burn_tao_from_json = next(
+        filter(
+            lambda x: x["hyperparameter"] == "max_burn", updated_hyperparams_json_output
+        )
+    )["value"]
+    assert Balance.from_rao(max_burn_tao_from_json) == Balance.from_tao(10.0)
+
     print("✅ Passed staking and sudo commands")

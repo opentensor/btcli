@@ -1,3 +1,4 @@
+import json
 import re
 
 from bittensor_cli.src.bittensor.balances import Balance
@@ -216,6 +217,25 @@ def test_unstaking(local_chain, wallet_setup):
     assert Balance.from_tao(float(stake_after_unstaking_netuid_2)) <= Balance.from_tao(
         float(inital_stake_netuid_2)
     )
+
+    show_stake_json = exec_command_alice(
+        command="stake",
+        sub_command="list",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_bob,
+            "--wallet-name",
+            wallet_bob.name,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--json-output",
+        ],
+    )
+    show_stake_json_output = json.loads(show_stake_json.stdout)
+    bob_stake = show_stake_json_output["stake_info"][keypair_bob.ss58_address]
+    assert Balance.from_tao(
+        next(filter(lambda x: x["netuid"] == 2, bob_stake))["stake_value"]
+    ) <= Balance.from_tao(float(inital_stake_netuid_2))
 
     # Remove all alpha stakes
     unstake_alpha = exec_command_bob(

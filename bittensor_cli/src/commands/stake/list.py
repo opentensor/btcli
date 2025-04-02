@@ -1,5 +1,6 @@
 import asyncio
-
+import json
+from collections import defaultdict
 from typing import TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet
@@ -18,6 +19,7 @@ from bittensor_cli.src.bittensor.utils import (
     print_error,
     millify_tao,
     get_subnet_name,
+    json_console,
 )
 
 if TYPE_CHECKING:
@@ -31,6 +33,7 @@ async def stake_list(
     live: bool = False,
     verbose: bool = False,
     prompt: bool = False,
+    json_output: bool = False,
 ):
     coldkey_address = coldkey_ss58 if coldkey_ss58 else wallet.coldkeypub.ss58_address
 
@@ -152,6 +155,7 @@ async def stake_list(
             reverse=True,
         )
         sorted_substakes = root_stakes + other_stakes
+        substakes_values = []
         for substake_ in sorted_substakes:
             netuid = substake_.netuid
             pool = dynamic_info[netuid]
@@ -195,7 +199,8 @@ async def stake_list(
                     if not verbose
                     else f"{substake_.stake.tao:,.4f}"
                 )
-                subnet_name_cell = f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{symbol if netuid != 0 else 'τ'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}] {get_subnet_name(dynamic_info[netuid])}"
+                subnet_name = get_subnet_name(dynamic_info[netuid])
+                subnet_name_cell = f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{symbol if netuid != 0 else 'τ'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}] {subnet_name}"
 
                 rows.append(
                     [
@@ -220,13 +225,28 @@ async def stake_list(
                         str(Balance.from_tao(per_block_tao_emission)),
                     ]
                 )
+                substakes_values.append(
+                    {
+                        "netuid": netuid,
+                        "subnet_name": subnet_name,
+                        "value": tao_value_.tao,
+                        "stake_value": substake_.stake.tao,
+                        "rate": pool.price.tao,
+                        "swap_value": swap_value,
+                        "registered": True if substake_.is_registered else False,
+                        "emission": {
+                            "alpha": per_block_emission,
+                            "tao": per_block_tao_emission,
+                        },
+                    }
+                )
         created_table = define_table(
             name_, rows, total_tao_value_, total_swapped_tao_value_
         )
         for row in rows:
             created_table.add_row(*row)
         console.print(created_table)
-        return total_tao_value_, total_swapped_tao_value_
+        return total_tao_value_, total_swapped_tao_value_, substakes_values
 
     def create_live_table(
         substakes: list,
@@ -409,22 +429,23 @@ async def stake_list(
     # Main execution
     block_hash = await subtensor.substrate.get_chain_head()
     (
-        sub_stakes,
-        registered_delegate_info,
-        dynamic_info,
-    ) = await get_stake_data(block_hash)
-    balance = await subtensor.get_balance(coldkey_address)
+        (
+            sub_stakes,
+            registered_delegate_info,
+            dynamic_info,
+        ),
+        balance,
+    ) = await asyncio.gather(
+        get_stake_data(block_hash),
+        subtensor.get_balance(coldkey_address, block_hash=block_hash),
+    )
 
     # Iterate over substakes and aggregate them by hotkey.
-    hotkeys_to_substakes: dict[str, list[StakeInfo]] = {}
+    hotkeys_to_substakes: dict[str, list[StakeInfo]] = defaultdict(list)
 
     for substake in sub_stakes:
-        hotkey = substake.hotkey_ss58
-        if substake.stake.rao == 0:
-            continue
-        if hotkey not in hotkeys_to_substakes:
-            hotkeys_to_substakes[hotkey] = []
-        hotkeys_to_substakes[hotkey].append(substake)
+        if substake.stake.rao != 0:
+            hotkeys_to_substakes[substake.hotkey_ss58].append(substake)
 
     if not hotkeys_to_substakes:
         print_error(f"No stakes found for coldkey ss58: ({coldkey_address})")
@@ -534,15 +555,24 @@ async def stake_list(
         num_hotkeys = len(hotkeys_to_substakes)
         all_hks_swapped_tao_value = Balance(0)
         all_hks_tao_value = Balance(0)
-        for hotkey in hotkeys_to_substakes.keys():
+        dict_output = {
+            "stake_info": {},
+            "coldkey_address": coldkey_address,
+            "network": subtensor.network,
+            "free_balance": 0.0,
+            "total_tao_value": 0.0,
+            "total_swapped_tao_value": 0.0,
+        }
+        for hotkey, substakes in hotkeys_to_substakes.items():
             counter += 1
-            tao_value, swapped_tao_value = create_table(
-                hotkey, hotkeys_to_substakes[hotkey]
+            tao_value, swapped_tao_value, substake_values_ = create_table(
+                hotkey, substakes
             )
+            dict_output["stake_info"][hotkey] = substake_values_
             all_hks_tao_value += tao_value
             all_hks_swapped_tao_value += swapped_tao_value
 
-            if num_hotkeys > 1 and counter < num_hotkeys and prompt:
+            if num_hotkeys > 1 and counter < num_hotkeys and prompt and not json_output:
                 console.print("\nPress Enter to continue to the next hotkey...")
                 input()
 
@@ -556,7 +586,6 @@ async def stake_list(
             if not verbose
             else all_hks_swapped_tao_value
         )
-
         console.print("\n\n")
         console.print(
             f"Wallet:\n"
@@ -565,6 +594,11 @@ async def stake_list(
             f"  Total TAO Value ({Balance.unit}): [{COLOR_PALETTE['GENERAL']['BALANCE']}]{total_tao_value}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]\n"
             f"  Total TAO Swapped Value ({Balance.unit}): [{COLOR_PALETTE['GENERAL']['BALANCE']}]{total_swapped_tao_value}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]"
         )
+        dict_output["free_balance"] = balance.tao
+        dict_output["total_tao_value"] = all_hks_tao_value.tao
+        dict_output["total_swapped_tao_value"] = all_hks_swapped_tao_value.tao
+        if json_output:
+            json_console.print(json.dumps(dict_output))
         if not sub_stakes:
             console.print(
                 f"\n[blue]No stakes found for coldkey ss58: ({coldkey_address})"

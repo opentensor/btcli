@@ -8,6 +8,8 @@ Verify commands:
 """
 
 import asyncio
+import json
+
 from .utils import call_add_proposal
 
 
@@ -112,11 +114,25 @@ def test_senate(local_chain, wallet_setup):
     # 0 Ayes for the proposal
     assert proposals_output[2] == "0"
 
-    # 0 Nayes for the proposal
+    # 0 Nays for the proposal
     assert proposals_output[4] == "0"
 
     # Assert initial threshold is 3
     assert proposals_output[1] == "3"
+
+    json_proposals = exec_command_bob(
+        command="sudo",
+        sub_command="proposals",
+        extra_args=["--chain", "ws://127.0.0.1:9945", "--json-output"],
+    )
+    json_proposals_output = json.loads(json_proposals.stdout)
+
+    assert len(json_proposals_output) == 1
+    assert json_proposals_output[0]["threshold"] == 3
+    assert json_proposals_output[0]["ayes"] == 0
+    assert json_proposals_output[0]["nays"] == 0
+    assert json_proposals_output[0]["votes"] == {}
+    assert json_proposals_output[0]["call_data"] == "System.remark(remark: (0,))"
 
     # Vote on the proposal by Bob (vote aye)
     vote_aye = exec_command_bob(
@@ -160,6 +176,26 @@ def test_senate(local_chain, wallet_setup):
 
     # Nay votes remain 0
     assert proposals_after_aye_output[4] == "0"
+
+    proposals_after_aye_json = exec_command_bob(
+        command="sudo",
+        sub_command="proposals",
+        extra_args=[
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--json-output",
+        ],
+    )
+    proposals_after_aye_json_output = json.loads(proposals_after_aye_json.stdout)
+    assert len(proposals_after_aye_json_output) == 1
+    assert proposals_after_aye_json_output[0]["threshold"] == 3
+    assert proposals_after_aye_json_output[0]["ayes"] == 1
+    assert proposals_after_aye_json_output[0]["nays"] == 0
+    assert len(proposals_after_aye_json_output[0]["votes"]) == 1
+    assert proposals_after_aye_json_output[0]["votes"][keypair_bob.ss58_address] is True
+    assert (
+        proposals_after_aye_json_output[0]["call_data"] == "System.remark(remark: (0,))"
+    )
 
     # Register Alice to the root network (0)
     # Registering to root automatically makes you a senator if eligible
@@ -229,5 +265,21 @@ def test_senate(local_chain, wallet_setup):
 
     # Assert vote casted as Nay
     assert proposals_after_nay_output[10].split()[1] == "Nay"
+
+    proposals_after_nay_json = exec_command_bob(
+        command="sudo",
+        sub_command="proposals",
+        extra_args=[
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--json-output",
+        ],
+    )
+    proposals_after_nay_json_output = json.loads(proposals_after_nay_json.stdout)
+    assert len(proposals_after_nay_json_output) == 1
+    assert proposals_after_nay_json_output[0]["nays"] == 1
+    assert (
+        proposals_after_nay_json_output[0]["votes"][keypair_alice.ss58_address] is False
+    )
 
     print("✅ Passed senate commands")
