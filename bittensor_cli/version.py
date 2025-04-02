@@ -1,6 +1,5 @@
+import importlib.metadata
 import re
-import toml
-import pathlib
 
 
 def get_toml_version():
@@ -25,7 +24,7 @@ def version_as_int(version):
     return __version_as_int__
 
 
-__version__ = get_toml_version()
+__version__ = importlib.metadata.version("bittensor-cli")
 __version_as_int__ = version_as_int(__version__)
 
 
