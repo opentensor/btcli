@@ -4,6 +4,8 @@ import re
 import time
 from typing import Dict, Optional, Tuple
 
+from bittensor_wallet import Wallet
+
 """
 Verify commands:
 
@@ -412,6 +414,9 @@ def test_wallet_regen(wallet_setup, capfd):
     # -----------------------------
     print("Testing wallet regen_coldkey command 🧪")
     coldkey_path = os.path.join(wallet_path, "new_wallet", "coldkey")
+    initial_coldkey_ss58 = Wallet(
+        name="new_wallet", path=wallet_path
+    ).coldkey.ss58_address
     initial_coldkey_mod_time = os.path.getmtime(coldkey_path)
 
     result = exec_command(
@@ -439,24 +444,28 @@ def test_wallet_regen(wallet_setup, capfd):
     assert (
         initial_coldkey_mod_time != new_coldkey_mod_time
     ), "Coldkey file was not regenerated as expected"
-    # Underlying Rust is broken. Will add this in when that is fixed: https://github.com/opentensor/btwallet/issues/118
-    # json_result = exec_command(
-    #     command="wallet",
-    #     sub_command="regen-coldkey",
-    #     extra_args=[
-    #         "--wallet-name",
-    #         "new_wallet",
-    #         "--hotkey",
-    #         "new_hotkey",
-    #         "--wallet-path",
-    #         wallet_path,
-    #         "--mnemonic",
-    #         mnemonics["coldkey"],
-    #         "--no-use-password",
-    #         "--overwrite",
-    #         "--json-output"
-    #     ],
-    # )
+    json_result = exec_command(
+        command="wallet",
+        sub_command="regen-coldkey",
+        extra_args=[
+            "--wallet-name",
+            "new_wallet",
+            "--hotkey",
+            "new_hotkey",
+            "--wallet-path",
+            wallet_path,
+            "--mnemonic",
+            mnemonics["coldkey"],
+            "--no-use-password",
+            "--overwrite",
+            "--json-output",
+        ],
+    )
+
+    json_result_out = json.loads(json_result.stdout)
+    assert json_result_out["success"] is True
+    assert json_result_out["data"]["name"] == "new_wallet"
+    assert json_result_out["data"]["coldkey_ss58"] == initial_coldkey_ss58
 
     # -----------------------------
     # Command 2: <btcli w regen_coldkeypub>
