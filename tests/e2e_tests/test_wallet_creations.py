@@ -188,8 +188,8 @@ def test_wallet_creations(wallet_setup):
     )
 
     # Assert default keys are present before proceeding
-    f"default  ss58_address {wallet.coldkeypub.ss58_address}" in result.stdout
-    f"default  ss58_address {wallet.hotkey.ss58_address}" in result.stdout
+    assert f"default  ss58_address {wallet.coldkeypub.ss58_address}" in result.stdout
+    assert f"default  ss58_address {wallet.hotkey.ss58_address}" in result.stdout
     wallet_status, message = verify_wallet_dir(
         wallet_path, "default", hotkey_name="default"
     )
