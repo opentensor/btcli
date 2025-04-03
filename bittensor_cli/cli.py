@@ -5341,6 +5341,7 @@ class CLIManager:
             "-s",
             help="Corresponding salt for the hash function, e.g. -s 163,241,217 ...",
         ),
+        json_output: bool = Options.json_output,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         prompt: bool = Options.prompt,
@@ -5354,7 +5355,7 @@ class CLIManager:
 
         [green]$[/green] btcli wt reveal --netuid 1 --uids 1,2,3,4 --weights 0.1,0.2,0.3,0.4 --salt 163,241,217,11,161,142,147,189
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
         uids = list_prompt(uids, int, "UIDs of interest for the specified netuid")
         weights = list_prompt(
             weights, float, "Corresponding weights for the specified UIDs"
@@ -5387,7 +5388,7 @@ class CLIManager:
             err_console.print(
                 "The number of UIDs you specify must match up with the specified number of weights"
             )
-            raise typer.Exit()
+            return
 
         if salt:
             salt = parse_to_list(
@@ -5416,6 +5417,7 @@ class CLIManager:
                 salt,
                 __version_as_int__,
                 prompt=prompt,
+                json_output=json_output,
             )
         )
 
@@ -5439,6 +5441,7 @@ class CLIManager:
             "-s",
             help="Corresponding salt for the hash function, e.g. -s 163 -s 241 -s 217 ...",
         ),
+        json_output: bool = Options.json_output,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         prompt: bool = Options.prompt,
@@ -5456,7 +5459,7 @@ class CLIManager:
         [italic]Note[/italic]: This command is used to commit weights for a specific subnet and requires the user to have the necessary
         permissions.
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
 
         if uids:
             uids = parse_to_list(
@@ -5485,7 +5488,7 @@ class CLIManager:
             err_console.print(
                 "The number of UIDs you specify must match up with the specified number of weights"
             )
-            raise typer.Exit()
+            return
 
         if salt:
             salt = parse_to_list(
@@ -5512,6 +5515,7 @@ class CLIManager:
                 weights,
                 salt,
                 __version_as_int__,
+                json_output=json_output,
                 prompt=prompt,
             )
         )

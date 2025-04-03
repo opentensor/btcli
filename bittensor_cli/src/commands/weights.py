@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
@@ -9,7 +10,12 @@ from numpy.typing import NDArray
 from rich.prompt import Confirm
 from async_substrate_interface.errors import SubstrateRequestException
 
-from bittensor_cli.src.bittensor.utils import err_console, console, format_error_message
+from bittensor_cli.src.bittensor.utils import (
+    err_console,
+    console,
+    format_error_message,
+    json_console,
+)
 from bittensor_cli.src.bittensor.extrinsics.root import (
     convert_weights_and_uids_for_emit,
     generate_weight_hash,
@@ -372,6 +378,7 @@ async def reveal_weights(
     weights: list[float],
     salt: list[int],
     version: int,
+    json_output: bool = False,
     prompt: bool = True,
 ) -> None:
     """Reveal weights for a specific subnet."""
@@ -395,11 +402,13 @@ async def reveal_weights(
         subtensor, wallet, netuid, uids_, weights_, list(salt_), version, prompt=prompt
     )
     success, message = await extrinsic.reveal(weight_uids, weight_vals)
-
-    if success:
-        console.print("Weights revealed successfully")
+    if json_output:
+        json_console.print(json.dumps({"success": success, "message": message}))
     else:
-        err_console.print(f"Failed to reveal weights: {message}")
+        if success:
+            console.print("Weights revealed successfully")
+        else:
+            err_console.print(f"Failed to reveal weights: {message}")
 
 
 async def commit_weights(
@@ -410,6 +419,7 @@ async def commit_weights(
     weights: list[float],
     salt: list[int],
     version: int,
+    json_output: bool = False,
     prompt: bool = True,
 ):
     """Commits weights and then reveals them for a specific subnet"""
@@ -429,7 +439,10 @@ async def commit_weights(
         subtensor, wallet, netuid, uids_, weights_, list(salt_), version, prompt=prompt
     )
     success, message = await extrinsic.set_weights_extrinsic()
-    if success:
-        console.print("Weights set successfully")
+    if json_output:
+        json_console.print(json.dumps({"success": success, "message": message}))
     else:
-        err_console.print(f"Failed to commit weights: {message}")
+        if success:
+            console.print("Weights set successfully")
+        else:
+            err_console.print(f"Failed to commit weights: {message}")
