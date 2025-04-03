@@ -6,7 +6,10 @@ from bittensor_cli.src.bittensor.balances import Balance
 """
 Verify commands:
 
+* btcli s burn-cost
 * btcli subnets create
+* btcli subnets set-identity
+* btcli subnets get-identity
 * btcli subnets register
 * btcli stake add
 * btcli stake remove
@@ -40,6 +43,21 @@ def test_staking(local_chain, wallet_setup):
         wallet_path_alice
     )
 
+    burn_cost = exec_command_alice(
+        "subnets",
+        "burn-cost",
+        extra_args=[
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--json-output",
+        ],
+    )
+    burn_cost_output = json.loads(burn_cost.stdout)
+    expected_burn_cost = Balance.from_tao(1000.0)
+    assert burn_cost_output["error"] == ""
+    assert burn_cost_output["burn_cost"]["rao"] == expected_burn_cost.rao
+    assert burn_cost_output["burn_cost"]["tao"] == expected_burn_cost.tao
+
     # Register a subnet with sudo as Alice
     result = exec_command_alice(
         command="subnets",
@@ -68,9 +86,12 @@ def test_staking(local_chain, wallet_setup):
             "--additional-info",
             "Created by Alice",
             "--no-prompt",
+            "--json-output",
         ],
     )
-    assert f"✅ Registered subnetwork with netuid: {netuid}" in result.stdout
+    result_output = json.loads(result.stdout)
+    assert result_output["success"] is True
+    assert result_output["netuid"] == 2
 
     # Register Alice in netuid = 1 using her hotkey
     register_subnet = exec_command_alice(
@@ -91,6 +112,84 @@ def test_staking(local_chain, wallet_setup):
         ],
     )
     assert "✅ Already Registered" in register_subnet.stdout
+
+    register_subnet_json = exec_command_alice(
+        command="subnets",
+        sub_command="register",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--hotkey",
+            wallet_alice.hotkey_str,
+            "--netuid",
+            netuid,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+    register_subnet_json_output = json.loads(register_subnet_json.stdout)
+    assert register_subnet_json_output["success"] is True
+    assert register_subnet_json_output["msg"] == "Already registered"
+
+    # set identity
+    set_identity = exec_command_alice(
+        "subnets",
+        "set-identity",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--hotkey",
+            wallet_alice.hotkey_str,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--netuid",
+            netuid,
+            "--subnet-name",
+            sn_name := "Test Subnet",
+            "--github-repo",
+            sn_github := "https://github.com/username/repo",
+            "--subnet-contact",
+            sn_contact := "alice@opentensor.dev",
+            "--subnet-url",
+            sn_url := "https://testsubnet.com",
+            "--discord",
+            sn_discord := "alice#1234",
+            "--description",
+            sn_description := "A test subnet for e2e testing",
+            "--additional-info",
+            sn_add_info := "Created by Alice",
+            "--json-output",
+            "--no-prompt",
+        ],
+    )
+    set_identity_output = json.loads(set_identity.stdout)
+    assert set_identity_output["success"] is True
+
+    get_identity = exec_command_alice(
+        "subnets",
+        "get-identity",
+        extra_args=[
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--netuid",
+            netuid,
+            "--json-output",
+        ],
+    )
+    get_identity_output = json.loads(get_identity.stdout)
+    assert get_identity_output["subnet_name"] == sn_name
+    assert get_identity_output["github_repo"] == sn_github
+    assert get_identity_output["subnet_contact"] == sn_contact
+    assert get_identity_output["subnet_url"] == sn_url
+    assert get_identity_output["discord"] == sn_discord
+    assert get_identity_output["description"] == sn_description
+    assert get_identity_output["additional"] == sn_add_info
 
     # Add stake to Alice's hotkey
     add_stake = exec_command_alice(

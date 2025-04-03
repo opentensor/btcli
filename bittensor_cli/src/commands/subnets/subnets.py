@@ -1439,7 +1439,7 @@ async def burn_cost(
         if current_burn_cost:
             if json_output:
                 json_console.print(
-                    json.dumps({"burn_cost": current_burn_cost, "error": ""})
+                    json.dumps({"burn_cost": current_burn_cost.to_dict(), "error": ""})
                 )
             else:
                 console.print(
