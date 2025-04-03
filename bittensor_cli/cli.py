@@ -4875,6 +4875,7 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Shows the required amount of TAO to be recycled for creating a new subnet, i.e., cost of registering a new subnet.
@@ -4885,8 +4886,10 @@ class CLIManager:
 
         [green]$[/green] btcli subnets burn_cost
         """
-        self.verbosity_handler(quiet, verbose)
-        return self._run_command(subnets.burn_cost(self.initialize_chain(network)))
+        self.verbosity_handler(quiet, verbose, json_output)
+        return self._run_command(
+            subnets.burn_cost(self.initialize_chain(network), json_output)
+        )
 
     def subnets_create(
         self,
@@ -4919,6 +4922,7 @@ class CLIManager:
         additional_info: Optional[str] = typer.Option(
             None, "--additional-info", help="Additional information"
         ),
+        json_output: bool = Options.json_output,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -4937,7 +4941,7 @@ class CLIManager:
         2. Create with GitHub repo and contact email:
         [green]$[/green] btcli subnets create --subnet-name MySubnet --github-repo https://github.com/myorg/mysubnet --subnet-contact team@mysubnet.net
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -4959,27 +4963,11 @@ class CLIManager:
             description=description,
             additional=additional_info,
         )
-        success = self._run_command(
-            subnets.create(wallet, self.initialize_chain(network), identity, prompt),
-            exit_early=False,
-        )
-
-        if success and prompt:
-            set_id = Confirm.ask(
-                "[dark_sea_green3]Do you want to set/update your identity?",
-                default=False,
-                show_default=True,
+        self._run_command(
+            subnets.create(
+                wallet, self.initialize_chain(network), identity, json_output, prompt
             )
-            if set_id:
-                self.wallet_set_id(
-                    wallet_name=wallet.name,
-                    wallet_hotkey=wallet.hotkey,
-                    wallet_path=wallet.path,
-                    network=network,
-                    prompt=prompt,
-                    quiet=quiet,
-                    verbose=verbose,
-                )
+        )
 
     def subnets_get_identity(
         self,
@@ -4987,6 +4975,7 @@ class CLIManager:
         netuid: int = Options.netuid,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Get the identity information for a subnet.
@@ -4995,11 +4984,10 @@ class CLIManager:
 
         [green]$[/green] btcli subnets get-identity --netuid 1
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
         return self._run_command(
             subnets.get_identity(
-                self.initialize_chain(network),
-                netuid,
+                self.initialize_chain(network), netuid, json_output=json_output
             )
         )
 
@@ -5035,6 +5023,7 @@ class CLIManager:
         additional_info: Optional[str] = typer.Option(
             None, "--additional-info", help="Additional information"
         ),
+        json_output: bool = Options.json_output,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -5052,7 +5041,7 @@ class CLIManager:
         2. Set subnet identity with specific values:
         [green]$[/green] btcli subnets set-identity --netuid 1 --subnet-name MySubnet --github-repo https://github.com/myorg/mysubnet --subnet-contact team@mysubnet.net
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -5070,7 +5059,9 @@ class CLIManager:
             exit_early=False,
         )
         if current_identity is None:
-            raise typer.Exit()
+            if json_output:
+                json_console.print('{"success": false}')
+            return
 
         identity = prompt_for_subnet_identity(
             current_identity=current_identity,
@@ -5083,15 +5074,13 @@ class CLIManager:
             additional=additional_info,
         )
 
-        return self._run_command(
+        success = self._run_command(
             subnets.set_identity(
-                wallet,
-                self.initialize_chain(network),
-                netuid,
-                identity,
-                prompt,
+                wallet, self.initialize_chain(network), netuid, identity, prompt
             )
         )
+        if json_output:
+            json_console.print(json.dumps({"success": success}))
 
     def subnets_pow_register(
         self,
@@ -5196,6 +5185,7 @@ class CLIManager:
             help="Length (in blocks) for which the transaction should be valid. Note that it is possible that if you "
             "use an era for this transaction that you may pay a different fee to register than the one stated.",
         ),
+        json_output: bool = Options.json_output,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -5211,7 +5201,7 @@ class CLIManager:
 
         [green]$[/green] btcli subnets register --netuid 1
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -5225,6 +5215,7 @@ class CLIManager:
                 self.initialize_chain(network),
                 netuid,
                 era,
+                json_output,
                 prompt,
             )
         )
