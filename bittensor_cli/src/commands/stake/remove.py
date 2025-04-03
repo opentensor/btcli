@@ -798,7 +798,6 @@ async def _unstake_all_extrinsic(
             wait_for_inclusion=True,
             wait_for_finalization=False,
         )
-        await response.process_events()
 
         if not await response.is_success:
             err_out(

@@ -4067,7 +4067,8 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose, json_output)
         console.print(
-            "[dim]This command moves stake from one subnet to another subnet while keeping the same coldkey-hotkey pair.[/dim]"
+            "[dim]This command moves stake from one subnet to another subnet while keeping "
+            "the same coldkey-hotkey pair.[/dim]"
         )
 
         wallet = self.wallet_ask(
@@ -4222,7 +4223,8 @@ class CLIManager:
         proportions = list_prompt(
             proportions,
             float,
-            "Enter comma-separated proportions equal to the number of children (sum not exceeding a total of 1.0)",
+            "Enter comma-separated proportions equal to the number of children "
+            "(sum not exceeding a total of 1.0)",
         )
 
         if len(proportions) != len(children):
@@ -4340,7 +4342,8 @@ class CLIManager:
             None,
             "--take",
             "-t",
-            help="Use to set the take value for your child hotkey. When not used, the command will fetch the current take value.",
+            help="Use to set the take value for your child hotkey. When not used, the command will fetch the current "
+            "take value.",
             prompt=False,
         ),
         wait_for_inclusion: bool = Options.wait_for_inclusion,
