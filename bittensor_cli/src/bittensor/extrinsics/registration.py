@@ -679,7 +679,7 @@ async def burned_register_extrinsic(
     wait_for_finalization: bool = True,
     era: Optional[int] = None,
     prompt: bool = False,
-) -> bool:
+) -> tuple[bool, str]:
     """Registers the wallet to chain by recycling TAO.
 
     :param subtensor: The SubtensorInterface object to use for the call, initialized
@@ -693,8 +693,8 @@ async def burned_register_extrinsic(
     :param era: the period (in blocks) for which the transaction should remain valid.
     :param prompt: If `True`, the call waits for confirmation from the user before proceeding.
 
-    :return: Flag is `True` if extrinsic was finalized or included in the block. If we did not wait for
-             finalization/inclusion, the response is `True`.
+    :return: (success, msg), where success is `True` if extrinsic was finalized or included in the block. If we did not
+        wait for finalization/inclusion, the response is `True`.
     """
 
     if not (unlock_status := unlock_key(wallet, print_out=False)).success:
@@ -742,7 +742,7 @@ async def burned_register_extrinsic(
             f"hotkey: [{COLOR_PALETTE.G.HK}]{neuron.hotkey}[/{COLOR_PALETTE.G.HK}]\n"
             f"coldkey: [{COLOR_PALETTE.G.CK}]{neuron.coldkey}[/{COLOR_PALETTE.G.CK}]"
         )
-        return True
+        return True, "Already registered"
 
     with console.status(
         ":satellite: Recycling TAO for Registration...", spinner="aesthetic"
@@ -762,7 +762,7 @@ async def burned_register_extrinsic(
     if not success:
         err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
         await asyncio.sleep(0.5)
-        return False
+        return False, err_msg
     # Successful registration, final check for neuron and pubkey
     else:
         with console.status(":satellite: Checking Balance...", spinner="aesthetic"):
@@ -791,13 +791,13 @@ async def burned_register_extrinsic(
             console.print(
                 f":white_heavy_check_mark: [green]Registered on netuid {netuid} with UID {my_uid}[/green]"
             )
-            return True
+            return True, f"Registered on {netuid} with UID {my_uid}"
         else:
             # neuron not found, try again
             err_console.print(
                 ":cross_mark: [red]Unknown error. Neuron not found.[/red]"
             )
-            return False
+            return False, "Unknown error. Neuron not found."
 
 
 async def run_faucet_extrinsic(
