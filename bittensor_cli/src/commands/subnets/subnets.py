@@ -178,7 +178,6 @@ async def register_subnetwork_extrinsic(
         if not wait_for_finalization and not wait_for_inclusion:
             return True, None
 
-        await response.process_events()
         if not await response.is_success:
             err_console.print(
                 f":cross_mark: [red]Failed[/red]: {format_error_message(await response.error_message)}"

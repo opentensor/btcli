@@ -524,9 +524,11 @@ async def register_extrinsic(
     if prompt:
         if not Confirm.ask(
             f"Continue Registration?\n"
-            f"  hotkey [{COLOR_PALETTE['GENERAL']['HOTKEY']}]({wallet.hotkey_str})[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]:\t[{COLOR_PALETTE['GENERAL']['HOTKEY']}]{wallet.hotkey.ss58_address}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]\n"
-            f"  coldkey [{COLOR_PALETTE['GENERAL']['COLDKEY']}]({wallet.name})[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]:\t[{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
-            f"  network:\t\t[{COLOR_PALETTE['GENERAL']['LINKS']}]{subtensor.network}[/{COLOR_PALETTE['GENERAL']['LINKS']}]\n"
+            f"  hotkey [{COLOR_PALETTE.G.HK}]({wallet.hotkey_str})[/{COLOR_PALETTE.G.HK}]:"
+            f"\t[{COLOR_PALETTE.G.HK}]{wallet.hotkey.ss58_address}[/{COLOR_PALETTE.G.HK}]\n"
+            f"  coldkey [{COLOR_PALETTE.G.CK}]({wallet.name})[/{COLOR_PALETTE.G.CK}]:"
+            f"\t[{COLOR_PALETTE.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE.G.CK}]\n"
+            f"  network:\t\t[{COLOR_PALETTE.G.LINKS}]{subtensor.network}[/{COLOR_PALETTE.G.LINKS}]\n"
         ):
             return False
 
@@ -611,7 +613,6 @@ async def register_extrinsic(
                     if not wait_for_finalization and not wait_for_inclusion:
                         success, err_msg = True, ""
                     else:
-                        await response.process_events()
                         success = await response.is_success
                         if not success:
                             success, err_msg = (
@@ -689,6 +690,7 @@ async def burned_register_extrinsic(
                                `False` if the extrinsic fails to enter the block within the timeout.
     :param wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `True`,
                                   or returns `False` if the extrinsic fails to be finalized within the timeout.
+    :param era: the period (in blocks) for which the transaction should remain valid.
     :param prompt: If `True`, the call waits for confirmation from the user before proceeding.
 
     :return: (success, msg), where success is `True` if extrinsic was finalized or included in the block. If we did not
@@ -735,10 +737,10 @@ async def burned_register_extrinsic(
     if not neuron.is_null:
         console.print(
             ":white_heavy_check_mark: [dark_sea_green3]Already Registered[/dark_sea_green3]:\n"
-            f"uid: [{COLOR_PALETTE['GENERAL']['NETUID_EXTRA']}]{neuron.uid}[/{COLOR_PALETTE['GENERAL']['NETUID_EXTRA']}]\n"
-            f"netuid: [{COLOR_PALETTE['GENERAL']['NETUID']}]{neuron.netuid}[/{COLOR_PALETTE['GENERAL']['NETUID']}]\n"
-            f"hotkey: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{neuron.hotkey}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]\n"
-            f"coldkey: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{neuron.coldkey}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]"
+            f"uid: [{COLOR_PALETTE.G.NETUID_EXTRA}]{neuron.uid}[/{COLOR_PALETTE.G.NETUID_EXTRA}]\n"
+            f"netuid: [{COLOR_PALETTE.G.NETUID}]{neuron.netuid}[/{COLOR_PALETTE.G.NETUID}]\n"
+            f"hotkey: [{COLOR_PALETTE.G.HK}]{neuron.hotkey}[/{COLOR_PALETTE.G.HK}]\n"
+            f"coldkey: [{COLOR_PALETTE.G.CK}]{neuron.coldkey}[/{COLOR_PALETTE.G.CK}]"
         )
         return True, "Already registered"
 
@@ -781,7 +783,8 @@ async def burned_register_extrinsic(
 
         console.print(
             "Balance:\n"
-            f"  [blue]{old_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
+            f"  [blue]{old_balance}[/blue] :arrow_right: "
+            f"[{COLOR_PALETTE.S.STAKE_AMOUNT}]{new_balance}[/{COLOR_PALETTE.S.STAKE_AMOUNT}]"
         )
 
         if len(netuids_for_hotkey) > 0:
@@ -914,7 +917,6 @@ async def run_faucet_extrinsic(
             )
 
             # process if registration successful, try again if pow is still valid
-            await response.process_events()
             if not await response.is_success:
                 err_console.print(
                     f":cross_mark: [red]Failed[/red]: "
@@ -1757,7 +1759,8 @@ async def swap_hotkey_extrinsic(
     )
     if not len(netuids_registered) > 0:
         err_console.print(
-            f"Destination hotkey [dark_orange]{new_wallet.hotkey.ss58_address}[/dark_orange] is not registered. Please register and try again"
+            f"Destination hotkey [dark_orange]{new_wallet.hotkey.ss58_address}[/dark_orange] is not registered. "
+            f"Please register and try again"
         )
         return False
 
@@ -1774,7 +1777,8 @@ async def swap_hotkey_extrinsic(
         ):
             return False
     print_verbose(
-        f"Swapping {wallet.name}'s hotkey ({wallet.hotkey.ss58_address}) with {new_wallet.name}s hotkey ({new_wallet.hotkey.ss58_address})"
+        f"Swapping {wallet.name}'s hotkey ({wallet.hotkey.ss58_address}) with "
+        f"{new_wallet.name}s hotkey ({new_wallet.hotkey.ss58_address})"
     )
     with console.status(":satellite: Swapping hotkeys...", spinner="aesthetic"):
         call = await subtensor.substrate.compose_call(

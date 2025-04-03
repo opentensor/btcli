@@ -266,7 +266,6 @@ class SetWeightsExtrinsic:
             if not self.wait_for_finalization and not self.wait_for_inclusion:
                 return True, "Not waiting for finalization or inclusion."
 
-            await response.process_events()
             if await response.is_success:
                 return True, "Successfully set weights."
             else:
@@ -322,7 +321,6 @@ class SetWeightsExtrinsic:
             success, error_message = True, ""
 
         else:
-            await response.process_events()
             if await response.is_success:
                 success, error_message = True, ""
             else:
@@ -360,7 +358,6 @@ class SetWeightsExtrinsic:
         if not self.wait_for_finalization and not self.wait_for_inclusion:
             return True, None
 
-        await response.process_events()
         if await response.is_success:
             return True, None
         else:
