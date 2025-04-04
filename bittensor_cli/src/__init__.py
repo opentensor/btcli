@@ -746,26 +746,26 @@ class ColorPalette(Gettable):
         self.SU = self.SUDO
 
     class General(Gettable):
-        HEADER = "#57878B"  # mid blue green
+        HEADER = "#57878B"  # Mid Blue Green
         LINKS = "#8CAAAE"  # Pale Blue
         HINT = "#6C8871"  # Muted Green
-        COLDKEY = "#676B72"  # Dark grey blue
-        HOTKEY = "#747065"  # Dark orange grey
-        SUBHEADING_MAIN = "#8AA499"  # muted Blue green
-        SUBHEADING = "#9BAC9C"  # pale green
+        COLDKEY = "#676B72"  # Dark Grey Blue
+        HOTKEY = "#747065"  # Dark Orange Grey
+        SUBHEADING_MAIN = "#8AA499"  # Muted Blue Green
+        SUBHEADING = "#9BAC9C"  # Pale Green
         SUBHEADING_EXTRA_1 = "#C596A3"  # Dusty Rose
-        SUBHEADING_EXTRA_2 = "#9BAC9C"  # pale green
-        CONFIRMATION_Y_N_Q = "#EFB7AB"  # pale Pink
-        SYMBOL = "#FE917A"  # Salmon orange
+        SUBHEADING_EXTRA_2 = "#9BAC9C"  # Pale Green
+        CONFIRMATION_Y_N_Q = "#EFB7AB"  # Pale Pink
+        SYMBOL = "#FE917A"  # Salmon Orange
         SUBNET_NAME = "#C596A3"  # Dusty Rose
         VALIDATOR_NAME = "#9BAC9C"  # Mid Lime Green
         MINER_NAME = "#A17E7E"  # Dusty Red
         BALANCE = "#757B7B"  # Muted teal Blue
         COST = "#8EB27A"  # Green
-        SUCCESS = "#3D7F71"  # dark Teal
+        SUCCESS = "#3D7F71"  # Dark Teal
         NETUID = "#BDC1C6"  # GREY_400
-        NETUID_EXTRA = "#D4D0C1"  # Light yellow grey
-        TEMPO = "#927A71"  # dark tan brown
+        NETUID_EXTRA = "#D4D0C1"  # Light Yellow Grey
+        TEMPO = "#927A71"  # Dark Tan Brown
         # aliases
         CK = COLDKEY
         HK = HOTKEY
@@ -780,21 +780,21 @@ class ColorPalette(Gettable):
         STAKE_AMOUNT = "#53B5A0"  # Teal
         STAKE_ALPHA = "#53B5A0"  # Teal
         STAKE_SWAP = "#67A3A5"  # Grayish Teal
-        TAO = "#8AA499"  # faded Blue green
+        TAO = "#8AA499"  # Faded Blue Green
         SLIPPAGE_TEXT = "#BA938A"  # Brown Salmon
         SLIPPAGE_PERCENT = "#CD8B7B"  # Muted Salmon
         NOT_REGISTERED = "#A87D7D"  # Medium Red brown
-        EXTRA_1 = "#A45E44"  # Deep autumn orange
+        EXTRA_1 = "#A45E44"  # Deep Autumn Orange
         # aliases
         AMOUNT = STAKE_AMOUNT
         ALPHA = STAKE_ALPHA
         SWAP = STAKE_SWAP
 
     class Pools(Gettable):
-        TAO = "#8AA499"  # faded Blue green
+        TAO = "#8AA499"  # Faded Blue Green
         ALPHA_IN = "#C1913C"  # Mustard
         ALPHA_OUT = "#B49766"  # Khaki Mustard
-        RATE = "#A46844"  # Deep orange
+        RATE = "#A46844"  # Deep Orange
         TAO_EQUIV = "#93BBAF"  # Teal Blue
         EMISSION = "#B58065"  # Med Orange
         EXTRA_1 = "#919170"  # Autumn green
@@ -824,7 +824,7 @@ class ColorPalette(Gettable):
 
     class Sudo(Gettable):
         HYPERPARAMETER = "#93AFA3"  # Forest
-        VALUE = "#B58065"  # Burnt orange
+        VALUE = "#B58065"  # Burnt Orange
         NORMALIZED = "#A87575"  # Burnt Red
         # aliases
         HYPERPARAM = HYPERPARAMETER
