@@ -1,4 +1,6 @@
 import asyncio
+import json
+from collections import defaultdict
 from functools import partial
 
 from typing import TYPE_CHECKING, Optional
@@ -17,6 +19,7 @@ from bittensor_cli.src.bittensor.utils import (
     print_error,
     print_verbose,
     unlock_key,
+    json_console,
 )
 from bittensor_wallet import Wallet
 
@@ -38,6 +41,7 @@ async def stake_add(
     safe_staking: bool,
     rate_tolerance: float,
     allow_partial_stake: bool,
+    json_output: bool,
     era: int,
 ):
     """
@@ -54,6 +58,7 @@ async def stake_add(
         safe_staking: whether to use safe staking
         rate_tolerance: rate tolerance percentage for stake operations
         allow_partial_stake: whether to allow partial stake
+        json_output: whether to output stake info in JSON format
         era: Blocks for which the transaction should be valid.
 
     Returns:
@@ -67,25 +72,25 @@ async def stake_add(
         hotkey_ss58_: str,
         price_limit: Balance,
         status=None,
-    ) -> None:
+    ) -> bool:
         err_out = partial(print_error, status=status)
         failure_prelude = (
             f":cross_mark: [red]Failed[/red] to stake {amount_} on Netuid {netuid_}"
         )
-        current_balance = await subtensor.get_balance(wallet.coldkeypub.ss58_address)
-        next_nonce = await subtensor.substrate.get_account_next_index(
-            wallet.coldkeypub.ss58_address
-        )
-        call = await subtensor.substrate.compose_call(
-            call_module="SubtensorModule",
-            call_function="add_stake_limit",
-            call_params={
-                "hotkey": hotkey_ss58_,
-                "netuid": netuid_,
-                "amount_staked": amount_.rao,
-                "limit_price": price_limit,
-                "allow_partial": allow_partial_stake,
-            },
+        current_balance, next_nonce, call = await asyncio.gather(
+            subtensor.get_balance(wallet.coldkeypub.ss58_address),
+            subtensor.substrate.get_account_next_index(wallet.coldkeypub.ss58_address),
+            subtensor.substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function="add_stake_limit",
+                call_params={
+                    "hotkey": hotkey_ss58_,
+                    "netuid": netuid_,
+                    "amount_staked": amount_.rao,
+                    "limit_price": price_limit,
+                    "allow_partial": allow_partial_stake,
+                },
+            ),
         )
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
             call=call,
@@ -105,69 +110,77 @@ async def stake_add(
                     f"Either increase price tolerance or enable partial staking.",
                     status=status,
                 )
-                return
+                return False
             else:
                 err_out(f"\n{failure_prelude} with error: {format_error_message(e)}")
-            return
+            return False
+        if not await response.is_success:
+            err_out(
+                f"\n{failure_prelude} with error: {format_error_message(await response.error_message)}"
+            )
+            return False
         else:
-            if not await response.is_success:
-                err_out(
-                    f"\n{failure_prelude} with error: {format_error_message(await response.error_message)}"
-                )
-            else:
-                block_hash = await subtensor.substrate.get_chain_head()
-                new_balance, new_stake = await asyncio.gather(
-                    subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash),
-                    subtensor.get_stake(
-                        hotkey_ss58=hotkey_ss58_,
-                        coldkey_ss58=wallet.coldkeypub.ss58_address,
-                        netuid=netuid_,
-                        block_hash=block_hash,
-                    ),
-                )
+            if json_output:
+                # the rest of this checking is not necessary if using json_output
+                return True
+            block_hash = await subtensor.substrate.get_chain_head()
+            new_balance, new_stake = await asyncio.gather(
+                subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash),
+                subtensor.get_stake(
+                    hotkey_ss58=hotkey_ss58_,
+                    coldkey_ss58=wallet.coldkeypub.ss58_address,
+                    netuid=netuid_,
+                    block_hash=block_hash,
+                ),
+            )
+            console.print(
+                f":white_heavy_check_mark: [dark_sea_green3]Finalized. "
+                f"Stake added to netuid: {netuid_}[/dark_sea_green3]"
+            )
+            console.print(
+                f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: "
+                f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
+            )
+
+            amount_staked = current_balance - new_balance
+            if allow_partial_stake and (amount_staked != amount_):
                 console.print(
-                    f":white_heavy_check_mark: [dark_sea_green3]Finalized. Stake added to netuid: {netuid_}[/dark_sea_green3]"
-                )
-                console.print(
-                    f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
+                    "Partial stake transaction. Staked:\n"
+                    f"  [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{amount_staked}"
+                    f"[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] "
+                    f"instead of "
+                    f"[blue]{amount_}[/blue]"
                 )
 
-                amount_staked = current_balance - new_balance
-                if allow_partial_stake and (amount_staked != amount_):
-                    console.print(
-                        "Partial stake transaction. Staked:\n"
-                        f"  [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{amount_staked}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] "
-                        f"instead of "
-                        f"[blue]{amount_}[/blue]"
-                    )
-
-                console.print(
-                    f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid_}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] "
-                    f"Stake:\n"
-                    f"  [blue]{current_stake}[/blue] "
-                    f":arrow_right: "
-                    f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}\n"
-                )
+            console.print(
+                f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
+                f"{netuid_}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] "
+                f"Stake:\n"
+                f"  [blue]{current_stake}[/blue] "
+                f":arrow_right: "
+                f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}\n"
+            )
+            return True
 
     async def stake_extrinsic(
         netuid_i, amount_, current, staking_address_ss58, status=None
-    ):
+    ) -> bool:
         err_out = partial(print_error, status=status)
-        current_balance = await subtensor.get_balance(wallet.coldkeypub.ss58_address)
+        current_balance, next_nonce, call = await asyncio.gather(
+            subtensor.get_balance(wallet.coldkeypub.ss58_address),
+            subtensor.substrate.get_account_next_index(wallet.coldkeypub.ss58_address),
+            subtensor.substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function="add_stake",
+                call_params={
+                    "hotkey": staking_address_ss58,
+                    "netuid": netuid_i,
+                    "amount_staked": amount_.rao,
+                },
+            ),
+        )
         failure_prelude = (
             f":cross_mark: [red]Failed[/red] to stake {amount} on Netuid {netuid_i}"
-        )
-        next_nonce = await subtensor.substrate.get_account_next_index(
-            wallet.coldkeypub.ss58_address
-        )
-        call = await subtensor.substrate.compose_call(
-            call_module="SubtensorModule",
-            call_function="add_stake",
-            call_params={
-                "hotkey": staking_address_ss58,
-                "netuid": netuid_i,
-                "amount_staked": amount_.rao,
-            },
         )
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
             call=call, keypair=wallet.coldkey, nonce=next_nonce, era={"period": era}
@@ -178,35 +191,46 @@ async def stake_add(
             )
         except SubstrateRequestException as e:
             err_out(f"\n{failure_prelude} with error: {format_error_message(e)}")
-            return
+            return False
         else:
-            await response.process_events()
             if not await response.is_success:
                 err_out(
                     f"\n{failure_prelude} with error: {format_error_message(await response.error_message)}"
                 )
+                return False
             else:
+                if json_output:
+                    # the rest of this is not necessary if using json_output
+                    return True
+                new_block_hash = await subtensor.substrate.get_chain_head()
                 new_balance, new_stake = await asyncio.gather(
-                    subtensor.get_balance(wallet.coldkeypub.ss58_address),
+                    subtensor.get_balance(
+                        wallet.coldkeypub.ss58_address, block_hash=new_block_hash
+                    ),
                     subtensor.get_stake(
                         hotkey_ss58=staking_address_ss58,
                         coldkey_ss58=wallet.coldkeypub.ss58_address,
                         netuid=netuid_i,
+                        block_hash=new_block_hash,
                     ),
                 )
                 console.print(
-                    f":white_heavy_check_mark: [dark_sea_green3]Finalized. Stake added to netuid: {netuid_i}[/dark_sea_green3]"
+                    f":white_heavy_check_mark: "
+                    f"[dark_sea_green3]Finalized. Stake added to netuid: {netuid_i}[/dark_sea_green3]"
                 )
                 console.print(
-                    f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
+                    f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: "
+                    f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
                 )
                 console.print(
-                    f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid_i}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] "
+                    f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
+                    f"{netuid_i}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] "
                     f"Stake:\n"
                     f"  [blue]{current}[/blue] "
                     f":arrow_right: "
                     f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}\n"
                 )
+                return True
 
     netuids = (
         [int(netuid)]
@@ -337,7 +361,9 @@ async def stake_add(
                 base_row.extend(
                     [
                         f"{rate_with_tolerance} {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ",
-                        f"[{'dark_sea_green3' if allow_partial_stake else 'red'}]{allow_partial_stake}[/{'dark_sea_green3' if allow_partial_stake else 'red'}]",  # safe staking
+                        f"[{'dark_sea_green3' if allow_partial_stake else 'red'}]"
+                        # safe staking
+                        f"{allow_partial_stake}[/{'dark_sea_green3' if allow_partial_stake else 'red'}]",
                     ]
                 )
 
@@ -356,7 +382,7 @@ async def stake_add(
         return False
 
     if safe_staking:
-        stake_coroutines = []
+        stake_coroutines = {}
         for i, (ni, am, curr, price_with_tolerance) in enumerate(
             zip(
                 netuids, amounts_to_stake, current_stake_balances, prices_with_tolerance
@@ -365,27 +391,23 @@ async def stake_add(
             for _, staking_address in hotkeys_to_stake_to:
                 # Regular extrinsic for root subnet
                 if ni == 0:
-                    stake_coroutines.append(
-                        stake_extrinsic(
-                            netuid_i=ni,
-                            amount_=am,
-                            current=curr,
-                            staking_address_ss58=staking_address,
-                        )
+                    stake_coroutines[(ni, staking_address)] = stake_extrinsic(
+                        netuid_i=ni,
+                        amount_=am,
+                        current=curr,
+                        staking_address_ss58=staking_address,
                     )
                 else:
-                    stake_coroutines.append(
-                        safe_stake_extrinsic(
-                            netuid_=ni,
-                            amount_=am,
-                            current_stake=curr,
-                            hotkey_ss58_=staking_address,
-                            price_limit=price_with_tolerance,
-                        )
+                    stake_coroutines[(ni, staking_address)] = safe_stake_extrinsic(
+                        netuid_=ni,
+                        amount_=am,
+                        current_stake=curr,
+                        hotkey_ss58_=staking_address,
+                        price_limit=price_with_tolerance,
                     )
     else:
-        stake_coroutines = [
-            stake_extrinsic(
+        stake_coroutines = {
+            (ni, staking_address): stake_extrinsic(
                 netuid_i=ni,
                 amount_=am,
                 current=curr,
@@ -395,12 +417,15 @@ async def stake_add(
                 zip(netuids, amounts_to_stake, current_stake_balances)
             )
             for _, staking_address in hotkeys_to_stake_to
-        ]
-
+        }
+    successes = defaultdict(dict)
     with console.status(f"\n:satellite: Staking on netuid(s): {netuids} ..."):
         # We can gather them all at once but balance reporting will be in race-condition.
-        for coroutine in stake_coroutines:
-            await coroutine
+        for (ni, staking_address), coroutine in stake_coroutines.items():
+            success = await coroutine
+            successes[ni][staking_address] = success
+    if json_output:
+        json_console.print(json.dumps({"staking_success": successes}))
 
 
 # Helper functions

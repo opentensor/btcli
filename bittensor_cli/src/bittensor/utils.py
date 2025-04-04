@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
 
 console = Console()
+json_console = Console()
 err_console = Console(stderr=True)
 verbose_console = Console(quiet=True)
 
@@ -1052,6 +1053,7 @@ def get_effective_network(config, network: Optional[list[str]]) -> str:
     the configuration, and the default.
     """
     if network:
+        network_ = ""
         for item in network:
             if item.startswith("ws"):
                 network_ = item
@@ -1308,7 +1310,8 @@ def print_linux_dependency_message():
         "\tAdd this into the file and save: [green]deb http://archive.ubuntu.com/ubuntu jammy main universe[/green]"
     )
     console.print(
-        "\tUpdate the repository and install the webkit dependency: [green]sudo apt update && sudo apt install libwebkit2gtk-4.0-dev[/green]"
+        "\tUpdate the repository and install the webkit dependency: [green]sudo apt update && sudo apt install "
+        "libwebkit2gtk-4.0-dev[/green]"
     )
     console.print("\nFedora / CentOS / AlmaLinux:")
     console.print("[green]sudo dnf install gtk3-devel webkit2gtk3-devel[/green]\n\n")
