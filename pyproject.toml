@@ -16,7 +16,7 @@ requires-python = ">=3.9,<3.14"
 dependencies = [
     "wheel",
     "async-property==0.2.2",
-    "async-substrate-interface>=1.0.8",
+    "async-substrate-interface>=1.0.9",
     "aiohttp~=3.10.2",
     "backoff~=2.2.1",
     "GitPython>=3.0.0",
@@ -31,7 +31,6 @@ dependencies = [
     "rich>=13.7,<15.0",
     "scalecodec==1.2.11",
     "typer>=0.12,<0.16",
-    "websockets>=14.1,<16.0",
     "bittensor-wallet>=3.0.7",
     "plotille>=5.0.0",
     "pywry>=0.6.2",

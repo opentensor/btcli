@@ -15,14 +15,17 @@ from dataclasses import fields
 import rich
 import typer
 import numpy as np
-from async_substrate_interface.errors import SubstrateRequestException
+from async_substrate_interface.errors import (
+    SubstrateRequestException,
+    ConnectionClosed,
+    InvalidHandshake,
+)
 from bittensor_wallet import Wallet
 from rich import box
 from rich.prompt import Confirm, FloatPrompt, Prompt, IntPrompt
 from rich.table import Column, Table
 from rich.tree import Tree
 from typing_extensions import Annotated
-from websockets import ConnectionClosed, InvalidHandshake
 from yaml import safe_dump, safe_load
 
 from bittensor_cli.src import (
