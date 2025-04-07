@@ -444,9 +444,10 @@ async def move_stake(
     destination_hotkey: str,
     amount: float,
     stake_all: bool,
+    era: int,
     interactive_selection: bool = False,
     prompt: bool = True,
-):
+) -> bool:
     if interactive_selection:
         try:
             selection = await stake_move_transfer_selection(subtensor, wallet)
@@ -512,8 +513,10 @@ async def move_stake(
     if amount_to_move_as_balance > origin_stake_balance:
         err_console.print(
             f"[red]Not enough stake[/red]:\n"
-            f" Stake balance: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{origin_stake_balance}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
-            f" < Moving amount: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{amount_to_move_as_balance}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
+            f" Stake balance: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
+            f"{origin_stake_balance}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
+            f" < Moving amount: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
+            f"{amount_to_move_as_balance}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
         )
         return False
 
@@ -563,7 +566,7 @@ async def move_stake(
             },
         )
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey
+            call=call, keypair=wallet.coldkey, era={"period": era}
         )
         response = await subtensor.substrate.submit_extrinsic(
             extrinsic, wait_for_inclusion=True, wait_for_finalization=False
@@ -573,13 +576,12 @@ async def move_stake(
         console.print(":white_heavy_check_mark: [green]Sent[/green]")
         return True
     else:
-        await response.process_events()
         if not await response.is_success:
             err_console.print(
                 f"\n:cross_mark: [red]Failed[/red] with error:"
                 f" {format_error_message(await response.error_message)}"
             )
-            return
+            return False
         else:
             console.print(
                 ":white_heavy_check_mark: [dark_sea_green3]Stake moved.[/dark_sea_green3]"
@@ -611,7 +613,7 @@ async def move_stake(
                 f"Destination Stake:\n  [blue]{destination_stake_balance}[/blue] :arrow_right: "
                 f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_destination_stake_balance}"
             )
-            return
+            return True
 
 
 async def transfer_stake(
@@ -622,6 +624,7 @@ async def transfer_stake(
     origin_netuid: int,
     dest_netuid: int,
     dest_coldkey_ss58: str,
+    era: int,
     interactive_selection: bool = False,
     stake_all: bool = False,
     prompt: bool = True,
@@ -747,7 +750,7 @@ async def transfer_stake(
         )
 
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey
+            call=call, keypair=wallet.coldkey, era={"period": era}
         )
 
         response = await subtensor.substrate.submit_extrinsic(
@@ -758,7 +761,6 @@ async def transfer_stake(
         console.print(":white_heavy_check_mark: [green]Sent[/green]")
         return True
 
-    await response.process_events()
     if not await response.is_success:
         err_console.print(
             f":cross_mark: [red]Failed[/red] with error: "
@@ -798,6 +800,7 @@ async def swap_stake(
     destination_netuid: int,
     amount: float,
     swap_all: bool = False,
+    era: int = 3,
     interactive_selection: bool = False,
     prompt: bool = True,
     wait_for_inclusion: bool = True,
@@ -903,7 +906,8 @@ async def swap_stake(
         return False
 
     with console.status(
-        f"\n:satellite: Swapping stake from netuid [blue]{origin_netuid}[/blue] to netuid [blue]{destination_netuid}[/blue]..."
+        f"\n:satellite: Swapping stake from netuid [blue]{origin_netuid}[/blue] "
+        f"to netuid [blue]{destination_netuid}[/blue]..."
     ):
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
@@ -917,7 +921,7 @@ async def swap_stake(
         )
 
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey
+            call=call, keypair=wallet.coldkey, era={"period": era}
         )
 
         response = await subtensor.substrate.submit_extrinsic(
@@ -930,7 +934,6 @@ async def swap_stake(
         console.print(":white_heavy_check_mark: [green]Sent[/green]")
         return True
 
-    await response.process_events()
     if not await response.is_success:
         err_console.print(
             f":cross_mark: [red]Failed[/red] with error: "

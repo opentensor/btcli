@@ -1048,6 +1048,7 @@ class SubtensorInterface:
         wallet: Wallet,
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = False,
+        era: Optional[dict[str, int]] = None,
     ) -> tuple[bool, str]:
         """
         Helper method to sign and submit an extrinsic call to chain.
@@ -1056,11 +1057,15 @@ class SubtensorInterface:
         :param wallet: the wallet whose coldkey will be used to sign the extrinsic
         :param wait_for_inclusion: whether to wait until the extrinsic call is included on the chain
         :param wait_for_finalization: whether to wait until the extrinsic call is finalized on the chain
+        :param era: The length (in blocks) for which a transaction should be valid.
 
         :return: (success, error message)
         """
+        call_args = {"call": call, "keypair": wallet.coldkey}
+        if era is not None:
+            call_args["era"] = era
         extrinsic = await self.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey
+            **call_args
         )  # sign with coldkey
         try:
             response = await self.substrate.submit_extrinsic(
@@ -1071,7 +1076,6 @@ class SubtensorInterface:
             # We only wait here if we expect finalization.
             if not wait_for_finalization and not wait_for_inclusion:
                 return True, ""
-            await response.process_events()
             if await response.is_success:
                 return True, ""
             else:
@@ -1368,11 +1372,11 @@ class SubtensorInterface:
         This function is useful for analyzing the stake distribution and delegation patterns of multiple
         accounts simultaneously, offering a broader perspective on network participation and investment strategies.
         """
-        BATCH_SIZE = 60
+        batch_size = 60
 
         tasks = []
-        for i in range(0, len(coldkey_ss58_list), BATCH_SIZE):
-            ss58_chunk = coldkey_ss58_list[i : i + BATCH_SIZE]
+        for i in range(0, len(coldkey_ss58_list), batch_size):
+            ss58_chunk = coldkey_ss58_list[i : i + batch_size]
             tasks.append(
                 self.query_runtime_api(
                     runtime_api="StakeInfoRuntimeApi",

@@ -298,7 +298,6 @@ async def call_add_proposal(
             wait_for_finalization=True,
         )
 
-        await response.process_events()
         return await response.is_success
 
 def run_async(coro):

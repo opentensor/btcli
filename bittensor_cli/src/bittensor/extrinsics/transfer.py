@@ -24,6 +24,7 @@ async def transfer_extrinsic(
     wallet: Wallet,
     destination: str,
     amount: Balance,
+    era: int = 3,
     transfer_all: bool = False,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
@@ -36,6 +37,7 @@ async def transfer_extrinsic(
     :param wallet: Bittensor wallet object to make transfer from.
     :param destination: Destination public key address (ss58_address or ed25519) of recipient.
     :param amount: Amount to stake as Bittensor balance.
+    :param era: Length (in blocks) for which the transaction should be valid.
     :param transfer_all: Whether to transfer all funds from this wallet to the destination address.
     :param wait_for_inclusion: If set, waits for the extrinsic to enter a block before returning `True`,
                                or returns `False` if the extrinsic fails to enter the block within the timeout.
@@ -84,7 +86,7 @@ async def transfer_extrinsic(
             call_params={"dest": destination, "value": amount.rao},
         )
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey
+            call=call, keypair=wallet.coldkey, era={"period": era}
         )
         response = await subtensor.substrate.submit_extrinsic(
             extrinsic,
@@ -96,7 +98,6 @@ async def transfer_extrinsic(
             return True, "", ""
 
         # Otherwise continue with finalization.
-        await response.process_events()
         if await response.is_success:
             block_hash_ = response.block_hash
             return True, block_hash_, ""
@@ -155,7 +156,8 @@ async def transfer_extrinsic(
         if not Confirm.ask(
             "Do you want to transfer:[bold white]\n"
             f"  amount: [bright_cyan]{amount}[/bright_cyan]\n"
-            f"  from: [light_goldenrod2]{wallet.name}[/light_goldenrod2] : [bright_magenta]{wallet.coldkey.ss58_address}\n[/bright_magenta]"
+            f"  from: [light_goldenrod2]{wallet.name}[/light_goldenrod2] : "
+            f"[bright_magenta]{wallet.coldkey.ss58_address}\n[/bright_magenta]"
             f"  to: [bright_magenta]{destination}[/bright_magenta]\n  for fee: [bright_cyan]{fee}[/bright_cyan]"
         ):
             return False

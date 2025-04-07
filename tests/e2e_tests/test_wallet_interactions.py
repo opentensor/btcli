@@ -57,7 +57,7 @@ def test_wallet_overview_inspect(local_chain, wallet_setup):
             wallet.name,
             "--wallet-hotkey",
             wallet.hotkey_str,
-            "--name",
+            "--subnet-name",
             "Test Subnet",
             "--repo",
             "https://github.com/username/repo",
@@ -245,6 +245,8 @@ def test_wallet_transfer(local_chain, wallet_setup):
             "--amount",
             "100",
             "--no-prompt",
+            "--era",
+            "144",
         ],
     )
 
@@ -372,7 +374,7 @@ def test_wallet_identities(local_chain, wallet_setup):
             wallet_alice.name,
             "--wallet-hotkey",
             wallet_alice.hotkey_str,
-            "--name",
+            "--subnet-name",
             "Test Subnet",
             "--repo",
             "https://github.com/username/repo",

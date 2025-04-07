@@ -1,4 +1,5 @@
 import asyncio
+import json
 from typing import TYPE_CHECKING, Union, Optional
 
 from bittensor_wallet import Wallet
@@ -19,6 +20,7 @@ from bittensor_cli.src.bittensor.utils import (
     blocks_to_duration,
     float_to_u64,
     float_to_u16,
+    json_console,
 )
 
 if TYPE_CHECKING:
@@ -350,6 +352,19 @@ def display_votes(
     return "\n".join(vote_list)
 
 
+def serialize_vote_data(
+    vote_data: "ProposalVoteData", delegate_info: dict[str, DelegatesDetails]
+) -> list[dict[str, bool]]:
+    vote_list = {}
+    for address in vote_data.ayes:
+        f_add = delegate_info[address].display if address in delegate_info else address
+        vote_list[f_add] = True
+    for address in vote_data.nays:
+        f_add = delegate_info[address].display if address in delegate_info else address
+        vote_list[f_add] = False
+    return vote_list
+
+
 def format_call_data(call_data: dict) -> str:
     # Extract the module and call details
     module, call_details = next(iter(call_data.items()))
@@ -559,6 +574,7 @@ async def sudo_set_hyperparameter(
     netuid: int,
     param_name: str,
     param_value: Optional[str],
+    json_output: bool,
 ):
     """Set subnet hyperparameters."""
 
@@ -584,17 +600,22 @@ async def sudo_set_hyperparameter(
             f"Hyperparameter [dark_orange]{param_name}[/dark_orange] value is not within bounds. "
             f"Value is {normalized_value} but must be {value}"
         )
-        return
+        return False
     success = await set_hyperparameter_extrinsic(
         subtensor, wallet, netuid, param_name, value
     )
+    if json_output:
+        return success
     if success:
         console.print("\n")
         print_verbose("Fetching hyperparameters")
-        return await get_hyperparameters(subtensor, netuid=netuid)
+        await get_hyperparameters(subtensor, netuid=netuid)
+    return success
 
 
-async def get_hyperparameters(subtensor: "SubtensorInterface", netuid: int):
+async def get_hyperparameters(
+    subtensor: "SubtensorInterface", netuid: int, json_output: bool = False
+) -> bool:
     """View hyperparameters of a subnetwork."""
     print_verbose("Fetching hyperparameters")
     if not await subtensor.subnet_exists(netuid):
@@ -607,32 +628,44 @@ async def get_hyperparameters(subtensor: "SubtensorInterface", netuid: int):
         return False
 
     table = Table(
-        Column("[white]HYPERPARAMETER", style=COLOR_PALETTE["SUDO"]["HYPERPARAMETER"]),
-        Column("[white]VALUE", style=COLOR_PALETTE["SUDO"]["VALUE"]),
-        Column("[white]NORMALIZED", style=COLOR_PALETTE["SUDO"]["NORMALIZED"]),
-        title=f"[{COLOR_PALETTE['GENERAL']['HEADER']}]\nSubnet Hyperparameters\n NETUID: "
-        f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid}"
+        Column("[white]HYPERPARAMETER", style=COLOR_PALETTE.SU.HYPERPARAMETER),
+        Column("[white]VALUE", style=COLOR_PALETTE.SU.VALUE),
+        Column("[white]NORMALIZED", style=COLOR_PALETTE.SU.NORMAL),
+        title=f"[{COLOR_PALETTE.G.HEADER}]\nSubnet Hyperparameters\n NETUID: "
+        f"[{COLOR_PALETTE.G.SUBHEAD}]{netuid}"
         f"{f' ({subnet_info.subnet_name})' if subnet_info.subnet_name is not None else ''}"
-        f"[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
-        f" - Network: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{subtensor.network}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]\n",
+        f"[/{COLOR_PALETTE.G.SUBHEAD}]"
+        f" - Network: [{COLOR_PALETTE.G.SUBHEAD}]{subtensor.network}[/{COLOR_PALETTE.G.SUBHEAD}]\n",
         show_footer=True,
         width=None,
         pad_edge=False,
         box=box.SIMPLE,
         show_edge=True,
     )
+    dict_out = []
 
     normalized_values = normalize_hyperparameters(subnet)
 
     for param, value, norm_value in normalized_values:
         table.add_row("  " + param, value, norm_value)
-
-    console.print(table)
+        dict_out.append(
+            {
+                "hyperparameter": param,
+                "value": value,
+                "normalized_value": norm_value,
+            }
+        )
+    if json_output:
+        json_console.print(json.dumps(dict_out))
+    else:
+        console.print(table)
     return True
 
 
-async def get_senate(subtensor: "SubtensorInterface"):
-    """View Bittensor's senate memebers"""
+async def get_senate(
+    subtensor: "SubtensorInterface", json_output: bool = False
+) -> None:
+    """View Bittensor's senate members"""
     with console.status(
         f":satellite: Syncing with chain: [white]{subtensor}[/white] ...",
         spinner="aesthetic",
@@ -663,21 +696,27 @@ async def get_senate(subtensor: "SubtensorInterface"):
         border_style="bright_black",
         leading=True,
     )
+    dict_output = []
 
     for ss58_address in senate_members:
+        member_name = (
+            delegate_info[ss58_address].display
+            if ss58_address in delegate_info
+            else "~"
+        )
         table.add_row(
-            (
-                delegate_info[ss58_address].display
-                if ss58_address in delegate_info
-                else "~"
-            ),
+            member_name,
             ss58_address,
         )
-
+        dict_output.append({"name": member_name, "ss58_address": ss58_address})
+    if json_output:
+        json_console.print(json.dumps(dict_output))
     return console.print(table)
 
 
-async def proposals(subtensor: "SubtensorInterface", verbose: bool):
+async def proposals(
+    subtensor: "SubtensorInterface", verbose: bool, json_output: bool = False
+) -> None:
     console.print(
         ":satellite: Syncing with chain: [white]{}[/white] ...".format(
             subtensor.network
@@ -723,6 +762,7 @@ async def proposals(subtensor: "SubtensorInterface", verbose: bool):
         width=None,
         border_style="bright_black",
     )
+    dict_output = []
     for hash_, (call_data, vote_data) in all_proposals.items():
         blocks_remaining = vote_data.end - current_block
         if blocks_remaining > 0:
@@ -741,6 +781,7 @@ async def proposals(subtensor: "SubtensorInterface", verbose: bool):
             if vote_data.threshold > 0
             else 0
         )
+        f_call_data = format_call_data(call_data)
         table.add_row(
             hash_ if verbose else f"{hash_[:4]}...{hash_[-4:]}",
             str(vote_data.threshold),
@@ -748,8 +789,21 @@ async def proposals(subtensor: "SubtensorInterface", verbose: bool):
             f"{len(vote_data.nays)} ({nays_threshold:.2f}%)",
             display_votes(vote_data, registered_delegate_info),
             vote_end_cell,
-            format_call_data(call_data),
+            f_call_data,
         )
+        dict_output.append(
+            {
+                "hash": hash_,
+                "threshold": vote_data.threshold,
+                "ayes": len(vote_data.ayes),
+                "nays": len(vote_data.nays),
+                "votes": serialize_vote_data(vote_data, registered_delegate_info),
+                "end": vote_data.end,
+                "call_data": f_call_data,
+            }
+        )
+    if json_output:
+        json_console.print(json.dumps(dict_output))
     console.print(table)
     console.print(
         "\n[dim]* Both Ayes and Nays percentages are calculated relative to the proposal's threshold.[/dim]"

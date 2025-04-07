@@ -1,7 +1,10 @@
+import json
 import os
 import re
 import time
 from typing import Dict, Optional, Tuple
+
+from bittensor_wallet import Wallet
 
 """
 Verify commands:
@@ -188,12 +191,21 @@ def test_wallet_creations(wallet_setup):
     )
 
     # Assert default keys are present before proceeding
-    f"default  ss58_address {wallet.coldkeypub.ss58_address}" in result.stdout
-    f"default  ss58_address {wallet.hotkey.ss58_address}" in result.stdout
+    assert f"default  ss58_address {wallet.coldkeypub.ss58_address}" in result.stdout
+    assert f"default  ss58_address {wallet.hotkey.ss58_address}" in result.stdout
     wallet_status, message = verify_wallet_dir(
         wallet_path, "default", hotkey_name="default"
     )
     assert wallet_status, message
+
+    json_result = exec_command(
+        command="wallet",
+        sub_command="list",
+        extra_args=["--wallet-path", wallet_path, "--json-output"],
+    )
+    json_wallet = json.loads(json_result.stdout)["wallets"][0]
+    assert json_wallet["ss58_address"] == wallet.coldkey.ss58_address
+    assert json_wallet["hotkeys"][0]["ss58_address"] == wallet.hotkey.ss58_address
 
     # -----------------------------
     # Command 1: <btcli w create>
@@ -267,6 +279,27 @@ def test_wallet_creations(wallet_setup):
     wallet_status, message = verify_wallet_dir(wallet_path, "new_coldkey")
     assert wallet_status, message
 
+    json_creation = exec_command(
+        "wallet",
+        "new-coldkey",
+        extra_args=[
+            "--wallet-name",
+            "new_json_coldkey",
+            "--wallet-path",
+            wallet_path,
+            "--n-words",
+            "12",
+            "--no-use-password",
+            "--json-output",
+        ],
+    )
+    json_creation_output = json.loads(json_creation.stdout)
+    assert json_creation_output["success"] is True
+    assert json_creation_output["data"]["name"] == "new_json_coldkey"
+    assert "coldkey_ss58" in json_creation_output["data"]
+    assert json_creation_output["error"] == ""
+    new_json_coldkey_ss58 = json_creation_output["data"]["coldkey_ss58"]
+
     # -----------------------------
     # Command 3: <btcli w new_hotkey>
     # -----------------------------
@@ -302,6 +335,29 @@ def test_wallet_creations(wallet_setup):
         wallet_path, "new_coldkey", hotkey_name="new_hotkey"
     )
     assert wallet_status, message
+
+    new_hotkey_json = exec_command(
+        "wallet",
+        sub_command="new-hotkey",
+        extra_args=[
+            "--wallet-name",
+            "new_json_coldkey",
+            "--hotkey",
+            "new_json_hotkey",
+            "--wallet-path",
+            wallet_path,
+            "--n-words",
+            "12",
+            "--no-use-password",
+            "--json-output",
+        ],
+    )
+    new_hotkey_json_output = json.loads(new_hotkey_json.stdout)
+    assert new_hotkey_json_output["success"] is True
+    assert new_hotkey_json_output["data"]["name"] == "new_json_coldkey"
+    assert new_hotkey_json_output["data"]["hotkey"] == "new_json_hotkey"
+    assert new_hotkey_json_output["data"]["coldkey_ss58"] == new_json_coldkey_ss58
+    assert new_hotkey_json_output["error"] == ""
 
 
 def test_wallet_regen(wallet_setup, capfd):
@@ -358,6 +414,9 @@ def test_wallet_regen(wallet_setup, capfd):
     # -----------------------------
     print("Testing wallet regen_coldkey command 🧪")
     coldkey_path = os.path.join(wallet_path, "new_wallet", "coldkey")
+    initial_coldkey_ss58 = Wallet(
+        name="new_wallet", path=wallet_path
+    ).coldkey.ss58_address
     initial_coldkey_mod_time = os.path.getmtime(coldkey_path)
 
     result = exec_command(
@@ -385,7 +444,28 @@ def test_wallet_regen(wallet_setup, capfd):
     assert (
         initial_coldkey_mod_time != new_coldkey_mod_time
     ), "Coldkey file was not regenerated as expected"
-    print("Passed wallet regen_coldkey command ✅")
+    json_result = exec_command(
+        command="wallet",
+        sub_command="regen-coldkey",
+        extra_args=[
+            "--wallet-name",
+            "new_wallet",
+            "--hotkey",
+            "new_hotkey",
+            "--wallet-path",
+            wallet_path,
+            "--mnemonic",
+            mnemonics["coldkey"],
+            "--no-use-password",
+            "--overwrite",
+            "--json-output",
+        ],
+    )
+
+    json_result_out = json.loads(json_result.stdout)
+    assert json_result_out["success"] is True
+    assert json_result_out["data"]["name"] == "new_wallet"
+    assert json_result_out["data"]["coldkey_ss58"] == initial_coldkey_ss58
 
     # -----------------------------
     # Command 2: <btcli w regen_coldkeypub>
@@ -516,5 +596,16 @@ def test_wallet_balance_all(local_chain, wallet_setup, capfd):
         assert (
             wallet_name in output
         ), f"Wallet {wallet_name} not found in balance --all output"
+
+    json_results = exec_command(
+        "wallet",
+        "balance",
+        extra_args=["--wallet-path", wallet_path, "--all", "--json-output"],
+    )
+    json_results_output = json.loads(json_results.stdout)
+    for wallet_name in wallet_names:
+        assert wallet_name in json_results_output["balances"].keys()
+        assert json_results_output["balances"][wallet_name]["total"] == 0.0
+        assert "coldkey" in json_results_output["balances"][wallet_name]
 
     print("Passed wallet balance --all command with 100 wallets ✅")
