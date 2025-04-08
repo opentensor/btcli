@@ -444,7 +444,7 @@ async def unstake_all(
             style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
         )
         table.add_column(
-            f"Recieved ({Balance.unit})",
+            f"Received ({Balance.unit})",
             justify="center",
             style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
         )
