@@ -1,3 +1,4 @@
+import importlib.metadata
 import re
 
 
@@ -16,5 +17,5 @@ def version_as_int(version):
     return __version_as_int__
 
 
-__version__ = "9.1.4"
+__version__ = importlib.metadata.version("bittensor-cli")
 __version_as_int__ = version_as_int(__version__)

@@ -1,3 +1,4 @@
+import json
 import re
 
 from bittensor_cli.src.bittensor.balances import Balance
@@ -46,7 +47,7 @@ def test_unstaking(local_chain, wallet_setup):
             wallet_alice.name,
             "--wallet-hotkey",
             wallet_alice.hotkey_str,
-            "--name",
+            "--subnet-name",
             "Test Subnet 2",
             "--repo",
             "https://github.com/username/repo",
@@ -78,7 +79,7 @@ def test_unstaking(local_chain, wallet_setup):
             wallet_alice.name,
             "--wallet-hotkey",
             wallet_alice.hotkey_str,
-            "--name",
+            "--subnet-name",
             "Test Subnet 3",
             "--repo",
             "https://github.com/username/repo",
@@ -139,6 +140,8 @@ def test_unstaking(local_chain, wallet_setup):
                 "--partial",
                 "--tolerance",
                 "0.5",
+                "--era",
+                "144",
             ],
         )
         assert "✅ Finalized" in stake_result.stdout
@@ -184,6 +187,8 @@ def test_unstaking(local_chain, wallet_setup):
             "--partial",
             "--tolerance",
             "0.5",
+            "--era",
+            "144",
         ],
     )
     assert "✅ Finalized" in partial_unstake_netuid_2.stdout
@@ -208,10 +213,29 @@ def test_unstaking(local_chain, wallet_setup):
     cleaned_stake = [
         re.sub(r"\s+", " ", line) for line in stake_list.stdout.splitlines()
     ]
-    stake_after_unstaking_netuid_2 = cleaned_stake[9].split("│")[3].strip().split()[0]
+    stake_after_unstaking_netuid_2 = cleaned_stake[10].split("│")[3].strip().split()[0]
     assert Balance.from_tao(float(stake_after_unstaking_netuid_2)) <= Balance.from_tao(
         float(inital_stake_netuid_2)
     )
+
+    show_stake_json = exec_command_alice(
+        command="stake",
+        sub_command="list",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_bob,
+            "--wallet-name",
+            wallet_bob.name,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--json-output",
+        ],
+    )
+    show_stake_json_output = json.loads(show_stake_json.stdout)
+    bob_stake = show_stake_json_output["stake_info"][keypair_bob.ss58_address]
+    assert Balance.from_tao(
+        next(filter(lambda x: x["netuid"] == 2, bob_stake))["stake_value"]
+    ) <= Balance.from_tao(float(inital_stake_netuid_2))
 
     # Remove all alpha stakes
     unstake_alpha = exec_command_bob(
@@ -222,13 +246,15 @@ def test_unstaking(local_chain, wallet_setup):
             wallet_path_bob,
             "--wallet-name",
             wallet_bob.name,
-            "--hotkey",
+            "--wallet-hotkey",
             wallet_bob.hotkey_str,
             "--chain",
             "ws://127.0.0.1:9945",
             "--all-alpha",
             "--no-prompt",
             "--verbose",
+            "--era",
+            "144",
         ],
     )
 
@@ -258,6 +284,8 @@ def test_unstaking(local_chain, wallet_setup):
                 "--partial",
                 "--tolerance",
                 "0.5",
+                "--era",
+                "144",
             ],
         )
         assert "✅ Finalized" in stake_result.stdout
@@ -277,6 +305,8 @@ def test_unstaking(local_chain, wallet_setup):
             "ws://127.0.0.1:9945",
             "--all",
             "--no-prompt",
+            "--era",
+            "144",
         ],
     )
     assert "✅ Finalized: Successfully unstaked all stakes from" in unstake_all.stdout

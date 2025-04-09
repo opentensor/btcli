@@ -1,5 +1,6 @@
 import asyncio
 import itertools
+import json
 import os
 from collections import defaultdict
 from typing import Generator, Optional
@@ -14,8 +15,9 @@ from rich.align import Align
 from rich.table import Column, Table
 from rich.tree import Tree
 from rich.padding import Padding
+from rich.prompt import Confirm
 
-from bittensor_cli.src import COLOR_PALETTE
+from bittensor_cli.src import COLOR_PALETTE, COLORS, Constants
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import (
@@ -34,6 +36,7 @@ from bittensor_cli.src.bittensor.utils import (
     console,
     convert_blocks_to_time,
     err_console,
+    json_console,
     print_error,
     print_verbose,
     get_all_wallets_for_path,
@@ -44,7 +47,76 @@ from bittensor_cli.src.bittensor.utils import (
     millify_tao,
     unlock_key,
     WalletLike,
+    blocks_to_duration,
+    decode_account_id,
 )
+
+
+async def associate_hotkey(
+    wallet: Wallet,
+    subtensor: SubtensorInterface,
+    hotkey_ss58: str,
+    hotkey_display: str,
+    prompt: bool = False,
+):
+    """Associates a hotkey with a wallet"""
+
+    owner_ss58 = await subtensor.get_hotkey_owner(hotkey_ss58)
+    if owner_ss58:
+        if owner_ss58 == wallet.coldkeypub.ss58_address:
+            console.print(
+                f":white_heavy_check_mark: {hotkey_display.capitalize()} is already "
+                f"associated with \nwallet [blue]{wallet.name}[/blue], "
+                f"SS58: [{COLORS.GENERAL.CK}]{owner_ss58}[/{COLORS.GENERAL.CK}]"
+            )
+            return True
+        else:
+            owner_wallet = _get_wallet_by_ss58(wallet.path, owner_ss58)
+            wallet_name = owner_wallet.name if owner_wallet else "unknown wallet"
+            console.print(
+                f"[yellow]Warning[/yellow]: {hotkey_display.capitalize()} is already associated with \n"
+                f"wallet: [blue]{wallet_name}[/blue], SS58: [{COLORS.GENERAL.CK}]{owner_ss58}[/{COLORS.GENERAL.CK}]"
+            )
+            return False
+    else:
+        console.print(
+            f"{hotkey_display.capitalize()} is not associated with any wallet"
+        )
+
+    if prompt and not Confirm.ask("Do you want to continue with the association?"):
+        return False
+
+    if not unlock_key(wallet).success:
+        return False
+
+    call = await subtensor.substrate.compose_call(
+        call_module="SubtensorModule",
+        call_function="try_associate_hotkey",
+        call_params={
+            "hotkey": hotkey_ss58,
+        },
+    )
+
+    with console.status(":satellite: Associating hotkey on-chain..."):
+        success, err_msg = await subtensor.sign_and_send_extrinsic(
+            call,
+            wallet,
+            wait_for_inclusion=True,
+            wait_for_finalization=False,
+        )
+
+        if not success:
+            console.print(
+                f"[red]:cross_mark: Failed to associate hotkey: {err_msg}[/red]"
+            )
+            return False
+
+        console.print(
+            f":white_heavy_check_mark: Successfully associated {hotkey_display} with \n"
+            f"wallet [blue]{wallet.name}[/blue], "
+            f"SS58: [{COLORS.GENERAL.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.GENERAL.CK}]"
+        )
+        return True
 
 
 async def regen_coldkey(
@@ -55,6 +127,7 @@ async def regen_coldkey(
     json_password: Optional[str] = "",
     use_password: Optional[bool] = True,
     overwrite: Optional[bool] = False,
+    json_output: bool = False,
 ):
     """Creates a new coldkey under this wallet"""
     json_str: Optional[str] = None
@@ -71,16 +144,41 @@ async def regen_coldkey(
             use_password=use_password,
             overwrite=overwrite,
         )
-
         if isinstance(new_wallet, Wallet):
             console.print(
                 "\n✅ [dark_sea_green]Regenerated coldkey successfully!\n",
-                f"[dark_sea_green]Wallet name: ({new_wallet.name}), path: ({new_wallet.path}), coldkey ss58: ({new_wallet.coldkeypub.ss58_address})",
+                f"[dark_sea_green]Wallet name: ({new_wallet.name}), "
+                f"path: ({new_wallet.path}), "
+                f"coldkey ss58: ({new_wallet.coldkeypub.ss58_address})",
             )
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {
+                            "success": True,
+                            "data": {
+                                "name": new_wallet.name,
+                                "path": new_wallet.path,
+                                "hotkey": new_wallet.hotkey_str,
+                                "hotkey_ss58": new_wallet.hotkey.ss58_address,
+                                "coldkey_ss58": new_wallet.coldkeypub.ss58_address,
+                            },
+                            "error": "",
+                        }
+                    )
+                )
     except ValueError:
         print_error("Mnemonic phrase is invalid")
+        if json_output:
+            json_console.print(
+                '{"success": false, "error": "Mnemonic phrase is invalid", "data": null}'
+            )
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
+        if json_output:
+            json_console.print(
+                '{"success": false, "error": "Keyfile is not writable", "data": null}'
+            )
 
 
 async def regen_coldkey_pub(
@@ -88,6 +186,7 @@ async def regen_coldkey_pub(
     ss58_address: str,
     public_key_hex: str,
     overwrite: Optional[bool] = False,
+    json_output: bool = False,
 ):
     """Creates a new coldkeypub under this wallet."""
     try:
@@ -99,10 +198,31 @@ async def regen_coldkey_pub(
         if isinstance(new_coldkeypub, Wallet):
             console.print(
                 "\n✅ [dark_sea_green]Regenerated coldkeypub successfully!\n",
-                f"[dark_sea_green]Wallet name: ({new_coldkeypub.name}), path: ({new_coldkeypub.path}), coldkey ss58: ({new_coldkeypub.coldkeypub.ss58_address})",
+                f"[dark_sea_green]Wallet name: ({new_coldkeypub.name}), path: ({new_coldkeypub.path}), "
+                f"coldkey ss58: ({new_coldkeypub.coldkeypub.ss58_address})",
             )
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {
+                            "success": True,
+                            "data": {
+                                "name": new_coldkeypub.name,
+                                "path": new_coldkeypub.path,
+                                "hotkey": new_coldkeypub.hotkey_str,
+                                "hotkey_ss58": new_coldkeypub.hotkey.ss58_address,
+                                "coldkey_ss58": new_coldkeypub.coldkeypub.ss58_address,
+                            },
+                            "error": "",
+                        }
+                    )
+                )
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
+        if json_output:
+            json_console.print(
+                '{"success": false, "error": "Keyfile is not writable", "data": null}'
+            )
 
 
 async def regen_hotkey(
@@ -113,6 +233,7 @@ async def regen_hotkey(
     json_password: Optional[str] = "",
     use_password: Optional[bool] = False,
     overwrite: Optional[bool] = False,
+    json_output: bool = False,
 ):
     """Creates a new hotkey under this wallet."""
     json_str: Optional[str] = None
@@ -134,13 +255,37 @@ async def regen_hotkey(
         if isinstance(new_hotkey_, Wallet):
             console.print(
                 "\n✅ [dark_sea_green]Regenerated hotkey successfully!\n",
-                f"[dark_sea_green]Wallet name: "
-                f"({new_hotkey_.name}), path: ({new_hotkey_.path}), hotkey ss58: ({new_hotkey_.hotkey.ss58_address})",
+                f"[dark_sea_green]Wallet name: ({new_hotkey_.name}), path: ({new_hotkey_.path}), "
+                f"hotkey ss58: ({new_hotkey_.hotkey.ss58_address})",
             )
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {
+                            "success": True,
+                            "data": {
+                                "name": new_hotkey_.name,
+                                "path": new_hotkey_.path,
+                                "hotkey": new_hotkey_.hotkey_str,
+                                "hotkey_ss58": new_hotkey_.hotkey.ss58_address,
+                                "coldkey_ss58": new_hotkey_.coldkeypub.ss58_address,
+                            },
+                            "error": "",
+                        }
+                    )
+                )
     except ValueError:
         print_error("Mnemonic phrase is invalid")
+        if json_output:
+            json_console.print(
+                '{"success": false, "error": "Mnemonic phrase is invalid", "data": null}'
+            )
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
+        if json_output:
+            json_console.print(
+                '{"success": false, "error": "Keyfile is not writable", "data": null}'
+            )
 
 
 async def new_hotkey(
@@ -149,6 +294,7 @@ async def new_hotkey(
     use_password: bool,
     uri: Optional[str] = None,
     overwrite: Optional[bool] = False,
+    json_output: bool = False,
 ):
     """Creates a new hotkey under this wallet."""
     try:
@@ -157,6 +303,7 @@ async def new_hotkey(
                 keypair = Keypair.create_from_uri(uri)
             except Exception as e:
                 print_error(f"Failed to create keypair from URI {uri}: {str(e)}")
+                return
             wallet.set_hotkey(keypair=keypair, encrypt=use_password)
             console.print(
                 f"[dark_sea_green]Hotkey created from URI: {uri}[/dark_sea_green]"
@@ -168,8 +315,28 @@ async def new_hotkey(
                 overwrite=overwrite,
             )
             console.print("[dark_sea_green]Hotkey created[/dark_sea_green]")
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": True,
+                        "data": {
+                            "name": wallet.name,
+                            "path": wallet.path,
+                            "hotkey": wallet.hotkey_str,
+                            "hotkey_ss58": wallet.hotkey.ss58_address,
+                            "coldkey_ss58": wallet.coldkeypub.ss58_address,
+                        },
+                        "error": "",
+                    }
+                )
+            )
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
+        if json_output:
+            json_console.print(
+                '{"success": false, "error": "Keyfile is not writable", "data": null}'
+            )
 
 
 async def new_coldkey(
@@ -178,6 +345,7 @@ async def new_coldkey(
     use_password: bool,
     uri: Optional[str] = None,
     overwrite: Optional[bool] = False,
+    json_output: bool = False,
 ):
     """Creates a new coldkey under this wallet."""
     try:
@@ -198,8 +366,32 @@ async def new_coldkey(
                 overwrite=overwrite,
             )
             console.print("[dark_sea_green]Coldkey created[/dark_sea_green]")
-    except KeyFileError:
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": True,
+                        "data": {
+                            "name": wallet.name,
+                            "path": wallet.path,
+                            "coldkey_ss58": wallet.coldkeypub.ss58_address,
+                        },
+                        "error": "",
+                    }
+                )
+            )
+    except KeyFileError as e:
         print_error("KeyFileError: File is not writable")
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": False,
+                        "error": f"Keyfile is not writable: {e}",
+                        "data": None,
+                    }
+                )
+            )
 
 
 async def wallet_create(
@@ -208,16 +400,28 @@ async def wallet_create(
     use_password: bool = True,
     uri: Optional[str] = None,
     overwrite: Optional[bool] = False,
+    json_output: bool = False,
 ):
     """Creates a new wallet."""
+    output_dict = {"success": False, "error": "", "data": None}
     if uri:
         try:
             keypair = Keypair.create_from_uri(uri)
             wallet.set_coldkey(keypair=keypair, encrypt=False, overwrite=False)
             wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=False)
             wallet.set_hotkey(keypair=keypair, encrypt=False, overwrite=False)
+            output_dict["success"] = True
+            output_dict["data"] = {
+                "name": wallet.name,
+                "path": wallet.path,
+                "hotkey": wallet.hotkey_str,
+                "hotkey_ss58": wallet.hotkey.ss58_address,
+                "coldkey_ss58": wallet.coldkeypub.ss58_address,
+            }
         except Exception as e:
-            print_error(f"Failed to create keypair from URI: {str(e)}")
+            err = f"Failed to create keypair from URI: {str(e)}"
+            print_error(err)
+            output_dict["error"] = err
         console.print(
             f"[dark_sea_green]Wallet created from URI: {uri}[/dark_sea_green]"
         )
@@ -229,9 +433,18 @@ async def wallet_create(
                 overwrite=overwrite,
             )
             console.print("[dark_sea_green]Coldkey created[/dark_sea_green]")
+            output_dict["success"] = True
+            output_dict["data"] = {
+                "name": wallet.name,
+                "path": wallet.path,
+                "hotkey": wallet.hotkey_str,
+                "hotkey_ss58": wallet.hotkey.ss58_address,
+                "coldkey_ss58": wallet.coldkeypub.ss58_address,
+            }
         except KeyFileError:
-            print_error("KeyFileError: File is not writable")
-
+            err = "KeyFileError: File is not writable"
+            print_error(err)
+            output_dict["error"] = err
         try:
             wallet.create_new_hotkey(
                 n_words=n_words,
@@ -239,8 +452,20 @@ async def wallet_create(
                 overwrite=overwrite,
             )
             console.print("[dark_sea_green]Hotkey created[/dark_sea_green]")
+            output_dict["success"] = True
+            output_dict["data"] = {
+                "name": wallet.name,
+                "path": wallet.path,
+                "hotkey": wallet.hotkey_str,
+                "hotkey_ss58": wallet.hotkey.ss58_address,
+                "coldkey_ss58": wallet.coldkeypub.ss58_address,
+            }
         except KeyFileError:
-            print_error("KeyFileError: File is not writable")
+            err = "KeyFileError: File is not writable"
+            print_error(err)
+            output_dict["error"] = err
+    if json_output:
+        json_console.print(json.dumps(output_dict))
 
 
 def get_coldkey_wallets_for_path(path: str) -> list[Wallet]:
@@ -252,6 +477,15 @@ def get_coldkey_wallets_for_path(path: str) -> list[Wallet]:
         # No wallet files found.
         wallets = []
     return wallets
+
+
+def _get_wallet_by_ss58(path: str, ss58_address: str) -> Optional[Wallet]:
+    """Find a wallet by its SS58 address in the given path."""
+    ss58_addresses, wallet_names = _get_coldkey_ss58_addresses_for_path(path)
+    for wallet_name, addr in zip(wallet_names, ss58_addresses):
+        if addr == ss58_address:
+            return Wallet(path=path, name=wallet_name)
+    return None
 
 
 def _get_coldkey_ss58_addresses_for_path(path: str) -> tuple[list[str], list[str]]:
@@ -280,6 +514,7 @@ async def wallet_balance(
     subtensor: SubtensorInterface,
     all_balances: bool,
     ss58_addresses: Optional[str] = None,
+    json_output: bool = False,
 ):
     """Retrieves the current balance of the specified wallet"""
     if ss58_addresses:
@@ -395,6 +630,31 @@ async def wallet_balance(
     )
     console.print(Padding(table, (0, 0, 0, 4)))
     await subtensor.substrate.close()
+    if json_output:
+        output_balances = {
+            key: {
+                "coldkey": value[0],
+                "free": value[1].tao,
+                "staked": value[2].tao,
+                "staked_with_slippage": value[3].tao,
+                "total": (value[1] + value[2]).tao,
+                "total_with_slippage": (value[1] + value[3]).tao,
+            }
+            for (key, value) in balances.items()
+        }
+        output_dict = {
+            "balances": output_balances,
+            "totals": {
+                "free": total_free_balance.tao,
+                "staked": total_staked_balance.tao,
+                "staked_with_slippage": total_staked_with_slippage.tao,
+                "total": (total_free_balance + total_staked_balance).tao,
+                "total_with_slippage": (
+                    total_free_balance + total_staked_with_slippage
+                ).tao,
+            },
+        }
+        json_console.print(json.dumps(output_dict))
     return total_free_balance
 
 
@@ -526,7 +786,7 @@ async def wallet_history(wallet: Wallet):
     console.print(table)
 
 
-async def wallet_list(wallet_path: str):
+async def wallet_list(wallet_path: str, json_output: bool):
     """Lists wallets."""
     wallets = utils.get_coldkey_wallets_for_path(wallet_path)
     print_verbose(f"Using wallets path: {wallet_path}")
@@ -534,6 +794,7 @@ async def wallet_list(wallet_path: str):
         err_console.print(f"[red]No wallets found in dir: {wallet_path}[/red]")
 
     root = Tree("Wallets")
+    main_data_dict = {"wallets": []}
     for wallet in wallets:
         if (
             wallet.coldkeypub_file.exists_on_device()
@@ -546,23 +807,39 @@ async def wallet_list(wallet_path: str):
         wallet_tree = root.add(
             f"[bold blue]Coldkey[/bold blue] [green]{wallet.name}[/green]  ss58_address [green]{coldkeypub_str}[/green]"
         )
+        wallet_hotkeys = []
+        wallet_dict = {
+            "name": wallet.name,
+            "ss58_address": coldkeypub_str,
+            "hotkeys": wallet_hotkeys,
+        }
+        main_data_dict["wallets"].append(wallet_dict)
         hotkeys = utils.get_hotkey_wallets_for_wallet(
             wallet, show_nulls=True, show_encrypted=True
         )
         for hkey in hotkeys:
             data = f"[bold red]Hotkey[/bold red][green] {hkey}[/green] (?)"
+            hk_data = {"name": hkey.name, "ss58_address": "?"}
             if hkey:
                 try:
-                    data = f"[bold red]Hotkey[/bold red] [green]{hkey.hotkey_str}[/green]  ss58_address [green]{hkey.hotkey.ss58_address}[/green]\n"
+                    data = (
+                        f"[bold red]Hotkey[/bold red] [green]{hkey.hotkey_str}[/green]  "
+                        f"ss58_address [green]{hkey.hotkey.ss58_address}[/green]\n"
+                    )
+                    hk_data["name"] = hkey.hotkey_str
+                    hk_data["ss58_address"] = hkey.hotkey.ss58_address
                 except UnicodeDecodeError:
                     pass
             wallet_tree.add(data)
+            wallet_hotkeys.append(hk_data)
 
     if not wallets:
         print_verbose(f"No wallets found in path: {wallet_path}")
         root.add("[bold red]No wallets found.")
-
-    console.print(root)
+    if json_output:
+        json_console.print(json.dumps(main_data_dict))
+    else:
+        console.print(root)
 
 
 async def _get_total_balance(
@@ -639,23 +916,33 @@ async def overview(
     exclude_hotkeys: Optional[list[str]] = None,
     netuids_filter: Optional[list[int]] = None,
     verbose: bool = False,
+    json_output: bool = False,
 ):
     """Prints an overview for the wallet's coldkey."""
 
     total_balance = Balance(0)
 
-    # We are printing for every coldkey.
-    block_hash = await subtensor.substrate.get_chain_head()
-    all_hotkeys, total_balance = await _get_total_balance(
-        total_balance, subtensor, wallet, all_wallets, block_hash=block_hash
-    )
-    _dynamic_info = await subtensor.all_subnets()
-    dynamic_info = {info.netuid: info for info in _dynamic_info}
-
     with console.status(
         f":satellite: Synchronizing with chain [white]{subtensor.network}[/white]",
         spinner="aesthetic",
     ) as status:
+        # We are printing for every coldkey.
+        block_hash = await subtensor.substrate.get_chain_head()
+        (
+            (all_hotkeys, total_balance),
+            _dynamic_info,
+            block,
+            all_netuids,
+        ) = await asyncio.gather(
+            _get_total_balance(
+                total_balance, subtensor, wallet, all_wallets, block_hash=block_hash
+            ),
+            subtensor.all_subnets(block_hash=block_hash),
+            subtensor.substrate.get_block_number(block_hash=block_hash),
+            subtensor.get_all_subnet_netuids(block_hash=block_hash),
+        )
+        dynamic_info = {info.netuid: info for info in _dynamic_info}
+
         # We are printing for a select number of hotkeys from all_hotkeys.
         if include_hotkeys or exclude_hotkeys:
             all_hotkeys = _get_hotkeys(include_hotkeys, exclude_hotkeys, all_hotkeys)
@@ -667,10 +954,6 @@ async def overview(
 
         # Pull neuron info for all keys.
         neurons: dict[str, list[NeuronInfoLite]] = {}
-        block, all_netuids = await asyncio.gather(
-            subtensor.substrate.get_block_number(None),
-            subtensor.get_all_subnet_netuids(),
-        )
 
         netuids = await subtensor.filter_netuids_by_registered_hotkeys(
             all_netuids, netuids_filter, all_hotkeys, reuse_block=True
@@ -705,16 +988,27 @@ async def overview(
         neurons = _process_neuron_results(results, neurons, netuids)
         # Setup outer table.
         grid = Table.grid(pad_edge=True)
+        data_dict = {
+            "wallet": "",
+            "network": subtensor.network,
+            "subnets": [],
+            "total_balance": 0.0,
+        }
 
         # Add title
         if not all_wallets:
             title = "[underline dark_orange]Wallet[/underline dark_orange]\n"
-            details = f"[bright_cyan]{wallet.name}[/bright_cyan] : [bright_magenta]{wallet.coldkeypub.ss58_address}[/bright_magenta]"
+            details = (
+                f"[bright_cyan]{wallet.name}[/bright_cyan] : "
+                f"[bright_magenta]{wallet.coldkeypub.ss58_address}[/bright_magenta]"
+            )
             grid.add_row(Align(title, vertical="middle", align="center"))
             grid.add_row(Align(details, vertical="middle", align="center"))
+            data_dict["wallet"] = f"{wallet.name}|{wallet.coldkeypub.ss58_address}"
         else:
             title = "[underline dark_orange]All Wallets:[/underline dark_orange]"
             grid.add_row(Align(title, vertical="middle", align="center"))
+            data_dict["wallet"] = "All"
 
         grid.add_row(
             Align(
@@ -732,6 +1026,14 @@ async def overview(
         )
     for netuid, subnet_tempo in zip(netuids, tempos):
         table_data = []
+        subnet_dict = {
+            "netuid": netuid,
+            "tempo": subnet_tempo,
+            "neurons": [],
+            "name": "",
+            "symbol": "",
+        }
+        data_dict["subnets"].append(subnet_dict)
         total_rank = 0.0
         total_trust = 0.0
         total_consensus = 0.0
@@ -786,6 +1088,26 @@ async def overview(
                 ),
                 nn.hotkey[:10],
             ]
+            neuron_dict = {
+                "coldkey": hotwallet.name,
+                "hotkey": hotwallet.hotkey_str,
+                "uid": uid,
+                "active": active,
+                "stake": stake,
+                "rank": rank,
+                "trust": trust,
+                "consensus": consensus,
+                "incentive": incentive,
+                "dividends": dividends,
+                "emission": emission,
+                "validator_trust": validator_trust,
+                "validator_permit": validator_permit,
+                "last_update": last_update,
+                "axon": int_to_ip(nn.axon_info.ip) + ":" + str(nn.axon_info.port)
+                if nn.axon_info.port != 0
+                else None,
+                "hotkey_ss58": nn.hotkey,
+            }
 
             total_rank += rank
             total_trust += trust
@@ -798,11 +1120,16 @@ async def overview(
             total_neurons += 1
 
             table_data.append(row)
+            subnet_dict["neurons"].append(neuron_dict)
 
         # Add subnet header
+        sn_name = get_subnet_name(dynamic_info[netuid])
+        sn_symbol = dynamic_info[netuid].symbol
         grid.add_row(
-            f"Subnet: [dark_orange]{netuid}: {get_subnet_name(dynamic_info[netuid])} {dynamic_info[netuid].symbol}[/dark_orange]"
+            f"Subnet: [dark_orange]{netuid}: {sn_name} {sn_symbol}[/dark_orange]"
         )
+        subnet_dict["name"] = sn_name
+        subnet_dict["symbol"] = sn_symbol
         width = console.width
         table = Table(
             show_footer=False,
@@ -937,6 +1264,7 @@ async def overview(
     caption = "\n[italic][dim][bright_cyan]Wallet balance: [dark_orange]\u03c4" + str(
         total_balance.tao
     )
+    data_dict["total_balance"] = total_balance.tao
     grid.add_row(Align(caption, vertical="middle", align="center"))
 
     if console.width < 150:
@@ -944,7 +1272,10 @@ async def overview(
             "[yellow]Warning: Your terminal width might be too small to view all information clearly"
         )
     # Print the entire table/grid
-    console.print(grid, width=None)
+    if not json_output:
+        console.print(grid, width=None)
+    else:
+        json_console.print(json.dumps(data_dict))
 
 
 def _get_hotkeys(
@@ -1109,17 +1440,23 @@ async def transfer(
     destination: str,
     amount: float,
     transfer_all: bool,
+    era: int,
     prompt: bool,
+    json_output: bool,
 ):
     """Transfer token of amount to destination."""
-    await transfer_extrinsic(
+    result = await transfer_extrinsic(
         subtensor=subtensor,
         wallet=wallet,
         destination=destination,
         amount=Balance.from_tao(amount),
         transfer_all=transfer_all,
+        era=era,
         prompt=prompt,
     )
+    if json_output:
+        json_console.print(json.dumps({"success": result}))
+    return result
 
 
 async def inspect(
@@ -1128,6 +1465,7 @@ async def inspect(
     netuids_filter: list[int],
     all_wallets: bool = False,
 ):
+    # TODO add json_output when this is re-enabled and updated for dTAO
     def delegate_row_maker(
         delegates_: list[tuple[DelegateInfo, Balance]],
     ) -> Generator[list[str], None, None]:
@@ -1303,14 +1641,18 @@ async def swap_hotkey(
     new_wallet: Wallet,
     subtensor: SubtensorInterface,
     prompt: bool,
+    json_output: bool,
 ):
     """Swap your hotkey for all registered axons on the network."""
-    return await swap_hotkey_extrinsic(
+    result = await swap_hotkey_extrinsic(
         subtensor,
         original_wallet,
         new_wallet,
         prompt=prompt,
     )
+    if json_output:
+        json_console.print(json.dumps({"success": result}))
+    return result
 
 
 def create_identity_table(title: str = None):
@@ -1349,9 +1691,10 @@ async def set_id(
     additional: str,
     github_repo: str,
     prompt: bool,
+    json_output: bool = False,
 ):
     """Create a new or update existing identity on-chain."""
-
+    output_dict = {"success": False, "identity": None, "error": ""}
     identity_data = {
         "name": name.encode(),
         "url": web_url.encode(),
@@ -1378,20 +1721,31 @@ async def set_id(
 
         if not success:
             err_console.print(f"[red]:cross_mark: Failed![/red] {err_msg}")
+            output_dict["error"] = err_msg
+            if json_output:
+                json_console.print(json.dumps(output_dict))
             return
-
-        console.print(":white_heavy_check_mark: [dark_sea_green3]Success!")
-        identity = await subtensor.query_identity(wallet.coldkeypub.ss58_address)
+        else:
+            console.print(":white_heavy_check_mark: [dark_sea_green3]Success!")
+            output_dict["success"] = True
+            identity = await subtensor.query_identity(wallet.coldkeypub.ss58_address)
 
     table = create_identity_table(title="New on-chain Identity")
     table.add_row("Address", wallet.coldkeypub.ss58_address)
     for key, value in identity.items():
         table.add_row(key, str(value) if value else "~")
+    output_dict["identity"] = identity
+    console.print(table)
+    if json_output:
+        json_console.print(json.dumps(output_dict))
 
-    return console.print(table)
 
-
-async def get_id(subtensor: SubtensorInterface, ss58_address: str, title: str = None):
+async def get_id(
+    subtensor: SubtensorInterface,
+    ss58_address: str,
+    title: str = None,
+    json_output: bool = False,
+):
     with console.status(
         ":satellite: [bold green]Querying chain identity...", spinner="earth"
     ):
@@ -1403,6 +1757,8 @@ async def get_id(subtensor: SubtensorInterface, ss58_address: str, title: str = 
             f" for [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]"
             f" on {subtensor}"
         )
+        if json_output:
+            json_console.print("{}")
         return {}
 
     table = create_identity_table(title)
@@ -1411,6 +1767,8 @@ async def get_id(subtensor: SubtensorInterface, ss58_address: str, title: str = 
         table.add_row(key, str(value) if value else "~")
 
     console.print(table)
+    if json_output:
+        json_console.print(json.dumps(identity))
     return identity
 
 
@@ -1451,7 +1809,9 @@ async def check_coldkey_swap(wallet: Wallet, subtensor: SubtensorInterface):
         )
 
 
-async def sign(wallet: Wallet, message: str, use_hotkey: str):
+async def sign(
+    wallet: Wallet, message: str, use_hotkey: str, json_output: bool = False
+):
     """Sign a message using the provided wallet or hotkey."""
 
     if not use_hotkey:
@@ -1471,4 +1831,260 @@ async def sign(wallet: Wallet, message: str, use_hotkey: str):
 
     signed_message = keypair.sign(message.encode("utf-8")).hex()
     console.print("[dark_sea_green3]Message signed successfully:")
+    if json_output:
+        json_console.print(json.dumps({"signed_message": signed_message}))
     console.print(signed_message)
+
+
+async def schedule_coldkey_swap(
+    wallet: Wallet,
+    subtensor: SubtensorInterface,
+    new_coldkey_ss58: str,
+    force_swap: bool = False,
+) -> bool:
+    """Schedules a coldkey swap operation to be executed at a future block.
+
+    Args:
+        wallet (Wallet): The wallet initiating the coldkey swap
+        subtensor (SubtensorInterface): Connection to the Bittensor network
+        new_coldkey_ss58 (str): SS58 address of the new coldkey
+        force_swap (bool, optional): Whether to force the swap even if the new coldkey is already scheduled for a swap. Defaults to False.
+    Returns:
+        bool: True if the swap was scheduled successfully, False otherwise
+    """
+    if not is_valid_ss58_address(new_coldkey_ss58):
+        print_error(f"Invalid SS58 address format: {new_coldkey_ss58}")
+        return False
+
+    scheduled_coldkey_swap = await subtensor.get_scheduled_coldkey_swap()
+    if wallet.coldkeypub.ss58_address in scheduled_coldkey_swap:
+        print_error(
+            f"Coldkey {wallet.coldkeypub.ss58_address} is already scheduled for a swap."
+        )
+        console.print("[dim]Use the force_swap (--force) flag to override this.[/dim]")
+        if not force_swap:
+            return False
+        else:
+            console.print(
+                "[yellow]Continuing with the swap due to force_swap flag.[/yellow]\n"
+            )
+
+    prompt = (
+        "You are [red]swapping[/red] your [blue]coldkey[/blue] to a new address.\n"
+        f"Current ss58: [{COLORS.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.G.CK}]\n"
+        f"New ss58: [{COLORS.G.CK}]{new_coldkey_ss58}[/{COLORS.G.CK}]\n"
+        "Are you sure you want to continue?"
+    )
+    if not Confirm.ask(prompt):
+        return False
+
+    if not unlock_key(wallet).success:
+        return False
+
+    block_pre_call, call = await asyncio.gather(
+        subtensor.substrate.get_block_number(),
+        subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="schedule_swap_coldkey",
+            call_params={
+                "new_coldkey": new_coldkey_ss58,
+            },
+        ),
+    )
+
+    with console.status(":satellite: Scheduling coldkey swap on-chain..."):
+        success, err_msg = await subtensor.sign_and_send_extrinsic(
+            call,
+            wallet,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+        )
+        block_post_call = await subtensor.substrate.get_block_number()
+
+        if not success:
+            print_error(f"Failed to schedule coldkey swap: {err_msg}")
+            return False
+
+        console.print(
+            ":white_heavy_check_mark: [green]Successfully scheduled coldkey swap"
+        )
+
+    swap_info = await find_coldkey_swap_extrinsic(
+        subtensor=subtensor,
+        start_block=block_pre_call,
+        end_block=block_post_call,
+        wallet_ss58=wallet.coldkeypub.ss58_address,
+    )
+
+    if not swap_info:
+        console.print(
+            "[yellow]Warning: Could not find the swap extrinsic in recent blocks"
+        )
+        return True
+
+    console.print(
+        "\n[green]Coldkey swap details:[/green]"
+        f"\nBlock number: {swap_info['block_num']}"
+        f"\nOriginal address: [{COLORS.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.G.CK}]"
+        f"\nDestination address: [{COLORS.G.CK}]{swap_info['dest_coldkey']}[/{COLORS.G.CK}]"
+        f"\nThe swap will be completed at block: [green]{swap_info['execution_block']}[/green]"
+        f"\n[dim]You can provide the block number to `btcli wallet swap-check`[/dim]"
+    )
+
+
+async def find_coldkey_swap_extrinsic(
+    subtensor: SubtensorInterface,
+    start_block: int,
+    end_block: int,
+    wallet_ss58: str,
+) -> dict:
+    """Search for a coldkey swap event in a range of blocks.
+
+    Args:
+        subtensor: SubtensorInterface for chain queries
+        start_block: Starting block number to search
+        end_block: Ending block number to search (inclusive)
+        wallet_ss58: SS58 address of the signing wallet
+
+    Returns:
+        dict: Contains the following keys if found:
+            - block_num: Block number where swap was scheduled
+            - dest_coldkey: SS58 address of destination coldkey
+            - execution_block: Block number when swap will execute
+        Empty dict if not found
+    """
+
+    current_block, genesis_block = await asyncio.gather(
+        subtensor.substrate.get_block_number(), subtensor.substrate.get_block_hash(0)
+    )
+    if (
+        current_block - start_block > 300
+        and genesis_block == Constants.genesis_block_hash_map["finney"]
+    ):
+        console.print("Querying archive node for coldkey swap events...")
+        await subtensor.substrate.close()
+        subtensor = SubtensorInterface("archive")
+
+    block_hashes = await asyncio.gather(
+        *[
+            subtensor.substrate.get_block_hash(block_num)
+            for block_num in range(start_block, end_block + 1)
+        ]
+    )
+    block_events = await asyncio.gather(
+        *[
+            subtensor.substrate.get_events(block_hash=block_hash)
+            for block_hash in block_hashes
+        ]
+    )
+
+    for block_num, events in zip(range(start_block, end_block + 1), block_events):
+        for event in events:
+            if (
+                event.get("event", {}).get("module_id") == "SubtensorModule"
+                and event.get("event", {}).get("event_id") == "ColdkeySwapScheduled"
+            ):
+                attributes = event["event"].get("attributes", {})
+                old_coldkey = decode_account_id(attributes["old_coldkey"][0])
+
+                if old_coldkey == wallet_ss58:
+                    return {
+                        "block_num": block_num,
+                        "dest_coldkey": decode_account_id(attributes["new_coldkey"][0]),
+                        "execution_block": attributes["execution_block"],
+                    }
+
+    return {}
+
+
+async def check_swap_status(
+    subtensor: SubtensorInterface,
+    origin_ss58: Optional[str] = None,
+    expected_block_number: Optional[int] = None,
+) -> None:
+    """
+    Check the status of a coldkey swap.
+
+    Args:
+        subtensor: Connection to the network
+        origin_ss58: The SS58 address of the original coldkey
+        block_number: Optional block number where the swap was scheduled
+    """
+    scheduled_swaps = await subtensor.get_scheduled_coldkey_swap()
+
+    if not origin_ss58:
+        if not scheduled_swaps:
+            console.print("[yellow]No pending coldkey swaps found.[/yellow]")
+            return
+
+        table = Table(
+            Column(
+                "Original Coldkey",
+                justify="Left",
+                style=COLOR_PALETTE["GENERAL"]["SUBHEADING_MAIN"],
+                no_wrap=True,
+            ),
+            Column("Status", style="dark_sea_green3"),
+            title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Pending Coldkey Swaps\n",
+            show_header=True,
+            show_edge=False,
+            header_style="bold white",
+            border_style="bright_black",
+            style="bold",
+            title_justify="center",
+            show_lines=False,
+            pad_edge=True,
+        )
+
+        for coldkey in scheduled_swaps:
+            table.add_row(coldkey, "Pending")
+
+        console.print(table)
+        console.print(
+            "\n[dim]Tip: Check specific swap details by providing the original coldkey SS58 address and the block number.[/dim]"
+        )
+        return
+
+    is_pending = origin_ss58 in scheduled_swaps
+
+    if not is_pending:
+        console.print(
+            f"[red]No pending swap found for coldkey:[/red] [{COLORS.G.CK}]{origin_ss58}[/{COLORS.G.CK}]"
+        )
+        return
+
+    console.print(
+        f"[green]Found pending swap for coldkey:[/green] [{COLORS.G.CK}]{origin_ss58}[/{COLORS.G.CK}]"
+    )
+
+    if expected_block_number is None:
+        return
+
+    swap_info = await find_coldkey_swap_extrinsic(
+        subtensor=subtensor,
+        start_block=expected_block_number,
+        end_block=expected_block_number,
+        wallet_ss58=origin_ss58,
+    )
+
+    if not swap_info:
+        console.print(
+            f"[yellow]Warning: Could not find swap extrinsic at block {expected_block_number}[/yellow]"
+        )
+        return
+
+    current_block = await subtensor.substrate.get_block_number()
+    remaining_blocks = swap_info["execution_block"] - current_block
+
+    if remaining_blocks <= 0:
+        console.print("[green]Swap period has completed![/green]")
+        return
+
+    console.print(
+        "\n[green]Coldkey swap details:[/green]"
+        f"\nScheduled at block: {swap_info['block_num']}"
+        f"\nOriginal address: [{COLORS.G.CK}]{origin_ss58}[/{COLORS.G.CK}]"
+        f"\nDestination address: [{COLORS.G.CK}]{swap_info['dest_coldkey']}[/{COLORS.G.CK}]"
+        f"\nCompletion block: {swap_info['execution_block']}"
+        f"\nTime remaining: {blocks_to_duration(remaining_blocks)}"
+    )

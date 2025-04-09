@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import re
@@ -12,6 +13,8 @@ import pytest
 from async_substrate_interface.async_substrate import AsyncSubstrateInterface
 
 from .utils import setup_wallet
+
+LOCALNET_IMAGE_NAME = "ghcr.io/opentensor/subtensor-localnet:devnet-ready"
 
 
 def wait_for_node_start(process, pattern, timestamp: int = None):
@@ -112,6 +115,7 @@ def docker_runner(params):
                 stderr=subprocess.DEVNULL,
                 check=True,
             )
+            subprocess.run(["docker", "pull", LOCALNET_IMAGE_NAME], check=True)
             return True
         except subprocess.CalledProcessError:
             return False
@@ -142,7 +146,6 @@ def docker_runner(params):
         return False
 
     container_name = f"test_local_chain_{str(time.time()).replace('.', '_')}"
-    image_name = "ghcr.io/opentensor/subtensor-localnet:latest"
 
     # Command to start container
     cmds = [
@@ -155,7 +158,7 @@ def docker_runner(params):
         "9944:9944",
         "-p",
         "9945:9945",
-        image_name,
+        LOCALNET_IMAGE_NAME,
         params,
     ]
 
@@ -184,16 +187,15 @@ def docker_runner(params):
             )
             if not result.stdout.strip():
                 raise RuntimeError("Docker container failed to start.")
-
             substrate = AsyncSubstrateInterface(url="ws://127.0.0.1:9944")
             yield substrate
 
         finally:
             try:
                 if substrate:
-                    substrate.close()
+                    asyncio.run(substrate.close())
             except Exception:
-                pass
+                logging.warning("Failed to close substrate connection.")
 
             try:
                 subprocess.run(["docker", "kill", container_name])
