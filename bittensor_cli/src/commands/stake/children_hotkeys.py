@@ -30,21 +30,19 @@ async def get_childkey_completion_block(
     """
     Calculates the block at which the childkey set request will complete
     """
+    bh = await subtensor.substrate.get_chain_head()
     blocks_since_last_step_query = subtensor.query(
-        "SubtensorModule",
-        "BlocksSinceLastStep",
-        params=[netuid],
+        "SubtensorModule", "BlocksSinceLastStep", params=[netuid], block_hash=bh
     )
     tempo_query = subtensor.get_hyperparameter(
-        param_name="Tempo",
-        netuid=netuid,
+        param_name="Tempo", netuid=netuid, block_hash=bh
     )
     block_number, blocks_since_last_step, tempo = await asyncio.gather(
-        subtensor.substrate.get_block_number(),
+        subtensor.substrate.get_block_number(block_hash=bh),
         blocks_since_last_step_query,
         tempo_query,
     )
-    cooldown = block_number + 1
+    cooldown = block_number + 7200
     blocks_left_in_tempo = tempo - blocks_since_last_step
     next_tempo = block_number + blocks_left_in_tempo
     next_epoch_after_cooldown = (cooldown - next_tempo) % tempo + cooldown
