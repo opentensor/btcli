@@ -1,6 +1,6 @@
 # Changelog
 
-## 9.2.1 /2025-04-09
+## 9.3.0 /2025-04-09
 
 ## What's Changed
 * Fix e2e test by @basfroman in https://github.com/opentensor/btcli/pull/396
@@ -24,7 +24,7 @@
 * Update revoke children language by @thewhaleking in https://github.com/opentensor/btcli/pull/417
 * Revert "new color palette" by @thewhaleking in https://github.com/opentensor/btcli/pull/420
 
-**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.2.0...v9.2.1
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.2.0...v9.3.0
 
 ## 9.2.0 /2025-03-18
 
