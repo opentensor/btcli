@@ -678,6 +678,10 @@ async def revoke_children(
                     f"submitted. It will be completed around block {completion_block}. The current block "
                     f"is {current_block}"
                 )
+            else:
+                err_console.print(
+                    f"Childkey revocation failed for netuid {netuid_}: {message}."
+                )
     if json_output:
         json_console.print(json.dumps(dict_output))
 
