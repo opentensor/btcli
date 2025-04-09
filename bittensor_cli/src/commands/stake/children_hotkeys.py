@@ -86,7 +86,7 @@ async def set_children_extrinsic(
     if prompt:
         if all_revoked:
             if not Confirm.ask(
-                f"Do you want to revoke all children hotkeys for hotkey {hotkey}?"
+                f"Do you want to revoke all children hotkeys for hotkey {hotkey} on netuid {netuid}?"
             ):
                 return False, "Operation Cancelled"
         else:
@@ -136,17 +136,9 @@ async def set_children_extrinsic(
                 console.print(":white_heavy_check_mark: [green]Included[/green]")
             if wait_for_finalization:
                 console.print(":white_heavy_check_mark: [green]Finalized[/green]")
-            # bittensor.logging.success(
-            #     prefix=operation,
-            #     suffix="<green>Finalized: </green>" + str(success),
-            # )
             return True, f"Successfully {operation.lower()} and Finalized."
         else:
             err_console.print(f":cross_mark: [red]Failed[/red]: {error_message}")
-            # bittensor.logging.warning(
-            #     prefix=operation,
-            #     suffix="<red>Failed: </red>" + str(error_message),
-            # )
             return False, error_message
 
 
@@ -613,7 +605,7 @@ async def revoke_children(
     Revokes the children hotkeys associated with a given network identifier (netuid).
     """
     dict_output = {}
-    if netuid:
+    if netuid is not None:
         success, message = await set_children_extrinsic(
             subtensor=subtensor,
             wallet=wallet,
