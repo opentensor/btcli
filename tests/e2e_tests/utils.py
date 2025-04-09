@@ -57,7 +57,7 @@ def setup_wallet(uri: str):
     return keypair, wallet, wallet_path, exec_command
 
 
-def extract_coldkey_balance(text: str, wallet_name: str, coldkey_address: str) -> dict:
+def extract_coldkey_balance(cleaned_text: str, wallet_name: str, coldkey_address: str) -> dict:
     """
     Extracts the free, staked, and total balances for a
     given wallet name and coldkey address from the input string.
@@ -72,11 +72,12 @@ def extract_coldkey_balance(text: str, wallet_name: str, coldkey_address: str) -
               each containing the corresponding balance as a Balance object.
               Returns a dictionary with all zeros if the wallet name or coldkey address is not found.
     """
+    cleaned_text = cleaned_text.replace('\u200e', '')
     pattern = (
-        rf"{wallet_name}\s+{coldkey_address}\s+" r"τ\s*([\d,]+\.\d+)"  # Free Balance
+        rf"{wallet_name}\s+{coldkey_address}\s+([\d,]+\.\d+)\s*τ"  # Free Balance
     )
 
-    match = re.search(pattern, text)
+    match = re.search(pattern, cleaned_text)
 
     if not match:
         return {
