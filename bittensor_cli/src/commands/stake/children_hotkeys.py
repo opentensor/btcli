@@ -622,14 +622,23 @@ async def revoke_children(
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
         )
-        dict_output[netuid] = {"success": success, "error": message}
+        dict_output[netuid] = {
+            "success": success,
+            "error": message,
+            "set_block": None,
+            "completion_block": None,
+        }
 
         # Result
         if success:
-            if wait_for_finalization and wait_for_inclusion:
-                await get_children(wallet, subtensor, netuid)
+            current_block, completion_block = await get_childkey_completion_block(
+                subtensor, netuid
+            )
+            dict_output[netuid]["completion_block"] = completion_block
+            dict_output[netuid]["set_block"] = current_block
             console.print(
-                ":white_heavy_check_mark: [green]Revoked children hotkeys.[/green]"
+                f":white_heavy_check_mark: Your childkey revocation request for netuid {netuid} has been submitted. "
+                f"It will be completed around block {completion_block}. The current block is {current_block}"
             )
         else:
             console.print(
@@ -638,10 +647,10 @@ async def revoke_children(
     else:
         # revoke children from ALL netuids
         netuids = await subtensor.get_all_subnet_netuids()
-        for netuid in netuids:
-            if netuid == 0:  # dont include root network
+        for netuid_ in netuids:
+            if netuid_ == 0:  # dont include root network
                 continue
-            console.print(f"Revoking children from netuid {netuid}.")
+            console.print(f"Revoking children from netuid {netuid_}.")
             success, message = await set_children_extrinsic(
                 subtensor=subtensor,
                 wallet=wallet,
@@ -652,10 +661,27 @@ async def revoke_children(
                 wait_for_inclusion=True,
                 wait_for_finalization=False,
             )
-            dict_output[netuid] = {"success": success, "error": message}
-        console.print(
-            ":white_heavy_check_mark: [green]Sent revoke children command. Finalization may take a few minutes.[/green]"
-        )
+            dict_output[netuid_] = {
+                "success": success,
+                "error": message,
+                "set_block": None,
+                "completion_block": None,
+            }
+            if success:
+                current_block, completion_block = await get_childkey_completion_block(
+                    subtensor, netuid_
+                )
+                dict_output[netuid_]["completion_block"] = completion_block
+                dict_output[netuid_]["set_block"] = current_block
+                console.print(
+                    f":white_heavy_check_mark: Your childkey revocation request for netuid {netuid_} has been "
+                    f"submitted. It will be completed around block {completion_block}. The current block "
+                    f"is {current_block}"
+                )
+            else:
+                err_console.print(
+                    f"Childkey revocation failed for netuid {netuid_}: {message}."
+                )
     if json_output:
         json_console.print(json.dumps(dict_output))
 
