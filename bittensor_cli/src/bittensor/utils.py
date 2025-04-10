@@ -31,6 +31,7 @@ from bittensor_cli.src import defaults, Constants
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
+    from rich.prompt import PromptBase
 
 console = Console()
 json_console = Console()
@@ -1007,7 +1008,7 @@ def retry_prompt(
     rejection_text: str,
     default="",
     show_default=False,
-    prompt_type=Prompt.ask,
+    prompt_type: "PromptBase.ask" = Prompt.ask,
 ):
     """
     Allows for asking prompts again if they do not meet a certain criteria (as defined in `rejection`)
