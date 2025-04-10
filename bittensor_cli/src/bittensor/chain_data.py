@@ -749,7 +749,7 @@ class DynamicInfo(InfoBase):
         self, tao: Balance
     ) -> tuple[Balance, Balance, float]:
         """
-        Returns an estimate of how much Alpha would a staker receive if they stake their tao using the current pool
+        Returns an estimate of how much Alpha a staker would receive if they stake their tao using the current pool
             state.
 
         Args:
@@ -794,7 +794,7 @@ class DynamicInfo(InfoBase):
         self, alpha: Balance
     ) -> tuple[Balance, Balance, float]:
         """
-        Returns an estimate of how much TAO would a staker receive if they unstake their alpha using the current pool
+        Returns an estimate of how much TAO a staker would receive if they unstake their alpha using the current pool
             state.
 
         Args:

@@ -3,7 +3,10 @@ import re
 
 
 def version_as_int(version):
-    core_version = re.match(r"^\d+\.\d+\.\d+", version).group(0)
+    match = re.match(r"^\d+\.\d+\.\d+", version)
+    if not match:
+        raise ValueError(f"Invalid version format: {version}")
+    core_version = match.group(0)
     version_split = core_version.split(".")
     version_info = tuple(int(part) for part in version_split)
     version_int_base = 1000
