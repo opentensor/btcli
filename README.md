@@ -39,7 +39,7 @@ Installation steps are described below. For a full documentation on how to use `
 
 ## Install on macOS and Linux
 
-You can install `btcli` on your local machine directly from source, or from from PyPI. **Make sure you verify your installation after you install**:
+You can install `btcli` on your local machine directly from source, or from PyPI. **Make sure you verify your installation after you install**:
 
 
 ### Install from PyPI
