@@ -3,7 +3,7 @@ import re
 import shutil
 import subprocess
 import sys
-from typing import List, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from bittensor_cli.cli import CLIManager
 from bittensor_wallet import Keypair, Wallet
@@ -27,9 +27,10 @@ def setup_wallet(uri: str):
     def exec_command(
         command: str,
         sub_command: str,
-        extra_args: List[str] = [],
-        inputs: List[str] = None,
+        extra_args: Optional[list[str]] = None,
+        inputs: list[str] = None,
     ):
+        extra_args = extra_args or []
         cli_manager = CLIManager()
         # Capture stderr separately from stdout
         runner = CliRunner(mix_stderr=False)
@@ -57,13 +58,15 @@ def setup_wallet(uri: str):
     return keypair, wallet, wallet_path, exec_command
 
 
-def extract_coldkey_balance(cleaned_text: str, wallet_name: str, coldkey_address: str) -> dict:
+def extract_coldkey_balance(
+    cleaned_text: str, wallet_name: str, coldkey_address: str
+) -> dict:
     """
     Extracts the free, staked, and total balances for a
     given wallet name and coldkey address from the input string.
 
     Args:
-        text (str): The input string from wallet list command.
+        cleaned_text (str): The input string from wallet list command.
         wallet_name (str): The name of the wallet.
         coldkey_address (str): The coldkey address.
 
@@ -72,10 +75,8 @@ def extract_coldkey_balance(cleaned_text: str, wallet_name: str, coldkey_address
               each containing the corresponding balance as a Balance object.
               Returns a dictionary with all zeros if the wallet name or coldkey address is not found.
     """
-    cleaned_text = cleaned_text.replace('\u200e', '')
-    pattern = (
-        rf"{wallet_name}\s+{coldkey_address}\s+([\d,]+\.\d+)\s*τ"  # Free Balance
-    )
+    cleaned_text = cleaned_text.replace("\u200e", "")
+    pattern = rf"{wallet_name}\s+{coldkey_address}\s+([\d,]+\.\d+)\s*τ"  # Free Balance
 
     match = re.search(pattern, cleaned_text)
 
@@ -153,8 +154,8 @@ def validate_wallet_inspect(
     text: str,
     coldkey: str,
     balance: float,
-    delegates: List[Tuple[str, float, bool]],
-    hotkeys_netuid: List[Tuple[str, str, float, bool]],
+    delegates: list[tuple[str, float, bool]],
+    hotkeys_netuid: list[tuple[str, str, float, bool]],
 ):
     # TODO: Handle stake in Balance format as well
     """
