@@ -266,7 +266,8 @@ class Options:
         None,
         "--safe-staking/--no-safe-staking",
         "--safe/--unsafe",
-        help="Enable or disable safe staking mode (default: enabled).",
+        show_default=False,
+        help="Enable or disable safe staking mode [dim](default: enabled)[/dim].",
     )
     allow_partial_stake = typer.Option(
         None,
@@ -274,7 +275,8 @@ class Options:
         "--partial/--no-partial",
         "--allow/--not-allow",
         "--allow-partial/--not-partial",
-        help="Enable or disable partial stake mode (default: disabled).",
+        show_default=False,
+        help="Enable or disable partial stake mode [dim](default: disabled)[/dim].",
     )
     dashboard_path = typer.Option(
         None,
@@ -1184,12 +1186,14 @@ class CLIManager:
             "--safe-staking/--no-safe-staking",
             "--safe/--unsafe",
             help="Enable or disable safe staking mode.",
+            show_default=False,
         ),
         allow_partial_stake: Optional[bool] = typer.Option(
             None,
             "--allow-partial-stake/--no-allow-partial-stake",
             "--partial/--no-partial",
             "--allow/--not-allow",
+            show_default=False,
         ),
         dashboard_path: Optional[str] = Options.dashboard_path,
     ):
