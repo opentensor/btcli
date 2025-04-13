@@ -259,7 +259,7 @@ class Options:
         "--slippage-tolerance",
         "--tolerance",
         "--rate-tolerance",
-        help="Set the rate tolerance percentage for transactions (default: 0.05%).",
+        help="Set the rate tolerance percentage for transactions (default: 0.05 for 5%).",
         callback=validate_rate_tolerance,
     )
     safe_staking = typer.Option(
