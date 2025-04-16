@@ -50,6 +50,10 @@ from bittensor_cli.src.commands.stake import (
     add as add_stake,
     remove as remove_stake,
 )
+from bittensor_cli.src.commands.liquidity import (
+    add as add_liquidity,
+    remove as remove_liquidity,
+)
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
 from bittensor_cli.src.bittensor.utils import (
@@ -798,6 +802,12 @@ class CLIManager:
         self.stake_app.command(
             "swap", rich_help_panel=HELP_PANELS["STAKE"]["MOVEMENT"]
         )(self.stake_swap)
+        self.stake_app.command(
+            "add_liquidity", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
+        )(self.liquidity_add)
+        self.stake_app.command(
+            "remove_liquidity", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
+        )(self.liquidity_remove)
 
         # stake-children commands
         children_app = typer.Typer()
@@ -4115,6 +4125,336 @@ class CLIManager:
         if json_output:
             json_console.print(json.dumps({"success": result}))
         return result
+
+
+    def liquidity_add(
+        self,
+        amount: float = typer.Option(
+            0.0, "--amount", help="The amount of Liquidity to stake"
+        ),
+        netuid: Optional[int] = Options.netuid_not_req,
+        network: Optional[list[str]] = Options.network,
+        wallet_path: Optional[str] = Options.wallet_path,
+        era: int = Options.era,
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Add liquidity to the swap (as a combination of TAO + Alpha)
+        """
+        self.verbosity_handler(quiet, verbose, json_output)
+        netuid = Prompt.ask(
+            f"Enter the [{COLORS.G.SUBHEAD_MAIN}]netuid[/{COLORS.G.SUBHEAD_MAIN}] to use",
+            default=None,
+            show_default=False,
+        )
+
+        wallet_name = Prompt.ask(
+            "Enter the [blue]wallet name[/blue]",
+            default=self.config.get("wallet_name") or defaults.wallet.name,
+        )
+        hotkey_or_ss58 = Prompt.ask(
+            "Enter the [blue]wallet hotkey[/blue] name or [blue]ss58 address[/blue] to use stake from",
+        )
+        wallet_hotkey = hotkey_or_ss58
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            "default",
+            ask_for=[WO.NAME, WO.HOTKEY, WO.PATH],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
+
+        return self._run_command(
+            add_liquidity.run(
+                wallet,
+                self.initialize_chain(network),
+                netuid,
+                hotkey_or_ss58,
+                prompt,
+                json_output,
+                era,
+            )
+        )
+
+    def liquidity_remove(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        netuid: Optional[int] = Options.netuid_not_req,
+        all_netuids: bool = Options.all_netuids,
+        unstake_all: bool = typer.Option(
+            False,
+            "--unstake-all",
+            "--all",
+            help="When set, this command unstakes all staked TAO + Alpha from the all hotkeys.",
+        ),
+        unstake_all_alpha: bool = typer.Option(
+            False,
+            "--unstake-all-alpha",
+            "--all-alpha",
+            help="When set, this command unstakes all staked Alpha from the all hotkeys.",
+        ),
+        amount: float = typer.Option(
+            0.0, "--amount", "-a", help="The amount of TAO to unstake."
+        ),
+        hotkey_ss58_address: str = typer.Option(
+            "",
+            help="The ss58 address of the hotkey to unstake from.",
+        ),
+        include_hotkeys: str = typer.Option(
+            "",
+            "--include-hotkeys",
+            "-in",
+            help="Specifies the hotkeys by name or ss58 address to unstake from. For example, `-in hk1,hk2`",
+        ),
+        exclude_hotkeys: str = typer.Option(
+            "",
+            "--exclude-hotkeys",
+            "-ex",
+            help="Specifies the hotkeys by name or ss58 address not to unstake from (only use with `--all-hotkeys`)"
+            " i.e. `--all-hotkeys -ex hk3,hk4`",
+        ),
+        all_hotkeys: bool = typer.Option(
+            False,
+            help="When set, this command unstakes from all the hotkeys associated with the wallet. Do not use if specifying "
+            "hotkeys in `--include-hotkeys`.",
+        ),
+        rate_tolerance: Optional[float] = Options.rate_tolerance,
+        safe_staking: Optional[bool] = Options.safe_staking,
+        allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
+        era: int = Options.era,
+        prompt: bool = Options.prompt,
+        interactive: bool = typer.Option(
+            False,
+            "--interactive",
+            "-i",
+            help="Enter interactive mode for unstaking.",
+        ),
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Remove liquidity from the swap and collect fees
+        """
+        self.verbosity_handler(quiet, verbose, json_output)
+        if not unstake_all and not unstake_all_alpha:
+            safe_staking = self.ask_safe_staking(safe_staking)
+            if safe_staking:
+                rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
+                allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
+                console.print("\n")
+
+        if interactive and any(
+            [hotkey_ss58_address, include_hotkeys, exclude_hotkeys, all_hotkeys]
+        ):
+            print_error(
+                "Interactive mode cannot be used with hotkey selection options like "
+                "--include-hotkeys, --exclude-hotkeys, --all-hotkeys, or --hotkey."
+            )
+            raise typer.Exit()
+
+        if unstake_all and unstake_all_alpha:
+            print_error("Cannot specify both unstake-all and unstake-all-alpha.")
+            raise typer.Exit()
+
+        if not interactive and not unstake_all and not unstake_all_alpha:
+            netuid = get_optional_netuid(netuid, all_netuids)
+            if all_hotkeys and include_hotkeys:
+                print_error(
+                    "You have specified hotkeys to include and also the `--all-hotkeys` flag. The flag"
+                    " should only be used standalone (to use all hotkeys) or with `--exclude-hotkeys`."
+                )
+                raise typer.Exit()
+
+            if include_hotkeys and exclude_hotkeys:
+                print_error(
+                    "You have specified both including and excluding hotkeys options. Select one or the other."
+                )
+                raise typer.Exit()
+
+            if unstake_all and amount:
+                print_error(
+                    "Cannot specify both a specific amount and 'unstake-all'. Choose one or the other."
+                )
+                raise typer.Exit()
+
+            if amount and amount <= 0:
+                print_error(f"You entered an incorrect unstake amount: {amount}")
+                raise typer.Exit()
+
+        if (
+            not wallet_hotkey
+            and not hotkey_ss58_address
+            and not all_hotkeys
+            and not include_hotkeys
+            and not interactive
+            and not unstake_all
+            and not unstake_all_alpha
+        ):
+            if not wallet_name:
+                wallet_name = Prompt.ask(
+                    "Enter the [blue]wallet name[/blue]",
+                    default=self.config.get("wallet_name") or defaults.wallet.name,
+                )
+            hotkey_or_ss58 = Prompt.ask(
+                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake from [dim](or Press Enter to view existing staked hotkeys)[/dim]",
+            )
+            if hotkey_or_ss58 == "":
+                wallet = self.wallet_ask(
+                    wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
+                )
+                interactive = True
+            elif is_valid_ss58_address(hotkey_or_ss58):
+                hotkey_ss58_address = hotkey_or_ss58
+                wallet = self.wallet_ask(
+                    wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
+                )
+            else:
+                wallet_hotkey = hotkey_or_ss58
+                wallet = self.wallet_ask(
+                    wallet_name,
+                    wallet_path,
+                    wallet_hotkey,
+                    ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+                    validate=WV.WALLET_AND_HOTKEY,
+                )
+
+        elif unstake_all or unstake_all_alpha:
+            if not wallet_name:
+                wallet_name = Prompt.ask(
+                    "Enter the [blue]wallet name[/blue]",
+                    default=self.config.get("wallet_name") or defaults.wallet.name,
+                )
+            if include_hotkeys:
+                if len(include_hotkeys) > 1:
+                    print_error("Cannot unstake_all from multiple hotkeys at once.")
+                    raise typer.Exit()
+                elif is_valid_ss58_address(include_hotkeys[0]):
+                    hotkey_ss58_address = include_hotkeys[0]
+                else:
+                    print_error("Invalid hotkey ss58 address.")
+                    raise typer.Exit()
+            elif all_hotkeys:
+                wallet = self.wallet_ask(
+                    wallet_name,
+                    wallet_path,
+                    wallet_hotkey,
+                    ask_for=[WO.NAME, WO.PATH],
+                )
+            else:
+                if not hotkey_ss58_address and not wallet_hotkey:
+                    hotkey_or_ss58 = Prompt.ask(
+                        "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake all from [dim](or enter 'all' to unstake from all hotkeys)[/dim]",
+                        default=self.config.get("wallet_hotkey")
+                        or defaults.wallet.hotkey,
+                    )
+                else:
+                    hotkey_or_ss58 = hotkey_ss58_address or wallet_hotkey
+
+                if is_valid_ss58_address(hotkey_or_ss58):
+                    hotkey_ss58_address = hotkey_or_ss58
+                    wallet = self.wallet_ask(
+                        wallet_name,
+                        wallet_path,
+                        wallet_hotkey,
+                        ask_for=[WO.NAME, WO.PATH],
+                    )
+                elif hotkey_or_ss58 == "all":
+                    all_hotkeys = True
+                    wallet = self.wallet_ask(
+                        wallet_name,
+                        wallet_path,
+                        wallet_hotkey,
+                        ask_for=[WO.NAME, WO.PATH],
+                    )
+                else:
+                    wallet_hotkey = hotkey_or_ss58
+                    wallet = self.wallet_ask(
+                        wallet_name,
+                        wallet_path,
+                        wallet_hotkey,
+                        ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+                        validate=WV.WALLET_AND_HOTKEY,
+                    )
+            return self._run_command(
+                remove_stake.unstake_all(
+                    wallet=wallet,
+                    subtensor=self.initialize_chain(network),
+                    hotkey_ss58_address=hotkey_ss58_address,
+                    unstake_all_alpha=unstake_all_alpha,
+                    all_hotkeys=all_hotkeys,
+                    include_hotkeys=include_hotkeys,
+                    exclude_hotkeys=exclude_hotkeys,
+                    prompt=prompt,
+                    json_output=json_output,
+                    era=era,
+                )
+            )
+        elif (
+            all_hotkeys
+            or include_hotkeys
+            or exclude_hotkeys
+            or hotkey_ss58_address
+            or interactive
+            or unstake_all
+            or unstake_all_alpha
+        ):
+            wallet = self.wallet_ask(
+                wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
+            )
+        else:
+            wallet = self.wallet_ask(
+                wallet_name,
+                wallet_path,
+                wallet_hotkey,
+                ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+                validate=WV.WALLET_AND_HOTKEY,
+            )
+
+        if include_hotkeys:
+            include_hotkeys = parse_to_list(
+                include_hotkeys,
+                str,
+                "Hotkeys must be a comma-separated list of ss58s or names, e.g., `--include-hotkeys hk1,hk2`.",
+                is_ss58=False,
+            )
+
+        if exclude_hotkeys:
+            exclude_hotkeys = parse_to_list(
+                exclude_hotkeys,
+                str,
+                "Hotkeys must be a comma-separated list of ss58s or names, e.g., `--exclude-hotkeys hk3,hk4`.",
+                is_ss58=False,
+            )
+
+        return self._run_command(
+            remove_liquidity.run(
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                hotkey_ss58_address=hotkey_ss58_address,
+                all_hotkeys=all_hotkeys,
+                include_hotkeys=include_hotkeys,
+                exclude_hotkeys=exclude_hotkeys,
+                amount=amount,
+                prompt=prompt,
+                interactive=interactive,
+                netuid=netuid,
+                safe_staking=safe_staking,
+                rate_tolerance=rate_tolerance,
+                allow_partial_stake=allow_partial_stake,
+                json_output=json_output,
+                era=era,
+            )
+        )
+
+
+
 
     def stake_get_children(
         self,
