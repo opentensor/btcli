@@ -1,5 +1,19 @@
 # Changelog
 
+## 9.4.0 /2025-04-17
+
+## What's Changed
+* Formatting/ruff fixes by @thewhaleking in https://github.com/opentensor/btcli/pull/426
+* Allows for torch 2.6+ by @thewhaleking in https://github.com/opentensor/btcli/pull/427
+* chore: fixed version format error and improved readability by @mdqst in https://github.com/opentensor/btcli/pull/428
+* Fixes help msg of safe staking help (in stake add etc) by @ibraheem-abe in https://github.com/opentensor/btcli/pull/432
+* Feat/start call by @ibraheem-abe in https://github.com/opentensor/btcli/pull/434
+
+## New Contributors
+* @mdqst made their first contribution in https://github.com/opentensor/btcli/pull/428
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.3.0...v9.4.0
+
 ## 9.3.0 /2025-04-09
 
 ## What's Changed
