@@ -5002,7 +5002,7 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose)
         return self._run_command(
-            subnets.get_emission_schedule(self.initialize_chain(network), netuid)
+            subnets.get_start_schedule(self.initialize_chain(network), netuid)
         )
 
     def subnets_start(

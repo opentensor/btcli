@@ -2311,7 +2311,7 @@ async def get_identity(
         return identity
 
 
-async def get_emission_schedule(
+async def get_start_schedule(
     subtensor: "SubtensorInterface",
     netuid: int,
 ) -> None:
@@ -2415,6 +2415,6 @@ async def start_subnet(
                 console.print(f"[dark_sea_green3]Subnet {netuid} already has an emission schedule.[/dark_sea_green3]")
                 return True
 
-            await get_emission_schedule(subtensor, netuid)
+            await get_start_schedule(subtensor, netuid)
             print_error(f":cross_mark: Failed to start subnet: {error_msg}")
             return False
