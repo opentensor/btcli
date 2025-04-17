@@ -5026,6 +5026,11 @@ class CLIManager:
         [green]$[/green] btcli subnets start --netuid 1 --wallet-name alice
         """
         self.verbosity_handler(quiet, verbose)
+        if not wallet_name:
+            wallet_name = Prompt.ask(
+                "Enter the [blue]wallet name[/blue] [dim](which you used to create the subnet)[/dim]",
+                default=self.config.get("wallet_name") or defaults.wallet.name,
+            )
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
