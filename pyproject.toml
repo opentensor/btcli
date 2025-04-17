@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bittensor-cli"
-version = "9.3.0"
+version = "9.4.0"
 description = "Bittensor CLI"
 readme = "README.md"
 authors = [
@@ -39,7 +39,7 @@ dependencies = [
 
 [project.optional-dependencies]
 cuda = [
-    "torch>=1.13.1,<2.6.0",
+    "torch>=1.13.1,<3.0",
 ]
 
 [project.urls]

@@ -259,14 +259,15 @@ class Options:
         "--slippage-tolerance",
         "--tolerance",
         "--rate-tolerance",
-        help="Set the rate tolerance percentage for transactions (default: 0.05%).",
+        help="Set the rate tolerance percentage for transactions (default: 0.05 for 5%).",
         callback=validate_rate_tolerance,
     )
     safe_staking = typer.Option(
         None,
         "--safe-staking/--no-safe-staking",
         "--safe/--unsafe",
-        help="Enable or disable safe staking mode (default: enabled).",
+        show_default=False,
+        help="Enable or disable safe staking mode [dim](default: enabled)[/dim].",
     )
     allow_partial_stake = typer.Option(
         None,
@@ -274,7 +275,8 @@ class Options:
         "--partial/--no-partial",
         "--allow/--not-allow",
         "--allow-partial/--not-partial",
-        help="Enable or disable partial stake mode (default: disabled).",
+        show_default=False,
+        help="Enable or disable partial stake mode [dim](default: disabled)[/dim].",
     )
     dashboard_path = typer.Option(
         None,
@@ -873,6 +875,12 @@ class CLIManager:
         self.subnets_app.command(
             "get-identity", rich_help_panel=HELP_PANELS["SUBNETS"]["IDENTITY"]
         )(self.subnets_get_identity)
+        self.subnets_app.command(
+            "start", rich_help_panel=HELP_PANELS["SUBNETS"]["CREATION"]
+        )(self.subnets_start)
+        self.subnets_app.command(
+            "check-start", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
+        )(self.subnets_check_start)
 
         # weights commands
         self.weights_app.command(
@@ -1184,12 +1192,14 @@ class CLIManager:
             "--safe-staking/--no-safe-staking",
             "--safe/--unsafe",
             help="Enable or disable safe staking mode.",
+            show_default=False,
         ),
         allow_partial_stake: Optional[bool] = typer.Option(
             None,
             "--allow-partial-stake/--no-allow-partial-stake",
             "--partial/--no-partial",
             "--allow/--not-allow",
+            show_default=False,
         ),
         dashboard_path: Optional[str] = Options.dashboard_path,
     ):
@@ -4972,6 +4982,70 @@ class CLIManager:
         self._run_command(
             subnets.create(
                 wallet, self.initialize_chain(network), identity, json_output, prompt
+            )
+        )
+
+    def subnets_check_start(
+        self,
+        network: Optional[list[str]] = Options.network,
+        netuid: int = Options.netuid,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Checks if a subnet's emission schedule can be started.
+
+        This command verifies if a subnet's emission schedule can be started based on the subnet's registration block.
+
+        Example:
+        [green]$[/green] btcli subnets check_start --netuid 1
+        """
+        self.verbosity_handler(quiet, verbose)
+        return self._run_command(
+            subnets.get_start_schedule(self.initialize_chain(network), netuid)
+        )
+
+    def subnets_start(
+        self,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        network: Optional[list[str]] = Options.network,
+        netuid: int = Options.netuid,
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Starts a subnet's emission schedule.
+
+        The owner of the subnet must call this command to start the emission schedule.
+
+        Example:
+        [green]$[/green] btcli subnets start --netuid 1
+        [green]$[/green] btcli subnets start --netuid 1 --wallet-name alice
+        """
+        self.verbosity_handler(quiet, verbose)
+        if not wallet_name:
+            wallet_name = Prompt.ask(
+                "Enter the [blue]wallet name[/blue] [dim](which you used to create the subnet)[/dim]",
+                default=self.config.get("wallet_name") or defaults.wallet.name,
+            )
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[
+                WO.NAME,
+            ],
+            validate=WV.WALLET,
+        )
+        return self._run_command(
+            subnets.start_subnet(
+                wallet,
+                self.initialize_chain(network),
+                netuid,
+                prompt,
             )
         )
 
