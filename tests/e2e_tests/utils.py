@@ -300,3 +300,45 @@ async def call_add_proposal(
         )
 
         return await response.is_success
+
+
+async def set_storage_extrinsic(
+    substrate: "AsyncSubstrateInterface",
+    wallet: "Wallet",
+    items: list[tuple[bytes, bytes]],
+) -> bool:
+    """Sets storage items using sudo permissions.
+
+    Args:
+        subtensor: initialized SubtensorInterface object
+        wallet: bittensor wallet object with sudo permissions
+        items: List of (key, value) tuples where both key and value are bytes
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+
+    storage_call = await substrate.compose_call(
+        call_module="System", call_function="set_storage", call_params={"items": items}
+    )
+
+    sudo_call = await substrate.compose_call(
+        call_module="Sudo", call_function="sudo", call_params={"call": storage_call}
+    )
+
+    extrinsic = await substrate.create_signed_extrinsic(
+        call=sudo_call,
+        keypair=wallet.coldkey,
+    )
+    response = await substrate.submit_extrinsic(
+        extrinsic,
+        wait_for_inclusion=True,
+        wait_for_finalization=True,
+    )
+
+    if not response:
+        print(response)
+    else:
+        print(":white_heavy_check_mark: [dark_sea_green_3]Success[/dark_sea_green_3]")
+
+    return response
