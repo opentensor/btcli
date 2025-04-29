@@ -2412,7 +2412,9 @@ async def start_subnet(
         else:
             error_msg = format_error_message(await response.error_message)
             if "FirstEmissionBlockNumberAlreadySet" in error_msg:
-                console.print(f"[dark_sea_green3]Subnet {netuid} already has an emission schedule.[/dark_sea_green3]")
+                console.print(
+                    f"[dark_sea_green3]Subnet {netuid} already has an emission schedule.[/dark_sea_green3]"
+                )
                 return True
 
             await get_start_schedule(subtensor, netuid)
