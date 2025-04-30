@@ -339,6 +339,7 @@ def test_staking(local_chain, wallet_setup):
             "max_burn",
             "--value",
             "10000000000",  # In RAO, TAO = 10
+            "--no-prompt",
         ],
     )
     assert (
