@@ -559,7 +559,7 @@ def format_error_message(error_message: Union[dict, Exception]) -> str:
             err_name = error_message.get("name", err_name)
             err_docs = error_message.get("docs", [err_description])
             if isinstance(err_docs, list):
-                err_description = "; ".join(err_docs)
+                err_description = " ".join(err_docs)
             else:
                 err_description = err_docs
 
