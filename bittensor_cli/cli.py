@@ -4430,6 +4430,7 @@ class CLIManager:
         param_value: Optional[str] = typer.Option(
             "", "--value", help="Value to set the hyperparameter to."
         ),
+        prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -4454,6 +4455,11 @@ class CLIManager:
                 raise typer.Exit()
 
         if not param_name:
+            if not prompt:
+                err_console.print(
+                    "Param name not supplied with `--no-prompt` flag. Cannot continue"
+                )
+                return False
             hyperparam_list = [field.name for field in fields(SubnetHyperparameters)]
             console.print("Available hyperparameters:\n")
             for idx, param in enumerate(hyperparam_list, start=1):
@@ -4467,6 +4473,11 @@ class CLIManager:
             param_name = hyperparam_list[choice - 1]
 
         if param_name in ["alpha_high", "alpha_low"]:
+            if not prompt:
+                err_console.print(
+                    "`alpha_high` and `alpha_low` values cannot be set with `--no-prompt`"
+                )
+                return False
             param_name = "alpha_values"
             low_val = FloatPrompt.ask(
                 "Enter the new value for [dark_orange]alpha_low[/dark_orange]"
@@ -4477,6 +4488,11 @@ class CLIManager:
             param_value = f"{low_val},{high_val}"
 
         if not param_value:
+            if not prompt:
+                err_console.print(
+                    "Param value not supplied with `--no-prompt` flag. Cannot continue."
+                )
+                return False
             if HYPERPARAMS.get(param_name):
                 param_value = Prompt.ask(
                     f"Enter the new value for [{COLORS.G.SUBHEAD}]{param_name}[/{COLORS.G.SUBHEAD}] "
@@ -4495,6 +4511,7 @@ class CLIManager:
                 netuid,
                 param_name,
                 param_value,
+                prompt,
                 json_output,
             )
         )

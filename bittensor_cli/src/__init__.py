@@ -640,7 +640,7 @@ HYPERPARAMS = {
     "activity_cutoff": ("sudo_set_activity_cutoff", False),
     "target_regs_per_interval": ("sudo_set_target_registrations_per_interval", True),
     "min_burn": ("sudo_set_min_burn", True),
-    "max_burn": ("sudo_set_max_burn", False),
+    "max_burn": ("sudo_set_max_burn", True),
     "bonds_moving_avg": ("sudo_set_bonds_moving_average", False),
     "max_regs_per_block": ("sudo_set_max_registrations_per_block", True),
     "serving_rate_limit": ("sudo_set_serving_rate_limit", False),

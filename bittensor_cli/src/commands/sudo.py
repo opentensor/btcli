@@ -145,6 +145,7 @@ async def set_hyperparameter_extrinsic(
     value: Optional[Union[str, bool, float, list[float]]],
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = True,
+    prompt: bool = True,
 ) -> bool:
     """Sets a hyperparameter for a specific subnetwork.
 
@@ -190,7 +191,7 @@ async def set_hyperparameter_extrinsic(
                 ":cross_mark: [red]Invalid hyperparameter specified.[/red]"
             )
             return False
-    if sudo_:
+    if sudo_ and prompt:
         if not Confirm.ask(
             "This hyperparam is only settable by root sudo users. If you are not, this will fail. Please confirm"
         ):
@@ -574,6 +575,7 @@ async def sudo_set_hyperparameter(
     netuid: int,
     param_name: str,
     param_value: Optional[str],
+    prompt: bool,
     json_output: bool,
 ):
     """Set subnet hyperparameters."""
@@ -602,7 +604,7 @@ async def sudo_set_hyperparameter(
         )
         return False
     success = await set_hyperparameter_extrinsic(
-        subtensor, wallet, netuid, param_name, value
+        subtensor, wallet, netuid, param_name, value, prompt=prompt
     )
     if json_output:
         return success
