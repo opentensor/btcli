@@ -6,6 +6,7 @@ from bittensor_cli.src.bittensor.balances import Balance
 
 from btcli.tests.e2e_tests.utils import set_storage_extrinsic
 
+
 def test_unstaking(local_chain, wallet_setup):
     """
     Test various unstaking scenarios including partial unstake, unstake all alpha, and unstake all.
@@ -38,16 +39,22 @@ def test_unstaking(local_chain, wallet_setup):
 
     # Call to make Alice root owner
     items = [
-    (
-        bytes.fromhex("658faa385070e074c85bf6b568cf055536e3e82152c8758267395fe524fbbd160000"),
-            bytes.fromhex("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d")
+        (
+            bytes.fromhex(
+                "658faa385070e074c85bf6b568cf055536e3e82152c8758267395fe524fbbd160000"
+            ),
+            bytes.fromhex(
+                "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d"
+            ),
         )
     ]
-    asyncio.run(set_storage_extrinsic(
-        local_chain,
-        wallet=wallet_alice,
-        items=items,
-    ))
+    asyncio.run(
+        set_storage_extrinsic(
+            local_chain,
+            wallet=wallet_alice,
+            items=items,
+        )
+    )
 
     # Create first subnet (netuid = 2)
     result = exec_command_alice(
