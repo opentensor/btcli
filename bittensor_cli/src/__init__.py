@@ -38,7 +38,6 @@ class Constants:
         "test": "0x8f9cf856bf558a14440e75569c9e58594757048d7b3a84b5d25f6bd978263105",
     }
     delegates_detail_url = "https://raw.githubusercontent.com/opentensor/bittensor-delegates/main/public/delegates.json"
-    emission_start_schedule = 7 * 24 * 60 * 60 / 12  # 7 days
 
 
 @dataclass
