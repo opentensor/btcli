@@ -294,7 +294,7 @@ class Options:
         help="Outputs the result of the command as JSON.",
     )
     period: int = typer.Option(
-        10,
+        16,
         "--period",
         "--era",
         help="Length (in blocks) for which the transaction should be valid.",
