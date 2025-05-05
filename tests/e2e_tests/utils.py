@@ -4,7 +4,7 @@ import re
 import shutil
 import subprocess
 import sys
-from typing import List, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from bittensor_cli.cli import CLIManager
 from bittensor_wallet import Keypair, Wallet
@@ -28,9 +28,10 @@ def setup_wallet(uri: str):
     def exec_command(
         command: str,
         sub_command: str,
-        extra_args: List[str] = [],
-        inputs: List[str] = None,
+        extra_args: Optional[list[str]] = None,
+        inputs: list[str] = None,
     ):
+        extra_args = extra_args or []
         cli_manager = CLIManager()
         # Capture stderr separately from stdout
         runner = CliRunner(mix_stderr=False)
@@ -58,13 +59,15 @@ def setup_wallet(uri: str):
     return keypair, wallet, wallet_path, exec_command
 
 
-def extract_coldkey_balance(text: str, wallet_name: str, coldkey_address: str) -> dict:
+def extract_coldkey_balance(
+    cleaned_text: str, wallet_name: str, coldkey_address: str
+) -> dict:
     """
     Extracts the free, staked, and total balances for a
     given wallet name and coldkey address from the input string.
 
     Args:
-        text (str): The input string from wallet list command.
+        cleaned_text (str): The input string from wallet list command.
         wallet_name (str): The name of the wallet.
         coldkey_address (str): The coldkey address.
 
@@ -73,11 +76,10 @@ def extract_coldkey_balance(text: str, wallet_name: str, coldkey_address: str) -
               each containing the corresponding balance as a Balance object.
               Returns a dictionary with all zeros if the wallet name or coldkey address is not found.
     """
-    pattern = (
-        rf"{wallet_name}\s+{coldkey_address}\s+" r"τ\s*([\d,]+\.\d+)"  # Free Balance
-    )
+    cleaned_text = cleaned_text.replace("\u200e", "")
+    pattern = rf"{wallet_name}\s+{coldkey_address}\s+([\d,]+\.\d+)\s*τ"  # Free Balance
 
-    match = re.search(pattern, text)
+    match = re.search(pattern, cleaned_text)
 
     if not match:
         return {
@@ -153,8 +155,8 @@ def validate_wallet_inspect(
     text: str,
     coldkey: str,
     balance: float,
-    delegates: List[Tuple[str, float, bool]],
-    hotkeys_netuid: List[Tuple[str, str, float, bool]],
+    delegates: list[tuple[str, float, bool]],
+    hotkeys_netuid: list[tuple[str, str, float, bool]],
 ):
     # TODO: Handle stake in Balance format as well
     """
@@ -300,6 +302,7 @@ async def call_add_proposal(
 
         return await response.is_success
 
+
 def run_async(coro):
     """Simple helper to run async code in tests (for 3.9)."""
     try:
@@ -308,3 +311,45 @@ def run_async(coro):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
     return loop.run_until_complete(coro)
+
+
+async def set_storage_extrinsic(
+    substrate: "AsyncSubstrateInterface",
+    wallet: "Wallet",
+    items: list[tuple[bytes, bytes]],
+) -> bool:
+    """Sets storage items using sudo permissions.
+
+    Args:
+        subtensor: initialized SubtensorInterface object
+        wallet: bittensor wallet object with sudo permissions
+        items: List of (key, value) tuples where both key and value are bytes
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+
+    storage_call = await substrate.compose_call(
+        call_module="System", call_function="set_storage", call_params={"items": items}
+    )
+
+    sudo_call = await substrate.compose_call(
+        call_module="Sudo", call_function="sudo", call_params={"call": storage_call}
+    )
+
+    extrinsic = await substrate.create_signed_extrinsic(
+        call=sudo_call,
+        keypair=wallet.coldkey,
+    )
+    response = await substrate.submit_extrinsic(
+        extrinsic,
+        wait_for_inclusion=True,
+        wait_for_finalization=True,
+    )
+
+    if not response:
+        print(response)
+    else:
+        print(":white_heavy_check_mark: [dark_sea_green_3]Success[/dark_sea_green_3]")
+
+    return response

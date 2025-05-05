@@ -31,6 +31,7 @@ from bittensor_cli.src import defaults, Constants
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
+    from rich.prompt import PromptBase
 
 console = Console()
 json_console = Console()
@@ -557,7 +558,10 @@ def format_error_message(error_message: Union[dict, Exception]) -> str:
             err_type = error_message.get("type", err_type)
             err_name = error_message.get("name", err_name)
             err_docs = error_message.get("docs", [err_description])
-            err_description = err_docs[0] if err_docs else err_description
+            if isinstance(err_docs, list):
+                err_description = " ".join(err_docs)
+            else:
+                err_description = err_docs
 
     return f"Subtensor returned `{err_name}({err_type})` error. This means: `{err_description}`."
 
@@ -1007,7 +1011,7 @@ def retry_prompt(
     rejection_text: str,
     default="",
     show_default=False,
-    prompt_type=Prompt.ask,
+    prompt_type: "PromptBase.ask" = Prompt.ask,
 ):
     """
     Allows for asking prompts again if they do not meet a certain criteria (as defined in `rejection`)

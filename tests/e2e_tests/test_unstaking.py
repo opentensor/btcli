@@ -1,7 +1,10 @@
+import asyncio
 import json
 import re
 
 from bittensor_cli.src.bittensor.balances import Balance
+
+from btcli.tests.e2e_tests.utils import set_storage_extrinsic
 
 
 def test_unstaking(local_chain, wallet_setup):
@@ -32,6 +35,25 @@ def test_unstaking(local_chain, wallet_setup):
     # Setup Bob's wallet
     keypair_bob, wallet_bob, wallet_path_bob, exec_command_bob = wallet_setup(
         wallet_path_bob
+    )
+
+    # Call to make Alice root owner
+    items = [
+        (
+            bytes.fromhex(
+                "658faa385070e074c85bf6b568cf055536e3e82152c8758267395fe524fbbd160000"
+            ),
+            bytes.fromhex(
+                "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d"
+            ),
+        )
+    ]
+    asyncio.run(
+        set_storage_extrinsic(
+            local_chain,
+            wallet=wallet_alice,
+            items=items,
+        )
     )
 
     # Create first subnet (netuid = 2)
@@ -98,6 +120,65 @@ def test_unstaking(local_chain, wallet_setup):
     )
     assert "✅ Registered subnetwork with netuid: 3" in result.stdout
 
+    # Start emission schedule for subnets
+    start_call_netuid_0 = exec_command_alice(
+        command="subnets",
+        sub_command="start",
+        extra_args=[
+            "--netuid",
+            "0",
+            "--wallet-name",
+            wallet_alice.name,
+            "--no-prompt",
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-path",
+            wallet_path_alice,
+        ],
+    )
+    assert (
+        "Successfully started subnet 0's emission schedule."
+        in start_call_netuid_0.stdout
+    )
+    start_call_netuid_2 = exec_command_alice(
+        command="subnets",
+        sub_command="start",
+        extra_args=[
+            "--netuid",
+            "2",
+            "--wallet-name",
+            wallet_alice.name,
+            "--no-prompt",
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-path",
+            wallet_path_alice,
+        ],
+    )
+    assert (
+        "Successfully started subnet 2's emission schedule."
+        in start_call_netuid_2.stdout
+    )
+
+    start_call_netuid_3 = exec_command_alice(
+        command="subnets",
+        sub_command="start",
+        extra_args=[
+            "--netuid",
+            "3",
+            "--wallet-name",
+            wallet_alice.name,
+            "--no-prompt",
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-path",
+            wallet_path_alice,
+        ],
+    )
+    assert (
+        "Successfully started subnet 3's emission schedule."
+        in start_call_netuid_3.stdout
+    )
     # Register Bob in one subnet
     register_result = exec_command_bob(
         command="subnets",

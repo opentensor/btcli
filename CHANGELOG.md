@@ -1,5 +1,45 @@
 # Changelog
 
+## 9.4.0 /2025-04-17
+
+## What's Changed
+* Formatting/ruff fixes by @thewhaleking in https://github.com/opentensor/btcli/pull/426
+* Allows for torch 2.6+ by @thewhaleking in https://github.com/opentensor/btcli/pull/427
+* chore: fixed version format error and improved readability by @mdqst in https://github.com/opentensor/btcli/pull/428
+* Fixes help msg of safe staking help (in stake add etc) by @ibraheem-abe in https://github.com/opentensor/btcli/pull/432
+* Feat/start call by @ibraheem-abe in https://github.com/opentensor/btcli/pull/434
+
+## New Contributors
+* @mdqst made their first contribution in https://github.com/opentensor/btcli/pull/428
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.3.0...v9.4.0
+
+## 9.3.0 /2025-04-09
+
+## What's Changed
+* Fix e2e test by @basfroman in https://github.com/opentensor/btcli/pull/396
+* Btwallet e2e test -  verbose printing by @ibraheem-abe in https://github.com/opentensor/btcli/pull/397
+* Feat/swap coldkey by @ibraheem-abe in https://github.com/opentensor/btcli/pull/399
+* Add logic for keep docker image up to date by @basfroman in https://github.com/opentensor/btcli/pull/400
+* Feat/associate hotkey by @ibraheem-abe in https://github.com/opentensor/btcli/pull/401
+* Fixes staking/unstaking e2e tests by @ibraheem-abe in https://github.com/opentensor/btcli/pull/404
+* Adds `era` param for stake transactions by @thewhaleking in https://github.com/opentensor/btcli/pull/406
+* Fix: Removes name conflict in Sn create by @ibraheem-abe in https://github.com/opentensor/btcli/pull/405
+* Pull version.py version from package metadata by @thewhaleking in https://github.com/opentensor/btcli/pull/409
+* json output for commands by @thewhaleking in https://github.com/opentensor/btcli/pull/369
+* General code cleanup by @thewhaleking in https://github.com/opentensor/btcli/pull/411
+* More json outputs by @thewhaleking in https://github.com/opentensor/btcli/pull/412
+* new color palette by @thewhaleking in https://github.com/opentensor/btcli/pull/413
+* bump versions by @thewhaleking in https://github.com/opentensor/btcli/pull/410
+* spelling fix "Received" by @dougsillars in https://github.com/opentensor/btcli/pull/414
+* Updates Subnet symbols by @ibraheem-abe in https://github.com/opentensor/btcli/pull/416
+* Fix calculation for childkey set by @thewhaleking in https://github.com/opentensor/btcli/pull/418
+* Revoke children msg by @thewhaleking in https://github.com/opentensor/btcli/pull/419
+* Update revoke children language by @thewhaleking in https://github.com/opentensor/btcli/pull/417
+* Revert "new color palette" by @thewhaleking in https://github.com/opentensor/btcli/pull/420
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.2.0...v9.3.0
+
 ## 9.2.0 /2025-03-18
 
 ## What's Changed

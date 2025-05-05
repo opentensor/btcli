@@ -15,14 +15,17 @@ from dataclasses import fields
 import rich
 import typer
 import numpy as np
-from async_substrate_interface.errors import SubstrateRequestException
+from async_substrate_interface.errors import (
+    SubstrateRequestException,
+    ConnectionClosed,
+    InvalidHandshake,
+)
 from bittensor_wallet import Wallet
 from rich import box
 from rich.prompt import Confirm, FloatPrompt, Prompt, IntPrompt
 from rich.table import Column, Table
 from rich.tree import Tree
 from typing_extensions import Annotated
-from websockets import ConnectionClosed, InvalidHandshake
 from yaml import safe_dump, safe_load
 
 from bittensor_cli.src import (
@@ -256,14 +259,15 @@ class Options:
         "--slippage-tolerance",
         "--tolerance",
         "--rate-tolerance",
-        help="Set the rate tolerance percentage for transactions (default: 0.05%).",
+        help="Set the rate tolerance percentage for transactions (default: 0.05 for 5%).",
         callback=validate_rate_tolerance,
     )
     safe_staking = typer.Option(
         None,
         "--safe-staking/--no-safe-staking",
         "--safe/--unsafe",
-        help="Enable or disable safe staking mode (default: enabled).",
+        show_default=False,
+        help="Enable or disable safe staking mode [dim](default: enabled)[/dim].",
     )
     allow_partial_stake = typer.Option(
         None,
@@ -271,7 +275,8 @@ class Options:
         "--partial/--no-partial",
         "--allow/--not-allow",
         "--allow-partial/--not-partial",
-        help="Enable or disable partial stake mode (default: disabled).",
+        show_default=False,
+        help="Enable or disable partial stake mode [dim](default: disabled)[/dim].",
     )
     dashboard_path = typer.Option(
         None,
@@ -288,8 +293,11 @@ class Options:
         "--json-out",
         help="Outputs the result of the command as JSON.",
     )
-    era: int = typer.Option(
-        3, help="Length (in blocks) for which the transaction should be valid."
+    period: int = typer.Option(
+        16,
+        "--period",
+        "--era",
+        help="Length (in blocks) for which the transaction should be valid.",
     )
 
 
@@ -870,6 +878,12 @@ class CLIManager:
         self.subnets_app.command(
             "get-identity", rich_help_panel=HELP_PANELS["SUBNETS"]["IDENTITY"]
         )(self.subnets_get_identity)
+        self.subnets_app.command(
+            "start", rich_help_panel=HELP_PANELS["SUBNETS"]["CREATION"]
+        )(self.subnets_start)
+        self.subnets_app.command(
+            "check-start", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
+        )(self.subnets_check_start)
 
         # weights commands
         self.weights_app.command(
@@ -1181,12 +1195,14 @@ class CLIManager:
             "--safe-staking/--no-safe-staking",
             "--safe/--unsafe",
             help="Enable or disable safe staking mode.",
+            show_default=False,
         ),
         allow_partial_stake: Optional[bool] = typer.Option(
             None,
             "--allow-partial-stake/--no-allow-partial-stake",
             "--partial/--no-partial",
             "--allow/--not-allow",
+            show_default=False,
         ),
         dashboard_path: Optional[str] = Options.dashboard_path,
     ):
@@ -1779,7 +1795,7 @@ class CLIManager:
         transfer_all: bool = typer.Option(
             False, "--all", prompt=False, help="Transfer all available balance."
         ),
-        era: int = Options.era,
+        period: int = Options.period,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -1834,7 +1850,7 @@ class CLIManager:
                 destination=destination_ss58_address,
                 amount=amount,
                 transfer_all=transfer_all,
-                era=era,
+                era=period,
                 prompt=prompt,
                 json_output=json_output,
             )
@@ -3177,7 +3193,7 @@ class CLIManager:
         rate_tolerance: Optional[float] = Options.rate_tolerance,
         safe_staking: Optional[bool] = Options.safe_staking,
         allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
-        era: int = Options.era,
+        period: int = Options.period,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3373,7 +3389,7 @@ class CLIManager:
                 rate_tolerance,
                 allow_partial_stake,
                 json_output,
-                era,
+                period,
             )
         )
 
@@ -3425,7 +3441,7 @@ class CLIManager:
         rate_tolerance: Optional[float] = Options.rate_tolerance,
         safe_staking: Optional[bool] = Options.safe_staking,
         allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
-        era: int = Options.era,
+        period: int = Options.period,
         prompt: bool = Options.prompt,
         interactive: bool = typer.Option(
             False,
@@ -3618,7 +3634,7 @@ class CLIManager:
                     exclude_hotkeys=exclude_hotkeys,
                     prompt=prompt,
                     json_output=json_output,
-                    era=era,
+                    era=period,
                 )
             )
         elif (
@@ -3674,7 +3690,7 @@ class CLIManager:
                 rate_tolerance=rate_tolerance,
                 allow_partial_stake=allow_partial_stake,
                 json_output=json_output,
-                era=era,
+                era=period,
             )
         )
 
@@ -3702,7 +3718,7 @@ class CLIManager:
         stake_all: bool = typer.Option(
             False, "--stake-all", "--all", help="Stake all", prompt=False
         ),
-        era: int = Options.era,
+        period: int = Options.period,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3832,7 +3848,7 @@ class CLIManager:
                 destination_hotkey=destination_hotkey,
                 amount=amount,
                 stake_all=stake_all,
-                era=era,
+                era=period,
                 interactive_selection=interactive_selection,
                 prompt=prompt,
             )
@@ -3873,7 +3889,7 @@ class CLIManager:
         stake_all: bool = typer.Option(
             False, "--stake-all", "--all", help="Stake all", prompt=False
         ),
-        era: int = Options.era,
+        period: int = Options.period,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3995,7 +4011,7 @@ class CLIManager:
                 dest_netuid=dest_netuid,
                 dest_coldkey_ss58=dest_ss58,
                 amount=amount,
-                era=era,
+                era=period,
                 interactive_selection=interactive_selection,
                 stake_all=stake_all,
                 prompt=prompt,
@@ -4037,7 +4053,7 @@ class CLIManager:
             "--all",
             help="Swap all available stake",
         ),
-        era: int = Options.era,
+        period: int = Options.period,
         prompt: bool = Options.prompt,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
@@ -4102,7 +4118,7 @@ class CLIManager:
                 destination_netuid=dest_netuid,
                 amount=amount,
                 swap_all=swap_all,
-                era=era,
+                era=period,
                 interactive_selection=interactive_selection,
                 prompt=prompt,
                 wait_for_inclusion=wait_for_inclusion,
@@ -4417,6 +4433,7 @@ class CLIManager:
         param_value: Optional[str] = typer.Option(
             "", "--value", help="Value to set the hyperparameter to."
         ),
+        prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -4441,6 +4458,11 @@ class CLIManager:
                 raise typer.Exit()
 
         if not param_name:
+            if not prompt:
+                err_console.print(
+                    "Param name not supplied with `--no-prompt` flag. Cannot continue"
+                )
+                return False
             hyperparam_list = [field.name for field in fields(SubnetHyperparameters)]
             console.print("Available hyperparameters:\n")
             for idx, param in enumerate(hyperparam_list, start=1):
@@ -4454,6 +4476,11 @@ class CLIManager:
             param_name = hyperparam_list[choice - 1]
 
         if param_name in ["alpha_high", "alpha_low"]:
+            if not prompt:
+                err_console.print(
+                    "`alpha_high` and `alpha_low` values cannot be set with `--no-prompt`"
+                )
+                return False
             param_name = "alpha_values"
             low_val = FloatPrompt.ask(
                 "Enter the new value for [dark_orange]alpha_low[/dark_orange]"
@@ -4464,6 +4491,11 @@ class CLIManager:
             param_value = f"{low_val},{high_val}"
 
         if not param_value:
+            if not prompt:
+                err_console.print(
+                    "Param value not supplied with `--no-prompt` flag. Cannot continue."
+                )
+                return False
             if HYPERPARAMS.get(param_name):
                 param_value = Prompt.ask(
                     f"Enter the new value for [{COLORS.G.SUBHEAD}]{param_name}[/{COLORS.G.SUBHEAD}] "
@@ -4482,6 +4514,7 @@ class CLIManager:
                 netuid,
                 param_name,
                 param_value,
+                prompt,
                 json_output,
             )
         )
@@ -4972,6 +5005,70 @@ class CLIManager:
             )
         )
 
+    def subnets_check_start(
+        self,
+        network: Optional[list[str]] = Options.network,
+        netuid: int = Options.netuid,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Checks if a subnet's emission schedule can be started.
+
+        This command verifies if a subnet's emission schedule can be started based on the subnet's registration block.
+
+        Example:
+        [green]$[/green] btcli subnets check_start --netuid 1
+        """
+        self.verbosity_handler(quiet, verbose)
+        return self._run_command(
+            subnets.get_start_schedule(self.initialize_chain(network), netuid)
+        )
+
+    def subnets_start(
+        self,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        network: Optional[list[str]] = Options.network,
+        netuid: int = Options.netuid,
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Starts a subnet's emission schedule.
+
+        The owner of the subnet must call this command to start the emission schedule.
+
+        Example:
+        [green]$[/green] btcli subnets start --netuid 1
+        [green]$[/green] btcli subnets start --netuid 1 --wallet-name alice
+        """
+        self.verbosity_handler(quiet, verbose)
+        if not wallet_name:
+            wallet_name = Prompt.ask(
+                "Enter the [blue]wallet name[/blue] [dim](which you used to create the subnet)[/dim]",
+                default=self.config.get("wallet_name") or defaults.wallet.name,
+            )
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[
+                WO.NAME,
+            ],
+            validate=WV.WALLET,
+        )
+        return self._run_command(
+            subnets.start_subnet(
+                wallet,
+                self.initialize_chain(network),
+                netuid,
+                prompt,
+            )
+        )
+
     def subnets_get_identity(
         self,
         network: Optional[list[str]] = Options.network,
@@ -5181,10 +5278,12 @@ class CLIManager:
         wallet_hotkey: str = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
         netuid: int = Options.netuid,
-        era: Optional[
+        period: Optional[
             int
-        ] = typer.Option(  # Should not be Options.era bc this needs to be an Optional[int]
+        ] = typer.Option(  # Should not be Options.period bc this needs to be an Optional[int]
             None,
+            "--period",
+            "--era",
             help="Length (in blocks) for which the transaction should be valid. Note that it is possible that if you "
             "use an era for this transaction that you may pay a different fee to register than the one stated.",
         ),
@@ -5217,7 +5316,7 @@ class CLIManager:
                 wallet,
                 self.initialize_chain(network),
                 netuid,
-                era,
+                period,
                 json_output,
                 prompt,
             )
