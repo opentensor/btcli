@@ -294,7 +294,7 @@ class Options:
         help="Outputs the result of the command as JSON.",
     )
     era: int = typer.Option(
-        3, help="Length (in blocks) for which the transaction should be valid."
+        10, help="Length (in blocks) for which the transaction should be valid."
     )
 
 
