@@ -2320,14 +2320,21 @@ async def get_start_schedule(
     if not await subtensor.subnet_exists(netuid):
         print_error(f"Subnet {netuid} does not exist.")
         return None
-
-    registration_block = await subtensor.query(
-        module="SubtensorModule",
-        storage_function="NetworkRegisteredAt",
-        params=[netuid],
+    block_hash = await subtensor.substrate.get_chain_head()
+    registration_block, min_blocks_to_start, current_block = await asyncio.gather(
+        subtensor.query(
+            module="SubtensorModule",
+            storage_function="NetworkRegisteredAt",
+            params=[netuid],
+            block_hash=block_hash,
+        ),
+        subtensor.substrate.get_constant(
+            module_name="SubtensorModule",
+            constant_name="DurationOfStartCall",
+            block_hash=block_hash,
+        ),
+        subtensor.substrate.get_block_number(block_hash=block_hash),
     )
-    min_blocks_to_start = Constants.emission_start_schedule
-    current_block = await subtensor.substrate.get_block_number()
 
     potential_start_block = registration_block + min_blocks_to_start
     if current_block < potential_start_block:
@@ -2412,7 +2419,9 @@ async def start_subnet(
         else:
             error_msg = format_error_message(await response.error_message)
             if "FirstEmissionBlockNumberAlreadySet" in error_msg:
-                console.print(f"[dark_sea_green3]Subnet {netuid} already has an emission schedule.[/dark_sea_green3]")
+                console.print(
+                    f"[dark_sea_green3]Subnet {netuid} already has an emission schedule.[/dark_sea_green3]"
+                )
                 return True
 
             await get_start_schedule(subtensor, netuid)

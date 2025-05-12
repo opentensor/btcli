@@ -293,8 +293,11 @@ class Options:
         "--json-out",
         help="Outputs the result of the command as JSON.",
     )
-    era: int = typer.Option(
-        3, help="Length (in blocks) for which the transaction should be valid."
+    period: int = typer.Option(
+        16,
+        "--period",
+        "--era",
+        help="Length (in blocks) for which the transaction should be valid.",
     )
 
 
@@ -436,36 +439,49 @@ def parse_mnemonic(mnemonic: str) -> str:
 def get_creation_data(
     mnemonic: Optional[str],
     seed: Optional[str],
-    json: Optional[str],
+    json_path: Optional[str],
     json_password: Optional[str],
 ) -> tuple[str, str, str, str]:
     """
     Determines which of the key creation elements have been supplied, if any. If None have been supplied,
     prompts to user, and determines what they've supplied. Returns all elements in a tuple.
     """
-    if not mnemonic and not seed and not json:
-        prompt_answer = Prompt.ask(
-            "Enter the mnemonic, or the seed hex string, or the location of the JSON file."
+    if not mnemonic and not seed and not json_path:
+        choices = {
+            1: "mnemonic",
+            2: "seed hex string",
+            3: "path to JSON File",
+        }
+        type_answer = IntPrompt.ask(
+            "Select one of the following to enter\n"
+            f"[{COLORS.G.HINT}][1][/{COLORS.G.HINT}] Mnemonic\n"
+            f"[{COLORS.G.HINT}][2][/{COLORS.G.HINT}] Seed hex string\n"
+            f"[{COLORS.G.HINT}][3][/{COLORS.G.HINT}] Path to JSON File\n",
+            choices=["1", "2", "3"],
+            show_choices=False,
         )
-        if prompt_answer.startswith("0x"):
+        prompt_answer = Prompt.ask(f"Please enter your {choices[type_answer]}")
+        if type_answer == 1:
+            mnemonic = prompt_answer
+        elif type_answer == 2:
             seed = prompt_answer
-        elif len(prompt_answer.split(" ")) > 1:
-            mnemonic = parse_mnemonic(prompt_answer)
-        else:
-            json = prompt_answer
+            if seed.startswith("0x"):
+                seed = seed[2:]
+        elif type_answer == 3:
+            json_path = prompt_answer
     elif mnemonic:
         mnemonic = parse_mnemonic(mnemonic)
 
-    if json:
-        if not os.path.exists(json):
-            print_error(f"The JSON file '{json}' does not exist.")
+    if json_path:
+        if not os.path.exists(json_path):
+            print_error(f"The JSON file '{json_path}' does not exist.")
             raise typer.Exit()
 
-    if json and not json_password:
+    if json_path and not json_password:
         json_password = Prompt.ask(
             "Enter the backup password for JSON file.", password=True
         )
-    return mnemonic, seed, json, json_password
+    return mnemonic, seed, json_path, json_password
 
 
 def config_selector(conf: dict, title: str):
@@ -1792,7 +1808,7 @@ class CLIManager:
         transfer_all: bool = typer.Option(
             False, "--all", prompt=False, help="Transfer all available balance."
         ),
-        era: int = Options.era,
+        period: int = Options.period,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -1847,7 +1863,7 @@ class CLIManager:
                 destination=destination_ss58_address,
                 amount=amount,
                 transfer_all=transfer_all,
-                era=era,
+                era=period,
                 prompt=prompt,
                 json_output=json_output,
             )
@@ -2090,7 +2106,7 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         mnemonic: Optional[str] = Options.mnemonic,
         seed: Optional[str] = Options.seed,
-        json: Optional[str] = Options.json,
+        json_path: Optional[str] = Options.json,
         json_password: Optional[str] = Options.json_password,
         use_password: Optional[bool] = Options.use_password,
         overwrite: bool = Options.overwrite,
@@ -2130,15 +2146,15 @@ class CLIManager:
 
         wallet = Wallet(wallet_name, wallet_hotkey, wallet_path)
 
-        mnemonic, seed, json, json_password = get_creation_data(
-            mnemonic, seed, json, json_password
+        mnemonic, seed, json_path, json_password = get_creation_data(
+            mnemonic, seed, json_path, json_password
         )
         return self._run_command(
             wallets.regen_coldkey(
                 wallet,
                 mnemonic,
                 seed,
-                json,
+                json_path,
                 json_password,
                 use_password,
                 overwrite,
@@ -2214,7 +2230,7 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         mnemonic: Optional[str] = Options.mnemonic,
         seed: Optional[str] = Options.seed,
-        json: Optional[str] = Options.json,
+        json_path: Optional[str] = Options.json,
         json_password: Optional[str] = Options.json_password,
         use_password: bool = typer.Option(
             False,  # Overriden to False
@@ -2250,15 +2266,15 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET,
         )
-        mnemonic, seed, json, json_password = get_creation_data(
-            mnemonic, seed, json, json_password
+        mnemonic, seed, json_path, json_password = get_creation_data(
+            mnemonic, seed, json_path, json_password
         )
         return self._run_command(
             wallets.regen_hotkey(
                 wallet,
                 mnemonic,
                 seed,
-                json,
+                json_path,
                 json_password,
                 use_password,
                 overwrite,
@@ -3190,7 +3206,7 @@ class CLIManager:
         rate_tolerance: Optional[float] = Options.rate_tolerance,
         safe_staking: Optional[bool] = Options.safe_staking,
         allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
-        era: int = Options.era,
+        period: int = Options.period,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3386,7 +3402,7 @@ class CLIManager:
                 rate_tolerance,
                 allow_partial_stake,
                 json_output,
-                era,
+                period,
             )
         )
 
@@ -3438,7 +3454,7 @@ class CLIManager:
         rate_tolerance: Optional[float] = Options.rate_tolerance,
         safe_staking: Optional[bool] = Options.safe_staking,
         allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
-        era: int = Options.era,
+        period: int = Options.period,
         prompt: bool = Options.prompt,
         interactive: bool = typer.Option(
             False,
@@ -3631,7 +3647,7 @@ class CLIManager:
                     exclude_hotkeys=exclude_hotkeys,
                     prompt=prompt,
                     json_output=json_output,
-                    era=era,
+                    era=period,
                 )
             )
         elif (
@@ -3687,7 +3703,7 @@ class CLIManager:
                 rate_tolerance=rate_tolerance,
                 allow_partial_stake=allow_partial_stake,
                 json_output=json_output,
-                era=era,
+                era=period,
             )
         )
 
@@ -3715,7 +3731,7 @@ class CLIManager:
         stake_all: bool = typer.Option(
             False, "--stake-all", "--all", help="Stake all", prompt=False
         ),
-        era: int = Options.era,
+        period: int = Options.period,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3845,7 +3861,7 @@ class CLIManager:
                 destination_hotkey=destination_hotkey,
                 amount=amount,
                 stake_all=stake_all,
-                era=era,
+                era=period,
                 interactive_selection=interactive_selection,
                 prompt=prompt,
             )
@@ -3886,7 +3902,7 @@ class CLIManager:
         stake_all: bool = typer.Option(
             False, "--stake-all", "--all", help="Stake all", prompt=False
         ),
-        era: int = Options.era,
+        period: int = Options.period,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -4008,7 +4024,7 @@ class CLIManager:
                 dest_netuid=dest_netuid,
                 dest_coldkey_ss58=dest_ss58,
                 amount=amount,
-                era=era,
+                era=period,
                 interactive_selection=interactive_selection,
                 stake_all=stake_all,
                 prompt=prompt,
@@ -4050,7 +4066,7 @@ class CLIManager:
             "--all",
             help="Swap all available stake",
         ),
-        era: int = Options.era,
+        period: int = Options.period,
         prompt: bool = Options.prompt,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
@@ -4115,7 +4131,7 @@ class CLIManager:
                 destination_netuid=dest_netuid,
                 amount=amount,
                 swap_all=swap_all,
-                era=era,
+                era=period,
                 interactive_selection=interactive_selection,
                 prompt=prompt,
                 wait_for_inclusion=wait_for_inclusion,
@@ -4430,6 +4446,7 @@ class CLIManager:
         param_value: Optional[str] = typer.Option(
             "", "--value", help="Value to set the hyperparameter to."
         ),
+        prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -4454,6 +4471,11 @@ class CLIManager:
                 raise typer.Exit()
 
         if not param_name:
+            if not prompt:
+                err_console.print(
+                    "Param name not supplied with `--no-prompt` flag. Cannot continue"
+                )
+                return False
             hyperparam_list = [field.name for field in fields(SubnetHyperparameters)]
             console.print("Available hyperparameters:\n")
             for idx, param in enumerate(hyperparam_list, start=1):
@@ -4467,6 +4489,11 @@ class CLIManager:
             param_name = hyperparam_list[choice - 1]
 
         if param_name in ["alpha_high", "alpha_low"]:
+            if not prompt:
+                err_console.print(
+                    "`alpha_high` and `alpha_low` values cannot be set with `--no-prompt`"
+                )
+                return False
             param_name = "alpha_values"
             low_val = FloatPrompt.ask(
                 "Enter the new value for [dark_orange]alpha_low[/dark_orange]"
@@ -4477,6 +4504,11 @@ class CLIManager:
             param_value = f"{low_val},{high_val}"
 
         if not param_value:
+            if not prompt:
+                err_console.print(
+                    "Param value not supplied with `--no-prompt` flag. Cannot continue."
+                )
+                return False
             if HYPERPARAMS.get(param_name):
                 param_value = Prompt.ask(
                     f"Enter the new value for [{COLORS.G.SUBHEAD}]{param_name}[/{COLORS.G.SUBHEAD}] "
@@ -4495,6 +4527,7 @@ class CLIManager:
                 netuid,
                 param_name,
                 param_value,
+                prompt,
                 json_output,
             )
         )
@@ -5258,10 +5291,12 @@ class CLIManager:
         wallet_hotkey: str = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
         netuid: int = Options.netuid,
-        era: Optional[
+        period: Optional[
             int
-        ] = typer.Option(  # Should not be Options.era bc this needs to be an Optional[int]
+        ] = typer.Option(  # Should not be Options.period bc this needs to be an Optional[int]
             None,
+            "--period",
+            "--era",
             help="Length (in blocks) for which the transaction should be valid. Note that it is possible that if you "
             "use an era for this transaction that you may pay a different fee to register than the one stated.",
         ),
@@ -5294,7 +5329,7 @@ class CLIManager:
                 wallet,
                 self.initialize_chain(network),
                 netuid,
-                era,
+                period,
                 json_output,
                 prompt,
             )
