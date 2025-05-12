@@ -436,14 +436,14 @@ def parse_mnemonic(mnemonic: str) -> str:
 def get_creation_data(
     mnemonic: Optional[str],
     seed: Optional[str],
-    json: Optional[str],
+    json_path: Optional[str],
     json_password: Optional[str],
 ) -> tuple[str, str, str, str]:
     """
     Determines which of the key creation elements have been supplied, if any. If None have been supplied,
     prompts to user, and determines what they've supplied. Returns all elements in a tuple.
     """
-    if not mnemonic and not seed and not json:
+    if not mnemonic and not seed and not json_path:
         prompt_answer = Prompt.ask(
             "Enter the mnemonic, or the seed hex string, or the location of the JSON file."
         )
@@ -452,20 +452,20 @@ def get_creation_data(
         elif len(prompt_answer.split(" ")) > 1:
             mnemonic = parse_mnemonic(prompt_answer)
         else:
-            json = prompt_answer
+            json_path = prompt_answer
     elif mnemonic:
         mnemonic = parse_mnemonic(mnemonic)
 
-    if json:
-        if not os.path.exists(json):
-            print_error(f"The JSON file '{json}' does not exist.")
+    if json_path:
+        if not os.path.exists(json_path):
+            print_error(f"The JSON file '{json_path}' does not exist.")
             raise typer.Exit()
 
-    if json and not json_password:
+    if json_path and not json_password:
         json_password = Prompt.ask(
             "Enter the backup password for JSON file.", password=True
         )
-    return mnemonic, seed, json, json_password
+    return mnemonic, seed, json_path, json_password
 
 
 def config_selector(conf: dict, title: str):
@@ -2090,7 +2090,7 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         mnemonic: Optional[str] = Options.mnemonic,
         seed: Optional[str] = Options.seed,
-        json: Optional[str] = Options.json,
+        json_path: Optional[str] = Options.json,
         json_password: Optional[str] = Options.json_password,
         use_password: Optional[bool] = Options.use_password,
         overwrite: bool = Options.overwrite,
@@ -2130,15 +2130,15 @@ class CLIManager:
 
         wallet = Wallet(wallet_name, wallet_hotkey, wallet_path)
 
-        mnemonic, seed, json, json_password = get_creation_data(
-            mnemonic, seed, json, json_password
+        mnemonic, seed, json_path, json_password = get_creation_data(
+            mnemonic, seed, json_path, json_password
         )
         return self._run_command(
             wallets.regen_coldkey(
                 wallet,
                 mnemonic,
                 seed,
-                json,
+                json_path,
                 json_password,
                 use_password,
                 overwrite,
@@ -2214,7 +2214,7 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         mnemonic: Optional[str] = Options.mnemonic,
         seed: Optional[str] = Options.seed,
-        json: Optional[str] = Options.json,
+        json_path: Optional[str] = Options.json,
         json_password: Optional[str] = Options.json_password,
         use_password: bool = typer.Option(
             False,  # Overriden to False
@@ -2250,15 +2250,15 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET,
         )
-        mnemonic, seed, json, json_password = get_creation_data(
-            mnemonic, seed, json, json_password
+        mnemonic, seed, json_path, json_password = get_creation_data(
+            mnemonic, seed, json_path, json_password
         )
         return self._run_command(
             wallets.regen_hotkey(
                 wallet,
                 mnemonic,
                 seed,
-                json,
+                json_path,
                 json_password,
                 use_password,
                 overwrite,
