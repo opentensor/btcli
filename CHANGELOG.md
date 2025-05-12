@@ -1,5 +1,20 @@
 # Changelog
 
+## 9.4.1 /2025-04-17
+
+## What's Changed
+* Fixes `test_staking_sudo` setting `max_burn` by @thewhaleking in https://github.com/opentensor/btcli/pull/440
+* Fixes Error Formatter by @thewhaleking in https://github.com/opentensor/btcli/pull/439
+* Pulls shares in a gather rather than one-at-a-time by @thewhaleking in https://github.com/opentensor/btcli/pull/438
+* Pull emission start schedule dynamically by @thewhaleking in https://github.com/opentensor/btcli/pull/442
+* Lengthen default era period + rename "era" to "period" by @thewhaleking in https://github.com/opentensor/btcli/pull/443
+* docs: fixed redundant "from" by @mdqst in https://github.com/opentensor/btcli/pull/429
+* click version 8.2.0 broken by @thewhaleking in https://github.com/opentensor/btcli/pull/447
+* JSON Name shadowing bug by @thewhaleking in https://github.com/opentensor/btcli/pull/445
+* Stop Parsing, Start Asking by @thewhaleking in https://github.com/opentensor/btcli/pull/446
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.4.0...v9.4.1
+
 ## 9.4.0 /2025-04-17
 
 ## What's Changed
