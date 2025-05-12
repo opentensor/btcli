@@ -444,14 +444,27 @@ def get_creation_data(
     prompts to user, and determines what they've supplied. Returns all elements in a tuple.
     """
     if not mnemonic and not seed and not json_path:
-        prompt_answer = Prompt.ask(
-            "Enter the mnemonic, or the seed hex string, or the location of the JSON file."
+        choices = {
+            1: "mnemonic",
+            2: "seed hex string",
+            3: "path to JSON File",
+        }
+        type_answer = IntPrompt.ask(
+            "Select one of the following to enter\n"
+            f"[{COLORS.G.HINT}][1][/{COLORS.G.HINT}] Mnemonic\n"
+            f"[{COLORS.G.HINT}][2][/{COLORS.G.HINT}] Seed hex string\n"
+            f"[{COLORS.G.HINT}][3][/{COLORS.G.HINT}] Path to JSON File\n",
+            choices=["1", "2", "3"],
+            show_choices=False,
         )
-        if prompt_answer.startswith("0x"):
+        prompt_answer = Prompt.ask(f"Please enter your {choices[type_answer]}")
+        if type_answer == 1:
+            mnemonic = prompt_answer
+        elif type_answer == 2:
             seed = prompt_answer
-        elif len(prompt_answer.split(" ")) > 1:
-            mnemonic = parse_mnemonic(prompt_answer)
-        else:
+            if seed.startswith("0x"):
+                seed = seed[2:]
+        elif type_answer == 3:
             json_path = prompt_answer
     elif mnemonic:
         mnemonic = parse_mnemonic(mnemonic)
