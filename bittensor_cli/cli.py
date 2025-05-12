@@ -293,8 +293,11 @@ class Options:
         "--json-out",
         help="Outputs the result of the command as JSON.",
     )
-    era: int = typer.Option(
-        3, help="Length (in blocks) for which the transaction should be valid."
+    period: int = typer.Option(
+        16,
+        "--period",
+        "--era",
+        help="Length (in blocks) for which the transaction should be valid.",
     )
 
 
@@ -1805,7 +1808,7 @@ class CLIManager:
         transfer_all: bool = typer.Option(
             False, "--all", prompt=False, help="Transfer all available balance."
         ),
-        era: int = Options.era,
+        period: int = Options.period,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -1860,7 +1863,7 @@ class CLIManager:
                 destination=destination_ss58_address,
                 amount=amount,
                 transfer_all=transfer_all,
-                era=era,
+                era=period,
                 prompt=prompt,
                 json_output=json_output,
             )
@@ -3203,7 +3206,7 @@ class CLIManager:
         rate_tolerance: Optional[float] = Options.rate_tolerance,
         safe_staking: Optional[bool] = Options.safe_staking,
         allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
-        era: int = Options.era,
+        period: int = Options.period,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3399,7 +3402,7 @@ class CLIManager:
                 rate_tolerance,
                 allow_partial_stake,
                 json_output,
-                era,
+                period,
             )
         )
 
@@ -3451,7 +3454,7 @@ class CLIManager:
         rate_tolerance: Optional[float] = Options.rate_tolerance,
         safe_staking: Optional[bool] = Options.safe_staking,
         allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
-        era: int = Options.era,
+        period: int = Options.period,
         prompt: bool = Options.prompt,
         interactive: bool = typer.Option(
             False,
@@ -3644,7 +3647,7 @@ class CLIManager:
                     exclude_hotkeys=exclude_hotkeys,
                     prompt=prompt,
                     json_output=json_output,
-                    era=era,
+                    era=period,
                 )
             )
         elif (
@@ -3700,7 +3703,7 @@ class CLIManager:
                 rate_tolerance=rate_tolerance,
                 allow_partial_stake=allow_partial_stake,
                 json_output=json_output,
-                era=era,
+                era=period,
             )
         )
 
@@ -3728,7 +3731,7 @@ class CLIManager:
         stake_all: bool = typer.Option(
             False, "--stake-all", "--all", help="Stake all", prompt=False
         ),
-        era: int = Options.era,
+        period: int = Options.period,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3858,7 +3861,7 @@ class CLIManager:
                 destination_hotkey=destination_hotkey,
                 amount=amount,
                 stake_all=stake_all,
-                era=era,
+                era=period,
                 interactive_selection=interactive_selection,
                 prompt=prompt,
             )
@@ -3899,7 +3902,7 @@ class CLIManager:
         stake_all: bool = typer.Option(
             False, "--stake-all", "--all", help="Stake all", prompt=False
         ),
-        era: int = Options.era,
+        period: int = Options.period,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -4021,7 +4024,7 @@ class CLIManager:
                 dest_netuid=dest_netuid,
                 dest_coldkey_ss58=dest_ss58,
                 amount=amount,
-                era=era,
+                era=period,
                 interactive_selection=interactive_selection,
                 stake_all=stake_all,
                 prompt=prompt,
@@ -4063,7 +4066,7 @@ class CLIManager:
             "--all",
             help="Swap all available stake",
         ),
-        era: int = Options.era,
+        period: int = Options.period,
         prompt: bool = Options.prompt,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
@@ -4128,7 +4131,7 @@ class CLIManager:
                 destination_netuid=dest_netuid,
                 amount=amount,
                 swap_all=swap_all,
-                era=era,
+                era=period,
                 interactive_selection=interactive_selection,
                 prompt=prompt,
                 wait_for_inclusion=wait_for_inclusion,
@@ -5288,10 +5291,12 @@ class CLIManager:
         wallet_hotkey: str = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
         netuid: int = Options.netuid,
-        era: Optional[
+        period: Optional[
             int
-        ] = typer.Option(  # Should not be Options.era bc this needs to be an Optional[int]
+        ] = typer.Option(  # Should not be Options.period bc this needs to be an Optional[int]
             None,
+            "--period",
+            "--era",
             help="Length (in blocks) for which the transaction should be valid. Note that it is possible that if you "
             "use an era for this transaction that you may pay a different fee to register than the one stated.",
         ),
@@ -5324,7 +5329,7 @@ class CLIManager:
                 wallet,
                 self.initialize_chain(network),
                 netuid,
-                era,
+                period,
                 json_output,
                 prompt,
             )
