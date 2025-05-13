@@ -4,15 +4,12 @@ from enum import Enum
 from typing import Optional, Any, Union
 
 import netaddr
-from scalecodec.utils.ss58 import ss58_encode
 
 from bittensor_cli.src.bittensor.balances import Balance, fixed_to_float
 from bittensor_cli.src.bittensor.networking import int_to_ip
 from bittensor_cli.src.bittensor.utils import (
-    SS58_FORMAT,
     u16_normalized_float as u16tf,
     u64_normalized_float as u64tf,
-    decode_account_id,
 )
 
 
@@ -50,8 +47,8 @@ def decode_hex_identity(info_dictionary):
 
 def process_stake_data(stake_data, netuid):
     decoded_stake_data = {}
-    for account_id_bytes, stake_ in stake_data:
-        account_id = decode_account_id(account_id_bytes)
+    for account_id, stake_ in stake_data:
+        # TODO verify if needs to be decoded
         decoded_stake_data.update(
             {account_id: Balance.from_rao(stake_).set_unit(netuid)}
         )
@@ -229,8 +226,8 @@ class StakeInfo(InfoBase):
 
     @classmethod
     def _fix_decoded(cls, decoded: Any) -> "StakeInfo":
-        hotkey = decode_account_id(decoded.get("hotkey"))
-        coldkey = decode_account_id(decoded.get("coldkey"))
+        hotkey = decoded.get("hotkey")
+        coldkey = decoded.get("coldkey")
         netuid = int(decoded.get("netuid"))
         stake = Balance.from_rao(decoded.get("stake")).set_unit(netuid)
         locked = Balance.from_rao(decoded.get("locked")).set_unit(netuid)
@@ -327,8 +324,8 @@ class NeuronInfo(InfoBase):
         stake_dict = process_stake_data(decoded.get("stake"), netuid=netuid)
         total_stake = sum(stake_dict.values()) if stake_dict else Balance(0)
         axon_info = decoded.get("axon_info", {})
-        coldkey = decode_account_id(decoded.get("coldkey"))
-        hotkey = decode_account_id(decoded.get("hotkey"))
+        coldkey = decoded.get("coldkey")
+        hotkey = decoded.get("hotkey")
         return cls(
             hotkey=hotkey,
             coldkey=coldkey,
@@ -421,11 +418,11 @@ class NeuronInfoLite(InfoBase):
     def _fix_decoded(cls, decoded: Union[dict, "NeuronInfoLite"]) -> "NeuronInfoLite":
         active = decoded.get("active")
         axon_info = decoded.get("axon_info", {})
-        coldkey = decode_account_id(decoded.get("coldkey"))
+        coldkey = decoded.get("coldkey")
         consensus = decoded.get("consensus")
         dividends = decoded.get("dividends")
         emission = decoded.get("emission")
-        hotkey = decode_account_id(decoded.get("hotkey"))
+        hotkey = decoded.get("hotkey")
         incentive = decoded.get("incentive")
         last_update = decoded.get("last_update")
         netuid = decoded.get("netuid")
@@ -506,12 +503,9 @@ class DelegateInfo(InfoBase):
 
     @classmethod
     def _fix_decoded(cls, decoded: "DelegateInfo") -> "DelegateInfo":
-        hotkey = decode_account_id(decoded.get("hotkey_ss58"))
-        owner = decode_account_id(decoded.get("owner_ss58"))
-        nominators = [
-            (decode_account_id(x), Balance.from_rao(y))
-            for x, y in decoded.get("nominators")
-        ]
+        hotkey = decoded.get("hotkey_ss58")
+        owner = decoded.get("owner_ss58")
+        nominators = [(x, Balance.from_rao(y)) for x, y in decoded.get("nominators")]
         total_stake = sum((x[1] for x in nominators)) if nominators else Balance(0)
         return cls(
             hotkey_ss58=hotkey,
@@ -557,8 +551,8 @@ class DelegateInfoLite(InfoBase):
             fixed_take = u16tf(decoded_take)
 
         return cls(
-            hotkey_ss58=ss58_encode(decoded.get("delegate_ss58"), SS58_FORMAT),
-            owner_ss58=ss58_encode(decoded.get("owner_ss58"), SS58_FORMAT),
+            hotkey_ss58=decoded.get("delegate_ss58"),
+            owner_ss58=decoded.get("owner_ss58"),
             take=fixed_take,
             total_stake=Balance.from_rao(decoded.get("total_stake")),
             owner_stake=Balance.from_rao(decoded.get("owner_stake")),
@@ -612,7 +606,7 @@ class SubnetInfo(InfoBase):
             },
             emission_value=decoded.get("emission_value"),
             burn=Balance.from_rao(decoded.get("burn")),
-            owner_ss58=decode_account_id(decoded.get("owner")),
+            owner_ss58=decoded.get("owner"),
         )
 
 
@@ -676,8 +670,8 @@ class DynamicInfo(InfoBase):
         subnet_name = bytes([int(b) for b in decoded.get("subnet_name")]).decode()
         is_dynamic = True if netuid > 0 else False  # Patching for netuid 0
 
-        owner_hotkey = decode_account_id(decoded.get("owner_hotkey"))
-        owner_coldkey = decode_account_id(decoded.get("owner_coldkey"))
+        owner_hotkey = decoded.get("owner_hotkey")
+        owner_coldkey = decoded.get("owner_coldkey")
 
         emission = Balance.from_rao(decoded.get("emission")).set_unit(0)
         alpha_in = Balance.from_rao(decoded.get("alpha_in")).set_unit(netuid)
@@ -840,8 +834,8 @@ class ScheduledColdkeySwapInfo(InfoBase):
     def _fix_decoded(cls, decoded: Any) -> "ScheduledColdkeySwapInfo":
         """Fixes the decoded values."""
         return cls(
-            old_coldkey=decode_account_id(decoded.get("old_coldkey")),
-            new_coldkey=decode_account_id(decoded.get("new_coldkey")),
+            old_coldkey=decoded.get("old_coldkey"),
+            new_coldkey=decoded.get("new_coldkey"),
             arbitration_block=decoded.get("arbitration_block"),
         )
 
@@ -872,8 +866,8 @@ class SubnetState(InfoBase):
         netuid = decoded.get("netuid")
         return cls(
             netuid=netuid,
-            hotkeys=[decode_account_id(val) for val in decoded.get("hotkeys")],
-            coldkeys=[decode_account_id(val) for val in decoded.get("coldkeys")],
+            hotkeys=decoded.get("hotkeys", []),
+            coldkeys=decoded.get("coldkeys", []),
             active=decoded.get("active"),
             validator_permit=decoded.get("validator_permit"),
             pruning_score=[u16tf(val) for val in decoded.get("pruning_score")],
@@ -1111,8 +1105,8 @@ class MetagraphInfo(InfoBase):
             alpha_low=u16tf(decoded["alpha_low"]),
             bonds_moving_avg=u64tf(decoded["bonds_moving_avg"]),
             # Metagraph info.
-            hotkeys=[decode_account_id(ck) for ck in decoded.get("hotkeys", [])],
-            coldkeys=[decode_account_id(hk) for hk in decoded.get("coldkeys", [])],
+            hotkeys=decoded.get("hotkeys", []),
+            coldkeys=decoded.get("coldkeys", []),
             identities=decoded["identities"],
             axons=decoded.get("axons", []),
             active=decoded["active"],
@@ -1131,11 +1125,11 @@ class MetagraphInfo(InfoBase):
             total_stake=[_tbwu(ts, _netuid) for ts in decoded["total_stake"]],
             # Dividend break down
             tao_dividends_per_hotkey=[
-                (decode_account_id(alpha[0]), _tbwu(alpha[1]))
+                (alpha[0], _tbwu(alpha[1]))
                 for alpha in decoded["tao_dividends_per_hotkey"]
             ],
             alpha_dividends_per_hotkey=[
-                (decode_account_id(adphk[0]), _tbwu(adphk[1], _netuid))
+                (adphk[0], _tbwu(adphk[1], _netuid))
                 for adphk in decoded["alpha_dividends_per_hotkey"]
             ],
         )

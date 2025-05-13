@@ -48,7 +48,6 @@ from bittensor_cli.src.bittensor.utils import (
     unlock_key,
     WalletLike,
     blocks_to_duration,
-    decode_account_id,
 )
 
 
@@ -1985,12 +1984,12 @@ async def find_coldkey_swap_extrinsic(
                 and event.get("event", {}).get("event_id") == "ColdkeySwapScheduled"
             ):
                 attributes = event["event"].get("attributes", {})
-                old_coldkey = decode_account_id(attributes["old_coldkey"][0])
+                old_coldkey = attributes["old_coldkey"]
 
                 if old_coldkey == wallet_ss58:
                     return {
                         "block_num": block_num,
-                        "dest_coldkey": decode_account_id(attributes["new_coldkey"][0]),
+                        "dest_coldkey": attributes["new_coldkey"],
                         "execution_block": attributes["execution_block"],
                     }
 

@@ -9,7 +9,6 @@ from rich.prompt import Confirm
 from scalecodec import GenericCall
 
 from bittensor_cli.src import HYPERPARAMS, DelegatesDetails, COLOR_PALETTE
-from bittensor_cli.src.bittensor.chain_data import decode_account_id
 from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
@@ -284,9 +283,7 @@ async def _get_senate_members(
         block_hash=block_hash,
     )
     try:
-        return [
-            decode_account_id(i[x][0]) for i in senate_members for x in range(len(i))
-        ]
+        return [i[x] for i in senate_members for x in range(len(i))]
     except (IndexError, TypeError):
         err_console.print("Unable to retrieve senate members.")
         return []

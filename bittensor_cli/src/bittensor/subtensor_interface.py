@@ -20,7 +20,6 @@ from bittensor_cli.src.bittensor.chain_data import (
     NeuronInfoLite,
     NeuronInfo,
     SubnetHyperparameters,
-    decode_account_id,
     decode_hex_identity,
     DynamicInfo,
     SubnetState,
@@ -69,7 +68,7 @@ class ProposalVoteData:
         """
         Decodes a tuple of ss58 addresses formatted as bytes tuples
         """
-        return [decode_account_id(data[x][0]) for x in range(len(data))]
+        return [data[x] for x in range(len(data))]
 
 
 class SubtensorInterface:
@@ -113,6 +112,7 @@ class SubtensorInterface:
             ss58_format=SS58_FORMAT,
             type_registry=TYPE_REGISTRY,
             chain_name="Bittensor",
+            legacy_account_id_decode=False,
         )
 
     def __str__(self):
@@ -856,9 +856,7 @@ class SubtensorInterface:
         )
         all_identities = {}
         async for ss58_address, identity in identities:
-            all_identities[decode_account_id(ss58_address[0])] = decode_hex_identity(
-                identity.value
-            )
+            all_identities[ss58_address] = decode_hex_identity(identity.value)
 
         return all_identities
 
@@ -926,7 +924,7 @@ class SubtensorInterface:
 
         for coldkey_ss58, hotkeys in query.items():
             coldkey_identity = coldkey_identities.get(coldkey_ss58)
-            hotkeys = [decode_account_id(hotkey[0]) for hotkey in hotkeys or []]
+            hotkeys = hotkeys or []
 
             identities["coldkeys"][coldkey_ss58] = {
                 "identity": coldkey_identity,
@@ -1104,9 +1102,8 @@ class SubtensorInterface:
                 formatted_children = []
                 for proportion, child in children:
                     # Convert U64 to int
-                    formatted_child = decode_account_id(child[0])
                     int_proportion = int(proportion)
-                    formatted_children.append((int_proportion, formatted_child))
+                    formatted_children.append((int_proportion, child))
                 return True, formatted_children, ""
             else:
                 return True, [], ""
@@ -1208,9 +1205,7 @@ class SubtensorInterface:
             async for ss58_address, identity in identities_info:
                 all_delegates_details.update(
                     {
-                        decode_account_id(
-                            ss58_address[0]
-                        ): DelegatesDetails.from_chain_data(
+                        ss58_address: DelegatesDetails.from_chain_data(
                             decode_hex_identity_dict(identity.value["info"])
                         )
                     }
@@ -1390,8 +1385,7 @@ class SubtensorInterface:
         for result in results:
             if result is None:
                 continue
-            for coldkey_bytes, stake_info_list in result:
-                coldkey_ss58 = decode_account_id(coldkey_bytes)
+            for coldkey_ss58, stake_info_list in result:
                 stake_info_map[coldkey_ss58] = StakeInfo.list_from_any(stake_info_list)
 
         return stake_info_map if stake_info_map else None
@@ -1437,8 +1431,7 @@ class SubtensorInterface:
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
-
-        return [decode_account_id(hotkey[0]) for hotkey in owned_hotkeys or []]
+        return owned_hotkeys or []
 
     async def get_stake_fee(
         self,
@@ -1528,7 +1521,7 @@ class SubtensorInterface:
 
         keys_pending_swap = []
         async for ss58, _ in result:
-            keys_pending_swap.append(decode_account_id(ss58))
+            keys_pending_swap.append(ss58)
         return keys_pending_swap
 
     async def get_coldkey_swap_schedule_duration(
