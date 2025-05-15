@@ -1656,13 +1656,15 @@ async def register(
             return
 
     if netuid == 0:
-        success, msg = await root_register_extrinsic(subtensor, wallet=wallet)
+        success, msg = await root_register_extrinsic(
+            subtensor, wallet=wallet, prompt=prompt
+        )
     else:
         success, msg = await burned_register_extrinsic(
             subtensor,
             wallet=wallet,
             netuid=netuid,
-            prompt=False,
+            prompt=prompt,
             old_balance=balance,
             era=era,
         )
