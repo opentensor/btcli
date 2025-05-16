@@ -563,6 +563,16 @@ def format_error_message(error_message: Union[dict, Exception]) -> str:
             else:
                 err_description = err_docs
 
+    matches = {
+        # A dict of well-known cryptic errors, with better explanations for them.
+        "SubtokenDisabled": "This subnet is not yet activated. You must wait for it to activate to peform this action."
+    }
+
+    try:
+        err_description = matches[err_name]
+    except KeyError:
+        pass
+
     return f"Subtensor returned `{err_name}({err_type})` error. This means: `{err_description}`."
 
 
