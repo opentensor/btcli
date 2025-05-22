@@ -1662,12 +1662,14 @@ async def register(
             subtensor,
             wallet=wallet,
             netuid=netuid,
-            prompt=False,
             old_balance=balance,
             era=era,
         )
     if json_output:
         json_console.print(json.dumps({"success": success, "msg": msg}))
+    else:
+        if not success:
+            err_console.print(f"Failure: {msg}")
 
 
 # TODO: Confirm emissions, incentive, Dividends are to be fetched from subnet_state or keep NeuronInfo
