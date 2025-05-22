@@ -290,6 +290,7 @@ async def root_register_extrinsic(
     wallet: Wallet,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
+    prompt: bool = False,
 ) -> tuple[bool, str]:
     r"""Registers the wallet to root network.
 

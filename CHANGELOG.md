@@ -1,13 +1,5 @@
 # Changelog
 
-## 9.4.2 /2025-04-22
-
-## What's Changed
-* Subnets Register Improvements by @thewhaleking in https://github.com/opentensor/btcli/pull/450
-* Fix `KeyFileError: File is not writable` during `btcli wallet create` command by @basfroman in https://github.com/opentensor/btcli/pull/452
-
-**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.4.1...v9.4.2
-
 ## 9.4.1 /2025-04-17
 
 ## What's Changed

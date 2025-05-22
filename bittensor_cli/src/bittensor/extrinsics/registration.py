@@ -678,6 +678,7 @@ async def burned_register_extrinsic(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
     era: Optional[int] = None,
+    prompt: bool = False,
 ) -> tuple[bool, str]:
     """Registers the wallet to chain by recycling TAO.
 

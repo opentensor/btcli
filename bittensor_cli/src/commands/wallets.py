@@ -438,10 +438,11 @@ async def wallet_create(
                 "name": wallet.name,
                 "path": wallet.path,
                 "hotkey": wallet.hotkey_str,
+                "hotkey_ss58": wallet.hotkey.ss58_address,
                 "coldkey_ss58": wallet.coldkeypub.ss58_address,
             }
-        except KeyFileError as error:
-            err = str(error)
+        except KeyFileError:
+            err = "KeyFileError: File is not writable"
             print_error(err)
             output_dict["error"] = err
         try:
@@ -457,9 +458,10 @@ async def wallet_create(
                 "path": wallet.path,
                 "hotkey": wallet.hotkey_str,
                 "hotkey_ss58": wallet.hotkey.ss58_address,
+                "coldkey_ss58": wallet.coldkeypub.ss58_address,
             }
-        except KeyFileError as error:
-            err = str(error)
+        except KeyFileError:
+            err = "KeyFileError: File is not writable"
             print_error(err)
             output_dict["error"] = err
     if json_output:
