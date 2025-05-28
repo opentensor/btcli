@@ -1259,8 +1259,8 @@ async def overview(
 
         grid.add_row(table)
 
-    caption = "\n[italic][dim][bright_cyan]Wallet balance: [dark_orange]\u03c4" + str(
-        total_balance.tao
+    caption = (
+        f"\n[italic][dim][bright_cyan]Wallet free balance: [dark_orange]{total_balance}"
     )
     data_dict["total_balance"] = total_balance.tao
     grid.add_row(Align(caption, vertical="middle", align="center"))
