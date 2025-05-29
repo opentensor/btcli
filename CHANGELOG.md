@@ -1,5 +1,19 @@
 # Changelog
 
+## 9.4.3 /2025-04-29
+
+## What's Changed
+* Avoid scientific notation output by @thewhaleking in https://github.com/opentensor/btcli/pull/459
+* Use generic types by @thewhaleking in https://github.com/opentensor/btcli/pull/458
+* Suppress async substrate warning by @thewhaleking in https://github.com/opentensor/btcli/pull/463
+* Remove unused dependency by @thewhaleking in https://github.com/opentensor/btcli/pull/460
+* fix: fix typo "accross" by @gap-editor in https://github.com/opentensor/btcli/pull/461
+
+## New Contributors
+* @gap-editor made their first contribution in https://github.com/opentensor/btcli/pull/461
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.4.2...v9.4.3
+
 ## 9.4.2 /2025-04-22
 
 ## What's Changed
