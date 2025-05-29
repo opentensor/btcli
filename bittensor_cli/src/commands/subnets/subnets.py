@@ -1028,7 +1028,7 @@ async def show(
         The table displays the root subnet participants and their metrics.
         The columns are as follows:
             - Position: The sorted position of the hotkey by total TAO.
-            - TAO: The sum of all TAO balances for this hotkey accross all subnets.
+            - TAO: The sum of all TAO balances for this hotkey across all subnets.
             - Stake: The stake balance of this hotkey on root (measured in TAO).
             - Emission: The emission accrued to this hotkey across all subnets every block measured in TAO.
             - Hotkey: The hotkey ss58 address.
@@ -1374,7 +1374,7 @@ async def show(
         #     The table displays the subnet participants and their metrics.
         #     The columns are as follows:
         #         - UID: The hotkey index in the subnet.
-        #         - TAO: The sum of all TAO balances for this hotkey accross all subnets.
+        #         - TAO: The sum of all TAO balances for this hotkey across all subnets.
         #         - Stake: The stake balance of this hotkey on this subnet.
         #         - Weight: The stake-weight of this hotkey on this subnet. Computed as an average of the normalized TAO and Stake columns of this subnet.
         #         - Dividends: Validating dividends earned by the hotkey.
