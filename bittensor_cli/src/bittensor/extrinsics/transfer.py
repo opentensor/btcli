@@ -57,7 +57,7 @@ async def transfer_extrinsic(
         """
         call = await subtensor.substrate.compose_call(
             call_module="Balances",
-            call_function="transfer_allow_death",
+            call_function="transfer_keep_alive",
             call_params={"dest": destination, "value": amount.rao},
         )
 
@@ -82,7 +82,7 @@ async def transfer_extrinsic(
         """
         call = await subtensor.substrate.compose_call(
             call_module="Balances",
-            call_function="transfer_allow_death",
+            call_function="transfer_keep_alive",
             call_params={"dest": destination, "value": amount.rao},
         )
         extrinsic = await subtensor.substrate.create_signed_extrinsic(

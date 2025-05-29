@@ -1,5 +1,12 @@
 # Changelog
 
+## 9.4.4 /2025-04-29
+
+## What's Changed
+* Replace `transfer_allow_death` with `transfer_keep_alive` by @basfroman in https://github.com/opentensor/btcli/pull/466
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.4.3...v9.4.4
+
 ## 9.4.3 /2025-04-29
 
 ## What's Changed
