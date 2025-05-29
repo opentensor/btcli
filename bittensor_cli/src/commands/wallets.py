@@ -438,11 +438,10 @@ async def wallet_create(
                 "name": wallet.name,
                 "path": wallet.path,
                 "hotkey": wallet.hotkey_str,
-                "hotkey_ss58": wallet.hotkey.ss58_address,
                 "coldkey_ss58": wallet.coldkeypub.ss58_address,
             }
-        except KeyFileError:
-            err = "KeyFileError: File is not writable"
+        except KeyFileError as error:
+            err = str(error)
             print_error(err)
             output_dict["error"] = err
         try:
@@ -458,10 +457,9 @@ async def wallet_create(
                 "path": wallet.path,
                 "hotkey": wallet.hotkey_str,
                 "hotkey_ss58": wallet.hotkey.ss58_address,
-                "coldkey_ss58": wallet.coldkeypub.ss58_address,
             }
-        except KeyFileError:
-            err = "KeyFileError: File is not writable"
+        except KeyFileError as error:
+            err = str(error)
             print_error(err)
             output_dict["error"] = err
     if json_output:
@@ -1261,8 +1259,8 @@ async def overview(
 
         grid.add_row(table)
 
-    caption = "\n[italic][dim][bright_cyan]Wallet balance: [dark_orange]\u03c4" + str(
-        total_balance.tao
+    caption = (
+        f"\n[italic][dim][bright_cyan]Wallet free balance: [dark_orange]{total_balance}"
     )
     data_dict["total_balance"] = total_balance.tao
     grid.add_row(Align(caption, vertical="middle", align="center"))

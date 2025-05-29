@@ -8,6 +8,7 @@ import re
 import ssl
 import sys
 import traceback
+import warnings
 from pathlib import Path
 from typing import Coroutine, Optional
 from dataclasses import fields
@@ -439,36 +440,49 @@ def parse_mnemonic(mnemonic: str) -> str:
 def get_creation_data(
     mnemonic: Optional[str],
     seed: Optional[str],
-    json: Optional[str],
+    json_path: Optional[str],
     json_password: Optional[str],
 ) -> tuple[str, str, str, str]:
     """
     Determines which of the key creation elements have been supplied, if any. If None have been supplied,
     prompts to user, and determines what they've supplied. Returns all elements in a tuple.
     """
-    if not mnemonic and not seed and not json:
-        prompt_answer = Prompt.ask(
-            "Enter the mnemonic, or the seed hex string, or the location of the JSON file."
+    if not mnemonic and not seed and not json_path:
+        choices = {
+            1: "mnemonic",
+            2: "seed hex string",
+            3: "path to JSON File",
+        }
+        type_answer = IntPrompt.ask(
+            "Select one of the following to enter\n"
+            f"[{COLORS.G.HINT}][1][/{COLORS.G.HINT}] Mnemonic\n"
+            f"[{COLORS.G.HINT}][2][/{COLORS.G.HINT}] Seed hex string\n"
+            f"[{COLORS.G.HINT}][3][/{COLORS.G.HINT}] Path to JSON File\n",
+            choices=["1", "2", "3"],
+            show_choices=False,
         )
-        if prompt_answer.startswith("0x"):
+        prompt_answer = Prompt.ask(f"Please enter your {choices[type_answer]}")
+        if type_answer == 1:
+            mnemonic = prompt_answer
+        elif type_answer == 2:
             seed = prompt_answer
-        elif len(prompt_answer.split(" ")) > 1:
-            mnemonic = parse_mnemonic(prompt_answer)
-        else:
-            json = prompt_answer
+            if seed.startswith("0x"):
+                seed = seed[2:]
+        elif type_answer == 3:
+            json_path = prompt_answer
     elif mnemonic:
         mnemonic = parse_mnemonic(mnemonic)
 
-    if json:
-        if not os.path.exists(json):
-            print_error(f"The JSON file '{json}' does not exist.")
+    if json_path:
+        if not os.path.exists(json_path):
+            print_error(f"The JSON file '{json_path}' does not exist.")
             raise typer.Exit()
 
-    if json and not json_password:
+    if json_path and not json_password:
         json_password = Prompt.ask(
             "Enter the backup password for JSON file.", password=True
         )
-    return mnemonic, seed, json, json_password
+    return mnemonic, seed, json_path, json_password
 
 
 def config_selector(conf: dict, title: str):
@@ -987,31 +1001,37 @@ class CLIManager:
         :param network: Network name (e.g. finney, test, etc.) or
                         chain endpoint (e.g. ws://127.0.0.1:9945, wss://entrypoint-finney.opentensor.ai:443)
         """
-        if not self.subtensor:
-            if network:
-                network_ = None
-                for item in network:
-                    if item.startswith("ws"):
-                        network_ = item
-                        break
-                    else:
-                        network_ = item
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                "You are instantiating the AsyncSubstrateInterface Websocket outside of an event loop. "
+                "Verify this is intended.",
+            )
+            if not self.subtensor:
+                if network:
+                    network_ = None
+                    for item in network:
+                        if item.startswith("ws"):
+                            network_ = item
+                            break
+                        else:
+                            network_ = item
 
-                not_selected_networks = [net for net in network if net != network_]
-                if not_selected_networks:
+                    not_selected_networks = [net for net in network if net != network_]
+                    if not_selected_networks:
+                        console.print(
+                            f"Networks not selected: [dark_orange]{', '.join(not_selected_networks)}[/dark_orange]"
+                        )
+
+                    self.subtensor = SubtensorInterface(network_)
+                elif self.config["network"]:
+                    self.subtensor = SubtensorInterface(self.config["network"])
                     console.print(
-                        f"Networks not selected: [dark_orange]{', '.join(not_selected_networks)}[/dark_orange]"
+                        f"Using the specified network [{COLORS.G.LINKS}]{self.config['network']}"
+                        f"[/{COLORS.G.LINKS}] from config"
                     )
-
-                self.subtensor = SubtensorInterface(network_)
-            elif self.config["network"]:
-                self.subtensor = SubtensorInterface(self.config["network"])
-                console.print(
-                    f"Using the specified network [{COLORS.G.LINKS}]{self.config['network']}"
-                    f"[/{COLORS.G.LINKS}] from config"
-                )
-            else:
-                self.subtensor = SubtensorInterface(defaults.subtensor.network)
+                else:
+                    self.subtensor = SubtensorInterface(defaults.subtensor.network)
         return self.subtensor
 
     def _run_command(self, cmd: Coroutine, exit_early: bool = True):
@@ -2093,7 +2113,7 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         mnemonic: Optional[str] = Options.mnemonic,
         seed: Optional[str] = Options.seed,
-        json: Optional[str] = Options.json,
+        json_path: Optional[str] = Options.json,
         json_password: Optional[str] = Options.json_password,
         use_password: Optional[bool] = Options.use_password,
         overwrite: bool = Options.overwrite,
@@ -2133,15 +2153,15 @@ class CLIManager:
 
         wallet = Wallet(wallet_name, wallet_hotkey, wallet_path)
 
-        mnemonic, seed, json, json_password = get_creation_data(
-            mnemonic, seed, json, json_password
+        mnemonic, seed, json_path, json_password = get_creation_data(
+            mnemonic, seed, json_path, json_password
         )
         return self._run_command(
             wallets.regen_coldkey(
                 wallet,
                 mnemonic,
                 seed,
-                json,
+                json_path,
                 json_password,
                 use_password,
                 overwrite,
@@ -2217,7 +2237,7 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         mnemonic: Optional[str] = Options.mnemonic,
         seed: Optional[str] = Options.seed,
-        json: Optional[str] = Options.json,
+        json_path: Optional[str] = Options.json,
         json_password: Optional[str] = Options.json_password,
         use_password: bool = typer.Option(
             False,  # Overriden to False
@@ -2253,15 +2273,15 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET,
         )
-        mnemonic, seed, json, json_password = get_creation_data(
-            mnemonic, seed, json, json_password
+        mnemonic, seed, json_path, json_password = get_creation_data(
+            mnemonic, seed, json_path, json_password
         )
         return self._run_command(
             wallets.regen_hotkey(
                 wallet,
                 mnemonic,
                 seed,
-                json,
+                json_path,
                 json_password,
                 use_password,
                 overwrite,
