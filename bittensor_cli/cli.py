@@ -8,6 +8,7 @@ import re
 import ssl
 import sys
 import traceback
+import warnings
 from pathlib import Path
 from typing import Coroutine, Optional
 from dataclasses import fields
@@ -1000,31 +1001,37 @@ class CLIManager:
         :param network: Network name (e.g. finney, test, etc.) or
                         chain endpoint (e.g. ws://127.0.0.1:9945, wss://entrypoint-finney.opentensor.ai:443)
         """
-        if not self.subtensor:
-            if network:
-                network_ = None
-                for item in network:
-                    if item.startswith("ws"):
-                        network_ = item
-                        break
-                    else:
-                        network_ = item
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                "You are instantiating the AsyncSubstrateInterface Websocket outside of an event loop. "
+                "Verify this is intended.",
+            )
+            if not self.subtensor:
+                if network:
+                    network_ = None
+                    for item in network:
+                        if item.startswith("ws"):
+                            network_ = item
+                            break
+                        else:
+                            network_ = item
 
-                not_selected_networks = [net for net in network if net != network_]
-                if not_selected_networks:
+                    not_selected_networks = [net for net in network if net != network_]
+                    if not_selected_networks:
+                        console.print(
+                            f"Networks not selected: [dark_orange]{', '.join(not_selected_networks)}[/dark_orange]"
+                        )
+
+                    self.subtensor = SubtensorInterface(network_)
+                elif self.config["network"]:
+                    self.subtensor = SubtensorInterface(self.config["network"])
                     console.print(
-                        f"Networks not selected: [dark_orange]{', '.join(not_selected_networks)}[/dark_orange]"
+                        f"Using the specified network [{COLORS.G.LINKS}]{self.config['network']}"
+                        f"[/{COLORS.G.LINKS}] from config"
                     )
-
-                self.subtensor = SubtensorInterface(network_)
-            elif self.config["network"]:
-                self.subtensor = SubtensorInterface(self.config["network"])
-                console.print(
-                    f"Using the specified network [{COLORS.G.LINKS}]{self.config['network']}"
-                    f"[/{COLORS.G.LINKS}] from config"
-                )
-            else:
-                self.subtensor = SubtensorInterface(defaults.subtensor.network)
+                else:
+                    self.subtensor = SubtensorInterface(defaults.subtensor.network)
         return self.subtensor
 
     def _run_command(self, cmd: Coroutine, exit_early: bool = True):
