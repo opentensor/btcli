@@ -5,7 +5,7 @@ import tempfile
 import webbrowser
 import netaddr
 from dataclasses import asdict, is_dataclass
-from typing import Any, Dict, List
+from typing import Any
 from pywry import PyWry
 
 from bittensor_cli.src.bittensor.balances import Balance
@@ -149,7 +149,7 @@ def get_identity(
 
 async def fetch_subnet_data(
     wallet: Wallet, subtensor: "SubtensorInterface"
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Fetch subnet data from the network.
     """
@@ -187,7 +187,7 @@ async def fetch_subnet_data(
     }
 
 
-def process_subnet_data(raw_data: Dict[str, Any]) -> Dict[str, Any]:
+def process_subnet_data(raw_data: dict[str, Any]) -> dict[str, Any]:
     """
     Process and prepare subnet data.
     """
@@ -206,7 +206,7 @@ def process_subnet_data(raw_data: Dict[str, Any]) -> Dict[str, Any]:
     total_slippage_value = Balance.from_tao(0)
 
     # Process stake
-    stake_dict: Dict[int, List[Dict[str, Any]]] = {}
+    stake_dict: dict[int, list[dict[str, Any]]] = {}
     for stake in stake_info:
         if stake.stake.tao > 0:
             slippage_value, _, slippage_percentage = pool_info[
@@ -367,7 +367,7 @@ def _has_exited(handler) -> bool:
     )
 
 
-def generate_full_page(data: Dict[str, Any]) -> str:
+def generate_full_page(data: dict[str, Any]) -> str:
     """
     Generate full HTML content for the interface.
     """
@@ -673,7 +673,7 @@ def generate_neuron_details() -> str:
     """
 
 
-def generate_main_header(wallet_info: Dict[str, Any], block_number: int) -> str:
+def generate_main_header(wallet_info: dict[str, Any], block_number: int) -> str:
     truncated_coldkey = f"{wallet_info['coldkey'][:6]}...{wallet_info['coldkey'][-6:]}"
 
     # Calculate slippage percentage
@@ -746,7 +746,7 @@ def generate_main_filters() -> str:
     """
 
 
-def generate_subnets_table(subnets: List[Dict[str, Any]]) -> str:
+def generate_subnets_table(subnets: list[dict[str, Any]]) -> str:
     rows = []
     for subnet in subnets:
         total_your_stake = sum(stake["amount"] for stake in subnet["your_stakes"])
