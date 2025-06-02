@@ -1,7 +1,9 @@
 import asyncio
 import json
 import math
-from pywry import PyWry
+import tempfile
+import webbrowser
+
 from typing import TYPE_CHECKING
 
 import plotille
@@ -14,6 +16,7 @@ from bittensor_cli.src.bittensor.utils import (
     get_subnet_name,
     print_error,
     json_console,
+    jinja_env,
 )
 
 if TYPE_CHECKING:
@@ -180,11 +183,7 @@ def _process_subnet_data(block_numbers, all_subnet_infos, netuids, all_netuids):
 
 
 def _generate_html_single_subnet(
-    netuid,
-    data,
-    block_numbers,
-    interval_hours,
-    log_scale,
+    netuid, data, block_numbers, interval_hours, log_scale, title: str
 ):
     """
     Generate an HTML chart for a single subnet.
@@ -242,119 +241,22 @@ def _generate_html_single_subnet(
         type="log" if log_scale else "linear",
     )
 
-    # Price change color
-    price_change_class = "text-green" if stats["change_pct"] > 0 else "text-red"
-    # Change sign
-    sign_icon = "▲" if stats["change_pct"] > 0 else "▼"
+    fig_json = fig.to_json()
 
-    fig_dict = fig.to_dict()
-    fig_json = json.dumps(fig_dict)
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <title>Subnet Price View</title>
-        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-        <style>
-            body {{
-                background-color: #000;
-                color: #fff;
-                font-family: Arial, sans-serif;
-                margin: 0;
-                padding: 20px;
-            }}
-            .header-container {{
-                display: flex;
-                align-items: flex-start;
-                justify-content: space-between;
-                margin-bottom: 20px;
-            }}
-            .price-info {{
-                max-width: 60%;
-            }}
-            .main-price {{
-                font-size: 36px;
-                font-weight: 600;
-                margin-bottom: 5px;
-            }}
-            .price-change {{
-                font-size: 18px;
-                margin-left: 8px;
-                font-weight: 500;
-            }}
-            .text-green {{ color: #00FF00; }}
-            .text-red   {{ color: #FF5555; }}
-            .text-blue  {{ color: #87CEEB; }}
-            .text-steel {{ color: #4682B4; }}
-            .text-purple{{ color: #DDA0DD; }}
-            .text-gold  {{ color: #FFD700; }}
-
-            .sub-stats-row {{
-                display: flex;
-                flex-wrap: wrap;
-                margin-top: 10px;
-            }}
-            .stat-item {{
-                margin-right: 20px;
-                margin-bottom: 6px;
-                font-size: 14px;
-            }}
-            .side-stats {{
-                min-width: 220px;
-                display: flex;
-                flex-direction: column;
-                align-items: flex-start;
-            }}
-            .side-stats div {{
-                margin-bottom: 6px;
-                font-size: 14px;
-            }}
-            #chart-container {{
-                margin-top: 20px;
-                width: 100%;
-                height: 600px;
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="header-container">
-            <div class="price-info">
-                <div class="main-price">
-                    {stats['current_price']:.6f} {stats['symbol']}
-                    <span class="price-change {price_change_class}">
-                        {sign_icon} {abs(stats['change_pct']):.2f}%
-                    </span>
-                </div>
-                <div class="sub-stats-row">
-                    <div class="stat-item">
-                        {interval_hours}h High: <span class="text-green">{stats['high']:.6f} {stats['symbol']}</span>
-                    </div>
-                    <div class="stat-item">
-                        {interval_hours}h Low: <span class="text-red">{stats['low']:.6f} {stats['symbol']}</span>
-                    </div>
-                </div>
-            </div>
-            <div class="side-stats">
-                <div>Supply: <span class="text-blue">{stats['supply']:.2f} {stats['symbol']}</span></div>
-                <div>Market Cap: <span class="text-steel">{stats['market_cap']:.2f} τ</span></div>
-                <div>Emission: <span class="text-purple">{stats['emission']:.2f} {stats['symbol']}</span></div>
-                <div>Stake: <span class="text-gold">{stats['stake']:.2f} {stats['symbol']}</span></div>
-            </div>
-        </div>
-        <div id="chart-container"></div>
-        <script>
-            var figData = {fig_json}; 
-            Plotly.newPlot('chart-container', figData.data, figData.layout);
-        </script>
-    </body>
-    </html>
-    """
-
+    template = jinja_env.get_template("price-single.j2")
+    html_content = template.render(
+        fig_json=fig_json,
+        stats=stats,
+        change_pct=abs(stats["change_pct"]),
+        interval_hours=interval_hours,
+        title=title,
+    )
     return html_content
 
 
-def _generate_html_multi_subnet(subnet_data, block_numbers, interval_hours, log_scale):
+def _generate_html_multi_subnet(
+    subnet_data, block_numbers, interval_hours, log_scale, title: str
+):
     """
     Generate an HTML chart for multiple subnets.
     """
@@ -573,143 +475,17 @@ def _generate_html_multi_subnet(subnet_data, block_numbers, interval_hours, log_
         }
 
     fig_json = fig.to_json()
-    all_visibility_json = json.dumps(all_visibility)
-    all_annotations_json = json.dumps(all_annotations)
 
-    subnet_modes_json = {}
-    for netuid, mode_data in subnet_modes.items():
-        subnet_modes_json[netuid] = {
-            "visible": json.dumps(mode_data["visible"]),
-            "annotations": json.dumps(mode_data["annotations"]),
-        }
-
-    # We sort netuids by market cap but for buttons, they are ordered by netuid
-    sorted_subnet_keys = sorted(subnet_data.keys())
-    all_button_html = (
-        '<button class="subnet-button active" onclick="setAll()">All</button>'
+    template = jinja_env.get_template("price-multi.j2")
+    html_content = template.render(
+        title=title,
+        # We sort netuids by market cap but for buttons, they are ordered by netuid
+        sorted_subnet_keys=sorted(subnet_data.keys()),
+        fig_json=fig_json,
+        all_visibility=all_visibility,
+        all_annotations=all_annotations,
+        subnet_modes=subnet_modes,
     )
-    subnet_buttons_html = ""
-    for netuid in sorted_subnet_keys:
-        subnet_buttons_html += f'<button class="subnet-button" onclick="setSubnet({netuid})">S{netuid}</button> '
-
-    html_content = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Multi-Subnet Price Chart</title>
-        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-        <style>
-            body {{
-                background-color: #000;
-                color: #fff;
-                font-family: Arial, sans-serif;
-                margin: 0;
-                padding: 20px;
-            }}
-            .container {{
-                display: flex;
-                flex-direction: column;
-                gap: 60px;
-            }}
-            #multi-subnet-chart {{
-                width: 90vw;
-                height: 70vh;
-                margin-bottom: 40px;
-            }}
-            .subnet-buttons {{
-                display: grid;
-                grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-                gap: 8px;
-                max-height: 120px;
-                overflow-y: auto;
-                padding-right: 10px;
-                margin-top: 50px;
-                border-top: 1px solid rgba(255,255,255,0.1);
-                padding-top: 50px;
-                position: relative;
-                bottom: 0;
-            }}
-            .subnet-buttons::-webkit-scrollbar {{
-                width: 8px;
-            }}
-            .subnet-buttons::-webkit-scrollbar-track {{
-                background: rgba(50,50,50,0.3);
-                border-radius: 4px;
-            }}
-            .subnet-buttons::-webkit-scrollbar-thumb {{
-                background: rgba(100,100,100,0.8);
-                border-radius: 4px;
-            }}
-            .subnet-button {{
-                background-color: rgba(50,50,50,0.8);
-                border: 1px solid rgba(70,70,70,0.9);
-                color: white;
-                padding: 8px 16px;
-                cursor: pointer;
-                border-radius: 4px;
-                font-size: 14px;
-                transition: background-color 0.2s;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-            }}
-            .subnet-button:hover {{
-                background-color: rgba(70,70,70,0.9);
-            }}
-            .subnet-button.active {{
-                background-color: rgba(100,100,100,0.9);
-                border-color: rgba(120,120,120,1);
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div id="multi-subnet-chart"></div>
-            <div class="subnet-buttons">
-                {all_button_html}
-                {subnet_buttons_html}
-            </div>
-        </div>
-        <script>
-            var figData = {fig_json};
-            var allVisibility = {all_visibility_json};
-            var allAnnotations = {all_annotations_json};
-
-            var subnetModes = {json.dumps(subnet_modes_json)};
-            // parse back to arrays/objects
-            for (var netuid in subnetModes) {{
-                subnetModes[netuid].visible = JSON.parse(subnetModes[netuid].visible);
-                subnetModes[netuid].annotations = JSON.parse(subnetModes[netuid].annotations);
-            }}
-
-            Plotly.newPlot('multi-subnet-chart', figData.data, figData.layout);
-
-            function clearActiveButtons() {{
-                document.querySelectorAll('.subnet-button').forEach(btn => btn.classList.remove('active'));
-            }}
-
-            function setAll() {{
-                clearActiveButtons();
-                event.currentTarget.classList.add('active');
-                Plotly.update('multi-subnet-chart',
-                    {{visible: allVisibility}},
-                    {{annotations: allAnnotations}}
-                );
-            }}
-
-            function setSubnet(netuid) {{
-                clearActiveButtons();
-                event.currentTarget.classList.add('active');
-                var mode = subnetModes[netuid];
-                Plotly.update('multi-subnet-chart',
-                    {{visible: mode.visible}},
-                    {{annotations: mode.annotations}}
-                );
-            }}
-        </script>
-    </body>
-    </html>
-    """
     return html_content
 
 
@@ -720,7 +496,7 @@ async def _generate_html_output(
     log_scale: bool = False,
 ):
     """
-    Start PyWry and display the price chart in a window.
+    Display HTML output in browser
     """
     try:
         subnet_keys = list(subnet_data.keys())
@@ -730,42 +506,34 @@ async def _generate_html_output(
             netuid = subnet_keys[0]
             data = subnet_data[netuid]
             html_content = _generate_html_single_subnet(
-                netuid, data, block_numbers, interval_hours, log_scale
+                netuid,
+                data,
+                block_numbers,
+                interval_hours,
+                log_scale,
+                title=f"Subnet {netuid} Price View",
             )
-            title = f"Subnet {netuid} Price View"
+
         else:
             # Multi-subnet
             html_content = _generate_html_multi_subnet(
-                subnet_data, block_numbers, interval_hours, log_scale
+                subnet_data,
+                block_numbers,
+                interval_hours,
+                log_scale,
+                title="Subnets Price Chart",
             )
-            title = "Subnets Price Chart"
-        console.print(
-            "[dark_sea_green3]Opening price chart in a window. Press Ctrl+C to close.[/dark_sea_green3]"
-        )
-        handler = PyWry()
-        handler.send_html(
-            html=html_content,
-            title=title,
-            width=1200,
-            height=800,
-        )
-        handler.start()
-        await asyncio.sleep(5)
 
-        # TODO: Improve this logic
-        try:
-            while True:
-                if _has_exited(handler):
-                    break
-                await asyncio.sleep(1)
-        except KeyboardInterrupt:
-            pass
-        finally:
-            if not _has_exited(handler):
-                try:
-                    handler.close()
-                except Exception:
-                    pass
+        console.print(
+            "[dark_sea_green3]Opening price chart in a window.[/dark_sea_green3]"
+        )
+        with tempfile.NamedTemporaryFile(
+            "w", delete=False, suffix=".html"
+        ) as dashboard_file:
+            url = f"file://{dashboard_file.name}"
+            dashboard_file.write(html_content)
+
+        webbrowser.open(url, new=1)
     except Exception as e:
         print_error(f"Error generating price chart: {e}")
 
@@ -858,12 +626,3 @@ def _generate_cli_output(subnet_data, block_numbers, interval_hours, log_scale):
             )
 
         console.print(stats_text)
-
-
-def _has_exited(handler) -> bool:
-    """Check if PyWry process has cleanly exited with returncode 0."""
-    return (
-        hasattr(handler, "runner")
-        and handler.runner is not None
-        and handler.runner.returncode == 0
-    )

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        .header-container {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .price-info {
+            max-width: 60%;
+        }
+        .main-price {
+            font-size: 36px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        .price-change {
+            font-size: 18px;
+            margin-left: 8px;
+            font-weight: 500;
+        }
+        .text-green { color: #00FF00; }
+        .text-red   { color: #FF5555; }
+        .text-blue  { color: #87CEEB; }
+        .text-steel { color: #4682B4; }
+        .text-purple{ color: #DDA0DD; }
+        .text-gold  { color: #FFD700; }
+
+        .sub-stats-row {
+            display: flex;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .stat-item {
+            margin-right: 20px;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+        .side-stats {
+            min-width: 220px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .side-stats div {
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+        #chart-container {
+            margin-top: 20px;
+            width: 100%;
+            height: 600px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header-container">
+        <div class="price-info">
+            <div class="main-price">
+                {{ "%.6f"|format(stats.current_price) }} {{ stats.symbol }}
+                <span class="price-change {{ "text-green" if stats.change_pct > 0 else "text-red" }}">
+                    {{  "▲" if stats.change_pct > 0 else "▼" }} {{ "%.2f"|format(change_pct) }}%
+                </span>
+            </div>
+            <div class="sub-stats-row">
+                <div class="stat-item">
+                    {{ interval_hours }}h High: <span class="text-green">{{ "%.6f"|format(stats.high) }} {{ stats.symbol }}</span>
+                </div>
+                <div class="stat-item">
+                    {{ interval_hours }}h Low: <span class="text-red">{{ "%.6f"|format(stats.low) }} {{ stats.symbol }}</span>
+                </div>
+            </div>
+        </div>
+        <div class="side-stats">
+            <div>Supply: <span class="text-blue">{{ "%.2f"|format(stats.supply) }} {{ stats.symbol }}</span></div>
+            <div>Market Cap: <span class="text-steel">{{ "%.2f"|format(stats.market_cap) }} τ</span></div>
+            <div>Emission: <span class="text-purple">{{ "%.2f"|format(stats.emission) }} {{ stats.symbol }}</span></div>
+            <div>Stake: <span class="text-gold">{{ "%.2f"|format(stats.stake) }} {{ stats.symbol }}</span></div>
+        </div>
+    </div>
+    <div id="chart-container"></div>
+    <script>
+        var figData = {{ fig_json|safe }};
+        Plotly.newPlot('chart-container', figData.data, figData.layout);
+    </script>
+</body>
+</html>

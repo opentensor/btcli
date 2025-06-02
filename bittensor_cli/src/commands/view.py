@@ -3,23 +3,16 @@ import os
 import tempfile
 import webbrowser
 import netaddr
-from dataclasses import asdict, is_dataclass
 from typing import Any
-
-from jinja2 import Environment, PackageLoader, select_autoescape
 
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
-from bittensor_cli.src.bittensor.utils import console, WalletLike
+from bittensor_cli.src.bittensor.utils import console, WalletLike, jinja_env
 from bittensor_wallet import Wallet
 from bittensor_cli.src import defaults
 
 
 ROOT_SYMBOL_HTML = f"&#x{ord('τ'):X};"
-env = Environment(
-    loader=PackageLoader("bittensor_cli", "src/bittensor/templates"),
-    autoescape=select_autoescape(),
-)
 
 
 async def display_network_dashboard(
@@ -349,7 +342,7 @@ def generate_full_page(data: dict[str, Any]) -> str:
         ((ideal_value - slippage_value) / ideal_value * 100) if ideal_value > 0 else 0
     )
 
-    template = env.get_template("view.j2")
+    template = jinja_env.get_template("view.j2")
 
     return template.render(
         root_symbol_html=ROOT_SYMBOL_HTML,
