@@ -1,0 +1,40 @@
+name: Ruff Formatter Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  ruff:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9.13"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Set up caching for Ruff virtual environment
+        id: cache-ruff
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: v2-pypi-py-ruff-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            v2-pypi-py-ruff-${{ matrix.python-version }}-
+
+      - name: Set up Ruff virtual environment if cache is missed
+        if: steps.cache-ruff.outputs.cache-hit != 'true'
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install ruff==0.11.5
+
+      - name: Ruff format check
+        run: |
+          .venv/bin/ruff format --diff bittensor_cli
+          .venv/bin/ruff format --diff tests
