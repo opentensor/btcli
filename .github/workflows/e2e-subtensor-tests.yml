@@ -88,7 +88,6 @@ jobs:
           uv venv .venv
           source .venv/bin/activate
           uv pip install .[dev]
-          uv pip install pytest
 
       - name: Download Cached Docker Image
         uses: actions/download-artifact@v4

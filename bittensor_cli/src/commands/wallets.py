@@ -9,7 +9,6 @@ import aiohttp
 from bittensor_wallet import Wallet, Keypair
 from bittensor_wallet.errors import KeyFileError
 from bittensor_wallet.keyfile import Keyfile
-from fuzzywuzzy import fuzz
 from rich import box
 from rich.align import Align
 from rich.table import Column, Table
@@ -1227,16 +1226,11 @@ async def overview(
 
         if sort_by:
             column_to_sort_by: int = 0
-            highest_matching_ratio: int = 0
             sort_descending: bool = False  # Default sort_order to ascending
 
             for index, column in zip(range(len(table.columns)), table.columns):
-                # Fuzzy match the column name. Default to the first column.
                 column_name = column.header.lower().replace("[white]", "")
-                match_ratio = fuzz.ratio(sort_by.lower(), column_name)
-                # Finds the best matching column
-                if match_ratio > highest_matching_ratio:
-                    highest_matching_ratio = match_ratio
+                if column_name == sort_by.lower().strip():
                     column_to_sort_by = index
 
             if sort_order.lower() in {"desc", "descending", "reverse"}:
