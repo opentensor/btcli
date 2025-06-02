@@ -1,5 +1,12 @@
 # Changelog
 
+## 9.5.1 /2025-06-02
+## What's Changed
+* Declare templates in MANIFEST and include package data by @thewhaleking in https://github.com/opentensor/btcli/pull/477
+
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.5.0...v9.5.1
+
 ## 9.5.0 /2025-06-02
 
 ## What's Changed
