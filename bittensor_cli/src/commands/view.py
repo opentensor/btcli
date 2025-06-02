@@ -14,10 +14,12 @@ from bittensor_cli.src.bittensor.utils import console, WalletLike
 from bittensor_wallet import Wallet
 from bittensor_cli.src import defaults
 
-root_symbol_html = f"&#x{ord('τ'):X};"
 
-
-env = Environment(loader=PackageLoader("bittensor"), autoescape=select_autoescape())
+ROOT_SYMBOL_HTML = f"&#x{ord('τ'):X};"
+env = Environment(
+    loader=PackageLoader("bittensor_cli", "src/bittensor/templates"),
+    autoescape=select_autoescape(),
+)
 
 
 async def display_network_dashboard(
@@ -41,30 +43,15 @@ async def display_network_dashboard(
 
         if use_wry:
             console.print(
-                "[dark_sea_green3]Opening dashboard in a window. Press Ctrl+C to close.[/dark_sea_green3]"
+                "[dark_sea_green3]Opening dashboard in a window.[/dark_sea_green3]"
             )
-            window = PyWry()
-            window.send_html(
-                html=html_content,
-                title="Bittensor View",
-                width=1200,
-                height=800,
-            )
-            window.start()
-            await asyncio.sleep(10)
-            try:
-                while True:
-                    if _has_exited(window):
-                        break
-                    await asyncio.sleep(1)
-            except KeyboardInterrupt:
-                console.print("\n[yellow]Closing Bittensor View...[/yellow]")
-            finally:
-                if not _has_exited(window):
-                    try:
-                        window.close()
-                    except Exception:
-                        pass
+            with tempfile.NamedTemporaryFile(
+                "w", delete=False, suffix=".html"
+            ) as dashboard_file:
+                url = f"file://{dashboard_file.name}"
+                dashboard_file.write(html_content)
+
+            webbrowser.open(url, new=1)
         else:
             if save_file:
                 dir_path = os.path.expanduser(dashboard_path)
@@ -365,9 +352,10 @@ def generate_full_page(data: dict[str, Any]) -> str:
     template = env.get_template("view.j2")
 
     return template.render(
-        root_symbol_html=root_symbol_html,
+        root_symbol_html=ROOT_SYMBOL_HTML,
         block_number=block_number,
         truncated_coldkey=truncated_coldkey,
         slippage_percentage=slippage_percentage,
+        wallet_info=wallet_info,
         subnets=data["subnets"],
     )
