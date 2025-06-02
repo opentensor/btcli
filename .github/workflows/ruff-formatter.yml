@@ -1,4 +1,6 @@
 name: Ruff Formatter Check
+permissions:
+  contents: read
 
 on:
   pull_request:
