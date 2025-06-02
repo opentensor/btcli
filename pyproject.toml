@@ -65,8 +65,5 @@ classifiers = [
 ]
 
 [tool.setuptools]
-package-dir = {"" = "bittensor_cli/src"}
+package-dir = {"bittensor_cli" = "bittensor_cli"}
 include-package-data = true
-
-[tool.setuptools.package-data]
-"bittensor_cli" = ["templates/**/*"]
