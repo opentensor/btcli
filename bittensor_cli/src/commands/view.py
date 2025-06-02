@@ -92,7 +92,7 @@ def get_identity(
     hotkey_ss58: str,
     identities: dict,
     old_identities: dict,
-    trucate_length: int = 4,
+    truncate_length: int = 4,
     return_bool: bool = False,
     lookup_hk: bool = True,
 ) -> str:
@@ -114,7 +114,7 @@ def get_identity(
         if return_bool:
             return False
         else:
-            return f"{hotkey_ss58[:trucate_length]}...{hotkey_ss58[-trucate_length:]}"
+            return f"{hotkey_ss58[:truncate_length]}...{hotkey_ss58[-truncate_length:]}"
 
 
 async def fetch_subnet_data(
@@ -253,7 +253,7 @@ def process_subnet_data(raw_data: dict[str, Any]) -> dict[str, Any]:
         # Add identities
         for hotkey in meta_info.hotkeys:
             identity = get_identity(
-                hotkey, ck_hk_identities, old_identities, trucate_length=2
+                hotkey, ck_hk_identities, old_identities, truncate_length=2
             )
             metagraph_info["updated_identities"].append(identity)
 
