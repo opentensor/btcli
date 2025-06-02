@@ -1,0 +1,49 @@
+<div class="subnet-header">
+    <div class="header-row">
+        <button class="back-button">&larr; Back</button>
+        <div class="toggle-group">
+            <label class="toggle-label">
+                <input type="checkbox" id="stake-toggle" onchange="toggleStakeView()">
+                Show Stakes
+            </label>
+            <label class="toggle-label">
+                <input type="checkbox" id="verbose-toggle" onchange="toggleVerboseNumbers()">
+                Precise Numbers
+            </label>
+        </div>
+    </div>
+
+    <div class="subnet-title-row">
+        <div class="title-price">
+            <h2 id="subnet-title"></h2>
+            <div class="subnet-price" id="subnet-price"></div>
+        </div>
+        <div class="network-visualization-container">
+            <div class="network-visualization">
+                <canvas id="network-canvas" width="700" height="80"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="network-metrics">
+        <div class="metric-card network-card">
+            <div class="metric-label">Moving Price</div>
+            <div id="network-moving-price" class="metric-value"></div>
+        </div>
+        <div class="metric-card network-card">
+            <div class="metric-label">Registration</div>
+            <div id="network-registration" class="metric-value registration-status"></div>
+        </div>
+        <div class="metric-card network-card">
+            <div class="metric-label">CR Weights</div>
+            <div id="network-cr" class="metric-value cr-status"></div>
+        </div>
+        <div class="metric-card network-card">
+            <div class="metric-label">Neurons</div>
+            <div id="network-neurons" class="metric-value"></div>
+        </div>
+        <div class="metric-card network-card">
+            <div class="metric-label">Blocks Since Step</div>
+            <div id="network-blocks-since-step" class="metric-value"></div>
+        </div>
+    </div>
+</div>

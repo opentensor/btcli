@@ -1,0 +1,111 @@
+<div id="neuron-detail-container" style="display: none;">
+    <div class="neuron-detail-header">
+        <button class="back-button neuron-detail-back" onclick="closeNeuronDetails()">&larr; Back</button>
+    </div>
+    <div class="neuron-detail-content">
+        <div class="neuron-info-top">
+            <h2 class="neuron-name" id="neuron-name"></h2>
+            <div class="neuron-keys">
+                <div class="hotkey-label">
+                    <span style="color: #FF9900;">Hotkey:</span>
+                    <span id="neuron-hotkey" class="truncated-address"></span>
+                </div>
+                <div class="coldkey-label">
+                    <span style="color: #FF9900;">Coldkey:</span>
+                    <span id="neuron-coldkey" class="truncated-address"></span>
+                </div>
+            </div>
+        </div>
+        <div class="neuron-cards-container">
+            <!-- First row: Stakes, Dividends, Incentive, Emissions -->
+            <div class="neuron-metrics-row">
+                <div class="metric-card">
+                    <div class="metric-label">Stake Weight</div>
+                    <div id="neuron-stake-total" class="metric-value formatted-number"
+                        data-value="0" data-symbol=""></div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-label">Stake (Alpha)</div>
+                    <div id="neuron-stake-token" class="metric-value formatted-number"
+                        data-value="0" data-symbol=""></div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-label">Stake (Root)</div>
+                    <div id="neuron-stake-root" class="metric-value formatted-number"
+                        data-value="0" data-symbol="&#x03C4;"></div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-label">Dividends</div>
+                    <div id="neuron-dividends" class="metric-value formatted-number"
+                        data-value="0" data-symbol=""></div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-label">Incentive</div>
+                    <div id="neuron-incentive" class="metric-value formatted-number"
+                        data-value="0" data-symbol=""></div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-label">Emissions</div>
+                    <div id="neuron-emissions" class="metric-value formatted-number"
+                        data-value="0" data-symbol=""></div>
+                </div>
+            </div>
+
+            <!-- Second row: Rank, Trust, Pruning Score, Validator Permit, Consensus, Last Update -->
+            <div class="neuron-metrics-row">
+                <div class="metric-card">
+                    <div class="metric-label">Rank</div>
+                    <div id="neuron-rank" class="metric-value"></div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-label">Trust</div>
+                    <div id="neuron-trust" class="metric-value"></div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-label">Pruning Score</div>
+                    <div id="neuron-pruning-score" class="metric-value"></div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-label">Validator Permit</div>
+                    <div id="neuron-validator-permit" class="metric-value"></div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-label">Consensus</div>
+                    <div id="neuron-consensus" class="metric-value"></div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-label">Last Update</div>
+                    <div id="neuron-last-update" class="metric-value"></div>
+                </div>
+            </div>
+
+            <!-- Third row: Reg Block, IP Info, Active -->
+            <div class="neuron-metrics-row last-row">
+                <div class="metric-card">
+                    <div class="metric-label">Reg Block</div>
+                    <div id="neuron-reg-block" class="metric-value"></div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-label">IP Info</div>
+                    <div id="neuron-ipinfo" class="metric-value"></div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-label">Active</div>
+                    <div id="neuron-active" class="metric-value"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
