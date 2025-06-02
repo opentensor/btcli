@@ -66,3 +66,4 @@ classifiers = [
 
 [tool.setuptools]
 package-dir = {"bittensor_cli" = "bittensor_cli"}
+include-package-data = true
