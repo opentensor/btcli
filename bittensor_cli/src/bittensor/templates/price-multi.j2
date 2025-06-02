@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ title }}</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 60px;
+        }
+        #multi-subnet-chart {
+            width: 90vw;
+            height: 70vh;
+            margin-bottom: 40px;
+        }
+        .subnet-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 8px;
+            max-height: 120px;
+            overflow-y: auto;
+            padding-right: 10px;
+            margin-top: 50px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding-top: 50px;
+            position: relative;
+            bottom: 0;
+        }
+        .subnet-buttons::-webkit-scrollbar {
+            width: 8px;
+        }
+        .subnet-buttons::-webkit-scrollbar-track {
+            background: rgba(50,50,50,0.3);
+            border-radius: 4px;
+        }
+        .subnet-buttons::-webkit-scrollbar-thumb {
+            background: rgba(100,100,100,0.8);
+            border-radius: 4px;
+        }
+        .subnet-button {
+            background-color: rgba(50,50,50,0.8);
+            border: 1px solid rgba(70,70,70,0.9);
+            color: white;
+            padding: 8px 16px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: background-color 0.2s;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .subnet-button:hover {
+            background-color: rgba(70,70,70,0.9);
+        }
+        .subnet-button.active {
+            background-color: rgba(100,100,100,0.9);
+            border-color: rgba(120,120,120,1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="multi-subnet-chart"></div>
+        <div class="subnet-buttons">
+            <button class="subnet-button active" onclick="setAll()">All</button>
+            {% for netuid in sorted_subnet_keys %}
+                <button class="subnet-button" onclick="setSubnet({{ netuid }})">S{{ netuid }}</button>
+            {% endfor %}
+        </div>
+    </div>
+    <script>
+        const figData = {{ fig_json|safe }};
+        const allVisibility = {{ all_visibility|tojson|safe }};
+        const allAnnotations = {{ all_annotations|tojson|safe }};
+
+        const subnetModes = {{ subnet_modes|tojson|safe }};
+
+        Plotly.newPlot('multi-subnet-chart', figData.data, figData.layout);
+
+        function clearActiveButtons() {
+            document.querySelectorAll('.subnet-button').forEach(btn => btn.classList.remove('active'));
+        }
+
+        function setAll() {
+            clearActiveButtons();
+            event.currentTarget.classList.add('active');
+            Plotly.update('multi-subnet-chart',
+                {visible: allVisibility},
+                {annotations: allAnnotations}
+            );
+        }
+
+        function setSubnet(netuid) {
+            clearActiveButtons();
+            event.currentTarget.classList.add('active');
+            const mode = subnetModes[netuid];
+            Plotly.update('multi-subnet-chart',
+                {visible: mode.visible},
+                {annotations: mode.annotations}
+            );
+        }
+    </script>
+</body>
+</html>

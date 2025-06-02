@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Bittensor CLI Interface</title>
+    <style>
+        {% include 'view.css' %}
+    </style>
+</head>
+<body>
+    <!-- Embedded JSON data used by JS -->
+    <div id="initial-data"
+        data-wallet-info='{wallet_info_json}'
+        data-subnets='{subnets_json}'>
+    </div>
+    <div id="splash-screen">
+        <div class="splash-content">
+            <div class="title-row">
+            <h1 class="splash-title">Btcli View</h1>
+            <span class="beta-text">Beta</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main content area -->
+    <div id="main-content">
+        {% include 'main-header.j2' %}
+        {% include 'main-filters.j2' %}
+        {% include 'subnets-table.j2' %}
+    </div>
+
+    <!-- Subnet details page (hidden by default) -->
+    <div id="subnet-page" style="display: none;">
+        {% include 'subnet-details-header.j2' %}
+        {% include 'subnet-metrics.j2' %}
+        {% include 'neuron-details.j2' %}
+    </div>
+
+    <script>
+        {% include 'view.js' %}
+    </script>
+</body>
+</html>
