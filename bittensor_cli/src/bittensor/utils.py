@@ -840,11 +840,7 @@ def update_metadata_table(table_name: str, values: dict[str, str]) -> None:
     """
     with DB() as (conn, cursor):
         cursor.execute(
-            "CREATE TABLE IF NOT EXISTS metadata ("
-            "TableName TEXT, "
-            "Key TEXT, "
-            "Value TEXT"
-            ")"
+            "CREATE TABLE IF NOT EXISTS metadata (TableName TEXT, Key TEXT, Value TEXT)"
         )
         conn.commit()
         for key, value in values.items():
@@ -1311,7 +1307,7 @@ def validate_rate_tolerance(value: Optional[float]) -> Optional[float]:
             raise typer.BadParameter("Rate tolerance cannot be greater than 1 (100%).")
         if value > 0.5:
             console.print(
-                f"[yellow]Warning: High rate tolerance of {value*100}% specified. "
+                f"[yellow]Warning: High rate tolerance of {value * 100}% specified. "
                 "This may result in unfavorable transaction execution.[/yellow]"
             )
     return value

@@ -94,13 +94,13 @@ def verify_key_pattern(output: str, wallet_name: str) -> Optional[str]:
         match = re.search(pattern, line)
         if match:
             # Assert key starts with '5'
-            assert match.group(1).startswith(
-                "5"
-            ), f"{wallet_name} should start with '5'"
+            assert match.group(1).startswith("5"), (
+                f"{wallet_name} should start with '5'"
+            )
             # Assert length of key is 48 characters
-            assert (
-                len(match.group(1)) == 48
-            ), f"Key for {wallet_name} should be 48 characters long"
+            assert len(match.group(1)) == 48, (
+                f"Key for {wallet_name} should be 48 characters long"
+            )
             found = True
             return match.group(1)
 
@@ -441,9 +441,9 @@ def test_wallet_regen(wallet_setup, capfd):
 
     new_coldkey_mod_time = os.path.getmtime(coldkey_path)
 
-    assert (
-        initial_coldkey_mod_time != new_coldkey_mod_time
-    ), "Coldkey file was not regenerated as expected"
+    assert initial_coldkey_mod_time != new_coldkey_mod_time, (
+        "Coldkey file was not regenerated as expected"
+    )
     json_result = exec_command(
         command="wallet",
         sub_command="regen-coldkey",
@@ -502,9 +502,9 @@ def test_wallet_regen(wallet_setup, capfd):
 
     new_coldkeypub_mod_time = os.path.getmtime(coldkeypub_path)
 
-    assert (
-        initial_coldkeypub_mod_time != new_coldkeypub_mod_time
-    ), "Coldkeypub file was not regenerated as expected"
+    assert initial_coldkeypub_mod_time != new_coldkeypub_mod_time, (
+        "Coldkeypub file was not regenerated as expected"
+    )
     print("Passed wallet regen_coldkeypub command ✅")
 
     # -----------------------------
@@ -537,9 +537,9 @@ def test_wallet_regen(wallet_setup, capfd):
 
     new_hotkey_mod_time = os.path.getmtime(hotkey_path)
 
-    assert (
-        initial_hotkey_mod_time != new_hotkey_mod_time
-    ), "Hotkey file was not regenerated as expected"
+    assert initial_hotkey_mod_time != new_hotkey_mod_time, (
+        "Hotkey file was not regenerated as expected"
+    )
     print("Passed wallet regen_hotkey command ✅")
 
 
@@ -593,9 +593,9 @@ def test_wallet_balance_all(local_chain, wallet_setup, capfd):
     output = result.stdout
 
     for wallet_name in wallet_names:
-        assert (
-            wallet_name in output
-        ), f"Wallet {wallet_name} not found in balance --all output"
+        assert wallet_name in output, (
+            f"Wallet {wallet_name} not found in balance --all output"
+        )
 
     json_results = exec_command(
         "wallet",

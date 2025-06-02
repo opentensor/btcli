@@ -525,7 +525,8 @@ async def set_take_extrinsic(
 
     if current_take_u16 < take_u16:
         console.print(
-            f"Current take is [{COLOR_PALETTE['POOLS']['RATE']}]{current_take * 100.:.2f}%[/{COLOR_PALETTE['POOLS']['RATE']}]. Increasing to [{COLOR_PALETTE['POOLS']['RATE']}]{take * 100:.2f}%."
+            f"Current take is [{COLOR_PALETTE.P.RATE}]{current_take * 100.0:.2f}%[/{COLOR_PALETTE.P.RATE}]. "
+            f"Increasing to [{COLOR_PALETTE.P.RATE}]{take * 100:.2f}%."
         )
         with console.status(
             f":satellite: Sending decrease_take_extrinsic call on [white]{subtensor}[/white] ..."
@@ -542,7 +543,8 @@ async def set_take_extrinsic(
 
     else:
         console.print(
-            f"Current take is [{COLOR_PALETTE['POOLS']['RATE']}]{current_take * 100.:.2f}%[/{COLOR_PALETTE['POOLS']['RATE']}]. Decreasing to [{COLOR_PALETTE['POOLS']['RATE']}]{take * 100:.2f}%."
+            f"Current take is [{COLOR_PALETTE.P.RATE}]{current_take * 100.0:.2f}%[/{COLOR_PALETTE.P.RATE}]. "
+            f"Decreasing to [{COLOR_PALETTE.P.RATE}]{take * 100:.2f}%."
         )
         with console.status(
             f":satellite: Sending increase_take_extrinsic call on [white]{subtensor}[/white] ..."
@@ -871,7 +873,7 @@ async def get_current_take(subtensor: "SubtensorInterface", wallet: Wallet):
 async def display_current_take(subtensor: "SubtensorInterface", wallet: Wallet) -> None:
     current_take = await get_current_take(subtensor, wallet)
     console.print(
-        f"Current take is [{COLOR_PALETTE['POOLS']['RATE']}]{current_take * 100.:.2f}%"
+        f"Current take is [{COLOR_PALETTE.P.RATE}]{current_take * 100.0:.2f}%"
     )
 
 
@@ -891,7 +893,9 @@ async def set_take(
         )
         if not len(netuids_registered) > 0:
             err_console.print(
-                f"Hotkey [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{wallet.hotkey.ss58_address}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}] is not registered to any subnet. Please register using [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]`btcli subnets register`[{COLOR_PALETTE['GENERAL']['SUBHEADING']}] and try again."
+                f"Hotkey [{COLOR_PALETTE.G.HK}]{wallet.hotkey.ss58_address}[/{COLOR_PALETTE.G.HK}] is not registered to"
+                f" any subnet. Please register using [{COLOR_PALETTE.G.SUBHEAD}]`btcli subnets register`"
+                f"[{COLOR_PALETTE.G.SUBHEAD}] and try again."
             )
             return False
 
@@ -908,12 +912,12 @@ async def set_take(
         else:
             new_take = await get_current_take(subtensor, wallet)
             console.print(
-                f"New take is [{COLOR_PALETTE['POOLS']['RATE']}]{new_take * 100.:.2f}%"
+                f"New take is [{COLOR_PALETTE.P.RATE}]{new_take * 100.0:.2f}%"
             )
             return True
 
     console.print(
-        f"Setting take on [{COLOR_PALETTE['GENERAL']['LINKS']}]network: {subtensor.network}"
+        f"Setting take on [{COLOR_PALETTE.G.LINKS}]network: {subtensor.network}"
     )
 
     if not unlock_key(wallet, "hot").success and unlock_key(wallet, "cold").success:
