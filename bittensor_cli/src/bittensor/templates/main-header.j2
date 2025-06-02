@@ -1,0 +1,36 @@
+{#
+    vars:
+        wallet_info.coldkey, truncated_coldkey, wallet_info.balance, root_symbol_html, wallet_info.total_ideal_stake_value,
+        slippage_percentage, wallet_info.total_slippage_value, block_number
+#}
+
+<div class="header">
+    <meta charset="UTF-8">
+    <div class="wallet-info">
+        <span class="wallet-name">{{ wallet_info.name }}</span>
+        <div class="wallet-address-container" onclick="copyToClipboard('{{ coldkey }}', this)">
+            <span class="wallet-address" title="Click to copy">{{ truncated_coldkey }}}</span>
+            <span class="copy-indicator">Copy</span>
+        </div>
+    </div>
+    <div class="stake-metrics">
+        <div class="stake-metric">
+            <span class="metric-label">Block</span>
+            <span class="metric-value" style="color: #FF9900;">{{ block_number }}</span>
+        </div>
+        <div class="stake-metric">
+            <span class="metric-label">Balance</span>
+            <span class="metric-value">{{ "%.4f"|format(wallet_info.balance) }} {{ root_symbol_html }}</span>
+        </div>
+        <div class="stake-metric">
+            <span class="metric-label">Total Stake Value</span>
+            <span class="metric-value">{{ "%.4f"|format(wallet_info.total_ideal_stake_value) }} {{ root_symbol_html }}</span>
+        </div>
+        <div class="stake-metric">
+            <span class="metric-label">Slippage Impact</span>
+            <span class="metric-value slippage-value">
+                {{ "%.2f"|format(slippage_percentage) }}% <span class="slippage-detail">({{ "%.4f"|format(wallet_info.total_slippage_value) }} {{ root_symbol_html }})</span>
+            </span>
+        </div>
+    </div>
+</div>

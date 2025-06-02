@@ -1,0 +1,24 @@
+<div class="filters-section">
+    <div class="search-box">
+        <input type="text" id="subnet-search" placeholder="search for name, or netuid..." onkeyup="filterSubnets()">
+    </div>
+    <div class="filter-toggles">
+        <label>
+            <input type="checkbox" id="show-verbose" onchange="toggleVerboseNumbers()">
+            Precise Numbers
+        </label>
+        <label>
+            <input type="checkbox" id="show-staked" onchange="filterSubnets()">
+            Show Only Staked
+        </label>
+        <label>
+            <input type="checkbox" id="show-tiles" onchange="toggleTileView()" checked>
+            Tile View
+        </label>
+        <label class="disabled-label" title="Coming soon">
+            <input type="checkbox" id="live-mode" disabled>
+            Live Mode (coming soon)
+        </label>
+    </div>
+</div>
+<div id="subnet-tiles-container" class="subnet-tiles-container"></div>

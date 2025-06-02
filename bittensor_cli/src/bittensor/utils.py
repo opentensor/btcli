@@ -15,7 +15,7 @@ from bittensor_wallet import Wallet, Keypair
 from bittensor_wallet.utils import SS58_FORMAT
 from bittensor_wallet.errors import KeyFileError, PasswordError
 from bittensor_wallet import utils
-from jinja2 import Template
+from jinja2 import Template, Environment, PackageLoader, select_autoescape
 from markupsafe import Markup
 import numpy as np
 from numpy.typing import NDArray
@@ -37,6 +37,11 @@ console = Console()
 json_console = Console()
 err_console = Console(stderr=True)
 verbose_console = Console(quiet=True)
+
+jinja_env = Environment(
+    loader=PackageLoader("bittensor_cli", "src/bittensor/templates"),
+    autoescape=select_autoescape(),
+)
 
 UnlockStatus = namedtuple("UnlockStatus", ["success", "message"])
 
@@ -835,11 +840,7 @@ def update_metadata_table(table_name: str, values: dict[str, str]) -> None:
     """
     with DB() as (conn, cursor):
         cursor.execute(
-            "CREATE TABLE IF NOT EXISTS metadata ("
-            "TableName TEXT, "
-            "Key TEXT, "
-            "Value TEXT"
-            ")"
+            "CREATE TABLE IF NOT EXISTS metadata (TableName TEXT, Key TEXT, Value TEXT)"
         )
         conn.commit()
         for key, value in values.items():
@@ -1295,37 +1296,6 @@ def get_subnet_name(subnet_info, max_length: int = 20) -> str:
     return name
 
 
-def print_linux_dependency_message():
-    """Prints the WebKit dependency message for Linux systems."""
-    console.print("[red]This command requires WebKit dependencies on Linux.[/red]")
-    console.print(
-        "\nPlease make sure these packages are installed on your system for PyWry to work:"
-    )
-    console.print("\nArch Linux / Manjaro:")
-    console.print("[green]sudo pacman -S webkit2gtk[/green]")
-    console.print("\nDebian / Ubuntu:")
-    console.print("[green]sudo apt install libwebkit2gtk-4.0-dev[/green]")
-    console.print("\nNote for Ubuntu 24.04+ & Debian 13+:")
-    console.print("You may need these additional steps to install libwebkit2gtk:")
-    console.print(
-        "\tCreate a new source file with: [green]sudo vim /etc/apt/sources.list.d/jammy-temp.list[/green]"
-    )
-    console.print(
-        "\tAdd this into the file and save: [green]deb http://archive.ubuntu.com/ubuntu jammy main universe[/green]"
-    )
-    console.print(
-        "\tUpdate the repository and install the webkit dependency: [green]sudo apt update && sudo apt install "
-        "libwebkit2gtk-4.0-dev[/green]"
-    )
-    console.print("\nFedora / CentOS / AlmaLinux:")
-    console.print("[green]sudo dnf install gtk3-devel webkit2gtk3-devel[/green]\n\n")
-
-
-def is_linux():
-    """Returns True if the operating system is Linux."""
-    return platform.system().lower() == "linux"
-
-
 def validate_rate_tolerance(value: Optional[float]) -> Optional[float]:
     """Validates rate tolerance input"""
     if value is not None:
@@ -1337,7 +1307,7 @@ def validate_rate_tolerance(value: Optional[float]) -> Optional[float]:
             raise typer.BadParameter("Rate tolerance cannot be greater than 1 (100%).")
         if value > 0.5:
             console.print(
-                f"[yellow]Warning: High rate tolerance of {value*100}% specified. "
+                f"[yellow]Warning: High rate tolerance of {value * 100}% specified. "
                 "This may result in unfavorable transaction execution.[/yellow]"
             )
     return value

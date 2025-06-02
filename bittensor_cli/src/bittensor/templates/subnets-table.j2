@@ -1,0 +1,28 @@
+<div class="subnets-table-container">
+    <table class="subnets-table">
+        <thead>
+            <tr>
+                <th class="sortable" onclick="sortMainTable(0)">Subnet</th>
+                <th class="sortable" onclick="sortMainTable(1)">Price</th>
+                <th class="sortable" onclick="sortMainTable(2)" data-sort="desc">Market Cap</th>
+                <th class="sortable" onclick="sortMainTable(3)">Your Stake</th>
+                <th class="sortable" onclick="sortMainTable(4)">Emission</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for subnet in subnets %}
+                {% set total_your_stake = subnet.your_stakes|sum(attribute="amount") %}
+                {% set stake_status = 'Staked' if total_your_stake > 0 else 'Not Staked' %}
+                <tr class="subnet-row" onclick="showSubnetPage({{subnet.netuid}})">
+                    <td class="subnet-name" data-value="{{subnet.netuid}}"><span style="color: #FF9900">{{subnet.netuid}}</span> - {{subnet.name}}</td>
+                    <td class="price" data-value="{{subnet.price}}"><span class="formatted-number" data-value="{{subnet.price}}" data-symbol="{{subnet.symbol}}"></span></td>
+                    <td class="market-cap" data-value="{{subnet.market_cap}}"><span class="formatted-number" data-value="{{subnet.market_cap}}" data-symbol="{{root_symbol_html}}"></span></td>
+                    <td class="your-stake" data-value="{{total_your_stake}}"><span class="formatted-number" data-value="{{total_your_stake}}" data-symbol="{{subnet.symbol}}"></span></td>
+                    <td class="emission" data-value="{{subnet.emission}}"><span class="formatted-number" data-value="{{subnet.emission}}" data-symbol="{{root_symbol_html}}"></span></td>
+                    <td class="stake-status-cell"><span class="stake-status {{'staked' if total_your_stake > 0 else 'unstaked'}}">{{stake_status}}</span></td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

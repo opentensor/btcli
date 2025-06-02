@@ -1,5 +1,14 @@
 # Changelog
 
+## 9.5.0 /2025-06-02
+
+## What's Changed
+* Replace PyWry by @thewhaleking in https://github.com/opentensor/btcli/pull/472
+* Remove fuzzywuzzy by @thewhaleking in https://github.com/opentensor/btcli/pull/473
+* Add ruff formatter by @thewhaleking in https://github.com/opentensor/btcli/pull/474
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.4.4...v9.5.0
+
 ## 9.4.4 /2025-04-29
 
 ## What's Changed

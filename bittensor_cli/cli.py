@@ -67,8 +67,6 @@ from bittensor_cli.src.bittensor.utils import (
     prompt_for_identity,
     validate_uri,
     prompt_for_subnet_identity,
-    print_linux_dependency_message,
-    is_linux,
     validate_rate_tolerance,
 )
 
@@ -4875,9 +4873,6 @@ class CLIManager:
         if all_netuids and not json_output:
             html_output = True
 
-        if html_output and is_linux():
-            print_linux_dependency_message()
-
         return self._run_command(
             price.price(
                 self.initialize_chain(network),
@@ -5655,7 +5650,7 @@ class CLIManager:
             help="Coldkey SS58 address to view dashboard for",
         ),
         use_wry: bool = typer.Option(
-            False, "--use-wry", help="Use PyWry instead of browser window"
+            False, "--use-wry", "--html", help="Display output in browser window."
         ),
         save_file: bool = typer.Option(
             False, "--save-file", "--save", help="Save the dashboard HTML file"
@@ -5668,12 +5663,10 @@ class CLIManager:
         Display html dashboard with subnets list, stake, and neuron information.
         """
         self.verbosity_handler(quiet, verbose)
-        if use_wry and is_linux():
-            print_linux_dependency_message()
 
         if use_wry and save_file:
-            print_error("Cannot save file when using PyWry.")
-            raise typer.Exit()
+            print_error("Cannot save file when using browser output.")
+            return
 
         if save_file:
             if not dashboard_path:
