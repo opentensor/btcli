@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 async def stake_add(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
-    netuid: Optional[int],
+    netuids: Optional[list[int]],
     stake_all: bool,
     amount: float,
     prompt: bool,
@@ -48,7 +48,7 @@ async def stake_add(
     Args:
         wallet: wallet object
         subtensor: SubtensorInterface object
-        netuid: the netuid to stake to (None indicates all subnets)
+        netuids: the netuids to stake to (None indicates all subnets)
         stake_all: whether to stake all available balance
         amount: specified amount of balance to stake
         prompt: whether to prompt the user
@@ -233,9 +233,7 @@ async def stake_add(
                 return True
 
     netuids = (
-        [int(netuid)]
-        if netuid is not None
-        else await subtensor.get_all_subnet_netuids()
+        netuids if netuids is not None else await subtensor.get_all_subnet_netuids()
     )
 
     hotkeys_to_stake_to = _get_hotkeys_to_stake_to(
@@ -445,10 +443,10 @@ def _prompt_stake_amount(
     while True:
         amount_input = Prompt.ask(
             f"\nEnter the amount to {action_name}"
-            f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{Balance.get_unit(netuid)}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] "
-            f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}](max: {current_balance})[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] "
+            f"[{COLOR_PALETTE.S.STAKE_AMOUNT}]{Balance.get_unit(netuid)}[/{COLOR_PALETTE.S.STAKE_AMOUNT}] "
+            f"[{COLOR_PALETTE.S.STAKE_AMOUNT}](max: {current_balance})[/{COLOR_PALETTE.S.STAKE_AMOUNT}] "
             f"or "
-            f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]'all'[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] "
+            f"[{COLOR_PALETTE.S.STAKE_AMOUNT}]'all'[/{COLOR_PALETTE.S.STAKE_AMOUNT}] "
             f"for entire balance"
         )
 
@@ -463,7 +461,7 @@ def _prompt_stake_amount(
             if amount > current_balance.tao:
                 console.print(
                     f"[red]Amount exceeds available balance of "
-                    f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{current_balance}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
+                    f"[{COLOR_PALETTE.S.STAKE_AMOUNT}]{current_balance}[/{COLOR_PALETTE.S.STAKE_AMOUNT}]"
                     f"[/red]"
                 )
                 continue
@@ -542,10 +540,10 @@ def _define_stake_table(
         Table: An initialized rich Table object with appropriate columns
     """
     table = Table(
-        title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Staking to:\n"
-        f"Wallet: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.name}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}], "
-        f"Coldkey ss58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
-        f"Network: {subtensor.network}[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n",
+        title=f"\n[{COLOR_PALETTE.G.HEADER}]Staking to:\n"
+        f"Wallet: [{COLOR_PALETTE.G.CK}]{wallet.name}[/{COLOR_PALETTE.G.CK}], "
+        f"Coldkey ss58: [{COLOR_PALETTE.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE.G.CK}]\n"
+        f"Network: {subtensor.network}[/{COLOR_PALETTE.G.HEADER}]\n",
         show_footer=True,
         show_edge=False,
         header_style="bold white",
@@ -609,9 +607,13 @@ def _print_table_and_slippage(table: Table, max_slippage: float, safe_staking: b
 
     # Greater than 5%
     if max_slippage > 5:
-        message = f"[{COLOR_PALETTE['STAKE']['SLIPPAGE_TEXT']}]-------------------------------------------------------------------------------------------------------------------\n"
-        message += f"[bold]WARNING:[/bold]  The slippage on one of your operations is high: [{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}]{max_slippage} %[/{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}], this may result in a loss of funds.\n"
-        message += "-------------------------------------------------------------------------------------------------------------------\n"
+        message = (
+            f"[{COLOR_PALETTE.S.SLIPPAGE_TEXT}]" + ("-" * 115) + "\n"
+            f"[bold]WARNING:[/bold]  The slippage on one of your operations is high: "
+            f"[{COLOR_PALETTE.S.SLIPPAGE_PERCENT}]{max_slippage} %[/{COLOR_PALETTE.S.SLIPPAGE_PERCENT}], "
+            f"this may result in a loss of funds.\n" + ("-" * 115) + "\n"
+        )
+
         console.print(message)
 
     # Table description

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import asyncio
 import curses
+import copy
 import importlib
 import json
 import os.path
@@ -10,7 +11,7 @@ import sys
 import traceback
 import warnings
 from pathlib import Path
-from typing import Coroutine, Optional
+from typing import Coroutine, Optional, Union
 from dataclasses import fields
 
 import rich
@@ -88,6 +89,23 @@ class Options:
     """
     Re-usable typer args
     """
+
+    @classmethod
+    def edit_help(cls, option_name: str, help_text: str):
+        """
+        Edits the `help` attribute of a copied given Typer option in this class, returning
+        the modified Typer option.
+
+        Args:
+            option_name: the name of the option (e.g. "wallet_name")
+            help_text: New help text to be used (e.g. "Wallet's name")
+
+        Returns:
+            Modified Typer Option with new help text.
+        """
+        copied_attr = copy.copy(getattr(cls, option_name))
+        setattr(copied_attr, "help", help_text)
+        return copied_attr
 
     wallet_name = typer.Option(
         None,
@@ -370,16 +388,18 @@ def verbosity_console_handler(verbosity_level: int = 1) -> None:
         json_console.quiet = False
 
 
-def get_optional_netuid(netuid: Optional[int], all_netuids: bool) -> Optional[int]:
+def get_optional_netuid(
+    netuid: Optional[Union[int, list[int]]], all_netuids: bool
+) -> Optional[int]:
     """
     Parses options to determine if the user wants to use a specific netuid or all netuids (None)
 
     Returns:
         None if using all netuids, otherwise int for the netuid to use
     """
-    if netuid is None and all_netuids is True:
+    if (blank_netuid := (netuid is None or netuid == [])) and all_netuids is True:
         return None
-    elif netuid is None and all_netuids is False:
+    elif blank_netuid and all_netuids is False:
         answer = Prompt.ask(
             f"Enter the [{COLORS.G.SUBHEAD_MAIN}]netuid"
             f"[/{COLORS.G.SUBHEAD_MAIN}] to use. Leave blank for all netuids",
@@ -3202,7 +3222,11 @@ class CLIManager:
             help="When set, this command stakes to all hotkeys associated with the wallet. Do not use if specifying "
             "hotkeys in `--include-hotkeys`.",
         ),
-        netuid: Optional[int] = Options.netuid_not_req,
+        netuids: Optional[str] = Options.edit_help(
+            "netuids",
+            "Netuid(s) to for which to add stake. Specify multiple netuids by separating with a comma, e.g."
+            "`btcli st add -n 1,2,3",
+        ),
         all_netuids: bool = Options.all_netuids,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
@@ -3242,19 +3266,29 @@ class CLIManager:
         6. Stake all balance to a subnet:
             [green]$[/green] btcli stake add --all --netuid 3
 
+        7. Stake the same amount to multiple subnets:
+            [green]$[/green] btcli stake add --amount 100 --netuids 4,5,6
+
         [bold]Safe Staking Parameters:[/bold]
         • [blue]--safe[/blue]: Enables rate tolerance checks
         • [blue]--tolerance[/blue]: Maximum % rate change allowed (0.05 = 5%)
         • [blue]--partial[/blue]: Complete partial stake if rates exceed tolerance
 
         """
+        netuids = netuids or []
+        if netuids:
+            netuids = parse_to_list(
+                netuids, int, "Netuids must be ints separated by commas", False
+            )
         self.verbosity_handler(quiet, verbose, json_output)
         safe_staking = self.ask_safe_staking(safe_staking)
         if safe_staking:
             rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
             allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
             console.print("\n")
-        netuid = get_optional_netuid(netuid, all_netuids)
+        if not netuids:
+            netuid_ = get_optional_netuid(netuids, all_netuids)
+            netuids = [netuid_] if netuid_ else None
 
         if stake_all and amount:
             print_error(
@@ -3285,9 +3319,10 @@ class CLIManager:
                     "Enter the [blue]wallet name[/blue]",
                     default=self.config.get("wallet_name") or defaults.wallet.name,
                 )
-            if netuid is not None:
+            if netuids is not None:
                 hotkey_or_ss58 = Prompt.ask(
-                    "Enter the [blue]wallet hotkey[/blue] name or [blue]ss58 address[/blue] to stake to [dim](or Press Enter to view delegates)[/dim]",
+                    "Enter the [blue]wallet hotkey[/blue] name or [blue]ss58 address[/blue] to stake to [dim]"
+                    "(or Press Enter to view delegates)[/dim]",
                 )
             else:
                 hotkey_or_ss58 = Prompt.ask(
@@ -3299,10 +3334,18 @@ class CLIManager:
                 wallet = self.wallet_ask(
                     wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
                 )
+                if len(netuids) > 1:
+                    netuid_ = IntPrompt.ask(
+                        "Enter the netuid for which to show delegates",
+                        choices=[str(x) for x in netuids],
+                    )
+                else:
+                    netuid_ = netuids[0]
+
                 selected_hotkey = self._run_command(
                     subnets.show(
                         subtensor=self.initialize_chain(network),
-                        netuid=netuid,
+                        netuid=netuid_,
                         sort=False,
                         max_rows=12,
                         prompt=False,
@@ -3312,7 +3355,7 @@ class CLIManager:
                 )
                 if not selected_hotkey:
                     print_error("No delegate selected. Exiting.")
-                    raise typer.Exit()
+                    return
                 include_hotkeys = selected_hotkey
             elif is_valid_ss58_address(hotkey_or_ss58):
                 wallet = self.wallet_ask(
@@ -3373,8 +3416,8 @@ class CLIManager:
             )
             if free_balance == Balance.from_tao(0):
                 print_error("You dont have any balance to stake.")
-                raise typer.Exit()
-            if netuid is not None:
+                return
+            if netuids:
                 amount = FloatPrompt.ask(
                     f"Amount to [{COLORS.G.SUBHEAD_MAIN}]stake (TAO τ)"
                 )
@@ -3396,7 +3439,7 @@ class CLIManager:
             add_stake.stake_add(
                 wallet,
                 self.initialize_chain(network),
-                netuid,
+                netuids,
                 stake_all,
                 amount,
                 prompt,
@@ -4796,12 +4839,9 @@ class CLIManager:
     def subnets_price(
         self,
         network: Optional[list[str]] = Options.network,
-        netuids: str = typer.Option(
-            None,
-            "--netuids",
-            "--netuid",
-            "-n",
-            help="Netuid(s) to show the price for.",
+        netuids: str = Options.edit_help(
+            "netuids",
+            "Netuids to show the price for. Separate multiple netuids with a comma, for example: `-n 0,1,2`.",
         ),
         interval_hours: int = typer.Option(
             24,
