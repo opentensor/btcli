@@ -36,6 +36,7 @@ def test_staking(local_chain, wallet_setup):
     """
     print("Testing staking and sudo commands🧪")
     netuid = 2
+    multiple_netuids = [2, 3]
     wallet_path_alice = "//Alice"
 
     # Create wallet for Alice
@@ -91,7 +92,42 @@ def test_staking(local_chain, wallet_setup):
     )
     result_output = json.loads(result.stdout)
     assert result_output["success"] is True
-    assert result_output["netuid"] == 2
+    assert result_output["netuid"] == netuid
+
+    # Register another subnet with sudo as Alice
+    result_for_second_repo = exec_command_alice(
+        command="subnets",
+        sub_command="create",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--subnet-name",
+            "Test Subnet",
+            "--repo",
+            "https://github.com/username/repo",
+            "--contact",
+            "alice@opentensor.dev",
+            "--url",
+            "https://testsubnet.com",
+            "--discord",
+            "alice#1234",
+            "--description",
+            "A test subnet for e2e testing",
+            "--additional-info",
+            "Created by Alice",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+    result_output_second = json.loads(result_for_second_repo.stdout)
+    assert result_output_second["success"] is True
+    assert result_output_second["netuid"] == multiple_netuids[1]
 
     # Register Alice in netuid = 1 using her hotkey
     register_subnet = exec_command_alice(
@@ -192,7 +228,7 @@ def test_staking(local_chain, wallet_setup):
     assert get_identity_output["additional"] == sn_add_info
 
     # Add stake to Alice's hotkey
-    add_stake = exec_command_alice(
+    add_stake_single = exec_command_alice(
         command="stake",
         sub_command="add",
         extra_args=[
@@ -216,10 +252,10 @@ def test_staking(local_chain, wallet_setup):
             "144",
         ],
     )
-    assert "✅ Finalized" in add_stake.stdout, add_stake.stderr
+    assert "✅ Finalized" in add_stake_single.stdout, add_stake_single.stderr
 
     # Execute stake show for Alice's wallet
-    show_stake = exec_command_alice(
+    show_stake_adding_single = exec_command_alice(
         command="stake",
         sub_command="list",
         extra_args=[
@@ -235,7 +271,8 @@ def test_staking(local_chain, wallet_setup):
 
     # Assert correct stake is added
     cleaned_stake = [
-        re.sub(r"\s+", " ", line) for line in show_stake.stdout.splitlines()
+        re.sub(r"\s+", " ", line)
+        for line in show_stake_adding_single.stdout.splitlines()
     ]
     stake_added = cleaned_stake[8].split("│")[3].strip().split()[0]
     assert Balance.from_tao(float(stake_added)) >= Balance.from_tao(90)
@@ -283,6 +320,36 @@ def test_staking(local_chain, wallet_setup):
         ],
     )
     assert "✅ Finalized" in remove_stake.stdout
+
+    add_stake_multiple = exec_command_alice(
+        command="stake",
+        sub_command="add",
+        extra_args=[
+            "--netuids",
+            ",".join(str(x) for x in multiple_netuids),
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--hotkey",
+            wallet_alice.hotkey_str,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--amount",
+            "100",
+            "--tolerance",
+            "0.1",
+            "--partial",
+            "--no-prompt",
+            "--era",
+            "144",
+        ],
+    )
+    assert "✅ Finalized" in add_stake_multiple.stdout, add_stake_multiple.stderr
+    for netuid_ in multiple_netuids:
+        assert f"Stake added to netuid: {netuid_}" in add_stake_multiple.stdout, (
+            add_stake_multiple.stderr
+        )
 
     # Fetch the hyperparameters of the subnet
     hyperparams = exec_command_alice(

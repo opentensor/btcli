@@ -388,18 +388,16 @@ def verbosity_console_handler(verbosity_level: int = 1) -> None:
         json_console.quiet = False
 
 
-def get_optional_netuid(
-    netuid: Optional[Union[int, list[int]]], all_netuids: bool
-) -> Optional[int]:
+def get_optional_netuid(netuid: Optional[int], all_netuids: bool) -> Optional[int]:
     """
     Parses options to determine if the user wants to use a specific netuid or all netuids (None)
 
     Returns:
         None if using all netuids, otherwise int for the netuid to use
     """
-    if (blank_netuid := (netuid is None or netuid == [])) and all_netuids is True:
+    if netuid is None and all_netuids is True:
         return None
-    elif blank_netuid and all_netuids is False:
+    elif netuid is None and all_netuids is False:
         answer = Prompt.ask(
             f"Enter the [{COLORS.G.SUBHEAD_MAIN}]netuid"
             f"[/{COLORS.G.SUBHEAD_MAIN}] to use. Leave blank for all netuids",
@@ -3276,29 +3274,42 @@ class CLIManager:
 
         """
         netuids = netuids or []
-        if netuids:
-            netuids = parse_to_list(
-                netuids, int, "Netuids must be ints separated by commas", False
-            )
         self.verbosity_handler(quiet, verbose, json_output)
         safe_staking = self.ask_safe_staking(safe_staking)
         if safe_staking:
             rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
             allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
             console.print("\n")
-        if not netuids:
-            netuid_ = get_optional_netuid(netuids, all_netuids)
+
+        if netuids:
+            netuids = parse_to_list(
+                netuids, int, "Netuids must be ints separated by commas", False
+            )
+        else:
+            netuid_ = get_optional_netuid(None, all_netuids)
             netuids = [netuid_] if netuid_ else None
+        if netuids:
+            for netuid_ in netuids:
+                # ensure no negative netuids make it into our list
+                validate_netuid(netuid_)
 
         if stake_all and amount:
             print_error(
                 "Cannot specify an amount and 'stake-all'. Choose one or the other."
             )
-            raise typer.Exit()
+            return
 
         if stake_all and not amount:
             if not Confirm.ask("Stake all the available TAO tokens?", default=False):
-                raise typer.Exit()
+                return
+
+        if (
+            stake_all
+            and (isinstance(netuids, list) and len(netuids) > 1)
+            or (netuids is None)
+        ):
+            print_error("Cannot stake all to multiple subnets.")
+            return
 
         if all_hotkeys and include_hotkeys:
             print_error(
