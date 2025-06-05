@@ -33,6 +33,9 @@ if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
     from rich.prompt import PromptBase
 
+BT_DOCS_LINK = "https://docs.bittensor.com"
+
+
 console = Console()
 json_console = Console()
 err_console = Console(stderr=True)
@@ -527,10 +530,11 @@ def format_error_message(error_message: Union[dict, Exception]) -> str:
                     elif all(x in d for x in ["code", "message", "data"]):
                         new_error_message = d
                         break
-            except ValueError:
+            except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
                 pass
         if new_error_message is None:
             return_val = " ".join(error_message.args)
+
             return f"Subtensor returned: {return_val}"
         else:
             error_message = new_error_message
@@ -549,8 +553,7 @@ def format_error_message(error_message: Union[dict, Exception]) -> str:
             # subtensor custom error marker
             if err_data.startswith("Custom error:"):
                 err_description = (
-                    f"{err_data} | Please consult "
-                    f"https://docs.bittensor.com/subtensor-nodes/subtensor-error-messages"
+                    f"{err_data} | Please consult {BT_DOCS_LINK}/errors/custom"
                 )
             else:
                 err_description = err_data
@@ -563,10 +566,20 @@ def format_error_message(error_message: Union[dict, Exception]) -> str:
             err_type = error_message.get("type", err_type)
             err_name = error_message.get("name", err_name)
             err_docs = error_message.get("docs", [err_description])
-            if isinstance(err_docs, list):
-                err_description = " ".join(err_docs)
-            else:
-                err_description = err_docs
+            err_description = " ".join(err_docs)
+            err_description += (
+                f" | Please consult {BT_DOCS_LINK}/errors/subtensor#{err_name.lower()}"
+            )
+
+        elif error_message.get("code") and error_message.get("message"):
+            err_type = error_message.get("code", err_name)
+            err_name = "Custom type"
+            err_description = error_message.get("message", err_description)
+
+        else:
+            print_error(
+                f"String representation of real error_message: {str(error_message)}"
+            )
 
     return f"Subtensor returned `{err_name}({err_type})` error. This means: `{err_description}`."
 

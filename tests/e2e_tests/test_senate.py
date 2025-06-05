@@ -76,7 +76,7 @@ def test_senate(local_chain, wallet_setup):
             "--no-prompt",
         ],
     )
-    assert "✅ Registered" in root_register.stdout
+    assert "✅ Registered" in root_register.stdout, root_register.stderr
 
     # Fetch the senate members after registering to root
     root_senate_after_reg = exec_command_bob(
@@ -89,7 +89,9 @@ def test_senate(local_chain, wallet_setup):
     )
 
     # Assert Bob is now part of the senate
-    assert wallet_bob.hotkey.ss58_address in root_senate_after_reg.stdout
+    assert wallet_bob.hotkey.ss58_address in root_senate_after_reg.stdout, (
+        root_senate_after_reg.stderr
+    )
 
     # Manually add a proposal on the chain & assert
     success = asyncio.run(call_add_proposal(local_chain, wallet_bob))
