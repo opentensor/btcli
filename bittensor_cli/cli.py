@@ -3316,13 +3316,13 @@ class CLIManager:
                 "You have specified hotkeys to include and also the `--all-hotkeys` flag. The flag"
                 "should only be used standalone (to use all hotkeys) or with `--exclude-hotkeys`."
             )
-            raise typer.Exit()
+            return
 
         if include_hotkeys and exclude_hotkeys:
             print_error(
                 "You have specified options for both including and excluding hotkeys. Select one or the other."
             )
-            raise typer.Exit()
+            return
 
         if not wallet_hotkey and not all_hotkeys and not include_hotkeys:
             if not wallet_name:

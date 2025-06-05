@@ -343,12 +343,22 @@ def test_staking(local_chain, wallet_setup):
             "--no-prompt",
             "--era",
             "144",
+            "--json-output",
         ],
     )
-    assert "✅ Finalized" in add_stake_multiple.stdout, add_stake_multiple.stderr
+    add_stake_multiple_output = json.loads(add_stake_multiple.stdout)
     for netuid_ in multiple_netuids:
-        assert f"Stake added to netuid: {netuid_}" in add_stake_multiple.stdout, (
-            add_stake_multiple.stderr
+        assert (
+            add_stake_multiple_output["staking_success"][str(netuid_)][
+                wallet_alice.hotkey.ss58_address
+            ]
+            is True
+        )
+        assert (
+            add_stake_multiple_output["error_messages"][str(netuid_)][
+                wallet_alice.hotkey.ss58_address
+            ]
+            == ""
         )
 
     # Fetch the hyperparameters of the subnet
