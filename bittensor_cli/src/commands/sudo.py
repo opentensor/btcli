@@ -92,6 +92,8 @@ def search_metadata(
     """
 
     def string_to_bool(val) -> bool:
+        if isinstance(val, bool):
+            return val
         try:
             return {"true": True, "1": True, "0": False, "false": False}[val.lower()]
         except KeyError:
@@ -115,6 +117,7 @@ def search_metadata(
     for pallet in metadata.pallets:
         if pallet.name == "AdminUtils":
             for call in pallet.calls:
+                print(call.name)
                 if call.name == param_name:
                     if "netuid" not in [x.name for x in call.args]:
                         return False, None
