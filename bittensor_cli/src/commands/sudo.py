@@ -73,6 +73,13 @@ def allowed_value(
     return True, value
 
 
+def string_to_bool(val) -> bool:
+    try:
+        return {"true": True, "1": True, "0": False, "false": False}[val.lower()]
+    except KeyError:
+        return ValueError
+
+
 def search_metadata(
     param_name: str, value: Union[str, bool, float, list[float]], netuid: int, metadata
 ) -> tuple[bool, Optional[dict]]:
@@ -91,12 +98,6 @@ def search_metadata(
 
     """
 
-    def string_to_bool(val) -> bool:
-        try:
-            return {"true": True, "1": True, "0": False, "false": False}[val.lower()]
-        except KeyError:
-            return ValueError
-
     def type_converter_with_retry(type_, val, arg_name):
         try:
             if val is None:
@@ -112,29 +113,47 @@ def search_metadata(
 
     call_crafter = {"netuid": netuid}
 
-    for pallet in metadata.pallets:
-        if pallet.name == "AdminUtils":
-            for call in pallet.calls:
-                if call.name == param_name:
-                    if "netuid" not in [x.name for x in call.args]:
-                        return False, None
-                    call_args = [
-                        arg for arg in call.args if arg.value["name"] != "netuid"
-                    ]
-                    if len(call_args) == 1:
-                        arg = call_args[0].value
-                        call_crafter[arg["name"]] = type_converter_with_retry(
-                            arg["typeName"], value, arg["name"]
-                        )
-                    else:
-                        for arg_ in call_args:
-                            arg = arg_.value
-                            call_crafter[arg["name"]] = type_converter_with_retry(
-                                arg["typeName"], None, arg["name"]
-                            )
-                    return True, call_crafter
+    pallet = metadata.get_metadata_pallet("AdminUtils")
+    for call in pallet.calls:
+        if call.name == param_name:
+            if "netuid" not in [x.name for x in call.args]:
+                return False, None
+            call_args = [arg for arg in call.args if arg.value["name"] != "netuid"]
+            if len(call_args) == 1:
+                arg = call_args[0].value
+                call_crafter[arg["name"]] = type_converter_with_retry(
+                    arg["typeName"], value, arg["name"]
+                )
+            else:
+                for arg_ in call_args:
+                    arg = arg_.value
+                    call_crafter[arg["name"]] = type_converter_with_retry(
+                        arg["typeName"], None, arg["name"]
+                    )
+            return True, call_crafter
     else:
         return False, None
+
+
+def requires_bool(metadata, param_name) -> bool:
+    """
+    Determines whether a given hyperparam takes a single arg (besides netuid) that is of bool type.
+    """
+    pallet = metadata.get_metadata_pallet("AdminUtils")
+    for call in pallet.calls:
+        if call.name == param_name:
+            if "netuid" not in [x.name for x in call.args]:
+                return False, None
+            call_args = [arg for arg in call.args if arg.value["name"] != "netuid"]
+            if len(call_args) != 1:
+                return False
+            else:
+                arg = call_args[0].value
+                if arg["typeName"] == "bool":
+                    return True
+                else:
+                    return False
+    raise ValueError(f"{param_name} not found in pallet.")
 
 
 async def set_hyperparameter_extrinsic(
@@ -221,15 +240,20 @@ async def set_hyperparameter_extrinsic(
                 ]
 
                 if len(value) < len(non_netuid_fields):
-                    raise ValueError(
+                    err_console.print(
                         "Not enough values provided in the list for all parameters"
                     )
+                    return False
 
                 call_params.update(
                     {str(name): val for name, val in zip(non_netuid_fields, value)}
                 )
 
             else:
+                if requires_bool(
+                    substrate.metadata, param_name=extrinsic
+                ) and isinstance(value, str):
+                    value = string_to_bool(value)
                 value_argument = extrinsic_params["fields"][
                     len(extrinsic_params["fields"]) - 1
                 ]
@@ -252,12 +276,13 @@ async def set_hyperparameter_extrinsic(
         )
         if not success:
             err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
-            await asyncio.sleep(0.5)
+            return False
         elif arbitrary_extrinsic:
             console.print(
                 f":white_heavy_check_mark: "
                 f"[dark_sea_green3]Hyperparameter {parameter} values changed to {call_params}[/dark_sea_green3]"
             )
+            return True
         # Successful registration, final check for membership
         else:
             console.print(
@@ -649,17 +674,18 @@ async def get_hyperparameters(
     )
     dict_out = []
 
-    normalized_values = normalize_hyperparameters(subnet)
-
+    normalized_values = normalize_hyperparameters(subnet, json_output=json_output)
     for param, value, norm_value in normalized_values:
-        table.add_row("  " + param, value, norm_value)
-        dict_out.append(
-            {
-                "hyperparameter": param,
-                "value": value,
-                "normalized_value": norm_value,
-            }
-        )
+        if not json_output:
+            table.add_row("  " + param, value, norm_value)
+        else:
+            dict_out.append(
+                {
+                    "hyperparameter": param,
+                    "value": value,
+                    "normalized_value": norm_value,
+                }
+            )
     if json_output:
         json_console.print(json.dumps(dict_out))
     else:
