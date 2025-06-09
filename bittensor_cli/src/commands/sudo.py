@@ -161,7 +161,7 @@ async def set_hyperparameter_extrinsic(
     wallet: "Wallet",
     netuid: int,
     parameter: str,
-    value: Optional[Union[str, bool, float, list[float]]],
+    value: Optional[Union[str, float, list[float]]],
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = True,
     prompt: bool = True,
@@ -606,28 +606,11 @@ async def sudo_set_hyperparameter(
     json_output: bool,
 ):
     """Set subnet hyperparameters."""
-
-    normalized_value: Union[str, bool]
-    if param_name in [
-        "registration_allowed",
-        "network_pow_registration_allowed",
-        "commit_reveal_weights_enabled",
-        "liquid_alpha_enabled",
-    ]:
-        normalized_value = param_value.lower() in ["true", "1"]
-    elif param_value in ("True", "False"):
-        normalized_value = {
-            "True": True,
-            "False": False,
-        }[param_value]
-    else:
-        normalized_value = param_value
-
-    is_allowed_value, value = allowed_value(param_name, normalized_value)
+    is_allowed_value, value = allowed_value(param_name, param_value)
     if not is_allowed_value:
         err_console.print(
             f"Hyperparameter [dark_orange]{param_name}[/dark_orange] value is not within bounds. "
-            f"Value is {normalized_value} but must be {value}"
+            f"Value is {param_value} but must be {value}"
         )
         return False
     success = await set_hyperparameter_extrinsic(
