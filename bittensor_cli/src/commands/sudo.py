@@ -625,8 +625,9 @@ async def get_hyperparameters(
     if not await subtensor.subnet_exists(netuid):
         print_error(f"Subnet with netuid {netuid} does not exist.")
         return False
-    subnet = await subtensor.get_subnet_hyperparameters(netuid)
-    subnet_info = await subtensor.subnet(netuid)
+    subnet, subnet_info = await asyncio.gather(
+        subtensor.get_subnet_hyperparameters(netuid), subtensor.subnet(netuid)
+    )
     if subnet_info is None:
         print_error(f"Subnet with netuid {netuid} does not exist.")
         return False
