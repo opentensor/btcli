@@ -739,6 +739,7 @@ def normalize_hyperparameters(
         "kappa": u16_normalized_float,
         "alpha_high": u16_normalized_float,
         "alpha_low": u16_normalized_float,
+        "alpha_sigmoid_steepness": u16_normalized_float,
         "min_burn": Balance.from_rao,
         "max_burn": Balance.from_rao,
     }
