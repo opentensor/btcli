@@ -461,4 +461,51 @@ def test_staking(local_chain, wallet_setup):
     )["value"]
     assert Balance.from_rao(max_burn_tao_from_json) == Balance.from_tao(10.0)
 
+    change_yuma3_hyperparam = exec_command_alice(
+        command="sudo",
+        sub_command="set",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--hotkey",
+            wallet_alice.hotkey_str,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--netuid",
+            netuid,
+            "--param",
+            "yuma3_enabled",
+            "--value",
+            "true",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+    change_yuma3_hyperparam_json = json.loads(change_yuma3_hyperparam.stdout)
+    assert change_yuma3_hyperparam_json["success"] is True, (
+        change_yuma3_hyperparam.stdout
+    )
+
+    changed_yuma3_hyperparam = exec_command_alice(
+        command="sudo",
+        sub_command="get",
+        extra_args=[
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--netuid",
+            netuid,
+            "--json-output",
+        ],
+    )
+
+    yuma3_val = next(
+        filter(
+            lambda x: x["hyperparameter"] == "yuma3_enabled",
+            json.loads(changed_yuma3_hyperparam.stdout),
+        )
+    )
+    assert yuma3_val["value"] is True
+    assert yuma3_val["normalized_value"] is True
     print("✅ Passed staking and sudo commands")
