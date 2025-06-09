@@ -3,7 +3,6 @@ from collections import namedtuple
 import math
 import os
 import sqlite3
-import platform
 import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable
@@ -725,6 +724,8 @@ def normalize_hyperparameters(
     Normalizes the hyperparameters of a subnet.
 
     :param subnet: The subnet hyperparameters object.
+    :param json_output: Whether this normalisation will be for a JSON output or console string (determines whether
+        items get stringified or safe for JSON encoding)
 
     :return: A list of tuples containing the parameter name, value, and normalized value.
     """
