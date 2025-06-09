@@ -177,6 +177,7 @@ class SubnetHyperparameters(InfoBase):
     alpha_high: int
     alpha_low: int
     liquid_alpha_enabled: bool
+    yuma3_enabled: bool
 
     @classmethod
     def _fix_decoded(
@@ -210,6 +211,7 @@ class SubnetHyperparameters(InfoBase):
             alpha_high=decoded.get("alpha_high"),
             alpha_low=decoded.get("alpha_low"),
             liquid_alpha_enabled=decoded.get("liquid_alpha_enabled"),
+            yuma3_enabled=decoded.get("yuma3_enabled"),
         )
 
 

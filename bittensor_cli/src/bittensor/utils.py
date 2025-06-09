@@ -3,7 +3,6 @@ from collections import namedtuple
 import math
 import os
 import sqlite3
-import platform
 import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable
@@ -719,11 +718,14 @@ def millify_tao(n: float, start_at: str = "K") -> str:
 
 def normalize_hyperparameters(
     subnet: "SubnetHyperparameters",
+    json_output: bool = False,
 ) -> list[tuple[str, str, str]]:
     """
     Normalizes the hyperparameters of a subnet.
 
     :param subnet: The subnet hyperparameters object.
+    :param json_output: Whether this normalisation will be for a JSON output or console string (determines whether
+        items get stringified or safe for JSON encoding)
 
     :return: A list of tuples containing the parameter name, value, and normalized value.
     """
@@ -750,13 +752,17 @@ def normalize_hyperparameters(
                 norm_value = param_mappings[param](value)
                 if isinstance(norm_value, float):
                     norm_value = f"{norm_value:.{10}g}"
+                if isinstance(norm_value, Balance) and json_output:
+                    norm_value = norm_value.to_dict()
             else:
                 norm_value = value
         except Exception:
             # bittensor.logging.warning(f"Error normalizing parameter '{param}': {e}")
             norm_value = "-"
-
-        normalized_values.append((param, str(value), str(norm_value)))
+        if not json_output:
+            normalized_values.append((param, str(value), str(norm_value)))
+        else:
+            normalized_values.append((param, value, norm_value))
 
     return normalized_values
 
