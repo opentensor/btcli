@@ -2323,7 +2323,7 @@ async def get_start_schedule(
         print_error(f"Subnet {netuid} does not exist.")
         return None
     block_hash = await subtensor.substrate.get_chain_head()
-    registration_block, min_blocks_to_start, current_block = await asyncio.gather(
+    registration_block, min_blocks_to_start_, current_block = await asyncio.gather(
         subtensor.query(
             module="SubtensorModule",
             storage_function="NetworkRegisteredAt",
@@ -2337,6 +2337,7 @@ async def get_start_schedule(
         ),
         subtensor.substrate.get_block_number(block_hash=block_hash),
     )
+    min_blocks_to_start = getattr(min_blocks_to_start_, "value", min_blocks_to_start_)
 
     potential_start_block = registration_block + min_blocks_to_start
     if current_block < potential_start_block:
