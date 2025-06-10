@@ -107,7 +107,7 @@ async def stake_add(
                 err_msg = (
                     f"{failure_prelude}: Price exceeded tolerance limit. "
                     f"Transaction rejected because partial staking is disabled. "
-                    f"Either increase price tolerance or enable partial staking.",
+                    f"Either increase price tolerance or enable partial staking."
                 )
                 print_error("\n" + err_msg, status=status)
             else:
