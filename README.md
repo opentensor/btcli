@@ -41,7 +41,7 @@ Installation steps are described below. For a full documentation on how to use `
 You can install `btcli` on your local machine directly from source, PyPI, or Homebrew. **Make sure you verify your installation after you install**:
 
 
-### Install from PyPI
+### Install from [PyPI](https://pypi.org/project/bittensor/)
 
 Run 
 ```
