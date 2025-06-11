@@ -298,7 +298,7 @@ def test_staking(local_chain, wallet_setup):
 
     # Parse all hyperparameters and single out max_burn in TAO
     all_hyperparams = hyperparams.stdout.splitlines()
-    max_burn_tao = all_hyperparams[22].split()[2].strip('\u200e')
+    max_burn_tao = all_hyperparams[22].split()[2].strip("\u200e")
 
     # Assert max_burn is 100 TAO from default
     assert Balance.from_tao(float(max_burn_tao)) == Balance.from_tao(100.0)
@@ -339,6 +339,7 @@ def test_staking(local_chain, wallet_setup):
             "max_burn",
             "--value",
             "10000000000",  # In RAO, TAO = 10
+            "--no-prompt",
         ],
     )
     assert (
@@ -359,7 +360,7 @@ def test_staking(local_chain, wallet_setup):
 
     # Parse updated hyperparameters
     all_updated_hyperparams = updated_hyperparams.stdout.splitlines()
-    updated_max_burn_tao = all_updated_hyperparams[22].split()[2].strip('\u200e')
+    updated_max_burn_tao = all_updated_hyperparams[22].split()[2].strip("\u200e")
 
     # Assert max_burn is now 10 TAO
     assert Balance.from_tao(float(updated_max_burn_tao)) == Balance.from_tao(10)

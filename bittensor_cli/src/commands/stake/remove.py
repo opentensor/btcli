@@ -1266,7 +1266,7 @@ def _create_unstake_table(
     )
     if safe_staking:
         table.add_column(
-            f"Rate with tolerance: [blue]({rate_tolerance*100}%)[/blue]",
+            f"Rate with tolerance: [blue]({rate_tolerance * 100}%)[/blue]",
             justify="center",
             style=COLOR_PALETTE["POOLS"]["RATE"],
         )

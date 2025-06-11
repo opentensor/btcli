@@ -1,7 +1,6 @@
 <div align="center">
 
 # Bittensor CLI <!-- omit in toc -->
-### Rao Development Version
 [![Discord Chat](https://img.shields.io/discord/308323056592486420.svg)](https://discord.gg/bittensor)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) 
 [![PyPI version](https://badge.fury.io/py/bittensor_cli.svg)](https://badge.fury.io/py/bittensor_cli)
@@ -39,7 +38,7 @@ Installation steps are described below. For a full documentation on how to use `
 
 ## Install on macOS and Linux
 
-You can install `btcli` on your local machine directly from source, or from from PyPI. **Make sure you verify your installation after you install**:
+You can install `btcli` on your local machine directly from source, or from PyPI. **Make sure you verify your installation after you install**:
 
 
 ### Install from PyPI

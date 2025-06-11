@@ -10,7 +10,7 @@ from rich.progress import Progress, BarColumn, TextColumn
 from rich.table import Column, Table
 from rich import box
 
-from bittensor_cli.src import COLOR_PALETTE
+from bittensor_cli.src import COLOR_PALETTE, Constants
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.extrinsics.registration import (
     register_extrinsic,
@@ -34,6 +34,7 @@ from bittensor_cli.src.bittensor.utils import (
     prompt_for_identity,
     get_subnet_name,
     unlock_key,
+    blocks_to_duration,
     json_console,
 )
 
@@ -1027,7 +1028,7 @@ async def show(
         The table displays the root subnet participants and their metrics.
         The columns are as follows:
             - Position: The sorted position of the hotkey by total TAO.
-            - TAO: The sum of all TAO balances for this hotkey accross all subnets.
+            - TAO: The sum of all TAO balances for this hotkey across all subnets.
             - Stake: The stake balance of this hotkey on root (measured in TAO).
             - Emission: The emission accrued to this hotkey across all subnets every block measured in TAO.
             - Hotkey: The hotkey ss58 address.
@@ -1373,7 +1374,7 @@ async def show(
         #     The table displays the subnet participants and their metrics.
         #     The columns are as follows:
         #         - UID: The hotkey index in the subnet.
-        #         - TAO: The sum of all TAO balances for this hotkey accross all subnets.
+        #         - TAO: The sum of all TAO balances for this hotkey across all subnets.
         #         - Stake: The stake balance of this hotkey on this subnet.
         #         - Weight: The stake-weight of this hotkey on this subnet. Computed as an average of the normalized TAO and Stake columns of this subnet.
         #         - Dividends: Validating dividends earned by the hotkey.
@@ -1661,12 +1662,14 @@ async def register(
             subtensor,
             wallet=wallet,
             netuid=netuid,
-            prompt=False,
             old_balance=balance,
             era=era,
         )
     if json_output:
         json_console.print(json.dumps({"success": success, "msg": msg}))
+    else:
+        if not success:
+            err_console.print(f"Failure: {msg}")
 
 
 # TODO: Confirm emissions, incentive, Dividends are to be fetched from subnet_state or keep NeuronInfo
@@ -2308,3 +2311,121 @@ async def get_identity(
         else:
             console.print(table)
         return identity
+
+
+async def get_start_schedule(
+    subtensor: "SubtensorInterface",
+    netuid: int,
+) -> None:
+    """Fetch and display existing emission schedule information."""
+
+    if not await subtensor.subnet_exists(netuid):
+        print_error(f"Subnet {netuid} does not exist.")
+        return None
+    block_hash = await subtensor.substrate.get_chain_head()
+    registration_block, min_blocks_to_start, current_block = await asyncio.gather(
+        subtensor.query(
+            module="SubtensorModule",
+            storage_function="NetworkRegisteredAt",
+            params=[netuid],
+            block_hash=block_hash,
+        ),
+        subtensor.substrate.get_constant(
+            module_name="SubtensorModule",
+            constant_name="DurationOfStartCall",
+            block_hash=block_hash,
+        ),
+        subtensor.substrate.get_block_number(block_hash=block_hash),
+    )
+
+    potential_start_block = registration_block + min_blocks_to_start
+    if current_block < potential_start_block:
+        blocks_to_wait = potential_start_block - current_block
+        time_to_wait = blocks_to_duration(blocks_to_wait)
+
+        console.print(
+            f"[blue]Subnet {netuid}[/blue]:\n"
+            f"[blue]Registered at:[/blue] {registration_block}\n"
+            f"[blue]Minimum start block:[/blue] {potential_start_block}\n"
+            f"[blue]Current block:[/blue] {current_block}\n"
+            f"[blue]Blocks remaining:[/blue] {blocks_to_wait}\n"
+            f"[blue]Time to wait:[/blue] {time_to_wait}"
+        )
+    else:
+        console.print(
+            f"[blue]Subnet {netuid}[/blue]:\n"
+            f"[blue]Registered at:[/blue] {registration_block}\n"
+            f"[blue]Current block:[/blue] {current_block}\n"
+            f"[blue]Minimum start block:[/blue] {potential_start_block}\n"
+            f"[dark_sea_green3]Emission schedule can be started[/dark_sea_green3]"
+        )
+
+    return
+
+
+async def start_subnet(
+    wallet: "Wallet",
+    subtensor: "SubtensorInterface",
+    netuid: int,
+    prompt: bool = False,
+) -> bool:
+    """Start a subnet's emission schedule"""
+
+    if not await subtensor.subnet_exists(netuid):
+        print_error(f"Subnet {netuid} does not exist.")
+        return False
+
+    subnet_owner = await subtensor.query(
+        module="SubtensorModule",
+        storage_function="SubnetOwner",
+        params=[netuid],
+    )
+    if subnet_owner != wallet.coldkeypub.ss58_address:
+        print_error(":cross_mark: This wallet doesn't own the specified subnet.")
+        return False
+
+    if prompt:
+        if not Confirm.ask(
+            f"Are you sure you want to start subnet {netuid}'s emission schedule?"
+        ):
+            return False
+
+    if not unlock_key(wallet).success:
+        return False
+
+    with console.status(
+        f":satellite: Starting subnet {netuid}'s emission schedule...", spinner="earth"
+    ):
+        start_call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="start_call",
+            call_params={"netuid": netuid},
+        )
+
+        signed_ext = await subtensor.substrate.create_signed_extrinsic(
+            call=start_call,
+            keypair=wallet.coldkey,
+        )
+
+        response = await subtensor.substrate.submit_extrinsic(
+            extrinsic=signed_ext,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+        )
+
+        if await response.is_success:
+            console.print(
+                f":white_heavy_check_mark: [green]Successfully started subnet {netuid}'s emission schedule.[/green]"
+            )
+            return True
+        else:
+            error_msg = format_error_message(await response.error_message)
+            if "FirstEmissionBlockNumberAlreadySet" in error_msg:
+                console.print(
+                    f"[dark_sea_green3]Subnet {netuid} already has an emission schedule.[/dark_sea_green3]"
+                )
+                return True
+
+            await get_start_schedule(subtensor, netuid)
+            print_error(f":cross_mark: Failed to start subnet: {error_msg}")
+            return False

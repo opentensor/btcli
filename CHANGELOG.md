@@ -1,5 +1,79 @@
 # Changelog
 
+## 9.5.1 /2025-06-02
+## What's Changed
+* Declare templates in MANIFEST and include package data by @thewhaleking in https://github.com/opentensor/btcli/pull/477
+
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.5.0...v9.5.1
+
+## 9.5.0 /2025-06-02
+
+## What's Changed
+* Replace PyWry by @thewhaleking in https://github.com/opentensor/btcli/pull/472
+* Remove fuzzywuzzy by @thewhaleking in https://github.com/opentensor/btcli/pull/473
+* Add ruff formatter by @thewhaleking in https://github.com/opentensor/btcli/pull/474
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.4.4...v9.5.0
+
+## 9.4.4 /2025-04-29
+
+## What's Changed
+* Replace `transfer_allow_death` with `transfer_keep_alive` by @basfroman in https://github.com/opentensor/btcli/pull/466
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.4.3...v9.4.4
+
+## 9.4.3 /2025-04-29
+
+## What's Changed
+* Avoid scientific notation output by @thewhaleking in https://github.com/opentensor/btcli/pull/459
+* Use generic types by @thewhaleking in https://github.com/opentensor/btcli/pull/458
+* Suppress async substrate warning by @thewhaleking in https://github.com/opentensor/btcli/pull/463
+* Remove unused dependency by @thewhaleking in https://github.com/opentensor/btcli/pull/460
+* fix: fix typo "accross" by @gap-editor in https://github.com/opentensor/btcli/pull/461
+
+## New Contributors
+* @gap-editor made their first contribution in https://github.com/opentensor/btcli/pull/461
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.4.2...v9.4.3
+
+## 9.4.2 /2025-04-22
+
+## What's Changed
+* Subnets Register Improvements by @thewhaleking in https://github.com/opentensor/btcli/pull/450
+* Fix `KeyFileError: File is not writable` during `btcli wallet create` command by @basfroman in https://github.com/opentensor/btcli/pull/452
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.4.1...v9.4.2
+
+## 9.4.1 /2025-04-17
+
+## What's Changed
+* Fixes `test_staking_sudo` setting `max_burn` by @thewhaleking in https://github.com/opentensor/btcli/pull/440
+* Fixes Error Formatter by @thewhaleking in https://github.com/opentensor/btcli/pull/439
+* Pulls shares in a gather rather than one-at-a-time by @thewhaleking in https://github.com/opentensor/btcli/pull/438
+* Pull emission start schedule dynamically by @thewhaleking in https://github.com/opentensor/btcli/pull/442
+* Lengthen default era period + rename "era" to "period" by @thewhaleking in https://github.com/opentensor/btcli/pull/443
+* docs: fixed redundant "from" by @mdqst in https://github.com/opentensor/btcli/pull/429
+* click version 8.2.0 broken by @thewhaleking in https://github.com/opentensor/btcli/pull/447
+* JSON Name shadowing bug by @thewhaleking in https://github.com/opentensor/btcli/pull/445
+* Stop Parsing, Start Asking by @thewhaleking in https://github.com/opentensor/btcli/pull/446
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.4.0...v9.4.1
+
+## 9.4.0 /2025-04-17
+
+## What's Changed
+* Formatting/ruff fixes by @thewhaleking in https://github.com/opentensor/btcli/pull/426
+* Allows for torch 2.6+ by @thewhaleking in https://github.com/opentensor/btcli/pull/427
+* chore: fixed version format error and improved readability by @mdqst in https://github.com/opentensor/btcli/pull/428
+* Fixes help msg of safe staking help (in stake add etc) by @ibraheem-abe in https://github.com/opentensor/btcli/pull/432
+* Feat/start call by @ibraheem-abe in https://github.com/opentensor/btcli/pull/434
+
+## New Contributors
+* @mdqst made their first contribution in https://github.com/opentensor/btcli/pull/428
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.3.0...v9.4.0
+
 ## 9.3.0 /2025-04-09
 
 ## What's Changed

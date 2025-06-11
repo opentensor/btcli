@@ -9,7 +9,6 @@ import aiohttp
 from bittensor_wallet import Wallet, Keypair
 from bittensor_wallet.errors import KeyFileError
 from bittensor_wallet.keyfile import Keyfile
-from fuzzywuzzy import fuzz
 from rich import box
 from rich.align import Align
 from rich.table import Column, Table
@@ -438,11 +437,10 @@ async def wallet_create(
                 "name": wallet.name,
                 "path": wallet.path,
                 "hotkey": wallet.hotkey_str,
-                "hotkey_ss58": wallet.hotkey.ss58_address,
                 "coldkey_ss58": wallet.coldkeypub.ss58_address,
             }
-        except KeyFileError:
-            err = "KeyFileError: File is not writable"
+        except KeyFileError as error:
+            err = str(error)
             print_error(err)
             output_dict["error"] = err
         try:
@@ -458,10 +456,9 @@ async def wallet_create(
                 "path": wallet.path,
                 "hotkey": wallet.hotkey_str,
                 "hotkey_ss58": wallet.hotkey.ss58_address,
-                "coldkey_ss58": wallet.coldkeypub.ss58_address,
             }
-        except KeyFileError:
-            err = "KeyFileError: File is not writable"
+        except KeyFileError as error:
+            err = str(error)
             print_error(err)
             output_dict["error"] = err
     if json_output:
@@ -1229,16 +1226,11 @@ async def overview(
 
         if sort_by:
             column_to_sort_by: int = 0
-            highest_matching_ratio: int = 0
             sort_descending: bool = False  # Default sort_order to ascending
 
             for index, column in zip(range(len(table.columns)), table.columns):
-                # Fuzzy match the column name. Default to the first column.
                 column_name = column.header.lower().replace("[white]", "")
-                match_ratio = fuzz.ratio(sort_by.lower(), column_name)
-                # Finds the best matching column
-                if match_ratio > highest_matching_ratio:
-                    highest_matching_ratio = match_ratio
+                if column_name == sort_by.lower().strip():
                     column_to_sort_by = index
 
             if sort_order.lower() in {"desc", "descending", "reverse"}:
@@ -1261,8 +1253,8 @@ async def overview(
 
         grid.add_row(table)
 
-    caption = "\n[italic][dim][bright_cyan]Wallet balance: [dark_orange]\u03c4" + str(
-        total_balance.tao
+    caption = (
+        f"\n[italic][dim][bright_cyan]Wallet free balance: [dark_orange]{total_balance}"
     )
     data_dict["total_balance"] = total_balance.tao
     grid.add_row(Align(caption, vertical="middle", align="center"))

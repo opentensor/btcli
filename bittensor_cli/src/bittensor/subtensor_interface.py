@@ -238,25 +238,25 @@ class SubtensorInterface:
 
         :return: Balance: The stake under the coldkey - hotkey pairing.
         """
-        alpha_shares = await self.query(
-            module="SubtensorModule",
-            storage_function="Alpha",
-            params=[hotkey_ss58, coldkey_ss58, netuid],
-            block_hash=block_hash,
-        )
-
-        hotkey_alpha = await self.query(
-            module="SubtensorModule",
-            storage_function="TotalHotkeyAlpha",
-            params=[hotkey_ss58, netuid],
-            block_hash=block_hash,
-        )
-
-        hotkey_shares = await self.query(
-            module="SubtensorModule",
-            storage_function="TotalHotkeyShares",
-            params=[hotkey_ss58, netuid],
-            block_hash=block_hash,
+        alpha_shares, hotkey_alpha, hotkey_shares = await asyncio.gather(
+            self.query(
+                module="SubtensorModule",
+                storage_function="Alpha",
+                params=[hotkey_ss58, coldkey_ss58, netuid],
+                block_hash=block_hash,
+            ),
+            self.query(
+                module="SubtensorModule",
+                storage_function="TotalHotkeyAlpha",
+                params=[hotkey_ss58, netuid],
+                block_hash=block_hash,
+            ),
+            self.query(
+                module="SubtensorModule",
+                storage_function="TotalHotkeyShares",
+                params=[hotkey_ss58, netuid],
+                block_hash=block_hash,
+            ),
         )
 
         alpha_shares_as_float = fixed_to_float(alpha_shares or 0)

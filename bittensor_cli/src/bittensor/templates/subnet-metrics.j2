@@ -1,0 +1,57 @@
+<div class="metrics-section">
+    <div class="metrics-group market-metrics">
+        <div class="metric-card">
+            <div class="metric-label">Market Cap</div>
+            <div id="subnet-market-cap" class="metric-value"></div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Total Stake</div>
+            <div id="subnet-total-stake" class="metric-value"></div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Alpha Reserves</div>
+            <div id="network-alpha-in" class="metric-value"></div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Tao Reserves</div>
+            <div id="network-tau-in" class="metric-value"></div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Emission</div>
+            <div id="subnet-emission" class="metric-value"></div>
+        </div>
+    </div>
+
+    <div class="stakes-container">
+        <div class="stakes-header">
+            <h3 class="view-header">Metagraph</h3>
+            <div class="button-group">
+                <button class="manage-button add-stake-button" disabled title="Coming soon">
+                    Add Stake (Coming soon)
+                </button>
+                <button class="manage-button export-csv-button" disabled title="Coming soon">
+                    Export CSV (Coming soon)
+                </button>
+            </div>
+        </div>
+
+        <div class="stakes-table-container">
+            <table class="stakes-table">
+                <thead>
+                    <tr>
+                        <th>Hotkey</th>
+                        <th>Amount</th>
+                        <th>Value</th>
+                        <th>Value (w/ slippage)</th>
+                        <th>Alpha emission</th>
+                        <th>Tao emission</th>
+                        <th>Registered</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="stakes-table-body">
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
