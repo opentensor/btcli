@@ -4178,7 +4178,6 @@ class CLIManager:
         self,
         network: Optional[list[str]] = Options.network,
         wallet_path: Optional[str] = Options.wallet_path,
-        era: int = Options.era,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -4217,7 +4216,6 @@ class CLIManager:
                 hotkey_or_ss58,
                 prompt,
                 json_output,
-                era,
             )
         )
 
@@ -4231,7 +4229,6 @@ class CLIManager:
             "",
             help="The ss58 address of the hotkey to unstake from.",
         ),
-        era: int = Options.era,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -4270,7 +4267,6 @@ class CLIManager:
                 hotkey=hotkey_or_ss58,
                 prompt=prompt,
                 json_output=json_output,
-                era=era,
             )
         )
 
@@ -4278,7 +4274,6 @@ class CLIManager:
         self,
         network: Optional[list[str]] = Options.network,
         wallet_path: Optional[str] = Options.wallet_path,
-        era: int = Options.era,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -4314,7 +4309,6 @@ class CLIManager:
                 netuid,
                 prompt,
                 json_output,
-                era,
             )
         )
 

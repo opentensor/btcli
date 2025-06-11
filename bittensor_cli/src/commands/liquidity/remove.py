@@ -36,7 +36,6 @@ async def run(
     hotkey: str,
     prompt: bool,
     json_output: bool,
-    era: int,
 ):
     """
     Args:
@@ -80,7 +79,6 @@ async def run(
             call=call,
             keypair=wallet.coldkey,
             nonce=next_nonce,
-            era={"period": era},
         )
         try:
             response = await subtensor.substrate.submit_extrinsic(

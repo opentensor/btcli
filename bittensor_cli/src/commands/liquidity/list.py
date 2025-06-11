@@ -25,8 +25,8 @@ def calculate_fees(position, fees_in_range_tao, fees_in_range_alpha) -> list[Bal
     fee_tao = fees_in_range_tao
     fee_alpha = fees_in_range_alpha
 
-    fee_tao -= position["fees_tao"]
-    fee_alpha -= position["fees_alpha"]
+    fee_tao -= fixed_to_float(position["fees_tao"])
+    fee_alpha -= fixed_to_float(position["fees_alpha"])
 
     fee_tao *= position["liquidity"]
     fee_alpha *= position["liquidity"]
@@ -40,7 +40,6 @@ async def run(
     netuid: Optional[int],
     prompt: bool,
     json_output: bool,
-    era: int,
 ):
     """
     Args:
@@ -99,6 +98,10 @@ async def run(
             ),
         )
 
+        print(f"p = {p}")
+        print(f"tick_low = {tick_low}")
+        print(f"tick_high = {tick_high}")
+
         fees_below_low = fixed_to_float(tick_low.get('fees_out_tao'))
         fees_above_high = fixed_to_float(tick_high.get('fees_out_alpha'))
         fee_global_tao = fixed_to_float(fee_global_tao)
@@ -108,7 +111,12 @@ async def run(
         fees_in_range_tao = fees_in_range(fee_global_tao, fees_below_low, fees_above_high)
         fees_in_range_alpha = fees_in_range(fee_global_alpha, fees_below_low, fees_above_high)
 
+        print(f"fees_in_range_tao = {fees_in_range_tao}")
+
         [fees_tao, fees_alpha] = calculate_fees(p, fees_in_range_tao, fees_in_range_alpha)
+
+        print(f"fees_tao = {fees_tao}")
+
 
         positions.append(
             {
