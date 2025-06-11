@@ -227,6 +227,30 @@ def test_staking(local_chain, wallet_setup):
     assert get_identity_output["description"] == sn_description
     assert get_identity_output["additional"] == sn_add_info
 
+    # Start emissions on SNs
+    for netuid_ in multiple_netuids:
+        start_subnet_emissions = exec_command_alice(
+            command="subnets",
+            sub_command="start",
+            extra_args=[
+                "--netuid",
+                netuid_,
+                "--wallet-path",
+                wallet_path_alice,
+                "--wallet-name",
+                wallet_alice.name,
+                "--hotkey",
+                wallet_alice.hotkey_str,
+                "--network",
+                "ws://127.0.0.1:9945",
+                "--no-prompt",
+            ],
+        )
+        assert (
+            f"Successfully started subnet {netuid_}'s emission schedule"
+            in start_subnet_emissions.stdout
+        ), start_subnet_emissions.stderr
+
     # Add stake to Alice's hotkey
     add_stake_single = exec_command_alice(
         command="stake",
