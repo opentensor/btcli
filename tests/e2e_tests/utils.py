@@ -31,6 +31,19 @@ def setup_wallet(uri: str):
         inputs: list[str] = None,
     ):
         extra_args = extra_args or []
+        # Ensure if we forget to add `--network ws://127.0.0.1:9945` that it will run still using the local chain
+        if not any(
+            (
+                x in extra_args
+                for x in (
+                    "--network",
+                    "--chain",
+                    "--subtensor.network",
+                    "--subtensor.chain_endpoint",
+                )
+            )
+        ):
+            extra_args.extend(["--network", "ws://127.0.0.1:9945"])
         cli_manager = CLIManager()
         # Capture stderr separately from stdout
         runner = CliRunner(mix_stderr=False)
