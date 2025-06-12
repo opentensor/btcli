@@ -36,6 +36,7 @@ def test_staking(local_chain, wallet_setup):
     """
     print("Testing staking and sudo commands🧪")
     netuid = 2
+    multiple_netuids = [2, 3]
     wallet_path_alice = "//Alice"
 
     # Create wallet for Alice
@@ -91,7 +92,42 @@ def test_staking(local_chain, wallet_setup):
     )
     result_output = json.loads(result.stdout)
     assert result_output["success"] is True
-    assert result_output["netuid"] == 2
+    assert result_output["netuid"] == netuid
+
+    # Register another subnet with sudo as Alice
+    result_for_second_repo = exec_command_alice(
+        command="subnets",
+        sub_command="create",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--subnet-name",
+            "Test Subnet",
+            "--repo",
+            "https://github.com/username/repo",
+            "--contact",
+            "alice@opentensor.dev",
+            "--url",
+            "https://testsubnet.com",
+            "--discord",
+            "alice#1234",
+            "--description",
+            "A test subnet for e2e testing",
+            "--additional-info",
+            "Created by Alice",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+    result_output_second = json.loads(result_for_second_repo.stdout)
+    assert result_output_second["success"] is True
+    assert result_output_second["netuid"] == multiple_netuids[1]
 
     # Register Alice in netuid = 1 using her hotkey
     register_subnet = exec_command_alice(
@@ -191,8 +227,32 @@ def test_staking(local_chain, wallet_setup):
     assert get_identity_output["description"] == sn_description
     assert get_identity_output["additional"] == sn_add_info
 
+    # Start emissions on SNs
+    for netuid_ in multiple_netuids:
+        start_subnet_emissions = exec_command_alice(
+            command="subnets",
+            sub_command="start",
+            extra_args=[
+                "--netuid",
+                netuid_,
+                "--wallet-path",
+                wallet_path_alice,
+                "--wallet-name",
+                wallet_alice.name,
+                "--hotkey",
+                wallet_alice.hotkey_str,
+                "--network",
+                "ws://127.0.0.1:9945",
+                "--no-prompt",
+            ],
+        )
+        assert (
+            f"Successfully started subnet {netuid_}'s emission schedule"
+            in start_subnet_emissions.stdout
+        ), start_subnet_emissions.stderr
+
     # Add stake to Alice's hotkey
-    add_stake = exec_command_alice(
+    add_stake_single = exec_command_alice(
         command="stake",
         sub_command="add",
         extra_args=[
@@ -216,10 +276,10 @@ def test_staking(local_chain, wallet_setup):
             "144",
         ],
     )
-    assert "✅ Finalized" in add_stake.stdout, add_stake.stderr
+    assert "✅ Finalized" in add_stake_single.stdout, add_stake_single.stderr
 
     # Execute stake show for Alice's wallet
-    show_stake = exec_command_alice(
+    show_stake_adding_single = exec_command_alice(
         command="stake",
         sub_command="list",
         extra_args=[
@@ -235,7 +295,8 @@ def test_staking(local_chain, wallet_setup):
 
     # Assert correct stake is added
     cleaned_stake = [
-        re.sub(r"\s+", " ", line) for line in show_stake.stdout.splitlines()
+        re.sub(r"\s+", " ", line)
+        for line in show_stake_adding_single.stdout.splitlines()
     ]
     stake_added = cleaned_stake[8].split("│")[3].strip().split()[0]
     assert Balance.from_tao(float(stake_added)) >= Balance.from_tao(90)
@@ -283,6 +344,46 @@ def test_staking(local_chain, wallet_setup):
         ],
     )
     assert "✅ Finalized" in remove_stake.stdout
+
+    add_stake_multiple = exec_command_alice(
+        command="stake",
+        sub_command="add",
+        extra_args=[
+            "--netuids",
+            ",".join(str(x) for x in multiple_netuids),
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--hotkey",
+            wallet_alice.hotkey_str,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--amount",
+            "100",
+            "--tolerance",
+            "0.1",
+            "--partial",
+            "--no-prompt",
+            "--era",
+            "144",
+            "--json-output",
+        ],
+    )
+    add_stake_multiple_output = json.loads(add_stake_multiple.stdout)
+    for netuid_ in multiple_netuids:
+        assert (
+            add_stake_multiple_output["staking_success"][str(netuid_)][
+                wallet_alice.hotkey.ss58_address
+            ]
+            is True
+        )
+        assert (
+            add_stake_multiple_output["error_messages"][str(netuid_)][
+                wallet_alice.hotkey.ss58_address
+            ]
+            == ""
+        )
 
     # Fetch the hyperparameters of the subnet
     hyperparams = exec_command_alice(
@@ -384,4 +485,51 @@ def test_staking(local_chain, wallet_setup):
     )["value"]
     assert Balance.from_rao(max_burn_tao_from_json) == Balance.from_tao(10.0)
 
+    change_yuma3_hyperparam = exec_command_alice(
+        command="sudo",
+        sub_command="set",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--hotkey",
+            wallet_alice.hotkey_str,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--netuid",
+            netuid,
+            "--param",
+            "yuma3_enabled",
+            "--value",
+            "true",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+    change_yuma3_hyperparam_json = json.loads(change_yuma3_hyperparam.stdout)
+    assert change_yuma3_hyperparam_json["success"] is True, (
+        change_yuma3_hyperparam.stdout
+    )
+
+    changed_yuma3_hyperparam = exec_command_alice(
+        command="sudo",
+        sub_command="get",
+        extra_args=[
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--netuid",
+            netuid,
+            "--json-output",
+        ],
+    )
+
+    yuma3_val = next(
+        filter(
+            lambda x: x["hyperparameter"] == "yuma3_enabled",
+            json.loads(changed_yuma3_hyperparam.stdout),
+        )
+    )
+    assert yuma3_val["value"] is True
+    assert yuma3_val["normalized_value"] is True
     print("✅ Passed staking and sudo commands")

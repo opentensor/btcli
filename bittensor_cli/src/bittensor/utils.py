@@ -3,7 +3,6 @@ from collections import namedtuple
 import math
 import os
 import sqlite3
-import platform
 import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable
@@ -32,6 +31,9 @@ from bittensor_cli.src import defaults, Constants
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
     from rich.prompt import PromptBase
+
+BT_DOCS_LINK = "https://docs.bittensor.com"
+
 
 console = Console()
 json_console = Console()
@@ -527,10 +529,11 @@ def format_error_message(error_message: Union[dict, Exception]) -> str:
                     elif all(x in d for x in ["code", "message", "data"]):
                         new_error_message = d
                         break
-            except ValueError:
+            except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
                 pass
         if new_error_message is None:
             return_val = " ".join(error_message.args)
+
             return f"Subtensor returned: {return_val}"
         else:
             error_message = new_error_message
@@ -549,8 +552,7 @@ def format_error_message(error_message: Union[dict, Exception]) -> str:
             # subtensor custom error marker
             if err_data.startswith("Custom error:"):
                 err_description = (
-                    f"{err_data} | Please consult "
-                    f"https://docs.bittensor.com/subtensor-nodes/subtensor-error-messages"
+                    f"{err_data} | Please consult {BT_DOCS_LINK}/errors/custom"
                 )
             else:
                 err_description = err_data
@@ -563,10 +565,20 @@ def format_error_message(error_message: Union[dict, Exception]) -> str:
             err_type = error_message.get("type", err_type)
             err_name = error_message.get("name", err_name)
             err_docs = error_message.get("docs", [err_description])
-            if isinstance(err_docs, list):
-                err_description = " ".join(err_docs)
-            else:
-                err_description = err_docs
+            err_description = " ".join(err_docs)
+            err_description += (
+                f" | Please consult {BT_DOCS_LINK}/errors/subtensor#{err_name.lower()}"
+            )
+
+        elif error_message.get("code") and error_message.get("message"):
+            err_type = error_message.get("code", err_name)
+            err_name = "Custom type"
+            err_description = error_message.get("message", err_description)
+
+        else:
+            print_error(
+                f"String representation of real error_message: {str(error_message)}"
+            )
 
     return f"Subtensor returned `{err_name}({err_type})` error. This means: `{err_description}`."
 
@@ -706,11 +718,14 @@ def millify_tao(n: float, start_at: str = "K") -> str:
 
 def normalize_hyperparameters(
     subnet: "SubnetHyperparameters",
+    json_output: bool = False,
 ) -> list[tuple[str, str, str]]:
     """
     Normalizes the hyperparameters of a subnet.
 
     :param subnet: The subnet hyperparameters object.
+    :param json_output: Whether this normalisation will be for a JSON output or console string (determines whether
+        items get stringified or safe for JSON encoding)
 
     :return: A list of tuples containing the parameter name, value, and normalized value.
     """
@@ -724,6 +739,7 @@ def normalize_hyperparameters(
         "kappa": u16_normalized_float,
         "alpha_high": u16_normalized_float,
         "alpha_low": u16_normalized_float,
+        "alpha_sigmoid_steepness": u16_normalized_float,
         "min_burn": Balance.from_rao,
         "max_burn": Balance.from_rao,
     }
@@ -737,13 +753,17 @@ def normalize_hyperparameters(
                 norm_value = param_mappings[param](value)
                 if isinstance(norm_value, float):
                     norm_value = f"{norm_value:.{10}g}"
+                if isinstance(norm_value, Balance) and json_output:
+                    norm_value = norm_value.to_dict()
             else:
                 norm_value = value
         except Exception:
             # bittensor.logging.warning(f"Error normalizing parameter '{param}': {e}")
             norm_value = "-"
-
-        normalized_values.append((param, str(value), str(norm_value)))
+        if not json_output:
+            normalized_values.append((param, str(value), str(norm_value)))
+        else:
+            normalized_values.append((param, value, norm_value))
 
     return normalized_values
 

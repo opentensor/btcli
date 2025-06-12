@@ -195,9 +195,11 @@ def test_unstaking(local_chain, wallet_setup):
             "--chain",
             "ws://127.0.0.1:9945",
             "--no-prompt",
+            "--era",
+            "30",
         ],
     )
-    assert "✅ Registered" in register_result.stdout
+    assert "✅ Registered" in register_result.stdout, register_result.stderr
 
     # Add stake to subnets
     for netuid in [0, 2, 3]:

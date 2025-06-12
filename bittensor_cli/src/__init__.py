@@ -658,6 +658,8 @@ HYPERPARAMS = {
         "sudo_set_network_pow_registration_allowed",
         False,
     ),
+    "yuma3_enabled": ("sudo_set_yuma3_enabled", False),
+    "alpha_sigmoid_steepness": ("sudo_set_alpha_sigmoid_steepness", True),
 }
 
 # Help Panels for cli help

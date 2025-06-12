@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 async def stake_add(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
-    netuid: Optional[int],
+    netuids: Optional[list[int]],
     stake_all: bool,
     amount: float,
     prompt: bool,
@@ -48,7 +48,7 @@ async def stake_add(
     Args:
         wallet: wallet object
         subtensor: SubtensorInterface object
-        netuid: the netuid to stake to (None indicates all subnets)
+        netuids: the netuids to stake to (None indicates all subnets)
         stake_all: whether to stake all available balance
         amount: specified amount of balance to stake
         prompt: whether to prompt the user
@@ -72,7 +72,7 @@ async def stake_add(
         hotkey_ss58_: str,
         price_limit: Balance,
         status=None,
-    ) -> bool:
+    ) -> tuple[bool, str]:
         err_out = partial(print_error, status=status)
         failure_prelude = (
             f":cross_mark: [red]Failed[/red] to stake {amount_} on Netuid {netuid_}"
@@ -104,25 +104,24 @@ async def stake_add(
             )
         except SubstrateRequestException as e:
             if "Custom error: 8" in str(e):
-                print_error(
-                    f"\n{failure_prelude}: Price exceeded tolerance limit. "
+                err_msg = (
+                    f"{failure_prelude}: Price exceeded tolerance limit. "
                     f"Transaction rejected because partial staking is disabled. "
-                    f"Either increase price tolerance or enable partial staking.",
-                    status=status,
+                    f"Either increase price tolerance or enable partial staking."
                 )
-                return False
+                print_error("\n" + err_msg, status=status)
             else:
-                err_out(f"\n{failure_prelude} with error: {format_error_message(e)}")
-            return False
+                err_msg = f"{failure_prelude} with error: {format_error_message(e)}"
+                err_out("\n" + err_msg)
+            return False, err_msg
         if not await response.is_success:
-            err_out(
-                f"\n{failure_prelude} with error: {format_error_message(await response.error_message)}"
-            )
-            return False
+            err_msg = f"{failure_prelude} with error: {format_error_message(await response.error_message)}"
+            err_out("\n" + err_msg)
+            return False, err_msg
         else:
             if json_output:
                 # the rest of this checking is not necessary if using json_output
-                return True
+                return True, ""
             block_hash = await subtensor.substrate.get_chain_head()
             new_balance, new_stake = await asyncio.gather(
                 subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash),
@@ -160,11 +159,11 @@ async def stake_add(
                 f":arrow_right: "
                 f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}\n"
             )
-            return True
+            return True, ""
 
     async def stake_extrinsic(
         netuid_i, amount_, current, staking_address_ss58, status=None
-    ) -> bool:
+    ) -> tuple[bool, str]:
         err_out = partial(print_error, status=status)
         current_balance, next_nonce, call = await asyncio.gather(
             subtensor.get_balance(wallet.coldkeypub.ss58_address),
@@ -190,18 +189,18 @@ async def stake_add(
                 extrinsic, wait_for_inclusion=True, wait_for_finalization=False
             )
         except SubstrateRequestException as e:
-            err_out(f"\n{failure_prelude} with error: {format_error_message(e)}")
-            return False
+            err_msg = f"{failure_prelude} with error: {format_error_message(e)}"
+            err_out("\n" + err_msg)
+            return False, err_msg
         else:
             if not await response.is_success:
-                err_out(
-                    f"\n{failure_prelude} with error: {format_error_message(await response.error_message)}"
-                )
-                return False
+                err_msg = f"{failure_prelude} with error: {format_error_message(await response.error_message)}"
+                err_out("\n" + err_msg)
+                return False, err_msg
             else:
                 if json_output:
                     # the rest of this is not necessary if using json_output
-                    return True
+                    return True, ""
                 new_block_hash = await subtensor.substrate.get_chain_head()
                 new_balance, new_stake = await asyncio.gather(
                     subtensor.get_balance(
@@ -230,12 +229,10 @@ async def stake_add(
                     f":arrow_right: "
                     f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}\n"
                 )
-                return True
+                return True, ""
 
     netuids = (
-        [int(netuid)]
-        if netuid is not None
-        else await subtensor.get_all_subnet_netuids()
+        netuids if netuids is not None else await subtensor.get_all_subnet_netuids()
     )
 
     hotkeys_to_stake_to = _get_hotkeys_to_stake_to(
@@ -419,13 +416,17 @@ async def stake_add(
             for _, staking_address in hotkeys_to_stake_to
         }
     successes = defaultdict(dict)
+    error_messages = defaultdict(dict)
     with console.status(f"\n:satellite: Staking on netuid(s): {netuids} ..."):
         # We can gather them all at once but balance reporting will be in race-condition.
         for (ni, staking_address), coroutine in stake_coroutines.items():
-            success = await coroutine
+            success, er_msg = await coroutine
             successes[ni][staking_address] = success
+            error_messages[ni][staking_address] = er_msg
     if json_output:
-        json_console.print(json.dumps({"staking_success": successes}))
+        json_console.print(
+            json.dumps({"staking_success": successes, "error_messages": error_messages})
+        )
 
 
 # Helper functions
@@ -445,10 +446,10 @@ def _prompt_stake_amount(
     while True:
         amount_input = Prompt.ask(
             f"\nEnter the amount to {action_name}"
-            f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{Balance.get_unit(netuid)}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] "
-            f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}](max: {current_balance})[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] "
+            f"[{COLOR_PALETTE.S.STAKE_AMOUNT}]{Balance.get_unit(netuid)}[/{COLOR_PALETTE.S.STAKE_AMOUNT}] "
+            f"[{COLOR_PALETTE.S.STAKE_AMOUNT}](max: {current_balance})[/{COLOR_PALETTE.S.STAKE_AMOUNT}] "
             f"or "
-            f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]'all'[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] "
+            f"[{COLOR_PALETTE.S.STAKE_AMOUNT}]'all'[/{COLOR_PALETTE.S.STAKE_AMOUNT}] "
             f"for entire balance"
         )
 
@@ -463,7 +464,7 @@ def _prompt_stake_amount(
             if amount > current_balance.tao:
                 console.print(
                     f"[red]Amount exceeds available balance of "
-                    f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{current_balance}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
+                    f"[{COLOR_PALETTE.S.STAKE_AMOUNT}]{current_balance}[/{COLOR_PALETTE.S.STAKE_AMOUNT}]"
                     f"[/red]"
                 )
                 continue
@@ -542,10 +543,10 @@ def _define_stake_table(
         Table: An initialized rich Table object with appropriate columns
     """
     table = Table(
-        title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Staking to:\n"
-        f"Wallet: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.name}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}], "
-        f"Coldkey ss58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
-        f"Network: {subtensor.network}[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n",
+        title=f"\n[{COLOR_PALETTE.G.HEADER}]Staking to:\n"
+        f"Wallet: [{COLOR_PALETTE.G.CK}]{wallet.name}[/{COLOR_PALETTE.G.CK}], "
+        f"Coldkey ss58: [{COLOR_PALETTE.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE.G.CK}]\n"
+        f"Network: {subtensor.network}[/{COLOR_PALETTE.G.HEADER}]\n",
         show_footer=True,
         show_edge=False,
         header_style="bold white",
@@ -609,9 +610,13 @@ def _print_table_and_slippage(table: Table, max_slippage: float, safe_staking: b
 
     # Greater than 5%
     if max_slippage > 5:
-        message = f"[{COLOR_PALETTE['STAKE']['SLIPPAGE_TEXT']}]-------------------------------------------------------------------------------------------------------------------\n"
-        message += f"[bold]WARNING:[/bold]  The slippage on one of your operations is high: [{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}]{max_slippage} %[/{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}], this may result in a loss of funds.\n"
-        message += "-------------------------------------------------------------------------------------------------------------------\n"
+        message = (
+            f"[{COLOR_PALETTE.S.SLIPPAGE_TEXT}]" + ("-" * 115) + "\n"
+            f"[bold]WARNING:[/bold]  The slippage on one of your operations is high: "
+            f"[{COLOR_PALETTE.S.SLIPPAGE_PERCENT}]{max_slippage} %[/{COLOR_PALETTE.S.SLIPPAGE_PERCENT}], "
+            f"this may result in a loss of funds.\n" + ("-" * 115) + "\n"
+        )
+
         console.print(message)
 
     # Table description
