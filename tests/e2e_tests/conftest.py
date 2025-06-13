@@ -107,7 +107,7 @@ def docker_runner(params):
     """Starts a Docker container before tests and gracefully terminates it after."""
 
     def is_docker_running():
-        """Check if Docker has been run."""
+        """Check if Docker is running and optionally skip pulling the image."""
         try:
             subprocess.run(
                 ["docker", "info"],
@@ -115,7 +115,13 @@ def docker_runner(params):
                 stderr=subprocess.DEVNULL,
                 check=True,
             )
-            subprocess.run(["docker", "pull", LOCALNET_IMAGE_NAME], check=True)
+
+            skip_pull = os.getenv("SKIP_PULL", "0") == "1"
+            if not skip_pull:
+                subprocess.run(["docker", "pull", LOCALNET_IMAGE_NAME], check=True)
+            else:
+                print(f"[SKIP_PULL=1] Skipping 'docker pull {LOCALNET_IMAGE_NAME}'")
+
             return True
         except subprocess.CalledProcessError:
             return False
