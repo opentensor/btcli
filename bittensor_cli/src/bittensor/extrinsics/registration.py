@@ -1798,31 +1798,30 @@ async def swap_hotkey_extrinsic(
         if netuid is not None:
             confirm_message = (
                 f"Do you want to swap [dark_orange]{wallet.name}[/dark_orange] hotkey \n\t"
-                f"[dark_orange]{wallet.hotkey.ss58_address}[/dark_orange] with hotkey \n\t"
-                f"[dark_orange]{new_wallet.hotkey.ss58_address}[/dark_orange] on subnet {netuid}\n"
+                f"[dark_orange]{wallet.hotkey.ss58_address} ({wallet.hotkey_str})[/dark_orange] with hotkey \n\t"
+                f"[dark_orange]{new_wallet.hotkey.ss58_address} ({new_wallet.hotkey_str})[/dark_orange] on subnet {netuid}\n"
                 "This operation will cost [bold cyan]1 TAO (recycled)[/bold cyan]"
             )
         else:
             confirm_message = (
                 f"Do you want to swap [dark_orange]{wallet.name}[/dark_orange] hotkey \n\t"
-                f"[dark_orange]{wallet.hotkey.ss58_address}[/dark_orange] with hotkey \n\t"
-                f"[dark_orange]{new_wallet.hotkey.ss58_address}[/dark_orange] on all subnets\n"
+                f"[dark_orange]{wallet.hotkey.ss58_address} ({wallet.hotkey_str})[/dark_orange] with hotkey \n\t"
+                f"[dark_orange]{new_wallet.hotkey.ss58_address} ({new_wallet.hotkey_str})[/dark_orange] on all subnets\n"
                 "This operation will cost [bold cyan]1 TAO (recycled)[/bold cyan]"
             )
 
         if not Confirm.ask(confirm_message):
             return False
     print_verbose(
-        f"Swapping {wallet.name}'s hotkey ({wallet.hotkey.ss58_address}) with "
-        f"{new_wallet.name}'s hotkey ({new_wallet.hotkey.ss58_address})"
+        f"Swapping {wallet.name}'s hotkey ({wallet.hotkey.ss58_address} - {wallet.hotkey_str}) with "
+        f"{new_wallet.name}'s hotkey ({new_wallet.hotkey.ss58_address} - {new_wallet.hotkey_str})"
     )
     with console.status(":satellite: Swapping hotkeys...", spinner="aesthetic"):
         call_params = {
             "hotkey": wallet.hotkey.ss58_address,
             "new_hotkey": new_wallet.hotkey.ss58_address,
+            "netuid": netuid,
         }
-        if netuid is not None:
-            call_params["netuid"] = netuid
 
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
@@ -1833,7 +1832,7 @@ async def swap_hotkey_extrinsic(
 
         if success:
             console.print(
-                f"Hotkey {wallet.hotkey} swapped for new hotkey: {new_wallet.hotkey}"
+                f"Hotkey {wallet.hotkey.ss58_address} ({wallet.hotkey_str}) swapped for new hotkey: {new_wallet.hotkey.ss58_address} ({new_wallet.hotkey_str})"
             )
             return True
         else:
