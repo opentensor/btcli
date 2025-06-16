@@ -515,9 +515,9 @@ def test_staking(local_chain, wallet_setup):
         ],
     )
     change_yuma3_hyperparam_json = json.loads(change_yuma3_hyperparam.stdout)
-    assert (
-        change_yuma3_hyperparam_json["success"] is True
-    ), change_yuma3_hyperparam.stdout
+    assert change_yuma3_hyperparam_json["success"] is True, (
+        change_yuma3_hyperparam.stdout
+    )
 
     changed_yuma3_hyperparam = exec_command_alice(
         command="sudo",
