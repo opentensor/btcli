@@ -1,5 +1,13 @@
 # Changelog
 
+## 9.7.0/2025-06-16
+
+## What's Changed
+* Add `SKIP_PULL` variable for conftest.py by @basfroman in https://github.com/opentensor/btcli/pull/502
+* Feat: Adds netuid support in swap_hotkeys by @ibraheem-abe in https://github.com/opentensor/btcli/pull/505
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.6.0...v9.7.0
+
 ## 9.6.0/2025-06-12
 
 ## What's Changed
