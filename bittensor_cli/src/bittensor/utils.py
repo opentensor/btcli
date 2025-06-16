@@ -1167,6 +1167,7 @@ def prompt_for_subnet_identity(
     subnet_url: Optional[str],
     discord: Optional[str],
     description: Optional[str],
+    logo_url: Optional[str],
     additional: Optional[str],
 ):
     """
@@ -1226,6 +1227,13 @@ def prompt_for_subnet_identity(
             description,
             lambda x: x and len(x.encode("utf-8")) > 1024,
             "[red]Error:[/red] Description must be <= 1024 bytes.",
+        ),
+        (
+            "logo_url",
+            "[blue]Logo URL [dim](optional)[/blue]",
+            logo_url,
+            lambda x: x and len(x.encode("utf-8")) > 1024,
+            "[red]Error:[/red] Logo URL must be <= 1024 bytes.",
         ),
         (
             "additional",
