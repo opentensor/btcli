@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bittensor-cli"
-version = "9.6.0"
+version = "9.7.0"
 description = "Bittensor CLI"
 readme = "README.md"
 authors = [
