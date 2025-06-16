@@ -1632,6 +1632,7 @@ async def swap_hotkey(
     original_wallet: Wallet,
     new_wallet: Wallet,
     subtensor: SubtensorInterface,
+    netuid: Optional[int],
     prompt: bool,
     json_output: bool,
 ):
@@ -1640,6 +1641,7 @@ async def swap_hotkey(
         subtensor,
         original_wallet,
         new_wallet,
+        netuid=netuid,
         prompt=prompt,
     )
     if json_output:

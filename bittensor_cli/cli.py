@@ -1897,6 +1897,8 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        netuid: Optional[int] = Options.netuid_not_req,
+        all_netuids: bool = Options.all_netuids,
         network: Optional[list[str]] = Options.network,
         destination_hotkey_name: Optional[str] = typer.Argument(
             None, help="Destination hotkey name."
@@ -1917,12 +1919,14 @@ class CLIManager:
 
         - Make sure that your original key pair (coldkeyA, hotkeyA) is already registered.
         - Make sure that you use a newly created hotkeyB in this command. A hotkeyB that is already registered cannot be used in this command.
+        - You can specify the netuid for which you want to swap the hotkey for. If it is not defined, the swap will be initiated for all subnets.
         - Finally, note that this command requires a fee of 1 TAO for recycling and this fee is taken from your wallet (coldkeyA).
 
         EXAMPLE
 
-        [green]$[/green] btcli wallet swap_hotkey destination_hotkey_name --wallet-name your_wallet_name --wallet-hotkey original_hotkey
+        [green]$[/green] btcli wallet swap_hotkey destination_hotkey_name --wallet-name your_wallet_name --wallet-hotkey original_hotkey --netuid 1
         """
+        netuid = get_optional_netuid(netuid, all_netuids)
         self.verbosity_handler(quiet, verbose, json_output)
         original_wallet = self.wallet_ask(
             wallet_name,
@@ -1946,7 +1950,7 @@ class CLIManager:
         self.initialize_chain(network)
         return self._run_command(
             wallets.swap_hotkey(
-                original_wallet, new_wallet, self.subtensor, prompt, json_output
+                original_wallet, new_wallet, self.subtensor, netuid, prompt, json_output
             )
         )
 
