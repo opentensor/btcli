@@ -1820,9 +1820,8 @@ async def swap_hotkey_extrinsic(
         call_params = {
             "hotkey": wallet.hotkey.ss58_address,
             "new_hotkey": new_wallet.hotkey.ss58_address,
+            "netuid": netuid,
         }
-        if netuid is not None:
-            call_params["netuid"] = netuid
 
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
