@@ -1643,6 +1643,7 @@ async def swap_hotkey(
         new_wallet,
         netuid=netuid,
         prompt=prompt,
+
     )
     if json_output:
         json_console.print(json.dumps({"success": result}))
