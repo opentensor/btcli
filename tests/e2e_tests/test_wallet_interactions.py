@@ -431,8 +431,6 @@ def test_wallet_identities(local_chain, wallet_setup):
             alice_identity["discord"],
             "--description",
             alice_identity["description"],
-            # "--logo-url",
-            # alice_identity["logo_url"],
             "--additional",
             alice_identity["additional"],
             "--github",
