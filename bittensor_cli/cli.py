@@ -5025,9 +5025,7 @@ class CLIManager:
         description: Optional[str] = typer.Option(
             None, "--description", help="Description"
         ),
-        logo_url: Optional[str] = typer.Option(
-            None, "--logo-url", help="Logo URL"
-        ),
+        logo_url: Optional[str] = typer.Option(None, "--logo-url", help="Logo URL"),
         additional_info: Optional[str] = typer.Option(
             None, "--additional-info", help="Additional information"
         ),
@@ -5194,9 +5192,7 @@ class CLIManager:
         description: Optional[str] = typer.Option(
             None, "--description", help="Description"
         ),
-        logo_url: Optional[str] = typer.Option(
-            None, "--logo-url", help="Logo URL"
-        ),
+        logo_url: Optional[str] = typer.Option(None, "--logo-url", help="Logo URL"),
         additional_info: Optional[str] = typer.Option(
             None, "--additional-info", help="Additional information"
         ),
