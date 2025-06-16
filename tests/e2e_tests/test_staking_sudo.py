@@ -86,6 +86,8 @@ def test_staking(local_chain, wallet_setup):
             "A test subnet for e2e testing",
             "--additional-info",
             "Created by Alice",
+            "--logo-url",
+            "https://testsubnet.com/logo.png",
             "--no-prompt",
             "--json-output",
         ],
@@ -121,6 +123,8 @@ def test_staking(local_chain, wallet_setup):
             "A test subnet for e2e testing",
             "--additional-info",
             "Created by Alice",
+            "--logo-url",
+            "https://testsubnet.com/logo.png",
             "--no-prompt",
             "--json-output",
         ],
@@ -198,6 +202,8 @@ def test_staking(local_chain, wallet_setup):
             sn_discord := "alice#1234",
             "--description",
             sn_description := "A test subnet for e2e testing",
+            "--logo-url",
+            sn_logo_url := "https://testsubnet.com/logo.png",
             "--additional-info",
             sn_add_info := "Created by Alice",
             "--json-output",
@@ -225,6 +231,7 @@ def test_staking(local_chain, wallet_setup):
     assert get_identity_output["subnet_url"] == sn_url
     assert get_identity_output["discord"] == sn_discord
     assert get_identity_output["description"] == sn_description
+    assert get_identity_output["logo_url"] == sn_logo_url
     assert get_identity_output["additional"] == sn_add_info
 
     # Start emissions on SNs
@@ -508,9 +515,9 @@ def test_staking(local_chain, wallet_setup):
         ],
     )
     change_yuma3_hyperparam_json = json.loads(change_yuma3_hyperparam.stdout)
-    assert change_yuma3_hyperparam_json["success"] is True, (
-        change_yuma3_hyperparam.stdout
-    )
+    assert (
+        change_yuma3_hyperparam_json["success"] is True
+    ), change_yuma3_hyperparam.stdout
 
     changed_yuma3_hyperparam = exec_command_alice(
         command="sudo",
