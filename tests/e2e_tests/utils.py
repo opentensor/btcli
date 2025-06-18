@@ -1,3 +1,4 @@
+import inspect
 import os
 import re
 import shutil
@@ -32,6 +33,27 @@ def setup_wallet(uri: str):
     ):
         extra_args = extra_args or []
         cli_manager = CLIManager()
+        for group in cli_manager.app.registered_groups:
+            if group.name == command:
+                for command_ in group.typer_instance.registered_commands:
+                    if command_.name == sub_command:
+                        if "network" in inspect.getcallargs(
+                            command_.callback
+                        ).keys() and not any(
+                            (
+                                x in extra_args
+                                for x in (
+                                    "--network",
+                                    "--chain",
+                                    "--subtensor.network",
+                                    "--subtensor.chain_endpoint",
+                                )
+                            )
+                        ):
+                            # Ensure if we forget to add `--network ws://127.0.0.1:9945` that it will run still
+                            # using the local chain
+                            extra_args.extend(["--network", "ws://127.0.0.1:9945"])
+
         # Capture stderr separately from stdout
         runner = CliRunner(mix_stderr=False)
         # Prepare the command arguments
