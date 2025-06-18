@@ -587,7 +587,13 @@ def test_wallet_balance_all(local_chain, wallet_setup, capfd):
     result = exec_command(
         command="wallet",
         sub_command="balance",
-        extra_args=["--wallet-path", wallet_path, "--all"],
+        extra_args=[
+            "--wallet-path",
+            wallet_path,
+            "--all",
+            "--chain",
+            "ws://127.0.0.1:9945",
+        ],
     )
 
     output = result.stdout
@@ -600,7 +606,14 @@ def test_wallet_balance_all(local_chain, wallet_setup, capfd):
     json_results = exec_command(
         "wallet",
         "balance",
-        extra_args=["--wallet-path", wallet_path, "--all", "--json-output"],
+        extra_args=[
+            "--wallet-path",
+            wallet_path,
+            "--all",
+            "--json-output",
+            "--chain",
+            "ws://127.0.0.1:9945",
+        ],
     )
     json_results_output = json.loads(json_results.stdout)
     for wallet_name in wallet_names:

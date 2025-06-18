@@ -630,6 +630,7 @@ class SubnetIdentity(InfoBase):
     subnet_url: str
     discord: str
     description: str
+    logo_url: str
     additional: str
 
     @classmethod
@@ -641,6 +642,7 @@ class SubnetIdentity(InfoBase):
             subnet_url=bytes(decoded["subnet_url"]).decode(),
             discord=bytes(decoded["discord"]).decode(),
             description=bytes(decoded["description"]).decode(),
+            logo_url=bytes(decoded["logo_url"]).decode(),
             additional=bytes(decoded["additional"]).decode(),
         )
 
