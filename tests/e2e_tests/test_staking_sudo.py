@@ -533,3 +533,31 @@ def test_staking(local_chain, wallet_setup):
     assert yuma3_val["value"] is True
     assert yuma3_val["normalized_value"] is True
     print("✅ Passed staking and sudo commands")
+
+    change_arbitrary_hyperparam = exec_command_alice(
+        command="sudo",
+        sub_command="set",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--hotkey",
+            wallet_alice.hotkey_str,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--netuid",
+            netuid,
+            "--param",
+            "sudo_set_bonds_penalty",  # arbitrary hyperparam
+            "--value",
+            "0",  # int/float value
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+    change_arbitrary_hyperparam_json = json.loads(change_arbitrary_hyperparam.stdout)
+    assert change_arbitrary_hyperparam_json["success"] is True, (
+        change_arbitrary_hyperparam.stdout,
+        change_arbitrary_hyperparam.stderr,
+    )

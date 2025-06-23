@@ -122,6 +122,11 @@ def u64_normalized_float(x: int) -> float:
     return float(x) / float(U64_MAX)
 
 
+def string_to_u64(value: str) -> int:
+    """Converts a string to u64"""
+    return float_to_u64(float(value))
+
+
 def float_to_u64(value: float) -> int:
     """Converts a float to a u64 int"""
     # Ensure the input is within the expected range
@@ -140,6 +145,11 @@ def u64_to_float(value: int) -> float:
             f"Input value ({value}) must be between 0 and {u64_max} (2^64 - 1)"
         )
     return min(value / u64_max, 1.0)  # Ensure the result is never greater than 1.0
+
+
+def string_to_u16(value: str) -> int:
+    """Converts a string to a u16 int"""
+    return float_to_u16(float(value))
 
 
 def float_to_u16(value: float) -> int:
