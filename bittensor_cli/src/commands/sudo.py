@@ -234,9 +234,9 @@ async def set_hyperparameter_extrinsic(
             if isinstance(value, list):
                 # Ensure that there are enough values for all non-netuid parameters
                 non_netuid_fields = [
-                    param["name"]
+                    pn_str
                     for param in extrinsic_params["fields"]
-                    if "netuid" not in param["name"]
+                    if "netuid" not in (pn_str := str(param["name"]))
                 ]
 
                 if len(value) < len(non_netuid_fields):
@@ -246,7 +246,7 @@ async def set_hyperparameter_extrinsic(
                     return False
 
                 call_params.update(
-                    {str(name): val for name, val in zip(non_netuid_fields, value)}
+                    {name: val for name, val in zip(non_netuid_fields, value)}
                 )
 
             else:
