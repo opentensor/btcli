@@ -18,9 +18,9 @@ from bittensor_cli.src.bittensor.utils import (
     normalize_hyperparameters,
     unlock_key,
     blocks_to_duration,
-    float_to_u64,
-    float_to_u16,
     json_console,
+    string_to_u16,
+    string_to_u64,
 )
 
 if TYPE_CHECKING:
@@ -108,7 +108,7 @@ def search_metadata(
         except ValueError:
             return type_converter_with_retry(type_, None, arg_name)
 
-    arg_types = {"bool": string_to_bool, "u16": float_to_u16, "u64": float_to_u64}
+    arg_types = {"bool": string_to_bool, "u16": string_to_u16, "u64": string_to_u64}
     arg_type_output = {"bool": "bool", "u16": "float", "u64": "float"}
 
     call_crafter = {"netuid": netuid}
@@ -234,9 +234,9 @@ async def set_hyperparameter_extrinsic(
             if isinstance(value, list):
                 # Ensure that there are enough values for all non-netuid parameters
                 non_netuid_fields = [
-                    param["name"]
+                    pn_str
                     for param in extrinsic_params["fields"]
-                    if "netuid" not in param["name"]
+                    if "netuid" not in (pn_str := str(param["name"]))
                 ]
 
                 if len(value) < len(non_netuid_fields):
@@ -246,7 +246,7 @@ async def set_hyperparameter_extrinsic(
                     return False
 
                 call_params.update(
-                    {str(name): val for name, val in zip(non_netuid_fields, value)}
+                    {name: val for name, val in zip(non_netuid_fields, value)}
                 )
 
             else:
