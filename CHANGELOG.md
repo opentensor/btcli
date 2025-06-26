@@ -1,5 +1,13 @@
 # Changelog
 
+## 9.7.1/2025-06-26
+
+## What's Changed
+* Convert hyperparams from strings by @thewhaleking in https://github.com/opentensor/btcli/pull/510
+* Ensure we parse strings for param names by @thewhaleking in https://github.com/opentensor/btcli/pull/511
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.7.1...v9.7.1
+
 ## 9.7.0/2025-06-16
 
 ## What's Changed
