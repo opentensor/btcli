@@ -169,29 +169,15 @@ class Options:
         help="Path to a JSON file containing the encrypted key backup. For example, a JSON file from PolkadotJS.",
     )
     json_password = typer.Option(
-        None,
-        "--json-password",
-        "--json_password",
-        help="Password to decrypt the JSON file.",
+        None, "--json-password", help="Password to decrypt the JSON file."
     )
     use_password = typer.Option(
         True,
-        "--use-password",
-        "--use_password",
         help="Set this to `True` to protect the generated Bittensor key with a password.",
     )
-    public_hex_key = typer.Option(
-        None,
-        "--public-hex-key",
-        "--public_hex_key",
-        help="The public key in hex format.",
-    )
+    public_hex_key = typer.Option(None, help="The public key in hex format.")
     ss58_address = typer.Option(
-        None,
-        "--ss58",
-        "--ss58-address",
-        "--ss58_address",
-        help="The SS58 address of the coldkey.",
+        None, "--ss58", "--ss58-address", help="The SS58 address of the coldkey."
     )
     overwrite = typer.Option(
         False,
@@ -222,14 +208,11 @@ class Options:
     )
     netuid_not_req = typer.Option(
         None,
-        "--netuid",
         help="The netuid of the subnet in the network, (e.g. 1).",
         prompt=False,
     )
     all_netuids = typer.Option(
         False,
-        "--all-netuids/--not-all-netuids",
-        "--all_netuids/--not_all_netuids",
         help="Use all netuids",
         prompt=False,
     )
@@ -242,7 +225,6 @@ class Options:
     reuse_last = typer.Option(
         False,
         "--reuse-last",
-        "--reuse_last",
         help="Reuse the metagraph data you last retrieved."
         "Use this option only if you have already retrieved the metagraph."
         "data",
@@ -253,15 +235,10 @@ class Options:
         help="Display the table as HTML in the browser.",
     )
     wait_for_inclusion = typer.Option(
-        True,
-        "--wait-for-inclusion",
-        "--wait_for_inclusion",
-        help="If `True`, waits until the transaction is included in a block.",
+        True, help="If `True`, waits until the transaction is included in a block."
     )
     wait_for_finalization = typer.Option(
         True,
-        "--wait-for-finalization",
-        "--wait_for_finalization",
         help="If `True`, waits until the transaction is finalized on the blockchain.",
     )
     prompt = typer.Option(
@@ -299,7 +276,6 @@ class Options:
         "--slippage-tolerance",
         "--tolerance",
         "--rate-tolerance",
-        "--rate_tolerance",
         help="Set the rate tolerance percentage for transactions (default: 0.05 for 5%).",
         callback=validate_rate_tolerance,
     )
@@ -307,7 +283,6 @@ class Options:
         None,
         "--safe-staking/--no-safe-staking",
         "--safe/--unsafe",
-        "--safe_staking/--no_safe_staking",
         show_default=False,
         help="Enable or disable safe staking mode [dim](default: enabled)[/dim].",
     )
@@ -317,7 +292,6 @@ class Options:
         "--partial/--no-partial",
         "--allow/--not-allow",
         "--allow-partial/--not-partial",
-        "--allow_partial_stake/--no_allow_partial_stake",
         show_default=False,
         help="Enable or disable partial stake mode [dim](default: disabled)[/dim].",
     )
@@ -334,7 +308,6 @@ class Options:
         False,
         "--json-output",
         "--json-out",
-        "--json_output",
         help="Outputs the result of the command as JSON.",
     )
     period: int = typer.Option(
