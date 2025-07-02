@@ -11,7 +11,7 @@ import sys
 import traceback
 import warnings
 from pathlib import Path
-from typing import Coroutine, Optional, Union
+from typing import Coroutine, Optional
 from dataclasses import fields
 
 import rich
@@ -169,15 +169,29 @@ class Options:
         help="Path to a JSON file containing the encrypted key backup. For example, a JSON file from PolkadotJS.",
     )
     json_password = typer.Option(
-        None, "--json-password", help="Password to decrypt the JSON file."
+        None,
+        "--json-password",
+        "--json_password",
+        help="Password to decrypt the JSON file.",
     )
     use_password = typer.Option(
         True,
+        "--use-password",
+        "--use_password",
         help="Set this to `True` to protect the generated Bittensor key with a password.",
     )
-    public_hex_key = typer.Option(None, help="The public key in hex format.")
+    public_hex_key = typer.Option(
+        None,
+        "--public-hex-key",
+        "--public_hex_key",
+        help="The public key in hex format.",
+    )
     ss58_address = typer.Option(
-        None, "--ss58", "--ss58-address", help="The SS58 address of the coldkey."
+        None,
+        "--ss58",
+        "--ss58-address",
+        "--ss58_address",
+        help="The SS58 address of the coldkey.",
     )
     overwrite = typer.Option(
         False,
@@ -208,11 +222,14 @@ class Options:
     )
     netuid_not_req = typer.Option(
         None,
+        "--netuid",
         help="The netuid of the subnet in the network, (e.g. 1).",
         prompt=False,
     )
     all_netuids = typer.Option(
         False,
+        "--all-netuids/--not-all-netuids",
+        "--all_netuids/--not_all_netuids",
         help="Use all netuids",
         prompt=False,
     )
@@ -225,6 +242,7 @@ class Options:
     reuse_last = typer.Option(
         False,
         "--reuse-last",
+        "--reuse_last",
         help="Reuse the metagraph data you last retrieved."
         "Use this option only if you have already retrieved the metagraph."
         "data",
@@ -235,10 +253,15 @@ class Options:
         help="Display the table as HTML in the browser.",
     )
     wait_for_inclusion = typer.Option(
-        True, help="If `True`, waits until the transaction is included in a block."
+        True,
+        "--wait-for-inclusion",
+        "--wait_for_inclusion",
+        help="If `True`, waits until the transaction is included in a block.",
     )
     wait_for_finalization = typer.Option(
         True,
+        "--wait-for-finalization",
+        "--wait_for_finalization",
         help="If `True`, waits until the transaction is finalized on the blockchain.",
     )
     prompt = typer.Option(
@@ -276,6 +299,7 @@ class Options:
         "--slippage-tolerance",
         "--tolerance",
         "--rate-tolerance",
+        "--rate_tolerance",
         help="Set the rate tolerance percentage for transactions (default: 0.05 for 5%).",
         callback=validate_rate_tolerance,
     )
@@ -283,6 +307,7 @@ class Options:
         None,
         "--safe-staking/--no-safe-staking",
         "--safe/--unsafe",
+        "--safe_staking/--no_safe_staking",
         show_default=False,
         help="Enable or disable safe staking mode [dim](default: enabled)[/dim].",
     )
@@ -292,6 +317,7 @@ class Options:
         "--partial/--no-partial",
         "--allow/--not-allow",
         "--allow-partial/--not-partial",
+        "--allow_partial_stake/--no_allow_partial_stake",
         show_default=False,
         help="Enable or disable partial stake mode [dim](default: disabled)[/dim].",
     )
@@ -308,6 +334,7 @@ class Options:
         False,
         "--json-output",
         "--json-out",
+        "--json_output",
         help="Outputs the result of the command as JSON.",
     )
     period: int = typer.Option(
@@ -929,11 +956,13 @@ class CLIManager:
         )(self.view_dashboard)
 
         # Sub command aliases
-        # Weights
+        # Wallet
         self.wallet_app.command(
             "swap_hotkey",
             hidden=True,
         )(self.wallet_swap_hotkey)
+        self.wallet_app.command("swap_coldkey", hidden=True)(self.wallet_swap_coldkey)
+        self.wallet_app.command("swap_check", hidden=True)(self.wallet_check_ck_swap)
         self.wallet_app.command(
             "regen_coldkey",
             hidden=True,
@@ -962,10 +991,14 @@ class CLIManager:
             "get_identity",
             hidden=True,
         )(self.wallet_get_id)
+        self.wallet_app.command("associate_hotkey")(self.wallet_associate_hotkey)
 
         # Subnets
         self.subnets_app.command("burn_cost", hidden=True)(self.subnets_burn_cost)
         self.subnets_app.command("pow_register", hidden=True)(self.subnets_pow_register)
+        self.subnets_app.command("set_identity", hidden=True)(self.subnets_set_identity)
+        self.subnets_app.command("get_identity", hidden=True)(self.subnets_get_identity)
+        self.subnets_app.command("check_start", hidden=True)(self.subnets_check_start)
 
         # Sudo
         self.sudo_app.command("senate_vote", hidden=True)(self.sudo_senate_vote)
