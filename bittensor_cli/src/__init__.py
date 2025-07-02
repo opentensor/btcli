@@ -684,6 +684,9 @@ HELP_PANELS = {
         "CHILD": "Child Hotkeys",
         "MOVEMENT": "Stake Movement",
     },
+    "LIQUIDITY": {
+        "LIQUIDITY_MGMT": "Liquidity Management",
+    },
     "SUDO": {
         "CONFIG": "Subnet Configuration",
         "GOVERNANCE": "Governance",

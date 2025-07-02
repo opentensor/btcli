@@ -52,6 +52,11 @@ from bittensor_cli.src.commands.stake import (
     add as add_stake,
     remove as remove_stake,
 )
+from bittensor_cli.src.commands.liquidity import (
+    add as add_liquidity,
+    remove as remove_liquidity,
+    list as list_liquidity,
+)
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
 from bittensor_cli.src.bittensor.utils import (
@@ -652,6 +657,7 @@ class CLIManager:
         self.config_app = typer.Typer(epilog=_epilog)
         self.wallet_app = typer.Typer(epilog=_epilog)
         self.stake_app = typer.Typer(epilog=_epilog)
+        self.liquidity_app = typer.Typer(epilog=_epilog)
         self.sudo_app = typer.Typer(epilog=_epilog)
         self.subnets_app = typer.Typer(epilog=_epilog)
         self.weights_app = typer.Typer(epilog=_epilog)
@@ -689,6 +695,15 @@ class CLIManager:
             no_args_is_help=True,
         )
         self.app.add_typer(self.stake_app, name="st", hidden=True, no_args_is_help=True)
+
+        # liquidity aliases
+        self.app.add_typer(
+            self.liquidity_app,
+            name="liquidity",
+            short_help="Liquidity commands, alias: `lq`",
+            no_args_is_help=True,
+        )
+        self.app.add_typer(self.liquidity_app, name="lq", hidden=True, no_args_is_help=True)
 
         # sudo aliases
         self.app.add_typer(
@@ -833,6 +848,17 @@ class CLIManager:
         self.stake_app.command(
             "swap", rich_help_panel=HELP_PANELS["STAKE"]["MOVEMENT"]
         )(self.stake_swap)
+
+        # liquidity commands
+        self.liquidity_app.command(
+            "add", rich_help_panel=HELP_PANELS["LIQUIDITY"]["LIQUIDITY_MGMT"]
+        )(self.liquidity_add)
+        self.liquidity_app.command(
+            "remove", rich_help_panel=HELP_PANELS["LIQUIDITY"]["LIQUIDITY_MGMT"]
+        )(self.liquidity_remove)
+        self.liquidity_app.command(
+            "list", rich_help_panel=HELP_PANELS["LIQUIDITY"]["LIQUIDITY_MGMT"]
+        )(self.liquidity_list)
 
         # stake-children commands
         children_app = typer.Typer()
@@ -4210,6 +4236,145 @@ class CLIManager:
         if json_output:
             json_console.print(json.dumps({"success": result}))
         return result
+
+
+    def liquidity_add(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_path: Optional[str] = Options.wallet_path,
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Add liquidity to the swap (as a combination of TAO + Alpha)
+        """
+        self.verbosity_handler(quiet, verbose, json_output)
+        netuid = Prompt.ask(
+            f"Enter the [{COLORS.G.SUBHEAD_MAIN}]netuid[/{COLORS.G.SUBHEAD_MAIN}] to use",
+            default=None,
+            show_default=False,
+        )
+
+        wallet_name = Prompt.ask(
+            "Enter the [blue]wallet name[/blue]",
+            default=self.config.get("wallet_name") or defaults.wallet.name,
+        )
+        hotkey_or_ss58 = Prompt.ask(
+            "Enter the [blue]wallet hotkey[/blue] name or [blue]ss58 address[/blue] to use stake from",
+        )
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            "default",
+            ask_for=[WO.NAME, WO.HOTKEY, WO.PATH],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
+
+        return self._run_command(
+            add_liquidity.run(
+                wallet,
+                self.initialize_chain(network),
+                netuid,
+                hotkey_or_ss58,
+                prompt,
+                json_output,
+            )
+        )
+
+    def liquidity_remove(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_name: str = Options.wallet_name,
+        netuid: Optional[int] = Options.netuid_not_req,
+        hotkey_ss58_address: str = typer.Option(
+            "",
+            help="The ss58 address of the hotkey to unstake from.",
+        ),
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Remove liquidity from the swap and collect fees
+        """
+        self.verbosity_handler(quiet, verbose, json_output)
+        netuid = Prompt.ask(
+            f"Enter the [{COLORS.G.SUBHEAD_MAIN}]netuid[/{COLORS.G.SUBHEAD_MAIN}] to use",
+            default=None,
+            show_default=False,
+        )
+
+        wallet_name = Prompt.ask(
+            "Enter the [blue]wallet name[/blue]",
+            default=self.config.get("wallet_name") or defaults.wallet.name,
+        )
+        hotkey_or_ss58 = Prompt.ask(
+            "Enter the [blue]wallet hotkey[/blue] name or [blue]ss58 address[/blue] to stake removed alpha to",
+        )
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            "default",
+            ask_for=[WO.NAME, WO.HOTKEY, WO.PATH],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
+
+        return self._run_command(
+            remove_liquidity.run(
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                netuid=netuid,
+                hotkey=hotkey_or_ss58,
+                prompt=prompt,
+                json_output=json_output,
+            )
+        )
+
+    def liquidity_list(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_path: Optional[str] = Options.wallet_path,
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+        # TODO add: all-wallets, reuse_last, html_output
+    ):
+        """
+        Display detailed liquidity information for a wallet on a subnet
+        """
+        self.verbosity_handler(quiet, verbose, json_output)
+        netuid = Prompt.ask(
+            f"Enter the [{COLORS.G.SUBHEAD_MAIN}]netuid[/{COLORS.G.SUBHEAD_MAIN}] to use",
+            default=None,
+            show_default=False,
+        )
+
+        wallet_name = Prompt.ask(
+            "Enter the [blue]wallet name[/blue]",
+            default=self.config.get("wallet_name") or defaults.wallet.name,
+        )
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            "default",
+            ask_for=[WO.NAME, WO.HOTKEY, WO.PATH],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
+
+        return self._run_command(
+            list_liquidity.run(
+                wallet,
+                self.initialize_chain(network),
+                netuid,
+                prompt,
+                json_output,
+            )
+        )
 
     def stake_get_children(
         self,

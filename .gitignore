@@ -133,6 +133,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+btcli_venv/
 
 # Spyder project settings
 .spyderproject
