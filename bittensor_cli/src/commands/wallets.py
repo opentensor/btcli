@@ -2002,11 +2002,12 @@ async def check_swap_status(
     Args:
         subtensor: Connection to the network
         origin_ss58: The SS58 address of the original coldkey
-        block_number: Optional block number where the swap was scheduled
+        expected_block_number: Optional block number where the swap was scheduled
+
     """
-    scheduled_swaps = await subtensor.get_scheduled_coldkey_swap()
 
     if not origin_ss58:
+        scheduled_swaps = await subtensor.get_scheduled_coldkey_swap()
         if not scheduled_swaps:
             console.print("[yellow]No pending coldkey swaps found.[/yellow]")
             return
@@ -2035,11 +2036,20 @@ async def check_swap_status(
 
         console.print(table)
         console.print(
-            "\n[dim]Tip: Check specific swap details by providing the original coldkey SS58 address and the block number.[/dim]"
+            "\n[dim]Tip: Check specific swap details by providing the original coldkey "
+            "SS58 address and the block number.[/dim]"
         )
         return
-
-    is_pending = origin_ss58 in scheduled_swaps
+    chain_reported_completion_block, destination_address = await subtensor.query(
+        "SubtensorModule", "ColdkeySwapScheduled", [origin_ss58]
+    )
+    if (
+        chain_reported_completion_block != 0
+        and destination_address != "5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM"
+    ):
+        is_pending = True
+    else:
+        is_pending = False
 
     if not is_pending:
         console.print(
@@ -2052,23 +2062,10 @@ async def check_swap_status(
     )
 
     if expected_block_number is None:
-        return
-
-    swap_info = await find_coldkey_swap_extrinsic(
-        subtensor=subtensor,
-        start_block=expected_block_number,
-        end_block=expected_block_number,
-        wallet_ss58=origin_ss58,
-    )
-
-    if not swap_info:
-        console.print(
-            f"[yellow]Warning: Could not find swap extrinsic at block {expected_block_number}[/yellow]"
-        )
-        return
+        expected_block_number = chain_reported_completion_block
 
     current_block = await subtensor.substrate.get_block_number()
-    remaining_blocks = swap_info["execution_block"] - current_block
+    remaining_blocks = expected_block_number - current_block
 
     if remaining_blocks <= 0:
         console.print("[green]Swap period has completed![/green]")
@@ -2076,9 +2073,8 @@ async def check_swap_status(
 
     console.print(
         "\n[green]Coldkey swap details:[/green]"
-        f"\nScheduled at block: {swap_info['block_num']}"
         f"\nOriginal address: [{COLORS.G.CK}]{origin_ss58}[/{COLORS.G.CK}]"
-        f"\nDestination address: [{COLORS.G.CK}]{swap_info['dest_coldkey']}[/{COLORS.G.CK}]"
-        f"\nCompletion block: {swap_info['execution_block']}"
+        f"\nDestination address: [{COLORS.G.CK}]{destination_address}[/{COLORS.G.CK}]"
+        f"\nCompletion block: {chain_reported_completion_block}"
         f"\nTime remaining: {blocks_to_duration(remaining_blocks)}"
     )
