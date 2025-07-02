@@ -11,7 +11,7 @@ import sys
 import traceback
 import warnings
 from pathlib import Path
-from typing import Coroutine, Optional, Union
+from typing import Coroutine, Optional
 from dataclasses import fields
 
 import rich
@@ -929,11 +929,13 @@ class CLIManager:
         )(self.view_dashboard)
 
         # Sub command aliases
-        # Weights
+        # Wallet
         self.wallet_app.command(
             "swap_hotkey",
             hidden=True,
         )(self.wallet_swap_hotkey)
+        self.wallet_app.command("swap_coldkey", hidden=True)(self.wallet_swap_coldkey)
+        self.wallet_app.command("swap_check", hidden=True)(self.wallet_check_ck_swap)
         self.wallet_app.command(
             "regen_coldkey",
             hidden=True,
@@ -962,10 +964,14 @@ class CLIManager:
             "get_identity",
             hidden=True,
         )(self.wallet_get_id)
+        self.wallet_app.command("associate_hotkey")(self.wallet_associate_hotkey)
 
         # Subnets
         self.subnets_app.command("burn_cost", hidden=True)(self.subnets_burn_cost)
         self.subnets_app.command("pow_register", hidden=True)(self.subnets_pow_register)
+        self.subnets_app.command("set_identity", hidden=True)(self.subnets_set_identity)
+        self.subnets_app.command("get_identity", hidden=True)(self.subnets_get_identity)
+        self.subnets_app.command("check_start", hidden=True)(self.subnets_check_start)
 
         # Sudo
         self.sudo_app.command("senate_vote", hidden=True)(self.sudo_senate_vote)
@@ -5090,7 +5096,7 @@ class CLIManager:
         This command verifies if a subnet's emission schedule can be started based on the subnet's registration block.
 
         Example:
-        [green]$[/green] btcli subnets check_start --netuid 1
+        [green]$[/green] btcli subnets check-start --netuid 1
         """
         self.verbosity_handler(quiet, verbose)
         return self._run_command(
