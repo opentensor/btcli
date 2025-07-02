@@ -11,7 +11,7 @@ import sys
 import traceback
 import warnings
 from pathlib import Path
-from typing import Coroutine, Optional, Union
+from typing import Coroutine, Optional
 from dataclasses import fields
 
 import rich
@@ -929,11 +929,13 @@ class CLIManager:
         )(self.view_dashboard)
 
         # Sub command aliases
-        # Weights
+        # Wallet
         self.wallet_app.command(
             "swap_hotkey",
             hidden=True,
         )(self.wallet_swap_hotkey)
+        self.wallet_app.command("swap_coldkey", hidden=True)(self.wallet_swap_coldkey)
+        self.wallet_app.command("swap_check", hidden=True)(self.wallet_check_ck_swap)
         self.wallet_app.command(
             "regen_coldkey",
             hidden=True,
@@ -962,10 +964,14 @@ class CLIManager:
             "get_identity",
             hidden=True,
         )(self.wallet_get_id)
+        self.wallet_app.command("associate_hotkey")(self.wallet_associate_hotkey)
 
         # Subnets
         self.subnets_app.command("burn_cost", hidden=True)(self.subnets_burn_cost)
         self.subnets_app.command("pow_register", hidden=True)(self.subnets_pow_register)
+        self.subnets_app.command("set_identity", hidden=True)(self.subnets_set_identity)
+        self.subnets_app.command("get_identity", hidden=True)(self.subnets_get_identity)
+        self.subnets_app.command("check_start", hidden=True)(self.subnets_check_start)
 
         # Sudo
         self.sudo_app.command("senate_vote", hidden=True)(self.sudo_senate_vote)
@@ -1897,6 +1903,8 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        netuid: Optional[int] = Options.netuid_not_req,
+        all_netuids: bool = Options.all_netuids,
         network: Optional[list[str]] = Options.network,
         destination_hotkey_name: Optional[str] = typer.Argument(
             None, help="Destination hotkey name."
@@ -1917,12 +1925,14 @@ class CLIManager:
 
         - Make sure that your original key pair (coldkeyA, hotkeyA) is already registered.
         - Make sure that you use a newly created hotkeyB in this command. A hotkeyB that is already registered cannot be used in this command.
+        - You can specify the netuid for which you want to swap the hotkey for. If it is not defined, the swap will be initiated for all subnets.
         - Finally, note that this command requires a fee of 1 TAO for recycling and this fee is taken from your wallet (coldkeyA).
 
         EXAMPLE
 
-        [green]$[/green] btcli wallet swap_hotkey destination_hotkey_name --wallet-name your_wallet_name --wallet-hotkey original_hotkey
+        [green]$[/green] btcli wallet swap_hotkey destination_hotkey_name --wallet-name your_wallet_name --wallet-hotkey original_hotkey --netuid 1
         """
+        netuid = get_optional_netuid(netuid, all_netuids)
         self.verbosity_handler(quiet, verbose, json_output)
         original_wallet = self.wallet_ask(
             wallet_name,
@@ -1946,7 +1956,7 @@ class CLIManager:
         self.initialize_chain(network)
         return self._run_command(
             wallets.swap_hotkey(
-                original_wallet, new_wallet, self.subtensor, prompt, json_output
+                original_wallet, new_wallet, self.subtensor, netuid, prompt, json_output
             )
         )
 
@@ -5021,6 +5031,7 @@ class CLIManager:
         description: Optional[str] = typer.Option(
             None, "--description", help="Description"
         ),
+        logo_url: Optional[str] = typer.Option(None, "--logo-url", help="Logo URL"),
         additional_info: Optional[str] = typer.Option(
             None, "--additional-info", help="Additional information"
         ),
@@ -5063,6 +5074,7 @@ class CLIManager:
             subnet_url=subnet_url,
             discord=discord,
             description=description,
+            logo_url=logo_url,
             additional=additional_info,
         )
         self._run_command(
@@ -5084,7 +5096,7 @@ class CLIManager:
         This command verifies if a subnet's emission schedule can be started based on the subnet's registration block.
 
         Example:
-        [green]$[/green] btcli subnets check_start --netuid 1
+        [green]$[/green] btcli subnets check-start --netuid 1
         """
         self.verbosity_handler(quiet, verbose)
         return self._run_command(
@@ -5186,6 +5198,7 @@ class CLIManager:
         description: Optional[str] = typer.Option(
             None, "--description", help="Description"
         ),
+        logo_url: Optional[str] = typer.Option(None, "--logo-url", help="Logo URL"),
         additional_info: Optional[str] = typer.Option(
             None, "--additional-info", help="Additional information"
         ),
@@ -5237,6 +5250,7 @@ class CLIManager:
             subnet_url=subnet_url,
             discord=discord,
             description=description,
+            logo_url=logo_url,
             additional=additional_info,
         )
 

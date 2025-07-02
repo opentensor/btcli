@@ -177,6 +177,8 @@ class SubnetHyperparameters(InfoBase):
     alpha_high: int
     alpha_low: int
     liquid_alpha_enabled: bool
+    yuma3_enabled: bool
+    alpha_sigmoid_steepness: int
 
     @classmethod
     def _fix_decoded(
@@ -210,6 +212,8 @@ class SubnetHyperparameters(InfoBase):
             alpha_high=decoded.get("alpha_high"),
             alpha_low=decoded.get("alpha_low"),
             liquid_alpha_enabled=decoded.get("liquid_alpha_enabled"),
+            yuma3_enabled=decoded.get("yuma3_enabled"),
+            alpha_sigmoid_steepness=decoded.get("alpha_sigmoid_steepness"),
         )
 
 
@@ -626,6 +630,7 @@ class SubnetIdentity(InfoBase):
     subnet_url: str
     discord: str
     description: str
+    logo_url: str
     additional: str
 
     @classmethod
@@ -637,6 +642,7 @@ class SubnetIdentity(InfoBase):
             subnet_url=bytes(decoded["subnet_url"]).decode(),
             discord=bytes(decoded["discord"]).decode(),
             description=bytes(decoded["description"]).decode(),
+            logo_url=bytes(decoded["logo_url"]).decode(),
             additional=bytes(decoded["additional"]).decode(),
         )
 

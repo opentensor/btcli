@@ -86,6 +86,8 @@ def test_staking(local_chain, wallet_setup):
             "A test subnet for e2e testing",
             "--additional-info",
             "Created by Alice",
+            "--logo-url",
+            "https://testsubnet.com/logo.png",
             "--no-prompt",
             "--json-output",
         ],
@@ -121,6 +123,8 @@ def test_staking(local_chain, wallet_setup):
             "A test subnet for e2e testing",
             "--additional-info",
             "Created by Alice",
+            "--logo-url",
+            "https://testsubnet.com/logo.png",
             "--no-prompt",
             "--json-output",
         ],
@@ -198,6 +202,8 @@ def test_staking(local_chain, wallet_setup):
             sn_discord := "alice#1234",
             "--description",
             sn_description := "A test subnet for e2e testing",
+            "--logo-url",
+            sn_logo_url := "https://testsubnet.com/logo.png",
             "--additional-info",
             sn_add_info := "Created by Alice",
             "--json-output",
@@ -225,7 +231,32 @@ def test_staking(local_chain, wallet_setup):
     assert get_identity_output["subnet_url"] == sn_url
     assert get_identity_output["discord"] == sn_discord
     assert get_identity_output["description"] == sn_description
+    assert get_identity_output["logo_url"] == sn_logo_url
     assert get_identity_output["additional"] == sn_add_info
+
+    # Start emissions on SNs
+    for netuid_ in multiple_netuids:
+        start_subnet_emissions = exec_command_alice(
+            command="subnets",
+            sub_command="start",
+            extra_args=[
+                "--netuid",
+                netuid_,
+                "--wallet-path",
+                wallet_path_alice,
+                "--wallet-name",
+                wallet_alice.name,
+                "--hotkey",
+                wallet_alice.hotkey_str,
+                "--network",
+                "ws://127.0.0.1:9945",
+                "--no-prompt",
+            ],
+        )
+        assert (
+            f"Successfully started subnet {netuid_}'s emission schedule"
+            in start_subnet_emissions.stdout
+        ), start_subnet_emissions.stderr
 
     # Add stake to Alice's hotkey
     add_stake_single = exec_command_alice(
@@ -461,4 +492,79 @@ def test_staking(local_chain, wallet_setup):
     )["value"]
     assert Balance.from_rao(max_burn_tao_from_json) == Balance.from_tao(10.0)
 
+    change_yuma3_hyperparam = exec_command_alice(
+        command="sudo",
+        sub_command="set",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--hotkey",
+            wallet_alice.hotkey_str,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--netuid",
+            netuid,
+            "--param",
+            "yuma3_enabled",
+            "--value",
+            "true",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+    change_yuma3_hyperparam_json = json.loads(change_yuma3_hyperparam.stdout)
+    assert change_yuma3_hyperparam_json["success"] is True, (
+        change_yuma3_hyperparam.stdout
+    )
+
+    changed_yuma3_hyperparam = exec_command_alice(
+        command="sudo",
+        sub_command="get",
+        extra_args=[
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--netuid",
+            netuid,
+            "--json-output",
+        ],
+    )
+
+    yuma3_val = next(
+        filter(
+            lambda x: x["hyperparameter"] == "yuma3_enabled",
+            json.loads(changed_yuma3_hyperparam.stdout),
+        )
+    )
+    assert yuma3_val["value"] is True
+    assert yuma3_val["normalized_value"] is True
     print("✅ Passed staking and sudo commands")
+
+    change_arbitrary_hyperparam = exec_command_alice(
+        command="sudo",
+        sub_command="set",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--hotkey",
+            wallet_alice.hotkey_str,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--netuid",
+            netuid,
+            "--param",
+            "sudo_set_bonds_penalty",  # arbitrary hyperparam
+            "--value",
+            "0",  # int/float value
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+    change_arbitrary_hyperparam_json = json.loads(change_arbitrary_hyperparam.stdout)
+    assert change_arbitrary_hyperparam_json["success"] is True, (
+        change_arbitrary_hyperparam.stdout,
+        change_arbitrary_hyperparam.stderr,
+    )

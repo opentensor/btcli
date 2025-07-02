@@ -83,6 +83,8 @@ def test_unstaking(local_chain, wallet_setup):
             "A test subnet for e2e testing",
             "--additional-info",
             "Test subnet",
+            "--logo-url",
+            "https://testsubnet.com/logo.png",
             "--no-prompt",
         ],
     )
@@ -115,6 +117,8 @@ def test_unstaking(local_chain, wallet_setup):
             "A test subnet for e2e testing",
             "--additional-info",
             "Test subnet",
+            "--logo-url",
+            "https://testsubnet.com/logo.png",
             "--no-prompt",
         ],
     )
@@ -195,9 +199,11 @@ def test_unstaking(local_chain, wallet_setup):
             "--chain",
             "ws://127.0.0.1:9945",
             "--no-prompt",
+            "--era",
+            "30",
         ],
     )
-    assert "✅ Registered" in register_result.stdout
+    assert "✅ Registered" in register_result.stdout, register_result.stderr
 
     # Add stake to subnets
     for netuid in [0, 2, 3]:

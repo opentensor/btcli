@@ -140,6 +140,9 @@ async def register_subnetwork_extrinsic(
             "description": subnet_identity["description"].encode()
             if subnet_identity.get("description")
             else b"",
+            "logo_url": subnet_identity["logo_url"].encode()
+            if subnet_identity.get("logo_url")
+            else b"",
             "additional": subnet_identity["additional"].encode()
             if subnet_identity.get("additional")
             else b"",
@@ -2207,6 +2210,7 @@ async def set_identity(
         "subnet_url": subnet_identity.get("subnet_url", ""),
         "discord": subnet_identity.get("discord", ""),
         "description": subnet_identity.get("description", ""),
+        "logo_url": subnet_identity.get("logo_url", ""),
         "additional": subnet_identity.get("additional", ""),
     }
 
@@ -2252,6 +2256,7 @@ async def set_identity(
             "subnet_url",
             "discord",
             "description",
+            "logo_url",
             "additional",
         ]:
             value = getattr(identity, key, None)
@@ -2301,6 +2306,7 @@ async def get_identity(
             "subnet_url",
             "discord",
             "description",
+            "logo_url",
             "additional",
         ]:
             value = getattr(identity, key, None)
@@ -2323,7 +2329,7 @@ async def get_start_schedule(
         print_error(f"Subnet {netuid} does not exist.")
         return None
     block_hash = await subtensor.substrate.get_chain_head()
-    registration_block, min_blocks_to_start, current_block = await asyncio.gather(
+    registration_block, min_blocks_to_start_, current_block = await asyncio.gather(
         subtensor.query(
             module="SubtensorModule",
             storage_function="NetworkRegisteredAt",
@@ -2337,6 +2343,7 @@ async def get_start_schedule(
         ),
         subtensor.substrate.get_block_number(block_hash=block_hash),
     )
+    min_blocks_to_start = getattr(min_blocks_to_start_, "value", min_blocks_to_start_)
 
     potential_start_block = registration_block + min_blocks_to_start
     if current_block < potential_start_block:

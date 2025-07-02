@@ -1,6 +1,33 @@
 # Changelog
 
+## 9.7.0/2025-06-16
+
+## What's Changed
+* Add `SKIP_PULL` variable for conftest.py by @basfroman in https://github.com/opentensor/btcli/pull/502
+* Feat: Adds netuid support in swap_hotkeys by @ibraheem-abe in https://github.com/opentensor/btcli/pull/505
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.6.0...v9.7.0
+
+## 9.6.0/2025-06-12
+
+## What's Changed
+* Allows for staking to multiple netuids in one btcli command by @thewhaleking in https://github.com/opentensor/btcli/pull/481
+* improve stake add json output by @thewhaleking in https://github.com/opentensor/btcli/pull/482
+* Apply bittensor error formatting to btcli by @thewhaleking in https://github.com/opentensor/btcli/pull/483
+* Add Yuma3 Enabled for Sudo Set/Get by @thewhaleking in https://github.com/opentensor/btcli/pull/487
+* Adds `alpha_sigmoid_steepness` call for hyperparams set/get by @thewhaleking in https://github.com/opentensor/btcli/pull/488
+* unstaking test fix by @thewhaleking in https://github.com/opentensor/btcli/pull/489
+* Merge issue: 488 by @thewhaleking in https://github.com/opentensor/btcli/pull/490
+* subnets check-start formatting blocks by @thewhaleking in https://github.com/opentensor/btcli/pull/491
+* Str vs Tuple by @thewhaleking in https://github.com/opentensor/btcli/pull/492
+* Add Homebrew Install to README by @thewhaleking in https://github.com/opentensor/btcli/pull/493
+* Update staking test for new subtensor by @thewhaleking in https://github.com/opentensor/btcli/pull/494
+
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.5.1...v9.6.0
+
 ## 9.5.1 /2025-06-02
+
 ## What's Changed
 * Declare templates in MANIFEST and include package data by @thewhaleking in https://github.com/opentensor/btcli/pull/477
 

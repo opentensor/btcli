@@ -3,7 +3,6 @@ from collections import namedtuple
 import math
 import os
 import sqlite3
-import platform
 import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable
@@ -123,6 +122,11 @@ def u64_normalized_float(x: int) -> float:
     return float(x) / float(U64_MAX)
 
 
+def string_to_u64(value: str) -> int:
+    """Converts a string to u64"""
+    return float_to_u64(float(value))
+
+
 def float_to_u64(value: float) -> int:
     """Converts a float to a u64 int"""
     # Ensure the input is within the expected range
@@ -141,6 +145,11 @@ def u64_to_float(value: int) -> float:
             f"Input value ({value}) must be between 0 and {u64_max} (2^64 - 1)"
         )
     return min(value / u64_max, 1.0)  # Ensure the result is never greater than 1.0
+
+
+def string_to_u16(value: str) -> int:
+    """Converts a string to a u16 int"""
+    return float_to_u16(float(value))
 
 
 def float_to_u16(value: float) -> int:
@@ -719,11 +728,14 @@ def millify_tao(n: float, start_at: str = "K") -> str:
 
 def normalize_hyperparameters(
     subnet: "SubnetHyperparameters",
+    json_output: bool = False,
 ) -> list[tuple[str, str, str]]:
     """
     Normalizes the hyperparameters of a subnet.
 
     :param subnet: The subnet hyperparameters object.
+    :param json_output: Whether this normalisation will be for a JSON output or console string (determines whether
+        items get stringified or safe for JSON encoding)
 
     :return: A list of tuples containing the parameter name, value, and normalized value.
     """
@@ -737,6 +749,7 @@ def normalize_hyperparameters(
         "kappa": u16_normalized_float,
         "alpha_high": u16_normalized_float,
         "alpha_low": u16_normalized_float,
+        "alpha_sigmoid_steepness": u16_normalized_float,
         "min_burn": Balance.from_rao,
         "max_burn": Balance.from_rao,
     }
@@ -750,13 +763,17 @@ def normalize_hyperparameters(
                 norm_value = param_mappings[param](value)
                 if isinstance(norm_value, float):
                     norm_value = f"{norm_value:.{10}g}"
+                if isinstance(norm_value, Balance) and json_output:
+                    norm_value = norm_value.to_dict()
             else:
                 norm_value = value
         except Exception:
             # bittensor.logging.warning(f"Error normalizing parameter '{param}': {e}")
             norm_value = "-"
-
-        normalized_values.append((param, str(value), str(norm_value)))
+        if not json_output:
+            normalized_values.append((param, str(value), str(norm_value)))
+        else:
+            normalized_values.append((param, value, norm_value))
 
     return normalized_values
 
@@ -1160,6 +1177,7 @@ def prompt_for_subnet_identity(
     subnet_url: Optional[str],
     discord: Optional[str],
     description: Optional[str],
+    logo_url: Optional[str],
     additional: Optional[str],
 ):
     """
@@ -1219,6 +1237,13 @@ def prompt_for_subnet_identity(
             description,
             lambda x: x and len(x.encode("utf-8")) > 1024,
             "[red]Error:[/red] Description must be <= 1024 bytes.",
+        ),
+        (
+            "logo_url",
+            "[blue]Logo URL [dim](optional)[/blue]",
+            logo_url,
+            lambda x: x and len(x.encode("utf-8")) > 1024,
+            "[red]Error:[/red] Logo URL must be <= 1024 bytes.",
         ),
         (
             "additional",

@@ -1611,7 +1611,8 @@ def _update_curr_block(
     """
     Update the current block data with the provided block information and difficulty.
 
-    This function updates the current block and its difficulty in a thread-safe manner. It sets the current block
+    This function updates the current block
+    and its difficulty in a thread-safe manner. It sets the current block
     number, hashes the block with the hotkey, updates the current block bytes, and packs the difficulty.
 
     :param curr_diff: Shared array to store the current difficulty.
@@ -1745,6 +1746,7 @@ async def swap_hotkey_extrinsic(
     subtensor: "SubtensorInterface",
     wallet: Wallet,
     new_wallet: Wallet,
+    netuid: Optional[int] = None,
     prompt: bool = False,
 ) -> bool:
     """
@@ -1756,43 +1758,81 @@ async def swap_hotkey_extrinsic(
     netuids_registered = await subtensor.get_netuids_for_hotkey(
         wallet.hotkey.ss58_address, block_hash=block_hash
     )
-    if not len(netuids_registered) > 0:
+    netuids_registered_new_hotkey = await subtensor.get_netuids_for_hotkey(
+        new_wallet.hotkey.ss58_address, block_hash=block_hash
+    )
+
+    if netuid is not None and netuid not in netuids_registered:
         err_console.print(
-            f"Destination hotkey [dark_orange]{new_wallet.hotkey.ss58_address}[/dark_orange] is not registered. "
+            f":cross_mark: [red]Failed[/red]: Original hotkey {wallet.hotkey.ss58_address} is not registered on subnet {netuid}"
+        )
+        return False
+
+    elif not len(netuids_registered) > 0:
+        err_console.print(
+            f"Original hotkey [dark_orange]{wallet.hotkey.ss58_address}[/dark_orange] is not registered on any subnet. "
             f"Please register and try again"
         )
         return False
+
+    if netuid is not None:
+        if netuid in netuids_registered_new_hotkey:
+            err_console.print(
+                f":cross_mark: [red]Failed[/red]: New hotkey {new_wallet.hotkey.ss58_address} "
+                f"is already registered on subnet {netuid}"
+            )
+            return False
+    else:
+        if len(netuids_registered_new_hotkey) > 0:
+            err_console.print(
+                f":cross_mark: [red]Failed[/red]: New hotkey {new_wallet.hotkey.ss58_address} "
+                f"is already registered on subnet(s) {netuids_registered_new_hotkey}"
+            )
+            return False
 
     if not unlock_key(wallet).success:
         return False
 
     if prompt:
         # Prompt user for confirmation.
-        if not Confirm.ask(
-            f"Do you want to swap [dark_orange]{wallet.name}[/dark_orange] hotkey \n\t"
-            f"[dark_orange]{wallet.hotkey.ss58_address}[/dark_orange] with hotkey \n\t"
-            f"[dark_orange]{new_wallet.hotkey.ss58_address}[/dark_orange]\n"
-            "This operation will cost [bold cyan]1 TAO t (recycled)[/bold cyan]"
-        ):
+        if netuid is not None:
+            confirm_message = (
+                f"Do you want to swap [dark_orange]{wallet.name}[/dark_orange] hotkey \n\t"
+                f"[dark_orange]{wallet.hotkey.ss58_address} ({wallet.hotkey_str})[/dark_orange] with hotkey \n\t"
+                f"[dark_orange]{new_wallet.hotkey.ss58_address} ({new_wallet.hotkey_str})[/dark_orange] on subnet {netuid}\n"
+                "This operation will cost [bold cyan]1 TAO (recycled)[/bold cyan]"
+            )
+        else:
+            confirm_message = (
+                f"Do you want to swap [dark_orange]{wallet.name}[/dark_orange] hotkey \n\t"
+                f"[dark_orange]{wallet.hotkey.ss58_address} ({wallet.hotkey_str})[/dark_orange] with hotkey \n\t"
+                f"[dark_orange]{new_wallet.hotkey.ss58_address} ({new_wallet.hotkey_str})[/dark_orange] on all subnets\n"
+                "This operation will cost [bold cyan]1 TAO (recycled)[/bold cyan]"
+            )
+
+        if not Confirm.ask(confirm_message):
             return False
     print_verbose(
-        f"Swapping {wallet.name}'s hotkey ({wallet.hotkey.ss58_address}) with "
-        f"{new_wallet.name}s hotkey ({new_wallet.hotkey.ss58_address})"
+        f"Swapping {wallet.name}'s hotkey ({wallet.hotkey.ss58_address} - {wallet.hotkey_str}) with "
+        f"{new_wallet.name}'s hotkey ({new_wallet.hotkey.ss58_address} - {new_wallet.hotkey_str})"
     )
     with console.status(":satellite: Swapping hotkeys...", spinner="aesthetic"):
+        call_params = {
+            "hotkey": wallet.hotkey.ss58_address,
+            "new_hotkey": new_wallet.hotkey.ss58_address,
+            "netuid": netuid,
+        }
+
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function="swap_hotkey",
-            call_params={
-                "hotkey": wallet.hotkey.ss58_address,
-                "new_hotkey": new_wallet.hotkey.ss58_address,
-            },
+            call_params=call_params,
         )
         success, err_msg = await subtensor.sign_and_send_extrinsic(call, wallet)
 
         if success:
             console.print(
-                f"Hotkey {wallet.hotkey} swapped for new hotkey: {new_wallet.hotkey}"
+                f"Hotkey {wallet.hotkey.ss58_address} ({wallet.hotkey_str}) swapped for new hotkey: {new_wallet.hotkey.ss58_address} ({new_wallet.hotkey_str})"
             )
             return True
         else:
