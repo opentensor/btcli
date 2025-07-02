@@ -5123,7 +5123,7 @@ class CLIManager:
         This command verifies if a subnet's emission schedule can be started based on the subnet's registration block.
 
         Example:
-        [green]$[/green] btcli subnets check_start --netuid 1
+        [green]$[/green] btcli subnets check-start --netuid 1
         """
         self.verbosity_handler(quiet, verbose)
         return self._run_command(
