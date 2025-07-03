@@ -531,6 +531,33 @@ class SubtensorInterface:
                 res.append(record[0])
         return res
 
+    async def is_subnet_active(
+        self,
+        netuid: int,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> bool:
+        """Verify if subnet with provided netuid is active.
+
+        Args:
+            netuid (int): The unique identifier of the subnet.
+            block_hash (Optional[str]): The blockchain block_hash representation of block id.
+            reuse_block (bool): Whether to reuse the last-used block hash.
+
+        Returns:
+            True if subnet is active, False otherwise.
+
+        This means whether the `start_call` was initiated or not.
+        """
+        query = await self.substrate.query(
+            module="SubtensorModule",
+            storage_function="FirstEmissionBlockNumber",
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+            params=[netuid],
+        )
+        return True if query and query.value > 0 else False
+
     async def subnet_exists(
         self, netuid: int, block_hash: Optional[str] = None, reuse_block: bool = False
     ) -> bool:
