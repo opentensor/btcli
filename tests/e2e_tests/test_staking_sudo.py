@@ -276,7 +276,7 @@ def test_staking(local_chain, wallet_setup):
             "--amount",
             "100",
             "--tolerance",
-            "0.1",
+            "0.2",
             "--partial",
             "--no-prompt",
             "--era",
