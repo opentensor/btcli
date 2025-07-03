@@ -5915,7 +5915,7 @@ class CLIManager:
 
         liquidity_table = Table(
             Column("ID", justify="center"),
-            Column("Liquidity", justify="center"),
+            Column("Liquidity (Alpha and TAO part)", justify="center"),
             Column("Price low", justify="center"),
             Column("Price high", justify="center"),
             Column("Fee TAO", justify="center"),
@@ -5931,10 +5931,13 @@ class CLIManager:
             pad_edge=True,
         )
 
+        current_price = self._run_command(self.subtensor.subnet(netuid=netuid)).price
+
         for lp in positions:
+            alpha, tao = lp.to_token_amounts(current_price)
             liquidity_table.add_row(
                 str(lp.id),
-                str(lp.liquidity),
+                f"{alpha} {tao}",
                 str(lp.price_low),
                 str(lp.price_high),
                 str(lp.fees_tao),
