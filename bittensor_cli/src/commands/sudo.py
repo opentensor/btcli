@@ -8,7 +8,12 @@ from rich.table import Column, Table
 from rich.prompt import Confirm
 from scalecodec import GenericCall
 
-from bittensor_cli.src import HYPERPARAMS, DelegatesDetails, COLOR_PALETTE
+from bittensor_cli.src import (
+    HYPERPARAMS,
+    HYPERPARAMS_MODULE,
+    DelegatesDetails,
+    COLOR_PALETTE,
+)
 from bittensor_cli.src.bittensor.chain_data import decode_account_id
 from bittensor_cli.src.bittensor.utils import (
     console,
@@ -31,6 +36,7 @@ if TYPE_CHECKING:
 
 
 # helpers and extrinsics
+DEFAULT_PALLET = "AdminUtils"
 
 
 def allowed_value(
@@ -73,7 +79,7 @@ def allowed_value(
     return True, value
 
 
-def string_to_bool(val) -> bool:
+def string_to_bool(val) -> bool | type[ValueError]:
     try:
         return {"true": True, "1": True, "0": False, "false": False}[val.lower()]
     except KeyError:
@@ -81,7 +87,11 @@ def string_to_bool(val) -> bool:
 
 
 def search_metadata(
-    param_name: str, value: Union[str, bool, float, list[float]], netuid: int, metadata
+    param_name: str,
+    value: Union[str, bool, float, list[float]],
+    netuid: int,
+    metadata,
+    pallet: str = DEFAULT_PALLET,
 ) -> tuple[bool, Optional[dict]]:
     """
     Searches the substrate metadata AdminUtils pallet for a given parameter name. Crafts a response dict to be used
@@ -92,6 +102,7 @@ def search_metadata(
         value: the value to set the hyperparameter
         netuid: the specified netuid
         metadata: the subtensor.substrate.metadata
+        pallet: the name of the module to use for the query. If not set, the default value is DEFAULT_PALLET
 
     Returns:
         (success, dict of call params)
@@ -113,7 +124,7 @@ def search_metadata(
 
     call_crafter = {"netuid": netuid}
 
-    pallet = metadata.get_metadata_pallet("AdminUtils")
+    pallet = metadata.get_metadata_pallet(pallet)
     for call in pallet.calls:
         if call.name == param_name:
             if "netuid" not in [x.name for x in call.args]:
@@ -135,11 +146,11 @@ def search_metadata(
         return False, None
 
 
-def requires_bool(metadata, param_name) -> bool:
+def requires_bool(metadata, param_name, pallet: str = DEFAULT_PALLET) -> bool:
     """
     Determines whether a given hyperparam takes a single arg (besides netuid) that is of bool type.
     """
-    pallet = metadata.get_metadata_pallet("AdminUtils")
+    pallet = metadata.get_metadata_pallet(pallet)
     for call in pallet.calls:
         if call.name == param_name:
             if "netuid" not in [x.name for x in call.args]:
@@ -218,6 +229,8 @@ async def set_hyperparameter_extrinsic(
 
     substrate = subtensor.substrate
     msg_value = value if not arbitrary_extrinsic else call_params
+    pallet = HYPERPARAMS_MODULE.get(parameter) or DEFAULT_PALLET
+
     with console.status(
         f":satellite: Setting hyperparameter [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{parameter}"
         f"[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] to [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{msg_value}"
@@ -227,7 +240,7 @@ async def set_hyperparameter_extrinsic(
     ):
         if not arbitrary_extrinsic:
             extrinsic_params = await substrate.get_metadata_call_function(
-                "AdminUtils", extrinsic
+                module_name=pallet, call_function_name=extrinsic
             )
 
             # if input value is a list, iterate through the list and assign values
@@ -251,7 +264,7 @@ async def set_hyperparameter_extrinsic(
 
             else:
                 if requires_bool(
-                    substrate.metadata, param_name=extrinsic
+                    substrate.metadata, param_name=extrinsic, pallet=pallet
                 ) and isinstance(value, str):
                     value = string_to_bool(value)
                 value_argument = extrinsic_params["fields"][
@@ -261,7 +274,7 @@ async def set_hyperparameter_extrinsic(
 
         # create extrinsic call
         call_ = await substrate.compose_call(
-            call_module="AdminUtils",
+            call_module=pallet,
             call_function=extrinsic,
             call_params=call_params,
         )
