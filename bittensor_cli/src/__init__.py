@@ -699,6 +699,9 @@ HELP_PANELS = {
     "VIEW": {
         "DASHBOARD": "Network Dashboard",
     },
+    "LIQUIDITY": {
+        "LIQUIDITY_MGMT": "Liquidity Management",
+    },
 }
 
 
