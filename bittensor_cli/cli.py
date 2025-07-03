@@ -5804,7 +5804,7 @@ class CLIManager:
         liquidity: Optional[float] = typer.Option(
             None,
             "--liquidity",
-            help="Liquidity amount for",
+            help="Amount of liquidity to add to the subnet.",
         ),
         price_low: Optional[float] = typer.Option(
             None,
