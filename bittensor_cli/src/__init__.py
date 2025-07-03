@@ -660,6 +660,11 @@ HYPERPARAMS = {
     ),
     "yuma3_enabled": ("sudo_set_yuma3_enabled", False),
     "alpha_sigmoid_steepness": ("sudo_set_alpha_sigmoid_steepness", True),
+    "user_liquidity_enabled": ("toggle_user_liquidity", True),
+}
+
+HYPERPARAMS_MODULE = {
+    "user_liquidity_enabled": "Swap",
 }
 
 # Help Panels for cli help

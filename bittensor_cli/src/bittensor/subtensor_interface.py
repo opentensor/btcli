@@ -1155,22 +1155,13 @@ class SubtensorInterface:
         Understanding the hyperparameters is crucial for comprehending how subnets are configured and
         managed, and how they interact with the network's consensus and incentive mechanisms.
         """
-        main_result, yuma3_result, sigmoid_steepness = await asyncio.gather(
-            self.query_runtime_api(
-                runtime_api="SubnetInfoRuntimeApi",
-                method="get_subnet_hyperparams",
-                params=[netuid],
-                block_hash=block_hash,
-            ),
-            self.query("SubtensorModule", "Yuma3On", [netuid]),
-            self.query("SubtensorModule", "AlphaSigmoidSteepness", [netuid]),
+        result = await self.query_runtime_api(
+            runtime_api="SubnetInfoRuntimeApi",
+            method="get_subnet_hyperparams_v2",
+            params=[netuid],
+            block_hash=block_hash,
         )
-        result = {
-            **main_result,
-            **{"yuma3_enabled": yuma3_result},
-            **{"alpha_sigmoid_steepness": sigmoid_steepness},
-        }
-        if not main_result:
+        if not result:
             return []
 
         return SubnetHyperparameters.from_any(result)
