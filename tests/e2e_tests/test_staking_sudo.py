@@ -533,12 +533,12 @@ def test_staking(local_chain, wallet_setup):
 
     yuma3_val = next(
         filter(
-            lambda x: x["hyperparameter"] == "yuma3_enabled",
+            lambda x: x["hyperparameter"] == "yuma_version",
             json.loads(changed_yuma3_hyperparam.stdout),
         )
     )
-    assert yuma3_val["value"] is True
-    assert yuma3_val["normalized_value"] is True
+    assert yuma3_val["value"] is 3
+    assert yuma3_val["normalized_value"] is 3
     print("✅ Passed staking and sudo commands")
 
     change_arbitrary_hyperparam = exec_command_alice(
