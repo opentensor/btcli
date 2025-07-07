@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import asyncio
-import curses
 import copy
+import curses
 import importlib
 import json
 import os.path
@@ -10,13 +10,13 @@ import ssl
 import sys
 import traceback
 import warnings
-from pathlib import Path
-from typing import Coroutine, Optional
 from dataclasses import fields
+from pathlib import Path
+from typing import Coroutine, Optional, Union
 
+import numpy as np
 import rich
 import typer
-import numpy as np
 from async_substrate_interface.errors import (
     SubstrateRequestException,
     ConnectionClosed,
@@ -39,21 +39,10 @@ from bittensor_cli.src import (
     COLORS,
     HYPERPARAMS,
 )
-from bittensor_cli.version import __version__, __version_as_int__
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
-from bittensor_cli.src.commands import sudo, wallets, view
-from bittensor_cli.src.commands import weights as weights_cmds
-from bittensor_cli.src.commands.subnets import price, subnets
-from bittensor_cli.src.commands.stake import (
-    children_hotkeys,
-    list as list_stake,
-    move as move_stake,
-    add as add_stake,
-    remove as remove_stake,
-)
-from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
+from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
@@ -70,6 +59,22 @@ from bittensor_cli.src.bittensor.utils import (
     prompt_for_subnet_identity,
     validate_rate_tolerance,
 )
+from bittensor_cli.src.commands import sudo, wallets, view
+from bittensor_cli.src.commands import weights as weights_cmds
+from bittensor_cli.src.commands.liquidity import liquidity
+from bittensor_cli.src.commands.liquidity.utils import (
+    prompt_liquidity,
+    prompt_position_id,
+)
+from bittensor_cli.src.commands.stake import (
+    children_hotkeys,
+    list as list_stake,
+    move as move_stake,
+    add as add_stake,
+    remove as remove_stake,
+)
+from bittensor_cli.src.commands.subnets import price, subnets
+from bittensor_cli.version import __version__, __version_as_int__
 
 try:
     from git import Repo, GitError
@@ -656,6 +661,7 @@ class CLIManager:
         self.subnets_app = typer.Typer(epilog=_epilog)
         self.weights_app = typer.Typer(epilog=_epilog)
         self.view_app = typer.Typer(epilog=_epilog)
+        self.liquidity_app = typer.Typer(epilog=_epilog)
 
         # config alias
         self.app.add_typer(
@@ -977,6 +983,30 @@ class CLIManager:
         self.sudo_app.command("senate_vote", hidden=True)(self.sudo_senate_vote)
         self.sudo_app.command("get_take", hidden=True)(self.sudo_get_take)
         self.sudo_app.command("set_take", hidden=True)(self.sudo_set_take)
+
+        # Liquidity
+        self.app.add_typer(
+            self.liquidity_app,
+            name="liquidity",
+            short_help="liquidity commands, aliases: `l`",
+            no_args_is_help=True,
+        )
+        self.app.add_typer(
+            self.liquidity_app, name="l", hidden=True, no_args_is_help=True
+        )
+        # liquidity commands
+        self.liquidity_app.command(
+            "add", rich_help_panel=HELP_PANELS["LIQUIDITY"]["LIQUIDITY_MGMT"]
+        )(self.liquidity_add)
+        self.liquidity_app.command(
+            "list", rich_help_panel=HELP_PANELS["LIQUIDITY"]["LIQUIDITY_MGMT"]
+        )(self.liquidity_list)
+        self.liquidity_app.command(
+            "modify", rich_help_panel=HELP_PANELS["LIQUIDITY"]["LIQUIDITY_MGMT"]
+        )(self.liquidity_modify)
+        self.liquidity_app.command(
+            "remove", rich_help_panel=HELP_PANELS["LIQUIDITY"]["LIQUIDITY_MGMT"]
+        )(self.liquidity_remove)
 
     def generate_command_tree(self) -> Tree:
         """
@@ -1609,7 +1639,8 @@ class CLIManager:
         wallet_hotkey: Optional[str],
         ask_for: Optional[list[str]] = None,
         validate: WV = WV.WALLET,
-    ) -> Wallet:
+        return_wallet_and_hotkey: bool = False,
+    ) -> Union[Wallet, tuple[Wallet, str]]:
         """
         Generates a wallet object based on supplied values, validating the wallet is valid if flag is set
         :param wallet_name: name of the wallet
@@ -1617,7 +1648,8 @@ class CLIManager:
         :param wallet_hotkey: name of the wallet hotkey file
         :param validate: flag whether to check for the wallet's validity
         :param ask_for: aspect of the wallet (name, path, hotkey) to prompt the user for
-        :return: created Wallet object
+        :param return_wallet_and_hotkey: if specified, will return both the wallet object, and the hotkey SS58
+        :return: created Wallet object (or wallet, hotkey ss58)
         """
         ask_for = ask_for or []
         # Prompt for missing attributes specified in ask_for
@@ -1642,8 +1674,9 @@ class CLIManager:
                 )
             else:
                 wallet_hotkey = Prompt.ask(
-                    "Enter the [blue]wallet hotkey[/blue]"
-                    + " [dark_sea_green3 italic](Hint: You can set this with `btcli config set --wallet-hotkey`)[/dark_sea_green3 italic]",
+                    "Enter the [blue]wallet hotkey[/blue][dark_sea_green3 italic]"
+                    "(Hint: You can set this with `btcli config set --wallet-hotkey`)"
+                    "[/dark_sea_green3 italic]",
                     default=defaults.wallet.hotkey,
                 )
         if wallet_path:
@@ -1661,7 +1694,8 @@ class CLIManager:
         if WO.PATH in ask_for and not wallet_path:
             wallet_path = Prompt.ask(
                 "Enter the [blue]wallet path[/blue]"
-                + " [dark_sea_green3 italic](Hint: You can set this with `btcli config set --wallet-path`)[/dark_sea_green3 italic]",
+                "[dark_sea_green3 italic](Hint: You can set this with `btcli config set --wallet-path`)"
+                "[/dark_sea_green3 italic]",
                 default=defaults.wallet.path,
             )
         # Create the Wallet object
@@ -1685,7 +1719,28 @@ class CLIManager:
                     f"Please verify your wallet information: {wallet}[/red]"
                 )
                 raise typer.Exit()
-        return wallet
+        if return_wallet_and_hotkey:
+            valid = utils.is_valid_wallet(wallet)
+            if valid[1]:
+                return wallet, wallet.hotkey.ss58_address
+            else:
+                if wallet_hotkey and is_valid_ss58_address(wallet_hotkey):
+                    return wallet, wallet_hotkey
+                else:
+                    hotkey = (
+                        Prompt.ask(
+                            "Enter the SS58 of the hotkey to use for this transaction."
+                        )
+                    ).strip()
+                    if not is_valid_ss58_address(hotkey):
+                        err_console.print(
+                            f"[red]Error: {hotkey} is not valid SS58 address."
+                        )
+                        raise typer.Exit(1)
+                    else:
+                        return wallet, hotkey
+        else:
+            return wallet
 
     def wallet_list(
         self,
@@ -5759,6 +5814,257 @@ class CLIManager:
                 save_file=save_file,
                 dashboard_path=dashboard_path,
                 coldkey_ss58=coldkey_ss58,
+            )
+        )
+
+    def liquidity_add(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        netuid: Optional[int] = Options.netuid,
+        liquidity_: Optional[float] = typer.Option(
+            None,
+            "--liquidity",
+            help="Amount of liquidity to add to the subnet.",
+        ),
+        price_low: Optional[float] = typer.Option(
+            None,
+            "--price-low",
+            "--price_low",
+            "--liquidity-price-low",
+            "--liquidity_price_low",
+            help="Low price for the adding liquidity position.",
+        ),
+        price_high: Optional[float] = typer.Option(
+            None,
+            "--price-high",
+            "--price_high",
+            "--liquidity-price-high",
+            "--liquidity_price_high",
+            help="High price for the adding liquidity position.",
+        ),
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """Add liquidity to the swap (as a combination of TAO + Alpha)."""
+        self.verbosity_handler(quiet, verbose, json_output)
+        if not netuid:
+            netuid = Prompt.ask(
+                f"Enter the [{COLORS.G.SUBHEAD_MAIN}]netuid[/{COLORS.G.SUBHEAD_MAIN}] to use",
+                default=None,
+                show_default=False,
+            )
+
+        wallet, hotkey = self.wallet_ask(
+            wallet_name=wallet_name,
+            wallet_path=wallet_path,
+            wallet_hotkey=wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY, WO.PATH],
+            validate=WV.WALLET,
+            return_wallet_and_hotkey=True,
+        )
+        # Determine the liquidity amount.
+        if liquidity_:
+            liquidity_ = Balance.from_tao(liquidity_)
+        else:
+            liquidity_ = prompt_liquidity("Enter the amount of liquidity")
+
+        # Determine price range
+        if price_low:
+            price_low = Balance.from_tao(price_low)
+        else:
+            price_low = prompt_liquidity("Enter liquidity position low price")
+
+        if price_high:
+            price_high = Balance.from_tao(price_high)
+        else:
+            price_high = prompt_liquidity(
+                "Enter liquidity position high price (must be greater than low price)"
+            )
+
+        if price_low >= price_high:
+            err_console.print("The low price must be lower than the high price.")
+            return False
+
+        return self._run_command(
+            liquidity.add_liquidity(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                hotkey_ss58=hotkey,
+                netuid=netuid,
+                liquidity=liquidity_,
+                price_low=price_low,
+                price_high=price_high,
+                prompt=prompt,
+                json_output=json_output,
+            )
+        )
+
+    def liquidity_list(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        netuid: Optional[int] = Options.netuid,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """Displays liquidity positions in given subnet."""
+        self.verbosity_handler(quiet, verbose, json_output)
+        if not netuid:
+            netuid = IntPrompt.ask(
+                f"Enter the [{COLORS.G.SUBHEAD_MAIN}]netuid[/{COLORS.G.SUBHEAD_MAIN}] to use",
+                default=None,
+                show_default=False,
+            )
+
+        wallet = self.wallet_ask(
+            wallet_name=wallet_name,
+            wallet_path=wallet_path,
+            wallet_hotkey=wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.WALLET,
+        )
+        self._run_command(
+            liquidity.show_liquidity_list(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                netuid=netuid,
+                json_output=json_output,
+            )
+        )
+
+    def liquidity_remove(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        netuid: Optional[int] = Options.netuid,
+        position_id: Optional[int] = typer.Option(
+            None,
+            "--position-id",
+            "--position_id",
+            help="Position ID for modification or removal.",
+        ),
+        all_liquidity_ids: Optional[bool] = typer.Option(
+            False,
+            "--all",
+            "--a",
+            help="Whether to remove all liquidity positions for given subnet.",
+        ),
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """Remove liquidity from the swap (as a combination of TAO + Alpha)."""
+
+        self.verbosity_handler(quiet, verbose, json_output)
+
+        if all_liquidity_ids and position_id:
+            print_error("Cannot specify both --all and --position-id.")
+            return
+
+        if not position_id and not all_liquidity_ids:
+            position_id = prompt_position_id()
+
+        if not netuid:
+            netuid = IntPrompt.ask(
+                f"Enter the [{COLORS.G.SUBHEAD_MAIN}]netuid[/{COLORS.G.SUBHEAD_MAIN}] to use",
+                default=None,
+                show_default=False,
+            )
+
+        wallet, hotkey = self.wallet_ask(
+            wallet_name=wallet_name,
+            wallet_path=wallet_path,
+            wallet_hotkey=wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY, WO.PATH],
+            validate=WV.WALLET,
+            return_wallet_and_hotkey=True,
+        )
+        return self._run_command(
+            liquidity.remove_liquidity(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                hotkey_ss58=hotkey,
+                netuid=netuid,
+                position_id=position_id,
+                prompt=prompt,
+                all_liquidity_ids=all_liquidity_ids,
+                json_output=json_output,
+            )
+        )
+
+    def liquidity_modify(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        netuid: Optional[int] = Options.netuid,
+        position_id: Optional[int] = typer.Option(
+            None,
+            "--position-id",
+            "--position_id",
+            help="Position ID for modification or removing.",
+        ),
+        liquidity_delta: Optional[float] = typer.Option(
+            None,
+            "--liquidity-delta",
+            "--liquidity_delta",
+            help="Liquidity amount for modification.",
+        ),
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """Modifies the liquidity position for the given subnet."""
+        self.verbosity_handler(quiet, verbose, json_output)
+        if not netuid:
+            netuid = IntPrompt.ask(
+                f"Enter the [{COLORS.G.SUBHEAD_MAIN}]netuid[/{COLORS.G.SUBHEAD_MAIN}] to use",
+            )
+
+        wallet, hotkey = self.wallet_ask(
+            wallet_name=wallet_name,
+            wallet_path=wallet_path,
+            wallet_hotkey=wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY, WO.PATH],
+            validate=WV.WALLET,
+            return_wallet_and_hotkey=True,
+        )
+
+        if not position_id:
+            position_id = prompt_position_id()
+
+        if liquidity_delta:
+            liquidity_delta = Balance.from_tao(liquidity_delta)
+        else:
+            liquidity_delta = prompt_liquidity(
+                f"Enter the [blue]liquidity delta[/blue] to modify position with id "
+                f"[blue]{position_id}[/blue] (can be positive or negative)",
+                negative_allowed=True,
+            )
+
+        return self._run_command(
+            liquidity.modify_liquidity(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                hotkey_ss58=hotkey,
+                netuid=netuid,
+                position_id=position_id,
+                liquidity_delta=liquidity_delta,
+                prompt=prompt,
+                json_output=json_output,
             )
         )
 
