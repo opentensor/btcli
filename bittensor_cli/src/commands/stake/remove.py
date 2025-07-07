@@ -248,7 +248,7 @@ async def unstake(
             # Additional fields for safe unstaking
             if safe_staking:
                 if subnet_info.is_dynamic:
-                    rate = amount_to_unstake_as_balance.rao / received_amount.rao
+                    rate = received_amount.rao / amount_to_unstake_as_balance.rao
                     rate_with_tolerance = rate * (
                         1 - rate_tolerance
                     )  # Rate only for display
