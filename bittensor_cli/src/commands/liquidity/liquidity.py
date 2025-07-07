@@ -263,6 +263,7 @@ async def add_liquidity(
     success, message = await add_liquidity_extrinsic(
         subtensor=subtensor,
         wallet=wallet,
+        hotkey_ss58=hotkey_ss58,
         netuid=netuid,
         liquidity=liquidity,
         price_low=price_low,
