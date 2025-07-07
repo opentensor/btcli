@@ -8,7 +8,7 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-from rich.prompt import Prompt
+from rich.prompt import IntPrompt, FloatPrompt
 
 from bittensor_cli.src.bittensor.balances import Balance, fixed_to_float
 from bittensor_cli.src.bittensor.utils import (
@@ -176,9 +176,8 @@ def prompt_liquidity(prompt: str, negative_allowed: bool = False) -> Balance:
         Balance converted from input to TAO.
     """
     while True:
-        input_ = Prompt.ask(prompt)
+        amount = FloatPrompt.ask(prompt)
         try:
-            amount = float(input_)
             if amount <= 0 and not negative_allowed:
                 console.print("[red]Amount must be greater than 0[/red].")
                 continue
@@ -190,10 +189,9 @@ def prompt_liquidity(prompt: str, negative_allowed: bool = False) -> Balance:
 def prompt_position_id() -> int:
     """Ask the user for the ID of the liquidity position to remove."""
     while True:
-        position_id = Prompt.ask(f"Enter the [blue]liquidity position ID[/blue]")
+        position_id = IntPrompt.ask("Enter the [blue]liquidity position ID[/blue]")
 
         try:
-            position_id = int(position_id)
             if position_id <= 1:
                 console.print("[red]Position ID must be greater than 1[/red].")
                 continue

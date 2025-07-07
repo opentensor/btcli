@@ -30,7 +30,6 @@ from rich.tree import Tree
 from typing_extensions import Annotated
 from yaml import safe_dump, safe_load
 
-from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src import (
     defaults,
     HELP_PANELS,
@@ -62,11 +61,10 @@ from bittensor_cli.src.bittensor.utils import (
 )
 from bittensor_cli.src.commands import sudo, wallets, view
 from bittensor_cli.src.commands import weights as weights_cmds
-from bittensor_cli.src.commands.liquidity import (
-    add_liquidity,
-    get_liquidity_list,
-    modify_liquidity,
-    remove_liquidity,
+from bittensor_cli.src.commands.liquidity import liquidity
+from bittensor_cli.src.commands.liquidity.utils import (
+    prompt_liquidity,
+    prompt_position_id,
 )
 from bittensor_cli.src.commands.stake import (
     children_hotkeys,
@@ -5801,7 +5799,7 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         netuid: Optional[int] = Options.netuid,
-        liquidity: Optional[float] = typer.Option(
+        liquidity_: Optional[float] = typer.Option(
             None,
             "--liquidity",
             help="Amount of liquidity to add to the subnet.",
@@ -5849,26 +5847,41 @@ class CLIManager:
             ask_for=[WO.NAME, WO.HOTKEY, WO.PATH],
             validate=WV.WALLET_AND_HOTKEY,
         )
+        # Determine the liquidity amount.
+        if liquidity_:
+            liquidity_ = Balance.from_tao(liquidity_)
+        else:
+            liquidity_ = prompt_liquidity("Enter the amount of liquidity")
 
-        success, message = self._run_command(
-            add_liquidity(
+        # Determine price range
+        if price_low:
+            price_low = Balance.from_tao(price_low)
+        else:
+            price_low = prompt_liquidity("Enter liquidity position low price")
+
+        if price_high:
+            price_high = Balance.from_tao(price_high)
+        else:
+            price_high = prompt_liquidity(
+                "Enter liquidity position high price (must be greater than low price)"
+            )
+
+        if price_low >= price_high:
+            err_console.print("The low price must be lower than the high price.")
+            return False
+
+        return self._run_command(
+            liquidity.add_liquidity(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
                 netuid=netuid,
-                liquidity=liquidity,
+                liquidity=liquidity_,
                 price_low=price_low,
                 price_high=price_high,
                 prompt=prompt,
                 json_output=json_output,
             )
         )
-
-        if success:
-            console.print(
-                "[green]LiquidityPosition has beed successfully added.[/green]"
-            )
-        else:
-            console.print(f"[red]{message}[/red]")
 
     def liquidity_list(
         self,
@@ -5884,16 +5897,10 @@ class CLIManager:
         """Displays liquidity positions in given subnet."""
         self.verbosity_handler(quiet, verbose, json_output)
         if not netuid:
-            netuid = Prompt.ask(
+            netuid = IntPrompt.ask(
                 f"Enter the [{COLORS.G.SUBHEAD_MAIN}]netuid[/{COLORS.G.SUBHEAD_MAIN}] to use",
                 default=None,
                 show_default=False,
-            )
-
-        if not wallet_name:
-            wallet_name = Prompt.ask(
-                "Enter the [blue]wallet name[/blue]",
-                default=self.config.get("wallet_name") or defaults.wallet.name,
             )
 
         wallet = self.wallet_ask(
@@ -5903,48 +5910,14 @@ class CLIManager:
             ask_for=[WO.NAME, WO.HOTKEY, WO.PATH],
             validate=WV.WALLET_AND_HOTKEY,
         )
-
-        positions = self._run_command(
-            get_liquidity_list(
+        self._run_command(
+            liquidity.show_liquidity_list(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
                 netuid=netuid,
                 json_output=json_output,
             )
         )
-
-        liquidity_table = Table(
-            Column("ID", justify="center"),
-            Column("Liquidity (Alpha and TAO part)", justify="center"),
-            Column("Price low", justify="center"),
-            Column("Price high", justify="center"),
-            Column("Fee TAO", justify="center"),
-            Column("Fee Alpha", justify="center"),
-            title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]{'Liquidity Positions of '}{wallet.name} wallet in SN #{netuid}\n",
-            show_footer=False,
-            show_edge=True,
-            header_style="bold white",
-            border_style="bright_black",
-            style="bold",
-            title_justify="center",
-            show_lines=False,
-            pad_edge=True,
-        )
-
-        current_price = self._run_command(self.subtensor.subnet(netuid=netuid)).price
-
-        for lp in positions:
-            alpha, tao = lp.to_token_amounts(current_price)
-            liquidity_table.add_row(
-                str(lp.id),
-                f"{alpha} {tao}",
-                str(lp.price_low),
-                str(lp.price_high),
-                str(lp.fees_tao),
-                str(lp.fees_alpha),
-            )
-
-        console.print(liquidity_table)
 
     def liquidity_remove(
         self,
@@ -5957,7 +5930,7 @@ class CLIManager:
             None,
             "--position-id",
             "--position_id",
-            help="Position ID for modification or removing.",
+            help="Position ID for modification or removal.",
         ),
         all_liquidity_ids: Optional[bool] = typer.Option(
             False,
@@ -5972,22 +5945,20 @@ class CLIManager:
     ):
         """Remove liquidity from the swap (as a combination of TAO + Alpha)."""
 
+        self.verbosity_handler(quiet, verbose, json_output)
+
         if all_liquidity_ids and position_id:
             print_error("Cannot specify both --all and --position-id.")
             return
 
-        self.verbosity_handler(quiet, verbose, json_output)
+        if not position_id and not all_liquidity_ids:
+            position_id = prompt_position_id()
+
         if not netuid:
-            netuid = Prompt.ask(
+            netuid = IntPrompt.ask(
                 f"Enter the [{COLORS.G.SUBHEAD_MAIN}]netuid[/{COLORS.G.SUBHEAD_MAIN}] to use",
                 default=None,
                 show_default=False,
-            )
-
-        if not wallet_name:
-            wallet_name = Prompt.ask(
-                "Enter the [blue]wallet name[/blue]",
-                default=self.config.get("wallet_name") or defaults.wallet.name,
             )
 
         wallet = self.wallet_ask(
@@ -5997,46 +5968,17 @@ class CLIManager:
             ask_for=[WO.NAME, WO.HOTKEY, WO.PATH],
             validate=WV.WALLET_AND_HOTKEY,
         )
-
-        position_ids = [position_id]
-        if all_liquidity_ids:
-            positions = self._run_command(
-                get_liquidity_list(
-                    subtensor=self.initialize_chain(network),
-                    wallet=wallet,
-                    netuid=netuid,
-                    json_output=json_output,
-                )
+        return self._run_command(
+            liquidity.remove_liquidity(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                netuid=netuid,
+                position_id=position_id,
+                prompt=prompt,
+                all_liquidity_ids=all_liquidity_ids,
+                json_output=json_output,
             )
-            position_ids = [p.id for p in positions]
-
-        successes = []
-        message = ""
-        for position_id in position_ids:
-            success, message = self._run_command(
-                remove_liquidity(
-                    subtensor=self.initialize_chain(network),
-                    wallet=wallet,
-                    netuid=netuid,
-                    position_id=position_id,
-                    prompt=prompt,
-                    all_liquidity_ids=all_liquidity_ids,
-                    json_output=json_output,
-                )
-            )
-            successes.append(success)
-
-        if all(successes):
-            if all_liquidity_ids:
-                console.print(
-                    f"[green]All liquidity positions for subnet {netuid} have been successfully removed.[/green]"
-                )
-            else:
-                console.print(
-                    "[green]LiquidityPosition has beed successfully deleted.[/green]"
-                )
-        else:
-            console.print(f"[red]{message}[/red]")
+        )
 
     def liquidity_modify(
         self,
@@ -6065,16 +6007,8 @@ class CLIManager:
         """Modifies the liquidity position for the given subnet."""
         self.verbosity_handler(quiet, verbose, json_output)
         if not netuid:
-            netuid = Prompt.ask(
+            netuid = IntPrompt.ask(
                 f"Enter the [{COLORS.G.SUBHEAD_MAIN}]netuid[/{COLORS.G.SUBHEAD_MAIN}] to use",
-                default=None,
-                show_default=False,
-            )
-
-        if not wallet_name:
-            wallet_name = Prompt.ask(
-                "Enter the [blue]wallet name[/blue]",
-                default=self.config.get("wallet_name") or defaults.wallet.name,
             )
 
         wallet = self.wallet_ask(
@@ -6085,8 +6019,20 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
 
-        success, message = self._run_command(
-            modify_liquidity(
+        if not position_id:
+            position_id = prompt_position_id()
+
+        if liquidity_delta:
+            liquidity_delta = Balance.from_tao(liquidity_delta)
+        else:
+            liquidity_delta = prompt_liquidity(
+                f"Enter the [blue]liquidity delta[/blue] to modify position with id "
+                f"[blue]{position_id}[/blue] (can be positive or negative)",
+                negative_allowed=True,
+            )
+
+        return self._run_command(
+            liquidity.modify_liquidity(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
                 netuid=netuid,
@@ -6096,13 +6042,6 @@ class CLIManager:
                 json_output=json_output,
             )
         )
-
-        if success:
-            console.print(
-                "[green]LiquidityPosition has beed successfully modified.[/green]"
-            )
-        else:
-            console.print(f"[red]{message}[/red]")
 
     @staticmethod
     @utils_app.command("convert")

@@ -537,8 +537,8 @@ def test_staking(local_chain, wallet_setup):
             json.loads(changed_yuma3_hyperparam.stdout),
         )
     )
-    assert yuma3_val["value"] is 3
-    assert yuma3_val["normalized_value"] is 3
+    assert yuma3_val["value"] == 3
+    assert yuma3_val["normalized_value"] == 3
     print("✅ Passed staking and sudo commands")
 
     change_arbitrary_hyperparam = exec_command_alice(
