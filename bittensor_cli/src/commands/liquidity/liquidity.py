@@ -456,7 +456,9 @@ async def show_liquidity_list(
             return False
     liquidity_table = Table(
         Column("ID", justify="center"),
-        Column("Liquidity (Alpha and TAO part)", justify="center"),
+        Column("Liquidity", justify="center"),
+        Column("Alpha", justify="center"),
+        Column("Tao", justify="center"),
         Column("Price low", justify="center"),
         Column("Price high", justify="center"),
         Column("Fee TAO", justify="center"),
@@ -478,7 +480,9 @@ async def show_liquidity_list(
         alpha, tao = lp.to_token_amounts(current_price)
         liquidity_table.add_row(
             str(lp.id),
-            f"{alpha} {tao}",
+            str(lp.liquidity),
+            str(alpha),
+            str(tao),
             str(lp.price_low),
             str(lp.price_high),
             str(lp.fees_tao),
@@ -487,8 +491,8 @@ async def show_liquidity_list(
         json_table.append(
             {
                 "id": lp.id,
-                "alpha_liquidity": alpha.tao,
-                "tao_liquidity": tao.tao,
+                "liquidity": lp.liquidity.tao,
+                "token_amounts": {"alpha": alpha.tao, "tao": tao.tao},
                 "price_low": lp.price_low.tao,
                 "price_high": lp.price_high.tao,
                 "fees_tao": lp.fees_tao.tao,

@@ -172,10 +172,67 @@ def test_liquidity(local_chain, wallet_setup):
     assert liquidity_list_result["success"] is True
     assert len(liquidity_list_result["positions"]) == 1
     liquidity_position = liquidity_list_result["positions"][0]
-    assert liquidity_position["alpha_liquidity"] == 1.0
+    assert liquidity_position["liquidity"] == 1.0
     assert liquidity_position["id"] == 2
     assert liquidity_position["fees_tao"] == 0.0
     assert liquidity_position["fees_alpha"] == 0.0
     assert liquidity_position["netuid"] == netuid
-    assert abs(liquidity_position["price_high"] - 1.8) < 0.1
-    assert abs(liquidity_position["price_low"] - 1.7) < 0.1
+    assert abs(liquidity_position["price_high"] - 1.8) < 0.0001
+    assert abs(liquidity_position["price_low"] - 1.7) < 0.0001
+
+    modify_liquidity = exec_command_alice(
+        command="liquidity",
+        sub_command="modify",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--netuid",
+            netuid,
+            "--position-id",
+            str(liquidity_position["id"]),
+            "--liquidity-delta",
+            "20.0",
+            "--json-output",
+            "--no-prompt",
+        ],
+    )
+    modify_liquidity_result = json.loads(modify_liquidity.stdout)
+    assert modify_liquidity_result["success"] is True
+
+    liquidity_list_result = json.loads(liquidity_list().stdout)
+    assert len(liquidity_list_result["positions"]) == 1
+    liquidity_position = liquidity_list_result["positions"][0]
+    assert liquidity_position["id"] == 2
+    assert liquidity_position["liquidity"] == 21.0
+
+    removal = exec_command_alice(
+        command="liquidity",
+        sub_command="remove",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--netuid",
+            netuid,
+            "--all",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+    removal_result = json.loads(removal.stdout)
+    assert removal_result[str(liquidity_position["id"])]["success"] is True
+
+    liquidity_list_result = json.loads(liquidity_list().stdout)
+    assert liquidity_list_result["success"] is True
+    assert liquidity_list_result["positions"] == []
