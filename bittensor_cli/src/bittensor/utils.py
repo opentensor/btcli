@@ -1379,6 +1379,7 @@ def unlock_key(
         err_msg = f"The password used to decrypt your {unlock_type.capitalize()}key Keyfile is invalid."
         if print_out:
             err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+            return unlock_key(wallet, unlock_type, print_out)
         return UnlockStatus(False, err_msg)
     except KeyFileError:
         err_msg = f"{unlock_type.capitalize()}key Keyfile is corrupt, non-writable, or non-readable, or non-existent."
