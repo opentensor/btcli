@@ -248,13 +248,13 @@ async def unstake(
             # Additional fields for safe unstaking
             if safe_staking:
                 if subnet_info.is_dynamic:
-                    rate = subnet_info.price.tao or 1
+                    rate = received_amount.rao / amount_to_unstake_as_balance.rao
                     rate_with_tolerance = rate * (
                         1 - rate_tolerance
                     )  # Rate only for display
-                    price_with_tolerance = subnet_info.price.rao * (
-                        1 - rate_tolerance
-                    )  # Actual price to pass to extrinsic
+                    price_with_tolerance = Balance.from_tao(
+                        rate_with_tolerance
+                    ).rao  # Actual price to pass to extrinsic
                 else:
                     rate_with_tolerance = 1
                     price_with_tolerance = 1
