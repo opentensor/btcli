@@ -1,5 +1,21 @@
 # Changelog
 
+## 9.8.0/2025-07-07
+
+## What's Changed
+* Feat/logo urls in subnet identity by @ibraheem-abe in https://github.com/opentensor/btcli/pull/504
+* Feat/swap hotkey with netuids by @ibraheem-abe in https://github.com/opentensor/btcli/pull/503
+* Backmerge main staging by @ibraheem-abe in https://github.com/opentensor/btcli/pull/508
+* Ensures network local is used if forgotten in e2e tests by @thewhaleking in https://github.com/opentensor/btcli/pull/497
+* Convert hyperparams from strings by @thewhaleking in https://github.com/opentensor/btcli/pull/510
+* Ensure we parse strings for param names by @thewhaleking in https://github.com/opentensor/btcli/pull/511
+* add snake case aliases by @thewhaleking in https://github.com/opentensor/btcli/pull/514
+* Better checks the swap status by @thewhaleking in https://github.com/opentensor/btcli/pull/485
+* Integrate Liquidity Provider feature by @basfroman in https://github.com/opentensor/btcli/pull/515
+* Updates safe staking/unstaking limits by @ibraheem-abe in https://github.com/opentensor/btcli/pull/519
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.7.1...v9.8.0
+
 ## 9.7.1/2025-06-26
 
 ## What's Changed
