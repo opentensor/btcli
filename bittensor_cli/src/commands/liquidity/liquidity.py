@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 async def add_liquidity_extrinsic(
     subtensor: "SubtensorInterface",
     wallet: "Wallet",
+    hotkey_ss58: str,
     netuid: int,
     liquidity: Balance,
     price_low: Balance,
@@ -42,6 +43,7 @@ async def add_liquidity_extrinsic(
     Arguments:
         subtensor: The Subtensor client instance used for blockchain interaction.
         wallet: The wallet used to sign the extrinsic (must be unlocked).
+        hotkey_ss58: the SS58 of the hotkey to use for this transaction.
         netuid: The UID of the target subnet for which the call is being initiated.
         liquidity: The amount of liquidity to be added.
         price_low: The lower bound of the price tick range.
@@ -67,7 +69,7 @@ async def add_liquidity_extrinsic(
         call_module="Swap",
         call_function="add_liquidity",
         call_params={
-            "hotkey": wallet.hotkey.ss58_address,
+            "hotkey": hotkey_ss58,
             "netuid": netuid,
             "tick_low": tick_low,
             "tick_high": tick_high,
@@ -86,6 +88,7 @@ async def add_liquidity_extrinsic(
 async def modify_liquidity_extrinsic(
     subtensor: "SubtensorInterface",
     wallet: "Wallet",
+    hotkey_ss58: str,
     netuid: int,
     position_id: int,
     liquidity_delta: Balance,
@@ -97,6 +100,7 @@ async def modify_liquidity_extrinsic(
     Arguments:
         subtensor: The Subtensor client instance used for blockchain interaction.
         wallet: The wallet used to sign the extrinsic (must be unlocked).
+        hotkey_ss58: the SS58 of the hotkey to use for this transaction.
         netuid: The UID of the target subnet for which the call is being initiated.
         position_id: The id of the position record in the pool.
         liquidity_delta: The amount of liquidity to be added or removed (add if positive or remove if negative).
@@ -118,7 +122,7 @@ async def modify_liquidity_extrinsic(
         call_module="Swap",
         call_function="modify_position",
         call_params={
-            "hotkey": wallet.hotkey.ss58_address,
+            "hotkey": hotkey_ss58,
             "netuid": netuid,
             "position_id": position_id,
             "liquidity_delta": liquidity_delta.rao,
@@ -136,6 +140,7 @@ async def modify_liquidity_extrinsic(
 async def remove_liquidity_extrinsic(
     subtensor: "SubtensorInterface",
     wallet: "Wallet",
+    hotkey_ss58: str,
     netuid: int,
     position_id: int,
     wait_for_inclusion: bool = True,
@@ -146,6 +151,7 @@ async def remove_liquidity_extrinsic(
     Arguments:
         subtensor: The Subtensor client instance used for blockchain interaction.
         wallet: The wallet used to sign the extrinsic (must be unlocked).
+        hotkey_ss58: the SS58 of the hotkey to use for this transaction.
         netuid: The UID of the target subnet for which the call is being initiated.
         position_id: The id of the position record in the pool.
         wait_for_inclusion: Whether to wait for the extrinsic to be included in a block. Defaults to True.
@@ -166,7 +172,7 @@ async def remove_liquidity_extrinsic(
         call_module="Swap",
         call_function="remove_liquidity",
         call_params={
-            "hotkey": wallet.hotkey.ss58_address,
+            "hotkey": hotkey_ss58,
             "netuid": netuid,
             "position_id": position_id,
         },
@@ -224,6 +230,7 @@ async def toggle_user_liquidity_extrinsic(
 async def add_liquidity(
     subtensor: "SubtensorInterface",
     wallet: "Wallet",
+    hotkey_ss58: str,
     netuid: Optional[int],
     liquidity: Optional[float],
     price_low: Optional[float],
@@ -512,6 +519,7 @@ async def show_liquidity_list(
 async def remove_liquidity(
     subtensor: "SubtensorInterface",
     wallet: "Wallet",
+    hotkey_ss58: str,
     netuid: int,
     position_id: Optional[int] = None,
     prompt: Optional[bool] = None,
@@ -551,6 +559,7 @@ async def remove_liquidity(
             remove_liquidity_extrinsic(
                 subtensor=subtensor,
                 wallet=wallet,
+                hotkey_ss58=hotkey_ss58,
                 netuid=netuid,
                 position_id=pos_id,
             )
@@ -573,6 +582,7 @@ async def remove_liquidity(
 async def modify_liquidity(
     subtensor: "SubtensorInterface",
     wallet: "Wallet",
+    hotkey_ss58: str,
     netuid: int,
     position_id: int,
     liquidity_delta: Optional[float],
@@ -603,6 +613,7 @@ async def modify_liquidity(
     success, msg = await modify_liquidity_extrinsic(
         subtensor=subtensor,
         wallet=wallet,
+        hotkey_ss58=hotkey_ss58,
         netuid=netuid,
         position_id=position_id,
         liquidity_delta=liquidity_delta,

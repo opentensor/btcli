@@ -12,7 +12,7 @@ import traceback
 import warnings
 from dataclasses import fields
 from pathlib import Path
-from typing import Coroutine, Optional
+from typing import Coroutine, Optional, Union
 
 import numpy as np
 import rich
@@ -1639,7 +1639,8 @@ class CLIManager:
         wallet_hotkey: Optional[str],
         ask_for: Optional[list[str]] = None,
         validate: WV = WV.WALLET,
-    ) -> Wallet:
+        return_wallet_and_hotkey: bool = False,
+    ) -> Union[Wallet, tuple[Wallet, str]]:
         """
         Generates a wallet object based on supplied values, validating the wallet is valid if flag is set
         :param wallet_name: name of the wallet
@@ -1647,7 +1648,8 @@ class CLIManager:
         :param wallet_hotkey: name of the wallet hotkey file
         :param validate: flag whether to check for the wallet's validity
         :param ask_for: aspect of the wallet (name, path, hotkey) to prompt the user for
-        :return: created Wallet object
+        :param return_wallet_and_hotkey: if specified, will return both the wallet object, and the hotkey SS58
+        :return: created Wallet object (or wallet, hotkey ss58)
         """
         ask_for = ask_for or []
         # Prompt for missing attributes specified in ask_for
@@ -1672,8 +1674,9 @@ class CLIManager:
                 )
             else:
                 wallet_hotkey = Prompt.ask(
-                    "Enter the [blue]wallet hotkey[/blue]"
-                    + " [dark_sea_green3 italic](Hint: You can set this with `btcli config set --wallet-hotkey`)[/dark_sea_green3 italic]",
+                    "Enter the [blue]wallet hotkey[/blue][dark_sea_green3 italic]"
+                    "(Hint: You can set this with `btcli config set --wallet-hotkey`)"
+                    "[/dark_sea_green3 italic]",
                     default=defaults.wallet.hotkey,
                 )
         if wallet_path:
@@ -1691,7 +1694,8 @@ class CLIManager:
         if WO.PATH in ask_for and not wallet_path:
             wallet_path = Prompt.ask(
                 "Enter the [blue]wallet path[/blue]"
-                + " [dark_sea_green3 italic](Hint: You can set this with `btcli config set --wallet-path`)[/dark_sea_green3 italic]",
+                "[dark_sea_green3 italic](Hint: You can set this with `btcli config set --wallet-path`)"
+                "[/dark_sea_green3 italic]",
                 default=defaults.wallet.path,
             )
         # Create the Wallet object
@@ -1715,7 +1719,25 @@ class CLIManager:
                     f"Please verify your wallet information: {wallet}[/red]"
                 )
                 raise typer.Exit()
-        return wallet
+        if return_wallet_and_hotkey:
+            valid = utils.is_valid_wallet(wallet)
+            if valid[1]:
+                return wallet, wallet.hotkey.ss58_address
+            else:
+                hotkey = (
+                    Prompt.ask(
+                        "Enter the SS58 of the hotkey to use for this transaction."
+                    )
+                ).strip()
+                if not is_valid_ss58_address(hotkey):
+                    err_console.print(
+                        f"[red]Error: {hotkey} is not valid SS58 address."
+                    )
+                    raise typer.Exit(1)
+                else:
+                    return wallet, hotkey
+        else:
+            return wallet
 
     def wallet_list(
         self,
@@ -5834,18 +5856,13 @@ class CLIManager:
                 show_default=False,
             )
 
-        if not wallet_name:
-            wallet_name = Prompt.ask(
-                "Enter the [blue]wallet name[/blue]",
-                default=self.config.get("wallet_name") or defaults.wallet.name,
-            )
-
-        wallet = self.wallet_ask(
+        wallet, hotkey = self.wallet_ask(
             wallet_name=wallet_name,
             wallet_path=wallet_path,
             wallet_hotkey=wallet_hotkey,
             ask_for=[WO.NAME, WO.HOTKEY, WO.PATH],
-            validate=WV.WALLET_AND_HOTKEY,
+            validate=WV.WALLET,
+            return_wallet_and_hotkey=True,
         )
         # Determine the liquidity amount.
         if liquidity_:
@@ -5874,6 +5891,7 @@ class CLIManager:
             liquidity.add_liquidity(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
+                hotkey_ss58=hotkey,
                 netuid=netuid,
                 liquidity=liquidity_,
                 price_low=price_low,
@@ -5908,7 +5926,7 @@ class CLIManager:
             wallet_path=wallet_path,
             wallet_hotkey=wallet_hotkey,
             ask_for=[WO.NAME, WO.HOTKEY, WO.PATH],
-            validate=WV.WALLET_AND_HOTKEY,
+            validate=WV.WALLET,
         )
         self._run_command(
             liquidity.show_liquidity_list(
@@ -5961,17 +5979,19 @@ class CLIManager:
                 show_default=False,
             )
 
-        wallet = self.wallet_ask(
+        wallet, hotkey = self.wallet_ask(
             wallet_name=wallet_name,
             wallet_path=wallet_path,
             wallet_hotkey=wallet_hotkey,
             ask_for=[WO.NAME, WO.HOTKEY, WO.PATH],
-            validate=WV.WALLET_AND_HOTKEY,
+            validate=WV.WALLET,
+            return_wallet_and_hotkey=True,
         )
         return self._run_command(
             liquidity.remove_liquidity(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
+                hotkey_ss58=hotkey,
                 netuid=netuid,
                 position_id=position_id,
                 prompt=prompt,
@@ -6011,12 +6031,13 @@ class CLIManager:
                 f"Enter the [{COLORS.G.SUBHEAD_MAIN}]netuid[/{COLORS.G.SUBHEAD_MAIN}] to use",
             )
 
-        wallet = self.wallet_ask(
+        wallet, hotkey = self.wallet_ask(
             wallet_name=wallet_name,
             wallet_path=wallet_path,
             wallet_hotkey=wallet_hotkey,
             ask_for=[WO.NAME, WO.HOTKEY, WO.PATH],
-            validate=WV.WALLET_AND_HOTKEY,
+            validate=WV.WALLET,
+            return_wallet_and_hotkey=True,
         )
 
         if not position_id:
@@ -6035,6 +6056,7 @@ class CLIManager:
             liquidity.modify_liquidity(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
+                hotkey_ss58=hotkey,
                 netuid=netuid,
                 position_id=position_id,
                 liquidity_delta=liquidity_delta,
