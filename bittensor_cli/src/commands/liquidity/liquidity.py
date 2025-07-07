@@ -481,7 +481,7 @@ async def show_liquidity_list(
         alpha, tao = lp.to_token_amounts(current_price)
         liquidity_table.add_row(
             str(lp.id),
-            str(lp.liquidity),
+            str(lp.liquidity.tao),
             str(alpha),
             str(tao),
             str(lp.price_low),
