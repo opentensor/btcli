@@ -133,7 +133,7 @@ def test_staking(local_chain, wallet_setup):
     assert result_output_second["success"] is True
     assert result_output_second["netuid"] == multiple_netuids[1]
 
-    # Register Alice in netuid = 1 using her hotkey
+    # Register Alice in netuid = 2 using her hotkey
     register_subnet = exec_command_alice(
         command="subnets",
         sub_command="register",

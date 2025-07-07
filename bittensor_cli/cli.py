@@ -986,7 +986,7 @@ class CLIManager:
 
         # Liquidity
         self.app.add_typer(
-            self.utils_app,
+            self.liquidity_app,
             name="liquidity",
             short_help="liquidity commands, aliases: `l`",
             no_args_is_help=True,

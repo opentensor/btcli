@@ -486,20 +486,21 @@ async def show_liquidity_list(
         )
         json_table.append(
             {
-                "ID": lp.id,
-                "Alpha Liquidity": alpha.tao,
-                "Tao Liquidity": tao.tao,
-                "Price Low": lp.price_low.tao,
-                "Price High": lp.price_high.tao,
-                "Fee TAO": lp.fees_tao.tao,
-                "Fee Alpha": lp.fees_alpha.tao,
+                "id": lp.id,
+                "alpha_liquidity": alpha.tao,
+                "tao_liquidity": tao.tao,
+                "price_low": lp.price_low.tao,
+                "price_high": lp.price_high.tao,
+                "fees_tao": lp.fees_tao.tao,
+                "fees_alpha": lp.fees_alpha.tao,
+                "netuid": lp.netuid,
             }
         )
     if not json_output:
         console.print(liquidity_table)
     else:
         json_console.print(
-            json.dumps({"success": True, "error": "", "positions": json_table})
+            json.dumps({"success": True, "err_msg": "", "positions": json_table})
         )
 
 
