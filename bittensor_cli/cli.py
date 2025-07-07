@@ -121,7 +121,7 @@ class Options:
         help="Name of the wallet.",
     )
     wallet_path = typer.Option(
-        "default",
+        None,
         "--wallet-path",
         "-p",
         "--wallet_path",
@@ -129,7 +129,7 @@ class Options:
         help="Path where the wallets are located. For example: `/Users/btuser/.bittensor/wallets`.",
     )
     wallet_hotkey = typer.Option(
-        "default",
+        None,
         "--hotkey",
         "-H",
         "--wallet_hotkey",
