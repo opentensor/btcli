@@ -463,7 +463,8 @@ async def show_liquidity_list(
         Column("Price high", justify="center"),
         Column("Fee TAO", justify="center"),
         Column("Fee Alpha", justify="center"),
-        title=f"\n[{COLORS.G.HEADER}]{'Liquidity Positions of '}{wallet.name} wallet in SN #{netuid}\n",
+        title=f"\n[{COLORS.G.HEADER}]{'Liquidity Positions of '}{wallet.name} wallet in SN #{netuid}\n"
+        "Alpha and Tao columns are respective portions of liquidity.",
         show_footer=False,
         show_edge=True,
         header_style="bold white",
