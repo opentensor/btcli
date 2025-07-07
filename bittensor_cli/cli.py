@@ -1724,18 +1724,21 @@ class CLIManager:
             if valid[1]:
                 return wallet, wallet.hotkey.ss58_address
             else:
-                hotkey = (
-                    Prompt.ask(
-                        "Enter the SS58 of the hotkey to use for this transaction."
-                    )
-                ).strip()
-                if not is_valid_ss58_address(hotkey):
-                    err_console.print(
-                        f"[red]Error: {hotkey} is not valid SS58 address."
-                    )
-                    raise typer.Exit(1)
+                if wallet_hotkey and is_valid_ss58_address(wallet_hotkey):
+                    return wallet, wallet_hotkey
                 else:
-                    return wallet, hotkey
+                    hotkey = (
+                        Prompt.ask(
+                            "Enter the SS58 of the hotkey to use for this transaction."
+                        )
+                    ).strip()
+                    if not is_valid_ss58_address(hotkey):
+                        err_console.print(
+                            f"[red]Error: {hotkey} is not valid SS58 address."
+                        )
+                        raise typer.Exit(1)
+                    else:
+                        return wallet, hotkey
         else:
             return wallet
 
@@ -5925,7 +5928,7 @@ class CLIManager:
             wallet_name=wallet_name,
             wallet_path=wallet_path,
             wallet_hotkey=wallet_hotkey,
-            ask_for=[WO.NAME, WO.HOTKEY, WO.PATH],
+            ask_for=[WO.NAME, WO.PATH],
             validate=WV.WALLET,
         )
         self._run_command(
