@@ -68,7 +68,13 @@ async def unstake(
         prices = await subtensor.get_subnet_prices(page_size=len(all_sn_dynamic_info_))
         all_sn_dynamic_info = {}
         for subnet in all_sn_dynamic_info_:
-            subnet.price = prices[subnet.netuid]
+            if subnet.netuid == 0:
+                subnet.price = Balance.from_tao(1.0)
+            else:
+                try:
+                    subnet.price = prices[subnet.netuid]
+                except KeyError:
+                    subnet.price = subnet.tao_in / subnet.alpha_in
             all_sn_dynamic_info[subnet.netuid] = subnet
 
     if interactive:

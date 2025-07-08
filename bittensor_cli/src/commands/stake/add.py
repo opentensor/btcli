@@ -334,7 +334,14 @@ async def stake_add(
             # max_slippage = max(slippage_pct_float, max_slippage)
 
             # Temporary workaround - calculations without slippage
-            current_price_float = float(current_prices[netuid].tao)
+            if netuid == 0:
+                current_price = Balance.from_tao(1.0)
+            else:
+                try:
+                    current_price = current_prices[netuid]
+                except KeyError:  # indicates no price
+                    current_price = subnet_info.tao_in / subnet_info.alpha_in
+            current_price_float = float(current_price.tao)
             rate = 1.0 / current_price_float
             received_amount = rate * amount_to_stake
 
