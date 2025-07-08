@@ -307,27 +307,36 @@ async def stake_add(
                 return False
             remaining_wallet_balance -= amount_to_stake
 
-            stake_fee = await subtensor.get_stake_fee(
-                origin_hotkey_ss58=None,
-                origin_netuid=None,
-                origin_coldkey_ss58=wallet.coldkeypub.ss58_address,
-                destination_hotkey_ss58=hotkey[1],
-                destination_netuid=netuid,
-                destination_coldkey_ss58=wallet.coldkeypub.ss58_address,
-                amount=amount_to_stake.rao,
+            stake_fee, current_price = await asyncio.gather(
+                subtensor.get_stake_fee(
+                    origin_hotkey_ss58=None,
+                    origin_netuid=None,
+                    origin_coldkey_ss58=wallet.coldkeypub.ss58_address,
+                    destination_hotkey_ss58=hotkey[1],
+                    destination_netuid=netuid,
+                    destination_coldkey_ss58=wallet.coldkeypub.ss58_address,
+                    amount=amount_to_stake.rao,
+                ),
+                subtensor.get_subnet_price(netuid=netuid),
             )
 
             # Calculate slippage
-            try:
-                received_amount, slippage_pct, slippage_pct_float, rate = (
-                    _calculate_slippage(subnet_info, amount_to_stake, stake_fee)
-                )
-            except ValueError:
-                return False
+            # TODO: Update for V3, slippage calculation is significantly different in v3
+            # try:
+            #     received_amount, slippage_pct, slippage_pct_float, rate = (
+            #         _calculate_slippage(subnet_info, amount_to_stake, stake_fee)
+            #     )
+            # except ValueError:
+            #     return False
+            #
+            # max_slippage = max(slippage_pct_float, max_slippage)
 
-            max_slippage = max(slippage_pct_float, max_slippage)
+            # Temporary workaround - calculations without slippage
+            current_price_float = float(current_price.tao)
+            rate = 1. / current_price_float
+            received_amount = rate * amount_to_stake
 
-            # Add rows for the table
+           # Add rows for the table
             base_row = [
                 str(netuid),  # netuid
                 f"{hotkey[1]}",  # hotkey
@@ -336,16 +345,16 @@ async def stake_add(
                 + f" {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ",  # rate
                 str(received_amount.set_unit(netuid)),  # received
                 str(stake_fee),  # fee
-                str(slippage_pct),  # slippage
+                # str(slippage_pct),  # slippage
             ]
 
             # If we are staking safe, add price tolerance
             if safe_staking:
                 if subnet_info.is_dynamic:
-                    rate = amount_to_stake.rao / received_amount.rao
-                    _rate_with_tolerance = rate * (
+                    price_with_tolerance_float = current_price_float * (
                         1 + rate_tolerance
-                    )  # Rate only for display
+                    )
+                    _rate_with_tolerance = 1. / price_with_tolerance_float  # Rate only for display
                     rate_with_tolerance = f"{_rate_with_tolerance:.4f}"
                     price_with_tolerance = Balance.from_tao(
                         _rate_with_tolerance
@@ -581,9 +590,10 @@ def _define_stake_table(
         justify="center",
         style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
     )
-    table.add_column(
-        "Slippage", justify="center", style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"]
-    )
+    # TODO: Uncomment when slippage is reimplemented for v3
+    # table.add_column(
+    #     "Slippage", justify="center", style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"]
+    # )
 
     if safe_staking:
         table.add_column(
@@ -628,8 +638,8 @@ The columns are as follows:
     - [bold white]Hotkey[/bold white]: The ss58 address of the hotkey you are staking to. 
     - [bold white]Amount[/bold white]: The TAO you are staking into this subnet onto this hotkey.
     - [bold white]Rate[/bold white]: The rate of exchange between your TAO and the subnet's stake.
-    - [bold white]Received[/bold white]: The amount of stake you will receive on this subnet after slippage.
-    - [bold white]Slippage[/bold white]: The slippage percentage of the stake operation. (0% if the subnet is not dynamic i.e. root)."""
+    - [bold white]Received[/bold white]: The amount of stake you will receive on this subnet after slippage."""
+    # - [bold white]Slippage[/bold white]: The slippage percentage of the stake operation. (0% if the subnet is not dynamic i.e. root)."""
 
     safe_staking_description = """
     - [bold white]Rate Tolerance[/bold white]: Maximum acceptable alpha rate. If the rate exceeds this tolerance, the transaction will be limited or rejected.
@@ -654,6 +664,9 @@ def _calculate_slippage(
         - slippage_str: Formatted slippage percentage string
         - slippage_float: Raw slippage percentage value
         - rate: Exchange rate string
+
+    TODO: Update to v3. This method only works for protocol-liquidity-only 
+          mode (user liquidity disabled)
     """
     amount_after_fee = amount - stake_fee
 
@@ -670,6 +683,7 @@ def _calculate_slippage(
         slippage_str = f"{slippage_pct_float:.4f} %"
         rate = f"{(1 / subnet_info.price.tao or 1):.4f}"
     else:
+        # TODO: Fix this. Slippage is always zero for static networks.
         slippage_pct_float = (
             100 * float(stake_fee.tao) / float(amount.tao) if amount.tao != 0 else 0
         )

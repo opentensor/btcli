@@ -1581,3 +1581,21 @@ class SubtensorInterface:
         )
 
         return result
+
+    async def get_subnet_price(
+        self,
+        netuid: int = None,
+        block_hash: Optional[str] = None,
+    ) -> Balance:
+        if not block_hash:
+            block_hash = await self.substrate.get_chain_head()
+        current_sqrt_price = await self.substrate.query(
+            module="Swap",
+            storage_function="AlphaSqrtPrice",
+            params=[netuid],
+            block_hash=block_hash,
+        )
+
+        current_sqrt_price = fixed_to_float(current_sqrt_price)
+        current_price = current_sqrt_price * current_sqrt_price
+        return Balance.from_rao(int(current_price * 1e9))

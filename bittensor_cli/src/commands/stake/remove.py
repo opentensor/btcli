@@ -65,7 +65,13 @@ async def unstake(
                 wallet.coldkeypub.ss58_address, block_hash=chain_head
             ),
         )
-        all_sn_dynamic_info = {info.netuid: info for info in all_sn_dynamic_info_}
+        prices = await asyncio.gather(*[
+            subtensor.get_subnet_price(netuid=netuid) for _ in all_sn_dynamic_info_
+        ])
+
+        for item, price in zip(all_sn_dynamic_info_, prices):
+            item.price = price
+            all_sn_dynamic_info = {info.netuid: info for info in all_sn_dynamic_info_}
 
     if interactive:
         try:
@@ -241,8 +247,8 @@ async def unstake(
                 str(subnet_info.price.tao)
                 + f"({Balance.get_unit(0)}/{Balance.get_unit(netuid)})",  # Rate
                 str(stake_fee),  # Fee
-                str(received_amount),  # Received Amount
-                slippage_pct,  # Slippage Percent
+                # str(received_amount),  # Received Amount
+                # slippage_pct,  # Slippage Percent
             ]
 
             # Additional fields for safe unstaking
@@ -443,16 +449,16 @@ async def unstake_all(
             justify="center",
             style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
         )
-        table.add_column(
-            f"Received ({Balance.unit})",
-            justify="center",
-            style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
-        )
-        table.add_column(
-            "Slippage",
-            justify="center",
-            style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"],
-        )
+        # table.add_column(
+        #     f"Received ({Balance.unit})",
+        #     justify="center",
+        #     style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
+        # )
+        # table.add_column(
+        #     "Slippage",
+        #     justify="center",
+        #     style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"],
+        # )
 
         # Calculate slippage and total received
         max_slippage = 0.0
@@ -490,8 +496,8 @@ async def unstake_all(
                 str(float(subnet_info.price))
                 + f"({Balance.get_unit(0)}/{Balance.get_unit(stake.netuid)})",
                 str(stake_fee),
-                str(received_amount),
-                slippage_pct,
+                # str(received_amount),
+                # slippage_pct,
             )
     console.print(table)
     if max_slippage > 5:
@@ -863,6 +869,9 @@ def _calculate_slippage(
         - received_amount: Balance after slippage deduction
         - slippage_pct: Formatted string of slippage percentage
         - slippage_pct_float: Float value of slippage percentage
+
+    TODO: Update to v3. This method only works for protocol-liquidity-only 
+          mode (user liquidity disabled)
     """
     received_amount, _, _ = subnet_info.alpha_to_tao_with_slippage(amount)
     received_amount -= stake_fee
@@ -884,6 +893,7 @@ def _calculate_slippage(
         )
         slippage_pct = f"{slippage_pct_float:.4f} %"
     else:
+        # TODO: Fix this. Slippage is always zero for static networks.
         # Root will only have fee-based slippage
         slippage_pct_float = (
             100 * float(stake_fee.tao) / float(amount.tao) if amount.tao != 0 else 0
@@ -993,7 +1003,7 @@ async def _unstake_selection(
     table.add_column("Symbol", style=COLOR_PALETTE["GENERAL"]["SYMBOL"])
     table.add_column("Stake Amount", style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"])
     table.add_column(
-        f"[bold white]RATE ({Balance.get_unit(0)}_in/{Balance.get_unit(1)}_in)",
+        f"[bold white]Rate ({Balance.get_unit(0)}/{Balance.get_unit(1)})",
         style=COLOR_PALETTE["POOLS"]["RATE"],
         justify="left",
     )
@@ -1255,15 +1265,15 @@ def _create_unstake_table(
         justify="center",
         style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
     )
-    table.add_column(
-        f"Received ({Balance.get_unit(0)})",
-        justify="center",
-        style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
-        footer=str(total_received_amount),
-    )
-    table.add_column(
-        "Slippage", justify="center", style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"]
-    )
+    # table.add_column(
+    #     f"Received ({Balance.get_unit(0)})",
+    #     justify="center",
+    #     style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
+    #     footer=str(total_received_amount),
+    # )
+    # table.add_column(
+    #     "Slippage", justify="center", style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"]
+    # )
     if safe_staking:
         table.add_column(
             f"Rate with tolerance: [blue]({rate_tolerance * 100}%)[/blue]",
