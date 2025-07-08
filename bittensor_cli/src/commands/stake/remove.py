@@ -65,13 +65,11 @@ async def unstake(
                 wallet.coldkeypub.ss58_address, block_hash=chain_head
             ),
         )
-        prices = await asyncio.gather(*[
-            subtensor.get_subnet_price(netuid=netuid) for _ in all_sn_dynamic_info_
-        ])
-
-        for item, price in zip(all_sn_dynamic_info_, prices):
-            item.price = price
-            all_sn_dynamic_info = {info.netuid: info for info in all_sn_dynamic_info_}
+        prices = await subtensor.get_subnet_prices(page_size=len(all_sn_dynamic_info_))
+        all_sn_dynamic_info = {}
+        for subnet in all_sn_dynamic_info_:
+            subnet.price = prices[subnet.netuid]
+            all_sn_dynamic_info[subnet.netuid] = subnet
 
     if interactive:
         try:
@@ -870,7 +868,7 @@ def _calculate_slippage(
         - slippage_pct: Formatted string of slippage percentage
         - slippage_pct_float: Float value of slippage percentage
 
-    TODO: Update to v3. This method only works for protocol-liquidity-only 
+    TODO: Update to v3. This method only works for protocol-liquidity-only
           mode (user liquidity disabled)
     """
     received_amount, _, _ = subnet_info.alpha_to_tao_with_slippage(amount)

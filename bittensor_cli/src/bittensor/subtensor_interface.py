@@ -1587,8 +1587,6 @@ class SubtensorInterface:
         netuid: int = None,
         block_hash: Optional[str] = None,
     ) -> Balance:
-        if not block_hash:
-            block_hash = await self.substrate.get_chain_head()
         current_sqrt_price = await self.query(
             module="Swap",
             storage_function="AlphaSqrtPrice",
@@ -1599,3 +1597,21 @@ class SubtensorInterface:
         current_sqrt_price = fixed_to_float(current_sqrt_price)
         current_price = current_sqrt_price * current_sqrt_price
         return Balance.from_rao(int(current_price * 1e9))
+
+    async def get_subnet_prices(
+        self, block_hash: Optional[str] = None, page_size: int = 100
+    ) -> dict[int, Balance]:
+        query = await self.substrate.query_map(
+            module="Swap",
+            storage_function="AlphaSqrtPrice",
+            page_size=page_size,
+            block_hash=block_hash,
+        )
+
+        map_ = {}
+        async for netuid_, current_sqrt_price in query:
+            current_sqrt_price_ = fixed_to_float(current_sqrt_price.value)
+            current_price = current_sqrt_price_ ^ 2
+            map_[netuid_] = Balance.from_rao(int(current_price * 1e9))
+
+        return map_

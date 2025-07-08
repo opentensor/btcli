@@ -245,12 +245,12 @@ async def stake_add(
     # Get subnet data and stake information for coldkey
     chain_head = await subtensor.substrate.get_chain_head()
     _all_subnets, _stake_info, current_wallet_balance = await asyncio.gather(
-        subtensor.all_subnets(),
+        subtensor.all_subnets(block_hash=chain_head),
         subtensor.get_stake_for_coldkey(
             coldkey_ss58=wallet.coldkeypub.ss58_address,
             block_hash=chain_head,
         ),
-        subtensor.get_balance(wallet.coldkeypub.ss58_address),
+        subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash=chain_head),
     )
     all_subnets = {di.netuid: di for di in _all_subnets}
 
@@ -274,6 +274,10 @@ async def stake_add(
     prices_with_tolerance = []
     remaining_wallet_balance = current_wallet_balance
     max_slippage = 0.0
+
+    current_prices = await subtensor.get_subnet_prices(
+        block_hash=chain_head, page_size=len(all_subnets)
+    )
 
     for hotkey in hotkeys_to_stake_to:
         for netuid in netuids:
@@ -307,17 +311,15 @@ async def stake_add(
                 return False
             remaining_wallet_balance -= amount_to_stake
 
-            stake_fee, current_price = await asyncio.gather(
-                subtensor.get_stake_fee(
-                    origin_hotkey_ss58=None,
-                    origin_netuid=None,
-                    origin_coldkey_ss58=wallet.coldkeypub.ss58_address,
-                    destination_hotkey_ss58=hotkey[1],
-                    destination_netuid=netuid,
-                    destination_coldkey_ss58=wallet.coldkeypub.ss58_address,
-                    amount=amount_to_stake.rao,
-                ),
-                subtensor.get_subnet_price(netuid=netuid),
+            # TODO this should be asyncio gathered before the for loop
+            stake_fee = await subtensor.get_stake_fee(
+                origin_hotkey_ss58=None,
+                origin_netuid=None,
+                origin_coldkey_ss58=wallet.coldkeypub.ss58_address,
+                destination_hotkey_ss58=hotkey[1],
+                destination_netuid=netuid,
+                destination_coldkey_ss58=wallet.coldkeypub.ss58_address,
+                amount=amount_to_stake.rao,
             )
 
             # Calculate slippage
@@ -332,11 +334,11 @@ async def stake_add(
             # max_slippage = max(slippage_pct_float, max_slippage)
 
             # Temporary workaround - calculations without slippage
-            current_price_float = float(current_price.tao)
-            rate = 1. / current_price_float
+            current_price_float = float(current_prices[netuid].tao)
+            rate = 1.0 / current_price_float
             received_amount = rate * amount_to_stake
 
-           # Add rows for the table
+            # Add rows for the table
             base_row = [
                 str(netuid),  # netuid
                 f"{hotkey[1]}",  # hotkey
@@ -354,7 +356,9 @@ async def stake_add(
                     price_with_tolerance_float = current_price_float * (
                         1 + rate_tolerance
                     )
-                    _rate_with_tolerance = 1. / price_with_tolerance_float  # Rate only for display
+                    _rate_with_tolerance = (
+                        1.0 / price_with_tolerance_float
+                    )  # Rate only for display
                     rate_with_tolerance = f"{_rate_with_tolerance:.4f}"
                     price_with_tolerance = Balance.from_tao(
                         _rate_with_tolerance
@@ -665,7 +669,7 @@ def _calculate_slippage(
         - slippage_float: Raw slippage percentage value
         - rate: Exchange rate string
 
-    TODO: Update to v3. This method only works for protocol-liquidity-only 
+    TODO: Update to v3. This method only works for protocol-liquidity-only
           mode (user liquidity disabled)
     """
     amount_after_fee = amount - stake_fee
