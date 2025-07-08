@@ -33,8 +33,8 @@ async def display_stake_movement_cross_subnets(
     destination_hotkey: str,
     amount_to_move: Balance,
     stake_fee: Balance,
-) -> tuple[Balance, float, str, str]:
-    """Calculate and display slippage information"""
+) -> tuple[Balance, str]:
+    """Calculate and display stake movement information"""
 
     if origin_netuid == destination_netuid:
         subnet = await subtensor.subnet(origin_netuid)
@@ -46,45 +46,32 @@ async def display_stake_movement_cross_subnets(
             raise ValueError
 
         received_amount = subnet.tao_to_alpha(received_amount_tao)
-        slippage_pct_float = (
-            100 * float(stake_fee) / float(stake_fee + received_amount_tao)
-            if received_amount_tao != 0
-            else 0
-        )
-        slippage_pct = f"{slippage_pct_float:.4f}%"
-        price = Balance.from_tao(1).set_unit(origin_netuid)
+        price = subnet.price.tao
         price_str = (
-            str(float(price.tao))
-            + f"{Balance.get_unit(origin_netuid)}/{Balance.get_unit(origin_netuid)}"
+            str(float(price))
+            + f"({Balance.get_unit(0)}/{Balance.get_unit(origin_netuid)})"
         )
     else:
         dynamic_origin, dynamic_destination = await asyncio.gather(
             subtensor.subnet(origin_netuid),
             subtensor.subnet(destination_netuid),
         )
-        price = (
-            float(dynamic_origin.price) * 1 / (float(dynamic_destination.price) or 1)
-        )
-        received_amount_tao, _, _ = dynamic_origin.alpha_to_tao_with_slippage(
-            amount_to_move
-        )
+        price_origin = dynamic_origin.price.tao
+        price_destination = dynamic_destination.price.tao
+        rate = price_origin / (price_destination or 1)
+        
+        received_amount_tao = dynamic_origin.alpha_to_tao(amount_to_move)
         received_amount_tao -= stake_fee
-        received_amount, _, _ = dynamic_destination.tao_to_alpha_with_slippage(
-            received_amount_tao
-        )
+        received_amount = dynamic_destination.tao_to_alpha(received_amount_tao)
         received_amount.set_unit(destination_netuid)
 
         if received_amount < Balance.from_tao(0):
             print_error("Not enough Alpha to pay the transaction fee.")
             raise ValueError
 
-        ideal_amount = amount_to_move * price
-        total_slippage = ideal_amount - received_amount
-        slippage_pct_float = 100 * (total_slippage.tao / ideal_amount.tao)
-        slippage_pct = f"{slippage_pct_float:.4f} %"
         price_str = (
-            f"{price:.5f}"
-            + f"{Balance.get_unit(destination_netuid)}/{Balance.get_unit(origin_netuid)}"
+            f"{rate:.5f}"
+            + f"({Balance.get_unit(destination_netuid)}/{Balance.get_unit(origin_netuid)})"
         )
 
     # Create and display table
@@ -141,11 +128,6 @@ async def display_stake_movement_cross_subnets(
         justify="center",
         style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
     )
-    table.add_column(
-        "slippage",
-        justify="center",
-        style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"],
-    )
 
     table.add_row(
         f"{Balance.get_unit(origin_netuid)}({origin_netuid})",
@@ -156,19 +138,11 @@ async def display_stake_movement_cross_subnets(
         price_str,
         str(received_amount),
         str(stake_fee),
-        str(slippage_pct),
     )
 
     console.print(table)
 
-    # Display slippage warning if necessary
-    if slippage_pct_float > 5:
-        message = f"[{COLOR_PALETTE['STAKE']['SLIPPAGE_TEXT']}]-------------------------------------------------------------------------------------------------------------------\n"
-        message += f"[bold]WARNING:\tSlippage is high: [{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}]{slippage_pct}[/{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}], this may result in a loss of funds.[/bold] \n"
-        message += "-------------------------------------------------------------------------------------------------------------------\n"
-        console.print(message)
-
-    return received_amount, slippage_pct_float, slippage_pct, price_str
+    return received_amount, price_str
 
 
 def prompt_stake_amount(
@@ -414,7 +388,7 @@ async def stake_swap_selection(
     origin_stake = hotkey_stakes[origin_netuid]["stake"]
 
     # Ask for amount to swap
-    amount, all_balance = prompt_stake_amount(origin_stake, origin_netuid, "swap")
+    amount, _ = prompt_stake_amount(origin_stake, origin_netuid, "swap")
 
     all_netuids = sorted(await subtensor.get_all_subnet_netuids())
     destination_choices = [
@@ -530,7 +504,7 @@ async def move_stake(
         amount=amount_to_move_as_balance.rao,
     )
 
-    # Slippage warning
+    # Display stake movement details
     if prompt:
         try:
             await display_stake_movement_cross_subnets(
@@ -714,7 +688,7 @@ async def transfer_stake(
         amount=amount_to_transfer.rao,
     )
 
-    # Slippage warning
+    # Display stake movement details
     if prompt:
         try:
             await display_stake_movement_cross_subnets(
@@ -883,7 +857,7 @@ async def swap_stake(
         amount=amount_to_swap.rao,
     )
 
-    # Slippage warning
+    # Display stake movement details
     if prompt:
         try:
             await display_stake_movement_cross_subnets(
