@@ -59,7 +59,7 @@ async def display_stake_movement_cross_subnets(
         price_origin = dynamic_origin.price.tao
         price_destination = dynamic_destination.price.tao
         rate = price_origin / (price_destination or 1)
-        
+
         received_amount_tao = dynamic_origin.alpha_to_tao(amount_to_move)
         received_amount_tao -= stake_fee
         received_amount = dynamic_destination.tao_to_alpha(received_amount_tao)
