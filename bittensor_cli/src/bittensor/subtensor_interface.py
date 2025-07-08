@@ -1423,23 +1423,40 @@ class SubtensorInterface:
         return stake_info_map if stake_info_map else None
 
     async def all_subnets(self, block_hash: Optional[str] = None) -> list[DynamicInfo]:
-        result = await self.query_runtime_api(
-            "SubnetInfoRuntimeApi",
-            "get_all_dynamic_info",
-            block_hash=block_hash,
+        result, prices = await asyncio.gather(
+            self.query_runtime_api(
+                "SubnetInfoRuntimeApi",
+                "get_all_dynamic_info",
+                block_hash=block_hash,
+            ),
+            self.get_subnet_prices(block_hash=block_hash, page_size=129),
         )
-        return DynamicInfo.list_from_any(result)
+        sns: list[DynamicInfo] = DynamicInfo.list_from_any(result)
+        for sn in sns:
+            if sn.netuid == 0:
+                sn.price = Balance.from_tao(1.0)
+            else:
+                try:
+                    sn.price = prices[sn.netuid]
+                except KeyError:
+                    sn.price = sn.tao_in / sn.alpha_in
+        return sns
 
     async def subnet(
         self, netuid: int, block_hash: Optional[str] = None
     ) -> "DynamicInfo":
-        result = await self.query_runtime_api(
-            "SubnetInfoRuntimeApi",
-            "get_dynamic_info",
-            params=[netuid],
-            block_hash=block_hash,
+        result, price = await asyncio.gather(
+            self.query_runtime_api(
+                "SubnetInfoRuntimeApi",
+                "get_dynamic_info",
+                params=[netuid],
+                block_hash=block_hash,
+            ),
+            self.get_subnet_price(netuid=netuid, block_hash=block_hash),
         )
-        return DynamicInfo.from_any(result)
+        subnet_ = DynamicInfo.from_any(result)
+        subnet_.price = price
+        return subnet_
 
     async def get_owned_hotkeys(
         self,
@@ -1581,3 +1598,53 @@ class SubtensorInterface:
         )
 
         return result
+
+    async def get_subnet_price(
+        self,
+        netuid: int = None,
+        block_hash: Optional[str] = None,
+    ) -> Balance:
+        """
+        Gets the current Alpha price in TAO for a specific subnet.
+
+        :param netuid: The unique identifier of the subnet.
+        :param block_hash: The hash of the block to retrieve the price from.
+
+        :return: The current Alpha price in TAO units for the specified subnet.
+        """
+        current_sqrt_price = await self.query(
+            module="Swap",
+            storage_function="AlphaSqrtPrice",
+            params=[netuid],
+            block_hash=block_hash,
+        )
+
+        current_sqrt_price = fixed_to_float(current_sqrt_price)
+        current_price = current_sqrt_price * current_sqrt_price
+        return Balance.from_rao(int(current_price * 1e9))
+
+    async def get_subnet_prices(
+        self, block_hash: Optional[str] = None, page_size: int = 100
+    ) -> dict[int, Balance]:
+        """
+        Gets the current Alpha prices in TAO for all subnets.
+
+        :param block_hash: The hash of the block to retrieve prices from.
+        :param page_size: The page size for batch queries (default: 100).
+
+        :return: A dictionary mapping netuid to the current Alpha price in TAO units.
+        """
+        query = await self.substrate.query_map(
+            module="Swap",
+            storage_function="AlphaSqrtPrice",
+            page_size=page_size,
+            block_hash=block_hash,
+        )
+
+        map_ = {}
+        async for netuid_, current_sqrt_price in query:
+            current_sqrt_price_ = fixed_to_float(current_sqrt_price.value)
+            current_price = current_sqrt_price_**2
+            map_[netuid_] = Balance.from_rao(int(current_price * 1e9))
+
+        return map_
