@@ -111,15 +111,15 @@ async def stake_list(
             style=COLOR_PALETTE["POOLS"]["RATE"],
             justify="center",
         )
-        defined_table.add_column(
-            f"[white]Swap ({Balance.get_unit(1)} -> {Balance.unit})",
-            footer_style="overline white",
-            style=COLOR_PALETTE["STAKE"]["STAKE_SWAP"],
-            justify="right",
-            footer=f"τ {millify_tao(total_swapped_tao_value_.tao)}"
-            if not verbose
-            else f"{total_swapped_tao_value_}",
-        )
+        # defined_table.add_column(
+        #     f"[white]Swap ({Balance.get_unit(1)} -> {Balance.unit})",
+        #     footer_style="overline white",
+        #     style=COLOR_PALETTE["STAKE"]["STAKE_SWAP"],
+        #     justify="right",
+        #     footer=f"τ {millify_tao(total_swapped_tao_value_.tao)}"
+        #     if not verbose
+        #     else f"{total_swapped_tao_value_}",
+        # )
         defined_table.add_column(
             "[white]Registered",
             style=COLOR_PALETTE["STAKE"]["STAKE_ALPHA"],
@@ -168,25 +168,17 @@ async def stake_list(
             tao_value_ = pool.alpha_to_tao(alpha_value)
             total_tao_value_ += tao_value_
 
-            # Swapped TAO value and slippage cell
-            swapped_tao_value_, _, slippage_percentage_ = (
-                pool.alpha_to_tao_with_slippage(substake_.stake)
-            )
-            total_swapped_tao_value_ += swapped_tao_value_
-
-            # Slippage percentage cell
-            if pool.is_dynamic:
-                slippage_percentage = f"[{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}]{slippage_percentage_:.3f}%[/{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}]"
-            else:
-                slippage_percentage = f"[{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}]0.000%[/{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}]"
+            # TAO value cell
+            tao_value_ = pool.alpha_to_tao(substake_.stake)
+            total_swapped_tao_value_ += tao_value_
 
             if netuid == 0:
-                swap_value = f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]N/A[/{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}] ({slippage_percentage})"
+                swap_value = f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]N/A[/{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]"
             else:
                 swap_value = (
-                    f"τ {millify_tao(swapped_tao_value_.tao)} ({slippage_percentage})"
+                    f"τ {millify_tao(tao_value_.tao)}"
                     if not verbose
-                    else f"{swapped_tao_value_} ({slippage_percentage})"
+                    else f"{tao_value_}"
                 )
 
             # Per block emission cell
@@ -214,7 +206,7 @@ async def stake_list(
                         else f"{symbol} {stake_value}",  # Stake (a)
                         f"{pool.price.tao:.4f} τ/{symbol}",  # Rate (t/a)
                         # f"τ {millify_tao(tao_ownership.tao)}" if not verbose else f"{tao_ownership}",  # TAO equiv
-                        swap_value,  # Swap(α) -> τ
+                        # swap_value,  # Swap(α) -> τ
                         "YES"
                         if substake_.is_registered
                         else f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]NO",  # Registered
@@ -232,7 +224,7 @@ async def stake_list(
                         "value": tao_value_.tao,
                         "stake_value": substake_.stake.tao,
                         "rate": pool.price.tao,
-                        "swap_value": swap_value,
+                        # "swap_value": swap_value,
                         "registered": True if substake_.is_registered else False,
                         "emission": {
                             "alpha": per_block_emission,
@@ -317,9 +309,7 @@ async def stake_list(
             alpha_value = Balance.from_rao(int(substake_.stake.rao)).set_unit(netuid)
             tao_value_ = pool.alpha_to_tao(alpha_value)
             total_tao_value_ += tao_value_
-            swapped_tao_value_, slippage, slippage_pct = (
-                pool.alpha_to_tao_with_slippage(substake_.stake)
-            )
+            swapped_tao_value_ = pool.alpha_to_tao(substake_.stake)
             total_swapped_tao_value_ += swapped_tao_value_
 
             # Store current values for future delta tracking
@@ -364,19 +354,16 @@ async def stake_list(
             )
 
             if netuid != 0:
-                swap_cell = (
-                    format_cell(
-                        swapped_tao_value_.tao,
-                        prev.get("swapped_value"),
-                        unit="τ",
-                        unit_first_=True,
-                        precision=4,
-                        millify=True if not verbose else False,
-                    )
-                    + f" ({slippage_pct:.2f}%)"
+                swap_cell = format_cell(
+                    swapped_tao_value_.tao,
+                    prev.get("swapped_value"),
+                    unit="τ",
+                    unit_first_=True,
+                    precision=4,
+                    millify=True if not verbose else False,
                 )
             else:
-                swap_cell = f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]N/A[/{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}] ({slippage_pct}%)"
+                swap_cell = f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]N/A[/{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]"
 
             emission_value = substake_.emission.tao / (pool.tempo or 1)
             emission_cell = format_cell(
@@ -408,7 +395,7 @@ async def stake_list(
                     exchange_cell,  # Exchange value
                     stake_cell,  # Stake amount
                     rate_cell,  # Rate
-                    swap_cell,  # Swap value with slippage
+                    # swap_cell,  # Swap value
                     "YES"
                     if substake_.is_registered
                     else f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]NO",  # Registration status
@@ -591,12 +578,12 @@ async def stake_list(
             f"Wallet:\n"
             f"  Coldkey SS58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{coldkey_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
             f"  Free Balance: [{COLOR_PALETTE['GENERAL']['BALANCE']}]{balance}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]\n"
-            f"  Total TAO Value ({Balance.unit}): [{COLOR_PALETTE['GENERAL']['BALANCE']}]{total_tao_value}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]\n"
-            f"  Total TAO Swapped Value ({Balance.unit}): [{COLOR_PALETTE['GENERAL']['BALANCE']}]{total_swapped_tao_value}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]"
+            f"  Total TAO Value ({Balance.unit}): [{COLOR_PALETTE['GENERAL']['BALANCE']}]{total_tao_value}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]"
+            # f"\n  Total TAO Swapped Value ({Balance.unit}): [{COLOR_PALETTE['GENERAL']['BALANCE']}]{total_swapped_tao_value}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]"
         )
         dict_output["free_balance"] = balance.tao
         dict_output["total_tao_value"] = all_hks_tao_value.tao
-        dict_output["total_swapped_tao_value"] = all_hks_swapped_tao_value.tao
+        # dict_output["total_swapped_tao_value"] = all_hks_swapped_tao_value.tao
         if json_output:
             json_console.print(json.dumps(dict_output))
         if not sub_stakes:
@@ -658,12 +645,12 @@ async def stake_list(
                     ),
                     (
                         "[bold tan]Exchange Value (α x τ/α)[/bold tan]",
-                        "This is the potential τ you will receive, without considering slippage, if you unstake from this hotkey now on this subnet. See Swap(α → τ) column description. Note: The TAO Equiv(τ_in x α/α_out) indicates validator stake weight while this Exchange Value shows τ you will receive if you unstake now. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/dynamic-tao/dtao-guide#exchange-value-%CE%B1-x-%CF%84%CE%B1[/blue].",
+                        "This is the potential τ you will receive if you unstake from this hotkey now on this subnet. Note: The TAO Equiv(τ_in x α/α_out) indicates validator stake weight while this Exchange Value shows τ you will receive if you unstake now. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/dynamic-tao/dtao-guide#exchange-value-%CE%B1-x-%CF%84%CE%B1[/blue].",
                     ),
-                    (
-                        "[bold tan]Swap (α → τ)[/bold tan]",
-                        "This is the actual τ you will receive, after factoring in the slippage charge, if you unstake from this hotkey now on this subnet. The slippage is calculated as 1 - (Swap(α → τ)/Exchange Value(α x τ/α)), and is displayed in brackets. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/dynamic-tao/dtao-guide#swap-%CE%B1--%CF%84[/blue].",
-                    ),
+                    # (
+                    #     "[bold tan]Swap (α → τ)[/bold tan]",
+                    #     "This is the τ you will receive if you unstake from this hotkey now on this subnet. This can change every block. \nFor more, see [blue]https://docs.bittensor.com/dynamic-tao/dtao-guide#swap-%CE%B1--%CF%84[/blue].",
+                    # ),
                     (
                         "[bold tan]Registered[/bold tan]",
                         "Indicates if the hotkey is registered in this subnet or not. \nFor more, see [blue]https://docs.bittensor.com/learn/anatomy-of-incentive-mechanism#tempo[/blue].",
