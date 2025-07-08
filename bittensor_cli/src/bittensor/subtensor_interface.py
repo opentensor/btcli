@@ -1445,13 +1445,18 @@ class SubtensorInterface:
     async def subnet(
         self, netuid: int, block_hash: Optional[str] = None
     ) -> "DynamicInfo":
-        result = await self.query_runtime_api(
-            "SubnetInfoRuntimeApi",
-            "get_dynamic_info",
-            params=[netuid],
-            block_hash=block_hash,
+        result, price = await asyncio.gather(
+            self.query_runtime_api(
+                "SubnetInfoRuntimeApi",
+                "get_dynamic_info",
+                params=[netuid],
+                block_hash=block_hash,
+            ),
+            self.get_subnet_price(netuid=netuid, block_hash=block_hash),
         )
-        return DynamicInfo.from_any(result)
+        subnet_ = DynamicInfo.from_any(result)
+        subnet_.price = price
+        return subnet_
 
     async def get_owned_hotkeys(
         self,
