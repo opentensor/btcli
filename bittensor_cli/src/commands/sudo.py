@@ -79,7 +79,7 @@ def allowed_value(
     return True, value
 
 
-def string_to_bool(val) -> bool | type[ValueError]:
+def string_to_bool(val) -> bool:
     try:
         return {"true": True, "1": True, "0": False, "false": False}[val.lower()]
     except KeyError:
