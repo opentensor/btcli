@@ -1604,6 +1604,14 @@ class SubtensorInterface:
         netuid: int = None,
         block_hash: Optional[str] = None,
     ) -> Balance:
+        """
+        Gets the current Alpha price in TAO for a specific subnet.
+
+        :param netuid: The unique identifier of the subnet.
+        :param block_hash: The hash of the block to retrieve the price from.
+
+        :return: The current Alpha price in TAO units for the specified subnet.
+        """
         current_sqrt_price = await self.query(
             module="Swap",
             storage_function="AlphaSqrtPrice",
@@ -1618,6 +1626,14 @@ class SubtensorInterface:
     async def get_subnet_prices(
         self, block_hash: Optional[str] = None, page_size: int = 100
     ) -> dict[int, Balance]:
+        """
+        Gets the current Alpha prices in TAO for all subnets.
+
+        :param block_hash: The hash of the block to retrieve prices from.
+        :param page_size: The page size for batch queries (default: 100).
+
+        :return: A dictionary mapping netuid to the current Alpha price in TAO units.
+        """
         query = await self.substrate.query_map(
             module="Swap",
             storage_function="AlphaSqrtPrice",
