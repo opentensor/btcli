@@ -209,16 +209,12 @@ async def unstake(
             )
 
             try:
-                received_amount, slippage_pct, slippage_pct_float = _calculate_slippage(
-                    subnet_info=subnet_info,
-                    amount=amount_to_unstake_as_balance,
-                    stake_fee=stake_fee,
-                )
+                current_price = subnet_info.price.tao
+                rate = current_price
+                received_amount = amount_to_unstake_as_balance * rate
             except ValueError:
                 continue
-
             total_received_amount += received_amount
-            max_float_slippage = max(max_float_slippage, slippage_pct_float)
 
             base_unstake_op = {
                 "netuid": netuid,
@@ -229,8 +225,6 @@ async def unstake(
                 "amount_to_unstake": amount_to_unstake_as_balance,
                 "current_stake_balance": current_stake_balance,
                 "received_amount": received_amount,
-                "slippage_pct": slippage_pct,
-                "slippage_pct_float": slippage_pct_float,
                 "dynamic_info": subnet_info,
             }
 
@@ -241,17 +235,15 @@ async def unstake(
                 str(subnet_info.price.tao)
                 + f"({Balance.get_unit(0)}/{Balance.get_unit(netuid)})",  # Rate
                 str(stake_fee),  # Fee
-                # str(received_amount),  # Received Amount
+                str(received_amount),  # Received Amount
                 # slippage_pct,  # Slippage Percent
             ]
 
             # Additional fields for safe unstaking
             if safe_staking:
                 if subnet_info.is_dynamic:
-                    rate = received_amount.rao / amount_to_unstake_as_balance.rao
-                    rate_with_tolerance = rate * (
-                        1 - rate_tolerance
-                    )  # Rate only for display
+                    price_with_tolerance = current_price * (1 - rate_tolerance)
+                    rate_with_tolerance = price_with_tolerance
                     price_with_tolerance = Balance.from_tao(
                         rate_with_tolerance
                     ).rao  # Actual price to pass to extrinsic
@@ -443,11 +435,11 @@ async def unstake_all(
             justify="center",
             style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
         )
-        # table.add_column(
-        #     f"Received ({Balance.unit})",
-        #     justify="center",
-        #     style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
-        # )
+        table.add_column(
+            f"Received ({Balance.unit})",
+            justify="center",
+            style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
+        )
         # table.add_column(
         #     "Slippage",
         #     justify="center",
@@ -1259,12 +1251,12 @@ def _create_unstake_table(
         justify="center",
         style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
     )
-    # table.add_column(
-    #     f"Received ({Balance.get_unit(0)})",
-    #     justify="center",
-    #     style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
-    #     footer=str(total_received_amount),
-    # )
+    table.add_column(
+        f"Received ({Balance.get_unit(0)})",
+        justify="center",
+        style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
+        footer=str(total_received_amount),
+    )
     # table.add_column(
     #     "Slippage", justify="center", style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"]
     # )
