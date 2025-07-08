@@ -69,6 +69,8 @@ def test_wallet_overview_inspect(local_chain, wallet_setup):
             "test#1234",
             "--description",
             "A test subnet for e2e testing",
+            "--logo-url",
+            "https://testsubnet.com/logo.png",
             "--additional-info",
             "Test subnet",
             "--no-prompt",
@@ -388,6 +390,8 @@ def test_wallet_identities(local_chain, wallet_setup):
             "A test subnet for e2e testing",
             "--additional-info",
             "Created by Alice",
+            "--logo-url",
+            "https://testsubnet.com/logo.png",
             "--no-prompt",
         ],
     )

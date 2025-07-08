@@ -86,6 +86,8 @@ def test_staking(local_chain, wallet_setup):
             "A test subnet for e2e testing",
             "--additional-info",
             "Created by Alice",
+            "--logo-url",
+            "https://testsubnet.com/logo.png",
             "--no-prompt",
             "--json-output",
         ],
@@ -121,6 +123,8 @@ def test_staking(local_chain, wallet_setup):
             "A test subnet for e2e testing",
             "--additional-info",
             "Created by Alice",
+            "--logo-url",
+            "https://testsubnet.com/logo.png",
             "--no-prompt",
             "--json-output",
         ],
@@ -129,7 +133,7 @@ def test_staking(local_chain, wallet_setup):
     assert result_output_second["success"] is True
     assert result_output_second["netuid"] == multiple_netuids[1]
 
-    # Register Alice in netuid = 1 using her hotkey
+    # Register Alice in netuid = 2 using her hotkey
     register_subnet = exec_command_alice(
         command="subnets",
         sub_command="register",
@@ -198,6 +202,8 @@ def test_staking(local_chain, wallet_setup):
             sn_discord := "alice#1234",
             "--description",
             sn_description := "A test subnet for e2e testing",
+            "--logo-url",
+            sn_logo_url := "https://testsubnet.com/logo.png",
             "--additional-info",
             sn_add_info := "Created by Alice",
             "--json-output",
@@ -225,6 +231,7 @@ def test_staking(local_chain, wallet_setup):
     assert get_identity_output["subnet_url"] == sn_url
     assert get_identity_output["discord"] == sn_discord
     assert get_identity_output["description"] == sn_description
+    assert get_identity_output["logo_url"] == sn_logo_url
     assert get_identity_output["additional"] == sn_add_info
 
     # Start emissions on SNs
@@ -269,7 +276,7 @@ def test_staking(local_chain, wallet_setup):
             "--amount",
             "100",
             "--tolerance",
-            "0.1",
+            "0.2",
             "--partial",
             "--no-prompt",
             "--era",
@@ -526,12 +533,12 @@ def test_staking(local_chain, wallet_setup):
 
     yuma3_val = next(
         filter(
-            lambda x: x["hyperparameter"] == "yuma3_enabled",
+            lambda x: x["hyperparameter"] == "yuma_version",
             json.loads(changed_yuma3_hyperparam.stdout),
         )
     )
-    assert yuma3_val["value"] is True
-    assert yuma3_val["normalized_value"] is True
+    assert yuma3_val["value"] == 3
+    assert yuma3_val["normalized_value"] == 3
     print("✅ Passed staking and sudo commands")
 
     change_arbitrary_hyperparam = exec_command_alice(

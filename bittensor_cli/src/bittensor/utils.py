@@ -1177,6 +1177,7 @@ def prompt_for_subnet_identity(
     subnet_url: Optional[str],
     discord: Optional[str],
     description: Optional[str],
+    logo_url: Optional[str],
     additional: Optional[str],
 ):
     """
@@ -1236,6 +1237,13 @@ def prompt_for_subnet_identity(
             description,
             lambda x: x and len(x.encode("utf-8")) > 1024,
             "[red]Error:[/red] Description must be <= 1024 bytes.",
+        ),
+        (
+            "logo_url",
+            "[blue]Logo URL [dim](optional)[/blue]",
+            logo_url,
+            lambda x: x and len(x.encode("utf-8")) > 1024,
+            "[red]Error:[/red] Logo URL must be <= 1024 bytes.",
         ),
         (
             "additional",
@@ -1371,6 +1379,7 @@ def unlock_key(
         err_msg = f"The password used to decrypt your {unlock_type.capitalize()}key Keyfile is invalid."
         if print_out:
             err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+            return unlock_key(wallet, unlock_type, print_out)
         return UnlockStatus(False, err_msg)
     except KeyFileError:
         err_msg = f"{unlock_type.capitalize()}key Keyfile is corrupt, non-writable, or non-readable, or non-existent."

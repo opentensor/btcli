@@ -148,13 +148,49 @@ class InfoBase:
 
 @dataclass
 class SubnetHyperparameters(InfoBase):
-    """Dataclass for subnet hyperparameters."""
+    """
+    This class represents the hyperparameters for a subnet.
+    Attributes:
+        rho (int): The rate of decay of some value.
+        kappa (int): A constant multiplier used in calculations.
+        immunity_period (int): The period during which immunity is active.
+        min_allowed_weights (int): Minimum allowed weights.
+        max_weight_limit (float): Maximum weight limit.
+        tempo (int): The tempo or rate of operation.
+        min_difficulty (int): Minimum difficulty for some operations.
+        max_difficulty (int): Maximum difficulty for some operations.
+        weights_version (int): The version number of the weights used.
+        weights_rate_limit (int): Rate limit for processing weights.
+        adjustment_interval (int): Interval at which adjustments are made.
+        activity_cutoff (int): Activity cutoff threshold.
+        registration_allowed (bool): Indicates if registration is allowed.
+        target_regs_per_interval (int): Target number of registrations per interval.
+        min_burn (int): Minimum burn value.
+        max_burn (int): Maximum burn value.
+        bonds_moving_avg (int): Moving average of bonds.
+        max_regs_per_block (int): Maximum number of registrations per block.
+        serving_rate_limit (int): Limit on the rate of service.
+        max_validators (int): Maximum number of validators.
+        adjustment_alpha (int): Alpha value for adjustments.
+        difficulty (int): Difficulty level.
+        commit_reveal_period (int): Interval for commit-reveal weights.
+        commit_reveal_weights_enabled (bool): Flag indicating if commit-reveal weights are enabled.
+        alpha_high (int): High value of alpha.
+        alpha_low (int): Low value of alpha.
+        liquid_alpha_enabled (bool): Flag indicating if liquid alpha is enabled.
+        alpha_sigmoid_steepness (float):
+        yuma_version (int): Version of yuma.
+        subnet_is_active (bool): Indicates if subnet is active after START CALL.
+        transfers_enabled (bool): Flag indicating if transfers are enabled.
+        bonds_reset_enabled (bool): Flag indicating if bonds are reset enabled.
+        user_liquidity_enabled (bool): Flag indicating if user liquidity is enabled.
+    """
 
     rho: int
     kappa: int
     immunity_period: int
     min_allowed_weights: int
-    max_weights_limit: float
+    max_weight_limit: float
     tempo: int
     min_difficulty: int
     max_difficulty: int
@@ -177,43 +213,53 @@ class SubnetHyperparameters(InfoBase):
     alpha_high: int
     alpha_low: int
     liquid_alpha_enabled: bool
-    yuma3_enabled: bool
-    alpha_sigmoid_steepness: int
+    alpha_sigmoid_steepness: float
+    yuma_version: int
+    subnet_is_active: bool
+    transfers_enabled: bool
+    bonds_reset_enabled: bool
+    user_liquidity_enabled: bool
 
     @classmethod
     def _fix_decoded(
         cls, decoded: Union[dict, "SubnetHyperparameters"]
     ) -> "SubnetHyperparameters":
         return cls(
-            rho=decoded.get("rho"),
-            kappa=decoded.get("kappa"),
-            immunity_period=decoded.get("immunity_period"),
-            min_allowed_weights=decoded.get("min_allowed_weights"),
-            max_weights_limit=decoded.get("max_weights_limit"),
-            tempo=decoded.get("tempo"),
-            min_difficulty=decoded.get("min_difficulty"),
-            max_difficulty=decoded.get("max_difficulty"),
-            weights_version=decoded.get("weights_version"),
-            weights_rate_limit=decoded.get("weights_rate_limit"),
-            adjustment_interval=decoded.get("adjustment_interval"),
-            activity_cutoff=decoded.get("activity_cutoff"),
-            registration_allowed=decoded.get("registration_allowed"),
-            target_regs_per_interval=decoded.get("target_regs_per_interval"),
-            min_burn=decoded.get("min_burn"),
-            max_burn=decoded.get("max_burn"),
-            bonds_moving_avg=decoded.get("bonds_moving_avg"),
-            max_regs_per_block=decoded.get("max_regs_per_block"),
-            serving_rate_limit=decoded.get("serving_rate_limit"),
-            max_validators=decoded.get("max_validators"),
-            adjustment_alpha=decoded.get("adjustment_alpha"),
-            difficulty=decoded.get("difficulty"),
-            commit_reveal_period=decoded.get("commit_reveal_period"),
-            commit_reveal_weights_enabled=decoded.get("commit_reveal_weights_enabled"),
-            alpha_high=decoded.get("alpha_high"),
-            alpha_low=decoded.get("alpha_low"),
-            liquid_alpha_enabled=decoded.get("liquid_alpha_enabled"),
-            yuma3_enabled=decoded.get("yuma3_enabled"),
-            alpha_sigmoid_steepness=decoded.get("alpha_sigmoid_steepness"),
+            activity_cutoff=decoded["activity_cutoff"],
+            adjustment_alpha=decoded["adjustment_alpha"],
+            adjustment_interval=decoded["adjustment_interval"],
+            alpha_high=decoded["alpha_high"],
+            alpha_low=decoded["alpha_low"],
+            alpha_sigmoid_steepness=fixed_to_float(
+                decoded["alpha_sigmoid_steepness"], frac_bits=32
+            ),
+            bonds_moving_avg=decoded["bonds_moving_avg"],
+            bonds_reset_enabled=decoded["bonds_reset_enabled"],
+            commit_reveal_weights_enabled=decoded["commit_reveal_weights_enabled"],
+            commit_reveal_period=decoded["commit_reveal_period"],
+            difficulty=decoded["difficulty"],
+            immunity_period=decoded["immunity_period"],
+            kappa=decoded["kappa"],
+            liquid_alpha_enabled=decoded["liquid_alpha_enabled"],
+            max_burn=decoded["max_burn"],
+            max_difficulty=decoded["max_difficulty"],
+            max_regs_per_block=decoded["max_regs_per_block"],
+            max_validators=decoded["max_validators"],
+            max_weight_limit=decoded["max_weights_limit"],
+            min_allowed_weights=decoded["min_allowed_weights"],
+            min_burn=decoded["min_burn"],
+            min_difficulty=decoded["min_difficulty"],
+            registration_allowed=decoded["registration_allowed"],
+            rho=decoded["rho"],
+            serving_rate_limit=decoded["serving_rate_limit"],
+            subnet_is_active=decoded["subnet_is_active"],
+            target_regs_per_interval=decoded["target_regs_per_interval"],
+            tempo=decoded["tempo"],
+            transfers_enabled=decoded["transfers_enabled"],
+            user_liquidity_enabled=decoded["user_liquidity_enabled"],
+            weights_rate_limit=decoded["weights_rate_limit"],
+            weights_version=decoded["weights_version"],
+            yuma_version=decoded["yuma_version"],
         )
 
 
@@ -630,6 +676,7 @@ class SubnetIdentity(InfoBase):
     subnet_url: str
     discord: str
     description: str
+    logo_url: str
     additional: str
 
     @classmethod
@@ -641,6 +688,7 @@ class SubnetIdentity(InfoBase):
             subnet_url=bytes(decoded["subnet_url"]).decode(),
             discord=bytes(decoded["discord"]).decode(),
             description=bytes(decoded["description"]).decode(),
+            logo_url=bytes(decoded["logo_url"]).decode(),
             additional=bytes(decoded["additional"]).decode(),
         )
 

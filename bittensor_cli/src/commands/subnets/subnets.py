@@ -140,6 +140,9 @@ async def register_subnetwork_extrinsic(
             "description": subnet_identity["description"].encode()
             if subnet_identity.get("description")
             else b"",
+            "logo_url": subnet_identity["logo_url"].encode()
+            if subnet_identity.get("logo_url")
+            else b"",
             "additional": subnet_identity["additional"].encode()
             if subnet_identity.get("additional")
             else b"",
@@ -2207,6 +2210,7 @@ async def set_identity(
         "subnet_url": subnet_identity.get("subnet_url", ""),
         "discord": subnet_identity.get("discord", ""),
         "description": subnet_identity.get("description", ""),
+        "logo_url": subnet_identity.get("logo_url", ""),
         "additional": subnet_identity.get("additional", ""),
     }
 
@@ -2252,6 +2256,7 @@ async def set_identity(
             "subnet_url",
             "discord",
             "description",
+            "logo_url",
             "additional",
         ]:
             value = getattr(identity, key, None)
@@ -2301,6 +2306,7 @@ async def get_identity(
             "subnet_url",
             "discord",
             "description",
+            "logo_url",
             "additional",
         ]:
             value = getattr(identity, key, None)

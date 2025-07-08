@@ -83,6 +83,8 @@ def test_unstaking(local_chain, wallet_setup):
             "A test subnet for e2e testing",
             "--additional-info",
             "Test subnet",
+            "--logo-url",
+            "https://testsubnet.com/logo.png",
             "--no-prompt",
         ],
     )
@@ -115,6 +117,8 @@ def test_unstaking(local_chain, wallet_setup):
             "A test subnet for e2e testing",
             "--additional-info",
             "Test subnet",
+            "--logo-url",
+            "https://testsubnet.com/logo.png",
             "--no-prompt",
         ],
     )
