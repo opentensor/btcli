@@ -349,9 +349,7 @@ async def stake_add(
             # If we are staking safe, add price tolerance
             if safe_staking:
                 if subnet_info.is_dynamic:
-                    price_with_tolerance = current_price_float * (
-                        1 + rate_tolerance
-                    )
+                    price_with_tolerance = current_price_float * (1 + rate_tolerance)
                     _rate_with_tolerance = (
                         1.0 / price_with_tolerance
                     )  # Rate only for display
