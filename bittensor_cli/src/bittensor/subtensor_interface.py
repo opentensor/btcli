@@ -1611,7 +1611,7 @@ class SubtensorInterface:
         map_ = {}
         async for netuid_, current_sqrt_price in query:
             current_sqrt_price_ = fixed_to_float(current_sqrt_price.value)
-            current_price = current_sqrt_price_ ^ 2
+            current_price = current_sqrt_price_**2
             map_[netuid_] = Balance.from_rao(int(current_price * 1e9))
 
         return map_
