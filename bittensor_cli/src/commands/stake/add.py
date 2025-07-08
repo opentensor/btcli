@@ -349,15 +349,15 @@ async def stake_add(
             # If we are staking safe, add price tolerance
             if safe_staking:
                 if subnet_info.is_dynamic:
-                    price_with_tolerance_float = current_price_float * (
+                    price_with_tolerance = current_price_float * (
                         1 + rate_tolerance
                     )
                     _rate_with_tolerance = (
-                        1.0 / price_with_tolerance_float
+                        1.0 / price_with_tolerance
                     )  # Rate only for display
                     rate_with_tolerance = f"{_rate_with_tolerance:.4f}"
                     price_with_tolerance = Balance.from_tao(
-                        _rate_with_tolerance
+                        price_with_tolerance
                     ).rao  # Actual price to pass to extrinsic
                 else:
                     rate_with_tolerance = "1"
