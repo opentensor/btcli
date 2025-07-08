@@ -1423,12 +1423,24 @@ class SubtensorInterface:
         return stake_info_map if stake_info_map else None
 
     async def all_subnets(self, block_hash: Optional[str] = None) -> list[DynamicInfo]:
-        result = await self.query_runtime_api(
-            "SubnetInfoRuntimeApi",
-            "get_all_dynamic_info",
-            block_hash=block_hash,
+        result, prices = await asyncio.gather(
+            self.query_runtime_api(
+                "SubnetInfoRuntimeApi",
+                "get_all_dynamic_info",
+                block_hash=block_hash,
+            ),
+            self.get_subnet_prices(block_hash=block_hash, page_size=129),
         )
-        return DynamicInfo.list_from_any(result)
+        sns: list[DynamicInfo] = DynamicInfo.list_from_any(result)
+        for sn in sns:
+            if sn.netuid == 0:
+                sn.price = Balance.from_tao(1.0)
+            else:
+                try:
+                    sn.price = prices[sn.netuid]
+                except KeyError:
+                    sn.price = sn.tao_in / sn.alpha_in
+        return sns
 
     async def subnet(
         self, netuid: int, block_hash: Optional[str] = None

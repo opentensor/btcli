@@ -275,10 +275,6 @@ async def stake_add(
     remaining_wallet_balance = current_wallet_balance
     max_slippage = 0.0
 
-    current_prices = await subtensor.get_subnet_prices(
-        block_hash=chain_head, page_size=len(all_subnets)
-    )
-
     for hotkey in hotkeys_to_stake_to:
         for netuid in netuids:
             # Check that the subnet exists.
@@ -334,14 +330,7 @@ async def stake_add(
             # max_slippage = max(slippage_pct_float, max_slippage)
 
             # Temporary workaround - calculations without slippage
-            if netuid == 0:
-                current_price = Balance.from_tao(1.0)
-            else:
-                try:
-                    current_price = current_prices[netuid]
-                except KeyError:  # indicates no price
-                    current_price = subnet_info.tao_in / subnet_info.alpha_in
-            current_price_float = float(current_price.tao)
+            current_price_float = float(subnet_info.price.tao)
             rate = 1.0 / current_price_float
             received_amount = rate * amount_to_stake
 
