@@ -1589,7 +1589,7 @@ class SubtensorInterface:
     ) -> Balance:
         if not block_hash:
             block_hash = await self.substrate.get_chain_head()
-        current_sqrt_price = await self.substrate.query(
+        current_sqrt_price = await self.query(
             module="Swap",
             storage_function="AlphaSqrtPrice",
             params=[netuid],
