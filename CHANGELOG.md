@@ -1,5 +1,12 @@
 # Changelog
 
+## 9.8.2/2025-07-09
+* Ensure that the fees are shown in alpha, not Tao. by @thewhaleking in https://github.com/opentensor/btcli/pull/530
+* remove unused subnet names mapping by @thewhaleking in https://github.com/opentensor/btcli/pull/531
+
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.8.1...v9.8.2
+
 ## 9.8.1/2025-07-08
 
 ## What's Changed
