@@ -124,7 +124,7 @@ async def display_stake_movement_cross_subnets(
         style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
     )
     table.add_column(
-        "Fee (τ)",
+        f"Fee ({Balance.get_unit(origin_netuid)})",
         justify="center",
         style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
     )
@@ -137,7 +137,7 @@ async def display_stake_movement_cross_subnets(
         str(amount_to_move),
         price_str,
         str(received_amount),
-        str(stake_fee),
+        str(stake_fee.set_unit(origin_netuid)),
     )
 
     console.print(table)
