@@ -3352,7 +3352,7 @@ class CLIManager:
             )
         else:
             netuid_ = get_optional_netuid(None, all_netuids)
-            netuids = [netuid_] if netuid_ else None
+            netuids = [netuid_] if netuid_ is not None else None
         if netuids:
             for netuid_ in netuids:
                 # ensure no negative netuids make it into our list

@@ -1,5 +1,18 @@
 # Changelog
 
+## 9.8.1/2025-07-08
+
+## What's Changed
+* Fixed broken type annotation. by @thewhaleking in https://github.com/opentensor/btcli/pull/523
+* Update/slippage price calcs by @ibraheem-abe in https://github.com/opentensor/btcli/pull/526
+* Partially fix slippage display by @gztensor in https://github.com/opentensor/btcli/pull/524
+* stake add: netuid 0 by @thewhaleking in https://github.com/opentensor/btcli/pull/525
+
+## New Contributors
+* @gztensor made their first contribution in https://github.com/opentensor/btcli/pull/524
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.8.0...v9.8.1
+
 ## 9.8.0/2025-07-07
 
 ## What's Changed

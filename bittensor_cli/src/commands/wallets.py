@@ -542,14 +542,12 @@ async def wallet_balance(
 
     total_free_balance = sum(free_balances.values())
     total_staked_balance = sum(stake[0] for stake in staked_balances.values())
-    total_staked_with_slippage = sum(stake[1] for stake in staked_balances.values())
 
     balances = {
         name: (
             coldkey,
             free_balances[coldkey],
             staked_balances[coldkey][0],
-            staked_balances[coldkey][1],
         )
         for (name, coldkey) in zip(wallet_names, coldkeys)
     }
@@ -578,19 +576,7 @@ async def wallet_balance(
             no_wrap=True,
         ),
         Column(
-            "[white]Staked (w/slippage)",
-            justify="right",
-            style=COLOR_PALETTE["STAKE"]["STAKE_SWAP"],
-            no_wrap=True,
-        ),
-        Column(
             "[white]Total Balance",
-            justify="right",
-            style=COLOR_PALETTE["GENERAL"]["BALANCE"],
-            no_wrap=True,
-        ),
-        Column(
-            "[white]Total (w/slippage)",
             justify="right",
             style=COLOR_PALETTE["GENERAL"]["BALANCE"],
             no_wrap=True,
@@ -605,15 +591,13 @@ async def wallet_balance(
         leading=True,
     )
 
-    for name, (coldkey, free, staked, staked_slippage) in balances.items():
+    for name, (coldkey, free, staked) in balances.items():
         table.add_row(
             name,
             coldkey,
             str(free),
             str(staked),
-            str(staked_slippage),
             str(free + staked),
-            str(free + staked_slippage),
         )
     table.add_row()
     table.add_row(
@@ -621,9 +605,7 @@ async def wallet_balance(
         "",
         str(total_free_balance),
         str(total_staked_balance),
-        str(total_staked_with_slippage),
         str(total_free_balance + total_staked_balance),
-        str(total_free_balance + total_staked_with_slippage),
     )
     console.print(Padding(table, (0, 0, 0, 4)))
     await subtensor.substrate.close()
@@ -633,9 +615,7 @@ async def wallet_balance(
                 "coldkey": value[0],
                 "free": value[1].tao,
                 "staked": value[2].tao,
-                "staked_with_slippage": value[3].tao,
                 "total": (value[1] + value[2]).tao,
-                "total_with_slippage": (value[1] + value[3]).tao,
             }
             for (key, value) in balances.items()
         }
@@ -644,11 +624,7 @@ async def wallet_balance(
             "totals": {
                 "free": total_free_balance.tao,
                 "staked": total_staked_balance.tao,
-                "staked_with_slippage": total_staked_with_slippage.tao,
                 "total": (total_free_balance + total_staked_balance).tao,
-                "total_with_slippage": (
-                    total_free_balance + total_staked_with_slippage
-                ).tao,
             },
         }
         json_console.print(json.dumps(output_dict))
