@@ -867,7 +867,7 @@ SUBNETS = {
     47: "condense",
     48: "nextplace",
     49: "automl",
-    50: "audio",
+    50: "synth",
     51: "celium",
     52: "dojo",
     53: "frontier",
