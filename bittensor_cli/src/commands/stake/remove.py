@@ -234,7 +234,7 @@ async def unstake(
                 str(amount_to_unstake_as_balance),  # Amount to Unstake
                 f"{subnet_info.price.tao:.6f}"
                 + f"({Balance.get_unit(0)}/{Balance.get_unit(netuid)})",  # Rate
-                str(stake_fee),  # Fee
+                str(stake_fee.set_unit(netuid)),  # Fee
                 str(received_amount),  # Received Amount
                 # slippage_pct,  # Slippage Percent
             ]
@@ -1189,7 +1189,7 @@ def _create_unstake_table(
         style=COLOR_PALETTE["POOLS"]["RATE"],
     )
     table.add_column(
-        f"Fee ({Balance.get_unit(0)})",
+        f"Fee ({Balance.get_unit(1)})",
         justify="center",
         style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
     )
