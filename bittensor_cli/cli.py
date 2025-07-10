@@ -277,8 +277,6 @@ class Options:
     )
     rate_tolerance = typer.Option(
         None,
-        "--slippage",
-        "--slippage-tolerance",
         "--tolerance",
         "--rate-tolerance",
         help="Set the rate tolerance percentage for transactions (default: 0.05 for 5%).",
@@ -1257,8 +1255,6 @@ class CLIManager:
         ),
         rate_tolerance: Optional[float] = typer.Option(
             None,
-            "--slippage",
-            "--slippage-tolerance",
             "--tolerance",
             help="Set the rate tolerance percentage for transactions (e.g. 0.1 for 0.1%).",
         ),
@@ -1404,9 +1400,7 @@ class CLIManager:
         wallet_hotkey: bool = typer.Option(False, *Options.wallet_hotkey.param_decls),
         network: bool = typer.Option(False, *Options.network.param_decls),
         use_cache: bool = typer.Option(False, "--cache"),
-        rate_tolerance: bool = typer.Option(
-            False, "--slippage", "--slippage-tolerance", "--tolerance"
-        ),
+        rate_tolerance: bool = typer.Option(False, "--tolerance"),
         safe_staking: bool = typer.Option(
             False, "--safe-staking/--no-safe-staking", "--safe/--unsafe"
         ),
