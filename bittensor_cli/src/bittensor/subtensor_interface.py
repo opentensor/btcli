@@ -1547,7 +1547,8 @@ class SubtensorInterface:
             block_hash=block_hash,
         )
         result = Balance.from_rao(result_)
-        result.set_unit(origin_netuid)
+        if isinstance(origin_netuid, int):
+            result.set_unit(origin_netuid)
 
         return result
 
