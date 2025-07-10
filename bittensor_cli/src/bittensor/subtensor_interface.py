@@ -1534,7 +1534,7 @@ class SubtensorInterface:
         if destination_hotkey_ss58 is not None and destination_netuid is not None:
             destination = (destination_hotkey_ss58, destination_netuid)
 
-        result = await self.query_runtime_api(
+        result_ = await self.query_runtime_api(
             runtime_api="StakeInfoRuntimeApi",
             method="get_stake_fee",
             params=[
@@ -1546,8 +1546,11 @@ class SubtensorInterface:
             ],
             block_hash=block_hash,
         )
+        result = Balance.from_rao(result_)
+        if isinstance(origin_netuid, int):
+            result.set_unit(origin_netuid)
 
-        return Balance.from_rao(result)
+        return result
 
     async def get_scheduled_coldkey_swap(
         self,

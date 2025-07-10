@@ -231,7 +231,7 @@ def test_unstaking(local_chain, wallet_setup):
                 "144",
             ],
         )
-        assert "✅ Finalized" in stake_result.stdout
+        assert "✅ Finalized" in stake_result.stdout, stake_result.stderr
 
     stake_list = exec_command_bob(
         command="stake",
