@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
     from rich.prompt import PromptBase
 
-BT_DOCS_LINK = "https://docs.bittensor.com"
+BT_DOCS_LINK = "https://docs.learnbittensor.org"
 
 
 console = Console()

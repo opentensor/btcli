@@ -1,5 +1,16 @@
 # Changelog
 
+## 9.8.4 /2025-07-10
+
+## What's Changed
+* Update docs URL by @HudsonGraeme in https://github.com/opentensor/btcli/pull/536
+* Updates fee unit conversion by @ibraheem-abe in https://github.com/opentensor/btcli/pull/542
+
+## New Contributors
+* @HudsonGraeme made their first contribution in https://github.com/opentensor/btcli/pull/536
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.8.3...v9.8.4
+
 ## 9.8.3 /2025-07-10
 * Updates stake move table with rate applied correctly. by @thewhaleking in https://github.com/opentensor/btcli/pull/538
 * change stake fee calculation by @thewhaleking in https://github.com/opentensor/btcli/pull/539
