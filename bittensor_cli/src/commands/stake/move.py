@@ -38,8 +38,7 @@ async def display_stake_movement_cross_subnets(
 
     if origin_netuid == destination_netuid:
         subnet = await subtensor.subnet(origin_netuid)
-        received_amount_tao = subnet.alpha_to_tao(amount_to_move)
-        received_amount_tao -= stake_fee
+        received_amount_tao = subnet.alpha_to_tao(amount_to_move - stake_fee)
 
         if received_amount_tao < Balance.from_tao(0):
             print_error("Not enough Alpha to pay the transaction fee.")
@@ -60,8 +59,7 @@ async def display_stake_movement_cross_subnets(
         price_destination = dynamic_destination.price.tao
         rate = price_origin / (price_destination or 1)
 
-        received_amount_tao = dynamic_origin.alpha_to_tao(amount_to_move)
-        received_amount_tao -= stake_fee
+        received_amount_tao = dynamic_origin.alpha_to_tao(amount_to_move - stake_fee)
         received_amount = dynamic_destination.tao_to_alpha(received_amount_tao)
         received_amount.set_unit(destination_netuid)
 
