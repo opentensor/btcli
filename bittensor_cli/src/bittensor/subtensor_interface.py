@@ -36,6 +36,7 @@ from bittensor_cli.src.bittensor.utils import (
     decode_hex_identity_dict,
     validate_chain_endpoint,
     u16_normalized_float,
+    U16_MAX,
 )
 
 SubstrateClass = (
@@ -1526,28 +1527,16 @@ class SubtensorInterface:
         5. Moving between coldkeys
         """
 
-        origin = None
-        if origin_hotkey_ss58 is not None and origin_netuid is not None:
-            origin = (origin_hotkey_ss58, origin_netuid)
+        if origin_netuid is None:
+            origin_netuid = 0
 
-        destination = None
-        if destination_hotkey_ss58 is not None and destination_netuid is not None:
-            destination = (destination_hotkey_ss58, destination_netuid)
+        fee_rate = await self.query("Swap", "FeeRate", [origin_netuid])
+        fee = amount * (fee_rate / U16_MAX)
 
-        result = await self.query_runtime_api(
-            runtime_api="StakeInfoRuntimeApi",
-            method="get_stake_fee",
-            params=[
-                origin,
-                origin_coldkey_ss58,
-                destination,
-                destination_coldkey_ss58,
-                amount,
-            ],
-            block_hash=block_hash,
-        )
+        result = Balance.from_tao(fee)
+        result.set_unit(origin_netuid)
 
-        return Balance.from_rao(result)
+        return result
 
     async def get_scheduled_coldkey_swap(
         self,
