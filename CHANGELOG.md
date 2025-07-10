@@ -1,13 +1,18 @@
 # Changelog
 
-## 9.8.2/2025-07-09
+## 9.8.3 /2025-07-10
+* Updates stake move table with rate applied correctly. by @thewhaleking in https://github.com/opentensor/btcli/pull/538
+* change stake fee calculation by @thewhaleking in https://github.com/opentensor/btcli/pull/539
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.8.2...v9.8.3
+
+## 9.8.2 /2025-07-09
 * Ensure that the fees are shown in alpha, not Tao. by @thewhaleking in https://github.com/opentensor/btcli/pull/530
 * remove unused subnet names mapping by @thewhaleking in https://github.com/opentensor/btcli/pull/531
 
-
 **Full Changelog**: https://github.com/opentensor/btcli/compare/v9.8.1...v9.8.2
 
-## 9.8.1/2025-07-08
+## 9.8.1 /2025-07-08
 
 ## What's Changed
 * Fixed broken type annotation. by @thewhaleking in https://github.com/opentensor/btcli/pull/523
@@ -20,7 +25,7 @@
 
 **Full Changelog**: https://github.com/opentensor/btcli/compare/v9.8.0...v9.8.1
 
-## 9.8.0/2025-07-07
+## 9.8.0 /2025-07-07
 
 ## What's Changed
 * Feat/logo urls in subnet identity by @ibraheem-abe in https://github.com/opentensor/btcli/pull/504
@@ -36,7 +41,7 @@
 
 **Full Changelog**: https://github.com/opentensor/btcli/compare/v9.7.1...v9.8.0
 
-## 9.7.1/2025-06-26
+## 9.7.1 /2025-06-26
 
 ## What's Changed
 * Convert hyperparams from strings by @thewhaleking in https://github.com/opentensor/btcli/pull/510
@@ -44,7 +49,7 @@
 
 **Full Changelog**: https://github.com/opentensor/btcli/compare/v9.7.0...v9.7.1
 
-## 9.7.0/2025-06-16
+## 9.7.0 /2025-06-16
 
 ## What's Changed
 * Add `SKIP_PULL` variable for conftest.py by @basfroman in https://github.com/opentensor/btcli/pull/502
@@ -52,7 +57,7 @@
 
 **Full Changelog**: https://github.com/opentensor/btcli/compare/v9.6.0...v9.7.0
 
-## 9.6.0/2025-06-12
+## 9.6.0 /2025-06-12
 
 ## What's Changed
 * Allows for staking to multiple netuids in one btcli command by @thewhaleking in https://github.com/opentensor/btcli/pull/481
