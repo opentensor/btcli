@@ -1533,7 +1533,7 @@ class SubtensorInterface:
         fee_rate = await self.query("Swap", "FeeRate", [origin_netuid])
         fee = amount * (fee_rate / U16_MAX)
 
-        result = Balance.from_tao(fee)
+        result = Balance.from_rao(fee)
         result.set_unit(origin_netuid)
 
         return result
