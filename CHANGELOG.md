@@ -1,5 +1,11 @@
 # Changelog
 
+## 9.8.5 /2025-07-16
+* Updates `user_liquidity_enabled` to not root sudo only. by @thewhaleking in https://github.com/opentensor/btcli/pull/546
+* Patches broken Brahmi characters with normal characters. by @thewhaleking in https://github.com/opentensor/btcli/pull/547
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.8.4...v9.8.5
+
 ## 9.8.4 /2025-07-10
 
 ## What's Changed
