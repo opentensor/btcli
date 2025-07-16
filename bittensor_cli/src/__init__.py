@@ -660,7 +660,7 @@ HYPERPARAMS = {
     ),
     "yuma3_enabled": ("sudo_set_yuma3_enabled", False),
     "alpha_sigmoid_steepness": ("sudo_set_alpha_sigmoid_steepness", True),
-    "user_liquidity_enabled": ("toggle_user_liquidity", True),
+    "user_liquidity_enabled": ("toggle_user_liquidity", False),
 }
 
 HYPERPARAMS_MODULE = {
