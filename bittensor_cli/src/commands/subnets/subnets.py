@@ -323,6 +323,17 @@ async def subnets_list(
 
         for subnet in subnets_:
             netuid = subnet.netuid
+            # The default symbols for 123 and 124 are visually identical:
+            # 123:  𑀀
+            # 124:  𑀁
+            # and the symbol for 125 is basically a colon
+            # 125:  𑀂
+            # however, because they're in Brahmi, which very few fonts support, they don't render properly
+            # This patches them.
+            replacements = {69632: "˙", 69633: "˙", 69634: ":"}
+            if (sso := ord(subnet.symbol)) in replacements.keys():
+                subnet.symbol = replacements[sso]
+
             symbol = f"{subnet.symbol}\u200e"
 
             if netuid == 0:
