@@ -4612,7 +4612,9 @@ class CLIManager:
         if param_name in ["alpha_high", "alpha_low"]:
             if not prompt:
                 err_console.print(
-                    "`alpha_high` and `alpha_low` values cannot be set with `--no-prompt`"
+                    f"[{COLORS.SU.HYPERPARAM}]alpha_high[/{COLORS.SU.HYPERPARAM}] and "
+                    f"[{COLORS.SU.HYPERPARAM}]alpha_low[/{COLORS.SU.HYPERPARAM}] "
+                    f"values cannot be set with `--no-prompt`"
                 )
                 return False
             param_name = "alpha_values"
@@ -4626,11 +4628,13 @@ class CLIManager:
         if param_name == "yuma_version":
             if not prompt:
                 err_console.print(
-                    "`yuma_version` is set using a different hyperparameter, and thus cannot be set with `--no-prompt`"
+                    f"[{COLORS.SU.HYPERPARAM}]yuma_version[/{COLORS.SU.HYPERPARAM}]"
+                    f" is set using a different hyperparameter, and thus cannot be set with `--no-prompt`"
                 )
                 return False
             if Confirm.ask(
-                "`yuma_version` can only be used to toggle Yuma 3. Would you like to toggle Yuma 3?"
+                f"[{COLORS.SU.HYPERPARAM}]yuma_version[/{COLORS.SU.HYPERPARAM}] can only be used to toggle Yuma 3. "
+                f"Would you like to toggle Yuma 3?"
             ):
                 param_name = "yuma3_enabled"
                 question = Prompt.ask(
