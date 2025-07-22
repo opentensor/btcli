@@ -4597,7 +4597,9 @@ class CLIManager:
                     "Param name not supplied with `--no-prompt` flag. Cannot continue"
                 )
                 return False
-            hyperparam_list = [field.name for field in fields(SubnetHyperparameters)]
+            hyperparam_list = sorted(
+                [field.name for field in fields(SubnetHyperparameters)]
+            )
             console.print("Available hyperparameters:\n")
             for idx, param in enumerate(hyperparam_list, start=1):
                 console.print(f"  {idx}. {param}")
