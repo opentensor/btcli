@@ -671,7 +671,8 @@ async def get_hyperparameters(
     dict_out = []
 
     normalized_values = normalize_hyperparameters(subnet, json_output=json_output)
-    for param, value, norm_value in normalized_values:
+    sorted_values = sorted(normalized_values, key=lambda x: x[0])
+    for param, value, norm_value in sorted_values:
         if not json_output:
             table.add_row("  " + param, value, norm_value)
         else:
