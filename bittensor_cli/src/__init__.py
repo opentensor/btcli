@@ -749,6 +749,7 @@ class ColorPalette(Gettable):
         NETUID = "#CBA880"  # Tan
         NETUID_EXTRA = "#DDD5A9"  # Light Khaki
         TEMPO = "#67A3A5"  # Grayish Teal
+        ARG = "dark_orange"
         # aliases
         CK = COLDKEY
         HK = HOTKEY
