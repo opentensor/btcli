@@ -1,5 +1,11 @@
 # Changelog
 
+## 9.8.6 /2025-07-22
+* Hyperparam discrepancy between set/get by @thewhaleking in https://github.com/opentensor/btcli/pull/552
+* Hyperparameters in alphabetical order for `btcli sudo get/set` by @basfroman in https://github.com/opentensor/btcli/pull/553
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.8.5...v9.8.6
+
 ## 9.8.5 /2025-07-16
 * Updates `user_liquidity_enabled` to not root sudo only. by @thewhaleking in https://github.com/opentensor/btcli/pull/546
 * Patches broken Brahmi characters with normal characters. by @thewhaleking in https://github.com/opentensor/btcli/pull/547
