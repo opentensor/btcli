@@ -1070,7 +1070,8 @@ class CLIManager:
                     not_selected_networks = [net for net in network if net != network_]
                     if not_selected_networks:
                         console.print(
-                            f"Networks not selected: [dark_orange]{', '.join(not_selected_networks)}[/dark_orange]"
+                            f"Networks not selected: "
+                            f"[{COLORS.G.ARG}]{', '.join(not_selected_networks)}[/{COLORS.G.ARG}]"
                         )
 
                     self.subtensor = SubtensorInterface(network_)
@@ -1353,8 +1354,8 @@ class CLIManager:
         if n := args.get("network"):
             if n in Constants.networks:
                 if not Confirm.ask(
-                    f"You provided a network [dark_orange]{n}[/dark_orange] which is mapped to "
-                    f"[dark_orange]{Constants.network_map[n]}[/dark_orange]\n"
+                    f"You provided a network [{COLORS.G.ARG}]{n}[/{COLORS.G.ARG}] which is mapped to "
+                    f"[{COLORS.G.ARG}]{Constants.network_map[n]}[/{COLORS.G.ARG}]\n"
                     "Do you want to continue?"
                 ):
                     typer.Exit()
@@ -1369,14 +1370,14 @@ class CLIManager:
                         )
                         args["network"] = known_network
                         if not Confirm.ask(
-                            f"You provided an endpoint [dark_orange]{n}[/dark_orange] which is mapped to "
-                            f"[dark_orange]{known_network}[/dark_orange]\n"
+                            f"You provided an endpoint [{COLORS.G.ARG}]{n}[/{COLORS.G.ARG}] which is mapped to "
+                            f"[{COLORS.G.ARG}]{known_network}[/{COLORS.G.ARG}]\n"
                             "Do you want to continue?"
                         ):
-                            typer.Exit()
+                            raise typer.Exit()
                     else:
                         if not Confirm.ask(
-                            f"You provided a chain endpoint URL [dark_orange]{n}[/dark_orange]\n"
+                            f"You provided a chain endpoint URL [{COLORS.G.ARG}]{n}[/{COLORS.G.ARG}]\n"
                             "Do you want to continue?"
                         ):
                             raise typer.Exit()
@@ -1451,15 +1452,15 @@ class CLIManager:
             for arg in args.keys():
                 if self.config.get(arg) is not None:
                     if Confirm.ask(
-                        f"Do you want to clear the [dark_orange]{arg}[/dark_orange] config?"
+                        f"Do you want to clear the [{COLORS.G.ARG}]{arg}[/{COLORS.G.ARG}] config?"
                     ):
                         self.config[arg] = None
                         console.print(
-                            f"Cleared [dark_orange]{arg}[/dark_orange] config and set to 'None'."
+                            f"Cleared [{COLORS.G.ARG}]{arg}[/{COLORS.G.ARG}] config and set to 'None'."
                         )
                     else:
                         console.print(
-                            f"Skipped clearing [dark_orange]{arg}[/dark_orange] config."
+                            f"Skipped clearing [{COLORS.G.ARG}]{arg}[/{COLORS.G.ARG}] config."
                         )
 
         else:
@@ -1468,19 +1469,21 @@ class CLIManager:
                 if should_clear:
                     if self.config.get(arg) is not None:
                         if Confirm.ask(
-                            f"Do you want to clear the [dark_orange]{arg}[/dark_orange] [bold cyan]({self.config.get(arg)})[/bold cyan] config?"
+                            f"Do you want to clear the [{COLORS.G.ARG}]{arg}[/{COLORS.G.ARG}]"
+                            f" [bold cyan]({self.config.get(arg)})[/bold cyan] config?"
                         ):
                             self.config[arg] = None
                             console.print(
-                                f"Cleared [dark_orange]{arg}[/dark_orange] config and set to 'None'."
+                                f"Cleared [{COLORS.G.ARG}]{arg}[/{COLORS.G.ARG}] config and set to 'None'."
                             )
                         else:
                             console.print(
-                                f"Skipped clearing [dark_orange]{arg}[/dark_orange] config."
+                                f"Skipped clearing [{COLORS.G.ARG}]{arg}[/{COLORS.G.ARG}] config."
                             )
                     else:
                         console.print(
-                            f"No config set for [dark_orange]{arg}[/dark_orange]. Use `btcli config set` to set it."
+                            f"No config set for [{COLORS.G.ARG}]{arg}[/{COLORS.G.ARG}]."
+                            f" Use [{COLORS.G.ARG}]`btcli config set`[/{COLORS.G.ARG}] to set it."
                         )
         with open(self.config_path, "w") as f:
             safe_dump(self.config, f)
@@ -1492,7 +1495,7 @@ class CLIManager:
         deprecated_configs = ["chain"]
 
         table = Table(
-            Column("[bold white]Name", style="dark_orange"),
+            Column("[bold white]Name", style=f"{COLORS.G.ARG}"),
             Column("[bold white]Value", style="gold1"),
             Column("", style="medium_purple"),
             box=box.SIMPLE_HEAD,
@@ -4609,17 +4612,44 @@ class CLIManager:
         if param_name in ["alpha_high", "alpha_low"]:
             if not prompt:
                 err_console.print(
-                    "`alpha_high` and `alpha_low` values cannot be set with `--no-prompt`"
+                    f"[{COLORS.SU.HYPERPARAM}]alpha_high[/{COLORS.SU.HYPERPARAM}] and "
+                    f"[{COLORS.SU.HYPERPARAM}]alpha_low[/{COLORS.SU.HYPERPARAM}] "
+                    f"values cannot be set with `--no-prompt`"
                 )
                 return False
             param_name = "alpha_values"
             low_val = FloatPrompt.ask(
-                "Enter the new value for [dark_orange]alpha_low[/dark_orange]"
+                f"Enter the new value for [{COLORS.G.ARG}]alpha_low[/{COLORS.G.ARG}]"
             )
             high_val = FloatPrompt.ask(
-                "Enter the new value for [dark_orange]alpha_high[/dark_orange]"
+                f"Enter the new value for [{COLORS.G.ARG}]alpha_high[/{COLORS.G.ARG}]"
             )
             param_value = f"{low_val},{high_val}"
+        if param_name == "yuma_version":
+            if not prompt:
+                err_console.print(
+                    f"[{COLORS.SU.HYPERPARAM}]yuma_version[/{COLORS.SU.HYPERPARAM}]"
+                    f" is set using a different hyperparameter, and thus cannot be set with `--no-prompt`"
+                )
+                return False
+            if Confirm.ask(
+                f"[{COLORS.SU.HYPERPARAM}]yuma_version[/{COLORS.SU.HYPERPARAM}] can only be used to toggle Yuma 3. "
+                f"Would you like to toggle Yuma 3?"
+            ):
+                param_name = "yuma3_enabled"
+                question = Prompt.ask(
+                    "Would to like to enable or disable Yuma 3?",
+                    choices=["enable", "disable"],
+                )
+                param_value = "true" if question == "enable" else "false"
+            else:
+                return False
+        if param_name == "subnet_is_active":
+            err_console.print(
+                f"[{COLORS.SU.HYPERPARAM}]subnet_is_active[/{COLORS.SU.HYPERPARAM}] "
+                f"is set by using [{COLORS.G.ARG}]`btcli subnets start`[/{COLORS.G.ARG}] command."
+            )
+            return False
 
         if not param_value:
             if not prompt:
