@@ -4620,6 +4620,28 @@ class CLIManager:
                 "Enter the new value for [dark_orange]alpha_high[/dark_orange]"
             )
             param_value = f"{low_val},{high_val}"
+        if param_name == "yuma_version":
+            if not prompt:
+                err_console.print(
+                    "`yuma_version` is set using a different hyperparameter, and thus cannot be set with `--no-prompt`"
+                )
+                return False
+            if Confirm.ask(
+                "`yuma_version` can only be used to toggle Yuma 3. Would you like to toggle Yuma 3?"
+            ):
+                param_name = "yuma3_enabled"
+                question = Prompt.ask(
+                    "Would to like to enable or disable Yuma 3?",
+                    choices=["enable", "disable"],
+                )
+                param_value = "true" if question == "enable" else "false"
+            else:
+                return False
+        if param_name == "subnet_is_active":
+            err_console.print(
+                "`subnet_is_active` is set by using `btcli subnets start`"
+            )
+            return False
 
         if not param_value:
             if not prompt:
