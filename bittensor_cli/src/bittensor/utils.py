@@ -622,20 +622,23 @@ def decode_hex_identity_dict(info_dictionary) -> dict[str, Any]:
 
     Examples:
         input_dict = {
-        ...     "name": {"value": "0x6a6f686e"},
-        ...     "additional": [
-        ...         [{"data": "0x64617461"}]
-        ...     ]
-        ... }
+             "name": {"value": "0x6a6f686e"},
+             "additional": [
+                 {"data1": "0x64617461"},
+                 ("data2", "0x64617461")
+             ]
+         }
         decode_hex_identity_dict(input_dict)
-        {'name': 'john', 'additional': [('data', 'data')]}
+        {'name': 'john', 'additional': [('data1', 'data'), ('data2', 'data')]}
     """
 
-    def get_decoded(data: str) -> str:
+    def get_decoded(data: Optional[str]) -> str:
         """Decodes a hex-encoded string."""
+        if data is None:
+            return ""
         try:
             return hex_to_bytes(data).decode()
-        except UnicodeDecodeError:
+        except (UnicodeDecodeError, ValueError):
             print(f"Could not decode: {key}: {item}")
 
     for key, value in info_dictionary.items():
@@ -651,12 +654,14 @@ def decode_hex_identity_dict(info_dictionary) -> dict[str, Any]:
         if key == "additional":
             additional = []
             for item in value:
-                additional.append(
-                    tuple(
-                        get_decoded(data=next(iter(sub_item.values())))
-                        for sub_item in item
-                    )
-                )
+                if isinstance(item, dict):
+                    for k, v in item.items():
+                        additional.append((k, get_decoded(v)))
+                else:
+                    if isinstance(item, (tuple, list)) and len(item) == 2:
+                        k_, v = item
+                        k = k_ if k_ is not None else ""
+                        additional.append((k, get_decoded(v)))
             info_dictionary[key] = additional
 
     return info_dictionary
