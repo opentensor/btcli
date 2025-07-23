@@ -1,5 +1,10 @@
 # Changelog
 
+## 9.8.7 /2025-07-23
+* Fix for handling tuples for `additional` by @thewhaleking in https://github.com/opentensor/btcli/pull/557
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.8.6...v9.8.7
+
 ## 9.8.6 /2025-07-22
 * Hyperparam discrepancy between set/get by @thewhaleking in https://github.com/opentensor/btcli/pull/552
 * Hyperparameters in alphabetical order for `btcli sudo get/set` by @basfroman in https://github.com/opentensor/btcli/pull/553
