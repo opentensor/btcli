@@ -1408,6 +1408,7 @@ async def transfer(
     destination: str,
     amount: float,
     transfer_all: bool,
+    allow_death: bool,
     era: int,
     prompt: bool,
     json_output: bool,
@@ -1419,6 +1420,7 @@ async def transfer(
         destination=destination,
         amount=Balance.from_tao(amount),
         transfer_all=transfer_all,
+        allow_death=allow_death,
         era=era,
         prompt=prompt,
     )

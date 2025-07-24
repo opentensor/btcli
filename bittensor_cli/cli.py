@@ -1889,6 +1889,12 @@ class CLIManager:
         transfer_all: bool = typer.Option(
             False, "--all", prompt=False, help="Transfer all available balance."
         ),
+        allow_death: bool = typer.Option(
+            False,
+            "--allow-death",
+            prompt=False,
+            help="Transfer balance even if the resulting balance falls below the existential deposit.",
+        ),
         period: int = Options.period,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
@@ -1932,7 +1938,7 @@ class CLIManager:
         subtensor = self.initialize_chain(network)
         if transfer_all and amount:
             print_error("Cannot specify an amount and '--all' flag.")
-            raise typer.Exit()
+            return False
         elif transfer_all:
             amount = 0
         elif not amount:
@@ -1944,6 +1950,7 @@ class CLIManager:
                 destination=destination_ss58_address,
                 amount=amount,
                 transfer_all=transfer_all,
+                allow_death=allow_death,
                 era=period,
                 prompt=prompt,
                 json_output=json_output,
