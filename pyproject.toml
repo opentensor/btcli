@@ -15,7 +15,7 @@ scripts = { btcli = "bittensor_cli.cli:main" }
 requires-python = ">=3.9,<3.14"
 dependencies = [
     "wheel",
-    "async-substrate-interface>=1.1.0",
+    "async-substrate-interface>=1.4.2",
     "aiohttp~=3.10.2",
     "backoff~=2.2.1",
     "click<8.2.0",  # typer.testing.CliRunner(mix_stderr=) is broken in click 8.2.0+

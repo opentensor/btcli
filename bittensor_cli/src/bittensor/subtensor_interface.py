@@ -3,6 +3,7 @@ import os
 from typing import Optional, Any, Union, TypedDict, Iterable
 
 import aiohttp
+from async_substrate_interface.utils.storage import StorageKey
 from bittensor_wallet import Wallet
 from bittensor_wallet.utils import SS58_FORMAT
 from scalecodec import GenericCall
@@ -881,9 +882,10 @@ class SubtensorInterface:
             storage_function="IdentitiesV2",
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
+            fully_exhaust=True,
         )
         all_identities = {}
-        async for ss58_address, identity in identities:
+        for ss58_address, identity in identities.records:
             all_identities[decode_account_id(ss58_address[0])] = decode_hex_identity(
                 identity.value
             )
@@ -939,22 +941,22 @@ class SubtensorInterface:
         :param reuse_block: Whether to reuse the last-used blockchain block hash.
         :return: Dict with 'coldkeys' and 'hotkeys' as keys.
         """
-
-        coldkey_identities = await self.query_all_identities()
+        if block_hash is None:
+            block_hash = await self.substrate.get_chain_head()
+        coldkey_identities = await self.query_all_identities(block_hash=block_hash)
         identities = {"coldkeys": {}, "hotkeys": {}}
-        if not coldkey_identities:
-            return identities
-        query = await self.substrate.query_multiple(  # TODO probably more efficient to do this with query_multi
-            params=list(coldkey_identities.keys()),
-            module="SubtensorModule",
-            storage_function="OwnedHotkeys",
-            block_hash=block_hash,
-            reuse_block_hash=reuse_block,
-        )
+        sks = [
+            await self.substrate.create_storage_key(
+                "SubtensorModule", "OwnedHotkeys", [ck], block_hash=block_hash
+            )
+            for ck in coldkey_identities.keys()
+        ]
+        query = await self.substrate.query_multi(sks, block_hash=block_hash)
 
-        for coldkey_ss58, hotkeys in query.items():
+        storage_key: StorageKey
+        for storage_key, hotkeys in query:
+            coldkey_ss58 = storage_key.params[0]
             coldkey_identity = coldkey_identities.get(coldkey_ss58)
-            hotkeys = [decode_account_id(hotkey[0]) for hotkey in hotkeys or []]
 
             identities["coldkeys"][coldkey_ss58] = {
                 "identity": coldkey_identity,
