@@ -1457,6 +1457,8 @@ class SubtensorInterface:
             ),
             self.get_subnet_price(netuid=netuid, block_hash=block_hash),
         )
+        if not result:
+            raise ValueError(f"Subnet {netuid} not found")
         subnet_ = DynamicInfo.from_any(result)
         subnet_.price = price
         return subnet_

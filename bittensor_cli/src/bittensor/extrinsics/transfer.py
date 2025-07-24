@@ -26,9 +26,9 @@ async def transfer_extrinsic(
     amount: Balance,
     era: int = 3,
     transfer_all: bool = False,
+    allow_death: bool = False,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
-    keep_alive: bool = True,
     prompt: bool = False,
 ) -> bool:
     """Transfers funds from this wallet to the destination public key address.
@@ -39,11 +39,11 @@ async def transfer_extrinsic(
     :param amount: Amount to stake as Bittensor balance.
     :param era: Length (in blocks) for which the transaction should be valid.
     :param transfer_all: Whether to transfer all funds from this wallet to the destination address.
+    :param allow_death: Whether to allow for falling below the existential deposit when performing this transfer.
     :param wait_for_inclusion: If set, waits for the extrinsic to enter a block before returning `True`,
                                or returns `False` if the extrinsic fails to enter the block within the timeout.
     :param wait_for_finalization:  If set, waits for the extrinsic to be finalized on the chain before returning
                                    `True`, or returns `False` if the extrinsic fails to be finalized within the timeout.
-    :param keep_alive: If set, keeps the account alive by keeping the balance above the existential deposit.
     :param prompt: If `True`, the call waits for confirmation from the user before proceeding.
     :return: success: Flag is `True` if extrinsic was finalized or included in the block. If we did not wait for
                       finalization / inclusion, the response is `True`, regardless of its inclusion.
@@ -57,8 +57,8 @@ async def transfer_extrinsic(
         """
         call = await subtensor.substrate.compose_call(
             call_module="Balances",
-            call_function="transfer_keep_alive",
-            call_params={"dest": destination, "value": amount.rao},
+            call_function=call_function,
+            call_params=call_params,
         )
 
         try:
@@ -82,8 +82,8 @@ async def transfer_extrinsic(
         """
         call = await subtensor.substrate.compose_call(
             call_module="Balances",
-            call_function="transfer_keep_alive",
-            call_params={"dest": destination, "value": amount.rao},
+            call_function=call_function,
+            call_params=call_params,
         )
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
             call=call, keypair=wallet.coldkey, era={"period": era}
@@ -115,6 +115,20 @@ async def transfer_extrinsic(
     if not unlock_key(wallet).success:
         return False
 
+    call_params = {"dest": destination}
+    if transfer_all:
+        call_function = "transfer_all"
+        if allow_death:
+            call_params["keep_alive"] = False
+        else:
+            call_params["keep_alive"] = True
+    else:
+        call_params["value"] = amount.rao
+        if allow_death:
+            call_function = "transfer_allow_death"
+        else:
+            call_function = "transfer_keep_alive"
+
     # Check balance.
     with console.status(
         f":satellite: Checking balance and fees on chain [white]{subtensor.network}[/white]",
@@ -131,23 +145,26 @@ async def transfer_extrinsic(
         )
         fee = await get_transfer_fee()
 
-    if not keep_alive:
-        # Check if the transfer should keep_alive the account
+    if allow_death:
+        # Check if the transfer should keep alive the account
         existential_deposit = Balance(0)
 
-    # Check if we have enough balance.
-    if transfer_all is True:
-        amount = account_balance - fee - existential_deposit
-        if amount < Balance(0):
-            print_error("Not enough balance to transfer")
-            return False
-
-    if account_balance < (amount + fee + existential_deposit):
+    if account_balance < (amount + fee + existential_deposit) and not allow_death:
         err_console.print(
             ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
             f"  balance: [bright_cyan]{account_balance}[/bright_cyan]\n"
             f"  amount: [bright_cyan]{amount}[/bright_cyan]\n"
-            f"  for fee: [bright_cyan]{fee}[/bright_cyan]"
+            f"  for fee: [bright_cyan]{fee}[/bright_cyan]\n"
+            f"   would bring you under the existential deposit: [bright_cyan]{existential_deposit}[/bright_cyan].\n"
+            f"You can try again with `--allow-death`."
+        )
+        return False
+    elif account_balance < (amount + fee) and allow_death:
+        print_error(
+            ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
+            f"  balance: [bright_red]{account_balance}[/bright_red]\n"
+            f"  amount: [bright_red]{amount}[/bright_red]\n"
+            f"  for fee: [bright_red]{fee}[/bright_red]"
         )
         return False
 
