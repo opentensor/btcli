@@ -102,7 +102,6 @@ async def transfer_extrinsic(
             block_hash_ = response.block_hash
             return True, block_hash_, ""
         else:
-            print(response)
             return False, "", format_error_message(await response.error_message)
 
     # Validate destination address.
