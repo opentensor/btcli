@@ -463,7 +463,7 @@ async def unstake_all(
             style=COLOR_PALETTE["POOLS"]["RATE"],
         )
         table.add_column(
-            f"Fee ({Balance.unit})",
+            f"Fee ({Balance.get_unit(1)})",
             justify="center",
             style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
         )
