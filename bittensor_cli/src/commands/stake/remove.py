@@ -468,7 +468,7 @@ async def unstake_all(
             try:
                 current_price = subnet_info.price.tao
                 rate = current_price
-                received_amount = stake_amount * rate - stake_fee
+                received_amount = (stake_amount - stake_fee) * rate
 
                 if received_amount < Balance.from_tao(0):
                     print_error("Not enough Alpha to pay the transaction fee.")
