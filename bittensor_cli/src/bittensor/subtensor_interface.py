@@ -1490,6 +1490,15 @@ class SubtensorInterface:
         return [decode_account_id(hotkey[0]) for hotkey in owned_hotkeys or []]
 
     async def get_extrinsic_fee(self, call: GenericCall, keypair: Keypair) -> Balance:
+        """
+        Determines the fee for the extrinsic call.
+        Args:
+            call: Created extrinsic call
+            keypair: The keypair that would sign the extrinsic (usually you would just want to use the *pub for this)
+
+        Returns:
+            Balance object representing the fee for this extrinsic.
+        """
         fee_dict = await self.substrate.get_payment_info(call, keypair)
         return Balance.from_rao(fee_dict["partial_fee"])
 

@@ -215,11 +215,11 @@ async def unstake(
                     if subnet_info.is_dynamic:
                         price_with_tolerance = current_price * (1 - rate_tolerance)
                         rate_with_tolerance = price_with_tolerance
-                        price_with_tolerance = Balance.from_tao(
+                        price_limit = Balance.from_tao(
                             rate_with_tolerance
-                        ).rao  # Actual price to pass to extrinsic
+                        )  # Actual price to pass to extrinsic
                     else:
-                        price_with_tolerance = 1
+                        price_limit = Balance.from_rao(1)
                     extrinsic_fee = await _get_extrinsic_fee(
                         "unstake_safe",
                         wallet,
@@ -227,7 +227,7 @@ async def unstake(
                         hotkey_ss58=staking_address_ss58,
                         amount=amount_to_unstake_as_balance,
                         netuid=netuid,
-                        price_limit=price_with_tolerance,
+                        price_limit=price_limit,
                         allow_partial_stake=allow_partial_stake,
                     )
                 else:

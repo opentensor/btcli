@@ -72,6 +72,18 @@ async def stake_add(
         safe_staking_: bool,
         price_limit: Optional[Balance] = None,
     ):
+        """
+        Quick method to get the extrinsic fee for adding stake depending on the args supplied.
+        Args:
+            netuid_: The netuid where the stake will be added
+            amount_: the amount of stake to add
+            staking_address_: the hotkey ss58 to stake to
+            safe_staking_: whether to use safe staking
+            price_limit: rate with tolerance
+
+        Returns:
+            Balance object representing the extrinsic fee for adding stake.
+        """
         call_fn = "add_stake" if not safe_staking_ else "add_stake_limit"
         call_params = {
             "hotkey": staking_address_,
