@@ -359,19 +359,6 @@ async def stake_add(
             # Temporary workaround - calculations without slippage
             current_price_float = float(subnet_info.price.tao)
             rate = 1.0 / current_price_float
-            received_amount = rate * amount_to_stake
-
-            # Add rows for the table
-            base_row = [
-                str(netuid),  # netuid
-                f"{hotkey[1]}",  # hotkey
-                str(amount_to_stake),  # amount
-                str(rate)
-                + f" {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ",  # rate
-                str(received_amount.set_unit(netuid)),  # received
-                str(stake_fee),  # fee
-                # str(slippage_pct),  # slippage
-            ]
 
             # If we are staking safe, add price tolerance
             if safe_staking:
@@ -395,15 +382,12 @@ async def stake_add(
                     price_limit=price_with_tolerance,
                 )
                 prices_with_tolerance.append(price_with_tolerance)
-                base_row.extend(
-                    [
-                        str(extrinsic_fee),
-                        f"{rate_with_tolerance} {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ",
-                        f"[{'dark_sea_green3' if allow_partial_stake else 'red'}]"
-                        # safe staking
-                        f"{allow_partial_stake}[/{'dark_sea_green3' if allow_partial_stake else 'red'}]",
-                    ]
-                )
+                row_extension = [
+                    f"{rate_with_tolerance} {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ",
+                    f"[{'dark_sea_green3' if allow_partial_stake else 'red'}]"
+                    # safe staking
+                    f"{allow_partial_stake}[/{'dark_sea_green3' if allow_partial_stake else 'red'}]",
+                ]
             else:
                 extrinsic_fee = await get_stake_extrinsic_fee(
                     netuid_=netuid,
@@ -411,8 +395,20 @@ async def stake_add(
                     staking_address_=hotkey[1],
                     safe_staking_=safe_staking,
                 )
-                base_row.append(str(extrinsic_fee))
-
+                row_extension = []
+            received_amount = rate * (amount_to_stake - stake_fee - extrinsic_fee)
+            # Add rows for the table
+            base_row = [
+                str(netuid),  # netuid
+                f"{hotkey[1]}",  # hotkey
+                str(amount_to_stake),  # amount
+                str(rate)
+                + f" {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ",  # rate
+                str(received_amount.set_unit(netuid)),  # received
+                str(stake_fee),  # fee
+                str(extrinsic_fee),
+                # str(slippage_pct),  # slippage
+            ] + row_extension
             rows.append(tuple(base_row))
 
     # Define and print stake table + slippage warning
@@ -611,17 +607,17 @@ def _define_stake_table(
         "Hotkey", justify="center", style=COLOR_PALETTE["GENERAL"]["HOTKEY"]
     )
     table.add_column(
-        f"Amount ({Balance.get_unit(0)})",
+        "Amount (τ)",
         justify="center",
         style=COLOR_PALETTE["POOLS"]["TAO"],
     )
     table.add_column(
-        f"Rate (per {Balance.get_unit(0)})",
+        "Rate (per τ)",
         justify="center",
         style=COLOR_PALETTE["POOLS"]["RATE"],
     )
     table.add_column(
-        "Received",
+        "Est. Received",
         justify="center",
         style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
     )
