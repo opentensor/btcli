@@ -1,5 +1,13 @@
 # Changelog
 
+## 9.9.0 /2025-07-28
+* Feat/wallet verify by @ibraheem-abe in https://github.com/opentensor/btcli/pull/561
+* Improved speed of query_all_identities and fetch_coldkey_hotkey_identities by @thewhaleking in https://github.com/opentensor/btcli/pull/560
+* fix transfer all by @thewhaleking in https://github.com/opentensor/btcli/pull/562
+* Add extrinsic fees by @thewhaleking in https://github.com/opentensor/btcli/pull/564
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.8.7...v9.9.0
+
 ## 9.8.7 /2025-07-23
 * Fix for handling tuples for `additional` by @thewhaleking in https://github.com/opentensor/btcli/pull/557
 

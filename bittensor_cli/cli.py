@@ -817,6 +817,9 @@ class CLIManager:
         self.wallet_app.command(
             "sign", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"]
         )(self.wallet_sign)
+        self.wallet_app.command(
+            "verify", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"]
+        )(self.wallet_verify)
 
         # stake commands
         self.stake_app.command(
@@ -1889,6 +1892,12 @@ class CLIManager:
         transfer_all: bool = typer.Option(
             False, "--all", prompt=False, help="Transfer all available balance."
         ),
+        allow_death: bool = typer.Option(
+            False,
+            "--allow-death",
+            prompt=False,
+            help="Transfer balance even if the resulting balance falls below the existential deposit.",
+        ),
         period: int = Options.period,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
@@ -1932,7 +1941,7 @@ class CLIManager:
         subtensor = self.initialize_chain(network)
         if transfer_all and amount:
             print_error("Cannot specify an amount and '--all' flag.")
-            raise typer.Exit()
+            return False
         elif transfer_all:
             amount = 0
         elif not amount:
@@ -1944,6 +1953,7 @@ class CLIManager:
                 destination=destination_ss58_address,
                 amount=amount,
                 transfer_all=transfer_all,
+                allow_death=allow_death,
                 era=period,
                 prompt=prompt,
                 json_output=json_output,
@@ -3090,6 +3100,59 @@ class CLIManager:
             message = Prompt.ask("Enter the [blue]message[/blue] to encode and sign")
 
         return self._run_command(wallets.sign(wallet, message, use_hotkey, json_output))
+
+    def wallet_verify(
+        self,
+        message: Optional[str] = typer.Option(
+            None, "--message", "-m", help="The message that was signed"
+        ),
+        signature: Optional[str] = typer.Option(
+            None, "--signature", "-s", help="The signature to verify (hex format)"
+        ),
+        public_key_or_ss58: Optional[str] = typer.Option(
+            None,
+            "--address",
+            "-a",
+            "--public-key",
+            "-p",
+            help="SS58 address or public key (hex) of the signer",
+        ),
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Verify a message signature using the signer's public key or SS58 address.
+
+        This command allows you to verify that a message was signed by the owner of a specific address.
+
+        USAGE
+
+        Provide the original message, the signature (in hex format), and either the SS58 address
+        or public key of the signer to verify the signature.
+
+        EXAMPLES
+
+        [green]$[/green] btcli wallet verify --message "Hello world" --signature "0xabc123..." --address "5GrwvaEF..."
+
+        [green]$[/green] btcli wallet verify -m "Test message" -s "0xdef456..." -p "0x1234abcd..."
+        """
+        self.verbosity_handler(quiet, verbose, json_output)
+
+        if not public_key_or_ss58:
+            public_key_or_ss58 = Prompt.ask(
+                "Enter the [blue]address[/blue] (SS58 or hex format)"
+            )
+
+        if not message:
+            message = Prompt.ask("Enter the [blue]message[/blue]")
+
+        if not signature:
+            signature = Prompt.ask("Enter the [blue]signature[/blue]")
+
+        return self._run_command(
+            wallets.verify(message, signature, public_key_or_ss58, json_output)
+        )
 
     def wallet_swap_coldkey(
         self,

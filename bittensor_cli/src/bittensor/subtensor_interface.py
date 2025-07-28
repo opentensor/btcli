@@ -3,7 +3,9 @@ import os
 from typing import Optional, Any, Union, TypedDict, Iterable
 
 import aiohttp
+from async_substrate_interface.utils.storage import StorageKey
 from bittensor_wallet import Wallet
+from bittensor_wallet.bittensor_wallet import Keypair
 from bittensor_wallet.utils import SS58_FORMAT
 from scalecodec import GenericCall
 from async_substrate_interface.errors import SubstrateRequestException
@@ -881,9 +883,10 @@ class SubtensorInterface:
             storage_function="IdentitiesV2",
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
+            fully_exhaust=True,
         )
         all_identities = {}
-        async for ss58_address, identity in identities:
+        for ss58_address, identity in identities.records:
             all_identities[decode_account_id(ss58_address[0])] = decode_hex_identity(
                 identity.value
             )
@@ -939,22 +942,22 @@ class SubtensorInterface:
         :param reuse_block: Whether to reuse the last-used blockchain block hash.
         :return: Dict with 'coldkeys' and 'hotkeys' as keys.
         """
-
-        coldkey_identities = await self.query_all_identities()
+        if block_hash is None:
+            block_hash = await self.substrate.get_chain_head()
+        coldkey_identities = await self.query_all_identities(block_hash=block_hash)
         identities = {"coldkeys": {}, "hotkeys": {}}
-        if not coldkey_identities:
-            return identities
-        query = await self.substrate.query_multiple(  # TODO probably more efficient to do this with query_multi
-            params=list(coldkey_identities.keys()),
-            module="SubtensorModule",
-            storage_function="OwnedHotkeys",
-            block_hash=block_hash,
-            reuse_block_hash=reuse_block,
-        )
+        sks = [
+            await self.substrate.create_storage_key(
+                "SubtensorModule", "OwnedHotkeys", [ck], block_hash=block_hash
+            )
+            for ck in coldkey_identities.keys()
+        ]
+        query = await self.substrate.query_multi(sks, block_hash=block_hash)
 
-        for coldkey_ss58, hotkeys in query.items():
+        storage_key: StorageKey
+        for storage_key, hotkeys in query:
+            coldkey_ss58 = storage_key.params[0]
             coldkey_identity = coldkey_identities.get(coldkey_ss58)
-            hotkeys = [decode_account_id(hotkey[0]) for hotkey in hotkeys or []]
 
             identities["coldkeys"][coldkey_ss58] = {
                 "identity": coldkey_identity,
@@ -1455,6 +1458,8 @@ class SubtensorInterface:
             ),
             self.get_subnet_price(netuid=netuid, block_hash=block_hash),
         )
+        if not result:
+            raise ValueError(f"Subnet {netuid} not found")
         subnet_ = DynamicInfo.from_any(result)
         subnet_.price = price
         return subnet_
@@ -1483,6 +1488,19 @@ class SubtensorInterface:
         )
 
         return [decode_account_id(hotkey[0]) for hotkey in owned_hotkeys or []]
+
+    async def get_extrinsic_fee(self, call: GenericCall, keypair: Keypair) -> Balance:
+        """
+        Determines the fee for the extrinsic call.
+        Args:
+            call: Created extrinsic call
+            keypair: The keypair that would sign the extrinsic (usually you would just want to use the *pub for this)
+
+        Returns:
+            Balance object representing the fee for this extrinsic.
+        """
+        fee_dict = await self.substrate.get_payment_info(call, keypair)
+        return Balance.from_rao(fee_dict["partial_fee"])
 
     async def get_stake_fee(
         self,
