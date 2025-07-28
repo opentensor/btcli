@@ -1488,6 +1488,10 @@ class SubtensorInterface:
 
         return [decode_account_id(hotkey[0]) for hotkey in owned_hotkeys or []]
 
+    async def get_extrinsic_fee(self, call, keypair) -> Balance:
+        fee_dict = await self.substrate.get_payment_info(call, keypair)
+        return Balance.from_rao(fee_dict["partial_fee"])
+
     async def get_stake_fee(
         self,
         origin_hotkey_ss58: Optional[str],
