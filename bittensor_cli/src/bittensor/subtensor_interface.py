@@ -5,6 +5,7 @@ from typing import Optional, Any, Union, TypedDict, Iterable
 import aiohttp
 from async_substrate_interface.utils.storage import StorageKey
 from bittensor_wallet import Wallet
+from bittensor_wallet.bittensor_wallet import Keypair
 from bittensor_wallet.utils import SS58_FORMAT
 from scalecodec import GenericCall
 from async_substrate_interface.errors import SubstrateRequestException
@@ -1488,7 +1489,7 @@ class SubtensorInterface:
 
         return [decode_account_id(hotkey[0]) for hotkey in owned_hotkeys or []]
 
-    async def get_extrinsic_fee(self, call, keypair) -> Balance:
+    async def get_extrinsic_fee(self, call: GenericCall, keypair: Keypair) -> Balance:
         fee_dict = await self.substrate.get_payment_info(call, keypair)
         return Balance.from_rao(fee_dict["partial_fee"])
 

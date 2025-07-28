@@ -629,7 +629,7 @@ def _define_stake_table(
     table.add_column(
         "Extrinsic Fee (τ)",
         justify="center",
-        style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
+        style=COLOR_PALETTE.STAKE.TAO,
     )
     # TODO: Uncomment when slippage is reimplemented for v3
     # table.add_column(

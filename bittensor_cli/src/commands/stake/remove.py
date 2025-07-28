@@ -47,6 +47,7 @@ async def unstake(
     era: int,
 ):
     """Unstake from hotkey(s)."""
+
     with console.status(
         f"Retrieving subnet data & identities from {subtensor.network}...",
         spinner="earth",
@@ -82,7 +83,7 @@ async def unstake(
             hotkey_to_unstake_all = hotkeys_to_unstake_from[0]
             unstake_all_alpha = Confirm.ask(
                 "\nDo you want to:\n"
-                "[blue]Yes[/blue]: Unstake from all subnets and automatically restake to subnet 0 (root)\n"
+                "[blue]Yes[/blue]: Unstake from all subnets and automatically re-stake to subnet 0 (root)\n"
                 "[blue]No[/blue]: Unstake everything (including subnet 0)",
                 default=True,
             )
@@ -210,8 +211,38 @@ async def unstake(
 
             try:
                 current_price = subnet_info.price.tao
+                if safe_staking:
+                    if subnet_info.is_dynamic:
+                        price_with_tolerance = current_price * (1 - rate_tolerance)
+                        rate_with_tolerance = price_with_tolerance
+                        price_with_tolerance = Balance.from_tao(
+                            rate_with_tolerance
+                        ).rao  # Actual price to pass to extrinsic
+                    else:
+                        price_with_tolerance = 1
+                    extrinsic_fee = await _get_extrinsic_fee(
+                        "unstake_safe",
+                        wallet,
+                        subtensor,
+                        hotkey_ss58=staking_address_ss58,
+                        amount=amount_to_unstake_as_balance,
+                        netuid=netuid,
+                        price_limit=price_with_tolerance,
+                        allow_partial_stake=allow_partial_stake,
+                    )
+                else:
+                    extrinsic_fee = await _get_extrinsic_fee(
+                        "unstake",
+                        wallet,
+                        subtensor,
+                        hotkey_ss58=staking_address_ss58,
+                        netuid=netuid,
+                        amount=amount_to_unstake_as_balance,
+                    )
                 rate = current_price
-                received_amount = amount_to_unstake_as_balance * rate
+                received_amount = (
+                    (amount_to_unstake_as_balance - stake_fee) * rate
+                ) - extrinsic_fee
             except ValueError:
                 continue
             total_received_amount += received_amount
@@ -233,8 +264,9 @@ async def unstake(
                 staking_address_name,  # Hotkey Name
                 str(amount_to_unstake_as_balance),  # Amount to Unstake
                 f"{subnet_info.price.tao:.6f}"
-                + f"({Balance.get_unit(0)}/{Balance.get_unit(netuid)})",  # Rate
+                + f"(τ/{Balance.get_unit(netuid)})",  # Rate
                 str(stake_fee.set_unit(netuid)),  # Fee
+                str(extrinsic_fee),  # Extrinsic fee
                 str(received_amount),  # Received Amount
                 # slippage_pct,  # Slippage Percent
             ]
@@ -436,6 +468,11 @@ async def unstake_all(
             style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
         )
         table.add_column(
+            "Extrinsic Fee (τ)",
+            justify="center",
+            style=COLOR_PALETTE.STAKE.TAO,
+        )
+        table.add_column(
             f"Received ({Balance.unit})",
             justify="center",
             style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
@@ -467,8 +504,17 @@ async def unstake_all(
 
             try:
                 current_price = subnet_info.price.tao
+                extrinsic_type = (
+                    "unstake_all" if not unstake_all_alpha else "unstake_all_alpha"
+                )
+                extrinsic_fee = await _get_extrinsic_fee(
+                    extrinsic_type,
+                    wallet,
+                    subtensor,
+                    hotkey_ss58=stake.hotkey_ss58,
+                )
                 rate = current_price
-                received_amount = (stake_amount - stake_fee) * rate
+                received_amount = ((stake_amount - stake_fee) * rate) - extrinsic_fee
 
                 if received_amount < Balance.from_tao(0):
                     print_error("Not enough Alpha to pay the transaction fee.")
@@ -485,6 +531,7 @@ async def unstake_all(
                 f"{float(subnet_info.price):.6f}"
                 + f"({Balance.get_unit(0)}/{Balance.get_unit(stake.netuid)})",
                 str(stake_fee),
+                str(extrinsic_fee),
                 str(received_amount),
             )
     console.print(table)
@@ -828,6 +875,63 @@ async def _unstake_all_extrinsic(
 
     except Exception as e:
         err_out(f"{failure_prelude} with error: {str(e)}")
+
+
+async def _get_extrinsic_fee(
+    _type: str,
+    wallet: Wallet,
+    subtensor: "SubtensorInterface",
+    hotkey_ss58: str,
+    netuid: Optional[int] = None,
+    amount: Optional[Balance] = None,
+    price_limit: Optional[Balance] = None,
+    allow_partial_stake: bool = False,
+) -> Balance:
+    """
+    Retrieves the extrinsic fee for a given unstaking call.
+    Args:
+        _type: 'unstake', 'unstake_safe', 'unstake_all', 'unstake_all_alpha' depending on the specific
+            extrinsic to be called
+        wallet: Wallet object
+        subtensor: SubtensorInterface object
+        hotkey_ss58: the hotkey ss58 to unstake from
+        netuid: the netuid from which to remove the stake
+        amount: the amount of stake to remove
+        price_limit: the price limit
+        allow_partial_stake: whether to allow partial unstaking
+
+    Returns:
+        Balance object representing the extrinsic fee.
+    """
+    lookup_table = {
+        "unstake": lambda: (
+            "remove_stake",
+            {
+                "hotkey": hotkey_ss58,
+                "netuid": netuid,
+                "amount_unstaked": amount.rao,
+            },
+        ),
+        "unstake_safe": lambda: (
+            "remove_stake_limit",
+            {
+                "hotkey": hotkey_ss58,
+                "netuid": netuid,
+                "amount_unstaked": amount.rao,
+                "limit_price": price_limit,
+                "allow_partial": allow_partial_stake,
+            },
+        ),
+        "unstake_all": lambda: ("unstake_all", {"hotkey": hotkey_ss58}),
+        "unstake_all_alpha": lambda: ("unstake_all_alpha", {"hotkey": hotkey_ss58}),
+    }
+    call_fn, call_params = lookup_table[_type]()
+    call = await subtensor.substrate.compose_call(
+        call_module="SubtensorModule",
+        call_function=call_fn,
+        call_params=call_params,
+    )
+    return await subtensor.get_extrinsic_fee(call, wallet.coldkeypub)
 
 
 # Helpers
@@ -1184,7 +1288,7 @@ def _create_unstake_table(
         style=COLOR_PALETTE["POOLS"]["TAO"],
     )
     table.add_column(
-        f"Rate ({Balance.get_unit(0)}/{Balance.get_unit(1)})",
+        f"Rate (τ/{Balance.get_unit(1)})",
         justify="center",
         style=COLOR_PALETTE["POOLS"]["RATE"],
     )
@@ -1194,7 +1298,10 @@ def _create_unstake_table(
         style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
     )
     table.add_column(
-        f"Received ({Balance.get_unit(0)})",
+        "Extrinsic Fee (τ)", justify="center", style=COLOR_PALETTE.STAKE.TAO
+    )
+    table.add_column(
+        "Received (τ)",
         justify="center",
         style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
         footer=str(total_received_amount),
