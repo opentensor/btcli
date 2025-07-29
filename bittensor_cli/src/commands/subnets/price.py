@@ -93,7 +93,10 @@ async def price(
         subnet_data = _process_current_subnet_data(
             all_subnet_info, netuids, all_netuids
         )
-        _generate_cli_output_current(subnet_data)
+        if json_output:
+            json_console.print(json.dumps(_generate_json_output(subnet_data)))
+        else:
+            _generate_cli_output_current(subnet_data)
 
 
 def _process_current_subnet_data(subnet_infos: list[DynamicInfo], netuids, all_netuids):
@@ -117,7 +120,7 @@ def _process_current_subnet_data(subnet_infos: list[DynamicInfo], netuids, all_n
     else:
         subnet_info = subnet_infos[0]
         stats = {
-            "current_price": subnet_info.price,
+            "current_price": subnet_info.price.tao,
             "supply": subnet_info.alpha_in.tao + subnet_info.alpha_out.tao,
             "market_cap": subnet_info.price.tao
             * (subnet_info.alpha_in.tao + subnet_info.alpha_out.tao),
@@ -686,13 +689,13 @@ def _generate_cli_output_current(subnet_data):
             console.print(
                 f"\n[{COLOR_PALETTE.G.SYM}]Subnet {netuid} - {stats['symbol']} "
                 f"[cyan]{stats['name']}[/cyan][/{COLOR_PALETTE.G.SYM}]\n"
-                f"Current: [blue]{stats['current_price'].tao:.6f}{stats['symbol']}[/blue]\n"
+                f"Current: [blue]{stats['current_price']:.6f}{stats['symbol']}[/blue]\n"
             )
         else:
             console.print(
                 f"\n[{COLOR_PALETTE.G.SYM}]Subnet {netuid} - {stats['symbol']} "
                 f"[cyan]{stats['name']}[/cyan][/{COLOR_PALETTE.G.SYM}]\n"
-                f"Current: [blue]{stats['symbol']} {stats['current_price'].tao:.6f}[/blue]\n"
+                f"Current: [blue]{stats['symbol']} {stats['current_price']:.6f}[/blue]\n"
             )
 
         if netuid != 0:

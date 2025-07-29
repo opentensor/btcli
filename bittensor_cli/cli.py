@@ -5055,6 +5055,8 @@ class CLIManager:
         if json_output and html_output:
             print_error("Cannot specify both `--json-output` and `--html`")
             return
+        self.verbosity_handler(quiet=quiet, verbose=verbose, json_output=json_output)
+
         subtensor = self.initialize_chain(network)
         non_archives = ["finney", "latent-lite", "subvortex"]
         if not current_only and subtensor.network in non_archives + [
@@ -5067,7 +5069,6 @@ class CLIManager:
             )
             return False
 
-        self.verbosity_handler(quiet=quiet, verbose=verbose, json_output=json_output)
         if netuids:
             netuids = parse_to_list(
                 netuids,
