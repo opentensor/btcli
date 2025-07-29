@@ -1079,11 +1079,11 @@ class CLIManager:
 
                     self.subtensor = SubtensorInterface(network_)
                 elif self.config["network"]:
-                    self.subtensor = SubtensorInterface(self.config["network"])
                     console.print(
                         f"Using the specified network [{COLORS.G.LINKS}]{self.config['network']}"
                         f"[/{COLORS.G.LINKS}] from config"
                     )
+                    self.subtensor = SubtensorInterface(self.config["network"])
                 else:
                     self.subtensor = SubtensorInterface(defaults.subtensor.network)
         return self.subtensor
@@ -5026,6 +5026,11 @@ class CLIManager:
             "--log",
             help="Show the price in log scale.",
         ),
+        current_only: bool = typer.Option(
+            False,
+            "--current",
+            help="Show only the current data, and no historical data.",
+        ),
         html_output: bool = Options.html_output,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -5048,9 +5053,31 @@ class CLIManager:
         [green]$[/green] btcli subnets price --netuids 1,2,3,4 --html
         """
         if json_output and html_output:
-            print_error("Cannot specify both `--json-output` and `--html`")
+            print_error(
+                f"Cannot specify both [{COLORS.G.ARG}]--json-output[/{COLORS.G.ARG}] "
+                f"and [{COLORS.G.ARG}]--html[/{COLORS.G.ARG}]"
+            )
+            return
+        if current_only and html_output:
+            print_error(
+                f"Cannot specify both [{COLORS.G.ARG}]--current[/{COLORS.G.ARG}] "
+                f"and [{COLORS.G.ARG}]--html[/{COLORS.G.ARG}]"
+            )
             return
         self.verbosity_handler(quiet=quiet, verbose=verbose, json_output=json_output)
+
+        subtensor = self.initialize_chain(network)
+        non_archives = ["finney", "latent-lite", "subvortex"]
+        if not current_only and subtensor.network in non_archives + [
+            Constants.network_map[x] for x in non_archives
+        ]:
+            err_console.print(
+                f"[red]Error[/red] Running this command without [{COLORS.G.ARG}]--current[/{COLORS.G.ARG}] requires "
+                "use of an archive node. "
+                f"Try running again with the [{COLORS.G.ARG}]--network archive[/{COLORS.G.ARG}] flag."
+            )
+            return False
+
         if netuids:
             netuids = parse_to_list(
                 netuids,
@@ -5080,10 +5107,11 @@ class CLIManager:
 
         return self._run_command(
             price.price(
-                self.initialize_chain(network),
+                subtensor,
                 netuids,
                 all_netuids,
                 interval_hours,
+                current_only,
                 html_output,
                 log_scale,
                 json_output,
