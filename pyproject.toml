@@ -3,18 +3,20 @@ requires = ["setuptools>=70.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "bittensor-cli"
-version = "9.8.7"
-description = "Bittensor CLI"
+name = "ptn-cli"
+version = "0.0.1"
+description = "Proprietary Trading Network CLI"
 readme = "README.md"
 authors = [
-    {name = "bittensor.com"}
+    {name = "bittensor.com"},
+    {name = "taoshi.io" }
 ]
 license = { file = "LICENSE" }
 scripts = { btcli = "bittensor_cli.cli:main", ptncli = "ptn_cli.ptncli:main" }
 requires-python = ">=3.9,<3.14"
 dependencies = [
     "wheel",
+    "collateral_sdk @ git+https://github.com/taoshidev/collateral_sdk",
     "async-substrate-interface>=1.1.0",
     "aiohttp~=3.10.2",
     "backoff~=2.2.1",
@@ -45,8 +47,8 @@ dev = [
 
 [project.urls]
 # more details can be found here
-homepage = "https://github.com/opentensor/btcli"
-Repository = "https://github.com/opentensor/btcli"
+homepage = "https://github.com/taoshidev/ptncli"
+Repository = "https://github.com/taoshidev/ptncli"
 
 [tool.flit.metadata]
 classifiers = [

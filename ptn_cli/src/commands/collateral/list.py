@@ -8,11 +8,12 @@ from ptn_cli.src.config import PTN_API_BASE_URL_MAINNET, PTN_API_BASE_URL_TESTNE
 from ptn_cli.src.utils.api import make_api_request
 
 async def collateral_list(
-        wallet: Wallet,
-        network: str = "finney",
-        verbose: bool = False,
-        json_output: bool = False
-        ):
+    wallet: Wallet,
+    network: str = "finney",
+    quiet: bool = False,
+    verbose: bool = False,
+    json_output: bool = False
+):
     if not json_output:
         # Display the main title with Rich Panel
         title = Text("🔗 PROPRIETARY TRADING NETWORK 🔗", style="bold blue")
