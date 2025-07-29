@@ -5026,6 +5026,11 @@ class CLIManager:
             "--log",
             help="Show the price in log scale.",
         ),
+        current_only: bool = typer.Option(
+            False,
+            "--current",
+            help="Show only the current data, and no historical data.",
+        ),
         html_output: bool = Options.html_output,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -5050,6 +5055,17 @@ class CLIManager:
         if json_output and html_output:
             print_error("Cannot specify both `--json-output` and `--html`")
             return
+        non_archives = ["finney", "latent-lite", "subvortex"]
+        if not current_only and self._determine_network(network) in non_archives + [
+            Constants.network_map[x] for x in non_archives
+        ]:
+            err_console.print(
+                f"[red]Error[/red] Running this command without [{COLORS.G.ARG}]--current[/{COLORS.G.ARG}] requires "
+                "use of an archive node. "
+                f"Try running again with the [{COLORS.G.ARG}]--network archive[/{COLORS.G.ARG}] flag."
+            )
+            return False
+
         self.verbosity_handler(quiet=quiet, verbose=verbose, json_output=json_output)
         if netuids:
             netuids = parse_to_list(
@@ -5084,6 +5100,7 @@ class CLIManager:
                 netuids,
                 all_netuids,
                 interval_hours,
+                current_only,
                 html_output,
                 log_scale,
                 json_output,
