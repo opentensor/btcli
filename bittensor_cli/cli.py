@@ -1077,15 +1077,15 @@ class CLIManager:
                             f"[{COLORS.G.ARG}]{', '.join(not_selected_networks)}[/{COLORS.G.ARG}]"
                         )
 
-                    self.subtensor = network_
+                    self.subtensor = SubtensorInterface(network_)
                 elif self.config["network"]:
                     console.print(
                         f"Using the specified network [{COLORS.G.LINKS}]{self.config['network']}"
                         f"[/{COLORS.G.LINKS}] from config"
                     )
-                    self.subtensor = self.config["network"]
+                    self.subtensor = SubtensorInterface(self.config["network"])
                 else:
-                    self.subtensor = defaults.subtensor.network
+                    self.subtensor = SubtensorInterface(defaults.subtensor.network)
         return self.subtensor
 
     def _run_command(self, cmd: Coroutine, exit_early: bool = True):
