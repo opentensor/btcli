@@ -1061,32 +1061,35 @@ class CLIManager:
                 "Verify this is intended.",
             )
             if not self.subtensor:
-                if network:
-                    network_ = None
-                    for item in network:
-                        if item.startswith("ws"):
-                            network_ = item
-                            break
-                        else:
-                            network_ = item
-
-                    not_selected_networks = [net for net in network if net != network_]
-                    if not_selected_networks:
-                        console.print(
-                            f"Networks not selected: "
-                            f"[{COLORS.G.ARG}]{', '.join(not_selected_networks)}[/{COLORS.G.ARG}]"
-                        )
-
-                    self.subtensor = SubtensorInterface(network_)
-                elif self.config["network"]:
-                    self.subtensor = SubtensorInterface(self.config["network"])
-                    console.print(
-                        f"Using the specified network [{COLORS.G.LINKS}]{self.config['network']}"
-                        f"[/{COLORS.G.LINKS}] from config"
-                    )
-                else:
-                    self.subtensor = SubtensorInterface(defaults.subtensor.network)
+                self.subtensor = SubtensorInterface(self._determine_network(network))
         return self.subtensor
+
+    def _determine_network(self, network: Optional[list[str]] = None):
+        if network:
+            network_ = None
+            for item in network:
+                if item.startswith("ws"):
+                    network_ = item
+                    break
+                else:
+                    network_ = item
+
+            not_selected_networks = [net for net in network if net != network_]
+            if not_selected_networks:
+                console.print(
+                    f"Networks not selected: "
+                    f"[{COLORS.G.ARG}]{', '.join(not_selected_networks)}[/{COLORS.G.ARG}]"
+                )
+
+            return network_
+        elif self.config["network"]:
+            console.print(
+                f"Using the specified network [{COLORS.G.LINKS}]{self.config['network']}"
+                f"[/{COLORS.G.LINKS}] from config"
+            )
+            return self.config["network"]
+        else:
+            return defaults.subtensor.network
 
     def _run_command(self, cmd: Coroutine, exit_early: bool = True):
         """
