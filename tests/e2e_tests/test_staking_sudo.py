@@ -11,6 +11,7 @@ Verify commands:
 * btcli subnets set-identity
 * btcli subnets get-identity
 * btcli subnets register
+* btcli subnets price
 * btcli stake add
 * btcli stake remove
 * btcli stake show
@@ -233,6 +234,25 @@ def test_staking(local_chain, wallet_setup):
     assert get_identity_output["description"] == sn_description
     assert get_identity_output["logo_url"] == sn_logo_url
     assert get_identity_output["additional"] == sn_add_info
+
+    get_s_price = exec_command_alice(
+        "subnets",
+        "price",
+        extra_args=[
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--netuid",
+            netuid,
+            "--current",
+            "--json-output",
+        ],
+    )
+    get_s_price_output = json.loads(get_s_price.stdout)
+    assert str(netuid) in get_s_price_output.keys()
+    stats = get_s_price_output[str(netuid)]["stats"]
+    assert stats["name"] == sn_name
+    assert stats["current_price"] == 0.0
+    assert stats["market_cap"] == 0.0
 
     # Start emissions on SNs
     for netuid_ in multiple_netuids:
