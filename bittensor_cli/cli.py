@@ -1061,35 +1061,32 @@ class CLIManager:
                 "Verify this is intended.",
             )
             if not self.subtensor:
-                self.subtensor = SubtensorInterface(self._determine_network(network))
-        return self.subtensor
+                if network:
+                    network_ = None
+                    for item in network:
+                        if item.startswith("ws"):
+                            network_ = item
+                            break
+                        else:
+                            network_ = item
 
-    def _determine_network(self, network: Optional[list[str]] = None):
-        if network:
-            network_ = None
-            for item in network:
-                if item.startswith("ws"):
-                    network_ = item
-                    break
+                    not_selected_networks = [net for net in network if net != network_]
+                    if not_selected_networks:
+                        console.print(
+                            f"Networks not selected: "
+                            f"[{COLORS.G.ARG}]{', '.join(not_selected_networks)}[/{COLORS.G.ARG}]"
+                        )
+
+                    self.subtensor = network_
+                elif self.config["network"]:
+                    console.print(
+                        f"Using the specified network [{COLORS.G.LINKS}]{self.config['network']}"
+                        f"[/{COLORS.G.LINKS}] from config"
+                    )
+                    self.subtensor = self.config["network"]
                 else:
-                    network_ = item
-
-            not_selected_networks = [net for net in network if net != network_]
-            if not_selected_networks:
-                console.print(
-                    f"Networks not selected: "
-                    f"[{COLORS.G.ARG}]{', '.join(not_selected_networks)}[/{COLORS.G.ARG}]"
-                )
-
-            return network_
-        elif self.config["network"]:
-            console.print(
-                f"Using the specified network [{COLORS.G.LINKS}]{self.config['network']}"
-                f"[/{COLORS.G.LINKS}] from config"
-            )
-            return self.config["network"]
-        else:
-            return defaults.subtensor.network
+                    self.subtensor = defaults.subtensor.network
+        return self.subtensor
 
     def _run_command(self, cmd: Coroutine, exit_early: bool = True):
         """
@@ -5058,8 +5055,9 @@ class CLIManager:
         if json_output and html_output:
             print_error("Cannot specify both `--json-output` and `--html`")
             return
+        subtensor = self.initialize_chain(network)
         non_archives = ["finney", "latent-lite", "subvortex"]
-        if not current_only and self._determine_network(network) in non_archives + [
+        if not current_only and subtensor.network in non_archives + [
             Constants.network_map[x] for x in non_archives
         ]:
             err_console.print(
@@ -5099,7 +5097,7 @@ class CLIManager:
 
         return self._run_command(
             price.price(
-                self.initialize_chain(network),
+                subtensor,
                 netuids,
                 all_netuids,
                 interval_hours,
