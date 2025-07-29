@@ -5053,7 +5053,16 @@ class CLIManager:
         [green]$[/green] btcli subnets price --netuids 1,2,3,4 --html
         """
         if json_output and html_output:
-            print_error("Cannot specify both `--json-output` and `--html`")
+            print_error(
+                f"Cannot specify both [{COLORS.G.ARG}]--json-output[/{COLORS.G.ARG}] "
+                f"and [{COLORS.G.ARG}]--html[/{COLORS.G.ARG}]"
+            )
+            return
+        if current_only and html_output:
+            print_error(
+                f"Cannot specify both [{COLORS.G.ARG}]--current[/{COLORS.G.ARG}] "
+                f"and [{COLORS.G.ARG}]--html[/{COLORS.G.ARG}]"
+            )
             return
         self.verbosity_handler(quiet=quiet, verbose=verbose, json_output=json_output)
 
