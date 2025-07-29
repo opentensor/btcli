@@ -27,7 +27,7 @@ async def price(
     subtensor: "SubtensorInterface",
     netuids: list[int],
     all_netuids: bool = False,
-    interval_hours: int = 24,
+    interval_hours: int = 4,
     html_output: bool = False,
     log_scale: bool = False,
     json_output: bool = False,

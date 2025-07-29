@@ -5009,7 +5009,7 @@ class CLIManager:
             "Netuids to show the price for. Separate multiple netuids with a comma, for example: `-n 0,1,2`.",
         ),
         interval_hours: int = typer.Option(
-            24,
+            4,
             "--interval-hours",
             "--interval",
             help="The number of hours to show the historical price for.",
