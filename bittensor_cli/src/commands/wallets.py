@@ -1408,6 +1408,7 @@ async def transfer(
     destination: str,
     amount: float,
     transfer_all: bool,
+    allow_death: bool,
     era: int,
     prompt: bool,
     json_output: bool,
@@ -1419,6 +1420,7 @@ async def transfer(
         destination=destination,
         amount=Balance.from_tao(amount),
         transfer_all=transfer_all,
+        allow_death=allow_death,
         era=era,
         prompt=prompt,
     )
@@ -1800,10 +1802,96 @@ async def sign(
         )
 
     signed_message = keypair.sign(message.encode("utf-8")).hex()
-    console.print("[dark_sea_green3]Message signed successfully:")
+    signer_address = keypair.ss58_address
+    console.print("[dark_sea_green3]Message signed successfully!\n")
+
     if json_output:
-        json_console.print(json.dumps({"signed_message": signed_message}))
-    console.print(signed_message)
+        json_console.print(
+            json.dumps(
+                {"signed_message": signed_message, "signer_address": signer_address}
+            )
+        )
+    else:
+        console.print(f"[yellow]Signature:[/yellow]\n{signed_message}")
+        console.print(f"[yellow]Signer address:[/yellow] {signer_address}")
+
+
+async def verify(
+    message: str,
+    signature: str,
+    public_key_or_ss58: str,
+    json_output: bool = False,
+):
+    """Verify a message signature using a public key or SS58 address."""
+
+    if is_valid_ss58_address(public_key_or_ss58):
+        print_verbose(f"[blue]SS58 address detected:[/blue] {public_key_or_ss58}")
+        keypair = Keypair(ss58_address=public_key_or_ss58)
+        signer_address = public_key_or_ss58
+    else:
+        try:
+            public_key_hex = public_key_or_ss58.strip().lower()
+            if public_key_hex.startswith("0x"):
+                public_key_hex = public_key_hex[2:]
+            if len(public_key_hex) == 64:
+                bytes.fromhex(public_key_hex)
+                print_verbose("[blue]Hex public key detected[/blue] (64 characters)")
+                keypair = Keypair(public_key=public_key_hex)
+                signer_address = keypair.ss58_address
+                print_verbose(
+                    f"[blue]Corresponding SS58 address:[/blue] {signer_address}"
+                )
+            else:
+                raise ValueError("Public key must be 32 bytes (64 hex characters)")
+
+        except (ValueError, TypeError) as e:
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {
+                            "verified": False,
+                            "error": f"Invalid public key or SS58 address: {str(e)}",
+                        }
+                    )
+                )
+            else:
+                err_console.print(
+                    f":cross_mark: Invalid SS58 address or hex public key (64 chars, with or without 0x prefix)- {str(e)}"
+                )
+            return False
+
+    try:
+        signature_bytes = bytes.fromhex(signature.strip().lower().replace("0x", ""))
+    except ValueError as e:
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "verified": False,
+                        "error": f"Invalid signature format: {str(e)}",
+                    }
+                )
+            )
+        else:
+            err_console.print(f"[red]:cross_mark: Invalid signature format: {str(e)}")
+        return False
+
+    is_valid = keypair.verify(message.encode("utf-8"), signature_bytes)
+
+    if json_output:
+        json_console.print(
+            json.dumps(
+                {"verified": is_valid, "signer": signer_address, "message": message}
+            )
+        )
+    else:
+        if is_valid:
+            console.print("[dark_sea_green3]Signature is valid!\n")
+            console.print(f"[yellow]Signer:[/yellow] {signer_address}")
+        else:
+            err_console.print(":cross_mark: [red]Signature verification failed!")
+
+    return is_valid
 
 
 async def schedule_coldkey_swap(
