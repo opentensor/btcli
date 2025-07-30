@@ -1,4 +1,6 @@
 from typing import Optional
+
+from rich.prompt import FloatPrompt
 from bittensor_cli.cli import CLIManager, Options
 from bittensor_cli.src import (
     WalletOptions as WO,
@@ -21,7 +23,7 @@ class PTNOptions:
         help="The subtensor network to connect to.",
     )
     amount = typer.Option(
-        1.0,
+        None,
         "--amount",
         help="Amount of Theta to use for collateral",
     )
@@ -71,7 +73,6 @@ class PTNCLIManager(CLIManager):
     ):
         """
         List collateral balance for a miner address
-        something new
         """
         self.verbosity_handler(quiet, verbose, json_output)
 
@@ -100,7 +101,7 @@ class PTNCLIManager(CLIManager):
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey_ss58,
         network: str = PTNOptions.ptn_network,
-        amount: float = PTNOptions.amount,
+        amount: Optional[float] = PTNOptions.amount,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -119,6 +120,10 @@ class PTNCLIManager(CLIManager):
             ask_for=ask_for,
             validate=WV.WALLET_AND_HOTKEY,
         )
+
+        if amount is None:
+            amount = FloatPrompt.ask("Enter collateral deposit amount")
+
         return self._run_command(
             deposit_collateral.deposit(
                 wallet,
@@ -136,7 +141,7 @@ class PTNCLIManager(CLIManager):
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey_ss58,
         network: str = PTNOptions.ptn_network,
-        amount: float = PTNOptions.amount,
+        amount: Optional[float] = PTNOptions.amount,
         prompt: bool = PTNOptions.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -155,6 +160,10 @@ class PTNCLIManager(CLIManager):
             ask_for=ask_for,
             validate=WV.WALLET_AND_HOTKEY,
         )
+
+        if amount is None:
+            amount = FloatPrompt.ask("Enter collateral withdrawal amount")
+
         return self._run_command(
             withdraw_collateral.withdraw(
                 wallet,

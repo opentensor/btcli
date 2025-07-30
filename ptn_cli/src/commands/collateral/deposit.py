@@ -20,7 +20,7 @@ async def deposit(
     verbose: bool = False,
     json_output: bool = False
 ):
-    from collateral_sdk import CollateralManager, Network # jank ahh import for help menu
+    from collateral_sdk import CollateralManager, Network # importing on compile time causes help menu to break
     console.print("[blue]Adding collateral to Proprietary Trading Network[/blue]")
 
     manager = CollateralManager(Network.TESTNET if network == 'test' else Network.MAINNET)
