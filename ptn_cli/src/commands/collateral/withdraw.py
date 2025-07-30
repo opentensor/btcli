@@ -1,5 +1,7 @@
+from datetime import datetime, timezone
 import getpass
 import json
+import secrets
 
 from rich.panel import Panel
 
@@ -51,11 +53,16 @@ async def withdraw(
             console.print("[yellow]Withdrawal cancelled[/yellow]")
             return False
 
+    nonce = secrets.token_urlsafe()
+    timestamp = int(datetime.now(timezone.utc).timestamp() * 1000)
+
     # Prepare withdrawal data for signing
     withdrawal_data = {
         "amount": amount,
         "miner_coldkey": coldkey.ss58_address,
-        "miner_hotkey": hotkey.ss58_address
+        "miner_hotkey": hotkey.ss58_address,
+        "nonce": nonce,
+        "timestamp": timestamp,
     }
 
     # Create message to sign (sorted JSON)
@@ -69,6 +76,8 @@ async def withdraw(
         "amount": amount,
         "miner_coldkey": coldkey.ss58_address,
         "miner_hotkey": hotkey.ss58_address,
+        "nonce": nonce,
+        "timestamp": timestamp,
         "signature": signature
     }
 
