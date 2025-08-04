@@ -643,6 +643,17 @@ class CLIManager:
             # },
         }
         self.subtensor = None
+
+        if sys.version_info < (3, 10):
+            # For Python 3.9 or lower
+            self.event_loop = asyncio.new_event_loop()
+        else:
+            try:
+                uvloop = importlib.import_module("uvloop")
+                self.event_loop = uvloop.new_event_loop()
+            except ModuleNotFoundError:
+                self.event_loop = asyncio.new_event_loop()
+
         self.config_base_path = os.path.expanduser(defaults.config.base_path)
         self.config_path = os.path.expanduser(defaults.config.path)
 
@@ -1097,12 +1108,9 @@ class CLIManager:
             initiated = False
             try:
                 if self.subtensor:
-                    async with self.subtensor:
-                        initiated = True
-                        result = await cmd
-                else:
-                    initiated = True
-                    result = await cmd
+                    await self.subtensor.substrate.initialize()
+                initiated = True
+                result = await cmd
                 return result
             except (ConnectionRefusedError, ssl.SSLError, InvalidHandshake):
                 err_console.print(f"Unable to connect to the chain: {self.subtensor}")
@@ -1128,12 +1136,13 @@ class CLIManager:
                     exit_early is True
                 ):  # temporarily to handle multiple run commands in one session
                     try:
+                        await self.subtensor.substrate.close()
                         raise typer.Exit()
                     except Exception as e:  # ensures we always exit cleanly
                         if not isinstance(e, (typer.Exit, RuntimeError)):
                             err_console.print(f"An unknown error has occurred: {e}")
 
-        return self.asyncio_runner(_run())
+        return self.event_loop.run_until_complete(_run())
 
     def main_callback(
         self,
@@ -1183,20 +1192,6 @@ class CLIManager:
         for k, v in config.items():
             if k in self.config.keys():
                 self.config[k] = v
-
-        if sys.version_info < (3, 10):
-            # For Python 3.9 or lower
-            self.asyncio_runner = asyncio.get_event_loop().run_until_complete
-        else:
-            try:
-                uvloop = importlib.import_module("uvloop")
-                if sys.version_info >= (3, 11):
-                    self.asyncio_runner = uvloop.run
-                else:
-                    uvloop.install()
-                    self.asyncio_runner = asyncio.run
-            except ModuleNotFoundError:
-                self.asyncio_runner = asyncio.run
 
     def verbosity_handler(
         self, quiet: bool, verbose: bool, json_output: bool = False
