@@ -2233,14 +2233,15 @@ class CLIManager:
 
         if not wallet_path:
             wallet_path = Prompt.ask(
-                "Enter the path for the wallets directory", default=defaults.wallet.path
+                "Enter the path for the wallets directory",
+                default=self.config.get("wallet_path") or defaults.wallet.path,
             )
             wallet_path = os.path.expanduser(wallet_path)
 
         if not wallet_name:
             wallet_name = Prompt.ask(
                 f"Enter the name of the [{COLORS.G.CK}]new wallet (coldkey)",
-                default=defaults.wallet.name,
+                default=self.config.get("wallet_name") or defaults.wallet.name,
             )
 
         wallet = Wallet(wallet_name, wallet_hotkey, wallet_path)
@@ -2292,14 +2293,15 @@ class CLIManager:
 
         if not wallet_path:
             wallet_path = Prompt.ask(
-                "Enter the path to the wallets directory", default=defaults.wallet.path
+                "Enter the path to the wallets directory",
+                default=self.config.get("wallet_path") or defaults.wallet.path,
             )
             wallet_path = os.path.expanduser(wallet_path)
 
         if not wallet_name:
             wallet_name = Prompt.ask(
                 f"Enter the name of the [{COLORS.G.CK}]new wallet (coldkey)",
-                default=defaults.wallet.name,
+                default=self.config.get("wallet_name") or defaults.wallet.name,
             )
         wallet = Wallet(wallet_name, wallet_hotkey, wallet_path)
 
@@ -2418,18 +2420,6 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose, json_output)
 
-        if not wallet_name:
-            wallet_name = Prompt.ask(
-                f"Enter the [{COLORS.G.CK}]wallet name",
-                default=defaults.wallet.name,
-            )
-
-        if not wallet_hotkey:
-            wallet_hotkey = Prompt.ask(
-                f"Enter the name of the [{COLORS.G.HK}]new hotkey",
-                default=defaults.wallet.hotkey,
-            )
-
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -2479,8 +2469,7 @@ class CLIManager:
                 "[blue]hotkey ss58 address[/blue] [dim](to associate with your coldkey)[/dim]"
             )
 
-        hotkey_display = None
-        if is_valid_ss58_address(wallet_hotkey):
+        if wallet_hotkey and is_valid_ss58_address(wallet_hotkey):
             hotkey_ss58 = wallet_hotkey
             wallet = self.wallet_ask(
                 wallet_name,
@@ -2501,7 +2490,10 @@ class CLIManager:
                 validate=WV.WALLET_AND_HOTKEY,
             )
             hotkey_ss58 = wallet.hotkey.ss58_address
-            hotkey_display = f"hotkey [blue]{wallet_hotkey}[/blue] [{COLORS.GENERAL.HK}]({hotkey_ss58})[/{COLORS.GENERAL.HK}]"
+            hotkey_display = (
+                f"hotkey [blue]{wallet_hotkey}[/blue] "
+                f"[{COLORS.GENERAL.HK}]({hotkey_ss58})[/{COLORS.GENERAL.HK}]"
+            )
 
         return self._run_command(
             wallets.associate_hotkey(
@@ -2627,7 +2619,8 @@ class CLIManager:
 
         if not wallet_ss58_address:
             wallet_ss58_address = Prompt.ask(
-                "Enter [blue]wallet name[/blue] or [blue]SS58 address[/blue] [dim](leave blank to show all pending swaps)[/dim]"
+                "Enter [blue]wallet name[/blue] or [blue]SS58 address[/blue] [dim]"
+                "(leave blank to show all pending swaps)[/dim]"
             )
             if not wallet_ss58_address:
                 return self._run_command(
@@ -2691,18 +2684,19 @@ class CLIManager:
         self.verbosity_handler(quiet, verbose, json_output)
         if not wallet_path:
             wallet_path = Prompt.ask(
-                "Enter the path of wallets directory", default=defaults.wallet.path
+                "Enter the path of wallets directory",
+                default=self.config.get("wallet_path") or defaults.wallet.path,
             )
 
         if not wallet_name:
             wallet_name = Prompt.ask(
                 f"Enter the name of the [{COLORS.G.CK}]new wallet (coldkey)",
-                default=defaults.wallet.name,
+                default=self.config.get("wallet_name") or defaults.wallet.name,
             )
         if not wallet_hotkey:
             wallet_hotkey = Prompt.ask(
                 f"Enter the the name of the [{COLORS.G.HK}]new hotkey",
-                default=defaults.wallet.hotkey,
+                default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
             )
 
         wallet = self.wallet_ask(
@@ -3999,7 +3993,8 @@ class CLIManager:
             origin_hotkey = Prompt.ask(
                 "Enter the [blue]origin hotkey[/blue] name or "
                 "[blue]ss58 address[/blue] where the stake will be moved from "
-                "[dim](or Press Enter to view existing stakes)[/dim]"
+                "[dim](or Press Enter to view existing stakes)[/dim]",
+                default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
             )
             if origin_hotkey == "":
                 interactive_selection = True
@@ -4162,8 +4157,10 @@ class CLIManager:
         interactive_selection = False
         if not wallet_hotkey:
             origin_hotkey = Prompt.ask(
-                "Enter the [blue]origin hotkey[/blue] name or ss58 address [bold](stake will be transferred FROM here)[/bold] "
-                "[dim](or press Enter to select from existing stakes)[/dim]"
+                "Enter the [blue]origin hotkey[/blue] name or ss58 address [bold]"
+                "(stake will be transferred FROM here)[/bold] "
+                "[dim](or press Enter to select from existing stakes)[/dim]",
+                default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
             )
             if origin_hotkey == "":
                 interactive_selection = True
