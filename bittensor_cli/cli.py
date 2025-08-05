@@ -2466,7 +2466,8 @@ class CLIManager:
         if not wallet_hotkey:
             wallet_hotkey = Prompt.ask(
                 "Enter the [blue]hotkey[/blue] name or "
-                "[blue]hotkey ss58 address[/blue] [dim](to associate with your coldkey)[/dim]"
+                "[blue]hotkey ss58 address[/blue] [dim](to associate with your coldkey)[/dim]",
+                default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
             )
 
         if wallet_hotkey and is_valid_ss58_address(wallet_hotkey):
@@ -2540,13 +2541,14 @@ class CLIManager:
 
         if not wallet_path:
             wallet_path = Prompt.ask(
-                "Enter the path to the wallets directory", default=defaults.wallet.path
+                "Enter the path to the wallets directory",
+                default=self.config.get("wallet_path") or defaults.wallet.path,
             )
 
         if not wallet_name:
             wallet_name = Prompt.ask(
                 f"Enter the name of the [{COLORS.G.CK}]new wallet (coldkey)",
-                default=defaults.wallet.name,
+                default=self.config.get("wallet_name") or defaults.wallet.name,
             )
 
         wallet = self.wallet_ask(
