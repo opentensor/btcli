@@ -55,7 +55,7 @@ def setup_wallet(uri: str):
                             extra_args.extend(["--network", "ws://127.0.0.1:9945"])
 
         # Capture stderr separately from stdout
-        runner = CliRunner(mix_stderr=False)
+        runner = CliRunner()
         # Prepare the command arguments
         args = [
             command,

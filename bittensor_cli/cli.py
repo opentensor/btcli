@@ -250,7 +250,7 @@ class Options:
         True,
         "--prompt/--no-prompt",
         " /--yes",
-        "--prompt/--no_prompt",
+        " /--no_prompt",
         " /-y",
         help="Enable or disable interactive prompts.",
     )
