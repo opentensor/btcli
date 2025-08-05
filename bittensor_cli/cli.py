@@ -2301,7 +2301,7 @@ class CLIManager:
         if not wallet_name:
             wallet_name = Prompt.ask(
                 f"Enter the name of the [{COLORS.G.CK}]new wallet (coldkey)",
-                default=self.config.get("wallet_name") or defaults.wallet.name,
+                default=defaults.wallet.name,
             )
         wallet = Wallet(wallet_name, wallet_hotkey, wallet_path)
 
@@ -2429,7 +2429,7 @@ class CLIManager:
         if not wallet_hotkey:
             wallet_hotkey = Prompt.ask(
                 f"Enter the name of the [{COLORS.G.HK}]new hotkey",
-                default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
+                default=defaults.wallet.hotkey,
             )
 
         wallet = self.wallet_ask(
@@ -2705,7 +2705,6 @@ class CLIManager:
         if not wallet_name:
             wallet_name = Prompt.ask(
                 f"Enter the name of the [{COLORS.G.CK}]new wallet (coldkey)",
-                default=self.config.get("wallet_name") or defaults.wallet.name,
             )
         if not wallet_hotkey:
             wallet_hotkey = Prompt.ask(
