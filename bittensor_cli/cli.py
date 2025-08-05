@@ -3995,8 +3995,7 @@ class CLIManager:
             origin_hotkey = Prompt.ask(
                 "Enter the [blue]origin hotkey[/blue] name or "
                 "[blue]ss58 address[/blue] where the stake will be moved from "
-                "[dim](or Press Enter to view existing stakes)[/dim]",
-                default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
+                "[dim](or Press Enter to view existing stakes)[/dim]"
             )
             if origin_hotkey == "":
                 interactive_selection = True
@@ -4161,8 +4160,7 @@ class CLIManager:
             origin_hotkey = Prompt.ask(
                 "Enter the [blue]origin hotkey[/blue] name or ss58 address [bold]"
                 "(stake will be transferred FROM here)[/bold] "
-                "[dim](or press Enter to select from existing stakes)[/dim]",
-                default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
+                "[dim](or press Enter to select from existing stakes)[/dim]"
             )
             if origin_hotkey == "":
                 interactive_selection = True
