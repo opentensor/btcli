@@ -38,7 +38,15 @@ Installation steps are described below. For a full documentation on how to use `
 
 ## Install on macOS and Linux
 
-You can install `btcli` on your local machine directly from source, PyPI, or Homebrew. **Make sure you verify your installation after you install**:
+You can install `btcli` on your local machine directly from source, PyPI, or Homebrew. 
+**Make sure you verify your installation after you install**.
+
+### For macOS users
+Note that the macOS preinstalled CPython installation is compiled with LibreSSL instead of OpenSSL. There are a number
+of issues with LibreSSL, and as such is not fully supported by the libraries used by btcli. Thus we highly recommend, if 
+you are using a Mac, to first install Python from [Homebrew](https://brew.sh/). Additionally, the Rust FFI bindings 
+[if installing from precompiled wheels (default)] require the Homebrew-installed OpenSSL pacakge. If you choose to use
+the preinstalled Python version from macOS, things may not work completely.
 
 
 ### Install from [PyPI](https://pypi.org/project/bittensor/)
