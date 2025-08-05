@@ -655,7 +655,9 @@ class CLIManager:
                 self.event_loop = asyncio.new_event_loop()
 
         self.config_base_path = os.path.expanduser(defaults.config.base_path)
-        self.config_path = os.path.expanduser(defaults.config.path)
+        self.config_path = os.getenv("BTCLI_CONFIG_PATH") or os.path.expanduser(
+            defaults.config.path
+        )
 
         self.app = typer.Typer(
             rich_markup_mode="rich",
@@ -663,7 +665,12 @@ class CLIManager:
             epilog=_epilog,
             no_args_is_help=True,
         )
-        self.config_app = typer.Typer(epilog=_epilog)
+        self.config_app = typer.Typer(
+            epilog=_epilog,
+            help=f"Allows for getting/setting the config. "
+            f"Default path for the config file is [{COLORS.G.ARG}]{defaults.config.path}[/{COLORS.G.ARG}]. "
+            f"You can set your own with the env var [{COLORS.G.ARG}]BTCLI_CONFIG_PATH[/{COLORS.G.ARG}]",
+        )
         self.wallet_app = typer.Typer(epilog=_epilog)
         self.stake_app = typer.Typer(epilog=_epilog)
         self.sudo_app = typer.Typer(epilog=_epilog)
@@ -1497,6 +1504,8 @@ class CLIManager:
             Column("[bold white]Value", style="gold1"),
             Column("", style="medium_purple"),
             box=box.SIMPLE_HEAD,
+            title=f"[{COLORS.G.HEADER}]BTCLI Config[/{COLORS.G.HEADER}]: "
+            f"[{COLORS.G.ARG}]{self.config_path}[/{COLORS.G.ARG}]",
         )
 
         for key, value in self.config.items():
