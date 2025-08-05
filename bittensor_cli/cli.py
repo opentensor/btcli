@@ -2420,6 +2420,18 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose, json_output)
 
+        if not wallet_name:
+            wallet_name = Prompt.ask(
+                f"Enter the [{COLORS.G.CK}]wallet name",
+                default=self.config.get("wallet_name") or defaults.wallet.name,
+            )
+
+        if not wallet_hotkey:
+            wallet_hotkey = Prompt.ask(
+                f"Enter the name of the [{COLORS.G.HK}]new hotkey",
+                default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
+            )
+
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
