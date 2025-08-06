@@ -28,6 +28,7 @@ dependencies = [
     "scalecodec==1.2.11",
     "typer>=0.16",
     "bittensor-wallet>=3.1.1",
+    "packaging",
     "plotille>=5.0.0",
     "plotly>=6.0.0",
 ]
