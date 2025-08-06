@@ -19,7 +19,8 @@ from bittensor_cli.src.bittensor.utils import (
     print_error,
     print_verbose,
     unlock_key,
-    json_console, get_hotkey_pub_ss58,
+    json_console,
+    get_hotkey_pub_ss58,
 )
 from bittensor_wallet import Wallet
 

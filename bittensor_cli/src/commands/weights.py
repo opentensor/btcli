@@ -14,7 +14,8 @@ from bittensor_cli.src.bittensor.utils import (
     err_console,
     console,
     format_error_message,
-    json_console, get_hotkey_pub_ss58,
+    json_console,
+    get_hotkey_pub_ss58,
 )
 from bittensor_cli.src.bittensor.extrinsics.root import (
     convert_weights_and_uids_for_emit,

@@ -20,7 +20,8 @@ from bittensor_cli.src.bittensor.utils import (
     is_valid_ss58_address,
     format_error_message,
     unlock_key,
-    json_console, get_hotkey_pub_ss58,
+    json_console,
+    get_hotkey_pub_ss58,
 )
 
 

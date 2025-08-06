@@ -35,7 +35,8 @@ from bittensor_cli.src.bittensor.utils import (
     get_subnet_name,
     unlock_key,
     blocks_to_duration,
-    json_console, get_hotkey_pub_ss58,
+    json_console,
+    get_hotkey_pub_ss58,
 )
 
 if TYPE_CHECKING:
