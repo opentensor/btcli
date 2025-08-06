@@ -36,7 +36,8 @@ from bittensor_cli.src.bittensor.utils import (
     u16_normalized_float,
     print_verbose,
     format_error_message,
-    unlock_key, get_hotkey_pub_ss58,
+    unlock_key,
+    get_hotkey_pub_ss58,
 )
 
 if TYPE_CHECKING:
