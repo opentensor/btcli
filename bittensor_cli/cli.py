@@ -792,7 +792,7 @@ class CLIManager:
             "regen-hotkey", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
         )(self.wallet_regen_hotkey)
         self.wallet_app.command(
-            "regen-hotkey-pub", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
+            "regen-hotkeypub", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
         )(self.wallet_regen_hotkey_pub)
         self.wallet_app.command(
             "new-hotkey", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"]
@@ -977,7 +977,7 @@ class CLIManager:
             hidden=True,
         )(self.wallet_regen_hotkey)
         self.wallet_app.command(
-            "regen_hotkey_pub",
+            "regen_hotkeypub",
             hidden=True,
         )(self.wallet_regen_hotkey_pub)
         self.wallet_app.command(
