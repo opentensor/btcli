@@ -16,6 +16,7 @@ from bittensor_cli.src.bittensor.utils import (
     group_subnets,
     get_subnet_name,
     unlock_key,
+    get_hotkey_pub_ss58,
 )
 
 if TYPE_CHECKING:
@@ -343,8 +344,9 @@ async def stake_swap_selection(
 
     # Filter stakes for this hotkey
     hotkey_stakes = {}
+    hotkey_ss58 = get_hotkey_pub_ss58(wallet)
     for stake in stakes:
-        if stake.hotkey_ss58 == wallet.hotkey.ss58_address and stake.stake.tao > 0:
+        if stake.hotkey_ss58 == hotkey_ss58 and stake.stake.tao > 0:
             hotkey_stakes[stake.netuid] = {
                 "stake": stake.stake,
                 "is_registered": stake.is_registered,
@@ -357,12 +359,12 @@ async def stake_swap_selection(
     # Display available stakes
     table = Table(
         title=f"\n[{COLOR_PALETTE.G.HEADER}]Available Stakes for Hotkey\n[/{COLOR_PALETTE.G.HEADER}]"
-        f"[{COLOR_PALETTE.G.HK}]{wallet.hotkey_str}: {wallet.hotkey.ss58_address}[/{COLOR_PALETTE.G.HK}]\n",
+        f"[{COLOR_PALETTE.G.HK}]{wallet.hotkey_str}: {hotkey_ss58}[/{COLOR_PALETTE.G.HK}]\n",
         show_edge=False,
         header_style="bold white",
         border_style="bright_black",
         title_justify="center",
-        width=len(wallet.hotkey.ss58_address) + 20,
+        width=len(hotkey_ss58) + 20,
     )
 
     table.add_column("Index", justify="right", style="cyan")
@@ -817,7 +819,7 @@ async def swap_stake(
     Returns:
         bool: True if the swap was successful, False otherwise.
     """
-    hotkey_ss58 = wallet.hotkey.ss58_address
+    hotkey_ss58 = get_hotkey_pub_ss58(wallet)
     if interactive_selection:
         try:
             selection = await stake_swap_selection(subtensor, wallet)
