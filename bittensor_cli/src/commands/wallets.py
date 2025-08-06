@@ -288,7 +288,7 @@ async def regen_hotkey(
 
 
 async def regen_hotkey_pub(
-wallet: Wallet,
+    wallet: Wallet,
     ss58_address: str,
     public_key_hex: str,
     overwrite: Optional[bool] = False,
