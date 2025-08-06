@@ -26,6 +26,7 @@ from bittensor_cli.src.bittensor.utils import (
     json_console,
     string_to_u16,
     string_to_u64,
+    get_hotkey_pub_ss58,
 )
 
 if TYPE_CHECKING:
@@ -497,7 +498,7 @@ async def vote_senate_extrinsic(
             call_module="SubtensorModule",
             call_function="vote",
             call_params={
-                "hotkey": wallet.hotkey.ss58_address,
+                "hotkey": get_hotkey_pub_ss58(wallet),
                 "proposal": proposal_hash,
                 "index": proposal_idx,
                 "approve": vote,
@@ -513,9 +514,10 @@ async def vote_senate_extrinsic(
         # Successful vote, final check for data
         else:
             if vote_data := await subtensor.get_vote_data(proposal_hash):
+                hotkey_ss58 = get_hotkey_pub_ss58(wallet)
                 if (
-                    vote_data.ayes.count(wallet.hotkey.ss58_address) > 0
-                    or vote_data.nays.count(wallet.hotkey.ss58_address) > 0
+                    vote_data.ayes.count(hotkey_ss58) > 0
+                    or vote_data.nays.count(hotkey_ss58) > 0
                 ):
                     console.print(":white_heavy_check_mark: [green]Vote cast.[/green]")
                     return True
@@ -859,10 +861,9 @@ async def senate_vote(
         return False
 
     print_verbose(f"Fetching senate status of {wallet.hotkey_str}")
-    if not await _is_senate_member(subtensor, hotkey_ss58=wallet.hotkey.ss58_address):
-        err_console.print(
-            f"Aborting: Hotkey {wallet.hotkey.ss58_address} isn't a senate member."
-        )
+    hotkey_ss58 = get_hotkey_pub_ss58(wallet)
+    if not await _is_senate_member(subtensor, hotkey_ss58=hotkey_ss58):
+        err_console.print(f"Aborting: Hotkey {hotkey_ss58} isn't a senate member.")
         return False
 
     # Unlock the wallet.
@@ -890,7 +891,7 @@ async def senate_vote(
 
 
 async def get_current_take(subtensor: "SubtensorInterface", wallet: Wallet):
-    current_take = await subtensor.current_take(wallet.hotkey.ss58_address)
+    current_take = await subtensor.current_take(get_hotkey_pub_ss58(wallet))
     return current_take
 
 
@@ -912,12 +913,13 @@ async def set_take(
             return False
 
         block_hash = await subtensor.substrate.get_chain_head()
+        hotkey_ss58 = get_hotkey_pub_ss58(wallet)
         netuids_registered = await subtensor.get_netuids_for_hotkey(
-            wallet.hotkey.ss58_address, block_hash=block_hash
+            hotkey_ss58, block_hash=block_hash
         )
         if not len(netuids_registered) > 0:
             err_console.print(
-                f"Hotkey [{COLOR_PALETTE.G.HK}]{wallet.hotkey.ss58_address}[/{COLOR_PALETTE.G.HK}] is not registered to"
+                f"Hotkey [{COLOR_PALETTE.G.HK}]{hotkey_ss58}[/{COLOR_PALETTE.G.HK}] is not registered to"
                 f" any subnet. Please register using [{COLOR_PALETTE.G.SUBHEAD}]`btcli subnets register`"
                 f"[{COLOR_PALETTE.G.SUBHEAD}] and try again."
             )
@@ -926,7 +928,7 @@ async def set_take(
         result: bool = await set_take_extrinsic(
             subtensor=subtensor,
             wallet=wallet,
-            delegate_ss58=wallet.hotkey.ss58_address,
+            delegate_ss58=hotkey_ss58,
             take=take,
         )
 

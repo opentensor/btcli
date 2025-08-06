@@ -3,7 +3,7 @@ import itertools
 import json
 import os
 from collections import defaultdict
-from typing import Generator, Optional
+from typing import Generator, Optional, Union
 
 import aiohttp
 from bittensor_wallet import Wallet, Keypair
@@ -48,6 +48,7 @@ from bittensor_cli.src.bittensor.utils import (
     WalletLike,
     blocks_to_duration,
     decode_account_id,
+    get_hotkey_pub_ss58,
 )
 
 
@@ -159,7 +160,7 @@ async def regen_coldkey(
                                 "name": new_wallet.name,
                                 "path": new_wallet.path,
                                 "hotkey": new_wallet.hotkey_str,
-                                "hotkey_ss58": new_wallet.hotkey.ss58_address,
+                                "hotkey_ss58": get_hotkey_pub_ss58(new_wallet),
                                 "coldkey_ss58": new_wallet.coldkeypub.ss58_address,
                             },
                             "error": "",
@@ -209,7 +210,7 @@ async def regen_coldkey_pub(
                                 "name": new_coldkeypub.name,
                                 "path": new_coldkeypub.path,
                                 "hotkey": new_coldkeypub.hotkey_str,
-                                "hotkey_ss58": new_coldkeypub.hotkey.ss58_address,
+                                "hotkey_ss58": get_hotkey_pub_ss58(new_coldkeypub),
                                 "coldkey_ss58": new_coldkeypub.coldkeypub.ss58_address,
                             },
                             "error": "",
@@ -255,7 +256,7 @@ async def regen_hotkey(
             console.print(
                 "\n✅ [dark_sea_green]Regenerated hotkey successfully!\n",
                 f"[dark_sea_green]Wallet name: ({new_hotkey_.name}), path: ({new_hotkey_.path}), "
-                f"hotkey ss58: ({new_hotkey_.hotkey.ss58_address})",
+                f"hotkey ss58: ({new_hotkey_.hotkeypub.ss58_address})",
             )
             if json_output:
                 json_console.print(
@@ -266,7 +267,7 @@ async def regen_hotkey(
                                 "name": new_hotkey_.name,
                                 "path": new_hotkey_.path,
                                 "hotkey": new_hotkey_.hotkey_str,
-                                "hotkey_ss58": new_hotkey_.hotkey.ss58_address,
+                                "hotkey_ss58": new_hotkey_.hotkeypub.ss58_address,
                                 "coldkey_ss58": new_hotkey_.coldkeypub.ss58_address,
                             },
                             "error": "",
@@ -316,7 +317,7 @@ async def regen_hotkey_pub(
                                 "name": new_hotkeypub.name,
                                 "path": new_hotkeypub.path,
                                 "hotkey": new_hotkeypub.hotkey_str,
-                                "hotkey_ss58": new_hotkeypub.hotkey.ss58_address,
+                                "hotkey_ss58": new_hotkeypub.hotkeypub.ss58_address,
                                 "coldkey_ss58": new_hotkeypub.coldkeypub.ss58_address,
                             },
                             "error": "",
@@ -367,7 +368,7 @@ async def new_hotkey(
                             "name": wallet.name,
                             "path": wallet.path,
                             "hotkey": wallet.hotkey_str,
-                            "hotkey_ss58": wallet.hotkey.ss58_address,
+                            "hotkey_ss58": get_hotkey_pub_ss58(wallet),
                             "coldkey_ss58": wallet.coldkeypub.ss58_address,
                         },
                         "error": "",
@@ -446,19 +447,24 @@ async def wallet_create(
     json_output: bool = False,
 ):
     """Creates a new wallet."""
-    output_dict = {"success": False, "error": "", "data": None}
+    output_dict: dict[str, Optional[Union[bool, str, dict]]] = {
+        "success": False,
+        "error": "",
+        "data": None,
+    }
     if uri:
         try:
             keypair = Keypair.create_from_uri(uri)
             wallet.set_coldkey(keypair=keypair, encrypt=False, overwrite=False)
             wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=False)
             wallet.set_hotkey(keypair=keypair, encrypt=False, overwrite=False)
+            wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=False)
             output_dict["success"] = True
             output_dict["data"] = {
                 "name": wallet.name,
                 "path": wallet.path,
                 "hotkey": wallet.hotkey_str,
-                "hotkey_ss58": wallet.hotkey.ss58_address,
+                "hotkey_ss58": wallet.hotkeypub.ss58_address,
                 "coldkey_ss58": wallet.coldkeypub.ss58_address,
             }
         except Exception as e:
@@ -499,7 +505,7 @@ async def wallet_create(
                 "name": wallet.name,
                 "path": wallet.path,
                 "hotkey": wallet.hotkey_str,
-                "hotkey_ss58": wallet.hotkey.ss58_address,
+                "hotkey_ss58": wallet.hotkeypub.ss58_address,
             }
         except KeyFileError as error:
             err = str(error)
@@ -838,13 +844,14 @@ async def wallet_list(wallet_path: str, json_output: bool):
             data = f"[bold red]Hotkey[/bold red][green] {hkey}[/green] (?)"
             hk_data = {"name": hkey.name, "ss58_address": "?"}
             if hkey:
+                hkey_ss58 = get_hotkey_pub_ss58(hkey)
                 try:
                     data = (
                         f"[bold red]Hotkey[/bold red] [green]{hkey.hotkey_str}[/green]  "
-                        f"ss58_address [green]{hkey.hotkey.ss58_address}[/green]\n"
+                        f"ss58_address [green]{hkey_ss58}[/green]\n"
                     )
                     hk_data["name"] = hkey.hotkey_str
-                    hk_data["ss58_address"] = hkey.hotkey.ss58_address
+                    hk_data["ss58_address"] = hkey_ss58
                 except UnicodeDecodeError:
                     pass
             wallet_tree.add(data)
@@ -1297,7 +1304,7 @@ def _get_hotkeys(
 
     def is_hotkey_matched(wallet: Wallet, item: str) -> bool:
         if is_valid_ss58_address(item):
-            return wallet.hotkey.ss58_address == item
+            return get_hotkey_pub_ss58(wallet) == item
         else:
             return wallet.hotkey_str == item
 
@@ -1329,9 +1336,10 @@ def _get_key_address(all_hotkeys: list[Wallet]) -> tuple[list[str], dict[str, Wa
     hotkey_coldkey_to_hotkey_wallet = {}
     for hotkey_wallet in all_hotkeys:
         if hotkey_wallet.coldkeypub:
-            if hotkey_wallet.hotkey.ss58_address not in hotkey_coldkey_to_hotkey_wallet:
-                hotkey_coldkey_to_hotkey_wallet[hotkey_wallet.hotkey.ss58_address] = {}
-            hotkey_coldkey_to_hotkey_wallet[hotkey_wallet.hotkey.ss58_address][
+            hotkey_ss58 = get_hotkey_pub_ss58(hotkey_wallet)
+            if hotkey_ss58 not in hotkey_coldkey_to_hotkey_wallet:
+                hotkey_coldkey_to_hotkey_wallet[hotkey_ss58] = {}
+            hotkey_coldkey_to_hotkey_wallet[hotkey_ss58][
                 hotkey_wallet.coldkeypub.ss58_address
             ] = hotkey_wallet
         else:
@@ -1515,7 +1523,7 @@ async def inspect(
                     if hotkey_names := [
                         w.hotkey_str
                         for w in hotkeys
-                        if w.hotkey.ss58_address == n.hotkey
+                        if get_hotkey_pub_ss58(w) == n.hotkey
                     ]:
                         hotkey_name = f"{hotkey_names[0]}-"
                     yield [""] * 5 + [
