@@ -1431,3 +1431,15 @@ def blocks_to_duration(blocks: int) -> str:
             results.append(f"{unit_count}{unit}")
     # Return only the first two non-zero units
     return " ".join(results[:2]) or "0s"
+
+
+def get_hotkey_pub_ss58(wallet: Wallet) -> str:
+    """
+    Helper fn to retrieve the hotkeypub ss58 of a wallet that may have been created before
+    bt-wallet 3.1.1 and thus not have a wallet hotkeypub. In this case, it will return the hotkey
+    SS58.
+    """
+    try:
+        return wallet.hotkeypub.ss58_address
+    except KeyFileError:
+        return wallet.hotkey.ss58_address
