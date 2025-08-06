@@ -22,6 +22,7 @@ from bittensor_cli.src.bittensor.utils import (
     group_subnets,
     unlock_key,
     json_console,
+    get_hotkey_pub_ss58,
 )
 
 if TYPE_CHECKING:
@@ -407,7 +408,7 @@ async def unstake_all(
                 old_identities=old_identities,
             )
         elif not hotkey_ss58_address:
-            hotkeys = [(wallet.hotkey_str, wallet.hotkey.ss58_address, None)]
+            hotkeys = [(wallet.hotkey_str, get_hotkey_pub_ss58(wallet), None)]
         else:
             hotkeys = [(None, hotkey_ss58_address, None)]
 
@@ -1198,7 +1199,7 @@ def _get_hotkeys_to_unstake(
         print_verbose("Unstaking from all hotkeys")
         all_hotkeys_ = get_hotkey_wallets_for_wallet(wallet=wallet)
         wallet_hotkeys = [
-            (wallet.hotkey_str, wallet.hotkey.ss58_address, None)
+            (wallet.hotkey_str, get_hotkey_pub_ss58(wallet), None)
             for wallet in all_hotkeys_
             if wallet.hotkey_str not in exclude_hotkeys
         ]
@@ -1230,7 +1231,7 @@ def _get_hotkeys_to_unstake(
                     path=wallet.path,
                     hotkey=hotkey_identifier,
                 )
-                result.append((wallet_.hotkey_str, wallet_.hotkey.ss58_address, None))
+                result.append((wallet_.hotkey_str, get_hotkey_pub_ss58(wallet_), None))
         return result
 
     # Only cli.config.wallet.hotkey is specified
@@ -1238,7 +1239,7 @@ def _get_hotkeys_to_unstake(
         f"Unstaking from wallet: ({wallet.name}) from hotkey: ({wallet.hotkey_str})"
     )
     assert wallet.hotkey is not None
-    return [(wallet.hotkey_str, wallet.hotkey.ss58_address, None)]
+    return [(wallet.hotkey_str, get_hotkey_pub_ss58(wallet), None)]
 
 
 def _create_unstake_table(

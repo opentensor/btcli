@@ -58,6 +58,7 @@ from bittensor_cli.src.bittensor.utils import (
     validate_uri,
     prompt_for_subnet_identity,
     validate_rate_tolerance,
+    get_hotkey_pub_ss58,
 )
 from bittensor_cli.src.commands import sudo, wallets, view
 from bittensor_cli.src.commands import weights as weights_cmds
@@ -792,6 +793,9 @@ class CLIManager:
             "regen-hotkey", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
         )(self.wallet_regen_hotkey)
         self.wallet_app.command(
+            "regen-hotkeypub", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
+        )(self.wallet_regen_hotkey_pub)
+        self.wallet_app.command(
             "new-hotkey", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"]
         )(self.wallet_new_hotkey)
         self.wallet_app.command(
@@ -974,6 +978,10 @@ class CLIManager:
             hidden=True,
         )(self.wallet_regen_hotkey)
         self.wallet_app.command(
+            "regen_hotkeypub",
+            hidden=True,
+        )(self.wallet_regen_hotkey_pub)
+        self.wallet_app.command(
             "new_hotkey",
             hidden=True,
         )(self.wallet_new_hotkey)
@@ -1143,7 +1151,8 @@ class CLIManager:
                     exit_early is True
                 ):  # temporarily to handle multiple run commands in one session
                     try:
-                        await self.subtensor.substrate.close()
+                        if self.subtensor:
+                            await self.subtensor.substrate.close()
                         raise typer.Exit()
                     except Exception as e:  # ensures we always exit cleanly
                         if not isinstance(e, (typer.Exit, RuntimeError)):
@@ -1726,7 +1735,7 @@ class CLIManager:
         if return_wallet_and_hotkey:
             valid = utils.is_valid_wallet(wallet)
             if valid[1]:
-                return wallet, wallet.hotkey.ss58_address
+                return wallet, get_hotkey_pub_ss58(wallet)
             else:
                 if wallet_hotkey and is_valid_ss58_address(wallet_hotkey):
                     return wallet, wallet_hotkey
@@ -2285,7 +2294,7 @@ class CLIManager:
 
         EXAMPLE
 
-        [green]$[/green] btcli wallet regen_coldkeypub --ss58_address 5DkQ4...
+        [green]$[/green] btcli wallet regen-coldkeypub --ss58_address 5DkQ4...
 
         [bold]Note[/bold]: This command is particularly useful for users who need to regenerate their coldkeypub, perhaps due to file corruption or loss. You will need either ss58 address or public hex key from your old coldkeypub.txt for the wallet. It is a recovery-focused utility that ensures continued access to your wallet functionalities.
         """
@@ -2300,7 +2309,7 @@ class CLIManager:
 
         if not wallet_name:
             wallet_name = Prompt.ask(
-                f"Enter the name of the [{COLORS.G.CK}]new wallet (coldkey)",
+                f"Enter the name of the [{COLORS.G.CK}]wallet for the new coldkeypub",
                 default=defaults.wallet.name,
             )
         wallet = Wallet(wallet_name, wallet_hotkey, wallet_path)
@@ -2317,7 +2326,7 @@ class CLIManager:
             address=ss58_address if ss58_address else public_key_hex
         ):
             rich.print("[red]Error: Invalid SS58 address or public key![/red]")
-            raise typer.Exit()
+            return
         return self._run_command(
             wallets.regen_coldkey_pub(
                 wallet, ss58_address, public_key_hex, overwrite, json_output
@@ -2380,6 +2389,68 @@ class CLIManager:
                 use_password,
                 overwrite,
                 json_output,
+            )
+        )
+
+    def wallet_regen_hotkey_pub(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        public_key_hex: Optional[str] = Options.public_hex_key,
+        ss58_address: Optional[str] = Options.ss58_address,
+        overwrite: bool = Options.overwrite,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Regenerates the public part of a hotkey (hotkeypub.txt) for a wallet.
+
+        Use this command when you need to move machine for subnet mining. Use the public key or SS58 address from your hotkeypub.txt that you have on another machine to regenerate the hotkeypub.txt on this new machine.
+
+        USAGE
+
+        The command requires either a public key in hexadecimal format or an ``SS58`` address from the existing hotkeypub.txt from old machine to regenerate the coldkeypub on the new machine.
+
+        EXAMPLE
+
+        [green]$[/green] btcli wallet regen-hotkeypub --ss58_address 5DkQ4...
+
+        [bold]Note[/bold]: This command is particularly useful for users who need to regenerate their hotkeypub, perhaps due to file corruption or loss. You will need either ss58 address or public hex key from your old hotkeypub.txt for the wallet. It is a recovery-focused utility that ensures continued access to your wallet functionalities.
+        """
+        self.verbosity_handler(quiet, verbose, json_output)
+
+        if not wallet_path:
+            wallet_path = Prompt.ask(
+                "Enter the path to the wallets directory",
+                default=self.config.get("wallet_path") or defaults.wallet.path,
+            )
+            wallet_path = os.path.expanduser(wallet_path)
+
+        if not wallet_name:
+            wallet_name = Prompt.ask(
+                f"Enter the name of the [{COLORS.G.CK}]wallet for the new hotkeypub",
+                default=defaults.wallet.name,
+            )
+        wallet = Wallet(wallet_name, wallet_hotkey, wallet_path)
+
+        if not ss58_address and not public_key_hex:
+            prompt_answer = typer.prompt(
+                "Enter the ss58_address or the public key in hex"
+            )
+            if prompt_answer.startswith("0x"):
+                public_key_hex = prompt_answer
+            else:
+                ss58_address = prompt_answer
+        if not utils.is_valid_bittensor_address_or_public_key(
+            address=ss58_address if ss58_address else public_key_hex
+        ):
+            rich.print("[red]Error: Invalid SS58 address or public key![/red]")
+            return False
+        return self._run_command(
+            wallets.regen_hotkey_pub(
+                wallet, ss58_address, public_key_hex, overwrite, json_output
             )
         )
 
@@ -2502,7 +2573,7 @@ class CLIManager:
                 ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
                 validate=WV.WALLET_AND_HOTKEY,
             )
-            hotkey_ss58 = wallet.hotkey.ss58_address
+            hotkey_ss58 = get_hotkey_pub_ss58(wallet)
             hotkey_display = (
                 f"hotkey [blue]{wallet_hotkey}[/blue] "
                 f"[{COLORS.GENERAL.HK}]({hotkey_ss58})[/{COLORS.GENERAL.HK}]"
@@ -3518,7 +3589,7 @@ class CLIManager:
                     ask_for=[WO.NAME, WO.HOTKEY, WO.PATH],
                     validate=WV.WALLET_AND_HOTKEY,
                 )
-                include_hotkeys = wallet.hotkey.ss58_address
+                include_hotkeys = get_hotkey_pub_ss58(wallet)
 
         elif all_hotkeys or include_hotkeys or exclude_hotkeys:
             wallet = self.wallet_ask(
@@ -3982,7 +4053,7 @@ class CLIManager:
                     ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
                     validate=WV.WALLET_AND_HOTKEY,
                 )
-                destination_hotkey = destination_wallet.hotkey.ss58_address
+                destination_hotkey = get_hotkey_pub_ss58(destination_wallet)
         else:
             if is_valid_ss58_address(destination_hotkey):
                 destination_hotkey = destination_hotkey
@@ -4021,7 +4092,7 @@ class CLIManager:
                     ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
                     validate=WV.WALLET_AND_HOTKEY,
                 )
-                origin_hotkey = wallet.hotkey.ss58_address
+                origin_hotkey = get_hotkey_pub_ss58(wallet)
         else:
             if is_valid_ss58_address(wallet_hotkey):
                 origin_hotkey = wallet_hotkey
@@ -4033,7 +4104,7 @@ class CLIManager:
                     ask_for=[],
                     validate=WV.WALLET_AND_HOTKEY,
                 )
-                origin_hotkey = wallet.hotkey.ss58_address
+                origin_hotkey = get_hotkey_pub_ss58(wallet)
 
         if not interactive_selection:
             if origin_netuid is None:
@@ -4186,7 +4257,7 @@ class CLIManager:
                     ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
                     validate=WV.WALLET_AND_HOTKEY,
                 )
-                origin_hotkey = wallet.hotkey.ss58_address
+                origin_hotkey = get_hotkey_pub_ss58(wallet)
         else:
             if is_valid_ss58_address(wallet_hotkey):
                 origin_hotkey = wallet_hotkey
@@ -4198,7 +4269,7 @@ class CLIManager:
                     ask_for=[],
                     validate=WV.WALLET_AND_HOTKEY,
                 )
-                origin_hotkey = wallet.hotkey.ss58_address
+                origin_hotkey = get_hotkey_pub_ss58(wallet)
 
         if not interactive_selection:
             if origin_netuid is None:
