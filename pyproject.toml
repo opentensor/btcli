@@ -27,7 +27,7 @@ dependencies = [
     "rich>=13.7,<15.0",
     "scalecodec==1.2.11",
     "typer>=0.16",
-    "bittensor-wallet>=3.1.0",
+    "bittensor-wallet>=3.1.1",
     "plotille>=5.0.0",
     "plotly>=6.0.0",
 ]
