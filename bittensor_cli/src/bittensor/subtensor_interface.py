@@ -39,6 +39,7 @@ from bittensor_cli.src.bittensor.utils import (
     validate_chain_endpoint,
     u16_normalized_float,
     U16_MAX,
+    get_hotkey_pub_ss58,
 )
 
 SubstrateClass = (
@@ -666,7 +667,7 @@ class SubtensorInterface:
             for sublist in await asyncio.gather(
                 *[
                     self.get_netuids_for_hotkey(
-                        wallet.hotkey.ss58_address,
+                        get_hotkey_pub_ss58(wallet),
                         reuse_block=reuse_block,
                         block_hash=block_hash,
                     )

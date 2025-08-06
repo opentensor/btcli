@@ -39,6 +39,7 @@ from bittensor_cli.src.bittensor.utils import (
     print_error,
     unlock_key,
     hex_to_bytes,
+    get_hotkey_pub_ss58,
 )
 
 if typing.TYPE_CHECKING:
@@ -490,7 +491,7 @@ async def register_extrinsic(
 
     async def get_neuron_for_pubkey_and_subnet():
         uid = await subtensor.query(
-            "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
+            "SubtensorModule", "Uids", [netuid, get_hotkey_pub_ss58(wallet)]
         )
         if uid is None:
             return NeuronInfo.get_null_neuron()
@@ -525,7 +526,7 @@ async def register_extrinsic(
         if not Confirm.ask(
             f"Continue Registration?\n"
             f"  hotkey [{COLOR_PALETTE.G.HK}]({wallet.hotkey_str})[/{COLOR_PALETTE.G.HK}]:"
-            f"\t[{COLOR_PALETTE.G.HK}]{wallet.hotkey.ss58_address}[/{COLOR_PALETTE.G.HK}]\n"
+            f"\t[{COLOR_PALETTE.G.HK}]{get_hotkey_pub_ss58(wallet)}[/{COLOR_PALETTE.G.HK}]\n"
             f"  coldkey [{COLOR_PALETTE.G.CK}]({wallet.name})[/{COLOR_PALETTE.G.CK}]:"
             f"\t[{COLOR_PALETTE.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE.G.CK}]\n"
             f"  network:\t\t[{COLOR_PALETTE.G.LINKS}]{subtensor.network}[/{COLOR_PALETTE.G.LINKS}]\n"
@@ -577,7 +578,7 @@ async def register_extrinsic(
         if not pow_result:
             # might be registered already on this subnet
             is_registered = await is_hotkey_registered(
-                subtensor, netuid=netuid, hotkey_ss58=wallet.hotkey.ss58_address
+                subtensor, netuid=netuid, hotkey_ss58=get_hotkey_pub_ss58(wallet)
             )
             if is_registered:
                 err_console.print(
@@ -598,7 +599,7 @@ async def register_extrinsic(
                             "block_number": pow_result.block_number,
                             "nonce": pow_result.nonce,
                             "work": [int(byte_) for byte_ in pow_result.seal],
-                            "hotkey": wallet.hotkey.ss58_address,
+                            "hotkey": get_hotkey_pub_ss58(wallet),
                             "coldkey": wallet.coldkeypub.ss58_address,
                         },
                     )
@@ -639,7 +640,7 @@ async def register_extrinsic(
                         is_registered = await is_hotkey_registered(
                             subtensor,
                             netuid=netuid,
-                            hotkey_ss58=wallet.hotkey.ss58_address,
+                            hotkey_ss58=get_hotkey_pub_ss58(wallet),
                         )
                         if is_registered:
                             console.print(
@@ -704,7 +705,7 @@ async def burned_register_extrinsic(
         spinner="aesthetic",
     ) as status:
         my_uid = await subtensor.query(
-            "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
+            "SubtensorModule", "Uids", [netuid, get_hotkey_pub_ss58(wallet)]
         )
         block_hash = await subtensor.substrate.get_chain_head()
 
@@ -751,7 +752,7 @@ async def burned_register_extrinsic(
             call_function="burned_register",
             call_params={
                 "netuid": netuid,
-                "hotkey": wallet.hotkey.ss58_address,
+                "hotkey": get_hotkey_pub_ss58(wallet),
             },
         )
         success, err_msg = await subtensor.sign_and_send_extrinsic(
@@ -773,10 +774,10 @@ async def burned_register_extrinsic(
                     reuse_block=False,
                 ),
                 subtensor.get_netuids_for_hotkey(
-                    wallet.hotkey.ss58_address, block_hash=block_hash
+                    get_hotkey_pub_ss58(wallet), block_hash=block_hash
                 ),
                 subtensor.query(
-                    "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
+                    "SubtensorModule", "Uids", [netuid, get_hotkey_pub_ss58(wallet)]
                 ),
             )
 
@@ -1146,7 +1147,7 @@ async def _block_solver(
 
     timeout = 0.15 if cuda else 0.15
     while netuid == -1 or not await is_hotkey_registered(
-        subtensor, netuid, wallet.hotkey.ss58_address
+        subtensor, netuid, get_hotkey_pub_ss58(wallet)
     ):
         # Wait until a solver finds a solution
         try:
@@ -1755,37 +1756,39 @@ async def swap_hotkey_extrinsic(
     :return: Success
     """
     block_hash = await subtensor.substrate.get_chain_head()
+    hk_ss58 = get_hotkey_pub_ss58(wallet)
     netuids_registered = await subtensor.get_netuids_for_hotkey(
-        wallet.hotkey.ss58_address, block_hash=block_hash
+        hk_ss58, block_hash=block_hash
     )
     netuids_registered_new_hotkey = await subtensor.get_netuids_for_hotkey(
-        new_wallet.hotkey.ss58_address, block_hash=block_hash
+        hk_ss58, block_hash=block_hash
     )
 
     if netuid is not None and netuid not in netuids_registered:
         err_console.print(
-            f":cross_mark: [red]Failed[/red]: Original hotkey {wallet.hotkey.ss58_address} is not registered on subnet {netuid}"
+            f":cross_mark: [red]Failed[/red]: Original hotkey {hk_ss58} is not registered on subnet {netuid}"
         )
         return False
 
     elif not len(netuids_registered) > 0:
         err_console.print(
-            f"Original hotkey [dark_orange]{wallet.hotkey.ss58_address}[/dark_orange] is not registered on any subnet. "
+            f"Original hotkey [dark_orange]{hk_ss58}[/dark_orange] is not registered on any subnet. "
             f"Please register and try again"
         )
         return False
 
+    new_hk_ss58 = get_hotkey_pub_ss58(new_wallet)
     if netuid is not None:
         if netuid in netuids_registered_new_hotkey:
             err_console.print(
-                f":cross_mark: [red]Failed[/red]: New hotkey {new_wallet.hotkey.ss58_address} "
+                f":cross_mark: [red]Failed[/red]: New hotkey {new_hk_ss58} "
                 f"is already registered on subnet {netuid}"
             )
             return False
     else:
         if len(netuids_registered_new_hotkey) > 0:
             err_console.print(
-                f":cross_mark: [red]Failed[/red]: New hotkey {new_wallet.hotkey.ss58_address} "
+                f":cross_mark: [red]Failed[/red]: New hotkey {new_hk_ss58} "
                 f"is already registered on subnet(s) {netuids_registered_new_hotkey}"
             )
             return False
@@ -1798,28 +1801,28 @@ async def swap_hotkey_extrinsic(
         if netuid is not None:
             confirm_message = (
                 f"Do you want to swap [dark_orange]{wallet.name}[/dark_orange] hotkey \n\t"
-                f"[dark_orange]{wallet.hotkey.ss58_address} ({wallet.hotkey_str})[/dark_orange] with hotkey \n\t"
-                f"[dark_orange]{new_wallet.hotkey.ss58_address} ({new_wallet.hotkey_str})[/dark_orange] on subnet {netuid}\n"
+                f"[dark_orange]{hk_ss58} ({wallet.hotkey_str})[/dark_orange] with hotkey \n\t"
+                f"[dark_orange]{new_hk_ss58} ({new_wallet.hotkey_str})[/dark_orange] on subnet {netuid}\n"
                 "This operation will cost [bold cyan]1 TAO (recycled)[/bold cyan]"
             )
         else:
             confirm_message = (
                 f"Do you want to swap [dark_orange]{wallet.name}[/dark_orange] hotkey \n\t"
-                f"[dark_orange]{wallet.hotkey.ss58_address} ({wallet.hotkey_str})[/dark_orange] with hotkey \n\t"
-                f"[dark_orange]{new_wallet.hotkey.ss58_address} ({new_wallet.hotkey_str})[/dark_orange] on all subnets\n"
+                f"[dark_orange]{hk_ss58} ({wallet.hotkey_str})[/dark_orange] with hotkey \n\t"
+                f"[dark_orange]{new_hk_ss58} ({new_wallet.hotkey_str})[/dark_orange] on all subnets\n"
                 "This operation will cost [bold cyan]1 TAO (recycled)[/bold cyan]"
             )
 
         if not Confirm.ask(confirm_message):
             return False
     print_verbose(
-        f"Swapping {wallet.name}'s hotkey ({wallet.hotkey.ss58_address} - {wallet.hotkey_str}) with "
-        f"{new_wallet.name}'s hotkey ({new_wallet.hotkey.ss58_address} - {new_wallet.hotkey_str})"
+        f"Swapping {wallet.name}'s hotkey ({hk_ss58} - {wallet.hotkey_str}) with "
+        f"{new_wallet.name}'s hotkey ({new_hk_ss58} - {new_wallet.hotkey_str})"
     )
     with console.status(":satellite: Swapping hotkeys...", spinner="aesthetic"):
         call_params = {
-            "hotkey": wallet.hotkey.ss58_address,
-            "new_hotkey": new_wallet.hotkey.ss58_address,
+            "hotkey": hk_ss58,
+            "new_hotkey": new_hk_ss58,
             "netuid": netuid,
         }
 
@@ -1832,7 +1835,8 @@ async def swap_hotkey_extrinsic(
 
         if success:
             console.print(
-                f"Hotkey {wallet.hotkey.ss58_address} ({wallet.hotkey_str}) swapped for new hotkey: {new_wallet.hotkey.ss58_address} ({new_wallet.hotkey_str})"
+                f"Hotkey {hk_ss58} ({wallet.hotkey_str}) swapped for new hotkey: "
+                f"{new_hk_ss58} ({new_wallet.hotkey_str})"
             )
             return True
         else:

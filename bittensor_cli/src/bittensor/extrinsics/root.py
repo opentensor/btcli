@@ -37,6 +37,7 @@ from bittensor_cli.src.bittensor.utils import (
     print_verbose,
     format_error_message,
     unlock_key,
+    get_hotkey_pub_ss58,
 )
 
 if TYPE_CHECKING:
@@ -310,7 +311,7 @@ async def root_register_extrinsic(
 
     print_verbose(f"Checking if hotkey ({wallet.hotkey_str}) is registered on root")
     is_registered = await is_hotkey_registered(
-        subtensor, netuid=0, hotkey_ss58=wallet.hotkey.ss58_address
+        subtensor, netuid=0, hotkey_ss58=get_hotkey_pub_ss58(wallet)
     )
     if is_registered:
         console.print(
@@ -322,7 +323,7 @@ async def root_register_extrinsic(
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function="root_register",
-            call_params={"hotkey": wallet.hotkey.ss58_address},
+            call_params={"hotkey": get_hotkey_pub_ss58(wallet)},
         )
         success, err_msg = await subtensor.sign_and_send_extrinsic(
             call,
@@ -341,7 +342,7 @@ async def root_register_extrinsic(
             uid = await subtensor.query(
                 module="SubtensorModule",
                 storage_function="Uids",
-                params=[0, wallet.hotkey.ss58_address],
+                params=[0, get_hotkey_pub_ss58(wallet)],
             )
             if uid is not None:
                 console.print(
@@ -391,7 +392,7 @@ async def set_root_weights_extrinsic(
                 "weights": weight_vals,
                 "netuid": 0,
                 "version_key": version_key,
-                "hotkey": wallet.hotkey.ss58_address,
+                "hotkey": get_hotkey_pub_ss58(wallet),
             },
         )
         # Period dictates how long the extrinsic will stay as part of waiting pool
@@ -415,7 +416,7 @@ async def set_root_weights_extrinsic(
             return False, await response.error_message
 
     my_uid = await subtensor.query(
-        "SubtensorModule", "Uids", [0, wallet.hotkey.ss58_address]
+        "SubtensorModule", "Uids", [0, get_hotkey_pub_ss58(wallet)]
     )
 
     if my_uid is None:

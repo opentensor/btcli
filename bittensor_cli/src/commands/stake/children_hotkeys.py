@@ -21,6 +21,7 @@ from bittensor_cli.src.bittensor.utils import (
     format_error_message,
     unlock_key,
     json_console,
+    get_hotkey_pub_ss58,
 )
 
 
@@ -464,7 +465,7 @@ async def get_children(
         netuid_children_tuples = []
         for netuid_ in netuids:
             success, children, err_mg = await subtensor.get_children(
-                wallet.hotkey.ss58_address, netuid_
+                get_hotkey_pub_ss58(wallet), netuid_
             )
             if children:
                 netuid_children_tuples.append((netuid_, children))
@@ -472,16 +473,16 @@ async def get_children(
                 err_console.print(
                     f"Failed to get children from subtensor {netuid_}: {err_mg}"
                 )
-        await _render_table(wallet.hotkey.ss58_address, netuid_children_tuples)
+        await _render_table(get_hotkey_pub_ss58(wallet), netuid_children_tuples)
     else:
         success, children, err_mg = await subtensor.get_children(
-            wallet.hotkey.ss58_address, netuid
+            get_hotkey_pub_ss58(wallet), netuid
         )
         if not success:
             err_console.print(f"Failed to get children from subtensor: {err_mg}")
         if children:
             netuid_children_tuples = [(netuid, children)]
-            await _render_table(wallet.hotkey.ss58_address, netuid_children_tuples)
+            await _render_table(get_hotkey_pub_ss58(wallet), netuid_children_tuples)
 
         return children
 
@@ -500,12 +501,12 @@ async def set_children(
     """Set children hotkeys."""
     # Validate children SS58 addresses
     # TODO check to see if this should be allowed to be specified by user instead of pulling from wallet
-    hotkey = wallet.hotkey.ss58_address
+    hotkey = get_hotkey_pub_ss58(wallet)
     for child in children:
         if not is_valid_ss58_address(child):
             err_console.print(f":cross_mark:[red] Invalid SS58 address: {child}[/red]")
             return
-        if child == wallet.hotkey.ss58_address:
+        if child == hotkey:
             err_console.print(":cross_mark:[red] Cannot set yourself as a child.[/red]")
             return
 
@@ -608,7 +609,7 @@ async def revoke_children(
             subtensor=subtensor,
             wallet=wallet,
             netuid=netuid,
-            hotkey=wallet.hotkey.ss58_address,
+            hotkey=get_hotkey_pub_ss58(wallet),
             children_with_proportions=[],
             prompt=prompt,
             wait_for_inclusion=wait_for_inclusion,
@@ -647,7 +648,7 @@ async def revoke_children(
                 subtensor=subtensor,
                 wallet=wallet,
                 netuid=netuid,
-                hotkey=wallet.hotkey.ss58_address,
+                hotkey=get_hotkey_pub_ss58(wallet),
                 children_with_proportions=[],
                 prompt=prompt,
                 wait_for_inclusion=True,
@@ -746,7 +747,7 @@ async def childkey_take(
             subtensor=subtensor,
             wallet=wallet,
             netuid=subnet,
-            hotkey=wallet.hotkey.ss58_address,
+            hotkey=get_hotkey_pub_ss58(wallet),
             take=chk_take,
             prompt=prompt,
             wait_for_inclusion=wait_for_inclusion,
@@ -756,7 +757,7 @@ async def childkey_take(
         if success:
             console.print(":white_heavy_check_mark: [green]Set childkey take.[/green]")
             console.print(
-                f"The childkey take for {wallet.hotkey.ss58_address} is now set to {take * 100:.2f}%."
+                f"The childkey take for {get_hotkey_pub_ss58(wallet)} is now set to {take * 100:.2f}%."
             )
             return True
         else:
@@ -766,9 +767,10 @@ async def childkey_take(
             return False
 
     # Print childkey take for other user and return (dont offer to change take rate)
-    if not hotkey or hotkey == wallet.hotkey.ss58_address:
-        hotkey = wallet.hotkey.ss58_address
-    if hotkey != wallet.hotkey.ss58_address or not take:
+    wallet_hk = get_hotkey_pub_ss58(wallet)
+    if not hotkey or hotkey == wallet_hk:
+        hotkey = wallet_hk
+    if hotkey != wallet_hk or not take:
         # display childkey take for other users
         if netuid:
             await display_chk_take(hotkey, netuid)
@@ -826,7 +828,7 @@ async def childkey_take(
                     subtensor=subtensor,
                     wallet=wallet,
                     netuid=netuid_,
-                    hotkey=wallet.hotkey.ss58_address,
+                    hotkey=wallet_hk,
                     take=take,
                     prompt=prompt,
                     wait_for_inclusion=True,

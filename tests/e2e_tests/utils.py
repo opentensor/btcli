@@ -1,3 +1,4 @@
+import importlib
 import inspect
 import os
 import re
@@ -6,9 +7,11 @@ import subprocess
 import sys
 from typing import TYPE_CHECKING, Optional
 
-from bittensor_cli.cli import CLIManager
 from bittensor_wallet import Keypair, Wallet
+from packaging.version import parse as parse_version, Version
 from typer.testing import CliRunner
+
+from bittensor_cli.cli import CLIManager
 
 if TYPE_CHECKING:
     from async_substrate_interface.async_substrate import AsyncSubstrateInterface
@@ -55,7 +58,10 @@ def setup_wallet(uri: str):
                             extra_args.extend(["--network", "ws://127.0.0.1:9945"])
 
         # Capture stderr separately from stdout
-        runner = CliRunner(mix_stderr=False)
+        if parse_version(importlib.metadata.version("click")) < Version("8.2.0"):
+            runner = CliRunner(mix_stderr=False)
+        else:
+            runner = CliRunner()
         # Prepare the command arguments
         args = [
             command,
