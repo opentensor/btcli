@@ -1150,7 +1150,8 @@ class CLIManager:
                     exit_early is True
                 ):  # temporarily to handle multiple run commands in one session
                     try:
-                        await self.subtensor.substrate.close()
+                        if self.subtensor:
+                            await self.subtensor.substrate.close()
                         raise typer.Exit()
                     except Exception as e:  # ensures we always exit cleanly
                         if not isinstance(e, (typer.Exit, RuntimeError)):
