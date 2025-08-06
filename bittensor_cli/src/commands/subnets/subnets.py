@@ -35,7 +35,7 @@ from bittensor_cli.src.bittensor.utils import (
     get_subnet_name,
     unlock_key,
     blocks_to_duration,
-    json_console,
+    json_console, get_hotkey_pub_ss58,
 )
 
 if TYPE_CHECKING:
@@ -114,7 +114,7 @@ async def register_subnetwork_extrinsic(
             return False, None
 
     call_params = {
-        "hotkey": wallet.hotkey.ss58_address,
+        "hotkey": get_hotkey_pub_ss58(wallet),
         "mechid": 1,
     }
     call_function = "register_network"
@@ -1654,7 +1654,7 @@ async def register(
             str(netuid),
             f"{Balance.get_unit(netuid)}",
             f"τ {current_recycle.tao:.4f}",
-            f"{wallet.hotkey.ss58_address}",
+            f"{get_hotkey_pub_ss58(wallet)}",
             f"{wallet.coldkeypub.ss58_address}",
         )
         console.print(table)

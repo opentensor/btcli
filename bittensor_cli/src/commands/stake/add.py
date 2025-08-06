@@ -19,7 +19,7 @@ from bittensor_cli.src.bittensor.utils import (
     print_error,
     print_verbose,
     unlock_key,
-    json_console,
+    json_console, get_hotkey_pub_ss58,
 )
 from bittensor_wallet import Wallet
 
@@ -552,7 +552,7 @@ def _get_hotkeys_to_stake_to(
         # Stake to all hotkeys except excluded ones
         all_hotkeys_: list[Wallet] = get_hotkey_wallets_for_wallet(wallet=wallet)
         return [
-            (wallet.hotkey_str, wallet.hotkey.ss58_address)
+            (wallet.hotkey_str, get_hotkey_pub_ss58(wallet))
             for wallet in all_hotkeys_
             if wallet.hotkey_str not in (exclude_hotkeys or [])
         ]
@@ -572,7 +572,7 @@ def _get_hotkeys_to_stake_to(
                     name=wallet.name,
                     hotkey=hotkey_ss58_or_hotkey_name,
                 )
-                hotkeys.append((wallet_.hotkey_str, wallet_.hotkey.ss58_address))
+                hotkeys.append((wallet_.hotkey_str, get_hotkey_pub_ss58(wallet_)))
 
         return hotkeys
 
@@ -581,7 +581,7 @@ def _get_hotkeys_to_stake_to(
         f"Staking to hotkey: ({wallet.hotkey_str}) in wallet: ({wallet.name})"
     )
     assert wallet.hotkey is not None
-    return [(None, wallet.hotkey.ss58_address)]
+    return [(None, get_hotkey_pub_ss58(wallet))]
 
 
 def _define_stake_table(
