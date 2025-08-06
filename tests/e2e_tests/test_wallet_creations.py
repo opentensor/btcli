@@ -566,7 +566,7 @@ def test_wallet_regen(wallet_setup, capfd):
     # Wait a bit to ensure file system updates modification time
     time.sleep(2)
 
-    new_hotkeypub_mod_time = os.path.getmtime(hotkey_path)
+    new_hotkeypub_mod_time = os.path.getmtime(hotkeypub_path)
 
     assert initial_hotkeypub_mod_time != new_hotkeypub_mod_time, (
         "Hotkey file was not regenerated as expected"
