@@ -1,5 +1,18 @@
 # Changelog
 
+## 9.10.0 /2025-08-06
+* Sets default interval hours for subnets price to 4, bc of rate limiting. by @thewhaleking in https://github.com/opentensor/btcli/pull/568
+* Subnets Price --current + improvements by @thewhaleking in https://github.com/opentensor/btcli/pull/569
+* Reconfig Asyncio Runner by @thewhaleking in https://github.com/opentensor/btcli/pull/570
+* Show amount on `transfer --all` by @thewhaleking in https://github.com/opentensor/btcli/pull/571
+* Allows for typer>=0.16 and Click 8.2+ by @thewhaleking in https://github.com/opentensor/btcli/pull/572
+* BTCLI Config Updates by @thewhaleking in https://github.com/opentensor/btcli/pull/573
+* Added info about preinstalled macOS CPython by @thewhaleking in https://github.com/opentensor/btcli/pull/574
+* Click 8.2+/- compatibility by @thewhaleking in https://github.com/opentensor/btcli/pull/576
+* New command: `btcli w regen-hotkeypub` by @thewhaleking in https://github.com/opentensor/btcli/pull/575
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.9.0...v9.10.0
+
 ## 9.9.0 /2025-07-28
 * Feat/wallet verify by @ibraheem-abe in https://github.com/opentensor/btcli/pull/561
 * Improved speed of query_all_identities and fetch_coldkey_hotkey_identities by @thewhaleking in https://github.com/opentensor/btcli/pull/560
