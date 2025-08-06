@@ -287,6 +287,50 @@ async def regen_hotkey(
             )
 
 
+async def regen_hotkey_pub(
+wallet: Wallet,
+    ss58_address: str,
+    public_key_hex: str,
+    overwrite: Optional[bool] = False,
+    json_output: bool = False,
+):
+    """Creates a new hotkeypub under this wallet."""
+    try:
+        new_hotkeypub = wallet.regenerate_hotkeypub(
+            ss58_address=ss58_address,
+            public_key=public_key_hex,
+            overwrite=overwrite,
+        )
+        if isinstance(new_hotkeypub, Wallet):
+            console.print(
+                "\n✅ [dark_sea_green]Regenerated coldkeypub successfully!\n",
+                f"[dark_sea_green]Wallet name: ({new_hotkeypub.name}), path: ({new_hotkeypub.path}), "
+                f"coldkey ss58: ({new_hotkeypub.coldkeypub.ss58_address})",
+            )
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {
+                            "success": True,
+                            "data": {
+                                "name": new_hotkeypub.name,
+                                "path": new_hotkeypub.path,
+                                "hotkey": new_hotkeypub.hotkey_str,
+                                "hotkey_ss58": new_hotkeypub.hotkey.ss58_address,
+                                "coldkey_ss58": new_hotkeypub.coldkeypub.ss58_address,
+                            },
+                            "error": "",
+                        }
+                    )
+                )
+    except KeyFileError:
+        print_error("KeyFileError: File is not writable")
+        if json_output:
+            json_console.print(
+                '{"success": false, "error": "Keyfile is not writable", "data": null}'
+            )
+
+
 async def new_hotkey(
     wallet: Wallet,
     n_words: int,

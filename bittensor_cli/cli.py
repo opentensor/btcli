@@ -2285,7 +2285,7 @@ class CLIManager:
 
         EXAMPLE
 
-        [green]$[/green] btcli wallet regen_coldkeypub --ss58_address 5DkQ4...
+        [green]$[/green] btcli wallet regen-coldkeypub --ss58_address 5DkQ4...
 
         [bold]Note[/bold]: This command is particularly useful for users who need to regenerate their coldkeypub, perhaps due to file corruption or loss. You will need either ss58 address or public hex key from your old coldkeypub.txt for the wallet. It is a recovery-focused utility that ensures continued access to your wallet functionalities.
         """
@@ -2317,7 +2317,7 @@ class CLIManager:
             address=ss58_address if ss58_address else public_key_hex
         ):
             rich.print("[red]Error: Invalid SS58 address or public key![/red]")
-            raise typer.Exit()
+            return
         return self._run_command(
             wallets.regen_coldkey_pub(
                 wallet, ss58_address, public_key_hex, overwrite, json_output
@@ -2380,6 +2380,68 @@ class CLIManager:
                 use_password,
                 overwrite,
                 json_output,
+            )
+        )
+
+    def wallet_regen_hotkey_pub(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        public_key_hex: Optional[str] = Options.public_hex_key,
+        ss58_address: Optional[str] = Options.ss58_address,
+        overwrite: bool = Options.overwrite,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Regenerates the public part of a hotkey (hotkeypub.txt) for a wallet.
+
+        Use this command when you need to move machine for subnet mining. Use the public key or SS58 address from your hotkeypub.txt that you have on another machine to regenerate the hotkeypub.txt on this new machine.
+
+        USAGE
+
+        The command requires either a public key in hexadecimal format or an ``SS58`` address from the existing hotkeypub.txt from old machine to regenerate the coldkeypub on the new machine.
+
+        EXAMPLE
+
+        [green]$[/green] btcli wallet regen-hotkeypub --ss58_address 5DkQ4...
+
+        [bold]Note[/bold]: This command is particularly useful for users who need to regenerate their hotkeypub, perhaps due to file corruption or loss. You will need either ss58 address or public hex key from your old hotkeypub.txt for the wallet. It is a recovery-focused utility that ensures continued access to your wallet functionalities.
+        """
+        self.verbosity_handler(quiet, verbose, json_output)
+
+        if not wallet_path:
+            wallet_path = Prompt.ask(
+                "Enter the path to the wallets directory",
+                default=self.config.get("wallet_path") or defaults.wallet.path,
+            )
+            wallet_path = os.path.expanduser(wallet_path)
+
+        if not wallet_name:
+            wallet_name = Prompt.ask(
+                f"Enter the name of the [{COLORS.G.CK}]new wallet (coldkey)",
+                default=defaults.wallet.name,
+            )
+        wallet = Wallet(wallet_name, wallet_hotkey, wallet_path)
+
+        if not ss58_address and not public_key_hex:
+            prompt_answer = typer.prompt(
+                "Enter the ss58_address or the public key in hex"
+            )
+            if prompt_answer.startswith("0x"):
+                public_key_hex = prompt_answer
+            else:
+                ss58_address = prompt_answer
+        if not utils.is_valid_bittensor_address_or_public_key(
+            address=ss58_address if ss58_address else public_key_hex
+        ):
+            rich.print("[red]Error: Invalid SS58 address or public key![/red]")
+            return False
+        return self._run_command(
+            wallets.regen_hotkey_pub(
+                wallet, ss58_address, public_key_hex, overwrite, json_output
             )
         )
 
