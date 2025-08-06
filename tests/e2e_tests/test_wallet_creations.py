@@ -543,7 +543,7 @@ def test_wallet_regen(wallet_setup, capfd):
     )
     print("Passed wallet regen_hotkey command ✅")
 
-    hotkeypub_path = os.path.join(wallet_path, "new_wallet", "hotkeypub.txt")
+    hotkeypub_path = os.path.join(wallet_path, "new_wallet", "hotkeys", "new_hotkeypub.txt")
     initial_hotkeypub_mod_time = os.path.getmtime(hotkeypub_path)
     result = exec_command(
         command="wallet",
