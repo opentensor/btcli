@@ -58,6 +58,7 @@ from bittensor_cli.src.bittensor.utils import (
     validate_uri,
     prompt_for_subnet_identity,
     validate_rate_tolerance,
+    get_hotkey_pub_ss58,
 )
 from bittensor_cli.src.commands import sudo, wallets, view
 from bittensor_cli.src.commands import weights as weights_cmds
@@ -1734,7 +1735,7 @@ class CLIManager:
         if return_wallet_and_hotkey:
             valid = utils.is_valid_wallet(wallet)
             if valid[1]:
-                return wallet, wallet.hotkey.ss58_address
+                return wallet, get_hotkey_pub_ss58(wallet)
             else:
                 if wallet_hotkey and is_valid_ss58_address(wallet_hotkey):
                     return wallet, wallet_hotkey
@@ -2572,7 +2573,7 @@ class CLIManager:
                 ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
                 validate=WV.WALLET_AND_HOTKEY,
             )
-            hotkey_ss58 = wallet.hotkey.ss58_address
+            hotkey_ss58 = get_hotkey_pub_ss58(wallet)
             hotkey_display = (
                 f"hotkey [blue]{wallet_hotkey}[/blue] "
                 f"[{COLORS.GENERAL.HK}]({hotkey_ss58})[/{COLORS.GENERAL.HK}]"
@@ -3588,7 +3589,7 @@ class CLIManager:
                     ask_for=[WO.NAME, WO.HOTKEY, WO.PATH],
                     validate=WV.WALLET_AND_HOTKEY,
                 )
-                include_hotkeys = wallet.hotkey.ss58_address
+                include_hotkeys = get_hotkey_pub_ss58(wallet)
 
         elif all_hotkeys or include_hotkeys or exclude_hotkeys:
             wallet = self.wallet_ask(
@@ -4052,7 +4053,7 @@ class CLIManager:
                     ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
                     validate=WV.WALLET_AND_HOTKEY,
                 )
-                destination_hotkey = destination_wallet.hotkey.ss58_address
+                destination_hotkey = get_hotkey_pub_ss58(destination_wallet)
         else:
             if is_valid_ss58_address(destination_hotkey):
                 destination_hotkey = destination_hotkey
@@ -4091,7 +4092,7 @@ class CLIManager:
                     ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
                     validate=WV.WALLET_AND_HOTKEY,
                 )
-                origin_hotkey = wallet.hotkey.ss58_address
+                origin_hotkey = get_hotkey_pub_ss58(wallet)
         else:
             if is_valid_ss58_address(wallet_hotkey):
                 origin_hotkey = wallet_hotkey
@@ -4103,7 +4104,7 @@ class CLIManager:
                     ask_for=[],
                     validate=WV.WALLET_AND_HOTKEY,
                 )
-                origin_hotkey = wallet.hotkey.ss58_address
+                origin_hotkey = get_hotkey_pub_ss58(wallet)
 
         if not interactive_selection:
             if origin_netuid is None:
@@ -4256,7 +4257,7 @@ class CLIManager:
                     ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
                     validate=WV.WALLET_AND_HOTKEY,
                 )
-                origin_hotkey = wallet.hotkey.ss58_address
+                origin_hotkey = get_hotkey_pub_ss58(wallet)
         else:
             if is_valid_ss58_address(wallet_hotkey):
                 origin_hotkey = wallet_hotkey
@@ -4268,7 +4269,7 @@ class CLIManager:
                     ask_for=[],
                     validate=WV.WALLET_AND_HOTKEY,
                 )
-                origin_hotkey = wallet.hotkey.ss58_address
+                origin_hotkey = get_hotkey_pub_ss58(wallet)
 
         if not interactive_selection:
             if origin_netuid is None:
