@@ -26,7 +26,7 @@ def test_hyperparams_setting(local_chain, wallet_setup):
         extra_args=[
             "--wallet-path",
             wallet_path_alice,
-            "--chain",
+            "--network",
             "ws://127.0.0.1:9945",
             "--wallet-name",
             wallet_alice.name,
@@ -55,12 +55,19 @@ def test_hyperparams_setting(local_chain, wallet_setup):
     result_output = json.loads(result.stdout)
     assert result_output["success"] is True
     assert result_output["netuid"] == netuid
+    print(result_output)
 
     # Fetch the hyperparameters of the subnet
     hyperparams = exec_command_alice(
         command="sudo",
         sub_command="get",
-        extra_args=["--chain", "ws://127.0.0.1:9945", "--netuid", netuid, "--json-out"],
+        extra_args=[
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--netuid",
+            netuid,
+            "--json-out",
+        ],
     )
 
     # Parse all hyperparameters and single out max_burn in TAO
@@ -85,8 +92,14 @@ def test_hyperparams_setting(local_chain, wallet_setup):
                 command="sudo",
                 sub_command="set",
                 extra_args=[
+                    "--wallet-path",
+                    wallet_path_alice,
                     "--network",
                     "ws://127.0.0.1:9945",
+                    "--wallet-name",
+                    wallet_alice.name,
+                    "--wallet-hotkey",
+                    wallet_alice.hotkey_str,
                     "--netuid",
                     netuid,
                     "--json-out",
