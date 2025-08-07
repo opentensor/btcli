@@ -1264,7 +1264,7 @@ class CLIManager:
         use_cache: Optional[bool] = typer.Option(
             None,
             "--cache/--no-cache",
-            "--cache/--no_cache",
+            " /--no_cache",
             help="Disable caching of some commands. This will disable the `--reuse-last` and `--html` flags on "
             "commands such as `subnets metagraph`, `stake show` and `subnets list`.",
         ),
