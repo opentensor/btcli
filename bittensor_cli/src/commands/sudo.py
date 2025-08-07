@@ -201,7 +201,7 @@ async def set_hyperparameter_extrinsic(
     )
     if subnet_owner != wallet.coldkeypub.ss58_address:
         err_msg = (
-            ":cross_mark: [red]This wallet doesn't own the specified subnet.[/red]"
+            f":cross_mark: [red]This wallet doesn't own the specified subnet.[/red]"
         )
         err_console.print(err_msg)
         return False, err_msg

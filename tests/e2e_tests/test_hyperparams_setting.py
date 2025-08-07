@@ -78,16 +78,26 @@ def test_hyperparams_setting(local_chain, wallet_setup):
                 else:
                     new_val = hp[key] - 1
             else:
-                raise ValueError(f"Unrecognized hyperparameter value type: {key}: {hp[key]}")
+                raise ValueError(
+                    f"Unrecognized hyperparameter value type: {key}: {hp[key]}"
+                )
             cmd = exec_command_alice(
                 command="sudo",
                 sub_command="set",
-                extra_args=["--chain", "ws://127.0.0.1:9945", "--netuid", netuid, "--verbose", "--no-prompt",
-                            "--param", key, "--value", new_val],
+                extra_args=[
+                    "--network",
+                    "ws://127.0.0.1:9945",
+                    "--netuid",
+                    netuid,
+                    "--json-out",
+                    "--no-prompt",
+                    "--param",
+                    key,
+                    "--value",
+                    new_val,
+                ],
             )
             cmd_json = json.loads(cmd.stdout)
-            assert cmd_json["success"] is True, (
-                key, new_val, cmd.stdout, cmd_json
-            )
+            assert cmd_json["success"] is True, (key, new_val, cmd.stdout, cmd_json)
             print(f"Successfully set hyperparameter {key} to value {new_val}")
     print("Successfully set hyperparameters")
