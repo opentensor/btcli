@@ -4816,7 +4816,7 @@ class CLIManager:
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
         )
-        result = self._run_command(
+        result, err_msg = self._run_command(
             sudo.sudo_set_hyperparameter(
                 wallet,
                 self.initialize_chain(network),
@@ -4828,7 +4828,7 @@ class CLIManager:
             )
         )
         if json_output:
-            json_console.print(json.dumps({"success": result}))
+            json_console.print(json.dumps({"success": result, "err_msg": err_msg}))
         return result
 
     def sudo_get(
