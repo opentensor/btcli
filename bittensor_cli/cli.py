@@ -618,6 +618,7 @@ class CLIManager:
             "wallet_hotkey": None,
             "network": None,
             "use_cache": True,
+            "disk_cache": False,
             "rate_tolerance": None,
             "safe_staking": True,
             "allow_partial_stake": False,
@@ -1087,6 +1088,7 @@ class CLIManager:
                 "Verify this is intended.",
             )
             if not self.subtensor:
+                use_disk_cache = self.config.get("disk_cache", False)
                 if network:
                     network_ = None
                     for item in network:
@@ -1103,15 +1105,15 @@ class CLIManager:
                             f"[{COLORS.G.ARG}]{', '.join(not_selected_networks)}[/{COLORS.G.ARG}]"
                         )
 
-                    self.subtensor = SubtensorInterface(network_)
+                    self.subtensor = SubtensorInterface(network_, use_disk_cache=use_disk_cache)
                 elif self.config["network"]:
                     console.print(
                         f"Using the specified network [{COLORS.G.LINKS}]{self.config['network']}"
                         f"[/{COLORS.G.LINKS}] from config"
                     )
-                    self.subtensor = SubtensorInterface(self.config["network"])
+                    self.subtensor = SubtensorInterface(self.config["network"], use_disk_cache=use_disk_cache)
                 else:
-                    self.subtensor = SubtensorInterface(defaults.subtensor.network)
+                    self.subtensor = SubtensorInterface(defaults.subtensor.network, use_disk_cache=use_disk_cache)
         return self.subtensor
 
     def _run_command(self, cmd: Coroutine, exit_early: bool = True):
@@ -1268,6 +1270,13 @@ class CLIManager:
             help="Disable caching of some commands. This will disable the `--reuse-last` and `--html` flags on "
             "commands such as `subnets metagraph`, `stake show` and `subnets list`.",
         ),
+        disk_cache: Optional[bool] = typer.Option(
+            None,
+            "--disk-cache/--no-disk-cache",
+            " /--no-disk-cache",
+            help="Enables or disables the caching on disk. Enabling this can significantly speed up commands run "
+                 "sequentially"
+        ),
         rate_tolerance: Optional[float] = typer.Option(
             None,
             "--tolerance",
@@ -1314,12 +1323,13 @@ class CLIManager:
             "wallet_hotkey": wallet_hotkey,
             "network": network,
             "use_cache": use_cache,
+            "disk_cache": disk_cache,
             "rate_tolerance": rate_tolerance,
             "safe_staking": safe_staking,
             "allow_partial_stake": allow_partial_stake,
             "dashboard_path": dashboard_path,
         }
-        bools = ["use_cache", "safe_staking", "allow_partial_stake"]
+        bools = ["use_cache", "disk_cache", "safe_staking", "allow_partial_stake"]
         if all(v is None for v in args.values()):
             # Print existing configs
             self.get_config()

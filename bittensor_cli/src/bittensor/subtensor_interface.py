@@ -42,12 +42,6 @@ from bittensor_cli.src.bittensor.utils import (
     get_hotkey_pub_ss58,
 )
 
-SubstrateClass = (
-    DiskCachedAsyncSubstrateInterface
-    if os.getenv("DISK_CACHE", "0") == "1"
-    else AsyncSubstrateInterface
-)
-
 
 class ParamWithTypes(TypedDict):
     name: str  # Name of the parameter.
@@ -81,7 +75,7 @@ class SubtensorInterface:
     Thin layer for interacting with Substrate Interface. Mostly a collection of frequently-used calls.
     """
 
-    def __init__(self, network):
+    def __init__(self, network, use_disk_cache: bool = False):
         if network in Constants.network_map:
             self.chain_endpoint = Constants.network_map[network]
             self.network = network
@@ -111,8 +105,12 @@ class SubtensorInterface:
                 )
                 self.chain_endpoint = Constants.network_map[defaults.subtensor.network]
                 self.network = defaults.subtensor.network
-
-        self.substrate = SubstrateClass(
+        substrate_class = (
+            DiskCachedAsyncSubstrateInterface
+            if (use_disk_cache or os.getenv("DISK_CACHE", "0") == "1")
+            else AsyncSubstrateInterface
+        )
+        self.substrate = substrate_class(
             url=self.chain_endpoint,
             ss58_format=SS58_FORMAT,
             type_registry=TYPE_REGISTRY,
