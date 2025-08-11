@@ -275,7 +275,7 @@ def get_hotkey_wallets_for_wallet(
                 (exists := hotkey_for_name.hotkey_file.exists_on_device())
                 and not hotkey_for_name.hotkey_file.is_encrypted()
                 # and hotkey_for_name.coldkeypub.ss58_address
-                and hotkey_for_name.hotkey.ss58_address
+                and get_hotkey_pub_ss58(hotkey_for_name)
             ):
                 hotkey_wallets.append(hotkey_for_name)
             elif (
@@ -1431,3 +1431,15 @@ def blocks_to_duration(blocks: int) -> str:
             results.append(f"{unit_count}{unit}")
     # Return only the first two non-zero units
     return " ".join(results[:2]) or "0s"
+
+
+def get_hotkey_pub_ss58(wallet: Wallet) -> str:
+    """
+    Helper fn to retrieve the hotkeypub ss58 of a wallet that may have been created before
+    bt-wallet 3.1.1 and thus not have a wallet hotkeypub. In this case, it will return the hotkey
+    SS58.
+    """
+    try:
+        return wallet.hotkeypub.ss58_address
+    except KeyFileError:
+        return wallet.hotkey.ss58_address

@@ -172,7 +172,7 @@ async def transfer_extrinsic(
     if prompt:
         if not Confirm.ask(
             "Do you want to transfer:[bold white]\n"
-            f"  amount: [bright_cyan]{amount}[/bright_cyan]\n"
+            f"  amount: [bright_cyan]{amount if not transfer_all else account_balance}[/bright_cyan]\n"
             f"  from: [light_goldenrod2]{wallet.name}[/light_goldenrod2] : "
             f"[bright_magenta]{wallet.coldkey.ss58_address}\n[/bright_magenta]"
             f"  to: [bright_magenta]{destination}[/bright_magenta]\n  for fee: [bright_cyan]{fee}[/bright_cyan]"

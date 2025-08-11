@@ -58,6 +58,7 @@ from bittensor_cli.src.bittensor.utils import (
     validate_uri,
     prompt_for_subnet_identity,
     validate_rate_tolerance,
+    get_hotkey_pub_ss58,
 )
 from bittensor_cli.src.commands import sudo, wallets, view
 from bittensor_cli.src.commands import weights as weights_cmds
@@ -250,7 +251,7 @@ class Options:
         True,
         "--prompt/--no-prompt",
         " /--yes",
-        "--prompt/--no_prompt",
+        " /--no_prompt",
         " /-y",
         help="Enable or disable interactive prompts.",
     )
@@ -643,8 +644,21 @@ class CLIManager:
             # },
         }
         self.subtensor = None
+
+        if sys.version_info < (3, 10):
+            # For Python 3.9 or lower
+            self.event_loop = asyncio.new_event_loop()
+        else:
+            try:
+                uvloop = importlib.import_module("uvloop")
+                self.event_loop = uvloop.new_event_loop()
+            except ModuleNotFoundError:
+                self.event_loop = asyncio.new_event_loop()
+
         self.config_base_path = os.path.expanduser(defaults.config.base_path)
-        self.config_path = os.path.expanduser(defaults.config.path)
+        self.config_path = os.getenv("BTCLI_CONFIG_PATH") or os.path.expanduser(
+            defaults.config.path
+        )
 
         self.app = typer.Typer(
             rich_markup_mode="rich",
@@ -652,7 +666,12 @@ class CLIManager:
             epilog=_epilog,
             no_args_is_help=True,
         )
-        self.config_app = typer.Typer(epilog=_epilog)
+        self.config_app = typer.Typer(
+            epilog=_epilog,
+            help=f"Allows for getting/setting the config. "
+            f"Default path for the config file is [{COLORS.G.ARG}]{defaults.config.path}[/{COLORS.G.ARG}]. "
+            f"You can set your own with the env var [{COLORS.G.ARG}]BTCLI_CONFIG_PATH[/{COLORS.G.ARG}]",
+        )
         self.wallet_app = typer.Typer(epilog=_epilog)
         self.stake_app = typer.Typer(epilog=_epilog)
         self.sudo_app = typer.Typer(epilog=_epilog)
@@ -773,6 +792,9 @@ class CLIManager:
         self.wallet_app.command(
             "regen-hotkey", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
         )(self.wallet_regen_hotkey)
+        self.wallet_app.command(
+            "regen-hotkeypub", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
+        )(self.wallet_regen_hotkey_pub)
         self.wallet_app.command(
             "new-hotkey", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"]
         )(self.wallet_new_hotkey)
@@ -956,6 +978,10 @@ class CLIManager:
             hidden=True,
         )(self.wallet_regen_hotkey)
         self.wallet_app.command(
+            "regen_hotkeypub",
+            hidden=True,
+        )(self.wallet_regen_hotkey_pub)
+        self.wallet_app.command(
             "new_hotkey",
             hidden=True,
         )(self.wallet_new_hotkey)
@@ -1079,11 +1105,11 @@ class CLIManager:
 
                     self.subtensor = SubtensorInterface(network_)
                 elif self.config["network"]:
-                    self.subtensor = SubtensorInterface(self.config["network"])
                     console.print(
                         f"Using the specified network [{COLORS.G.LINKS}]{self.config['network']}"
                         f"[/{COLORS.G.LINKS}] from config"
                     )
+                    self.subtensor = SubtensorInterface(self.config["network"])
                 else:
                     self.subtensor = SubtensorInterface(defaults.subtensor.network)
         return self.subtensor
@@ -1097,12 +1123,9 @@ class CLIManager:
             initiated = False
             try:
                 if self.subtensor:
-                    async with self.subtensor:
-                        initiated = True
-                        result = await cmd
-                else:
-                    initiated = True
-                    result = await cmd
+                    await self.subtensor.substrate.initialize()
+                initiated = True
+                result = await cmd
                 return result
             except (ConnectionRefusedError, ssl.SSLError, InvalidHandshake):
                 err_console.print(f"Unable to connect to the chain: {self.subtensor}")
@@ -1128,12 +1151,14 @@ class CLIManager:
                     exit_early is True
                 ):  # temporarily to handle multiple run commands in one session
                     try:
+                        if self.subtensor:
+                            await self.subtensor.substrate.close()
                         raise typer.Exit()
                     except Exception as e:  # ensures we always exit cleanly
                         if not isinstance(e, (typer.Exit, RuntimeError)):
                             err_console.print(f"An unknown error has occurred: {e}")
 
-        return self.asyncio_runner(_run())
+        return self.event_loop.run_until_complete(_run())
 
     def main_callback(
         self,
@@ -1183,20 +1208,6 @@ class CLIManager:
         for k, v in config.items():
             if k in self.config.keys():
                 self.config[k] = v
-
-        if sys.version_info < (3, 10):
-            # For Python 3.9 or lower
-            self.asyncio_runner = asyncio.get_event_loop().run_until_complete
-        else:
-            try:
-                uvloop = importlib.import_module("uvloop")
-                if sys.version_info >= (3, 11):
-                    self.asyncio_runner = uvloop.run
-                else:
-                    uvloop.install()
-                    self.asyncio_runner = asyncio.run
-            except ModuleNotFoundError:
-                self.asyncio_runner = asyncio.run
 
     def verbosity_handler(
         self, quiet: bool, verbose: bool, json_output: bool = False
@@ -1502,6 +1513,8 @@ class CLIManager:
             Column("[bold white]Value", style="gold1"),
             Column("", style="medium_purple"),
             box=box.SIMPLE_HEAD,
+            title=f"[{COLORS.G.HEADER}]BTCLI Config[/{COLORS.G.HEADER}]: "
+            f"[{COLORS.G.ARG}]{self.config_path}[/{COLORS.G.ARG}]",
         )
 
         for key, value in self.config.items():
@@ -1722,7 +1735,7 @@ class CLIManager:
         if return_wallet_and_hotkey:
             valid = utils.is_valid_wallet(wallet)
             if valid[1]:
-                return wallet, wallet.hotkey.ss58_address
+                return wallet, get_hotkey_pub_ss58(wallet)
             else:
                 if wallet_hotkey and is_valid_ss58_address(wallet_hotkey):
                     return wallet, wallet_hotkey
@@ -2229,14 +2242,15 @@ class CLIManager:
 
         if not wallet_path:
             wallet_path = Prompt.ask(
-                "Enter the path for the wallets directory", default=defaults.wallet.path
+                "Enter the path for the wallets directory",
+                default=self.config.get("wallet_path") or defaults.wallet.path,
             )
             wallet_path = os.path.expanduser(wallet_path)
 
         if not wallet_name:
             wallet_name = Prompt.ask(
                 f"Enter the name of the [{COLORS.G.CK}]new wallet (coldkey)",
-                default=defaults.wallet.name,
+                default=self.config.get("wallet_name") or defaults.wallet.name,
             )
 
         wallet = Wallet(wallet_name, wallet_hotkey, wallet_path)
@@ -2280,7 +2294,7 @@ class CLIManager:
 
         EXAMPLE
 
-        [green]$[/green] btcli wallet regen_coldkeypub --ss58_address 5DkQ4...
+        [green]$[/green] btcli wallet regen-coldkeypub --ss58_address 5DkQ4...
 
         [bold]Note[/bold]: This command is particularly useful for users who need to regenerate their coldkeypub, perhaps due to file corruption or loss. You will need either ss58 address or public hex key from your old coldkeypub.txt for the wallet. It is a recovery-focused utility that ensures continued access to your wallet functionalities.
         """
@@ -2288,13 +2302,14 @@ class CLIManager:
 
         if not wallet_path:
             wallet_path = Prompt.ask(
-                "Enter the path to the wallets directory", default=defaults.wallet.path
+                "Enter the path to the wallets directory",
+                default=self.config.get("wallet_path") or defaults.wallet.path,
             )
             wallet_path = os.path.expanduser(wallet_path)
 
         if not wallet_name:
             wallet_name = Prompt.ask(
-                f"Enter the name of the [{COLORS.G.CK}]new wallet (coldkey)",
+                f"Enter the name of the [{COLORS.G.CK}]wallet for the new coldkeypub",
                 default=defaults.wallet.name,
             )
         wallet = Wallet(wallet_name, wallet_hotkey, wallet_path)
@@ -2311,7 +2326,7 @@ class CLIManager:
             address=ss58_address if ss58_address else public_key_hex
         ):
             rich.print("[red]Error: Invalid SS58 address or public key![/red]")
-            raise typer.Exit()
+            return
         return self._run_command(
             wallets.regen_coldkey_pub(
                 wallet, ss58_address, public_key_hex, overwrite, json_output
@@ -2377,6 +2392,68 @@ class CLIManager:
             )
         )
 
+    def wallet_regen_hotkey_pub(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        public_key_hex: Optional[str] = Options.public_hex_key,
+        ss58_address: Optional[str] = Options.ss58_address,
+        overwrite: bool = Options.overwrite,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Regenerates the public part of a hotkey (hotkeypub.txt) for a wallet.
+
+        Use this command when you need to move machine for subnet mining. Use the public key or SS58 address from your hotkeypub.txt that you have on another machine to regenerate the hotkeypub.txt on this new machine.
+
+        USAGE
+
+        The command requires either a public key in hexadecimal format or an ``SS58`` address from the existing hotkeypub.txt from old machine to regenerate the coldkeypub on the new machine.
+
+        EXAMPLE
+
+        [green]$[/green] btcli wallet regen-hotkeypub --ss58_address 5DkQ4...
+
+        [bold]Note[/bold]: This command is particularly useful for users who need to regenerate their hotkeypub, perhaps due to file corruption or loss. You will need either ss58 address or public hex key from your old hotkeypub.txt for the wallet. It is a recovery-focused utility that ensures continued access to your wallet functionalities.
+        """
+        self.verbosity_handler(quiet, verbose, json_output)
+
+        if not wallet_path:
+            wallet_path = Prompt.ask(
+                "Enter the path to the wallets directory",
+                default=self.config.get("wallet_path") or defaults.wallet.path,
+            )
+            wallet_path = os.path.expanduser(wallet_path)
+
+        if not wallet_name:
+            wallet_name = Prompt.ask(
+                f"Enter the name of the [{COLORS.G.CK}]wallet for the new hotkeypub",
+                default=defaults.wallet.name,
+            )
+        wallet = Wallet(wallet_name, wallet_hotkey, wallet_path)
+
+        if not ss58_address and not public_key_hex:
+            prompt_answer = typer.prompt(
+                "Enter the ss58_address or the public key in hex"
+            )
+            if prompt_answer.startswith("0x"):
+                public_key_hex = prompt_answer
+            else:
+                ss58_address = prompt_answer
+        if not utils.is_valid_bittensor_address_or_public_key(
+            address=ss58_address if ss58_address else public_key_hex
+        ):
+            rich.print("[red]Error: Invalid SS58 address or public key![/red]")
+            return False
+        return self._run_command(
+            wallets.regen_hotkey_pub(
+                wallet, ss58_address, public_key_hex, overwrite, json_output
+            )
+        )
+
     def wallet_new_hotkey(
         self,
         wallet_name: Optional[str] = Options.wallet_name,
@@ -2417,7 +2494,7 @@ class CLIManager:
         if not wallet_name:
             wallet_name = Prompt.ask(
                 f"Enter the [{COLORS.G.CK}]wallet name",
-                default=defaults.wallet.name,
+                default=self.config.get("wallet_name") or defaults.wallet.name,
             )
 
         if not wallet_hotkey:
@@ -2472,11 +2549,11 @@ class CLIManager:
         if not wallet_hotkey:
             wallet_hotkey = Prompt.ask(
                 "Enter the [blue]hotkey[/blue] name or "
-                "[blue]hotkey ss58 address[/blue] [dim](to associate with your coldkey)[/dim]"
+                "[blue]hotkey ss58 address[/blue] [dim](to associate with your coldkey)[/dim]",
+                default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
             )
 
-        hotkey_display = None
-        if is_valid_ss58_address(wallet_hotkey):
+        if wallet_hotkey and is_valid_ss58_address(wallet_hotkey):
             hotkey_ss58 = wallet_hotkey
             wallet = self.wallet_ask(
                 wallet_name,
@@ -2496,8 +2573,11 @@ class CLIManager:
                 ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
                 validate=WV.WALLET_AND_HOTKEY,
             )
-            hotkey_ss58 = wallet.hotkey.ss58_address
-            hotkey_display = f"hotkey [blue]{wallet_hotkey}[/blue] [{COLORS.GENERAL.HK}]({hotkey_ss58})[/{COLORS.GENERAL.HK}]"
+            hotkey_ss58 = get_hotkey_pub_ss58(wallet)
+            hotkey_display = (
+                f"hotkey [blue]{wallet_hotkey}[/blue] "
+                f"[{COLORS.GENERAL.HK}]({hotkey_ss58})[/{COLORS.GENERAL.HK}]"
+            )
 
         return self._run_command(
             wallets.associate_hotkey(
@@ -2544,13 +2624,14 @@ class CLIManager:
 
         if not wallet_path:
             wallet_path = Prompt.ask(
-                "Enter the path to the wallets directory", default=defaults.wallet.path
+                "Enter the path to the wallets directory",
+                default=self.config.get("wallet_path") or defaults.wallet.path,
             )
 
         if not wallet_name:
             wallet_name = Prompt.ask(
                 f"Enter the name of the [{COLORS.G.CK}]new wallet (coldkey)",
-                default=defaults.wallet.name,
+                default=self.config.get("wallet_name") or defaults.wallet.name,
             )
 
         wallet = self.wallet_ask(
@@ -2623,7 +2704,8 @@ class CLIManager:
 
         if not wallet_ss58_address:
             wallet_ss58_address = Prompt.ask(
-                "Enter [blue]wallet name[/blue] or [blue]SS58 address[/blue] [dim](leave blank to show all pending swaps)[/dim]"
+                "Enter [blue]wallet name[/blue] or [blue]SS58 address[/blue] [dim]"
+                "(leave blank to show all pending swaps)[/dim]"
             )
             if not wallet_ss58_address:
                 return self._run_command(
@@ -2687,18 +2769,18 @@ class CLIManager:
         self.verbosity_handler(quiet, verbose, json_output)
         if not wallet_path:
             wallet_path = Prompt.ask(
-                "Enter the path of wallets directory", default=defaults.wallet.path
+                "Enter the path of wallets directory",
+                default=self.config.get("wallet_path") or defaults.wallet.path,
             )
 
         if not wallet_name:
             wallet_name = Prompt.ask(
                 f"Enter the name of the [{COLORS.G.CK}]new wallet (coldkey)",
-                default=defaults.wallet.name,
             )
         if not wallet_hotkey:
             wallet_hotkey = Prompt.ask(
                 f"Enter the the name of the [{COLORS.G.HK}]new hotkey",
-                default=defaults.wallet.hotkey,
+                default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
             )
 
         wallet = self.wallet_ask(
@@ -3507,7 +3589,7 @@ class CLIManager:
                     ask_for=[WO.NAME, WO.HOTKEY, WO.PATH],
                     validate=WV.WALLET_AND_HOTKEY,
                 )
-                include_hotkeys = wallet.hotkey.ss58_address
+                include_hotkeys = get_hotkey_pub_ss58(wallet)
 
         elif all_hotkeys or include_hotkeys or exclude_hotkeys:
             wallet = self.wallet_ask(
@@ -3971,7 +4053,7 @@ class CLIManager:
                     ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
                     validate=WV.WALLET_AND_HOTKEY,
                 )
-                destination_hotkey = destination_wallet.hotkey.ss58_address
+                destination_hotkey = get_hotkey_pub_ss58(destination_wallet)
         else:
             if is_valid_ss58_address(destination_hotkey):
                 destination_hotkey = destination_hotkey
@@ -4010,7 +4092,7 @@ class CLIManager:
                     ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
                     validate=WV.WALLET_AND_HOTKEY,
                 )
-                origin_hotkey = wallet.hotkey.ss58_address
+                origin_hotkey = get_hotkey_pub_ss58(wallet)
         else:
             if is_valid_ss58_address(wallet_hotkey):
                 origin_hotkey = wallet_hotkey
@@ -4022,7 +4104,7 @@ class CLIManager:
                     ask_for=[],
                     validate=WV.WALLET_AND_HOTKEY,
                 )
-                origin_hotkey = wallet.hotkey.ss58_address
+                origin_hotkey = get_hotkey_pub_ss58(wallet)
 
         if not interactive_selection:
             if origin_netuid is None:
@@ -4158,7 +4240,8 @@ class CLIManager:
         interactive_selection = False
         if not wallet_hotkey:
             origin_hotkey = Prompt.ask(
-                "Enter the [blue]origin hotkey[/blue] name or ss58 address [bold](stake will be transferred FROM here)[/bold] "
+                "Enter the [blue]origin hotkey[/blue] name or ss58 address [bold]"
+                "(stake will be transferred FROM here)[/bold] "
                 "[dim](or press Enter to select from existing stakes)[/dim]"
             )
             if origin_hotkey == "":
@@ -4174,7 +4257,7 @@ class CLIManager:
                     ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
                     validate=WV.WALLET_AND_HOTKEY,
                 )
-                origin_hotkey = wallet.hotkey.ss58_address
+                origin_hotkey = get_hotkey_pub_ss58(wallet)
         else:
             if is_valid_ss58_address(wallet_hotkey):
                 origin_hotkey = wallet_hotkey
@@ -4186,7 +4269,7 @@ class CLIManager:
                     ask_for=[],
                     validate=WV.WALLET_AND_HOTKEY,
                 )
-                origin_hotkey = wallet.hotkey.ss58_address
+                origin_hotkey = get_hotkey_pub_ss58(wallet)
 
         if not interactive_selection:
             if origin_netuid is None:
@@ -5009,7 +5092,7 @@ class CLIManager:
             "Netuids to show the price for. Separate multiple netuids with a comma, for example: `-n 0,1,2`.",
         ),
         interval_hours: int = typer.Option(
-            24,
+            4,
             "--interval-hours",
             "--interval",
             help="The number of hours to show the historical price for.",
@@ -5025,6 +5108,11 @@ class CLIManager:
             "--log-scale",
             "--log",
             help="Show the price in log scale.",
+        ),
+        current_only: bool = typer.Option(
+            False,
+            "--current",
+            help="Show only the current data, and no historical data.",
         ),
         html_output: bool = Options.html_output,
         quiet: bool = Options.quiet,
@@ -5048,9 +5136,31 @@ class CLIManager:
         [green]$[/green] btcli subnets price --netuids 1,2,3,4 --html
         """
         if json_output and html_output:
-            print_error("Cannot specify both `--json-output` and `--html`")
+            print_error(
+                f"Cannot specify both [{COLORS.G.ARG}]--json-output[/{COLORS.G.ARG}] "
+                f"and [{COLORS.G.ARG}]--html[/{COLORS.G.ARG}]"
+            )
+            return
+        if current_only and html_output:
+            print_error(
+                f"Cannot specify both [{COLORS.G.ARG}]--current[/{COLORS.G.ARG}] "
+                f"and [{COLORS.G.ARG}]--html[/{COLORS.G.ARG}]"
+            )
             return
         self.verbosity_handler(quiet=quiet, verbose=verbose, json_output=json_output)
+
+        subtensor = self.initialize_chain(network)
+        non_archives = ["finney", "latent-lite", "subvortex"]
+        if not current_only and subtensor.network in non_archives + [
+            Constants.network_map[x] for x in non_archives
+        ]:
+            err_console.print(
+                f"[red]Error[/red] Running this command without [{COLORS.G.ARG}]--current[/{COLORS.G.ARG}] requires "
+                "use of an archive node. "
+                f"Try running again with the [{COLORS.G.ARG}]--network archive[/{COLORS.G.ARG}] flag."
+            )
+            return False
+
         if netuids:
             netuids = parse_to_list(
                 netuids,
@@ -5080,10 +5190,11 @@ class CLIManager:
 
         return self._run_command(
             price.price(
-                self.initialize_chain(network),
+                subtensor,
                 netuids,
                 all_netuids,
                 interval_hours,
+                current_only,
                 html_output,
                 log_scale,
                 json_output,
