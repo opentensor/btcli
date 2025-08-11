@@ -8,11 +8,10 @@ version = "0.0.1"
 description = "Proprietary Trading Network CLI"
 readme = "README.md"
 authors = [
-    {name = "bittensor.com"},
     {name = "taoshi.io" }
 ]
 license = { file = "LICENSE" }
-scripts = { btcli = "bittensor_cli.cli:main", ptncli = "ptn_cli.ptncli:main" }
+scripts = { ptncli = "ptn_cli.ptncli:main" }
 requires-python = ">=3.9,<3.14"
 dependencies = [
     "wheel",
@@ -67,5 +66,5 @@ classifiers = [
 ]
 
 [tool.setuptools]
-package-dir = {"bittensor_cli" = "bittensor_cli", "ptn_cli" = "ptn_cli" }
+package-dir = { "ptn_cli" = "ptn_cli" }
 include-package-data = true
