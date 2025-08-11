@@ -8,7 +8,6 @@ version = "0.0.1"
 description = "Proprietary Trading Network CLI"
 readme = "README.md"
 authors = [
-    {name = "bittensor.com"},
     {name = "taoshi.io" }
 ]
 license = { file = "LICENSE" }
