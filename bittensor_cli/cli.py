@@ -410,10 +410,15 @@ def get_optional_netuid(netuid: Optional[int], all_netuids: bool) -> Optional[in
         )
         if answer is None:
             return None
+        answer = answer.strip()
         if answer.lower() == "all":
             return None
         else:
-            return int(answer)
+            try:
+                return int(answer)
+            except ValueError:
+                err_console.print(f"Invalid netuid: {answer}")
+                return get_optional_netuid(None, False)
     else:
         return netuid
 
@@ -1264,7 +1269,7 @@ class CLIManager:
         use_cache: Optional[bool] = typer.Option(
             None,
             "--cache/--no-cache",
-            "--cache/--no_cache",
+            " /--no_cache",
             help="Disable caching of some commands. This will disable the `--reuse-last` and `--html` flags on "
             "commands such as `subnets metagraph`, `stake show` and `subnets list`.",
         ),
@@ -4816,7 +4821,7 @@ class CLIManager:
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
         )
-        result = self._run_command(
+        result, err_msg = self._run_command(
             sudo.sudo_set_hyperparameter(
                 wallet,
                 self.initialize_chain(network),
@@ -4828,7 +4833,7 @@ class CLIManager:
             )
         )
         if json_output:
-            json_console.print(json.dumps({"success": result}))
+            json_console.print(json.dumps({"success": result, "err_msg": err_msg}))
         return result
 
     def sudo_get(

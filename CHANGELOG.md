@@ -1,5 +1,15 @@
 # Changelog
 
+## 9.10.1 /2025-08-12
+* Removes double param for `--cache` in `config set` by @thewhaleking in https://github.com/opentensor/btcli/pull/579
+* change root only sudo hyperparams by @thewhaleking in https://github.com/opentensor/btcli/pull/580
+* Better error formatting by @thewhaleking in https://github.com/opentensor/btcli/pull/581
+* Handle optional netuid better by @thewhaleking in https://github.com/opentensor/btcli/pull/582
+* wallet fixes by @thewhaleking in https://github.com/opentensor/btcli/pull/585
+* Adds `moving_price` attr to DynamicInfo by @thewhaleking in https://github.com/opentensor/btcli/pull/583
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.10.0...v9.10.1
+
 ## 9.10.0 /2025-08-06
 * Sets default interval hours for subnets price to 4, bc of rate limiting. by @thewhaleking in https://github.com/opentensor/btcli/pull/568
 * Subnets Price --current + improvements by @thewhaleking in https://github.com/opentensor/btcli/pull/569

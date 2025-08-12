@@ -575,7 +575,9 @@ def format_error_message(error_message: Union[dict, Exception]) -> str:
             err_type = error_message.get("type", err_type)
             err_name = error_message.get("name", err_name)
             err_docs = error_message.get("docs", [err_description])
-            err_description = " ".join(err_docs)
+            err_description = (
+                " ".join(err_docs) if not isinstance(err_docs, str) else err_docs
+            )
             err_description += (
                 f" | Please consult {BT_DOCS_LINK}/errors/subtensor#{err_name.lower()}"
             )
@@ -1441,5 +1443,5 @@ def get_hotkey_pub_ss58(wallet: Wallet) -> str:
     """
     try:
         return wallet.hotkeypub.ss58_address
-    except KeyFileError:
+    except (KeyFileError, AttributeError):
         return wallet.hotkey.ss58_address
