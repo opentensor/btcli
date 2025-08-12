@@ -718,6 +718,7 @@ class DynamicInfo(InfoBase):
     network_registered_at: int
     subnet_identity: Optional[SubnetIdentity]
     subnet_volume: Balance
+    moving_price: float
 
     @classmethod
     def _fix_decoded(cls, decoded: Any) -> "DynamicInfo":
@@ -786,6 +787,7 @@ class DynamicInfo(InfoBase):
             network_registered_at=int(decoded.get("network_registered_at")),
             subnet_identity=subnet_identity,
             subnet_volume=subnet_volume,
+            moving_price=fixed_to_float(decoded["moving_price"], 32),
         )
 
     def tao_to_alpha(self, tao: Balance) -> Balance:
