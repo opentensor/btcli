@@ -452,13 +452,15 @@ async def wallet_create(
         "error": "",
         "data": None,
     }
+
     if uri:
         try:
             keypair = Keypair.create_from_uri(uri)
-            wallet.set_coldkey(keypair=keypair, encrypt=False, overwrite=False)
-            wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=False)
-            wallet.set_hotkey(keypair=keypair, encrypt=False, overwrite=False)
-            wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=False)
+            wallet.set_coldkey(keypair=keypair, encrypt=False, overwrite=overwrite)
+            wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=overwrite)
+            wallet.set_hotkey(keypair=keypair, encrypt=False, overwrite=overwrite)
+            wallet.set_hotkeypub(keypair=keypair, encrypt=False, overwrite=overwrite)
+            wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=overwrite)
             output_dict["success"] = True
             output_dict["data"] = {
                 "name": wallet.name,
