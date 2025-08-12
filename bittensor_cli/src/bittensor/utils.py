@@ -1443,5 +1443,5 @@ def get_hotkey_pub_ss58(wallet: Wallet) -> str:
     """
     try:
         return wallet.hotkeypub.ss58_address
-    except KeyFileError:
+    except (KeyFileError, AttributeError):
         return wallet.hotkey.ss58_address

@@ -410,10 +410,15 @@ def get_optional_netuid(netuid: Optional[int], all_netuids: bool) -> Optional[in
         )
         if answer is None:
             return None
+        answer = answer.strip()
         if answer.lower() == "all":
             return None
         else:
-            return int(answer)
+            try:
+                return int(answer)
+            except ValueError:
+                err_console.print(f"Invalid netuid: {answer}")
+                return get_optional_netuid(None, False)
     else:
         return netuid
 
