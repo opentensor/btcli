@@ -1110,15 +1110,21 @@ class CLIManager:
                             f"[{COLORS.G.ARG}]{', '.join(not_selected_networks)}[/{COLORS.G.ARG}]"
                         )
 
-                    self.subtensor = SubtensorInterface(network_, use_disk_cache=use_disk_cache)
+                    self.subtensor = SubtensorInterface(
+                        network_, use_disk_cache=use_disk_cache
+                    )
                 elif self.config["network"]:
                     console.print(
                         f"Using the specified network [{COLORS.G.LINKS}]{self.config['network']}"
                         f"[/{COLORS.G.LINKS}] from config"
                     )
-                    self.subtensor = SubtensorInterface(self.config["network"], use_disk_cache=use_disk_cache)
+                    self.subtensor = SubtensorInterface(
+                        self.config["network"], use_disk_cache=use_disk_cache
+                    )
                 else:
-                    self.subtensor = SubtensorInterface(defaults.subtensor.network, use_disk_cache=use_disk_cache)
+                    self.subtensor = SubtensorInterface(
+                        defaults.subtensor.network, use_disk_cache=use_disk_cache
+                    )
         return self.subtensor
 
     def _run_command(self, cmd: Coroutine, exit_early: bool = True):
@@ -1280,7 +1286,7 @@ class CLIManager:
             "--disk-cache/--no-disk-cache",
             " /--no-disk-cache",
             help="Enables or disables the caching on disk. Enabling this can significantly speed up commands run "
-                 "sequentially"
+            "sequentially",
         ),
         rate_tolerance: Optional[float] = typer.Option(
             None,
