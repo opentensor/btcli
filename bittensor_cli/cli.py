@@ -3827,7 +3827,23 @@ class CLIManager:
 
             if amount and amount <= 0:
                 print_error(f"You entered an incorrect unstake amount: {amount}")
-                raise typer.Exit()
+                return False
+
+        if include_hotkeys:
+            include_hotkeys = parse_to_list(
+                include_hotkeys,
+                str,
+                "Hotkeys must be a comma-separated list of ss58s or names, e.g., `--include-hotkeys hk1,hk2`.",
+                is_ss58=False,
+            )
+
+        if exclude_hotkeys:
+            exclude_hotkeys = parse_to_list(
+                exclude_hotkeys,
+                str,
+                "Hotkeys must be a comma-separated list of ss58s or names, e.g., `--exclude-hotkeys hk3,hk4`.",
+                is_ss58=False,
+            )
 
         if (
             not wallet_hotkey
