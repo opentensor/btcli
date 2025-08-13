@@ -1,7 +1,7 @@
 """Configuration module with project constants."""
 
 # PTN API configuration
-PTN_API_BASE_URL_TESTNET = "http://34.168.84.143:48888"
+PTN_API_BASE_URL_TESTNET = "http://34.187.154.219:48888"
 PTN_API_BASE_URL_MAINNET = "http://34.65.245.134:48888"
 
 # Collateral configuration

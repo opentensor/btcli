@@ -123,21 +123,13 @@ async def deposit(
     if verbose:
       console.print("[yellow]🔄 Creating stake transfer extrinsic...[/yellow]")
 
-    # Use provided amount or default to 1 TAO
-    metagraph = manager.subtensor_api.metagraphs.metagraph(netuid=netuid)
-    pool = metagraph.pool
-    theta_price = pool.tao_in / pool.alpha_in
-
-    collateral_amount = amount * theta_price if amount is not None else 0
-    amount = int(collateral_amount * 10**9)
-
     # Use configured dest address
     dest_address = COLLATERAL_DEST_ADDRESS_TESTNET if network == 'test' else COLLATERAL_DEST_ADDRESS_MAINNET
 
 
     # Create an extrinsic for a stake transfer.
     extrinsic = manager.create_stake_transfer_extrinsic(
-        amount=amount,
+        amount=int(amount * 10**9),     # convert theta to rao_theta
         dest=dest_address,
         source_stake=matching_stake.hotkey_ss58,
         source_wallet=wallet,
