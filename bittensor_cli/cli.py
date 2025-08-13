@@ -12,7 +12,7 @@ import traceback
 import warnings
 from dataclasses import fields
 from pathlib import Path
-from typing import Coroutine, Optional, Union
+from typing import Coroutine, Optional, Union, Literal
 
 import numpy as np
 import rich
@@ -1671,7 +1671,7 @@ class CLIManager:
         wallet_name: Optional[str],
         wallet_path: Optional[str],
         wallet_hotkey: Optional[str],
-        ask_for: Optional[list[str]] = None,
+        ask_for: Optional[list[Union[str, Literal]]] = None,
         validate: WV = WV.WALLET,
         return_wallet_and_hotkey: bool = False,
     ) -> Union[Wallet, tuple[Wallet, str]]:
