@@ -3860,7 +3860,8 @@ class CLIManager:
                     default=self.config.get("wallet_name") or defaults.wallet.name,
                 )
             hotkey_or_ss58 = Prompt.ask(
-                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake from [dim](or Press Enter to view existing staked hotkeys)[/dim]",
+                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake from [dim]"
+                "(or Press Enter to view existing staked hotkeys)[/dim]",
             )
             if hotkey_or_ss58 == "":
                 wallet = self.wallet_ask(
@@ -3907,7 +3908,8 @@ class CLIManager:
             else:
                 if not hotkey_ss58_address and not wallet_hotkey:
                     hotkey_or_ss58 = Prompt.ask(
-                        "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake all from [dim](or enter 'all' to unstake from all hotkeys)[/dim]",
+                        "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake all from [dim]"
+                        "(or enter 'all' to unstake from all hotkeys)[/dim]",
                         default=self.config.get("wallet_hotkey")
                         or defaults.wallet.hotkey,
                     )
