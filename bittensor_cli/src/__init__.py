@@ -94,6 +94,7 @@ class Defaults:
             "wallet_name": None,
             "wallet_hotkey": None,
             "use_cache": True,
+            "disk_cache": False,
             "metagraph_cols": {
                 "UID": True,
                 "GLOBAL_STAKE": True,

@@ -52,7 +52,17 @@ async def price(
 
             step = 300
             start_block = max(0, current_block - total_blocks)
-            block_numbers = list(range(start_block, current_block + 1, step))
+
+            # snap start block down to nearest multiple of 10
+            start_block -= start_block % 10
+
+            block_numbers = []
+            for b in range(start_block, current_block + 1, step):
+                if b == current_block:
+                    block_numbers.append(b)  # exact current block
+                else:
+                    block_numbers.append(b - (b % 5))  # snap down to multiple of 10
+            block_numbers = sorted(set(block_numbers))
 
             # Block hashes
             block_hash_cors = [
