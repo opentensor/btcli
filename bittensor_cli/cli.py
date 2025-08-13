@@ -1671,9 +1671,7 @@ class CLIManager:
         wallet_name: Optional[str],
         wallet_path: Optional[str],
         wallet_hotkey: Optional[str],
-        ask_for: Optional[
-            list[Union[str, Literal[WO.NAME, WO.PATH, WO.HOTKEY]]]
-        ] = None,
+        ask_for: Optional[list[Literal[WO.NAME, WO.PATH, WO.HOTKEY]]] = None,
         validate: WV = WV.WALLET,
         return_wallet_and_hotkey: bool = False,
     ) -> Union[Wallet, tuple[Wallet, str]]:
