@@ -3987,7 +3987,7 @@ class CLIManager:
             json_console.print_json(
                 data={
                     "success": False,
-                    "err_msg": "Too amibuous to use '--no-prompt' without specifying and amount or "
+                    "err_msg": "Just using '--no-prompt' is too ambiguous without specifying an amount or "
                     "'--unstake-all'/'--unstake-all-alpha'",
                 }
             )
