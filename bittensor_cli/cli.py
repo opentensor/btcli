@@ -3798,11 +3798,11 @@ class CLIManager:
                 "Interactive mode cannot be used with hotkey selection options like "
                 "--include-hotkeys, --exclude-hotkeys, --all-hotkeys, or --hotkey."
             )
-            raise typer.Exit()
+            return False
 
         if unstake_all and unstake_all_alpha:
             print_error("Cannot specify both unstake-all and unstake-all-alpha.")
-            raise typer.Exit()
+            return False
 
         if not interactive and not unstake_all and not unstake_all_alpha:
             netuid = get_optional_netuid(netuid, all_netuids)
@@ -3811,19 +3811,19 @@ class CLIManager:
                     "You have specified hotkeys to include and also the `--all-hotkeys` flag. The flag"
                     " should only be used standalone (to use all hotkeys) or with `--exclude-hotkeys`."
                 )
-                raise typer.Exit()
+                return False
 
             if include_hotkeys and exclude_hotkeys:
                 print_error(
                     "You have specified both including and excluding hotkeys options. Select one or the other."
                 )
-                raise typer.Exit()
+                return False
 
             if unstake_all and amount:
                 print_error(
                     "Cannot specify both a specific amount and 'unstake-all'. Choose one or the other."
                 )
-                raise typer.Exit()
+                return False
 
             if amount and amount <= 0:
                 print_error(f"You entered an incorrect unstake amount: {amount}")
@@ -3891,12 +3891,12 @@ class CLIManager:
             if include_hotkeys:
                 if len(include_hotkeys) > 1:
                     print_error("Cannot unstake_all from multiple hotkeys at once.")
-                    raise typer.Exit()
+                    return False
                 elif is_valid_ss58_address(include_hotkeys[0]):
                     hotkey_ss58_address = include_hotkeys[0]
                 else:
                     print_error("Invalid hotkey ss58 address.")
-                    raise typer.Exit()
+                    return False
             elif all_hotkeys:
                 wallet = self.wallet_ask(
                     wallet_name,
@@ -3981,6 +3981,7 @@ class CLIManager:
                 "Hotkeys must be a comma-separated list of ss58s or names, e.g., `--include-hotkeys hk1,hk2`.",
                 is_ss58=False,
             )
+            return False
 
         if exclude_hotkeys:
             exclude_hotkeys = parse_to_list(
@@ -3989,6 +3990,7 @@ class CLIManager:
                 "Hotkeys must be a comma-separated list of ss58s or names, e.g., `--exclude-hotkeys hk3,hk4`.",
                 is_ss58=False,
             )
+            return False
 
         return self._run_command(
             remove_stake.unstake(
