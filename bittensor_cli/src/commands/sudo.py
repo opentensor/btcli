@@ -34,6 +34,7 @@ if TYPE_CHECKING:
         SubtensorInterface,
         ProposalVoteData,
     )
+    from scalecodec.types import GenericMetadataVersioned
 
 
 # helpers and extrinsics
@@ -91,8 +92,8 @@ def search_metadata(
     param_name: str,
     value: Union[str, bool, float, list[float]],
     netuid: int,
-    metadata,
-    pallet: str = DEFAULT_PALLET,
+    metadata: "GenericMetadataVersioned",
+    pallet_name: str = DEFAULT_PALLET,
 ) -> tuple[bool, Optional[dict]]:
     """
     Searches the substrate metadata AdminUtils pallet for a given parameter name. Crafts a response dict to be used
@@ -103,7 +104,7 @@ def search_metadata(
         value: the value to set the hyperparameter
         netuid: the specified netuid
         metadata: the subtensor.substrate.metadata
-        pallet: the name of the module to use for the query. If not set, the default value is DEFAULT_PALLET
+        pallet_name: the name of the module to use for the query. If not set, the default value is DEFAULT_PALLET
 
     Returns:
         (success, dict of call params)
@@ -125,7 +126,7 @@ def search_metadata(
 
     call_crafter = {"netuid": netuid}
 
-    pallet = metadata.get_metadata_pallet(pallet)
+    pallet = metadata.get_metadata_pallet(pallet_name)
     for call in pallet.calls:
         if call.name == param_name:
             if "netuid" not in [x.name for x in call.args]:
