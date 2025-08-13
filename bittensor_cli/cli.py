@@ -3975,22 +3975,21 @@ class CLIManager:
                 ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
                 validate=WV.WALLET_AND_HOTKEY,
             )
-
-        if include_hotkeys:
-            include_hotkeys = parse_to_list(
-                include_hotkeys,
-                str,
-                "Hotkeys must be a comma-separated list of ss58s or names, e.g., `--include-hotkeys hk1,hk2`.",
-                is_ss58=False,
+        if not amount and not prompt:
+            print_error(
+                f"Too ambiguous to use [{COLORS.G.ARG}]--no-prompt[/{COLORS.G.ARG}]. You need to specify an amount,"
+                f"or use "
+                f"[{COLORS.G.ARG}]--unstake-all[/{COLORS.G.ARG}]/[{COLORS.G.ARG}]--unstake-all-alpha[/{COLORS.G.ARG}]."
             )
             return False
 
-        if exclude_hotkeys:
-            exclude_hotkeys = parse_to_list(
-                exclude_hotkeys,
-                str,
-                "Hotkeys must be a comma-separated list of ss58s or names, e.g., `--exclude-hotkeys hk3,hk4`.",
-                is_ss58=False,
+        if not amount and json_output:
+            json_console.print_json(
+                data={
+                    "success": False,
+                    "err_msg": "Too amibuous to use '--no-prompt' without specifying and amount or "
+                    "'--unstake-all'/'--unstake-all-alpha'",
+                }
             )
             return False
 
