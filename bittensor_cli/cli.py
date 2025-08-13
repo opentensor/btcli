@@ -3977,7 +3977,7 @@ class CLIManager:
             )
         if not amount and not prompt:
             print_error(
-                f"Too ambiguous to use [{COLORS.G.ARG}]--no-prompt[/{COLORS.G.ARG}]. You need to specify an amount,"
+                f"Just using [{COLORS.G.ARG}]--no-prompt[/{COLORS.G.ARG}] is too ambiguous. You need to specify an amount,"
                 f"or use "
                 f"[{COLORS.G.ARG}]--unstake-all[/{COLORS.G.ARG}]/[{COLORS.G.ARG}]--unstake-all-alpha[/{COLORS.G.ARG}]."
             )
