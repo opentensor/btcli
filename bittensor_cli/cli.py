@@ -4035,6 +4035,16 @@ class CLIManager:
                         ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
                         validate=WV.WALLET_AND_HOTKEY,
                     )
+            logger.debug(
+                f"network: {network}\n"
+                f"hotkey_ss58_address: {hotkey_ss58_address}\n"
+                f"unstake_all: {unstake_all}\n"
+                f"unstake_all_alpha: {unstake_all_alpha}\n"
+                f"all_hotkeys: {all_hotkeys}\n"
+                f"include_hotkeys: {include_hotkeys}\n"
+                f"exclude_hotkeys: {exclude_hotkeys}\n"
+                f"era: {period}"
+            )
             return self._run_command(
                 remove_stake.unstake_all(
                     wallet=wallet,
@@ -4085,7 +4095,21 @@ class CLIManager:
                 "Hotkeys must be a comma-separated list of ss58s or names, e.g., `--exclude-hotkeys hk3,hk4`.",
                 is_ss58=False,
             )
-
+        logger.debug(
+            f"network: {network}\n"
+            f"hotkey_ss58_address: {hotkey_ss58_address}\n"
+            f"all_hotkeys: {all_hotkeys}\n"
+            f"include_hotkeys: {include_hotkeys}\n"
+            f"exclude_hotkeys: {exclude_hotkeys}\n"
+            f"amount: {amount}\n"
+            f"prompt: {prompt}\n"
+            f"interactive: {interactive}\n"
+            f"netuid: {netuid}\n"
+            f"safe_staking: {safe_staking}\n"
+            f"rate_tolerance: {rate_tolerance}\n"
+            f"allow_partial_stake: {allow_partial_stake}\n"
+            f"era: {period}"
+        )
         return self._run_command(
             remove_stake.unstake(
                 wallet=wallet,
@@ -4249,7 +4273,18 @@ class CLIManager:
                 destination_netuid = IntPrompt.ask(
                     "Enter the [blue]destination subnet[/blue] (netuid) to move stake to"
                 )
-
+        logger.debug(
+            f"network: {network}\n"
+            f"origin_netuid: {origin_netuid}\n"
+            f"origin_hotkey: {origin_hotkey}\n"
+            f"destination_hotkey: {destination_hotkey}\n"
+            f"destination_netuid: {destination_netuid}\n"
+            f"amount: {amount}\n"
+            f"stake_all: {stake_all}\n"
+            f"era: {period}\n"
+            f"interactive_selection: {interactive_selection}\n"
+            f"prompt: {prompt}\n"
+        )
         result = self._run_command(
             move_stake.move_stake(
                 subtensor=self.initialize_chain(network),
@@ -4414,7 +4449,17 @@ class CLIManager:
                 dest_netuid = IntPrompt.ask(
                     "Enter the [blue]destination subnet[/blue] (netuid)"
                 )
-
+        logger.debug(
+            f"network: {network}\n"
+            f"origin_hotkey: {origin_hotkey}\n"
+            f"origin_netuid: {origin_netuid}\n"
+            f"dest_netuid: {dest_netuid}\n"
+            f"dest_hotkey: {origin_hotkey}\n"
+            f"dest_coldkey_ss58: {dest_ss58}\n"
+            f"amount: {amount}\n"
+            f"era: {period}\n"
+            f"stake_all: {stake_all}"
+        )
         result = self._run_command(
             move_stake.transfer_stake(
                 wallet=wallet,
@@ -4522,7 +4567,18 @@ class CLIManager:
                 )
             if not amount and not swap_all:
                 amount = FloatPrompt.ask("Enter the [blue]amount[/blue] to swap")
-
+        logger.debug(
+            f"network: {network}\n"
+            f"origin_netuid: {origin_netuid}\n"
+            f"dest_netuid: {dest_netuid}\n"
+            f"amount: {amount}\n"
+            f"swap_all: {swap_all}\n"
+            f"era: {period}\n"
+            f"interactive_selection: {interactive_selection}\n"
+            f"prompt: {prompt}\n"
+            f"wait_for_inclusion: {wait_for_inclusion}\n"
+            f"wait_for_finalization: {wait_for_finalization}\n"
+        )
         result = self._run_command(
             move_stake.swap_stake(
                 wallet=wallet,
@@ -4671,6 +4727,14 @@ class CLIManager:
             ask_for=[WO.NAME, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
+        logger.debug(
+            f"network: {network}\n"
+            f"netuid: {netuid}\n"
+            f"children: {children}\n"
+            f"proportions: {proportions}\n"
+            f"wait_for_inclusion: {wait_for_inclusion}\n"
+            f"wait_for_finalization: {wait_for_finalization}\n"
+        )
         return self._run_command(
             children_hotkeys.set_children(
                 wallet=wallet,
@@ -4736,6 +4800,12 @@ class CLIManager:
             netuid = IntPrompt.ask(
                 "Enter netuid (leave blank for all)", default=None, show_default=True
             )
+        logger.debug(
+            f"network: {network}\n"
+            f"netuid: {netuid}\n"
+            f"wait_for_inclusion: {wait_for_inclusion}\n"
+            f"wait_for_finalization: {wait_for_finalization}\n"
+        )
         return self._run_command(
             children_hotkeys.revoke_children(
                 wallet,
@@ -4814,6 +4884,13 @@ class CLIManager:
             netuid = IntPrompt.ask(
                 "Enter netuid (leave blank for all)", default=None, show_default=True
             )
+        logger.debug(
+            f"network: {network}\n"
+            f"netuid: {netuid}\n"
+            f"take: {take}\n"
+            f"wait_for_inclusion: {wait_for_inclusion}\n"
+            f"wait_for_finalization: {wait_for_finalization}\n"
+        )
         results: list[tuple[Optional[int], bool]] = self._run_command(
             children_hotkeys.childkey_take(
                 wallet=wallet,
@@ -4949,6 +5026,12 @@ class CLIManager:
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
         )
+        logger.debug(
+            f"network: {network}\n"
+            f"netuid: {netuid}\n"
+            f"param_name: {param_name}\n"
+            f"param_value: {param_value}"
+        )
         result, err_msg = self._run_command(
             sudo.sudo_set_hyperparameter(
                 wallet,
@@ -5069,6 +5152,7 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
+        logger.debug(f"network: {network}\nproposal: {proposal}\nvote: {vote}\n")
         return self._run_command(
             sudo.senate_vote(
                 wallet, self.initialize_chain(network), proposal, vote, prompt
@@ -5121,7 +5205,7 @@ class CLIManager:
                 f"Take value must be between {min_value} and {max_value}. Provided value: {take}"
             )
             raise typer.Exit()
-
+        logger.debug(f"network: {network}\ntake: {take}")
         result = self._run_command(
             sudo.set_take(wallet, self.initialize_chain(network), take)
         )
@@ -5465,6 +5549,7 @@ class CLIManager:
             logo_url=logo_url,
             additional=additional_info,
         )
+        logger.debug(f"network: {network}\nidentity: {identity}\n")
         self._run_command(
             subnets.create(
                 wallet, self.initialize_chain(network), identity, json_output, prompt
@@ -5526,6 +5611,7 @@ class CLIManager:
             ],
             validate=WV.WALLET,
         )
+        logger.debug(f"network: {network}\nnetuid: {netuid}\n")
         return self._run_command(
             subnets.start_subnet(
                 wallet,
@@ -5641,7 +5727,7 @@ class CLIManager:
             logo_url=logo_url,
             additional=additional_info,
         )
-
+        logger.debug(f"network: {network}\nnetuid: {netuid}\nidentity: {identity}")
         success = self._run_command(
             subnets.set_identity(
                 wallet, self.initialize_chain(network), netuid, identity, prompt
@@ -5779,6 +5865,7 @@ class CLIManager:
             ask_for=[WO.NAME, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
+        logger.debug(f"network: {network}\nnetuid: {netuid}\nperiod: {period}\n")
         return self._run_command(
             subnets.register(
                 wallet,
@@ -5976,7 +6063,6 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
-
         return self._run_command(
             weights_cmds.reveal_weights(
                 self.initialize_chain(network),
@@ -6222,7 +6308,13 @@ class CLIManager:
         if price_low >= price_high:
             err_console.print("The low price must be lower than the high price.")
             return False
-
+        logger.debug(
+            f"hotkey: {hotkey}\n"
+            f"netuid: {netuid}\n"
+            f"liquidity: {liquidity_}\n"
+            f"price_low: {price_low}\n"
+            f"price_high: {price_high}\n"
+        )
         return self._run_command(
             liquidity.add_liquidity(
                 subtensor=self.initialize_chain(network),
@@ -6323,6 +6415,13 @@ class CLIManager:
             validate=WV.WALLET,
             return_wallet_and_hotkey=True,
         )
+        logger.debug(
+            f"network: {network}\n"
+            f"hotkey: {hotkey}\n"
+            f"netuid: {netuid}\n"
+            f"position_id: {position_id}\n"
+            f"all_liquidity_ids: {all_liquidity_ids}\n"
+        )
         return self._run_command(
             liquidity.remove_liquidity(
                 subtensor=self.initialize_chain(network),
@@ -6387,6 +6486,13 @@ class CLIManager:
                 f"[blue]{position_id}[/blue] (can be positive or negative)",
                 negative_allowed=True,
             )
+        logger.debug(
+            f"network: {network}\n"
+            f"hotkey: {hotkey}\n"
+            f"netuid: {netuid}\n"
+            f"position_id: {position_id}\n"
+            f"liquidity_delta: {liquidity_delta}"
+        )
 
         return self._run_command(
             liquidity.modify_liquidity(
