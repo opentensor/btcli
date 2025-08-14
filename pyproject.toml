@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ptn-cli"
-version = "1.0.0"
+version = "1.0.1"
 description = "Proprietary Trading Network CLI"
 readme = "README.md"
 authors = [
@@ -15,7 +15,7 @@ scripts = { ptncli = "ptn_cli.ptncli:main" }
 requires-python = ">=3.9,<3.14"
 dependencies = [
     "wheel",
-    "collateral_sdk @ git+https://github.com/taoshidev/collateral_sdk",
+    "collateral_sdk @ git+https://github.com/taoshidev/collateral_sdk.git@1.0.4",
     "async-substrate-interface>=1.4.2",
     "aiohttp~=3.10.2",
     "backoff~=2.2.1",
