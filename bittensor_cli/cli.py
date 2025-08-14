@@ -4160,7 +4160,6 @@ class CLIManager:
             f"era: {period}"
         )
 
-
         return self._run_command(
             remove_stake.unstake(
                 wallet=wallet,
