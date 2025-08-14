@@ -3972,9 +3972,8 @@ class CLIManager:
             )
         if not amount and not prompt:
             print_error(
-                f"Ambiguous request! Specify [{COLORS.G.ARG}]--amount[/{COLORS.G.ARG}], "
-                f"[{COLORS.G.ARG}]--all[/{COLORS.G.ARG}], "
-                f"or [{COLORS.G.ARG}]--all-alpha[/{COLORS.G.ARG}] to use [{COLORS.G.ARG}]--no-prompt[/{COLORS.G.ARG}]"
+                f"Ambiguous request! Specify {arg__('--amount')}, {arg__('--all')}, or {arg__('--all-alpha')} "
+                f"to use {arg__('--no-prompt')}"
             )
             return False
 
