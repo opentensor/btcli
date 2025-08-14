@@ -174,6 +174,21 @@ BTCLI accepts a few environment variables that can alter how it works:
  - DISK_CACHE (default 0, also settable in config): If set to 1 (or set in config), will use disk caching for various safe-cachable substrate
 calls (such as block number to block hash mapping), which can speed up subsequent calls.
  - BTCLI_CONFIG_PATH (default `~/.bittensor/config.yml`): This will set the config file location, creating if it does not exist.
+ - BTCLI_DEBUG_FILE (default `~/.bittensor/debug.txt`): The file stores the most recent's command's debug log. 
+
+---
+
+## Debugging
+BTCLI will store a debug log for every command run. This file is overwritten for each new command run. The default location
+of this file is `~/.bittensor/debug.txt` and can be set with the `BTCLI_DEBUG_FILE` env var (see above section).
+
+The debug log will **NOT** contain any sensitive data (private keys), and is intended to be sent to the developers
+for debugging. This file contains basic information about the command being run, the config, and the back and forth of requests and responses
+to and from the chain.
+
+If you encounter an issue, and would like to save the file somewhere it won't be overwritten, run `btcli --debug`,
+and set the save file location. We recommend doing this first before anything, and then starting your debugging with
+us on our [Discord](https://discord.gg/bittensor).
 
 ---
 
