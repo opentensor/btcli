@@ -135,10 +135,13 @@ You can set the commonly used values, such as your hotkey and coldkey names, the
 The default location of the config file is: `~/.bittensor/config.yml`. An example of a `config.yml` is shown below:
 
 ```yaml
-chain: ws://127.0.0.1:9945
 network: local
-no_cache: False
-wallet_hotkey: hotkey-user1
+use_cache: true
+dashboard_path: null
+disk_cache: false
+rate_tolerance: null
+safe_staking: true
+wallet_hotkey: default
 wallet_name: coldkey-user1
 wallet_path: ~/.bittensor/wallets
 metagraph_cols:
@@ -164,6 +167,13 @@ metagraph_cols:
 ```bash
 btcli config --help
 ```
+
+### ENV VARS
+BTCLI accepts a few environment variables that can alter how it works:
+ - USE_TORCH (default 0): If set to 1, will use torch instead of numpy
+ - DISK_CACHE (default 0, also settable in config): If set to 1 (or set in config), will use disk caching for various safe-cachable substrate
+calls (such as block number to block hash mapping), which can speed up subsequent calls.
+ - BTCLI_CONFIG_PATH (default `~/.bittensor/config.yml`): This will set the config file location, creating if it does not exist.
 
 ---
 
