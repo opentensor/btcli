@@ -3977,9 +3977,9 @@ class CLIManager:
             )
         if not amount and not prompt:
             print_error(
-                f"Using [{COLORS.G.ARG}]--no-prompt[/{COLORS.G.ARG}] without an amount/'all' is too ambiguous. "
-                f"You need to specify an [{COLORS.G.ARG}]--amount[/{COLORS.G.ARG}] or use "
-                f"[{COLORS.G.ARG}]--unstake-all[/{COLORS.G.ARG}]/[{COLORS.G.ARG}]--unstake-all-alpha[/{COLORS.G.ARG}]."
+                f"Ambiguous request! Specify [{COLORS.G.ARG}]--amount[/{COLORS.G.ARG}], "
+                f"[{COLORS.G.ARG}]--all[/{COLORS.G.ARG}], "
+                f"or [{COLORS.G.ARG}]--all-alpha[/{COLORS.G.ARG}] to use [{COLORS.G.ARG}]--no-prompt[/{COLORS.G.ARG}]"
             )
             return False
 
@@ -3987,8 +3987,8 @@ class CLIManager:
             json_console.print_json(
                 data={
                     "success": False,
-                    "err_msg": "Using '--json-output' without an amount/'all' is too ambiguous. You need to specify an "
-                    "'--amount' or use '--unstake-all'/'--unstake-all-alpha'",
+                    "err_msg": "Ambiguous request! Specify '--amount', '--all', "
+                    "or '--all-alpha' to use '--json-output'",
                 }
             )
             return False
