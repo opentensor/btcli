@@ -594,7 +594,29 @@ def commands_callback(value: bool):
     if value:
         cli = CLIManager()
         console.print(cli.generate_command_tree())
-        raise typer.Exit()
+
+
+def debug_callback(value: bool):
+    if value:
+        save_file_loc_ = Prompt.ask(
+            "Enter the file location to save the debug log for the previous command.",
+            default="~/.bittensor/debug-export",
+        ).strip()
+        save_file_loc = os.path.expanduser(save_file_loc_)
+        try:
+            with (
+                open(save_file_loc, "w+") as save_file,
+                open(
+                    os.getenv("BTCLI_DEBUG_FILE")
+                    or os.path.expanduser(defaults.config.debug_file_path),
+                    "r",
+                ) as current_file,
+            ):
+                save_file.write(current_file.read())
+                console.print(f"Saved debug log to {save_file_loc}")
+        except FileNotFoundError:
+            print_error(f"The filepath '{save_file_loc}' does not exist.")
+    raise typer.Exit()
 
 
 class CLIManager:
@@ -1190,6 +1212,14 @@ class CLIManager:
             Optional[bool],
             typer.Option(
                 "--commands", callback=commands_callback, help="Show BTCLI commands"
+            ),
+        ] = None,
+        debug_log: Annotated[
+            Optional[bool],
+            typer.Option(
+                "--debug",
+                callback=debug_callback,
+                help="Saves the debug log from the last used command",
             ),
         ] = None,
     ):
