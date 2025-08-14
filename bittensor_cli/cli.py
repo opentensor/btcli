@@ -13,7 +13,7 @@ import traceback
 import warnings
 from dataclasses import fields
 from pathlib import Path
-from typing import Coroutine, Optional, Union
+from typing import Coroutine, Optional, Union, Literal
 
 import numpy as np
 import rich
@@ -1735,7 +1735,7 @@ class CLIManager:
         wallet_name: Optional[str],
         wallet_path: Optional[str],
         wallet_hotkey: Optional[str],
-        ask_for: Optional[list[str]] = None,
+        ask_for: Optional[list[Literal[WO.NAME, WO.PATH, WO.HOTKEY]]] = None,
         validate: WV = WV.WALLET,
         return_wallet_and_hotkey: bool = False,
     ) -> Union[Wallet, tuple[Wallet, str]]:
@@ -3940,11 +3940,11 @@ class CLIManager:
                 "Interactive mode cannot be used with hotkey selection options like "
                 "--include-hotkeys, --exclude-hotkeys, --all-hotkeys, or --hotkey."
             )
-            raise typer.Exit()
+            return False
 
         if unstake_all and unstake_all_alpha:
             print_error("Cannot specify both unstake-all and unstake-all-alpha.")
-            raise typer.Exit()
+            return False
 
         if not interactive and not unstake_all and not unstake_all_alpha:
             netuid = get_optional_netuid(netuid, all_netuids)
@@ -3953,23 +3953,39 @@ class CLIManager:
                     "You have specified hotkeys to include and also the `--all-hotkeys` flag. The flag"
                     " should only be used standalone (to use all hotkeys) or with `--exclude-hotkeys`."
                 )
-                raise typer.Exit()
+                return False
 
             if include_hotkeys and exclude_hotkeys:
                 print_error(
                     "You have specified both including and excluding hotkeys options. Select one or the other."
                 )
-                raise typer.Exit()
+                return False
 
             if unstake_all and amount:
                 print_error(
                     "Cannot specify both a specific amount and 'unstake-all'. Choose one or the other."
                 )
-                raise typer.Exit()
+                return False
 
             if amount and amount <= 0:
                 print_error(f"You entered an incorrect unstake amount: {amount}")
-                raise typer.Exit()
+                return False
+
+        if include_hotkeys:
+            include_hotkeys = parse_to_list(
+                include_hotkeys,
+                str,
+                "Hotkeys must be a comma-separated list of ss58s or names, e.g., `--include-hotkeys hk1,hk2`.",
+                is_ss58=False,
+            )
+
+        if exclude_hotkeys:
+            exclude_hotkeys = parse_to_list(
+                exclude_hotkeys,
+                str,
+                "Hotkeys must be a comma-separated list of ss58s or names, e.g., `--exclude-hotkeys hk3,hk4`.",
+                is_ss58=False,
+            )
 
         if (
             not wallet_hotkey
@@ -3986,7 +4002,8 @@ class CLIManager:
                     default=self.config.get("wallet_name") or defaults.wallet.name,
                 )
             hotkey_or_ss58 = Prompt.ask(
-                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake from [dim](or Press Enter to view existing staked hotkeys)[/dim]",
+                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake from [dim]"
+                "(or Press Enter to view existing staked hotkeys)[/dim]",
             )
             if hotkey_or_ss58 == "":
                 wallet = self.wallet_ask(
@@ -4017,12 +4034,12 @@ class CLIManager:
             if include_hotkeys:
                 if len(include_hotkeys) > 1:
                     print_error("Cannot unstake_all from multiple hotkeys at once.")
-                    raise typer.Exit()
+                    return False
                 elif is_valid_ss58_address(include_hotkeys[0]):
                     hotkey_ss58_address = include_hotkeys[0]
                 else:
                     print_error("Invalid hotkey ss58 address.")
-                    raise typer.Exit()
+                    return False
             elif all_hotkeys:
                 wallet = self.wallet_ask(
                     wallet_name,
@@ -4033,7 +4050,8 @@ class CLIManager:
             else:
                 if not hotkey_ss58_address and not wallet_hotkey:
                     hotkey_or_ss58 = Prompt.ask(
-                        "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake all from [dim](or enter 'all' to unstake from all hotkeys)[/dim]",
+                        "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake all from [dim]"
+                        "(or enter 'all' to unstake from all hotkeys)[/dim]",
                         default=self.config.get("wallet_hotkey")
                         or defaults.wallet.hotkey,
                     )
@@ -4109,22 +4127,23 @@ class CLIManager:
                 ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
                 validate=WV.WALLET_AND_HOTKEY,
             )
-
-        if include_hotkeys:
-            include_hotkeys = parse_to_list(
-                include_hotkeys,
-                str,
-                "Hotkeys must be a comma-separated list of ss58s or names, e.g., `--include-hotkeys hk1,hk2`.",
-                is_ss58=False,
+        if not amount and not prompt:
+            print_error(
+                f"Ambiguous request! Specify [{COLORS.G.ARG}]--amount[/{COLORS.G.ARG}], "
+                f"[{COLORS.G.ARG}]--all[/{COLORS.G.ARG}], "
+                f"or [{COLORS.G.ARG}]--all-alpha[/{COLORS.G.ARG}] to use [{COLORS.G.ARG}]--no-prompt[/{COLORS.G.ARG}]"
             )
+            return False
 
-        if exclude_hotkeys:
-            exclude_hotkeys = parse_to_list(
-                exclude_hotkeys,
-                str,
-                "Hotkeys must be a comma-separated list of ss58s or names, e.g., `--exclude-hotkeys hk3,hk4`.",
-                is_ss58=False,
+        if not amount and json_output:
+            json_console.print_json(
+                data={
+                    "success": False,
+                    "err_msg": "Ambiguous request! Specify '--amount', '--all', "
+                    "or '--all-alpha' to use '--json-output'",
+                }
             )
+            return False
         logger.debug(
             f"network: {network}\n"
             f"hotkey_ss58_address: {hotkey_ss58_address}\n"
@@ -4140,6 +4159,8 @@ class CLIManager:
             f"allow_partial_stake: {allow_partial_stake}\n"
             f"era: {period}"
         )
+
+
         return self._run_command(
             remove_stake.unstake(
                 wallet=wallet,
