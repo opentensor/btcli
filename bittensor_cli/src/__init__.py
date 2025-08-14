@@ -88,6 +88,7 @@ class Defaults:
     class config:
         base_path = "~/.bittensor"
         path = "~/.bittensor/config.yml"
+        debug_file_path = "~/.bittensor/debug.txt"
         dictionary = {
             "network": None,
             "wallet_path": None,

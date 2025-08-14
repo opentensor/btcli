@@ -4,6 +4,7 @@ import copy
 import curses
 import importlib
 import json
+import logging
 import os.path
 import re
 import ssl
@@ -665,6 +666,9 @@ class CLIManager:
         self.config_path = os.getenv("BTCLI_CONFIG_PATH") or os.path.expanduser(
             defaults.config.path
         )
+        self.debug_file_path = os.getenv("BTCLI_DEBUG_FILE") or os.path.expanduser(
+            defaults.config.debug_file_path
+        )
 
         self.app = typer.Typer(
             rich_markup_mode="rich",
@@ -1221,6 +1225,16 @@ class CLIManager:
         for k, v in config.items():
             if k in self.config.keys():
                 self.config[k] = v
+        if self.config.get("use_cache", False):
+            with open(self.debug_file_path, "w+") as f:
+                f.write(f"BTCLI {__version__}\nCommand: {' '.join(sys.argv)}\n\n")
+            asi_logger = logging.getLogger("async_substrate_interface")
+            asi_logger.setLevel(logging.DEBUG)
+            formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(module)s:%(lineno)d - %(message)s')
+            handler = logging.FileHandler(self.debug_file_path)
+            handler.setFormatter(formatter)
+            asi_logger.addHandler(handler)
+
 
     def verbosity_handler(
         self, quiet: bool, verbose: bool, json_output: bool = False
