@@ -188,7 +188,8 @@ to and from the chain.
 
 If you encounter an issue, and would like to save the file somewhere it won't be overwritten, run `btcli --debug`,
 and set the save file location. We recommend doing this first before anything, and then starting your debugging with
-us on our [Discord](https://discord.gg/bittensor).
+us on our [Discord](https://discord.gg/bittensor), or by opening an issue on [GitHub](https://github.com/opentensor/btcli/issues/new) 
+(where you can also upload your debug file).
 
 ---
 
