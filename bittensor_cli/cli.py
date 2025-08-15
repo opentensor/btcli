@@ -770,7 +770,7 @@ class CLIManager:
 
         # utils app
         self.app.add_typer(
-            self.utils_app, name="utils", no_args_is_help=True, hidden=True
+            self.utils_app, name="utils", no_args_is_help=True, hidden=False
         )
 
         # view app
