@@ -42,7 +42,10 @@ from bittensor_cli.src import (
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
-from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
+from bittensor_cli.src.bittensor.subtensor_interface import (
+    SubtensorInterface,
+    best_connection,
+)
 from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
@@ -1047,6 +1050,9 @@ class CLIManager:
         self.liquidity_app.command(
             "remove", rich_help_panel=HELP_PANELS["LIQUIDITY"]["LIQUIDITY_MGMT"]
         )(self.liquidity_remove)
+
+        # utils app
+        self.utils_app.command("latency")(self.best_connection)
 
     def generate_command_tree(self) -> Tree:
         """
@@ -6325,6 +6331,57 @@ class CLIManager:
                 "=",
                 f"{Balance.from_tao(tao).rao}{Balance.rao_unit}",
             )
+
+    def best_connection(
+        self,
+        additional_networks: Optional[list[str]] = typer.Option(
+            None,
+            "--network",
+            help="Network(s) to test for the best connection",
+        ),
+    ):
+        f"""
+        This command will give you the latency of all finney-like network in additional to any additional networks you specify via the {arg__("--network")} flag
+        
+        The results are two-fold. One column is the overall time to initialise a connection, send a request, and wait for the result. The second column measures single ping-pong speed once connected.
+        
+        EXAMPLE
+        
+        [green]$[/green] btcli utils latency --network ws://189.234.12.45 --network wss://mysubtensor.duckdns.org
+
+        """
+        additional_networks = additional_networks or []
+        if any(not x.startswith("ws") for x in additional_networks):
+            err_console.print(
+                "Invalid network endpoint. Ensure you are specifying a valid websocket endpoint.",
+            )
+            return False
+        results: dict[str, list[float]] = self._run_command(
+            best_connection(Constants.finney_nodes + (additional_networks or []))
+        )
+        sorted_results = {
+            k: v for k, v in sorted(results.items(), key=lambda item: item[1][0])
+        }
+        table = Table(
+            Column("Network"),
+            Column("End to End Latency", style="cyan"),
+            Column("Single Request Ping", style="cyan"),
+            title="Connection Latencies (seconds)",
+            caption="lower value is faster",
+        )
+        for n_name, (overall_latency, single_request) in sorted_results.items():
+            table.add_row(n_name, str(overall_latency), str(single_request))
+        console.print(table)
+        fastest = next(iter(sorted_results.keys()))
+        if conf_net := self.config.get("network", ""):
+            if not conf_net.startswith("ws") and conf_net in Constants.networks:
+                conf_net = Constants.network_map[conf_net]
+            if conf_net != fastest:
+                console.print(
+                    f"The fastest network is {fastest}. You currently have {conf_net} selected as your default network."
+                    f"\nYou can update this with {arg__(f'btcli config set --network {fastest}')}"
+                )
+        return True
 
     def run(self):
         self.app()
