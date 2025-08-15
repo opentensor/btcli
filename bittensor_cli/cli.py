@@ -6343,11 +6343,11 @@ class CLIManager:
     ):
         """
         This command will give you the latency of all finney-like network in additional to any additional networks you specify via the '--network' flag
-        
+
         The results are three-fold. One column is the overall time to initialise a connection, send the requests, and wait for the results. The second column measures single ping-pong speed once connected. The third makes a real world call to fetch the chain head.
-        
+
         EXAMPLE
-        
+
         [green]$[/green] btcli utils latency --network ws://189.234.12.45 --network wss://mysubtensor.duckdns.org
 
         """
