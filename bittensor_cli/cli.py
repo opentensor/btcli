@@ -93,6 +93,13 @@ _epilog = "Made with [bold red]:heart:[/bold red] by The Openτensor Foundaτion
 np.set_printoptions(precision=8, suppress=True, floatmode="fixed")
 
 
+def arg__(arg_name: str) -> str:
+    """
+    Helper function to 'arg' format a string for rich console
+    """
+    return f"[{COLORS.G.ARG}]{arg_name}[/{COLORS.G.ARG}]"
+
+
 class Options:
     """
     Re-usable typer args
@@ -702,8 +709,8 @@ class CLIManager:
         self.config_app = typer.Typer(
             epilog=_epilog,
             help=f"Allows for getting/setting the config. "
-            f"Default path for the config file is [{COLORS.G.ARG}]{defaults.config.path}[/{COLORS.G.ARG}]. "
-            f"You can set your own with the env var [{COLORS.G.ARG}]BTCLI_CONFIG_PATH[/{COLORS.G.ARG}]",
+            f"Default path for the config file is {arg__(defaults.config.path)}. "
+            f"You can set your own with the env var {arg__('BTCLI_CONFIG_PATH')}",
         )
         self.wallet_app = typer.Typer(epilog=_epilog)
         self.stake_app = typer.Typer(epilog=_epilog)
@@ -1134,7 +1141,7 @@ class CLIManager:
                     if not_selected_networks:
                         console.print(
                             f"Networks not selected: "
-                            f"[{COLORS.G.ARG}]{', '.join(not_selected_networks)}[/{COLORS.G.ARG}]"
+                            f"{arg__(', '.join(not_selected_networks))}"
                         )
 
                     self.subtensor = SubtensorInterface(
@@ -1445,8 +1452,7 @@ class CLIManager:
         if n := args.get("network"):
             if n in Constants.networks:
                 if not Confirm.ask(
-                    f"You provided a network [{COLORS.G.ARG}]{n}[/{COLORS.G.ARG}] which is mapped to "
-                    f"[{COLORS.G.ARG}]{Constants.network_map[n]}[/{COLORS.G.ARG}]\n"
+                    f"You provided a network {arg__(n)} which is mapped to {arg__(Constants.network_map[n])}\n"
                     "Do you want to continue?"
                 ):
                     typer.Exit()
@@ -1461,14 +1467,13 @@ class CLIManager:
                         )
                         args["network"] = known_network
                         if not Confirm.ask(
-                            f"You provided an endpoint [{COLORS.G.ARG}]{n}[/{COLORS.G.ARG}] which is mapped to "
-                            f"[{COLORS.G.ARG}]{known_network}[/{COLORS.G.ARG}]\n"
+                            f"You provided an endpoint {arg__(n)} which is mapped to {arg__(known_network)}\n"
                             "Do you want to continue?"
                         ):
                             raise typer.Exit()
                     else:
                         if not Confirm.ask(
-                            f"You provided a chain endpoint URL [{COLORS.G.ARG}]{n}[/{COLORS.G.ARG}]\n"
+                            f"You provided a chain endpoint URL {arg__(n)}\n"
                             "Do you want to continue?"
                         ):
                             raise typer.Exit()
@@ -1543,18 +1548,12 @@ class CLIManager:
         if not any(args.values()):
             for arg in args.keys():
                 if self.config.get(arg) is not None:
-                    if Confirm.ask(
-                        f"Do you want to clear the [{COLORS.G.ARG}]{arg}[/{COLORS.G.ARG}] config?"
-                    ):
+                    if Confirm.ask(f"Do you want to clear the {arg__(arg)} config?"):
                         logger.debug(f"Config: clearing {arg}.")
                         self.config[arg] = None
-                        console.print(
-                            f"Cleared [{COLORS.G.ARG}]{arg}[/{COLORS.G.ARG}] config and set to 'None'."
-                        )
+                        console.print(f"Cleared {arg__(arg)} config and set to 'None'.")
                     else:
-                        console.print(
-                            f"Skipped clearing [{COLORS.G.ARG}]{arg}[/{COLORS.G.ARG}] config."
-                        )
+                        console.print(f"Skipped clearing {arg__(arg)} config.")
 
         else:
             # Check each specified argument
@@ -1562,22 +1561,19 @@ class CLIManager:
                 if should_clear:
                     if self.config.get(arg) is not None:
                         if Confirm.ask(
-                            f"Do you want to clear the [{COLORS.G.ARG}]{arg}[/{COLORS.G.ARG}]"
+                            f"Do you want to clear the {arg__(arg)}"
                             f" [bold cyan]({self.config.get(arg)})[/bold cyan] config?"
                         ):
                             self.config[arg] = None
                             logger.debug(f"Config: clearing {arg}.")
                             console.print(
-                                f"Cleared [{COLORS.G.ARG}]{arg}[/{COLORS.G.ARG}] config and set to 'None'."
+                                f"Cleared {arg__(arg)} config and set to 'None'."
                             )
                         else:
-                            console.print(
-                                f"Skipped clearing [{COLORS.G.ARG}]{arg}[/{COLORS.G.ARG}] config."
-                            )
+                            console.print(f"Skipped clearing {arg__(arg)} config.")
                     else:
                         console.print(
-                            f"No config set for [{COLORS.G.ARG}]{arg}[/{COLORS.G.ARG}]."
-                            f" Use [{COLORS.G.ARG}]`btcli config set`[/{COLORS.G.ARG}] to set it."
+                            f"No config set for {arg__(arg)}. Use {arg__('btcli config set')} to set it."
                         )
         with open(self.config_path, "w") as f:
             safe_dump(self.config, f)
@@ -1593,8 +1589,7 @@ class CLIManager:
             Column("[bold white]Value", style="gold1"),
             Column("", style="medium_purple"),
             box=box.SIMPLE_HEAD,
-            title=f"[{COLORS.G.HEADER}]BTCLI Config[/{COLORS.G.HEADER}]: "
-            f"[{COLORS.G.ARG}]{self.config_path}[/{COLORS.G.ARG}]",
+            title=f"[{COLORS.G.HEADER}]BTCLI Config[/{COLORS.G.HEADER}]: {arg__(self.config_path)}",
         )
 
         for key, value in self.config.items():
@@ -4146,9 +4141,8 @@ class CLIManager:
             )
         if not amount and not prompt:
             print_error(
-                f"Ambiguous request! Specify [{COLORS.G.ARG}]--amount[/{COLORS.G.ARG}], "
-                f"[{COLORS.G.ARG}]--all[/{COLORS.G.ARG}], "
-                f"or [{COLORS.G.ARG}]--all-alpha[/{COLORS.G.ARG}] to use [{COLORS.G.ARG}]--no-prompt[/{COLORS.G.ARG}]"
+                f"Ambiguous request! Specify {arg__('--amount')}, {arg__('--all')}, or {arg__('--all-alpha')} "
+                f"to use {arg__('--no-prompt')}"
             )
             return False
 
@@ -5050,12 +5044,8 @@ class CLIManager:
                 )
                 return False
             param_name = "alpha_values"
-            low_val = FloatPrompt.ask(
-                f"Enter the new value for [{COLORS.G.ARG}]alpha_low[/{COLORS.G.ARG}]"
-            )
-            high_val = FloatPrompt.ask(
-                f"Enter the new value for [{COLORS.G.ARG}]alpha_high[/{COLORS.G.ARG}]"
-            )
+            low_val = FloatPrompt.ask(f"Enter the new value for {arg__('alpha_low')}")
+            high_val = FloatPrompt.ask(f"Enter the new value for {arg__('alpha_high')}")
             param_value = f"{low_val},{high_val}"
         if param_name == "yuma_version":
             if not prompt:
@@ -5079,7 +5069,7 @@ class CLIManager:
         if param_name == "subnet_is_active":
             err_console.print(
                 f"[{COLORS.SU.HYPERPARAM}]subnet_is_active[/{COLORS.SU.HYPERPARAM}] "
-                f"is set by using [{COLORS.G.ARG}]`btcli subnets start`[/{COLORS.G.ARG}] command."
+                f"is set by using {arg__('btcli subnets start')} command."
             )
             return False
 
@@ -5429,14 +5419,12 @@ class CLIManager:
         """
         if json_output and html_output:
             print_error(
-                f"Cannot specify both [{COLORS.G.ARG}]--json-output[/{COLORS.G.ARG}] "
-                f"and [{COLORS.G.ARG}]--html[/{COLORS.G.ARG}]"
+                f"Cannot specify both {arg__('--json-output')} and {arg__('--html')}"
             )
             return
         if current_only and html_output:
             print_error(
-                f"Cannot specify both [{COLORS.G.ARG}]--current[/{COLORS.G.ARG}] "
-                f"and [{COLORS.G.ARG}]--html[/{COLORS.G.ARG}]"
+                f"Cannot specify both {arg__('--current')} and {arg__('--html')}"
             )
             return
         self.verbosity_handler(quiet=quiet, verbose=verbose, json_output=json_output)
@@ -5447,9 +5435,8 @@ class CLIManager:
             Constants.network_map[x] for x in non_archives
         ]:
             err_console.print(
-                f"[red]Error[/red] Running this command without [{COLORS.G.ARG}]--current[/{COLORS.G.ARG}] requires "
-                "use of an archive node. "
-                f"Try running again with the [{COLORS.G.ARG}]--network archive[/{COLORS.G.ARG}] flag."
+                f"[red]Error[/red] Running this command without {arg__('--current')} requires use of an archive node. "
+                f"Try running again with the {arg__('--network archive')} flag."
             )
             return False
 
