@@ -1259,7 +1259,11 @@ class CLIManager:
         if self.config.get("use_cache", False):
             with open(self.debug_file_path, "w+") as f:
                 f.write(
-                    f"BTCLI {__version__}\nCommand: {' '.join(sys.argv)}\n{self.config}\n\n"
+                    f"BTCLI {__version__}\n"
+                    f"Async-Substrate-Interface: {importlib.metadata.version('async-substrate-interface')}\n"
+                    f"Bittensor-Wallet: {importlib.metadata.version('bittensor-wallet')}\n"
+                    f"Command: {' '.join(sys.argv)}\n"
+                    f"Config: {self.config}\n\n"
                 )
             asi_logger = logging.getLogger("async_substrate_interface")
             asi_logger.setLevel(logging.DEBUG)
