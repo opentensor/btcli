@@ -622,7 +622,7 @@ class CLIManager:
     wallet_app: typer.Typer
     subnets_app: typer.Typer
     weights_app: typer.Typer
-    utils_app = typer.Typer(epilog=_epilog)
+    utils_app: typer.Typer
     view_app: typer.Typer
     asyncio_runner = asyncio
 
@@ -695,6 +695,7 @@ class CLIManager:
         self.weights_app = typer.Typer(epilog=_epilog)
         self.view_app = typer.Typer(epilog=_epilog)
         self.liquidity_app = typer.Typer(epilog=_epilog)
+        self.utils_app = typer.Typer(epilog=_epilog)
 
         # config alias
         self.app.add_typer(
@@ -1052,6 +1053,7 @@ class CLIManager:
         )(self.liquidity_remove)
 
         # utils app
+        self.utils_app.command("convert")(self.convert)
         self.utils_app.command("latency")(self.best_connection)
 
     def generate_command_tree(self) -> Tree:
@@ -6302,7 +6304,6 @@ class CLIManager:
         )
 
     @staticmethod
-    @utils_app.command("convert")
     def convert(
         from_rao: Optional[str] = typer.Option(
             None, "--rao", help="Convert amount from Rao"
@@ -6340,8 +6341,8 @@ class CLIManager:
             help="Network(s) to test for the best connection",
         ),
     ):
-        f"""
-        This command will give you the latency of all finney-like network in additional to any additional networks you specify via the {arg__("--network")} flag
+        """
+        This command will give you the latency of all finney-like network in additional to any additional networks you specify via the '--network' flag
         
         The results are three-fold. One column is the overall time to initialise a connection, send the requests, and wait for the results. The second column measures single ping-pong speed once connected. The third makes a real world call to fetch the chain head.
         
