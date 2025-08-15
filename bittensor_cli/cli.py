@@ -616,7 +616,7 @@ def debug_callback(value: bool):
                 console.print(f"Saved debug log to {save_file_loc}")
         except FileNotFoundError:
             print_error(f"The filepath '{save_file_loc}' does not exist.")
-    raise typer.Exit()
+        raise typer.Exit()
 
 
 class CLIManager:
