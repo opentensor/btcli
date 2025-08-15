@@ -1263,7 +1263,9 @@ class CLIManager:
                     f"Async-Substrate-Interface: {importlib.metadata.version('async-substrate-interface')}\n"
                     f"Bittensor-Wallet: {importlib.metadata.version('bittensor-wallet')}\n"
                     f"Command: {' '.join(sys.argv)}\n"
-                    f"Config: {self.config}\n\n"
+                    f"Config: {self.config}\n"
+                    f"Python: {sys.version}\n"
+                    f"System: {sys.platform}\n\n"
                 )
             asi_logger = logging.getLogger("async_substrate_interface")
             asi_logger.setLevel(logging.DEBUG)
