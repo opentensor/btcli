@@ -6343,7 +6343,7 @@ class CLIManager:
         f"""
         This command will give you the latency of all finney-like network in additional to any additional networks you specify via the {arg__("--network")} flag
         
-        The results are two-fold. One column is the overall time to initialise a connection, send a request, and wait for the result. The second column measures single ping-pong speed once connected.
+        The results are three-fold. One column is the overall time to initialise a connection, send the requests, and wait for the results. The second column measures single ping-pong speed once connected. The third makes a real world call to fetch the chain head.
         
         EXAMPLE
         
@@ -6366,11 +6366,18 @@ class CLIManager:
             Column("Network"),
             Column("End to End Latency", style="cyan"),
             Column("Single Request Ping", style="cyan"),
+            Column("Chain Head Request Latency", style="cyan"),
             title="Connection Latencies (seconds)",
             caption="lower value is faster",
         )
-        for n_name, (overall_latency, single_request) in sorted_results.items():
-            table.add_row(n_name, str(overall_latency), str(single_request))
+        for n_name, (
+            overall_latency,
+            single_request,
+            chain_head,
+        ) in sorted_results.items():
+            table.add_row(
+                n_name, str(overall_latency), str(single_request), str(chain_head)
+            )
         console.print(table)
         fastest = next(iter(sorted_results.keys()))
         if conf_net := self.config.get("network", ""):

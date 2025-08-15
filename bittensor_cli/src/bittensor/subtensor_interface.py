@@ -1664,15 +1664,20 @@ async def best_connection(networks: list[str]):
         networks: list of network URIs
 
     Returns:
-        {network_name: [end_to_end_latency, single_request_latency]}
+        {network_name: [end_to_end_latency, single_request_latency, chain_head_request_latency]}
 
     """
-    results = {n: [0.0, 0.0] for n in networks}
+    results = {}
     for network in networks:
         t1 = time.monotonic()
         async with websockets.connect(network) as websocket:
             pong = await websocket.ping()
             latency = await pong
+            pt1 = time.monotonic()
+            await websocket.send(
+                "{'jsonrpc': '2.0', 'method': 'chain_getHead', 'params': [], 'id': '82'}"
+            )
+            await websocket.recv()
             t2 = time.monotonic()
-        results[network] = [t2 - t1, latency]
+        results[network] = [t2 - t1, latency, t2 - pt1]
     return results
