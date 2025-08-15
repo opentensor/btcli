@@ -1963,6 +1963,7 @@ class CLIManager:
                 "Hotkeys names must be a comma-separated list, e.g., `--exclude-hotkeys hk1,hk2`.",
             )
         logger.debug(
+            "args:\n"
             f"all_wallets: {all_wallets}\n"
             f"sort_by: {sort_by}\n"
             f"sort_order: {sort_order}\n"
@@ -2060,6 +2061,7 @@ class CLIManager:
         elif not amount:
             amount = FloatPrompt.ask("Enter amount (in TAO) to transfer.")
         logger.debug(
+            "args:\n"
             f"destination: {destination_ss58_address}\n"
             f"amount: {amount}\n"
             f"transfer_all: {transfer_all}\n"
@@ -2137,6 +2139,7 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
         logger.debug(
+            "args:\n"
             f"original_wallet: {original_wallet}\n"
             f"new_wallet: {new_wallet}\n"
             f"netuid: {netuid}\n"
@@ -2306,6 +2309,7 @@ class CLIManager:
             validate=WV.WALLET,
         )
         logger.debug(
+            "args:\n"
             f"network {network}\n"
             f"threads_per_block {threads_per_block}\n"
             f"update_interval {update_interval}\n"
@@ -2708,6 +2712,7 @@ class CLIManager:
                 f"[{COLORS.GENERAL.HK}]({hotkey_ss58})[/{COLORS.GENERAL.HK}]"
             )
         logger.debug(
+            "args:\n"
             f"network {network}\n"
             f"hotkey_ss58 {hotkey_ss58}\n"
             f"hotkey_display {hotkey_display}\n"
@@ -2871,6 +2876,7 @@ class CLIManager:
                     print_error("Invalid block number")
                     raise typer.Exit()
         logger.debug(
+            "args:\n"
             f"scheduled_block {scheduled_block}\n"
             f"ss58_address {ss58_address}\n"
             f"network {network}\n"
@@ -3041,6 +3047,7 @@ class CLIManager:
                     validate=validate,
                 )
         logger.debug(
+            "args:\n"
             f"all_balances {all_balances}\n"
             f"ss58_addresses {ss58_addresses}\n"
             f"network {network}"
@@ -3195,7 +3202,7 @@ class CLIManager:
             additional,
             github_repo,
         )
-        logger.debug(f"identity {identity}\nnetwork {network}\n")
+        logger.debug(f"args:\nidentity {identity}\nnetwork {network}\n")
 
         return self._run_command(
             wallets.set_id(
@@ -3458,6 +3465,7 @@ class CLIManager:
             )
             new_wallet_coldkey_ss58 = new_wallet.coldkeypub.ss58_address
         logger.debug(
+            "args:\n"
             f"network {network}\n"
             f"new_coldkey_ss58 {new_wallet_coldkey_ss58}\n"
             f"force_swap {force_swap}"
@@ -3534,6 +3542,7 @@ class CLIManager:
                     wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
                 )
         logger.debug(
+            "args:\n"
             f"coldkey_ss58 {coldkey_ss58}\n"
             f"network {network}\n"
             f"live: {live}\n"
@@ -3809,6 +3818,7 @@ class CLIManager:
                 )
                 raise typer.Exit()
         logger.debug(
+            "args:\n"
             f"network: {network}\n"
             f"netuids: {netuids}\n"
             f"stake_all: {stake_all}\n"
@@ -4090,6 +4100,7 @@ class CLIManager:
                         validate=WV.WALLET_AND_HOTKEY,
                     )
             logger.debug(
+                "args:\n"
                 f"network: {network}\n"
                 f"hotkey_ss58_address: {hotkey_ss58_address}\n"
                 f"unstake_all: {unstake_all}\n"
@@ -4151,6 +4162,7 @@ class CLIManager:
             )
             return False
         logger.debug(
+            "args:\n"
             f"network: {network}\n"
             f"hotkey_ss58_address: {hotkey_ss58_address}\n"
             f"all_hotkeys: {all_hotkeys}\n"
@@ -4330,6 +4342,7 @@ class CLIManager:
                     "Enter the [blue]destination subnet[/blue] (netuid) to move stake to"
                 )
         logger.debug(
+            "args:\n"
             f"network: {network}\n"
             f"origin_netuid: {origin_netuid}\n"
             f"origin_hotkey: {origin_hotkey}\n"
@@ -4506,6 +4519,7 @@ class CLIManager:
                     "Enter the [blue]destination subnet[/blue] (netuid)"
                 )
         logger.debug(
+            "args:\n"
             f"network: {network}\n"
             f"origin_hotkey: {origin_hotkey}\n"
             f"origin_netuid: {origin_netuid}\n"
@@ -4624,6 +4638,7 @@ class CLIManager:
             if not amount and not swap_all:
                 amount = FloatPrompt.ask("Enter the [blue]amount[/blue] to swap")
         logger.debug(
+            "args:\n"
             f"network: {network}\n"
             f"origin_netuid: {origin_netuid}\n"
             f"dest_netuid: {dest_netuid}\n"
@@ -4784,6 +4799,7 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
         logger.debug(
+            "args:\n"
             f"network: {network}\n"
             f"netuid: {netuid}\n"
             f"children: {children}\n"
@@ -4857,6 +4873,7 @@ class CLIManager:
                 "Enter netuid (leave blank for all)", default=None, show_default=True
             )
         logger.debug(
+            "args:\n"
             f"network: {network}\n"
             f"netuid: {netuid}\n"
             f"wait_for_inclusion: {wait_for_inclusion}\n"
@@ -4941,6 +4958,7 @@ class CLIManager:
                 "Enter netuid (leave blank for all)", default=None, show_default=True
             )
         logger.debug(
+            "args:\n"
             f"network: {network}\n"
             f"netuid: {netuid}\n"
             f"take: {take}\n"
@@ -5083,6 +5101,7 @@ class CLIManager:
             wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
         )
         logger.debug(
+            "args:\n"
             f"network: {network}\n"
             f"netuid: {netuid}\n"
             f"param_name: {param_name}\n"
@@ -5208,7 +5227,7 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
-        logger.debug(f"network: {network}\nproposal: {proposal}\nvote: {vote}\n")
+        logger.debug(f"args:\nnetwork: {network}\nproposal: {proposal}\nvote: {vote}\n")
         return self._run_command(
             sudo.senate_vote(
                 wallet, self.initialize_chain(network), proposal, vote, prompt
@@ -5261,7 +5280,7 @@ class CLIManager:
                 f"Take value must be between {min_value} and {max_value}. Provided value: {take}"
             )
             raise typer.Exit()
-        logger.debug(f"network: {network}\ntake: {take}")
+        logger.debug(f"args:\nnetwork: {network}\ntake: {take}")
         result = self._run_command(
             sudo.set_take(wallet, self.initialize_chain(network), take)
         )
@@ -5605,7 +5624,7 @@ class CLIManager:
             logo_url=logo_url,
             additional=additional_info,
         )
-        logger.debug(f"network: {network}\nidentity: {identity}\n")
+        logger.debug(f"args:\nnetwork: {network}\nidentity: {identity}\n")
         self._run_command(
             subnets.create(
                 wallet, self.initialize_chain(network), identity, json_output, prompt
@@ -5667,7 +5686,7 @@ class CLIManager:
             ],
             validate=WV.WALLET,
         )
-        logger.debug(f"network: {network}\nnetuid: {netuid}\n")
+        logger.debug(f"args:\nnetwork: {network}\nnetuid: {netuid}\n")
         return self._run_command(
             subnets.start_subnet(
                 wallet,
@@ -5783,7 +5802,9 @@ class CLIManager:
             logo_url=logo_url,
             additional=additional_info,
         )
-        logger.debug(f"network: {network}\nnetuid: {netuid}\nidentity: {identity}")
+        logger.debug(
+            f"args:\nnetwork: {network}\nnetuid: {netuid}\nidentity: {identity}"
+        )
         success = self._run_command(
             subnets.set_identity(
                 wallet, self.initialize_chain(network), netuid, identity, prompt
@@ -5921,7 +5942,7 @@ class CLIManager:
             ask_for=[WO.NAME, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
-        logger.debug(f"network: {network}\nnetuid: {netuid}\nperiod: {period}\n")
+        logger.debug(f"args:\nnetwork: {network}\nnetuid: {netuid}\nperiod: {period}\n")
         return self._run_command(
             subnets.register(
                 wallet,
@@ -6365,6 +6386,7 @@ class CLIManager:
             err_console.print("The low price must be lower than the high price.")
             return False
         logger.debug(
+            f"args:\n"
             f"hotkey: {hotkey}\n"
             f"netuid: {netuid}\n"
             f"liquidity: {liquidity_}\n"
@@ -6472,6 +6494,7 @@ class CLIManager:
             return_wallet_and_hotkey=True,
         )
         logger.debug(
+            f"args:\n"
             f"network: {network}\n"
             f"hotkey: {hotkey}\n"
             f"netuid: {netuid}\n"
@@ -6543,6 +6566,7 @@ class CLIManager:
                 negative_allowed=True,
             )
         logger.debug(
+            f"args:\n"
             f"network: {network}\n"
             f"hotkey: {hotkey}\n"
             f"netuid: {netuid}\n"
