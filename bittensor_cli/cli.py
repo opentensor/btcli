@@ -5247,7 +5247,7 @@ class CLIManager:
 
         EXAMPLE
 
-        [green]$[/green] btcli subnets list
+        [green]$[/green] btcli subnets show
         """
         self.verbosity_handler(quiet, verbose, json_output)
         subtensor = self.initialize_chain(network)
