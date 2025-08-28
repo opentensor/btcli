@@ -1726,7 +1726,7 @@ class CLIManager:
             valid = utils.is_valid_wallet(wallet)
             if not valid[0]:
                 utils.err_console.print(
-                    f"[red]Error: Wallet does not not exist. \n"
+                    f"[red]Error: Wallet does not exist. \n"
                     f"Please verify your wallet information: {wallet}[/red]"
                 )
                 raise typer.Exit()
