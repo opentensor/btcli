@@ -1669,15 +1669,18 @@ async def best_connection(networks: list[str]):
     """
     results = {}
     for network in networks:
-        t1 = time.monotonic()
-        async with websockets.connect(network) as websocket:
-            pong = await websocket.ping()
-            latency = await pong
-            pt1 = time.monotonic()
-            await websocket.send(
-                "{'jsonrpc': '2.0', 'method': 'chain_getHead', 'params': [], 'id': '82'}"
-            )
-            await websocket.recv()
-            t2 = time.monotonic()
-        results[network] = [t2 - t1, latency, t2 - pt1]
+        try:
+            t1 = time.monotonic()
+            async with websockets.connect(network) as websocket:
+                pong = await websocket.ping()
+                latency = await pong
+                pt1 = time.monotonic()
+                await websocket.send(
+                    "{'jsonrpc': '2.0', 'method': 'chain_getHead', 'params': [], 'id': '82'}"
+                )
+                await websocket.recv()
+                t2 = time.monotonic()
+            results[network] = [t2 - t1, latency, t2 - pt1]
+        except Exception as e:
+            err_console.print(f"Error attempting network {network}: {e}")
     return results

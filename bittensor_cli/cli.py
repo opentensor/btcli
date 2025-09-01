@@ -6354,11 +6354,13 @@ class CLIManager:
         additional_networks = additional_networks or []
         if any(not x.startswith("ws") for x in additional_networks):
             err_console.print(
-                "Invalid network endpoint. Ensure you are specifying a valid websocket endpoint.",
+                "Invalid network endpoint. Ensure you are specifying a valid websocket endpoint"
+                f" (starting with [{COLORS.G.LINKS}]ws://[/{COLORS.G.LINKS}] or "
+                f"[{COLORS.G.LINKS}]wss://[/{COLORS.G.LINKS}]).",
             )
             return False
         results: dict[str, list[float]] = self._run_command(
-            best_connection(Constants.finney_nodes + (additional_networks or []))
+            best_connection(Constants.lite_nodes + additional_networks)
         )
         sorted_results = {
             k: v for k, v in sorted(results.items(), key=lambda item: item[1][0])
