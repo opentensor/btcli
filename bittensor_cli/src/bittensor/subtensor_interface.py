@@ -1,21 +1,22 @@
 import asyncio
 import os
+import time
 from typing import Optional, Any, Union, TypedDict, Iterable
 
 import aiohttp
+from async_substrate_interface.async_substrate import (
+    DiskCachedAsyncSubstrateInterface,
+    AsyncSubstrateInterface,
+)
+from async_substrate_interface.errors import SubstrateRequestException
 from async_substrate_interface.utils.storage import StorageKey
 from bittensor_wallet import Wallet
 from bittensor_wallet.bittensor_wallet import Keypair
 from bittensor_wallet.utils import SS58_FORMAT
 from scalecodec import GenericCall
-from async_substrate_interface.errors import SubstrateRequestException
 import typer
+import websockets
 
-
-from async_substrate_interface.async_substrate import (
-    DiskCachedAsyncSubstrateInterface,
-    AsyncSubstrateInterface,
-)
 from bittensor_cli.src.bittensor.chain_data import (
     DelegateInfo,
     StakeInfo,
@@ -1654,3 +1655,32 @@ class SubtensorInterface:
             map_[netuid_] = Balance.from_rao(int(current_price * 1e9))
 
         return map_
+
+
+async def best_connection(networks: list[str]):
+    """
+    Basic function to compare the latency of a given list of websocket endpoints
+    Args:
+        networks: list of network URIs
+
+    Returns:
+        {network_name: [end_to_end_latency, single_request_latency, chain_head_request_latency]}
+
+    """
+    results = {}
+    for network in networks:
+        try:
+            t1 = time.monotonic()
+            async with websockets.connect(network) as websocket:
+                pong = await websocket.ping()
+                latency = await pong
+                pt1 = time.monotonic()
+                await websocket.send(
+                    "{'jsonrpc': '2.0', 'method': 'chain_getHead', 'params': [], 'id': '82'}"
+                )
+                await websocket.recv()
+                t2 = time.monotonic()
+            results[network] = [t2 - t1, latency, t2 - pt1]
+        except Exception as e:
+            err_console.print(f"Error attempting network {network}: {e}")
+    return results
