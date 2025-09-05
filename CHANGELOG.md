@@ -1,5 +1,10 @@
 # Changelog
 
+## 9.10.2 /2025-09-05
+* Fixes swap-hotkey in by @ibraheem-abe in https://github.com/opentensor/btcli/commit/aec630ec06fb679957c1c2940f37a28751fd427f
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.10.1...v9.10.2
+
 ## 9.10.1 /2025-08-12
 * Removes double param for `--cache` in `config set` by @thewhaleking in https://github.com/opentensor/btcli/pull/579
 * change root only sudo hyperparams by @thewhaleking in https://github.com/opentensor/btcli/pull/580

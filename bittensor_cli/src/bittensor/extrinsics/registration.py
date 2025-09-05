@@ -1757,11 +1757,13 @@ async def swap_hotkey_extrinsic(
     """
     block_hash = await subtensor.substrate.get_chain_head()
     hk_ss58 = get_hotkey_pub_ss58(wallet)
+    new_hk_ss58 = get_hotkey_pub_ss58(new_wallet)
+
     netuids_registered = await subtensor.get_netuids_for_hotkey(
         hk_ss58, block_hash=block_hash
     )
     netuids_registered_new_hotkey = await subtensor.get_netuids_for_hotkey(
-        hk_ss58, block_hash=block_hash
+        new_hk_ss58, block_hash=block_hash
     )
 
     if netuid is not None and netuid not in netuids_registered:
@@ -1777,7 +1779,6 @@ async def swap_hotkey_extrinsic(
         )
         return False
 
-    new_hk_ss58 = get_hotkey_pub_ss58(new_wallet)
     if netuid is not None:
         if netuid in netuids_registered_new_hotkey:
             err_console.print(
