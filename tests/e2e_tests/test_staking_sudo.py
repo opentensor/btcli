@@ -253,7 +253,7 @@ def test_staking(local_chain, wallet_setup):
             netuid,
             "--json-output",
             "--no-prompt",
-            "‡",
+            "シ",
         ],
     )
     set_symbol_output = json.loads(set_symbol.stdout)
@@ -261,7 +261,7 @@ def test_staking(local_chain, wallet_setup):
     assert set_symbol_output["success"] is True, set_symbol_output
     assert (
         set_symbol_output["message"]
-        == f"Successfully updated SN{netuid}'s symbol to ‡."
+        == f"Successfully updated SN{netuid}'s symbol to シ."
     )
 
     get_s_price = exec_command_alice(

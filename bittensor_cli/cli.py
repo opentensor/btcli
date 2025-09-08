@@ -5814,7 +5814,7 @@ class CLIManager:
 
         EXAMPLE
 
-        [green]$[/green] btcli subnets set-symbol --netuid 1 ‡
+        [green]$[/green] btcli subnets set-symbol --netuid 1 シ
         """
         self.verbosity_handler(quiet, verbose, json_output)
         if len(symbol) > 1:
