@@ -612,7 +612,12 @@ def debug_callback(value: bool):
             "Enter the file location to save the debug log for the previous command.",
             default="~/.bittensor/debug-export",
         ).strip()
-        save_file_loc = os.path.expanduser(save_file_loc_)
+        save_file_loc = Path(os.path.expanduser(save_file_loc_))
+        if not save_file_loc.parent.exists():
+            if Confirm.ask(
+                f"The directory '{save_file_loc.parent}' does not exist. Would you like to create it?"
+            ):
+                save_file_loc.parent.mkdir(parents=True, exist_ok=True)
         try:
             with (
                 open(save_file_loc, "w+") as save_file,
