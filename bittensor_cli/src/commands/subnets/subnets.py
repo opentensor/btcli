@@ -2448,3 +2448,71 @@ async def start_subnet(
             await get_start_schedule(subtensor, netuid)
             print_error(f":cross_mark: Failed to start subnet: {error_msg}")
             return False
+
+
+async def set_symbol(
+    wallet: "Wallet",
+    subtensor: "SubtensorInterface",
+    netuid: int,
+    symbol: str,
+    prompt: bool = False,
+    json_output: bool = False,
+) -> bool:
+    """
+    Set a subtensor's symbol, given the netuid and symbol.
+
+    The symbol must be a symbol that subtensor recognizes as available
+    (defined in https://github.com/opentensor/subtensor/blob/main/pallets/subtensor/src/subnets/symbols.rs#L8)
+    """
+    if not await subtensor.subnet_exists(netuid):
+        err = f"Subnet {netuid} does not exist."
+        if json_output:
+            json_console.print_json(data={"success": False, "message": err})
+        else:
+            err_console.print(err)
+        return False
+
+    if prompt and not json_output:
+        sn_info = await subtensor.subnet(netuid=netuid)
+        if not Confirm.ask(
+            f"Your current subnet symbol for SN{netuid} is {sn_info.symbol}. Do you want to update it to {symbol}?"
+        ):
+            return False
+
+    if not (unlock_status := unlock_key(wallet, print_out=False)).success:
+        err = unlock_status.message
+        if json_output:
+            json_console.print_json(data={"success": False, "message": err})
+        else:
+            console.print(err)
+        return False
+
+    start_call = await subtensor.substrate.compose_call(
+        call_module="SubtensorModule",
+        call_function="update_symbol",
+        call_params={"netuid": netuid, "symbol": symbol.encode("utf-8")},
+    )
+
+    signed_ext = await subtensor.substrate.create_signed_extrinsic(
+        call=start_call,
+        keypair=wallet.coldkey,
+    )
+
+    response = await subtensor.substrate.submit_extrinsic(
+        extrinsic=signed_ext,
+        wait_for_inclusion=True,
+    )
+    if await response.is_success:
+        message = f"Successfully updated SN{netuid}'s symbol to {symbol}."
+        if json_output:
+            json_console.print_json(data={"success": True, "message": message})
+        else:
+            console.print(f":white_heavy_check_mark:[dark_sea_green3] {message}\n")
+        return True
+    else:
+        err = format_error_message(await response.error_message)
+        if json_output:
+            json_console.print_json(data={"success": False, "message": err})
+        else:
+            err_console.print(f":cross_mark: [red]Failed[/red]: {err}")
+        return False

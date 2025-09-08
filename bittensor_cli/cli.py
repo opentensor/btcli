@@ -4,6 +4,7 @@ import copy
 import curses
 import importlib
 import json
+import logging
 import os.path
 import re
 import ssl
@@ -12,7 +13,7 @@ import traceback
 import warnings
 from dataclasses import fields
 from pathlib import Path
-from typing import Coroutine, Optional, Union
+from typing import Coroutine, Optional, Union, Literal
 
 import numpy as np
 import rich
@@ -42,7 +43,10 @@ from bittensor_cli.src import (
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
-from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
+from bittensor_cli.src.bittensor.subtensor_interface import (
+    SubtensorInterface,
+    best_connection,
+)
 from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
@@ -86,9 +90,17 @@ except ImportError:
         pass
 
 
+logger = logging.getLogger("btcli")
 _epilog = "Made with [bold red]:heart:[/bold red] by The Openτensor Foundaτion"
 
 np.set_printoptions(precision=8, suppress=True, floatmode="fixed")
+
+
+def arg__(arg_name: str) -> str:
+    """
+    Helper function to 'arg' format a string for rich console
+    """
+    return f"[{COLORS.G.ARG}]{arg_name}[/{COLORS.G.ARG}]"
 
 
 class Options:
@@ -592,6 +604,42 @@ def commands_callback(value: bool):
     if value:
         cli = CLIManager()
         console.print(cli.generate_command_tree())
+
+
+def debug_callback(value: bool):
+    if value:
+        debug_file_loc = Path(
+            os.getenv("BTCLI_DEBUG_FILE")
+            or os.path.expanduser(defaults.config.debug_file_path)
+        )
+        if not debug_file_loc.exists():
+            err_console.print(
+                f"[red]Error: The debug file '{arg__(str(debug_file_loc))}' does not exist. This indicates that you have"
+                f" not run a command which has logged debug output, or you deleted this file. Debug logging only occurs"
+                f" if {arg__('use_cache')} is set to True in your config ({arg__('btcli config set')}). If the debug "
+                f"file was created using the {arg__('BTCLI_DEBUG_FILE')} environment variable, please set the value for"
+                f" the same location, and re-run this {arg__('btcli --debug')} command.[/red]"
+            )
+            raise typer.Exit()
+        save_file_loc_ = Prompt.ask(
+            "Enter the file location to save the debug log for the previous command.",
+            default="~/.bittensor/debug-export",
+        ).strip()
+        save_file_loc = Path(os.path.expanduser(save_file_loc_))
+        if not save_file_loc.parent.exists():
+            if Confirm.ask(
+                f"The directory '{save_file_loc.parent}' does not exist. Would you like to create it?"
+            ):
+                save_file_loc.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with (
+                open(save_file_loc, "w+") as save_file,
+                open(debug_file_loc, "r") as current_file,
+            ):
+                save_file.write(current_file.read())
+                console.print(f"Saved debug log to {save_file_loc}")
+        except FileNotFoundError as e:
+            print_error(str(e))
         raise typer.Exit()
 
 
@@ -612,7 +660,7 @@ class CLIManager:
     wallet_app: typer.Typer
     subnets_app: typer.Typer
     weights_app: typer.Typer
-    utils_app = typer.Typer(epilog=_epilog)
+    utils_app: typer.Typer
     view_app: typer.Typer
     asyncio_runner = asyncio
 
@@ -623,6 +671,7 @@ class CLIManager:
             "wallet_hotkey": None,
             "network": None,
             "use_cache": True,
+            "disk_cache": False,
             "rate_tolerance": None,
             "safe_staking": True,
             "allow_partial_stake": False,
@@ -664,6 +713,9 @@ class CLIManager:
         self.config_path = os.getenv("BTCLI_CONFIG_PATH") or os.path.expanduser(
             defaults.config.path
         )
+        self.debug_file_path = os.getenv("BTCLI_DEBUG_FILE") or os.path.expanduser(
+            defaults.config.debug_file_path
+        )
 
         self.app = typer.Typer(
             rich_markup_mode="rich",
@@ -674,8 +726,8 @@ class CLIManager:
         self.config_app = typer.Typer(
             epilog=_epilog,
             help=f"Allows for getting/setting the config. "
-            f"Default path for the config file is [{COLORS.G.ARG}]{defaults.config.path}[/{COLORS.G.ARG}]. "
-            f"You can set your own with the env var [{COLORS.G.ARG}]BTCLI_CONFIG_PATH[/{COLORS.G.ARG}]",
+            f"Default path for the config file is {arg__(defaults.config.path)}. "
+            f"You can set your own with the env var {arg__('BTCLI_CONFIG_PATH')}",
         )
         self.wallet_app = typer.Typer(epilog=_epilog)
         self.stake_app = typer.Typer(epilog=_epilog)
@@ -684,6 +736,7 @@ class CLIManager:
         self.weights_app = typer.Typer(epilog=_epilog)
         self.view_app = typer.Typer(epilog=_epilog)
         self.liquidity_app = typer.Typer(epilog=_epilog)
+        self.utils_app = typer.Typer(epilog=_epilog)
 
         # config alias
         self.app.add_typer(
@@ -758,7 +811,7 @@ class CLIManager:
 
         # utils app
         self.app.add_typer(
-            self.utils_app, name="utils", no_args_is_help=True, hidden=True
+            self.utils_app, name="utils", no_args_is_help=True, hidden=False
         )
 
         # view app
@@ -948,6 +1001,9 @@ class CLIManager:
         self.subnets_app.command(
             "check-start", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
         )(self.subnets_check_start)
+        self.subnets_app.command(
+            "set-symbol", rich_help_panel=HELP_PANELS["SUBNETS"]["IDENTITY"]
+        )(self.subnets_set_symbol)
 
         # weights commands
         self.weights_app.command(
@@ -1040,6 +1096,10 @@ class CLIManager:
             "remove", rich_help_panel=HELP_PANELS["LIQUIDITY"]["LIQUIDITY_MGMT"]
         )(self.liquidity_remove)
 
+        # utils app
+        self.utils_app.command("convert")(self.convert)
+        self.utils_app.command("latency")(self.best_connection)
+
     def generate_command_tree(self) -> Tree:
         """
         Generates a rich.Tree of the commands, subcommands, and groups of this app
@@ -1092,6 +1152,7 @@ class CLIManager:
                 "Verify this is intended.",
             )
             if not self.subtensor:
+                use_disk_cache = self.config.get("disk_cache", False)
                 if network:
                     network_ = None
                     for item in network:
@@ -1105,18 +1166,24 @@ class CLIManager:
                     if not_selected_networks:
                         console.print(
                             f"Networks not selected: "
-                            f"[{COLORS.G.ARG}]{', '.join(not_selected_networks)}[/{COLORS.G.ARG}]"
+                            f"{arg__(', '.join(not_selected_networks))}"
                         )
 
-                    self.subtensor = SubtensorInterface(network_)
+                    self.subtensor = SubtensorInterface(
+                        network_, use_disk_cache=use_disk_cache
+                    )
                 elif self.config["network"]:
                     console.print(
                         f"Using the specified network [{COLORS.G.LINKS}]{self.config['network']}"
                         f"[/{COLORS.G.LINKS}] from config"
                     )
-                    self.subtensor = SubtensorInterface(self.config["network"])
+                    self.subtensor = SubtensorInterface(
+                        self.config["network"], use_disk_cache=use_disk_cache
+                    )
                 else:
-                    self.subtensor = SubtensorInterface(defaults.subtensor.network)
+                    self.subtensor = SubtensorInterface(
+                        defaults.subtensor.network, use_disk_cache=use_disk_cache
+                    )
         return self.subtensor
 
     def _run_command(self, cmd: Coroutine, exit_early: bool = True):
@@ -1179,10 +1246,18 @@ class CLIManager:
                 "--commands", callback=commands_callback, help="Show BTCLI commands"
             ),
         ] = None,
+        debug_log: Annotated[
+            Optional[bool],
+            typer.Option(
+                "--debug",
+                callback=debug_callback,
+                help="Saves the debug log from the last used command",
+            ),
+        ] = None,
     ):
         """
         Command line interface (CLI) for Bittensor. Uses the values in the configuration file. These values can be
-            overriden by passing them explicitly in the command line.
+            overridden by passing them explicitly in the command line.
         """
         # Load or create the config file
         if os.path.exists(self.config_path):
@@ -1206,6 +1281,9 @@ class CLIManager:
                     if sub_key not in config[key]:
                         config[key][sub_key] = sub_value
                         updated = True
+            elif isinstance(value, bool) and config[key] is None:
+                config[key] = value
+                updated = True
         if updated:
             with open(self.config_path, "w") as f:
                 safe_dump(config, f)
@@ -1213,6 +1291,27 @@ class CLIManager:
         for k, v in config.items():
             if k in self.config.keys():
                 self.config[k] = v
+        if self.config.get("use_cache", False):
+            with open(self.debug_file_path, "w+") as f:
+                f.write(
+                    f"BTCLI {__version__}\n"
+                    f"Async-Substrate-Interface: {importlib.metadata.version('async-substrate-interface')}\n"
+                    f"Bittensor-Wallet: {importlib.metadata.version('bittensor-wallet')}\n"
+                    f"Command: {' '.join(sys.argv)}\n"
+                    f"Config: {self.config}\n"
+                    f"Python: {sys.version}\n"
+                    f"System: {sys.platform}\n\n"
+                )
+            asi_logger = logging.getLogger("async_substrate_interface")
+            asi_logger.setLevel(logging.DEBUG)
+            logger.setLevel(logging.DEBUG)
+            formatter = logging.Formatter(
+                "%(asctime)s - %(levelname)s - %(name)s - %(module)s:%(lineno)d - %(message)s"
+            )
+            handler = logging.FileHandler(self.debug_file_path)
+            handler.setFormatter(formatter)
+            asi_logger.addHandler(handler)
+            logger.addHandler(handler)
 
     def verbosity_handler(
         self, quiet: bool, verbose: bool, json_output: bool = False
@@ -1273,6 +1372,13 @@ class CLIManager:
             help="Disable caching of some commands. This will disable the `--reuse-last` and `--html` flags on "
             "commands such as `subnets metagraph`, `stake show` and `subnets list`.",
         ),
+        disk_cache: Optional[bool] = typer.Option(
+            None,
+            "--disk-cache/--no-disk-cache",
+            " /--no-disk-cache",
+            help="Enables or disables the caching on disk. Enabling this can significantly speed up commands run "
+            "sequentially",
+        ),
         rate_tolerance: Optional[float] = typer.Option(
             None,
             "--tolerance",
@@ -1319,12 +1425,13 @@ class CLIManager:
             "wallet_hotkey": wallet_hotkey,
             "network": network,
             "use_cache": use_cache,
+            "disk_cache": disk_cache,
             "rate_tolerance": rate_tolerance,
             "safe_staking": safe_staking,
             "allow_partial_stake": allow_partial_stake,
             "dashboard_path": dashboard_path,
         }
-        bools = ["use_cache", "safe_staking", "allow_partial_stake"]
+        bools = ["use_cache", "disk_cache", "safe_staking", "allow_partial_stake"]
         if all(v is None for v in args.values()):
             # Print existing configs
             self.get_config()
@@ -1373,8 +1480,7 @@ class CLIManager:
         if n := args.get("network"):
             if n in Constants.networks:
                 if not Confirm.ask(
-                    f"You provided a network [{COLORS.G.ARG}]{n}[/{COLORS.G.ARG}] which is mapped to "
-                    f"[{COLORS.G.ARG}]{Constants.network_map[n]}[/{COLORS.G.ARG}]\n"
+                    f"You provided a network {arg__(n)} which is mapped to {arg__(Constants.network_map[n])}\n"
                     "Do you want to continue?"
                 ):
                     typer.Exit()
@@ -1389,14 +1495,13 @@ class CLIManager:
                         )
                         args["network"] = known_network
                         if not Confirm.ask(
-                            f"You provided an endpoint [{COLORS.G.ARG}]{n}[/{COLORS.G.ARG}] which is mapped to "
-                            f"[{COLORS.G.ARG}]{known_network}[/{COLORS.G.ARG}]\n"
+                            f"You provided an endpoint {arg__(n)} which is mapped to {arg__(known_network)}\n"
                             "Do you want to continue?"
                         ):
                             raise typer.Exit()
                     else:
                         if not Confirm.ask(
-                            f"You provided a chain endpoint URL [{COLORS.G.ARG}]{n}[/{COLORS.G.ARG}]\n"
+                            f"You provided a chain endpoint URL {arg__(n)}\n"
                             "Do you want to continue?"
                         ):
                             raise typer.Exit()
@@ -1406,6 +1511,7 @@ class CLIManager:
 
         for arg, val in args.items():
             if val is not None:
+                logger.debug(f"Config: setting {arg} to {val}")
                 self.config[arg] = val
         with open(self.config_path, "w") as f:
             safe_dump(self.config, f)
@@ -1470,17 +1576,12 @@ class CLIManager:
         if not any(args.values()):
             for arg in args.keys():
                 if self.config.get(arg) is not None:
-                    if Confirm.ask(
-                        f"Do you want to clear the [{COLORS.G.ARG}]{arg}[/{COLORS.G.ARG}] config?"
-                    ):
+                    if Confirm.ask(f"Do you want to clear the {arg__(arg)} config?"):
+                        logger.debug(f"Config: clearing {arg}.")
                         self.config[arg] = None
-                        console.print(
-                            f"Cleared [{COLORS.G.ARG}]{arg}[/{COLORS.G.ARG}] config and set to 'None'."
-                        )
+                        console.print(f"Cleared {arg__(arg)} config and set to 'None'.")
                     else:
-                        console.print(
-                            f"Skipped clearing [{COLORS.G.ARG}]{arg}[/{COLORS.G.ARG}] config."
-                        )
+                        console.print(f"Skipped clearing {arg__(arg)} config.")
 
         else:
             # Check each specified argument
@@ -1488,21 +1589,19 @@ class CLIManager:
                 if should_clear:
                     if self.config.get(arg) is not None:
                         if Confirm.ask(
-                            f"Do you want to clear the [{COLORS.G.ARG}]{arg}[/{COLORS.G.ARG}]"
+                            f"Do you want to clear the {arg__(arg)}"
                             f" [bold cyan]({self.config.get(arg)})[/bold cyan] config?"
                         ):
                             self.config[arg] = None
+                            logger.debug(f"Config: clearing {arg}.")
                             console.print(
-                                f"Cleared [{COLORS.G.ARG}]{arg}[/{COLORS.G.ARG}] config and set to 'None'."
+                                f"Cleared {arg__(arg)} config and set to 'None'."
                             )
                         else:
-                            console.print(
-                                f"Skipped clearing [{COLORS.G.ARG}]{arg}[/{COLORS.G.ARG}] config."
-                            )
+                            console.print(f"Skipped clearing {arg__(arg)} config.")
                     else:
                         console.print(
-                            f"No config set for [{COLORS.G.ARG}]{arg}[/{COLORS.G.ARG}]."
-                            f" Use [{COLORS.G.ARG}]`btcli config set`[/{COLORS.G.ARG}] to set it."
+                            f"No config set for {arg__(arg)}. Use {arg__('btcli config set')} to set it."
                         )
         with open(self.config_path, "w") as f:
             safe_dump(self.config, f)
@@ -1518,8 +1617,7 @@ class CLIManager:
             Column("[bold white]Value", style="gold1"),
             Column("", style="medium_purple"),
             box=box.SIMPLE_HEAD,
-            title=f"[{COLORS.G.HEADER}]BTCLI Config[/{COLORS.G.HEADER}]: "
-            f"[{COLORS.G.ARG}]{self.config_path}[/{COLORS.G.ARG}]",
+            title=f"[{COLORS.G.HEADER}]BTCLI Config[/{COLORS.G.HEADER}]: {arg__(self.config_path)}",
         )
 
         for key, value in self.config.items():
@@ -1593,26 +1691,31 @@ class CLIManager:
             bool: Safe staking setting
         """
         if safe_staking is not None:
+            enabled = "enabled" if safe_staking else "disabled"
             console.print(
-                f"[dim][blue]Safe staking[/blue]: [bold cyan]{'enabled' if safe_staking else 'disabled'}[/bold cyan]."
+                f"[dim][blue]Safe staking[/blue]: [bold cyan]{enabled}[/bold cyan]."
             )
+            logger.debug(f"Safe staking {enabled}")
             return safe_staking
         elif self.config.get("safe_staking") is not None:
             safe_staking = self.config["safe_staking"]
+            enabled = "enabled" if safe_staking else "disabled"
             console.print(
-                f"[dim][blue]Safe staking[/blue]: [bold cyan]{'enabled' if safe_staking else 'disabled'}[/bold cyan] (from config)."
+                f"[dim][blue]Safe staking[/blue]: [bold cyan]{enabled}[/bold cyan] (from config)."
             )
+            logger.debug(f"Safe staking {enabled}")
             return safe_staking
         else:
             safe_staking = True
             console.print(
                 "[dim][blue]Safe staking[/blue]: "
-                + f"[bold cyan]{'enabled' if safe_staking else 'disabled'}[/bold cyan] "
-                + "by default. Set this using "
-                + "[dark_sea_green3 italic]`btcli config set`[/dark_sea_green3 italic] "
-                + "or "
-                + "[dark_sea_green3 italic]`--safe/--unsafe`[/dark_sea_green3 italic] flag[/dim]"
+                f"[bold cyan]enabled[/bold cyan] "
+                "by default. Set this using "
+                "[dark_sea_green3 italic]`btcli config set`[/dark_sea_green3 italic] "
+                "or "
+                "[dark_sea_green3 italic]`--safe/--unsafe`[/dark_sea_green3 italic] flag[/dim]"
             )
+            logger.debug(f"Safe staking enabled.")
             return safe_staking
 
     def ask_partial_stake(
@@ -1629,25 +1732,31 @@ class CLIManager:
             bool: Partial stake setting
         """
         if allow_partial_stake is not None:
+            partial_staking = "enabled" if allow_partial_stake else "disabled"
             console.print(
-                f"[dim][blue]Partial staking[/blue]: [bold cyan]{'enabled' if allow_partial_stake else 'disabled'}[/bold cyan]."
+                f"[dim][blue]Partial staking[/blue]: [bold cyan]{partial_staking}[/bold cyan]."
             )
+            logger.debug(f"Partial staking {partial_staking}")
             return allow_partial_stake
         elif self.config.get("allow_partial_stake") is not None:
             config_partial = self.config["allow_partial_stake"]
+            partial_staking = "enabled" if allow_partial_stake else "disabled"
             console.print(
-                f"[dim][blue]Partial staking[/blue]: [bold cyan]{'enabled' if config_partial else 'disabled'}[/bold cyan] (from config)."
+                f"[dim][blue]Partial staking[/blue]: [bold cyan]{partial_staking}[/bold cyan] (from config)."
             )
+            logger.debug(f"Partial staking {partial_staking}")
             return config_partial
         else:
+            partial_staking = "enabled" if allow_partial_stake else "disabled"
             console.print(
                 "[dim][blue]Partial staking[/blue]: "
-                + f"[bold cyan]{'enabled' if allow_partial_stake else 'disabled'}[/bold cyan] "
-                + "by default. Set this using "
-                + "[dark_sea_green3 italic]`btcli config set`[/dark_sea_green3 italic] "
-                + "or "
-                + "[dark_sea_green3 italic]`--partial/--no-partial`[/dark_sea_green3 italic] flag[/dim]"
+                f"[bold cyan]{partial_staking}[/bold cyan] "
+                "by default. Set this using "
+                "[dark_sea_green3 italic]`btcli config set`[/dark_sea_green3 italic] "
+                "or "
+                "[dark_sea_green3 italic]`--partial/--no-partial`[/dark_sea_green3 italic] flag[/dim]"
             )
+            logger.debug(f"Partial staking {partial_staking}")
             return False
 
     def wallet_ask(
@@ -1655,7 +1764,7 @@ class CLIManager:
         wallet_name: Optional[str],
         wallet_path: Optional[str],
         wallet_hotkey: Optional[str],
-        ask_for: Optional[list[str]] = None,
+        ask_for: Optional[list[Literal[WO.NAME, WO.PATH, WO.HOTKEY]]] = None,
         validate: WV = WV.WALLET,
         return_wallet_and_hotkey: bool = False,
     ) -> Union[Wallet, tuple[Wallet, str]]:
@@ -1720,13 +1829,14 @@ class CLIManager:
         if wallet_path:
             wallet_path = os.path.expanduser(wallet_path)
         wallet = Wallet(name=wallet_name, path=wallet_path, hotkey=wallet_hotkey)
+        logger.debug(f"Using wallet {wallet}")
 
         # Validate the wallet if required
         if validate == WV.WALLET or validate == WV.WALLET_AND_HOTKEY:
             valid = utils.is_valid_wallet(wallet)
             if not valid[0]:
                 utils.err_console.print(
-                    f"[red]Error: Wallet does not not exist. \n"
+                    f"[red]Error: Wallet does not exist. \n"
                     f"Please verify your wallet information: {wallet}[/red]"
                 )
                 raise typer.Exit()
@@ -1875,6 +1985,15 @@ class CLIManager:
                 str,
                 "Hotkeys names must be a comma-separated list, e.g., `--exclude-hotkeys hk1,hk2`.",
             )
+        logger.debug(
+            "args:\n"
+            f"all_wallets: {all_wallets}\n"
+            f"sort_by: {sort_by}\n"
+            f"sort_order: {sort_order}\n"
+            f"include_hotkeys: {include_hotkeys}\n"
+            f"exclude_hotkeys: {exclude_hotkeys}\n"
+            f"netuids: {netuids}\n"
+        )
 
         return self._run_command(
             wallets.overview(
@@ -1964,6 +2083,15 @@ class CLIManager:
             amount = 0
         elif not amount:
             amount = FloatPrompt.ask("Enter amount (in TAO) to transfer.")
+        logger.debug(
+            "args:\n"
+            f"destination: {destination_ss58_address}\n"
+            f"amount: {amount}\n"
+            f"transfer_all: {transfer_all}\n"
+            f"allow_death: {allow_death}\n"
+            f"period: {period}\n"
+            f"prompt: {prompt}\n"
+        )
         return self._run_command(
             wallets.transfer(
                 wallet=wallet,
@@ -2032,6 +2160,13 @@ class CLIManager:
             destination_hotkey_name,
             ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
+        )
+        logger.debug(
+            "args:\n"
+            f"original_wallet: {original_wallet}\n"
+            f"new_wallet: {new_wallet}\n"
+            f"netuid: {netuid}\n"
+            f"prompt: {prompt}\n"
         )
         self.initialize_chain(network)
         return self._run_command(
@@ -2196,6 +2331,17 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH],
             validate=WV.WALLET,
         )
+        logger.debug(
+            "args:\n"
+            f"network {network}\n"
+            f"threads_per_block {threads_per_block}\n"
+            f"update_interval {update_interval}\n"
+            f"processors {processors}\n"
+            f"use_cuda {use_cuda}\n"
+            f"dev_id {dev_id}\n"
+            f"output_in_place {output_in_place}\n"
+            f"max_successes {max_successes}\n"
+        )
         return self._run_command(
             wallets.faucet(
                 wallet,
@@ -2263,6 +2409,7 @@ class CLIManager:
         mnemonic, seed, json_path, json_password = get_creation_data(
             mnemonic, seed, json_path, json_password
         )
+        # logger.debug should NOT be used here, it's simply too risky
         return self._run_command(
             wallets.regen_coldkey(
                 wallet,
@@ -2332,6 +2479,7 @@ class CLIManager:
         ):
             rich.print("[red]Error: Invalid SS58 address or public key![/red]")
             return
+        # do not logger.debug any creation cmds
         return self._run_command(
             wallets.regen_coldkey_pub(
                 wallet, ss58_address, public_key_hex, overwrite, json_output
@@ -2384,6 +2532,7 @@ class CLIManager:
         mnemonic, seed, json_path, json_password = get_creation_data(
             mnemonic, seed, json_path, json_password
         )
+        # do not logger.debug any creation cmds
         return self._run_command(
             wallets.regen_hotkey(
                 wallet,
@@ -2453,6 +2602,7 @@ class CLIManager:
         ):
             rich.print("[red]Error: Invalid SS58 address or public key![/red]")
             return False
+        # do not logger.debug any creation cmds
         return self._run_command(
             wallets.regen_hotkey_pub(
                 wallet, ss58_address, public_key_hex, overwrite, json_output
@@ -2517,6 +2667,7 @@ class CLIManager:
         )
         if not uri:
             n_words = get_n_words(n_words)
+        # do not logger.debug any creation cmds
         return self._run_command(
             wallets.new_hotkey(
                 wallet, n_words, use_password, uri, overwrite, json_output
@@ -2583,7 +2734,13 @@ class CLIManager:
                 f"hotkey [blue]{wallet_hotkey}[/blue] "
                 f"[{COLORS.GENERAL.HK}]({hotkey_ss58})[/{COLORS.GENERAL.HK}]"
             )
-
+        logger.debug(
+            "args:\n"
+            f"network {network}\n"
+            f"hotkey_ss58 {hotkey_ss58}\n"
+            f"hotkey_display {hotkey_display}\n"
+            f"prompt {prompt}\n"
+        )
         return self._run_command(
             wallets.associate_hotkey(
                 wallet,
@@ -2731,7 +2888,8 @@ class CLIManager:
 
         if not scheduled_block:
             block_input = Prompt.ask(
-                "[blue]Enter the block number[/blue] where the swap was scheduled [dim](optional, press enter to skip)[/dim]",
+                "[blue]Enter the block number[/blue] where the swap was scheduled "
+                "[dim](optional, press enter to skip)[/dim]",
                 default="",
             )
             if block_input:
@@ -2740,7 +2898,12 @@ class CLIManager:
                 except ValueError:
                     print_error("Invalid block number")
                     raise typer.Exit()
-
+        logger.debug(
+            "args:\n"
+            f"scheduled_block {scheduled_block}\n"
+            f"ss58_address {ss58_address}\n"
+            f"network {network}\n"
+        )
         return self._run_command(
             wallets.check_swap_status(self.subtensor, ss58_address, scheduled_block)
         )
@@ -2797,6 +2960,7 @@ class CLIManager:
         )
         if not uri:
             n_words = get_n_words(n_words)
+        # do not logger.debug any creation commands
         return self._run_command(
             wallets.wallet_create(
                 wallet, n_words, use_password, uri, overwrite, json_output
@@ -2905,6 +3069,12 @@ class CLIManager:
                     ask_for=ask_for,
                     validate=validate,
                 )
+        logger.debug(
+            "args:\n"
+            f"all_balances {all_balances}\n"
+            f"ss58_addresses {ss58_addresses}\n"
+            f"network {network}"
+        )
         subtensor = self.initialize_chain(network)
         return self._run_command(
             wallets.wallet_balance(
@@ -3055,6 +3225,7 @@ class CLIManager:
             additional,
             github_repo,
         )
+        logger.debug(f"args:\nidentity {identity}\nnetwork {network}\n")
 
         return self._run_command(
             wallets.set_id(
@@ -3316,7 +3487,12 @@ class CLIManager:
                 f"[dark_sea_green3]{new_wallet}[/dark_sea_green3]\n"
             )
             new_wallet_coldkey_ss58 = new_wallet.coldkeypub.ss58_address
-
+        logger.debug(
+            "args:\n"
+            f"network {network}\n"
+            f"new_coldkey_ss58 {new_wallet_coldkey_ss58}\n"
+            f"force_swap {force_swap}"
+        )
         return self._run_command(
             wallets.schedule_coldkey_swap(
                 wallet=wallet,
@@ -3388,7 +3564,13 @@ class CLIManager:
                 wallet = self.wallet_ask(
                     wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
                 )
-
+        logger.debug(
+            "args:\n"
+            f"coldkey_ss58 {coldkey_ss58}\n"
+            f"network {network}\n"
+            f"live: {live}\n"
+            f"no_prompt: {no_prompt}\n"
+        )
         return self._run_command(
             list_stake.stake_list(
                 wallet,
@@ -3637,6 +3819,7 @@ class CLIManager:
                 ),
                 exit_early=False,
             )
+            logger.debug(f"Free balance: {free_balance}")
             if free_balance == Balance.from_tao(0):
                 print_error("You dont have any balance to stake.")
                 return
@@ -3657,7 +3840,21 @@ class CLIManager:
                     f"You dont have enough balance to stake. Current free Balance: {free_balance}."
                 )
                 raise typer.Exit()
-
+        logger.debug(
+            "args:\n"
+            f"network: {network}\n"
+            f"netuids: {netuids}\n"
+            f"stake_all: {stake_all}\n"
+            f"amount: {amount}\n"
+            f"prompt: {prompt}\n"
+            f"all_hotkeys: {all_hotkeys}\n"
+            f"include_hotkeys: {include_hotkeys}\n"
+            f"exclude_hotkeys: {exclude_hotkeys}\n"
+            f"safe_staking: {safe_staking}\n"
+            f"rate_tolerance: {rate_tolerance}\n"
+            f"allow_partial_stake: {allow_partial_stake}\n"
+            f"period: {period}\n"
+        )
         return self._run_command(
             add_stake.stake_add(
                 wallet,
@@ -3782,11 +3979,11 @@ class CLIManager:
                 "Interactive mode cannot be used with hotkey selection options like "
                 "--include-hotkeys, --exclude-hotkeys, --all-hotkeys, or --hotkey."
             )
-            raise typer.Exit()
+            return False
 
         if unstake_all and unstake_all_alpha:
             print_error("Cannot specify both unstake-all and unstake-all-alpha.")
-            raise typer.Exit()
+            return False
 
         if not interactive and not unstake_all and not unstake_all_alpha:
             netuid = get_optional_netuid(netuid, all_netuids)
@@ -3795,23 +3992,39 @@ class CLIManager:
                     "You have specified hotkeys to include and also the `--all-hotkeys` flag. The flag"
                     " should only be used standalone (to use all hotkeys) or with `--exclude-hotkeys`."
                 )
-                raise typer.Exit()
+                return False
 
             if include_hotkeys and exclude_hotkeys:
                 print_error(
                     "You have specified both including and excluding hotkeys options. Select one or the other."
                 )
-                raise typer.Exit()
+                return False
 
             if unstake_all and amount:
                 print_error(
                     "Cannot specify both a specific amount and 'unstake-all'. Choose one or the other."
                 )
-                raise typer.Exit()
+                return False
 
             if amount and amount <= 0:
                 print_error(f"You entered an incorrect unstake amount: {amount}")
-                raise typer.Exit()
+                return False
+
+        if include_hotkeys:
+            include_hotkeys = parse_to_list(
+                include_hotkeys,
+                str,
+                "Hotkeys must be a comma-separated list of ss58s or names, e.g., `--include-hotkeys hk1,hk2`.",
+                is_ss58=False,
+            )
+
+        if exclude_hotkeys:
+            exclude_hotkeys = parse_to_list(
+                exclude_hotkeys,
+                str,
+                "Hotkeys must be a comma-separated list of ss58s or names, e.g., `--exclude-hotkeys hk3,hk4`.",
+                is_ss58=False,
+            )
 
         if (
             not wallet_hotkey
@@ -3828,7 +4041,8 @@ class CLIManager:
                     default=self.config.get("wallet_name") or defaults.wallet.name,
                 )
             hotkey_or_ss58 = Prompt.ask(
-                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake from [dim](or Press Enter to view existing staked hotkeys)[/dim]",
+                "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake from [dim]"
+                "(or Press Enter to view existing staked hotkeys)[/dim]",
             )
             if hotkey_or_ss58 == "":
                 wallet = self.wallet_ask(
@@ -3859,12 +4073,12 @@ class CLIManager:
             if include_hotkeys:
                 if len(include_hotkeys) > 1:
                     print_error("Cannot unstake_all from multiple hotkeys at once.")
-                    raise typer.Exit()
+                    return False
                 elif is_valid_ss58_address(include_hotkeys[0]):
                     hotkey_ss58_address = include_hotkeys[0]
                 else:
                     print_error("Invalid hotkey ss58 address.")
-                    raise typer.Exit()
+                    return False
             elif all_hotkeys:
                 wallet = self.wallet_ask(
                     wallet_name,
@@ -3875,7 +4089,8 @@ class CLIManager:
             else:
                 if not hotkey_ss58_address and not wallet_hotkey:
                     hotkey_or_ss58 = Prompt.ask(
-                        "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake all from [dim](or enter 'all' to unstake from all hotkeys)[/dim]",
+                        "Enter the [blue]hotkey[/blue] name or [blue]ss58 address[/blue] to unstake all from [dim]"
+                        "(or enter 'all' to unstake from all hotkeys)[/dim]",
                         default=self.config.get("wallet_hotkey")
                         or defaults.wallet.hotkey,
                     )
@@ -3907,6 +4122,17 @@ class CLIManager:
                         ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
                         validate=WV.WALLET_AND_HOTKEY,
                     )
+            logger.debug(
+                "args:\n"
+                f"network: {network}\n"
+                f"hotkey_ss58_address: {hotkey_ss58_address}\n"
+                f"unstake_all: {unstake_all}\n"
+                f"unstake_all_alpha: {unstake_all_alpha}\n"
+                f"all_hotkeys: {all_hotkeys}\n"
+                f"include_hotkeys: {include_hotkeys}\n"
+                f"exclude_hotkeys: {exclude_hotkeys}\n"
+                f"era: {period}"
+            )
             return self._run_command(
                 remove_stake.unstake_all(
                     wallet=wallet,
@@ -3941,22 +4167,38 @@ class CLIManager:
                 ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
                 validate=WV.WALLET_AND_HOTKEY,
             )
-
-        if include_hotkeys:
-            include_hotkeys = parse_to_list(
-                include_hotkeys,
-                str,
-                "Hotkeys must be a comma-separated list of ss58s or names, e.g., `--include-hotkeys hk1,hk2`.",
-                is_ss58=False,
+        if not amount and not prompt:
+            print_error(
+                f"Ambiguous request! Specify {arg__('--amount')}, {arg__('--all')}, or {arg__('--all-alpha')} "
+                f"to use {arg__('--no-prompt')}"
             )
+            return False
 
-        if exclude_hotkeys:
-            exclude_hotkeys = parse_to_list(
-                exclude_hotkeys,
-                str,
-                "Hotkeys must be a comma-separated list of ss58s or names, e.g., `--exclude-hotkeys hk3,hk4`.",
-                is_ss58=False,
+        if not amount and json_output:
+            json_console.print_json(
+                data={
+                    "success": False,
+                    "err_msg": "Ambiguous request! Specify '--amount', '--all', "
+                    "or '--all-alpha' to use '--json-output'",
+                }
             )
+            return False
+        logger.debug(
+            "args:\n"
+            f"network: {network}\n"
+            f"hotkey_ss58_address: {hotkey_ss58_address}\n"
+            f"all_hotkeys: {all_hotkeys}\n"
+            f"include_hotkeys: {include_hotkeys}\n"
+            f"exclude_hotkeys: {exclude_hotkeys}\n"
+            f"amount: {amount}\n"
+            f"prompt: {prompt}\n"
+            f"interactive: {interactive}\n"
+            f"netuid: {netuid}\n"
+            f"safe_staking: {safe_staking}\n"
+            f"rate_tolerance: {rate_tolerance}\n"
+            f"allow_partial_stake: {allow_partial_stake}\n"
+            f"era: {period}"
+        )
 
         return self._run_command(
             remove_stake.unstake(
@@ -4121,7 +4363,19 @@ class CLIManager:
                 destination_netuid = IntPrompt.ask(
                     "Enter the [blue]destination subnet[/blue] (netuid) to move stake to"
                 )
-
+        logger.debug(
+            "args:\n"
+            f"network: {network}\n"
+            f"origin_netuid: {origin_netuid}\n"
+            f"origin_hotkey: {origin_hotkey}\n"
+            f"destination_hotkey: {destination_hotkey}\n"
+            f"destination_netuid: {destination_netuid}\n"
+            f"amount: {amount}\n"
+            f"stake_all: {stake_all}\n"
+            f"era: {period}\n"
+            f"interactive_selection: {interactive_selection}\n"
+            f"prompt: {prompt}\n"
+        )
         result = self._run_command(
             move_stake.move_stake(
                 subtensor=self.initialize_chain(network),
@@ -4286,7 +4540,18 @@ class CLIManager:
                 dest_netuid = IntPrompt.ask(
                     "Enter the [blue]destination subnet[/blue] (netuid)"
                 )
-
+        logger.debug(
+            "args:\n"
+            f"network: {network}\n"
+            f"origin_hotkey: {origin_hotkey}\n"
+            f"origin_netuid: {origin_netuid}\n"
+            f"dest_netuid: {dest_netuid}\n"
+            f"dest_hotkey: {origin_hotkey}\n"
+            f"dest_coldkey_ss58: {dest_ss58}\n"
+            f"amount: {amount}\n"
+            f"era: {period}\n"
+            f"stake_all: {stake_all}"
+        )
         result = self._run_command(
             move_stake.transfer_stake(
                 wallet=wallet,
@@ -4394,7 +4659,19 @@ class CLIManager:
                 )
             if not amount and not swap_all:
                 amount = FloatPrompt.ask("Enter the [blue]amount[/blue] to swap")
-
+        logger.debug(
+            "args:\n"
+            f"network: {network}\n"
+            f"origin_netuid: {origin_netuid}\n"
+            f"dest_netuid: {dest_netuid}\n"
+            f"amount: {amount}\n"
+            f"swap_all: {swap_all}\n"
+            f"era: {period}\n"
+            f"interactive_selection: {interactive_selection}\n"
+            f"prompt: {prompt}\n"
+            f"wait_for_inclusion: {wait_for_inclusion}\n"
+            f"wait_for_finalization: {wait_for_finalization}\n"
+        )
         result = self._run_command(
             move_stake.swap_stake(
                 wallet=wallet,
@@ -4510,7 +4787,7 @@ class CLIManager:
 
         EXAMPLE
 
-        [green]$[/green] btcli stake child set -c 5FCL3gmjtQV4xxxxuEPEFQVhyyyyqYgNwX7drFLw7MSdBnxP -c 5Hp5dxxxxtGg7pu8dN2btyyyyVA1vELmM9dy8KQv3LxV8PA7 --hotkey default --netuid 1 -p 0.3 -p 0.7
+        [green]$[/green] btcli stake child set -c 5FCL3gmjtQV4xxxxuEPEFQVhyyyyqYgNwX7drFLw7MSdBnxP -c 5Hp5dxxxxtGg7pu8dN2btyyyyVA1vELmM9dy8KQv3LxV8PA7 --hotkey default --netuid 1 --prop 0.3 --prop 0.7
         """
         self.verbosity_handler(quiet, verbose, json_output)
         netuid = get_optional_netuid(netuid, all_netuids)
@@ -4542,6 +4819,15 @@ class CLIManager:
             wallet_hotkey,
             ask_for=[WO.NAME, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
+        )
+        logger.debug(
+            "args:\n"
+            f"network: {network}\n"
+            f"netuid: {netuid}\n"
+            f"children: {children}\n"
+            f"proportions: {proportions}\n"
+            f"wait_for_inclusion: {wait_for_inclusion}\n"
+            f"wait_for_finalization: {wait_for_finalization}\n"
         )
         return self._run_command(
             children_hotkeys.set_children(
@@ -4608,6 +4894,13 @@ class CLIManager:
             netuid = IntPrompt.ask(
                 "Enter netuid (leave blank for all)", default=None, show_default=True
             )
+        logger.debug(
+            "args:\n"
+            f"network: {network}\n"
+            f"netuid: {netuid}\n"
+            f"wait_for_inclusion: {wait_for_inclusion}\n"
+            f"wait_for_finalization: {wait_for_finalization}\n"
+        )
         return self._run_command(
             children_hotkeys.revoke_children(
                 wallet,
@@ -4686,6 +4979,14 @@ class CLIManager:
             netuid = IntPrompt.ask(
                 "Enter netuid (leave blank for all)", default=None, show_default=True
             )
+        logger.debug(
+            "args:\n"
+            f"network: {network}\n"
+            f"netuid: {netuid}\n"
+            f"take: {take}\n"
+            f"wait_for_inclusion: {wait_for_inclusion}\n"
+            f"wait_for_finalization: {wait_for_finalization}\n"
+        )
         results: list[tuple[Optional[int], bool]] = self._run_command(
             children_hotkeys.childkey_take(
                 wallet=wallet,
@@ -4771,12 +5072,8 @@ class CLIManager:
                 )
                 return False
             param_name = "alpha_values"
-            low_val = FloatPrompt.ask(
-                f"Enter the new value for [{COLORS.G.ARG}]alpha_low[/{COLORS.G.ARG}]"
-            )
-            high_val = FloatPrompt.ask(
-                f"Enter the new value for [{COLORS.G.ARG}]alpha_high[/{COLORS.G.ARG}]"
-            )
+            low_val = FloatPrompt.ask(f"Enter the new value for {arg__('alpha_low')}")
+            high_val = FloatPrompt.ask(f"Enter the new value for {arg__('alpha_high')}")
             param_value = f"{low_val},{high_val}"
         if param_name == "yuma_version":
             if not prompt:
@@ -4800,7 +5097,7 @@ class CLIManager:
         if param_name == "subnet_is_active":
             err_console.print(
                 f"[{COLORS.SU.HYPERPARAM}]subnet_is_active[/{COLORS.SU.HYPERPARAM}] "
-                f"is set by using [{COLORS.G.ARG}]`btcli subnets start`[/{COLORS.G.ARG}] command."
+                f"is set by using {arg__('btcli subnets start')} command."
             )
             return False
 
@@ -4820,6 +5117,13 @@ class CLIManager:
 
         wallet = self.wallet_ask(
             wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
+        )
+        logger.debug(
+            "args:\n"
+            f"network: {network}\n"
+            f"netuid: {netuid}\n"
+            f"param_name: {param_name}\n"
+            f"param_value: {param_value}"
         )
         result, err_msg = self._run_command(
             sudo.sudo_set_hyperparameter(
@@ -4941,6 +5245,7 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
+        logger.debug(f"args:\nnetwork: {network}\nproposal: {proposal}\nvote: {vote}\n")
         return self._run_command(
             sudo.senate_vote(
                 wallet, self.initialize_chain(network), proposal, vote, prompt
@@ -4993,7 +5298,7 @@ class CLIManager:
                 f"Take value must be between {min_value} and {max_value}. Provided value: {take}"
             )
             raise typer.Exit()
-
+        logger.debug(f"args:\nnetwork: {network}\ntake: {take}")
         result = self._run_command(
             sudo.set_take(wallet, self.initialize_chain(network), take)
         )
@@ -5142,14 +5447,12 @@ class CLIManager:
         """
         if json_output and html_output:
             print_error(
-                f"Cannot specify both [{COLORS.G.ARG}]--json-output[/{COLORS.G.ARG}] "
-                f"and [{COLORS.G.ARG}]--html[/{COLORS.G.ARG}]"
+                f"Cannot specify both {arg__('--json-output')} and {arg__('--html')}"
             )
             return
         if current_only and html_output:
             print_error(
-                f"Cannot specify both [{COLORS.G.ARG}]--current[/{COLORS.G.ARG}] "
-                f"and [{COLORS.G.ARG}]--html[/{COLORS.G.ARG}]"
+                f"Cannot specify both {arg__('--current')} and {arg__('--html')}"
             )
             return
         self.verbosity_handler(quiet=quiet, verbose=verbose, json_output=json_output)
@@ -5160,9 +5463,8 @@ class CLIManager:
             Constants.network_map[x] for x in non_archives
         ]:
             err_console.print(
-                f"[red]Error[/red] Running this command without [{COLORS.G.ARG}]--current[/{COLORS.G.ARG}] requires "
-                "use of an archive node. "
-                f"Try running again with the [{COLORS.G.ARG}]--network archive[/{COLORS.G.ARG}] flag."
+                f"[red]Error[/red] Running this command without {arg__('--current')} requires use of an archive node. "
+                f"Try running again with the {arg__('--network archive')} flag."
             )
             return False
 
@@ -5225,7 +5527,7 @@ class CLIManager:
 
         EXAMPLE
 
-        [green]$[/green] btcli subnets list
+        [green]$[/green] btcli subnets show
         """
         self.verbosity_handler(quiet, verbose, json_output)
         subtensor = self.initialize_chain(network)
@@ -5337,6 +5639,7 @@ class CLIManager:
             logo_url=logo_url,
             additional=additional_info,
         )
+        logger.debug(f"args:\nnetwork: {network}\nidentity: {identity}\n")
         self._run_command(
             subnets.create(
                 wallet, self.initialize_chain(network), identity, json_output, prompt
@@ -5398,6 +5701,7 @@ class CLIManager:
             ],
             validate=WV.WALLET,
         )
+        logger.debug(f"args:\nnetwork: {network}\nnetuid: {netuid}\n")
         return self._run_command(
             subnets.start_subnet(
                 wallet,
@@ -5513,7 +5817,9 @@ class CLIManager:
             logo_url=logo_url,
             additional=additional_info,
         )
-
+        logger.debug(
+            f"args:\nnetwork: {network}\nnetuid: {netuid}\nidentity: {identity}"
+        )
         success = self._run_command(
             subnets.set_identity(
                 wallet, self.initialize_chain(network), netuid, identity, prompt
@@ -5651,6 +5957,7 @@ class CLIManager:
             ask_for=[WO.NAME, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
+        logger.debug(f"args:\nnetwork: {network}\nnetuid: {netuid}\nperiod: {period}\n")
         return self._run_command(
             subnets.register(
                 wallet,
@@ -5763,6 +6070,55 @@ class CLIManager:
             )
         )
 
+    def subnets_set_symbol(
+        self,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        network: Optional[list[str]] = Options.network,
+        netuid: int = Options.netuid,
+        json_output: bool = Options.json_output,
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        symbol: str = typer.Argument(help="The symbol to set for your subnet."),
+    ):
+        """
+        Allows the user to update their subnet symbol to a different available symbol. The full list of available symbols can be found here:
+        [#8CB9E9]https://github.com/opentensor/subtensor/blob/main/pallets/subtensor/src/subnets/symbols.rs#L8[/#8CB9E9]
+
+
+        EXAMPLE
+
+        [green]$[/green] btcli subnets set-symbol [dark_orange]--netuid 1 シ[/dark_orange]
+
+
+        JSON OUTPUT:
+        If --json-output is used, the output will be in the following schema:
+        [#AFEFFF]{success: [dark_orange]bool[/dark_orange], message: [dark_orange]str[/dark_orange]}[/#AFEFFF]
+        """
+        self.verbosity_handler(quiet, verbose, json_output)
+        if len(symbol) > 1:
+            err_console.print("Your symbol must be a single character.")
+            return False
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
+        return self._run_command(
+            subnets.set_symbol(
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                netuid=netuid,
+                symbol=symbol,
+                prompt=prompt,
+                json_output=json_output,
+            )
+        )
+
     def weights_reveal(
         self,
         network: Optional[list[str]] = Options.network,
@@ -5848,7 +6204,6 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
-
         return self._run_command(
             weights_cmds.reveal_weights(
                 self.initialize_chain(network),
@@ -6094,7 +6449,14 @@ class CLIManager:
         if price_low >= price_high:
             err_console.print("The low price must be lower than the high price.")
             return False
-
+        logger.debug(
+            f"args:\n"
+            f"hotkey: {hotkey}\n"
+            f"netuid: {netuid}\n"
+            f"liquidity: {liquidity_}\n"
+            f"price_low: {price_low}\n"
+            f"price_high: {price_high}\n"
+        )
         return self._run_command(
             liquidity.add_liquidity(
                 subtensor=self.initialize_chain(network),
@@ -6195,6 +6557,14 @@ class CLIManager:
             validate=WV.WALLET,
             return_wallet_and_hotkey=True,
         )
+        logger.debug(
+            f"args:\n"
+            f"network: {network}\n"
+            f"hotkey: {hotkey}\n"
+            f"netuid: {netuid}\n"
+            f"position_id: {position_id}\n"
+            f"all_liquidity_ids: {all_liquidity_ids}\n"
+        )
         return self._run_command(
             liquidity.remove_liquidity(
                 subtensor=self.initialize_chain(network),
@@ -6259,6 +6629,14 @@ class CLIManager:
                 f"[blue]{position_id}[/blue] (can be positive or negative)",
                 negative_allowed=True,
             )
+        logger.debug(
+            f"args:\n"
+            f"network: {network}\n"
+            f"hotkey: {hotkey}\n"
+            f"netuid: {netuid}\n"
+            f"position_id: {position_id}\n"
+            f"liquidity_delta: {liquidity_delta}"
+        )
 
         return self._run_command(
             liquidity.modify_liquidity(
@@ -6274,7 +6652,6 @@ class CLIManager:
         )
 
     @staticmethod
-    @utils_app.command("convert")
     def convert(
         from_rao: Optional[str] = typer.Option(
             None, "--rao", help="Convert amount from Rao"
@@ -6303,6 +6680,66 @@ class CLIManager:
                 "=",
                 f"{Balance.from_tao(tao).rao}{Balance.rao_unit}",
             )
+
+    def best_connection(
+        self,
+        additional_networks: Optional[list[str]] = typer.Option(
+            None,
+            "--network",
+            help="Network(s) to test for the best connection",
+        ),
+    ):
+        """
+        This command will give you the latency of all finney-like network in additional to any additional networks you specify via the '--network' flag
+
+        The results are three-fold. One column is the overall time to initialise a connection, send the requests, and wait for the results. The second column measures single ping-pong speed once connected. The third makes a real world call to fetch the chain head.
+
+        EXAMPLE
+
+        [green]$[/green] btcli utils latency --network ws://189.234.12.45 --network wss://mysubtensor.duckdns.org
+
+        """
+        additional_networks = additional_networks or []
+        if any(not x.startswith("ws") for x in additional_networks):
+            err_console.print(
+                "Invalid network endpoint. Ensure you are specifying a valid websocket endpoint"
+                f" (starting with [{COLORS.G.LINKS}]ws://[/{COLORS.G.LINKS}] or "
+                f"[{COLORS.G.LINKS}]wss://[/{COLORS.G.LINKS}]).",
+            )
+            return False
+        results: dict[str, list[float]] = self._run_command(
+            best_connection(Constants.lite_nodes + additional_networks)
+        )
+        sorted_results = {
+            k: v for k, v in sorted(results.items(), key=lambda item: item[1][0])
+        }
+        table = Table(
+            Column("Network"),
+            Column("End to End Latency", style="cyan"),
+            Column("Single Request Ping", style="cyan"),
+            Column("Chain Head Request Latency", style="cyan"),
+            title="Connection Latencies (seconds)",
+            caption="lower value is faster",
+        )
+        for n_name, (
+            overall_latency,
+            single_request,
+            chain_head,
+        ) in sorted_results.items():
+            table.add_row(
+                n_name, str(overall_latency), str(single_request), str(chain_head)
+            )
+        console.print(table)
+        fastest = next(iter(sorted_results.keys()))
+        if conf_net := self.config.get("network", ""):
+            if not conf_net.startswith("ws") and conf_net in Constants.networks:
+                conf_net = Constants.network_map[conf_net]
+            if conf_net != fastest:
+                console.print(
+                    f"The fastest network is {fastest}. You currently have {conf_net} selected as your default network."
+                    f"\nYou can update this with {arg__(f'btcli config set --network {fastest}')}"
+                )
+        return True
 
     def run(self):
         self.app()

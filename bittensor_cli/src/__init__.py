@@ -23,6 +23,7 @@ class Constants:
     dev_entrypoint = "wss://dev.chain.opentensor.ai:443"
     local_entrypoint = "ws://127.0.0.1:9944"
     latent_lite_entrypoint = "wss://lite.sub.latent.to:443"
+    lite_nodes = [finney_entrypoint, subvortex_entrypoint, latent_lite_entrypoint]
     network_map = {
         "finney": finney_entrypoint,
         "test": finney_test_entrypoint,
@@ -88,12 +89,14 @@ class Defaults:
     class config:
         base_path = "~/.bittensor"
         path = "~/.bittensor/config.yml"
+        debug_file_path = "~/.bittensor/debug.txt"
         dictionary = {
             "network": None,
             "wallet_path": None,
             "wallet_name": None,
             "wallet_hotkey": None,
             "use_cache": True,
+            "disk_cache": False,
             "metagraph_cols": {
                 "UID": True,
                 "GLOBAL_STAKE": True,

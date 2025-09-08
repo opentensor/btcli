@@ -269,10 +269,26 @@ def get_hotkey_wallets_for_wallet(
     except FileNotFoundError:
         hotkeys = []
     for h_name in hotkeys:
-        hotkey_for_name = Wallet(path=str(wallet_path), name=wallet.name, hotkey=h_name)
+        if h_name.endswith("pub.txt"):
+            if h_name.split("pub.txt")[0] in hotkeys:
+                continue
+            else:
+                hotkey_for_name = Wallet(
+                    path=str(wallet_path),
+                    name=wallet.name,
+                    hotkey=h_name.split("pub.txt")[0],
+                )
+        else:
+            hotkey_for_name = Wallet(
+                path=str(wallet_path), name=wallet.name, hotkey=h_name
+            )
         try:
+            exists = (
+                hotkey_for_name.hotkey_file.exists_on_device()
+                or hotkey_for_name.hotkeypub_file.exists_on_device()
+            )
             if (
-                (exists := hotkey_for_name.hotkey_file.exists_on_device())
+                exists
                 and not hotkey_for_name.hotkey_file.is_encrypted()
                 # and hotkey_for_name.coldkeypub.ss58_address
                 and get_hotkey_pub_ss58(hotkey_for_name)

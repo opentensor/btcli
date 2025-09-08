@@ -1,5 +1,26 @@
 # Changelog
 
+## 9.11.0 /2025-09-05
+* Better arg naming + type annotations by @thewhaleking in https://github.com/opentensor/btcli/pull/590
+* disk cache in config by @thewhaleking in https://github.com/opentensor/btcli/pull/588
+* Unstake no prompts by @thewhaleking in https://github.com/opentensor/btcli/pull/591
+* expand readme by @thewhaleking in https://github.com/opentensor/btcli/pull/598
+* Better arg formatting for readability by @thewhaleking in https://github.com/opentensor/btcli/pull/592
+* Update childkey proportion CLI argument in docs by @HudsonGraeme in https://github.com/opentensor/btcli/pull/602
+* Update example for show command by @HudsonGraeme in https://github.com/opentensor/btcli/pull/604
+* New cmd: `btcli utils latency` by @thewhaleking in https://github.com/opentensor/btcli/pull/599
+* Fix: Swap hotkey - new hotkey reg check by @ibraheem-abe in https://github.com/opentensor/btcli/pull/608
+* Update cli.py to remove double negative typo by @calebcgates in https://github.com/opentensor/btcli/pull/606
+* Better shows hotkeypubs in `w list` by @thewhaleking in https://github.com/opentensor/btcli/pull/611
+* subnet symbol set command by @thewhaleking in https://github.com/opentensor/btcli/pull/613
+* Debug log by @thewhaleking in https://github.com/opentensor/btcli/pull/597
+* Debug log additional by @thewhaleking in https://github.com/opentensor/btcli/pull/615
+
+### New Contributors
+* @calebcgates made their first contribution in https://github.com/opentensor/btcli/pull/606
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.10.1...v9.11.0
+
 ## 9.10.2 /2025-09-05
 * Fixes swap-hotkey in by @ibraheem-abe in https://github.com/opentensor/btcli/commit/aec630ec06fb679957c1c2940f37a28751fd427f
 

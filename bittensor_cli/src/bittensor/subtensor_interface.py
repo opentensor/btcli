@@ -1,21 +1,22 @@
 import asyncio
 import os
+import time
 from typing import Optional, Any, Union, TypedDict, Iterable
 
 import aiohttp
+from async_substrate_interface.async_substrate import (
+    DiskCachedAsyncSubstrateInterface,
+    AsyncSubstrateInterface,
+)
+from async_substrate_interface.errors import SubstrateRequestException
 from async_substrate_interface.utils.storage import StorageKey
 from bittensor_wallet import Wallet
 from bittensor_wallet.bittensor_wallet import Keypair
 from bittensor_wallet.utils import SS58_FORMAT
 from scalecodec import GenericCall
-from async_substrate_interface.errors import SubstrateRequestException
 import typer
+import websockets
 
-
-from async_substrate_interface.async_substrate import (
-    DiskCachedAsyncSubstrateInterface,
-    AsyncSubstrateInterface,
-)
 from bittensor_cli.src.bittensor.chain_data import (
     DelegateInfo,
     StakeInfo,
@@ -40,12 +41,6 @@ from bittensor_cli.src.bittensor.utils import (
     u16_normalized_float,
     U16_MAX,
     get_hotkey_pub_ss58,
-)
-
-SubstrateClass = (
-    DiskCachedAsyncSubstrateInterface
-    if os.getenv("DISK_CACHE", "0") == "1"
-    else AsyncSubstrateInterface
 )
 
 
@@ -81,7 +76,7 @@ class SubtensorInterface:
     Thin layer for interacting with Substrate Interface. Mostly a collection of frequently-used calls.
     """
 
-    def __init__(self, network):
+    def __init__(self, network, use_disk_cache: bool = False):
         if network in Constants.network_map:
             self.chain_endpoint = Constants.network_map[network]
             self.network = network
@@ -111,8 +106,12 @@ class SubtensorInterface:
                 )
                 self.chain_endpoint = Constants.network_map[defaults.subtensor.network]
                 self.network = defaults.subtensor.network
-
-        self.substrate = SubstrateClass(
+        substrate_class = (
+            DiskCachedAsyncSubstrateInterface
+            if (use_disk_cache or os.getenv("DISK_CACHE", "0") == "1")
+            else AsyncSubstrateInterface
+        )
+        self.substrate = substrate_class(
             url=self.chain_endpoint,
             ss58_format=SS58_FORMAT,
             type_registry=TYPE_REGISTRY,
@@ -1656,3 +1655,32 @@ class SubtensorInterface:
             map_[netuid_] = Balance.from_rao(int(current_price * 1e9))
 
         return map_
+
+
+async def best_connection(networks: list[str]):
+    """
+    Basic function to compare the latency of a given list of websocket endpoints
+    Args:
+        networks: list of network URIs
+
+    Returns:
+        {network_name: [end_to_end_latency, single_request_latency, chain_head_request_latency]}
+
+    """
+    results = {}
+    for network in networks:
+        try:
+            t1 = time.monotonic()
+            async with websockets.connect(network) as websocket:
+                pong = await websocket.ping()
+                latency = await pong
+                pt1 = time.monotonic()
+                await websocket.send(
+                    "{'jsonrpc': '2.0', 'method': 'chain_getHead', 'params': [], 'id': '82'}"
+                )
+                await websocket.recv()
+                t2 = time.monotonic()
+            results[network] = [t2 - t1, latency, t2 - pt1]
+        except Exception as e:
+            err_console.print(f"Error attempting network {network}: {e}")
+    return results

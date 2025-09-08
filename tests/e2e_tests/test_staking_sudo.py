@@ -10,6 +10,7 @@ Verify commands:
 * btcli subnets create
 * btcli subnets set-identity
 * btcli subnets get-identity
+* btcli subnets set-symbol
 * btcli subnets register
 * btcli subnets price
 * btcli stake add
@@ -234,6 +235,34 @@ def test_staking(local_chain, wallet_setup):
     assert get_identity_output["description"] == sn_description
     assert get_identity_output["logo_url"] == sn_logo_url
     assert get_identity_output["additional"] == sn_add_info
+
+    # set symbol
+    set_symbol = exec_command_alice(
+        "subnets",
+        "set-symbol",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--hotkey",
+            wallet_alice.hotkey_str,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--netuid",
+            netuid,
+            "--json-output",
+            "--no-prompt",
+            "シ",
+        ],
+    )
+    set_symbol_output = json.loads(set_symbol.stdout)
+    assert set_symbol_output["success"] is True, set_symbol_output
+    assert set_symbol_output["success"] is True, set_symbol_output
+    assert (
+        set_symbol_output["message"]
+        == f"Successfully updated SN{netuid}'s symbol to シ."
+    )
 
     get_s_price = exec_command_alice(
         "subnets",
