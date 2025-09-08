@@ -960,6 +960,9 @@ class CLIManager:
         self.subnets_app.command(
             "check-start", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
         )(self.subnets_check_start)
+        self.subnets_app.command(
+            "set-symbol", rich_help_panel=HELP_PANELS["SUBNETS"]["IDENTITY"]
+        )(self.subnets_set_symbol)
 
         # weights commands
         self.weights_app.command(
@@ -5791,6 +5794,35 @@ class CLIManager:
                 not self.config.get("use_cache", True),
                 self.config.get("metagraph_cols", {}),
             )
+        )
+
+    def subnets_set_symbol(
+        self,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        network: Optional[list[str]] = Options.network,
+        netuid: int = Options.netuid,
+        json_output: bool = Options.json_output,
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        symbol: str = typer.Argument(help="The symbol to set for your subnet."),
+    ):
+        """
+        Allows the user to update their subnet symbol.
+
+        EXAMPLE
+
+        [green]$[/green] btcli subnets set-symbol --netuid 1 ‡
+        """
+        self.verbosity_handler(quiet, verbose, json_output)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
         )
 
     def weights_reveal(
