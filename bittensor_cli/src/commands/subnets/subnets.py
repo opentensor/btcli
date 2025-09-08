@@ -2458,7 +2458,12 @@ async def set_symbol(
     prompt: bool = False,
     json_output: bool = False,
 ) -> bool:
-    """Set a subtensor's symbol"""
+    """
+    Set a subtensor's symbol, given the netuid and symbol.
+
+    The symbol must be a symbol that subtensor recognizes as available
+    (defined in https://github.com/opentensor/subtensor/blob/main/pallets/subtensor/src/subnets/symbols.rs#L8)
+    """
     if not await subtensor.subnet_exists(netuid):
         err = f"Subnet {netuid} does not exist."
         if json_output:
