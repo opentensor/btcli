@@ -5817,12 +5817,25 @@ class CLIManager:
         [green]$[/green] btcli subnets set-symbol --netuid 1 ‡
         """
         self.verbosity_handler(quiet, verbose, json_output)
+        if len(symbol) > 1:
+            err_console.print("Your symbol must be a single character.")
+            return False
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
             wallet_hotkey,
             ask_for=[WO.NAME, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
+        )
+        return self._run_command(
+            subnets.set_symbol(
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                netuid=netuid,
+                symbol=symbol,
+                prompt=prompt,
+                json_output=json_output,
+            )
         )
 
     def weights_reveal(
