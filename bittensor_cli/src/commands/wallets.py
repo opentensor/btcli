@@ -846,12 +846,21 @@ async def wallet_list(wallet_path: str, json_output: bool):
             data = f"[bold red]Hotkey[/bold red][green] {hkey}[/green] (?)"
             hk_data = {"name": hkey.name, "ss58_address": "?"}
             if hkey:
-                hkey_ss58 = get_hotkey_pub_ss58(hkey)
+                try:
+                    hkey_ss58 = hkey.get_hotkey().ss58_address
+                    pub_only = False
+                except KeyFileError:
+                    hkey_ss58 = hkey.get_hotkeypub().ss58_address
+                    pub_only = True
                 try:
                     data = (
                         f"[bold red]Hotkey[/bold red] [green]{hkey.hotkey_str}[/green]  "
-                        f"ss58_address [green]{hkey_ss58}[/green]\n"
+                        f"ss58_address [green]{hkey_ss58}[/green]"
                     )
+                    if pub_only:
+                        data += " [blue](hotkeypub only)[/blue]\n"
+                    else:
+                        data += "\n"
                     hk_data["name"] = hkey.hotkey_str
                     hk_data["ss58_address"] = hkey_ss58
                 except UnicodeDecodeError:
@@ -1836,7 +1845,7 @@ async def check_coldkey_swap(wallet: Wallet, subtensor: SubtensorInterface):
 
 
 async def sign(
-    wallet: Wallet, message: str, use_hotkey: str, json_output: bool = False
+    wallet: Wallet, message: str, use_hotkey: bool, json_output: bool = False
 ):
     """Sign a message using the provided wallet or hotkey."""
 
