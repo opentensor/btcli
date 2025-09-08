@@ -257,7 +257,8 @@ def test_staking(local_chain, wallet_setup):
         ],
     )
     set_symbol_output = json.loads(set_symbol.stdout)
-    assert set_symbol_output["success"] is True, set_identity_output
+    assert set_symbol_output["success"] is True
+    assert set_symbol_output["success"] is True, set_symbol_output
     assert (
         set_symbol_output["message"]
         == f"Successfully updated SN{netuid}'s symbol to ‡."

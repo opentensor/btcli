@@ -2485,7 +2485,7 @@ async def set_symbol(
     start_call = await subtensor.substrate.compose_call(
         call_module="SubtensorModule",
         call_function="update_symbol",
-        call_params={"netuid": netuid, "symbol": symbol},
+        call_params={"netuid": netuid, "symbol": symbol.encode("utf-8")},
     )
 
     signed_ext = await subtensor.substrate.create_signed_extrinsic(
