@@ -14,6 +14,7 @@
 * Better shows hotkeypubs in `w list` by @thewhaleking in https://github.com/opentensor/btcli/pull/611
 * subnet symbol set command by @thewhaleking in https://github.com/opentensor/btcli/pull/613
 * Debug log by @thewhaleking in https://github.com/opentensor/btcli/pull/597
+* Debug log additional by @thewhaleking in https://github.com/opentensor/btcli/pull/615
 
 ### New Contributors
 * @calebcgates made their first contribution in https://github.com/opentensor/btcli/pull/606
