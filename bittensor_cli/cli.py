@@ -613,11 +613,12 @@ def debug_callback(value: bool):
             or os.path.expanduser(defaults.config.debug_file_path)
         )
         if not debug_file_loc.exists():
-            print_error(
-                f"The debug file '{debug_file_loc}' does not exist. This indicates that you have not run a command "
-                f"which has logged debug output, or you deleted this file. If the debug file was created using the "
-                f"BTCLI_DEBUG_FILE environment variable, please set the value for the same location, and re-run "
-                f"this `btcli --debug` command."
+            err_console.print(
+                f"[red]Error: The debug file '{arg__(str(debug_file_loc))}' does not exist. This indicates that you have"
+                f" not run a command which has logged debug output, or you deleted this file. Debug logging only occurs"
+                f" if {arg__('use_cache')} is set to True in your config ({arg__('btcli config set')}). If the debug "
+                f"file was created using the {arg__('BTCLI_DEBUG_FILE')} environment variable, please set the value for"
+                f" the same location, and re-run this {arg__('btcli --debug')} command.[/red]"
             )
             raise typer.Exit()
         save_file_loc_ = Prompt.ask(
