@@ -1845,7 +1845,7 @@ async def check_coldkey_swap(wallet: Wallet, subtensor: SubtensorInterface):
 
 
 async def sign(
-    wallet: Wallet, message: str, use_hotkey: str, json_output: bool = False
+    wallet: Wallet, message: str, use_hotkey: bool, json_output: bool = False
 ):
     """Sign a message using the provided wallet or hotkey."""
 
