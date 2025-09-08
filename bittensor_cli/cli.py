@@ -1257,7 +1257,7 @@ class CLIManager:
     ):
         """
         Command line interface (CLI) for Bittensor. Uses the values in the configuration file. These values can be
-            overriden by passing them explicitly in the command line.
+            overridden by passing them explicitly in the command line.
         """
         # Load or create the config file
         if os.path.exists(self.config_path):
@@ -1281,6 +1281,9 @@ class CLIManager:
                     if sub_key not in config[key]:
                         config[key][sub_key] = sub_value
                         updated = True
+            elif isinstance(value, bool) and config[key] is None:
+                config[key] = value
+                updated = True
         if updated:
             with open(self.config_path, "w") as f:
                 safe_dump(config, f)
