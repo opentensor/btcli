@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bittensor-cli"
-version = "9.10.2"
+version = "9.11.0"
 description = "Bittensor CLI"
 readme = "README.md"
 authors = [
@@ -15,7 +15,7 @@ scripts = { btcli = "bittensor_cli.cli:main" }
 requires-python = ">=3.9,<3.14"
 dependencies = [
     "wheel",
-    "async-substrate-interface>=1.4.2",
+    "async-substrate-interface>=1.5.2",
     "aiohttp~=3.10.2",
     "backoff~=2.2.1",
     "GitPython>=3.0.0",

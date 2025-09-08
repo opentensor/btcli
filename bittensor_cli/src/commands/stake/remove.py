@@ -361,6 +361,7 @@ async def unstake(
     )
     if json_output:
         json_console.print(json.dumps(successes))
+    return True
 
 
 async def unstake_all(
