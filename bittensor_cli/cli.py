@@ -608,6 +608,18 @@ def commands_callback(value: bool):
 
 def debug_callback(value: bool):
     if value:
+        debug_file_loc = Path(
+            os.getenv("BTCLI_DEBUG_FILE")
+            or os.path.expanduser(defaults.config.debug_file_path)
+        )
+        if not debug_file_loc.exists():
+            print_error(
+                f"The debug file '{debug_file_loc}' does not exist. This indicates that you have not run a command "
+                f"which has logged debug output, or you deleted this file. If the debug file was created using the "
+                f"BTCLI_DEBUG_FILE environment variable, please set the value for the same location, and re-run "
+                f"this `btcli --debug` command."
+            )
+            raise typer.Exit()
         save_file_loc_ = Prompt.ask(
             "Enter the file location to save the debug log for the previous command.",
             default="~/.bittensor/debug-export",
@@ -621,16 +633,12 @@ def debug_callback(value: bool):
         try:
             with (
                 open(save_file_loc, "w+") as save_file,
-                open(
-                    os.getenv("BTCLI_DEBUG_FILE")
-                    or os.path.expanduser(defaults.config.debug_file_path),
-                    "r",
-                ) as current_file,
+                open(debug_file_loc, "r") as current_file,
             ):
                 save_file.write(current_file.read())
                 console.print(f"Saved debug log to {save_file_loc}")
-        except FileNotFoundError:
-            print_error(f"The filepath '{save_file_loc}' does not exist.")
+        except FileNotFoundError as e:
+            print_error(str(e))
         raise typer.Exit()
 
 
