@@ -608,24 +608,38 @@ def commands_callback(value: bool):
 
 def debug_callback(value: bool):
     if value:
+        debug_file_loc = Path(
+            os.getenv("BTCLI_DEBUG_FILE")
+            or os.path.expanduser(defaults.config.debug_file_path)
+        )
+        if not debug_file_loc.exists():
+            err_console.print(
+                f"[red]Error: The debug file '{arg__(str(debug_file_loc))}' does not exist. This indicates that you have"
+                f" not run a command which has logged debug output, or you deleted this file. Debug logging only occurs"
+                f" if {arg__('use_cache')} is set to True in your config ({arg__('btcli config set')}). If the debug "
+                f"file was created using the {arg__('BTCLI_DEBUG_FILE')} environment variable, please set the value for"
+                f" the same location, and re-run this {arg__('btcli --debug')} command.[/red]"
+            )
+            raise typer.Exit()
         save_file_loc_ = Prompt.ask(
             "Enter the file location to save the debug log for the previous command.",
             default="~/.bittensor/debug-export",
         ).strip()
-        save_file_loc = os.path.expanduser(save_file_loc_)
+        save_file_loc = Path(os.path.expanduser(save_file_loc_))
+        if not save_file_loc.parent.exists():
+            if Confirm.ask(
+                f"The directory '{save_file_loc.parent}' does not exist. Would you like to create it?"
+            ):
+                save_file_loc.parent.mkdir(parents=True, exist_ok=True)
         try:
             with (
                 open(save_file_loc, "w+") as save_file,
-                open(
-                    os.getenv("BTCLI_DEBUG_FILE")
-                    or os.path.expanduser(defaults.config.debug_file_path),
-                    "r",
-                ) as current_file,
+                open(debug_file_loc, "r") as current_file,
             ):
                 save_file.write(current_file.read())
                 console.print(f"Saved debug log to {save_file_loc}")
-        except FileNotFoundError:
-            print_error(f"The filepath '{save_file_loc}' does not exist.")
+        except FileNotFoundError as e:
+            print_error(str(e))
         raise typer.Exit()
 
 
@@ -1243,7 +1257,7 @@ class CLIManager:
     ):
         """
         Command line interface (CLI) for Bittensor. Uses the values in the configuration file. These values can be
-            overriden by passing them explicitly in the command line.
+            overridden by passing them explicitly in the command line.
         """
         # Load or create the config file
         if os.path.exists(self.config_path):
@@ -1267,6 +1281,9 @@ class CLIManager:
                     if sub_key not in config[key]:
                         config[key][sub_key] = sub_value
                         updated = True
+            elif isinstance(value, bool) and config[key] is None:
+                config[key] = value
+                updated = True
         if updated:
             with open(self.config_path, "w") as f:
                 safe_dump(config, f)
