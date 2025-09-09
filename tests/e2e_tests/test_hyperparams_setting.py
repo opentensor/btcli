@@ -2,7 +2,7 @@ import asyncio
 import json
 
 from bittensor_cli.src import HYPERPARAMS
-from tests.e2e_tests.utils import turn_off_hyperparam_freeze_window
+from .utils import turn_off_hyperparam_freeze_window
 
 """
 Verify commands:

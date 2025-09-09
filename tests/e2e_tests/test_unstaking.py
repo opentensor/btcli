@@ -4,7 +4,7 @@ import re
 
 from bittensor_cli.src.bittensor.balances import Balance
 
-from btcli.tests.e2e_tests.utils import set_storage_extrinsic
+from .utils import set_storage_extrinsic
 
 
 def test_unstaking(local_chain, wallet_setup):

@@ -3,7 +3,7 @@ import json
 import re
 
 from bittensor_cli.src.bittensor.balances import Balance
-from tests.e2e_tests.utils import turn_off_hyperparam_freeze_window
+from .utils import turn_off_hyperparam_freeze_window
 
 """
 Verify commands:
