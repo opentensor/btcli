@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Iterator, Callable
 import logging
 import os
 import re
@@ -8,11 +9,13 @@ import signal
 import subprocess
 import sys
 import time
+from typing import Generator
 
+import bittensor_wallet.keypair
 import pytest
 from async_substrate_interface.async_substrate import AsyncSubstrateInterface
 
-from .utils import setup_wallet
+from .utils import setup_wallet, ExecCommand
 
 LOCALNET_IMAGE_NAME = "ghcr.io/opentensor/subtensor-localnet:devnet-ready"
 
@@ -31,7 +34,7 @@ def wait_for_node_start(process, pattern, timestamp: int = None):
 
 # Fixture for setting up and tearing down a localnet.sh chain between tests
 @pytest.fixture(scope="function")
-def local_chain(request):
+def local_chain(request) -> Iterator[AsyncSubstrateInterface]:
     """Determines whether to run the localnet.sh script in a subprocess or a Docker container."""
     args = request.param if hasattr(request, "param") else None
     params = "" if args is None else f"{args}"
@@ -58,7 +61,7 @@ def local_chain(request):
         yield from legacy_runner(request)
 
 
-def legacy_runner(request):
+def legacy_runner(request) -> Iterator[AsyncSubstrateInterface]:
     param = request.param if hasattr(request, "param") else None
     # Get the environment variable for the script path
     script_path = os.getenv("LOCALNET_SH_PATH")
@@ -103,7 +106,7 @@ def legacy_runner(request):
     process.wait()
 
 
-def docker_runner(params):
+def docker_runner(params) -> Iterator[AsyncSubstrateInterface]:
     """Starts a Docker container before tests and gracefully terminates it after."""
 
     def is_docker_running():
@@ -211,7 +214,19 @@ def docker_runner(params):
 
 
 @pytest.fixture(scope="function")
-def wallet_setup():
+def wallet_setup() -> Generator[
+    Callable[
+        [str],
+        tuple[
+            bittensor_wallet.Keypair,
+            bittensor_wallet.Wallet,
+            str,
+            ExecCommand,
+        ],
+    ],
+    None,
+    None,
+]:
     wallet_paths = []
 
     def _setup_wallet(uri: str):
