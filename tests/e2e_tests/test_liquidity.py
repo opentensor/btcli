@@ -1,7 +1,9 @@
+import asyncio
 import json
 import re
 
 from bittensor_cli.src.bittensor.balances import Balance
+from tests.e2e_tests.utils import turn_off_hyperparam_freeze_window
 
 """
 Verify commands:
@@ -40,6 +42,12 @@ def test_liquidity(local_chain, wallet_setup):
     keypair_alice, wallet_alice, wallet_path_alice, exec_command_alice = wallet_setup(
         wallet_path_alice
     )
+    try:
+        asyncio.run(turn_off_hyperparam_freeze_window(local_chain, wallet_alice))
+    except ValueError:
+        print(
+            "Skipping turning off hyperparams freeze window. This indicates the call does not exist on the chain you are testing."
+        )
 
     # Register a subnet with sudo as Alice
     result = exec_command_alice(

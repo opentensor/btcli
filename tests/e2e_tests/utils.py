@@ -383,3 +383,29 @@ async def set_storage_extrinsic(
         print(":white_heavy_check_mark: [dark_sea_green_3]Success[/dark_sea_green_3]")
 
     return response
+
+
+async def turn_off_hyperparam_freeze_window(
+    substrate: "AsyncSubstrateInterface", wallet: Wallet
+):
+    call = await substrate.compose_call(
+        call_module="Sudo",
+        call_function="sudo",
+        call_params={
+            "call": await substrate.compose_call(
+                call_module="AdminUtils",
+                call_function="sudo_set_admin_freeze_window",
+                call_params={"window": 0},
+            )
+        },
+    )
+    extrinsic = await substrate.create_signed_extrinsic(
+        call=call, keypair=wallet.coldkey
+    )
+    response = await substrate.submit_extrinsic(
+        extrinsic,
+        wait_for_inclusion=True,
+        wait_for_finalization=True,
+    )
+
+    return await response.is_success, await response.error_message
