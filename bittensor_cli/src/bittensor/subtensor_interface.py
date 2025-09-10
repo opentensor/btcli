@@ -1526,7 +1526,7 @@ class SubtensorInterface:
         """
         block_hash = block_hash or await self.substrate.get_chain_head()
         if origin_netuid > 0 and destination_netuid > 0:
-            # for cross-subnet moves
+            # for cross-subnet moves where neither origin nor destination is root
             intermediate_result_, sn_price = await asyncio.gather(
                 self.query_runtime_api(
                     "SwapRuntimeApi",

@@ -520,14 +520,10 @@ async def move_stake(
             "alpha_amount": amount_to_move_as_balance.rao,
         },
     )
-    stake_fee, extrinsic_fee = await asyncio.gather(
-        subtensor.get_stake_fee(
-            origin_hotkey_ss58=origin_hotkey,
+    sim_swap, extrinsic_fee = await asyncio.gather(
+        subtensor.sim_swap(
             origin_netuid=origin_netuid,
-            origin_coldkey_ss58=wallet.coldkeypub.ss58_address,
-            destination_hotkey_ss58=destination_hotkey,
             destination_netuid=destination_netuid,
-            destination_coldkey_ss58=wallet.coldkeypub.ss58_address,
             amount=amount_to_move_as_balance.rao,
         ),
         subtensor.get_extrinsic_fee(call, wallet.coldkeypub),
@@ -543,7 +539,9 @@ async def move_stake(
                 origin_hotkey=origin_hotkey,
                 destination_hotkey=destination_hotkey,
                 amount_to_move=amount_to_move_as_balance,
-                stake_fee=stake_fee,
+                stake_fee=sim_swap.alpha_fee
+                if origin_netuid != 0
+                else sim_swap.tao_fee,
                 extrinsic_fee=extrinsic_fee,
             )
         except ValueError:
@@ -709,14 +707,10 @@ async def transfer_stake(
             "alpha_amount": amount_to_transfer.rao,
         },
     )
-    stake_fee, extrinsic_fee = await asyncio.gather(
-        subtensor.get_stake_fee(
-            origin_hotkey_ss58=origin_hotkey,
+    sim_swap, extrinsic_fee = await asyncio.gather(
+        subtensor.sim_swap(
             origin_netuid=origin_netuid,
-            origin_coldkey_ss58=wallet.coldkeypub.ss58_address,
-            destination_hotkey_ss58=origin_hotkey,
             destination_netuid=dest_netuid,
-            destination_coldkey_ss58=dest_coldkey_ss58,
             amount=amount_to_transfer.rao,
         ),
         subtensor.get_extrinsic_fee(call, wallet.coldkeypub),
@@ -732,7 +726,9 @@ async def transfer_stake(
                 origin_hotkey=origin_hotkey,
                 destination_hotkey=origin_hotkey,
                 amount_to_move=amount_to_transfer,
-                stake_fee=stake_fee,
+                stake_fee=sim_swap.alpha_fee
+                if origin_netuid != 0
+                else sim_swap.tao_fee,
                 extrinsic_fee=extrinsic_fee,
             )
         except ValueError:
@@ -880,14 +876,10 @@ async def swap_stake(
             "alpha_amount": amount_to_swap.rao,
         },
     )
-    stake_fee, extrinsic_fee = await asyncio.gather(
-        subtensor.get_stake_fee(
-            origin_hotkey_ss58=hotkey_ss58,
+    sim_swap, extrinsic_fee = await asyncio.gather(
+        subtensor.sim_swap(
             origin_netuid=origin_netuid,
-            origin_coldkey_ss58=wallet.coldkeypub.ss58_address,
-            destination_hotkey_ss58=hotkey_ss58,
             destination_netuid=destination_netuid,
-            destination_coldkey_ss58=wallet.coldkeypub.ss58_address,
             amount=amount_to_swap.rao,
         ),
         subtensor.get_extrinsic_fee(call, wallet.coldkeypub),
@@ -903,7 +895,9 @@ async def swap_stake(
                 origin_hotkey=hotkey_ss58,
                 destination_hotkey=hotkey_ss58,
                 amount_to_move=amount_to_swap,
-                stake_fee=stake_fee,
+                stake_fee=sim_swap.alpha_fee
+                if origin_netuid != 0
+                else sim_swap.tao_fee,
                 extrinsic_fee=extrinsic_fee,
             )
         except ValueError:

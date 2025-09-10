@@ -200,16 +200,6 @@ async def unstake(
                 )
                 continue  # Skip to the next subnet - useful when single amount is specified for all subnets
 
-            stake_fee = await subtensor.get_stake_fee(
-                origin_hotkey_ss58=staking_address_ss58,
-                origin_netuid=netuid,
-                origin_coldkey_ss58=wallet.coldkeypub.ss58_address,
-                destination_hotkey_ss58=None,
-                destination_netuid=None,
-                destination_coldkey_ss58=wallet.coldkeypub.ss58_address,
-                amount=amount_to_unstake_as_balance.rao,
-            )
-
             try:
                 current_price = subnet_info.price.tao
                 if safe_staking:
@@ -240,10 +230,10 @@ async def unstake(
                         netuid=netuid,
                         amount=amount_to_unstake_as_balance,
                     )
-                rate = current_price
-                received_amount = (
-                    (amount_to_unstake_as_balance - stake_fee) * rate
-                ) - extrinsic_fee
+                sim_swap = await subtensor.sim_swap(
+                    netuid, 0, amount_to_unstake_as_balance.rao
+                )
+                received_amount = sim_swap.tao_amount - extrinsic_fee
             except ValueError:
                 continue
             total_received_amount += received_amount
@@ -266,7 +256,7 @@ async def unstake(
                 str(amount_to_unstake_as_balance),  # Amount to Unstake
                 f"{subnet_info.price.tao:.6f}"
                 + f"(τ/{Balance.get_unit(netuid)})",  # Rate
-                str(stake_fee.set_unit(netuid)),  # Fee
+                str(sim_swap.alpha_fee),  # Fee
                 str(extrinsic_fee),  # Extrinsic fee
                 str(received_amount),  # Received Amount
                 # slippage_pct,  # Slippage Percent
@@ -494,15 +484,6 @@ async def unstake_all(
             hotkey_display = hotkey_names.get(stake.hotkey_ss58, stake.hotkey_ss58)
             subnet_info = all_sn_dynamic_info.get(stake.netuid)
             stake_amount = stake.stake
-            stake_fee = await subtensor.get_stake_fee(
-                origin_hotkey_ss58=stake.hotkey_ss58,
-                origin_netuid=stake.netuid,
-                origin_coldkey_ss58=wallet.coldkeypub.ss58_address,
-                destination_hotkey_ss58=None,
-                destination_netuid=None,
-                destination_coldkey_ss58=wallet.coldkeypub.ss58_address,
-                amount=stake_amount.rao,
-            )
 
             try:
                 current_price = subnet_info.price.tao
@@ -515,8 +496,8 @@ async def unstake_all(
                     subtensor,
                     hotkey_ss58=stake.hotkey_ss58,
                 )
-                rate = current_price
-                received_amount = ((stake_amount - stake_fee) * rate) - extrinsic_fee
+                sim_swap = await subtensor.sim_swap(stake.netuid, 0, stake_amount.rao)
+                received_amount = sim_swap.tao_amount - extrinsic_fee
 
                 if received_amount < Balance.from_tao(0):
                     print_error("Not enough Alpha to pay the transaction fee.")
@@ -532,7 +513,7 @@ async def unstake_all(
                 str(stake_amount),
                 f"{float(subnet_info.price):.6f}"
                 + f"({Balance.get_unit(0)}/{Balance.get_unit(stake.netuid)})",
-                str(stake_fee),
+                str(sim_swap.alpha_fee),
                 str(extrinsic_fee),
                 str(received_amount),
             )
