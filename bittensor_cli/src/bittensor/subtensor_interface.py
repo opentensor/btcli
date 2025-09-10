@@ -28,6 +28,7 @@ from bittensor_cli.src.bittensor.chain_data import (
     DynamicInfo,
     SubnetState,
     MetagraphInfo,
+    SimSwapResult,
 )
 from bittensor_cli.src import DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance, fixed_to_float
@@ -1502,59 +1503,79 @@ class SubtensorInterface:
         fee_dict = await self.substrate.get_payment_info(call, keypair)
         return Balance.from_rao(fee_dict["partial_fee"])
 
-    async def get_stake_fee(
+    async def sim_swap(
         self,
-        origin_hotkey_ss58: Optional[str],
-        origin_netuid: Optional[int],
-        origin_coldkey_ss58: str,
-        destination_hotkey_ss58: Optional[str],
-        destination_netuid: Optional[int],
-        destination_coldkey_ss58: str,
+        origin_netuid: int,
+        destination_netuid: int,
         amount: int,
         block_hash: Optional[str] = None,
-    ) -> Balance:
+    ) -> SimSwapResult:
         """
-        Calculates the fee for a staking operation.
+        Hits the SimSwap Runtime API to calculate the fee and result for a given transaction. This should be used
+        instead of get_stake_fee for staking fee calculations. The SimSwapResult contains the staking fees and expected
+        returned amounts of a given transaction. This does not include the transaction (extrinsic) fee.
 
-        :param origin_hotkey_ss58: SS58 address of source hotkey (None for new stake)
-        :param origin_netuid: Netuid of source subnet (None for new stake)
-        :param origin_coldkey_ss58: SS58 address of source coldkey
-        :param destination_hotkey_ss58: SS58 address of destination hotkey (None for removing stake)
-        :param destination_netuid: Netuid of destination subnet (None for removing stake)
-        :param destination_coldkey_ss58: SS58 address of destination coldkey
-        :param amount: Amount of stake to transfer in RAO
-        :param block_hash: Optional block hash at which to perform the calculation
+        Args:
+            origin_netuid: Netuid of the source subnet (0 if new stake)
+            destination_netuid: Netuid of the destination subnet
+            amount: Amount to transfer in Rao
+            block_hash: The hash of the blockchain block number for the query.
 
-        :return: The calculated stake fee as a Balance object
-
-        When to use None:
-
-        1. Adding new stake (default fee):
-        - origin_hotkey_ss58 = None
-        - origin_netuid = None
-        - All other fields required
-
-        2. Removing stake (default fee):
-        - destination_hotkey_ss58 = None
-        - destination_netuid = None
-        - All other fields required
-
-        For all other operations, no None values - provide all parameters:
-        3. Moving between subnets
-        4. Moving between hotkeys
-        5. Moving between coldkeys
+        Returns:
+            SimSwapResult object representing the result
         """
-
-        if origin_netuid is None:
-            origin_netuid = 0
-
-        fee_rate = await self.query("Swap", "FeeRate", [origin_netuid])
-        fee = amount * (fee_rate / U16_MAX)
-
-        result = Balance.from_rao(fee)
-        result.set_unit(origin_netuid)
-
-        return result
+        block_hash = block_hash or await self.substrate.get_chain_head()
+        if origin_netuid > 0 and destination_netuid > 0:
+            # for cross-subnet moves where neither origin nor destination is root
+            intermediate_result_, sn_price = await asyncio.gather(
+                self.query_runtime_api(
+                    "SwapRuntimeApi",
+                    "sim_swap_alpha_for_tao",
+                    params={"netuid": origin_netuid, "alpha": amount},
+                    block_hash=block_hash,
+                ),
+                self.get_subnet_price(origin_netuid, block_hash=block_hash),
+            )
+            intermediate_result = SimSwapResult.from_dict(
+                intermediate_result_, origin_netuid
+            )
+            result = SimSwapResult.from_dict(
+                await self.query_runtime_api(
+                    "SwapRuntimeApi",
+                    "sim_swap_tao_for_alpha",
+                    params={
+                        "netuid": destination_netuid,
+                        "tao": intermediate_result.tao_amount,
+                    },
+                    block_hash=block_hash,
+                ),
+                destination_netuid,
+            )
+            secondary_fee = (result.tao_fee * sn_price).set_unit(origin_netuid)
+            result.alpha_fee = result.alpha_fee + secondary_fee
+            return result
+        elif origin_netuid > 0:
+            # dynamic to tao
+            return SimSwapResult.from_dict(
+                await self.query_runtime_api(
+                    "SwapRuntimeApi",
+                    "sim_swap_alpha_for_tao",
+                    params={"netuid": origin_netuid, "alpha": amount},
+                    block_hash=block_hash,
+                ),
+                origin_netuid,
+            )
+        else:
+            # tao to dynamic or unstaked to staked tao (SN0)
+            return SimSwapResult.from_dict(
+                await self.query_runtime_api(
+                    "SwapRuntimeApi",
+                    "sim_swap_tao_for_alpha",
+                    params={"netuid": destination_netuid, "tao": amount},
+                    block_hash=block_hash,
+                ),
+                destination_netuid,
+            )
 
     async def get_scheduled_coldkey_swap(
         self,
