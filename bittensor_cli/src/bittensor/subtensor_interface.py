@@ -1547,14 +1547,24 @@ class SubtensorInterface:
 
         if origin_netuid is None:
             origin_netuid = 0
+        if destination_netuid is None:
+            destination_netuid = 0
 
-        fee_rate = await self.query("Swap", "FeeRate", [origin_netuid])
-        fee = amount * (fee_rate / U16_MAX)
+        fee_rate, mechanism = await asyncio.gather(
+            self.query("Swap", "FeeRate", [origin_netuid]),
+            self.query("SubtensorModule", "SubnetMechanism", [destination_netuid]),
+        )
+        if mechanism == 0:
+            # Stake Swap Fee is only charged if subnet mechanism is not 0 (stable), otherwise it is dynamic
+            fee = Balance(0).set_unit(origin_netuid)
+            return fee
+        else:
+            fee = amount * (fee_rate / U16_MAX)
 
-        result = Balance.from_rao(fee)
-        result.set_unit(origin_netuid)
+            result = Balance.from_rao(fee)
+            result.set_unit(origin_netuid)
 
-        return result
+            return result
 
     async def get_scheduled_coldkey_swap(
         self,
