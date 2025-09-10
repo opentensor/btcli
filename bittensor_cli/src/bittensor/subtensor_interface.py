@@ -28,6 +28,7 @@ from bittensor_cli.src.bittensor.chain_data import (
     DynamicInfo,
     SubnetState,
     MetagraphInfo,
+    SimSwapResult,
 )
 from bittensor_cli.src import DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance, fixed_to_float
@@ -1501,6 +1502,80 @@ class SubtensorInterface:
         """
         fee_dict = await self.substrate.get_payment_info(call, keypair)
         return Balance.from_rao(fee_dict["partial_fee"])
+
+    async def sim_swap(
+        self,
+        origin_netuid: int,
+        destination_netuid: int,
+        amount: int,
+        block_hash: Optional[str] = None,
+    ) -> SimSwapResult:
+        """
+        Hits the SimSwap Runtime API to calculate the fee and result for a given transaction. This should be used
+        instead of get_stake_fee for staking fee calculations. The SimSwapResult contains the staking fees and expected
+        returned amounts of a given transaction. This does not include the transaction (extrinsic) fee.
+
+        Args:
+            origin_netuid: Netuid of the source subnet (0 if new stake)
+            destination_netuid: Netuid of the destination subnet
+            amount: Amount to transfer in Rao
+            block_hash: The hash of the blockchain block number for the query.
+
+        Returns:
+            SimSwapResult object representing the result
+        """
+        block_hash = block_hash or await self.substrate.get_chain_head()
+        if origin_netuid > 0 and destination_netuid > 0:
+            # for cross-subnet moves
+            intermediate_result_, sn_price = await asyncio.gather(
+                self.query_runtime_api(
+                    "SwapRuntimeApi",
+                    "sim_swap_alpha_for_tao",
+                    params={"netuid": origin_netuid, "alpha": amount},
+                    block_hash=block_hash,
+                ),
+                self.get_subnet_price(origin_netuid, block_hash=block_hash),
+            )
+            intermediate_result = SimSwapResult.from_dict(
+                intermediate_result_, origin_netuid
+            )
+            result = SimSwapResult.from_dict(
+                await self.query_runtime_api(
+                    "SwapRuntimeApi",
+                    "sim_swap_tao_for_alpha",
+                    params={
+                        "netuid": destination_netuid,
+                        "tao": intermediate_result.tao_amount,
+                    },
+                    block_hash=block_hash,
+                ),
+                destination_netuid,
+            )
+            secondary_fee = (result.tao_fee * sn_price).set_unit(origin_netuid)
+            result.alpha_fee = result.alpha_fee + secondary_fee
+            return result
+        elif origin_netuid > 0:
+            # dynamic to tao
+            return SimSwapResult.from_dict(
+                await self.query_runtime_api(
+                    "SwapRuntimeApi",
+                    "sim_swap_alpha_for_tao",
+                    params={"netuid": origin_netuid, "alpha": amount},
+                    block_hash=block_hash,
+                ),
+                origin_netuid,
+            )
+        else:
+            # tao to dynamic or unstaked to staked tao (SN0)
+            return SimSwapResult.from_dict(
+                await self.query_runtime_api(
+                    "SwapRuntimeApi",
+                    "sim_swap_tao_for_alpha",
+                    params={"netuid": destination_netuid, "tao": amount},
+                    block_hash=block_hash,
+                ),
+                destination_netuid,
+            )
 
     async def get_stake_fee(
         self,
