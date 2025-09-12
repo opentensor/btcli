@@ -823,6 +823,7 @@ async def wallet_list(wallet_path: str, json_output: bool):
     for wallet in wallets:
         if (
             wallet.coldkeypub_file.exists_on_device()
+            and os.path.isfile(wallet.coldkeypub_file.path)
             and not wallet.coldkeypub_file.is_encrypted()
         ):
             coldkeypub_str = wallet.coldkeypub.ss58_address
