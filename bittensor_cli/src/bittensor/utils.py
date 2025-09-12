@@ -307,6 +307,7 @@ def get_hotkey_wallets_for_wallet(
             AttributeError,
             TypeError,
             KeyFileError,
+            ValueError,
         ):  # usually an unrelated file like .DS_Store
             continue
 
