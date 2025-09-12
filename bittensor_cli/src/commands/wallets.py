@@ -852,6 +852,9 @@ async def wallet_list(wallet_path: str, json_output: bool):
                 except KeyFileError:
                     hkey_ss58 = hkey.get_hotkeypub().ss58_address
                     pub_only = True
+                except AttributeError:
+                    hkey_ss58 = hkey.hotkey.ss58_address
+                    pub_only = False
                 try:
                     data = (
                         f"[bold red]Hotkey[/bold red] [green]{hkey.hotkey_str}[/green]  "
