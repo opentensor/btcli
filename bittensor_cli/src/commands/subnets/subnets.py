@@ -1443,6 +1443,68 @@ async def show(
         return result
 
 
+async def count(
+    subtensor: "SubtensorInterface",
+    netuid: int,
+    json_output: bool = False,
+) -> Optional[int]:
+    """Display how many sub-subnets exist for the provided subnet."""
+
+    block_hash = await subtensor.substrate.get_chain_head()
+    if not await subtensor.subnet_exists(netuid=netuid, block_hash=block_hash):
+        err_console.print(f"[red]Subnet {netuid} does not exist[/red]")
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {"success": False, "error": f"Subnet {netuid} does not exist"}
+                )
+            )
+        return None
+
+    with console.status(
+        f":satellite:Retrieving sub-subnet count from {subtensor.network}...",
+        spinner="aesthetic",
+    ):
+        sub_subnet_count = await subtensor.get_sub_subnet_count(
+            netuid, block_hash=block_hash
+        )
+        if not sub_subnet_count:
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {
+                            "netuid": netuid,
+                            "count": None,
+                            "error": "Failed to get sub-subnet count",
+                        }
+                    )
+                )
+            else:
+                err_console.print(
+                    "Subnet sub-subnet count: [red]Failed to get sub-subnet count[/red]"
+                )
+            return None
+
+    if json_output:
+        json_console.print(
+            json.dumps(
+                {
+                    "netuid": netuid,
+                    "count": sub_subnet_count,
+                    "error": "",
+                }
+            )
+        )
+    else:
+        sub_subnets_count = max(sub_subnet_count - 1, 0)
+        console.print(
+            f"[blue]Subnet {netuid}[/blue] currently has [blue]{sub_subnets_count}[/blue] sub-subnet"
+            f"{'s' if sub_subnets_count < 2 else ''}."
+        )
+
+    return sub_subnet_count
+
+
 async def burn_cost(
     subtensor: "SubtensorInterface", json_output: bool = False
 ) -> Optional[Balance]:
