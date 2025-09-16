@@ -1,5 +1,16 @@
 # Changelog
 
+## 9.11.1 /2025-09-16
+
+* Transfer not staking warning by @thewhaleking in https://github.com/opentensor/btcli/pull/618
+* update e2e tests for hyperparam freeze window by @thewhaleking in https://github.com/opentensor/btcli/pull/620
+* Corrects the stake fee calculation by @thewhaleking in https://github.com/opentensor/btcli/pull/621
+* Fix: Handle encrypted wallet hotkeys  by @ibraheem-abe in https://github.com/opentensor/btcli/pull/622
+* Fix: Handle malformed wallets/files by @ibraheem-abe in https://github.com/opentensor/btcli/pull/623
+* `min_burn` now not root sudo only by @thewhaleking in https://github.com/opentensor/btcli/pull/624
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.11.0...v9.11.1
+
 ## 9.11.0 /2025-09-05
 * Better arg naming + type annotations by @thewhaleking in https://github.com/opentensor/btcli/pull/590
 * disk cache in config by @thewhaleking in https://github.com/opentensor/btcli/pull/588
