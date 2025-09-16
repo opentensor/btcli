@@ -969,6 +969,9 @@ class CLIManager:
             "list", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
         )(self.subnets_list)
         self.subnets_app.command(
+            "count", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
+        )(self.subnets_count)
+        self.subnets_app.command(
             "burn-cost", rich_help_panel=HELP_PANELS["SUBNETS"]["CREATION"]
         )(self.subnets_burn_cost)
         self.subnets_app.command(
@@ -5540,6 +5543,31 @@ class CLIManager:
                 delegate_selection=False,
                 verbose=verbose,
                 prompt=prompt,
+                json_output=json_output,
+            )
+        )
+
+    def subnets_count(
+        self,
+        network: Optional[list[str]] = Options.network,
+        netuid: int = Options.netuid,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Show the number of sub-subnets registered under a subnet.
+
+        EXAMPLE
+
+        [green]$[/green] btcli subnets count --netuid 1
+        """
+        self.verbosity_handler(quiet, verbose, json_output)
+        subtensor = self.initialize_chain(network)
+        return self._run_command(
+            subnets.count(
+                subtensor=subtensor,
+                netuid=netuid,
                 json_output=json_output,
             )
         )
