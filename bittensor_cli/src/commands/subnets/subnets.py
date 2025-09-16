@@ -1500,6 +1500,7 @@ async def count(
         console.print(
             f"[blue]Subnet {netuid}[/blue] currently has [blue]{sub_subnets_count}[/blue] sub-subnet"
             f"{'s' if sub_subnets_count < 2 else ''}."
+            f"\n[dim](Raw count: {sub_subnet_count}; a value of 1 means there are no sub-subnets beyond the main subnet)[/dim]"
         )
 
     return sub_subnet_count
