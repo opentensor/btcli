@@ -1171,6 +1171,23 @@ class SubtensorInterface:
 
         return SubnetHyperparameters.from_any(result)
 
+    async def get_sub_subnet_count(
+        self, netuid: int, block_hash: Optional[str] = None
+    ) -> int:
+        """Return the number of sub-subnets that belong to the provided subnet."""
+
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="SubsubnetCountCurrent",
+            params=[netuid],
+            block_hash=block_hash,
+        )
+
+        if result is None:
+            return 1
+
+        return int(result)
+
     async def burn_cost(self, block_hash: Optional[str] = None) -> Optional[Balance]:
         result = await self.query_runtime_api(
             runtime_api="SubnetRegistrationRuntimeApi",
