@@ -169,6 +169,51 @@ def requires_bool(metadata, param_name, pallet: str = DEFAULT_PALLET) -> bool:
     raise ValueError(f"{param_name} not found in pallet.")
 
 
+async def set_sub_subnet_count_extrinsic(
+    subtensor: "SubtensorInterface",
+    wallet: "Wallet",
+    netuid: int,
+    sub_count: int,
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = True,
+) -> tuple[bool, str]:
+    """Sets the number of sub-subnets for a subnet via AdminUtils."""
+
+    unlock_result = unlock_key(wallet)
+    if not unlock_result.success:
+        return False, unlock_result.message
+
+    substrate = subtensor.substrate
+    call_params = {"netuid": netuid, "subsub_count": sub_count}
+
+    with console.status(
+        f":satellite: Setting sub-subnet count to [white]{sub_count}[/white] on "
+        f"[{COLOR_PALETTE.G.SUBHEAD}]{netuid}[/{COLOR_PALETTE.G.SUBHEAD}] ...",
+        spinner="earth",
+    ):
+        call_ = await substrate.compose_call(
+            call_module=DEFAULT_PALLET,
+            call_function="sudo_set_subsubnet_count",
+            call_params=call_params,
+        )
+        call = await substrate.compose_call(
+            call_module="Sudo",
+            call_function="sudo",
+            call_params={"call": call_},
+        )
+        success, err_msg = await subtensor.sign_and_send_extrinsic(
+            call,
+            wallet,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+        )
+
+    if not success:
+        return False, err_msg
+
+    return True, ""
+
+
 async def set_hyperparameter_extrinsic(
     subtensor: "SubtensorInterface",
     wallet: "Wallet",
