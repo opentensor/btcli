@@ -266,7 +266,7 @@ def get_hotkey_wallets_for_wallet(
     hotkeys_path = wallet_path / wallet.name / "hotkeys"
     try:
         hotkeys = [entry.name for entry in hotkeys_path.iterdir()]
-    except FileNotFoundError:
+    except (FileNotFoundError, NotADirectoryError):
         hotkeys = []
     for h_name in hotkeys:
         if h_name.endswith("pub.txt"):
@@ -307,6 +307,7 @@ def get_hotkey_wallets_for_wallet(
             AttributeError,
             TypeError,
             KeyFileError,
+            ValueError,
         ):  # usually an unrelated file like .DS_Store
             continue
 

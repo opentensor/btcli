@@ -1193,3 +1193,20 @@ class MetagraphInfo(InfoBase):
                 for adphk in decoded["alpha_dividends_per_hotkey"]
             ],
         )
+
+
+@dataclass
+class SimSwapResult:
+    tao_amount: Balance
+    alpha_amount: Balance
+    tao_fee: Balance
+    alpha_fee: Balance
+
+    @classmethod
+    def from_dict(cls, d: dict, netuid: int) -> "SimSwapResult":
+        return cls(
+            tao_amount=Balance.from_rao(d["tao_amount"]).set_unit(0),
+            alpha_amount=Balance.from_rao(d["alpha_amount"]).set_unit(netuid),
+            tao_fee=Balance.from_rao(d["tao_fee"]).set_unit(0),
+            alpha_fee=Balance.from_rao(d["alpha_fee"]).set_unit(netuid),
+        )

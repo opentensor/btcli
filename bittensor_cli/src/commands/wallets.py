@@ -823,6 +823,7 @@ async def wallet_list(wallet_path: str, json_output: bool):
     for wallet in wallets:
         if (
             wallet.coldkeypub_file.exists_on_device()
+            and os.path.isfile(wallet.coldkeypub_file.path)
             and not wallet.coldkeypub_file.is_encrypted()
         ):
             coldkeypub_str = wallet.coldkeypub.ss58_address
@@ -852,6 +853,9 @@ async def wallet_list(wallet_path: str, json_output: bool):
                 except KeyFileError:
                     hkey_ss58 = hkey.get_hotkeypub().ss58_address
                     pub_only = True
+                except AttributeError:
+                    hkey_ss58 = hkey.hotkey.ss58_address
+                    pub_only = False
                 try:
                     data = (
                         f"[bold red]Hotkey[/bold red] [green]{hkey.hotkey_str}[/green]  "

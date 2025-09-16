@@ -347,17 +347,6 @@ async def stake_add(
                 return False
             remaining_wallet_balance -= amount_to_stake
 
-            # TODO this should be asyncio gathered before the for loop
-            stake_fee = await subtensor.get_stake_fee(
-                origin_hotkey_ss58=None,
-                origin_netuid=None,
-                origin_coldkey_ss58=wallet.coldkeypub.ss58_address,
-                destination_hotkey_ss58=hotkey[1],
-                destination_netuid=netuid,
-                destination_coldkey_ss58=wallet.coldkeypub.ss58_address,
-                amount=amount_to_stake.rao,
-            )
-
             # Calculate slippage
             # TODO: Update for V3, slippage calculation is significantly different in v3
             # try:
@@ -409,7 +398,13 @@ async def stake_add(
                     safe_staking_=safe_staking,
                 )
                 row_extension = []
-            received_amount = rate * (amount_to_stake - stake_fee - extrinsic_fee)
+            # TODO this should be asyncio gathered before the for loop
+            sim_swap = await subtensor.sim_swap(
+                origin_netuid=0,
+                destination_netuid=netuid,
+                amount=(amount_to_stake - extrinsic_fee).rao,
+            )
+            received_amount = sim_swap.alpha_amount
             # Add rows for the table
             base_row = [
                 str(netuid),  # netuid
@@ -418,7 +413,7 @@ async def stake_add(
                 str(rate)
                 + f" {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ",  # rate
                 str(received_amount.set_unit(netuid)),  # received
-                str(stake_fee),  # fee
+                str(sim_swap.tao_fee),  # fee
                 str(extrinsic_fee),
                 # str(slippage_pct),  # slippage
             ] + row_extension
