@@ -658,6 +658,55 @@ async def set_take_extrinsic(
 # commands
 
 
+async def sudo_set_sub_subnet_count(
+    wallet: Wallet,
+    subtensor: "SubtensorInterface",
+    netuid: int,
+    sub_count: int,
+    wait_for_inclusion: bool,
+    wait_for_finalization: bool,
+    json_output: bool,
+) -> tuple[bool, str]:
+    """Set the number of sub-subnets for a subnet."""
+
+    if sub_count < 1:
+        err_msg = "Sub-subnet count must be greater than or equal to one."
+        if not json_output:
+            err_console.print(err_msg)
+        return False, err_msg
+
+    if not await subtensor.subnet_exists(netuid):
+        err_msg = f"Subnet with netuid {netuid} does not exist."
+        if not json_output:
+            err_console.print(err_msg)
+        return False, err_msg
+
+    if not Confirm.ask(f"Set sub-subnet count to {sub_count} for subnet {netuid}?"):
+        return False, "User cancelled"
+
+    success, err_msg = await set_sub_subnet_count_extrinsic(
+        subtensor=subtensor,
+        wallet=wallet,
+        netuid=netuid,
+        sub_count=sub_count,
+        wait_for_inclusion=wait_for_inclusion,
+        wait_for_finalization=wait_for_finalization,
+    )
+
+    if json_output:
+        return success, err_msg
+
+    if success:
+        console.print(
+            ":white_heavy_check_mark: "
+            f"[dark_sea_green3]Sub-subnet count set to {sub_count} for subnet {netuid}[/dark_sea_green3]"
+        )
+    else:
+        err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+
+    return success, err_msg
+
+
 async def sudo_set_hyperparameter(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
