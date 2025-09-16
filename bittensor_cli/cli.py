@@ -658,6 +658,8 @@ class CLIManager:
     app: typer.Typer
     config_app: typer.Typer
     wallet_app: typer.Typer
+    sudo_app: typer.Typer
+    sudo_sub_app: typer.Typer
     subnets_app: typer.Typer
     weights_app: typer.Typer
     utils_app: typer.Typer
@@ -732,6 +734,7 @@ class CLIManager:
         self.wallet_app = typer.Typer(epilog=_epilog)
         self.stake_app = typer.Typer(epilog=_epilog)
         self.sudo_app = typer.Typer(epilog=_epilog)
+        self.sudo_sub_app = typer.Typer(epilog=_epilog)
         self.subnets_app = typer.Typer(epilog=_epilog)
         self.weights_app = typer.Typer(epilog=_epilog)
         self.view_app = typer.Typer(epilog=_epilog)
@@ -779,6 +782,12 @@ class CLIManager:
             no_args_is_help=True,
         )
         self.app.add_typer(self.sudo_app, name="su", hidden=True, no_args_is_help=True)
+        self.sudo_app.add_typer(
+            self.sudo_sub_app,
+            name="sub",
+            short_help="Sub-subnet admin commands",
+            no_args_is_help=True,
+        )
 
         # subnets aliases
         self.app.add_typer(
@@ -939,6 +948,9 @@ class CLIManager:
         children_app.command("take")(self.stake_childkey_take)
 
         # sudo commands
+        self.sudo_sub_app.command(
+            "count", rich_help_panel=HELP_PANELS["SUDO"]["SUB"]
+        )(self.sudo_sub_count)
         self.sudo_app.command("set", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(
             self.sudo_set
         )
@@ -5008,6 +5020,109 @@ class CLIManager:
                 output[netuid_] = success
             json_console.print(json.dumps(output))
         return results
+
+    def sudo_sub_count(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        netuid: int = Options.netuid,
+        sub_count: Optional[int] = typer.Option(
+            None,
+            "--count",
+            "--sub-count",
+            help="Number of sub-subnets to set for the subnet.",
+        ),
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Set the number of sub-subnets registered under a subnet.
+
+        EXAMPLE
+
+        [green]$[/green] btcli sudo sub count --netuid 1 --count 2
+        """
+
+        self.verbosity_handler(quiet, verbose, json_output)
+        subtensor = self.initialize_chain(network)
+        if not json_output:
+            current_count = self._run_command(
+                subnets.count(
+                    subtensor=subtensor,
+                    netuid=netuid,
+                    json_output=False,
+                ),
+                exit_early=False,
+            )
+        else:
+            current_count = self._run_command(
+                subtensor.get_sub_subnet_count(netuid),
+                exit_early=False,
+            )
+
+        if sub_count is None:
+            if not prompt:
+                err_console.print(
+                    "Sub-subnet count not supplied with `--no-prompt` flag. Cannot continue."
+                )
+                return False
+            sub_count = IntPrompt.ask(
+                f"\nEnter the [blue]number of sub-subnets[/blue] to set.[dim](Current raw count: {current_count})[/dim]"
+            )
+
+        if sub_count == current_count:
+            visible_count = max(sub_count - 1, 0)
+            message = (
+                ":white_heavy_check_mark: "
+                f"[dark_sea_green3]Subnet {netuid} already has {visible_count} sub-subnet"
+                f"{'s' if visible_count != 1 else ''}.[/dark_sea_green3]"
+            )
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {
+                            "success": True,
+                            "message": f"Subnet {netuid} already has {visible_count} sub-subnets.",
+                        }
+                    )
+                )
+            else:
+                console.print(message)
+            return True
+
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH],
+        )
+
+        logger.debug(
+            f"args:\nnetwork: {network}\nnetuid: {netuid}\nsub_count: {sub_count}\n"
+        )
+
+        result, err_msg = self._run_command(
+            sudo.sudo_set_sub_subnet_count(
+                wallet=wallet,
+                subtensor=subtensor,
+                netuid=netuid,
+                sub_count=sub_count,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+                json_output=json_output,
+            )
+        )
+
+        if json_output:
+            json_console.print(json.dumps({"success": result, "err_msg": err_msg}))
+
+        return result
 
     def sudo_set(
         self,
