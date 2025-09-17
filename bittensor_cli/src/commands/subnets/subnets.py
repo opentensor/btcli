@@ -1609,6 +1609,206 @@ async def get_emission_split(
     return data
 
 
+async def set_emission_split(
+    subtensor: "SubtensorInterface",
+    wallet: Wallet,
+    netuid: int,
+    new_emission_split: Optional[str],
+    wait_for_inclusion: bool,
+    wait_for_finalization: bool,
+    prompt: bool,
+    json_output: bool,
+) -> bool:
+    """Set the emission split across mechanisms for a subnet."""
+
+    mech_count, existing_split = await asyncio.gather(
+        subtensor.get_subnet_mechanism_count(netuid),
+        subtensor.get_mechanism_emission_split(netuid),
+    )
+
+    if mech_count == 0:
+        message = (
+            f"Subnet {netuid} does not currently contain any mechanisms to configure."
+        )
+        if json_output:
+            json_console.print(json.dumps({"success": False, "error": message}))
+        else:
+            err_console.print(message)
+        return False
+
+    if not json_output:
+        await get_emission_split(
+            subtensor=subtensor,
+            netuid=netuid,
+            json_output=False,
+        )
+
+    existing_split = [int(value) for value in existing_split]
+    if len(existing_split) < mech_count:
+        existing_split.extend([0] * (mech_count - len(existing_split)))
+
+    if new_emission_split is not None:
+        try:
+            weights = [
+                float(item.strip())
+                for item in new_emission_split.split(",")
+                if item.strip() != ""
+            ]
+        except ValueError:
+            message = (
+                "Invalid `--split` values. Provide a comma-separated list of numbers."
+            )
+            if json_output:
+                json_console.print(json.dumps({"success": False, "error": message}))
+            else:
+                err_console.print(message)
+            return False
+    else:
+        if not prompt:
+            err_console.print(
+                "Split values not supplied with `--no-prompt` flag. Cannot continue."
+            )
+            return False
+
+        weights: list[float] = []
+        total_existing = sum(existing_split) or 1
+        console.print("\n[dim]You either provide U16 values or percentages.[/dim]")
+        for idx in range(mech_count):
+            current_value = existing_split[idx]
+            current_percent = (
+                (current_value / total_existing) * 100 if total_existing else 0
+            )
+            label = (
+                "[blue]Main Mechanism (1)[/blue]"
+                if idx == 0
+                else f"[blue]Mechanism {idx + 1}[/blue]"
+            )
+            response = Prompt.ask(
+                (
+                    f"Relative weight for {label} "
+                    f"[{COLOR_PALETTE.STAKE.STAKE_ALPHA}](current: {current_value} ~ {current_percent:.2f}%)[/{COLOR_PALETTE.STAKE.STAKE_ALPHA}]"
+                )
+            )
+            try:
+                weights.append(float(response))
+            except ValueError:
+                err_console.print("Invalid number provided. Aborting.")
+                return False
+
+    if len(weights) != mech_count:
+        message = f"Expected {mech_count} weight values, received {len(weights)}."
+        if json_output:
+            json_console.print(json.dumps({"success": False, "error": message}))
+        else:
+            err_console.print(message)
+        return False
+
+    if any(value < 0 for value in weights):
+        message = "Weights must be non-negative."
+        if json_output:
+            json_console.print(json.dumps({"success": False, "error": message}))
+        else:
+            err_console.print(message)
+        return False
+
+    try:
+        normalized_weights, fractions = _normalize_emission_weights(weights)
+    except ValueError as exc:
+        message = str(exc)
+        if json_output:
+            json_console.print(json.dumps({"success": False, "error": message}))
+        else:
+            err_console.print(message)
+        return False
+
+    if normalized_weights == existing_split:
+        message = ":white_heavy_check_mark: [dark_sea_green3]Emission split unchanged.[/dark_sea_green3]"
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": True,
+                        "message": "Emission split unchanged.",
+                        "split": normalized_weights,
+                        "percentages": [round(value * 100, 6) for value in fractions],
+                    }
+                )
+            )
+        else:
+            console.print(message)
+        return True
+
+    if not json_output:
+        table = Table(
+            Column(
+                "[bold white]Mechanism Index[/]",
+                justify="center",
+                style=COLOR_PALETTE.G.NETUID,
+            ),
+            Column(
+                "[bold white]Weight (u16)[/]",
+                justify="right",
+                style=COLOR_PALETTE.STAKE.STAKE_ALPHA,
+            ),
+            Column(
+                "[bold white]Share (%)[/]",
+                justify="right",
+                style=COLOR_PALETTE.POOLS.EMISSION,
+            ),
+            title=(
+                f"\n[{COLOR_PALETTE.G.HEADER}]Proposed emission split[/{COLOR_PALETTE.G.HEADER}]\n"
+                f"[{COLOR_PALETTE.G.SUBHEAD}]Subnet {netuid}[/{COLOR_PALETTE.G.SUBHEAD}]"
+            ),
+            box=box.SIMPLE,
+            show_footer=True,
+            border_style="bright_black",
+        )
+
+        total_weight = sum(normalized_weights)
+        total_share_percent = (total_weight / U16_MAX) * 100 if U16_MAX else 0
+
+        for idx, weight in enumerate(normalized_weights):
+            share_percent = fractions[idx] * 100 if idx < len(fractions) else 0.0
+            table.add_row(str(idx), str(weight), f"{share_percent:.6f}")
+
+        table.add_row("", "", "", style="dim")
+        table.add_row(
+            "[dim]Total[/dim]",
+            f"[{COLOR_PALETTE.STAKE.STAKE_ALPHA}]{total_weight}[/{COLOR_PALETTE.STAKE.STAKE_ALPHA}]",
+            f"[{COLOR_PALETTE.POOLS.EMISSION}]{total_share_percent:.6f}[/{COLOR_PALETTE.POOLS.EMISSION}]",
+        )
+
+        console.print(table)
+
+        if not Confirm.ask("Proceed with these emission weights?", default=True):
+            console.print(":cross_mark: Aborted!")
+            return False
+
+    success, err_msg = await sudo.sudo_set_mechanism_emission(
+        wallet=wallet,
+        subtensor=subtensor,
+        netuid=netuid,
+        split=normalized_weights,
+        wait_for_inclusion=wait_for_inclusion,
+        wait_for_finalization=wait_for_finalization,
+        json_output=json_output,
+    )
+
+    if json_output:
+        json_console.print(
+            json.dumps(
+                {
+                    "success": success,
+                    "err_msg": err_msg,
+                    "split": normalized_weights,
+                    "percentages": [round(value * 100, 6) for value in fractions],
+                }
+            )
+        )
+
+    return success
+
+
 def _normalize_emission_weights(values: list[float]) -> tuple[list[int], list[float]]:
     total = sum(values)
     if total <= 0:
