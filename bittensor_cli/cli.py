@@ -960,6 +960,9 @@ class CLIManager:
         self.sudo_app.command("get-take", rich_help_panel=HELP_PANELS["SUDO"]["TAKE"])(
             self.sudo_get_take
         )
+        self.sudo_app.command("trim", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(
+            self.sudo_trim
+        )
 
         # subnets commands
         self.subnets_app.command(
@@ -5342,6 +5345,53 @@ class CLIManager:
             self._run_command(
                 sudo.display_current_take(self.initialize_chain(network), wallet)
             )
+
+    def sudo_trim(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        netuid: int = Options.netuid,
+        max_uids: int = typer.Option(
+            None,
+            "--max",
+            "--max-uids",
+            help="The maximum number of allowed uids to which to trim",
+            prompt="Max UIDs",
+        ),
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+        prompt: bool = Options.prompt,
+        period: int = Options.period,
+    ):
+        """
+        Allows subnet owners to trim UIDs on their subnet to a specified max number of netuids.
+
+        EXAMPLE
+        [green]$[/green] btcli sudo trim --netuid 95 --wallet-name my_wallet --wallet-hotkey my_hotkey --max 6
+        """
+        self.verbosity_handler(quiet, verbose, json_output)
+
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.WALLET,
+        )
+        self._run_command(
+            sudo.trim(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                netuid=netuid,
+                max_n=max_uids,
+                period=period,
+                json_output=json_output,
+                prompt=prompt,
+            )
+        )
 
     def subnets_list(
         self,

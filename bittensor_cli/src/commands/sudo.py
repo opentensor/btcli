@@ -955,3 +955,59 @@ async def set_take(
     result_ = await _do_set_take()
 
     return result_
+
+
+async def trim(
+    wallet: Wallet,
+    subtensor: "SubtensorInterface",
+    netuid: int,
+    max_n: int,
+    period: int,
+    prompt: bool,
+    json_output: bool,
+) -> bool:
+    """
+    Trims a subnet's UIDs to a specified amount
+    """
+    print_verbose("Confirming subnet owner")
+    subnet_owner = await subtensor.query(
+        module="SubtensorModule",
+        storage_function="SubnetOwner",
+        params=[netuid],
+    )
+    if subnet_owner != wallet.coldkeypub.ss58_address:
+        err_msg = "This wallet doesn't own the specified subnet."
+        if json_output:
+            json_console.print_json(data={"success": False, "message": err_msg})
+        else:
+            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+        return False
+    if prompt and not json_output:
+        if not Confirm.ask(
+            f"You are about to trim UIDs on SN{netuid} to a limit of {max_n}",
+            default=False,
+        ):
+            err_console.print(":cross_mark: [red]User aborted.[/red]")
+    call = await subtensor.substrate.compose_call(
+        call_module="AdminUtils",
+        call_function="sudo_trim_to_max_allowed_uids",
+        call_params={"netuid": netuid, "max_n": max_n},
+    )
+    success, err_msg = await subtensor.sign_and_send_extrinsic(
+        call=call, wallet=wallet, era={"period": period}
+    )
+    if not success:
+        if json_output:
+            json_console.print_json(data={"success": False, "message": err_msg})
+        else:
+            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+        return False
+    else:
+        msg = f"Successfully trimmed UIDs on SN{netuid} to {max_n}"
+        if json_output:
+            json_console.print_json(data={"success": True, "message": msg})
+        else:
+            console.print(
+                f":white_heavy_check_mark: [dark_sea_green3]{msg}[/dark_sea_green3]"
+            )
+        return True
