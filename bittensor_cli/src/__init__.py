@@ -699,9 +699,9 @@ HELP_PANELS = {
         "GOVERNANCE": "Governance",
         "TAKE": "Delegate take configuration",
     },
-    "SUBSUBNETS": {
-        "CONFIG": "Sub-subnet Configuration",
-        "EMISSION": "Sub-subnet Emission",
+    "MECHANISMS": {
+        "CONFIG": "Mechanism Configuration",
+        "EMISSION": "Mechanism Emission",
     },
     "SUBNETS": {
         "INFO": "Subnet Information",

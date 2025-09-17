@@ -691,19 +691,19 @@ async def set_take_extrinsic(
 # commands
 
 
-async def sudo_set_sub_subnet_count(
+async def sudo_set_mechanism_count(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
     netuid: int,
-    sub_count: int,
+    mechanism_count: int,
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
     json_output: bool,
 ) -> tuple[bool, str]:
-    """Set the number of sub-subnets for a subnet."""
+    """Set the number of mechanisms for a subnet."""
 
-    if sub_count < 1:
-        err_msg = "Sub-subnet count must be greater than or equal to one."
+    if mechanism_count < 1:
+        err_msg = "Mechanism count must be greater than or equal to one."
         if not json_output:
             err_console.print(err_msg)
         return False, err_msg
@@ -714,14 +714,14 @@ async def sudo_set_sub_subnet_count(
             err_console.print(err_msg)
         return False, err_msg
 
-    if not Confirm.ask(f"Set sub-subnet count to {sub_count} for subnet {netuid}?"):
+    if not Confirm.ask(f"Set mechanism count to {mechanism_count} for subnet {netuid}?"):
         return False, "User cancelled"
 
     success, err_msg = await set_mechanism_count_extrinsic(
         subtensor=subtensor,
         wallet=wallet,
         netuid=netuid,
-        mech_count=sub_count,
+        mech_count=mechanism_count,
         wait_for_inclusion=wait_for_inclusion,
         wait_for_finalization=wait_for_finalization,
     )
@@ -732,7 +732,7 @@ async def sudo_set_sub_subnet_count(
     if success:
         console.print(
             ":white_heavy_check_mark: "
-            f"[dark_sea_green3]Sub-subnet count set to {sub_count} for subnet {netuid}[/dark_sea_green3]"
+            f"[dark_sea_green3]Mechanism count set to {mechanism_count} for subnet {netuid}[/dark_sea_green3]"
         )
     else:
         err_console.print(f":cross_mark: [red]{err_msg}[/red]")

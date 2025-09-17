@@ -1451,7 +1451,7 @@ async def count(
     netuid: int,
     json_output: bool = False,
 ) -> Optional[int]:
-    """Display how many sub-subnets exist for the provided subnet."""
+    """Display how many mechanisms exist for the provided subnet."""
 
     block_hash = await subtensor.substrate.get_chain_head()
     if not await subtensor.subnet_exists(netuid=netuid, block_hash=block_hash):
@@ -1499,11 +1499,10 @@ async def count(
             )
         )
     else:
-        mechanism_count = max(mechanism_count - 1, 0)
         console.print(
-            f"[blue]Subnet {netuid}[/blue] currently has [blue]{mechanism_count}[/blue] sub-subnet"
+            f"[blue]Subnet {netuid}[/blue] currently has [blue]{mechanism_count}[/blue] mechanism"
             f"{'s' if mechanism_count != 1 else ''}."
-            f"\n[dim](Raw count: {mechanism_count}; a value of 1 means there are no mechanisms beyond the main subnet)[/dim]"
+            f"\n[dim](Tip: 1 mechanism means there are no mechanisms beyond the main subnet)[/dim]"
         )
 
     return mechanism_count

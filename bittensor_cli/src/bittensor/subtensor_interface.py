@@ -1174,7 +1174,7 @@ class SubtensorInterface:
     async def get_subnet_mechanism_count(
         self, netuid: int, block_hash: Optional[str] = None
     ) -> int:
-        """Return the number of sub-subnets that belong to the provided subnet."""
+        """Return the number of mechanisms that belong to the provided subnet."""
 
         result = await self.query(
             module="SubtensorModule",
