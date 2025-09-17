@@ -169,37 +169,32 @@ def requires_bool(metadata, param_name, pallet: str = DEFAULT_PALLET) -> bool:
     raise ValueError(f"{param_name} not found in pallet.")
 
 
-async def set_sub_subnet_count_extrinsic(
+async def set_mechanism_count_extrinsic(
     subtensor: "SubtensorInterface",
     wallet: "Wallet",
     netuid: int,
-    sub_count: int,
+    mech_count: int,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
 ) -> tuple[bool, str]:
-    """Sets the number of sub-subnets for a subnet via AdminUtils."""
+    """Sets the number of mechanisms for a subnet via AdminUtils."""
 
     unlock_result = unlock_key(wallet)
     if not unlock_result.success:
         return False, unlock_result.message
 
     substrate = subtensor.substrate
-    call_params = {"netuid": netuid, "subsub_count": sub_count}
+    call_params = {"netuid": netuid, "mechanism_count": mech_count}
 
     with console.status(
-        f":satellite: Setting sub-subnet count to [white]{sub_count}[/white] on "
+        f":satellite: Setting mechanism count to [white]{mech_count}[/white] on "
         f"[{COLOR_PALETTE.G.SUBHEAD}]{netuid}[/{COLOR_PALETTE.G.SUBHEAD}] ...",
         spinner="earth",
     ):
-        call_ = await substrate.compose_call(
-            call_module=DEFAULT_PALLET,
-            call_function="sudo_set_subsubnet_count",
-            call_params=call_params,
-        )
         call = await substrate.compose_call(
-            call_module="Sudo",
-            call_function="sudo",
-            call_params={"call": call_},
+            call_module=DEFAULT_PALLET,
+            call_function="sudo_set_mechanism_count",
+            call_params=call_params,
         )
         success, err_msg = await subtensor.sign_and_send_extrinsic(
             call,
@@ -212,6 +207,7 @@ async def set_sub_subnet_count_extrinsic(
         return False, err_msg
 
     return True, ""
+
 
 
 async def set_hyperparameter_extrinsic(
@@ -684,11 +680,11 @@ async def sudo_set_sub_subnet_count(
     if not Confirm.ask(f"Set sub-subnet count to {sub_count} for subnet {netuid}?"):
         return False, "User cancelled"
 
-    success, err_msg = await set_sub_subnet_count_extrinsic(
+    success, err_msg = await set_mechanism_count_extrinsic(
         subtensor=subtensor,
         wallet=wallet,
         netuid=netuid,
-        sub_count=sub_count,
+        mech_count=sub_count,
         wait_for_inclusion=wait_for_inclusion,
         wait_for_finalization=wait_for_finalization,
     )
@@ -705,6 +701,7 @@ async def sudo_set_sub_subnet_count(
         err_console.print(f":cross_mark: [red]{err_msg}[/red]")
 
     return success, err_msg
+
 
 
 async def sudo_set_hyperparameter(
