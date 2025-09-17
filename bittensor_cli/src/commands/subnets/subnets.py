@@ -1,5 +1,6 @@
 import asyncio
 import json
+import math
 import sqlite3
 from typing import TYPE_CHECKING, Optional, cast
 
@@ -19,6 +20,7 @@ from bittensor_cli.src.bittensor.extrinsics.registration import (
 from bittensor_cli.src.bittensor.extrinsics.root import root_register_extrinsic
 from rich.live import Live
 from bittensor_cli.src.bittensor.minigraph import MiniGraph
+from bittensor_cli.src.commands import sudo
 from bittensor_cli.src.commands.wallets import set_id, get_id
 from bittensor_cli.src.bittensor.utils import (
     console,
@@ -37,6 +39,7 @@ from bittensor_cli.src.bittensor.utils import (
     blocks_to_duration,
     json_console,
     get_hotkey_pub_ss58,
+    U16_MAX,
 )
 
 if TYPE_CHECKING:
@@ -1462,26 +1465,26 @@ async def count(
         return None
 
     with console.status(
-        f":satellite:Retrieving sub-subnet count from {subtensor.network}...",
+        f":satellite:Retrieving mechanism count from {subtensor.network}...",
         spinner="aesthetic",
     ):
-        sub_subnet_count = await subtensor.get_sub_subnet_count(
+        mechanism_count = await subtensor.get_subnet_mechanism_count(
             netuid, block_hash=block_hash
         )
-        if not sub_subnet_count:
+        if not mechanism_count:
             if json_output:
                 json_console.print(
                     json.dumps(
                         {
                             "netuid": netuid,
                             "count": None,
-                            "error": "Failed to get sub-subnet count",
+                            "error": "Failed to get mechanism count",
                         }
                     )
                 )
             else:
                 err_console.print(
-                    "Subnet sub-subnet count: [red]Failed to get sub-subnet count[/red]"
+                    "Subnet mechanism count: [red]Failed to get mechanism count[/red]"
                 )
             return None
 
@@ -1490,20 +1493,21 @@ async def count(
             json.dumps(
                 {
                     "netuid": netuid,
-                    "count": sub_subnet_count,
+                    "count": mechanism_count,
                     "error": "",
                 }
             )
         )
     else:
-        sub_subnets_count = max(sub_subnet_count - 1, 0)
+        mechanism_count = max(mechanism_count - 1, 0)
         console.print(
-            f"[blue]Subnet {netuid}[/blue] currently has [blue]{sub_subnets_count}[/blue] sub-subnet"
-            f"{'s' if sub_subnets_count != 1 else ''}."
-            f"\n[dim](Raw count: {sub_subnet_count}; a value of 1 means there are no sub-subnets beyond the main subnet)[/dim]"
+            f"[blue]Subnet {netuid}[/blue] currently has [blue]{mechanism_count}[/blue] sub-subnet"
+            f"{'s' if mechanism_count != 1 else ''}."
+            f"\n[dim](Raw count: {mechanism_count}; a value of 1 means there are no mechanisms beyond the main subnet)[/dim]"
         )
 
-    return sub_subnet_count
+    return mechanism_count
+
 
 
 async def burn_cost(
