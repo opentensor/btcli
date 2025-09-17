@@ -1509,6 +1509,30 @@ async def count(
     return mechanism_count
 
 
+def _normalize_emission_weights(values: list[float]) -> tuple[list[int], list[float]]:
+    total = sum(values)
+    if total <= 0:
+        raise ValueError("Sum of emission weights must be greater than zero.")
+
+    fractions = [value / total for value in values]
+    scaled = [fraction * U16_MAX for fraction in fractions]
+    base = [math.floor(value) for value in scaled]
+    remainder = int(U16_MAX - sum(base))
+
+    if remainder > 0:
+        fractional_parts = [value - math.floor(value) for value in scaled]
+        order = sorted(
+            range(len(base)), key=lambda idx: fractional_parts[idx], reverse=True
+        )
+        idx = 0
+        length = len(order)
+        while remainder > 0 and length > 0:
+            base[order[idx % length]] += 1
+            remainder -= 1
+            idx += 1
+
+    return [int(value) for value in base], fractions
+
 
 async def burn_cost(
     subtensor: "SubtensorInterface", json_output: bool = False
