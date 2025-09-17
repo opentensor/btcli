@@ -1499,7 +1499,7 @@ async def count(
         sub_subnets_count = max(sub_subnet_count - 1, 0)
         console.print(
             f"[blue]Subnet {netuid}[/blue] currently has [blue]{sub_subnets_count}[/blue] sub-subnet"
-            f"{'s' if sub_subnets_count < 2 else ''}."
+            f"{'s' if sub_subnets_count != 1 else ''}."
             f"\n[dim](Raw count: {sub_subnet_count}; a value of 1 means there are no sub-subnets beyond the main subnet)[/dim]"
         )
 
