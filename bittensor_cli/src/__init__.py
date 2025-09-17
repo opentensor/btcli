@@ -701,6 +701,7 @@ HELP_PANELS = {
     },
     "SUBSUBNETS": {
         "CONFIG": "Sub-subnet Configuration",
+        "EMISSION": "Sub-subnet Emission",
     },
     "SUBNETS": {
         "INFO": "Subnet Information",
