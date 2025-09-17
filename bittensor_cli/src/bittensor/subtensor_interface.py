@@ -1171,22 +1171,38 @@ class SubtensorInterface:
 
         return SubnetHyperparameters.from_any(result)
 
-    async def get_sub_subnet_count(
+    async def get_subnet_mechanism_count(
         self, netuid: int, block_hash: Optional[str] = None
     ) -> int:
         """Return the number of sub-subnets that belong to the provided subnet."""
 
         result = await self.query(
             module="SubtensorModule",
-            storage_function="SubsubnetCountCurrent",
+            storage_function="MechanismCountCurrent",
             params=[netuid],
             block_hash=block_hash,
         )
 
         if result is None:
-            return 1
-
+            return 0
         return int(result)
+
+    async def get_mechanism_emission_split(
+        self, netuid: int, block_hash: Optional[str] = None
+    ) -> list[int]:
+        """Return the emission split configured for the provided subnet."""
+
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="MechanismEmissionSplit",
+            params=[netuid],
+            block_hash=block_hash,
+        )
+
+        if not result:
+            return []
+
+        return [int(value) for value in result]
 
     async def burn_cost(self, block_hash: Optional[str] = None) -> Optional[Balance]:
         result = await self.query_runtime_api(
