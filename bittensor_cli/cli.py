@@ -741,8 +741,6 @@ class CLIManager:
         self.sudo_app = typer.Typer(epilog=_epilog)
         self.subnets_app = typer.Typer(epilog=_epilog)
         self.subnet_mechanisms_app = typer.Typer(epilog=_epilog)
-        self.subnets_mechanisms_count_app = typer.Typer(epilog=_epilog)
-        self.subnets_mechanisms_emission_app = typer.Typer(epilog=_epilog)
         self.weights_app = typer.Typer(epilog=_epilog)
         self.view_app = typer.Typer(epilog=_epilog)
         self.liquidity_app = typer.Typer(epilog=_epilog)
@@ -817,19 +815,6 @@ class CLIManager:
             hidden=True,
             no_args_is_help=True,
         )
-        self.subnet_mechanisms_app.add_typer(
-            self.subnets_mechanisms_count_app,
-            name="count",
-            short_help="Manage mechanism instances",
-            no_args_is_help=True,
-        )
-        self.subnet_mechanisms_app.add_typer(
-            self.subnets_mechanisms_emission_app,
-            name="emission",
-            short_help="Manage mechanism emission splits",
-            no_args_is_help=True,
-        )
-
         # weights aliases
         self.app.add_typer(
             self.weights_app,
@@ -975,18 +960,18 @@ class CLIManager:
         children_app.command("take")(self.stake_childkey_take)
 
         # subnet mechanism commands
-        self.subnets_mechanisms_count_app.command(
+        self.subnet_mechanisms_app.command(
+            "count", rich_help_panel=HELP_PANELS["MECHANISMS"]["CONFIG"]
+        )(self.mechanism_count_get)
+        self.subnet_mechanisms_app.command(
             "set", rich_help_panel=HELP_PANELS["MECHANISMS"]["CONFIG"]
         )(self.mechanism_count_set)
-        self.subnets_mechanisms_count_app.command(
-            "get", rich_help_panel=HELP_PANELS["MECHANISMS"]["CONFIG"]
-        )(self.mechanism_count_get)
-        self.subnets_mechanisms_emission_app.command(
-            "set", rich_help_panel=HELP_PANELS["MECHANISMS"]["EMISSION"]
-        )(self.mechanism_emission_set)
-        self.subnets_mechanisms_emission_app.command(
-            "get", rich_help_panel=HELP_PANELS["MECHANISMS"]["EMISSION"]
+        self.subnet_mechanisms_app.command(
+            "emissions", rich_help_panel=HELP_PANELS["MECHANISMS"]["EMISSION"]
         )(self.mechanism_emission_get)
+        self.subnet_mechanisms_app.command(
+            "emissions-split", rich_help_panel=HELP_PANELS["MECHANISMS"]["EMISSION"]
+        )(self.mechanism_emission_set)
 
         # sudo commands
         self.sudo_app.command("set", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(
