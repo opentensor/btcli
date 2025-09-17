@@ -209,6 +209,43 @@ async def set_mechanism_count_extrinsic(
     return True, ""
 
 
+async def set_mechanism_emission_extrinsic(
+    subtensor: "SubtensorInterface",
+    wallet: "Wallet",
+    netuid: int,
+    split: list[int],
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = True,
+) -> tuple[bool, str]:
+    """Sets the emission split for a subnet's mechanisms via AdminUtils."""
+
+    unlock_result = unlock_key(wallet)
+    if not unlock_result.success:
+        return False, unlock_result.message
+
+    substrate = subtensor.substrate
+
+    with console.status(
+        f":satellite: Setting emission split for subnet {netuid}...",
+        spinner="earth",
+    ):
+        call = await substrate.compose_call(
+            call_module=DEFAULT_PALLET,
+            call_function="sudo_set_mechanism_emission_split",
+            call_params={"netuid": netuid, "maybe_split": split},
+        )
+        success, err_msg = await subtensor.sign_and_send_extrinsic(
+            call,
+            wallet,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+        )
+
+    if not success:
+        return False, err_msg
+
+    return True, ""
+
 
 async def set_hyperparameter_extrinsic(
     subtensor: "SubtensorInterface",
@@ -702,6 +739,44 @@ async def sudo_set_sub_subnet_count(
 
     return success, err_msg
 
+
+async def sudo_set_mechanism_emission(
+    wallet: Wallet,
+    subtensor: "SubtensorInterface",
+    netuid: int,
+    split: list[int],
+    wait_for_inclusion: bool,
+    wait_for_finalization: bool,
+    json_output: bool,
+) -> tuple[bool, str]:
+    """Set the emission split for mechanisms within a subnet."""
+
+    if not split:
+        err_msg = "Emission split must include at least one weight."
+        if not json_output:
+            err_console.print(err_msg)
+        return False, err_msg
+
+    success, err_msg = await set_mechanism_emission_extrinsic(
+        subtensor=subtensor,
+        wallet=wallet,
+        netuid=netuid,
+        split=split,
+        wait_for_inclusion=wait_for_inclusion,
+        wait_for_finalization=wait_for_finalization,
+    )
+
+    if json_output:
+        return success, err_msg
+
+    if success:
+        console.print(
+            ":white_heavy_check_mark: [dark_sea_green3]Updated mechanism emission split.[/dark_sea_green3]"
+        )
+    else:
+        err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+
+    return success, err_msg
 
 
 async def sudo_set_hyperparameter(
