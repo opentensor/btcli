@@ -650,6 +650,7 @@ class CLIManager:
     :var wallet_app: the Typer app as it relates to wallet commands
     :var stake_app: the Typer app as it relates to stake commands
     :var sudo_app: the Typer app as it relates to sudo commands
+    :var subsubnets_app: the Typer app as it relates to sub-subnet commands
     :var subnets_app: the Typer app as it relates to subnets commands
     :var subtensor: the `SubtensorInterface` object passed to the various commands that require it
     """
@@ -659,7 +660,7 @@ class CLIManager:
     config_app: typer.Typer
     wallet_app: typer.Typer
     sudo_app: typer.Typer
-    sudo_sub_app: typer.Typer
+    sub_subnets_app: typer.Typer
     subnets_app: typer.Typer
     weights_app: typer.Typer
     utils_app: typer.Typer
@@ -734,7 +735,8 @@ class CLIManager:
         self.wallet_app = typer.Typer(epilog=_epilog)
         self.stake_app = typer.Typer(epilog=_epilog)
         self.sudo_app = typer.Typer(epilog=_epilog)
-        self.sudo_sub_app = typer.Typer(epilog=_epilog)
+        self.sub_subnets_app = typer.Typer(epilog=_epilog)
+        self.sub_subnets_count = typer.Typer(epilog=_epilog)
         self.subnets_app = typer.Typer(epilog=_epilog)
         self.weights_app = typer.Typer(epilog=_epilog)
         self.view_app = typer.Typer(epilog=_epilog)
@@ -782,10 +784,24 @@ class CLIManager:
             no_args_is_help=True,
         )
         self.app.add_typer(self.sudo_app, name="su", hidden=True, no_args_is_help=True)
-        self.sudo_app.add_typer(
-            self.sudo_sub_app,
-            name="sub",
-            short_help="Sub-subnet admin commands",
+
+        # sub-subnet aliases
+        self.app.add_typer(
+            self.sub_subnets_app,
+            name="subsubnets",
+            short_help="Sub-subnet commands, alias: `sub`",
+            no_args_is_help=True,
+        )
+        self.app.add_typer(
+            self.sub_subnets_app, name="subsubnet", hidden=True, no_args_is_help=True
+        )
+        self.app.add_typer(
+            self.sub_subnets_app, name="sub", hidden=True, no_args_is_help=True
+        )
+        self.sub_subnets_app.add_typer(
+            self.sub_subnets_count,
+            name="count",
+            short_help="Manage sub-subnet counts",
             no_args_is_help=True,
         )
 
@@ -947,10 +963,15 @@ class CLIManager:
         children_app.command("revoke")(self.stake_revoke_children)
         children_app.command("take")(self.stake_childkey_take)
 
+        # sub-subnet commands
+        self.sub_subnets_count.command(
+            "set", rich_help_panel=HELP_PANELS["SUBSUBNETS"]["CONFIG"]
+        )(self.sub_subnets_count_set)
+        self.sub_subnets_count.command(
+            "get", rich_help_panel=HELP_PANELS["SUBSUBNETS"]["CONFIG"]
+        )(self.sub_subnets_count_get)
+
         # sudo commands
-        self.sudo_sub_app.command(
-            "count", rich_help_panel=HELP_PANELS["SUDO"]["SUB"]
-        )(self.sudo_sub_count)
         self.sudo_app.command("set", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(
             self.sudo_set
         )
@@ -980,9 +1001,6 @@ class CLIManager:
         self.subnets_app.command(
             "list", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
         )(self.subnets_list)
-        self.subnets_app.command(
-            "count", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
-        )(self.subnets_count)
         self.subnets_app.command(
             "burn-cost", rich_help_panel=HELP_PANELS["SUBNETS"]["CREATION"]
         )(self.subnets_burn_cost)
@@ -5021,7 +5039,7 @@ class CLIManager:
             json_console.print(json.dumps(output))
         return results
 
-    def sudo_sub_count(
+    def sub_subnets_count_set(
         self,
         network: Optional[list[str]] = Options.network,
         wallet_name: str = Options.wallet_name,
@@ -5046,7 +5064,7 @@ class CLIManager:
 
         EXAMPLE
 
-        [green]$[/green] btcli sudo sub count --netuid 1 --count 2
+        [green]$[/green] btcli subsubnets count set --netuid 1 --count 2
         """
 
         self.verbosity_handler(quiet, verbose, json_output)
@@ -5073,7 +5091,7 @@ class CLIManager:
                 )
                 return False
             sub_count = IntPrompt.ask(
-                f"\nEnter the [blue]number of sub-subnets[/blue] to set.[dim](Current raw count: {current_count})[/dim]"
+                ("Enter the [blue]number of sub-subnets[/blue] to set")
             )
 
         if sub_count == current_count:
@@ -5123,6 +5141,32 @@ class CLIManager:
             json_console.print(json.dumps({"success": result, "err_msg": err_msg}))
 
         return result
+
+    def sub_subnets_count_get(
+        self,
+        network: Optional[list[str]] = Options.network,
+        netuid: int = Options.netuid,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Display the number of sub-subnets registered under a subnet.
+
+        EXAMPLE
+
+        [green]$[/green] btcli sub count get --netuid 1
+        """
+
+        self.verbosity_handler(quiet, verbose, json_output)
+        subtensor = self.initialize_chain(network)
+        return self._run_command(
+            subnets.count(
+                subtensor=subtensor,
+                netuid=netuid,
+                json_output=json_output,
+            )
+        )
 
     def sudo_set(
         self,
@@ -5658,31 +5702,6 @@ class CLIManager:
                 delegate_selection=False,
                 verbose=verbose,
                 prompt=prompt,
-                json_output=json_output,
-            )
-        )
-
-    def subnets_count(
-        self,
-        network: Optional[list[str]] = Options.network,
-        netuid: int = Options.netuid,
-        quiet: bool = Options.quiet,
-        verbose: bool = Options.verbose,
-        json_output: bool = Options.json_output,
-    ):
-        """
-        Show the number of sub-subnets registered under a subnet.
-
-        EXAMPLE
-
-        [green]$[/green] btcli subnets count --netuid 1
-        """
-        self.verbosity_handler(quiet, verbose, json_output)
-        subtensor = self.initialize_chain(network)
-        return self._run_command(
-            subnets.count(
-                subtensor=subtensor,
-                netuid=netuid,
                 json_output=json_output,
             )
         )
