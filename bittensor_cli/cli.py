@@ -78,7 +78,11 @@ from bittensor_cli.src.commands.stake import (
     add as add_stake,
     remove as remove_stake,
 )
-from bittensor_cli.src.commands.subnets import price, subnets
+from bittensor_cli.src.commands.subnets import (
+    price,
+    subnets,
+    mechanisms as subnet_mechanisms,
+)
 from bittensor_cli.version import __version__, __version_as_int__
 
 try:
@@ -5079,7 +5083,7 @@ class CLIManager:
 
         if not json_output:
             current_count = self._run_command(
-                subnets.count(
+                subnet_mechanisms.count(
                     subtensor=subtensor,
                     netuid=netuid,
                     json_output=False,
@@ -5099,8 +5103,7 @@ class CLIManager:
                 )
                 return False
             prompt_text = (
-                "Enter the [blue]number of mechanisms[/blue] to set.\n"
-                f"[dim](Current raw count: {current_count}; a value of 1 means there are no mechanisms beyond the root.)[/dim]"
+                "\n\nEnter the [blue]number of mechanisms[/blue] to set"
             )
             mechanism_count = IntPrompt.ask(prompt_text)
 
@@ -5139,7 +5142,7 @@ class CLIManager:
         )
 
         result, err_msg = self._run_command(
-            sudo.sudo_set_mechanism_count(
+            subnet_mechanisms.set_mechanism_count(
                 wallet=wallet,
                 subtensor=subtensor,
                 netuid=netuid,
@@ -5168,7 +5171,7 @@ class CLIManager:
         self.verbosity_handler(quiet, verbose, json_output)
         subtensor = self.initialize_chain(network)
         return self._run_command(
-            subnets.count(
+            subnet_mechanisms.count(
                 subtensor=subtensor,
                 netuid=netuid,
                 json_output=json_output,
@@ -5206,7 +5209,7 @@ class CLIManager:
         )
 
         return self._run_command(
-            subnets.set_emission_split(
+            subnet_mechanisms.set_emission_split(
                 subtensor=subtensor,
                 wallet=wallet,
                 netuid=netuid,
@@ -5217,7 +5220,6 @@ class CLIManager:
                 json_output=json_output,
             )
         )
-
 
     def mechanism_emission_get(
         self,
@@ -5232,13 +5234,12 @@ class CLIManager:
         self.verbosity_handler(quiet, verbose, json_output)
         subtensor = self.initialize_chain(network)
         return self._run_command(
-            subnets.get_emission_split(
+            subnet_mechanisms.get_emission_split(
                 subtensor=subtensor,
                 netuid=netuid,
                 json_output=json_output,
             )
         )
-
 
     def sudo_set(
         self,
