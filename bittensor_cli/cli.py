@@ -650,7 +650,7 @@ class CLIManager:
     :var wallet_app: the Typer app as it relates to wallet commands
     :var stake_app: the Typer app as it relates to stake commands
     :var sudo_app: the Typer app as it relates to sudo commands
-    :var subsubnets_app: the Typer app as it relates to sub-subnet commands
+    :var subnet_mechanisms_app: the Typer app for subnet mechanism commands
     :var subnets_app: the Typer app as it relates to subnets commands
     :var subtensor: the `SubtensorInterface` object passed to the various commands that require it
     """
@@ -660,8 +660,8 @@ class CLIManager:
     config_app: typer.Typer
     wallet_app: typer.Typer
     sudo_app: typer.Typer
-    subsubnets_app: typer.Typer
     subnets_app: typer.Typer
+    subnet_mechanisms_app: typer.Typer
     weights_app: typer.Typer
     utils_app: typer.Typer
     view_app: typer.Typer
@@ -735,10 +735,10 @@ class CLIManager:
         self.wallet_app = typer.Typer(epilog=_epilog)
         self.stake_app = typer.Typer(epilog=_epilog)
         self.sudo_app = typer.Typer(epilog=_epilog)
-        self.subsubnets_app = typer.Typer(epilog=_epilog)
-        self.subsubnets_count_app = typer.Typer(epilog=_epilog)
-        self.subsubnets_emission_app = typer.Typer(epilog=_epilog)
         self.subnets_app = typer.Typer(epilog=_epilog)
+        self.subnet_mechanisms_app = typer.Typer(epilog=_epilog)
+        self.subnets_mechanisms_count_app = typer.Typer(epilog=_epilog)
+        self.subnets_mechanisms_emission_app = typer.Typer(epilog=_epilog)
         self.weights_app = typer.Typer(epilog=_epilog)
         self.view_app = typer.Typer(epilog=_epilog)
         self.liquidity_app = typer.Typer(epilog=_epilog)
@@ -786,32 +786,6 @@ class CLIManager:
         )
         self.app.add_typer(self.sudo_app, name="su", hidden=True, no_args_is_help=True)
 
-        # sub-subnet aliases
-        self.app.add_typer(
-            self.subsubnets_app,
-            name="subsubnets",
-            short_help="Sub-subnet commands, alias: `sub`",
-            no_args_is_help=True,
-        )
-        self.app.add_typer(
-            self.subsubnets_app, name="subsubnet", hidden=True, no_args_is_help=True
-        )
-        self.app.add_typer(
-            self.subsubnets_app, name="sub", hidden=True, no_args_is_help=True
-        )
-        self.subsubnets_app.add_typer(
-            self.subsubnets_count_app,
-            name="count",
-            short_help="Manage sub-subnet counts",
-            no_args_is_help=True,
-        )
-        self.subsubnets_app.add_typer(
-            self.subsubnets_emission_app,
-            name="emission",
-            short_help="Manage sub-subnet emission splits",
-            no_args_is_help=True,
-        )
-
         # subnets aliases
         self.app.add_typer(
             self.subnets_app,
@@ -824,6 +798,32 @@ class CLIManager:
         )
         self.app.add_typer(
             self.subnets_app, name="subnet", hidden=True, no_args_is_help=True
+        )
+
+        # subnet mechanisms aliases
+        self.subnets_app.add_typer(
+            self.subnet_mechanisms_app,
+            name="mechanisms",
+            short_help="Subnet mechanism commands, alias: `mech`",
+            no_args_is_help=True,
+        )
+        self.subnets_app.add_typer(
+            self.subnet_mechanisms_app,
+            name="mech",
+            hidden=True,
+            no_args_is_help=True,
+        )
+        self.subnet_mechanisms_app.add_typer(
+            self.subnets_mechanisms_count_app,
+            name="count",
+            short_help="Manage mechanism instances",
+            no_args_is_help=True,
+        )
+        self.subnet_mechanisms_app.add_typer(
+            self.subnets_mechanisms_emission_app,
+            name="emission",
+            short_help="Manage mechanism emission splits",
+            no_args_is_help=True,
         )
 
         # weights aliases
@@ -970,19 +970,19 @@ class CLIManager:
         children_app.command("revoke")(self.stake_revoke_children)
         children_app.command("take")(self.stake_childkey_take)
 
-        # sub-subnet commands
-        self.subsubnets_count_app.command(
-            "set", rich_help_panel=HELP_PANELS["SUBSUBNETS"]["CONFIG"]
-        )(self.subsubnets_count_set)
-        self.subsubnets_count_app.command(
-            "get", rich_help_panel=HELP_PANELS["SUBSUBNETS"]["CONFIG"]
-        )(self.subsubnets_count_get)
-        self.subsubnets_emission_app.command(
-            "set", rich_help_panel=HELP_PANELS["SUBSUBNETS"]["EMISSION"]
-        )(self.subsubnets_emission_set)
-        self.subsubnets_emission_app.command(
-            "get", rich_help_panel=HELP_PANELS["SUBSUBNETS"]["EMISSION"]
-        )(self.subsubnets_emission_get)
+        # subnet mechanism commands
+        self.subnets_mechanisms_count_app.command(
+            "set", rich_help_panel=HELP_PANELS["MECHANISMS"]["CONFIG"]
+        )(self.mechanism_count_set)
+        self.subnets_mechanisms_count_app.command(
+            "get", rich_help_panel=HELP_PANELS["MECHANISMS"]["CONFIG"]
+        )(self.mechanism_count_get)
+        self.subnets_mechanisms_emission_app.command(
+            "set", rich_help_panel=HELP_PANELS["MECHANISMS"]["EMISSION"]
+        )(self.mechanism_emission_set)
+        self.subnets_mechanisms_emission_app.command(
+            "get", rich_help_panel=HELP_PANELS["MECHANISMS"]["EMISSION"]
+        )(self.mechanism_emission_get)
 
         # sudo commands
         self.sudo_app.command("set", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(
@@ -5052,18 +5052,18 @@ class CLIManager:
             json_console.print(json.dumps(output))
         return results
 
-    def subsubnets_count_set(
+    def mechanism_count_set(
         self,
         network: Optional[list[str]] = Options.network,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         netuid: int = Options.netuid,
-        sub_count: Optional[int] = typer.Option(
+        mechanism_count: Optional[int] = typer.Option(
             None,
             "--count",
-            "--sub-count",
-            help="Number of sub-subnets to set for the subnet.",
+            "--mech-count",
+            help="Number of mechanisms to set for the subnet.",
         ),
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
@@ -5072,7 +5072,7 @@ class CLIManager:
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
-        """Set the number of sub-subnets registered under a subnet."""
+        """Set the number of mechanisms registered under a subnet."""
 
         self.verbosity_handler(quiet, verbose, json_output)
         subtensor = self.initialize_chain(network)
@@ -5092,23 +5092,23 @@ class CLIManager:
                 exit_early=False,
             )
 
-        if sub_count is None:
+        if mechanism_count is None:
             if not prompt:
                 err_console.print(
-                    "Sub-subnet count not supplied with `--no-prompt` flag. Cannot continue."
+                    "Mechanism count not supplied with `--no-prompt` flag. Cannot continue."
                 )
                 return False
             prompt_text = (
-                "Enter the [blue]number of sub-subnets[/blue] to set.\n"
-                f"[dim](Current raw count: {current_count}; a value of 1 means there are no sub-subnets beyond the root.)[/dim]"
+                "Enter the [blue]number of mechanisms[/blue] to set.\n"
+                f"[dim](Current raw count: {current_count}; a value of 1 means there are no mechanisms beyond the root.)[/dim]"
             )
-            sub_count = IntPrompt.ask(prompt_text)
+            mechanism_count = IntPrompt.ask(prompt_text)
 
-        if sub_count == current_count:
-            visible_count = max(sub_count - 1, 0)
+        if mechanism_count == current_count:
+            visible_count = max(mechanism_count - 1, 0)
             message = (
                 ":white_heavy_check_mark: "
-                f"[dark_sea_green3]Subnet {netuid} already has {visible_count} sub-subnet"
+                f"[dark_sea_green3]Subnet {netuid} already has {visible_count} mechanism"
                 f"{'s' if visible_count != 1 else ''}.[/dark_sea_green3]"
             )
             if json_output:
@@ -5116,7 +5116,7 @@ class CLIManager:
                     json.dumps(
                         {
                             "success": True,
-                            "message": f"Subnet {netuid} already has {visible_count} sub-subnets.",
+                            "message": f"Subnet {netuid} already has {visible_count} mechanisms.",
                         }
                     )
                 )
@@ -5135,15 +5135,15 @@ class CLIManager:
             "args:\n"
             f"network: {network}\n"
             f"netuid: {netuid}\n"
-            f"sub_count: {sub_count}\n"
+            f"mechanism_count: {mechanism_count}\n"
         )
 
         result, err_msg = self._run_command(
-            sudo.sudo_set_sub_subnet_count(
+            sudo.sudo_set_mechanism_count(
                 wallet=wallet,
                 subtensor=subtensor,
                 netuid=netuid,
-                sub_count=sub_count,
+                mechanism_count=mechanism_count,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 json_output=json_output,
@@ -5155,7 +5155,7 @@ class CLIManager:
 
         return result
 
-    def subsubnets_count_get(
+    def mechanism_count_get(
         self,
         network: Optional[list[str]] = Options.network,
         netuid: int = Options.netuid,
@@ -5163,7 +5163,7 @@ class CLIManager:
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
-        """Display the number of sub-subnets registered under a subnet."""
+        """Display the number of mechanisms registered under a subnet."""
 
         self.verbosity_handler(quiet, verbose, json_output)
         subtensor = self.initialize_chain(network)
@@ -5175,7 +5175,7 @@ class CLIManager:
             )
         )
 
-    def subsubnets_emission_set(
+    def mechanism_emission_set(
         self,
         network: Optional[list[str]] = Options.network,
         wallet_name: str = Options.wallet_name,
@@ -5185,7 +5185,7 @@ class CLIManager:
         split: Optional[str] = typer.Option(
             None,
             "--split",
-            help="Comma-separated relative weights for each sub-subnet (will be normalised).",
+            help="Comma-separated relative weights for each mechanism (normalised automatically).",
         ),
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
@@ -5194,7 +5194,7 @@ class CLIManager:
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
-        """Set the emission split across sub-subnets for a subnet."""
+        """Set the emission split across mechanisms for a subnet."""
 
         self.verbosity_handler(quiet, verbose, json_output)
         subtensor = self.initialize_chain(network)
@@ -5219,7 +5219,7 @@ class CLIManager:
         )
 
 
-    def subsubnets_emission_get(
+    def mechanism_emission_get(
         self,
         network: Optional[list[str]] = Options.network,
         netuid: int = Options.netuid,
@@ -5227,7 +5227,7 @@ class CLIManager:
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
-        """Display the emission split across sub-subnets for a subnet."""
+        """Display the emission split across mechanisms for a subnet."""
 
         self.verbosity_handler(quiet, verbose, json_output)
         subtensor = self.initialize_chain(network)
