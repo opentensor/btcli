@@ -991,7 +991,7 @@ async def trim(
     call = await subtensor.substrate.compose_call(
         call_module="AdminUtils",
         call_function="sudo_trim_to_max_allowed_uids",
-        call_params=[netuid, max_n],
+        call_params={"netuid": netuid, "max_n": max_n},
     )
     success, err_msg = await subtensor.sign_and_send_extrinsic(
         call=call, wallet=wallet, era={"period": period}
