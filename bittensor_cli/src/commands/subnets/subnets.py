@@ -1509,6 +1509,106 @@ async def count(
     return mechanism_count
 
 
+async def get_emission_split(
+    subtensor: "SubtensorInterface",
+    netuid: int,
+    json_output: bool = False,
+) -> Optional[dict]:
+    """Display the emission split across mechanisms for a subnet."""
+
+    count = await subtensor.get_subnet_mechanism_count(netuid)
+    if count == 1:
+        console.print(f"Subnet {netuid} does not currently contain any mechanisms.")
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": False,
+                        "error": "Subnet does not contain any mechanisms.",
+                    }
+                )
+            )
+        return None
+
+    emission_split = await subtensor.get_mechanism_emission_split(netuid) or []
+    print(f"Emission split: {emission_split}")
+
+    even_distribution = False
+    total_sum = sum(emission_split)
+    if total_sum == 0 and count > 0:
+        even_distribution = True
+        base, remainder = divmod(U16_MAX, count)
+        emission_split = [base for _ in range(count)]
+        if remainder:
+            emission_split[0] += remainder
+        total_sum = sum(emission_split)
+
+    emission_percentages = (
+        [round((value / total_sum) * 100, 6) for value in emission_split]
+        if total_sum > 0
+        else [0.0 for _ in emission_split]
+    )
+
+    data = {
+        "netuid": netuid,
+        "raw_count": count,
+        "visible_count": max(count - 1, 0),
+        "split": emission_split if count else [],
+        "percentages": emission_percentages if count else [],
+        "even_distribution": even_distribution,
+    }
+
+    if json_output:
+        json_console.print(json.dumps(data))
+    else:
+        table = Table(
+            Column(
+                "[bold white]Mechanism Index[/]",
+                justify="center",
+                style=COLOR_PALETTE.G.NETUID,
+            ),
+            Column(
+                "[bold white]Weight (u16)[/]",
+                justify="right",
+                style=COLOR_PALETTE.STAKE.STAKE_ALPHA,
+            ),
+            Column(
+                "[bold white]Share (%)[/]",
+                justify="right",
+                style=COLOR_PALETTE.POOLS.EMISSION,
+            ),
+            title=f"\n[{COLOR_PALETTE.G.HEADER}]Subnet {netuid} emission split[/]",
+            box=box.SIMPLE,
+            show_footer=True,
+            border_style="bright_black",
+        )
+
+        total_weight = sum(emission_split)
+        share_percent = (total_weight / U16_MAX) * 100 if U16_MAX else 0
+
+        for idx, value in enumerate(emission_split):
+            share = (
+                emission_percentages[idx] if idx < len(emission_percentages) else 0.0
+            )
+            table.add_row(str(idx), str(value), f"{share:.6f}")
+
+        table.add_row(
+            "[dim]Total[/dim]",
+            f"[{COLOR_PALETTE.STAKE.STAKE_ALPHA}]{total_weight}[/{COLOR_PALETTE.STAKE.STAKE_ALPHA}]",
+            f"[{COLOR_PALETTE.POOLS.EMISSION}]{share_percent:.6f}[/{COLOR_PALETTE.POOLS.EMISSION}]",
+        )
+
+        console.print(table)
+        footer = "[dim]Totals are expressed as a fraction of 65535 (U16_MAX).[/dim]"
+        if even_distribution:
+            footer += (
+                "\n[dim]No custom split found; displaying an even distribution.[/dim]"
+            )
+        console.print(footer)
+
+    return data
+
+
 def _normalize_emission_weights(values: list[float]) -> tuple[list[int], list[float]]:
     total = sum(values)
     if total <= 0:
