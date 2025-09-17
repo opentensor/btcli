@@ -5102,9 +5102,7 @@ class CLIManager:
                     "Mechanism count not supplied with `--no-prompt` flag. Cannot continue."
                 )
                 return False
-            prompt_text = (
-                "\n\nEnter the [blue]number of mechanisms[/blue] to set"
-            )
+            prompt_text = "\n\nEnter the [blue]number of mechanisms[/blue] to set"
             mechanism_count = IntPrompt.ask(prompt_text)
 
         if mechanism_count == current_count:
