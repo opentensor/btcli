@@ -1462,7 +1462,7 @@ class SubtensorInterface:
         if not result:
             raise ValueError(f"Subnet {netuid} not found")
         subnet_ = DynamicInfo.from_any(result)
-        subnet_.price = price
+        subnet_.price = price if netuid != 0 else Balance.from_tao(1.0)
         return subnet_
 
     async def get_owned_hotkeys(
@@ -1545,13 +1545,13 @@ class SubtensorInterface:
                     "sim_swap_tao_for_alpha",
                     params={
                         "netuid": destination_netuid,
-                        "tao": intermediate_result.tao_amount,
+                        "tao": intermediate_result.tao_amount.rao,
                     },
                     block_hash=block_hash,
                 ),
                 destination_netuid,
             )
-            secondary_fee = (result.tao_fee * sn_price).set_unit(origin_netuid)
+            secondary_fee = (result.tao_fee / sn_price.tao).set_unit(origin_netuid)
             result.alpha_fee = result.alpha_fee + secondary_fee
             return result
         elif origin_netuid > 0:
