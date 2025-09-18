@@ -233,6 +233,14 @@ class Options:
         help="The netuid of the subnet in the network, (e.g. 1).",
         prompt=False,
     )
+    mechanism_id = typer.Option(
+        None,
+        "--mech-id",
+        "--mech_id",
+        "--mechanism_id",
+        "--mechanism-id",
+        help="Mechanism ID within the subnet (defaults to 0).",
+    )
     all_netuids = typer.Option(
         False,
         help="Use all netuids",
@@ -1793,6 +1801,43 @@ class CLIManager:
             )
             logger.debug(f"Partial staking {partial_staking}")
             return False
+
+    def ask_subnet_mechanism(
+        self,
+        mechanism_id: Optional[int],
+        mechanism_count: int,
+        netuid: int,
+    ) -> int:
+        """Resolve the mechanism ID to use."""
+
+        if mechanism_count is None or mechanism_count <= 0:
+            err_console.print(f"Subnet {netuid} does not exist.")
+            raise typer.Exit()
+
+        if mechanism_id is not None:
+            if mechanism_id < 0 or mechanism_id >= mechanism_count:
+                err_console.print(
+                    f"Mechanism ID {mechanism_id} is out of range for subnet {netuid}. "
+                    f"Valid range: [bold cyan]0[/bold cyan] to [bold cyan]{mechanism_count - 1}[/bold cyan]."
+                )
+                raise typer.Exit()
+            return mechanism_id
+
+        if mechanism_count == 1:
+            return 0
+
+        while True:
+            selected_mechanism_id = IntPrompt.ask(
+                f"Select mechanism ID for subnet {netuid}"
+                f"([bold cyan]0[/bold cyan] to [bold cyan]{mechanism_count - 1}[/bold cyan])",
+                default=0,
+            )
+            if 0 <= selected_mechanism_id < mechanism_count:
+                return selected_mechanism_id
+            err_console.print(
+                f"Mechanism ID {selected_mechanism_id} is out of range for subnet {netuid}. "
+                f"Valid range: [bold cyan]0[/bold cyan] to [bold cyan]{mechanism_count - 1}[/bold cyan]."
+            )
 
     def wallet_ask(
         self,
@@ -3786,6 +3831,8 @@ class CLIManager:
                     subnets.show(
                         subtensor=self.initialize_chain(network),
                         netuid=netuid_,
+                        mechanism_id=0,
+                        mechanism_count=1,
                         sort=False,
                         max_rows=12,
                         prompt=False,
@@ -5730,6 +5777,7 @@ class CLIManager:
         self,
         network: Optional[list[str]] = Options.network,
         netuid: int = Options.netuid,
+        mechanism_id: Optional[int] = Options.mechanism_id,
         sort: bool = typer.Option(
             False,
             "--sort",
@@ -5749,10 +5797,27 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose, json_output)
         subtensor = self.initialize_chain(network)
+        if netuid == 0:
+            mechanism_count = 1
+            selected_mechanism_id = 0
+            if mechanism_id not in (None, 0):
+                console.print(
+                    "[dim]Mechanism selection ignored for the root subnet (only mechanism 0 exists).[/dim]"
+                )
+        else:
+            mechanism_count = self._run_command(
+                subtensor.get_subnet_mechanism_count(netuid), exit_early=False
+            )
+            selected_mechanism_id = self.ask_subnet_mechanism(
+                mechanism_id, mechanism_count, netuid
+            )
+
         return self._run_command(
             subnets.show(
                 subtensor=subtensor,
                 netuid=netuid,
+                mechanism_id=selected_mechanism_id,
+                mechanism_count=mechanism_count,
                 sort=sort,
                 max_rows=None,
                 delegate_selection=False,
