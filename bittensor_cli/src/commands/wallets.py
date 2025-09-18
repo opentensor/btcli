@@ -549,7 +549,7 @@ def _get_coldkey_ss58_addresses_for_path(path: str) -> tuple[list[str], list[str
     coldkey_paths = [
         os.path.join(abs_path, wallet, "coldkeypub.txt")
         for wallet in wallets
-        if os.path.exists(os.path.join(abs_path, wallet, "coldkeypub.txt"))
+        if os.path.isfile(os.path.join(abs_path, wallet, "coldkeypub.txt"))
     ]
     ss58_addresses = [Keyfile(path).keypair.ss58_address for path in coldkey_paths]
 
