@@ -1819,7 +1819,7 @@ class CLIManager:
             if mechanism_id < 0 or mechanism_id >= mechanism_count:
                 err_console.print(
                     f"Mechanism ID {mechanism_id} is out of range for subnet {netuid}. "
-                    f"Valid range: [bold cyan]0[/bold cyan] to [bold cyan]{mechanism_count - 1}[/bold cyan]."
+                    f"Valid range: [bold cyan]0 to {mechanism_count - 1}[/bold cyan]."
                 )
                 raise typer.Exit()
             return mechanism_id
@@ -1829,15 +1829,15 @@ class CLIManager:
 
         while True:
             selected_mechanism_id = IntPrompt.ask(
-                f"Select mechanism ID for subnet {netuid}"
-                f"([bold cyan]0[/bold cyan] to [bold cyan]{mechanism_count - 1}[/bold cyan])",
+                f"Select mechanism ID for subnet {netuid} "
+                f"([bold cyan]0 to {mechanism_count - 1}[/bold cyan])",
                 default=0,
             )
             if 0 <= selected_mechanism_id < mechanism_count:
                 return selected_mechanism_id
             err_console.print(
                 f"Mechanism ID {selected_mechanism_id} is out of range for subnet {netuid}. "
-                f"Valid range: [bold cyan]0[/bold cyan] to [bold cyan]{mechanism_count - 1}[/bold cyan]."
+                f"Valid range: [bold cyan]0 to {mechanism_count - 1}[/bold cyan]."
             )
 
     def wallet_ask(
@@ -5178,6 +5178,7 @@ class CLIManager:
                 subtensor=subtensor,
                 netuid=netuid,
                 mechanism_count=mechanism_count,
+                previous_count=current_count or 0,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 json_output=json_output,
