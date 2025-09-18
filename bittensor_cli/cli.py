@@ -5125,7 +5125,7 @@ class CLIManager:
             )
         else:
             current_count = self._run_command(
-                subtensor.get_subnet_mechanism_count(netuid),
+                subtensor.get_subnet_mechanisms(netuid),
                 exit_early=False,
             )
 
@@ -5808,7 +5808,7 @@ class CLIManager:
                 )
         else:
             mechanism_count = self._run_command(
-                subtensor.get_subnet_mechanism_count(netuid), exit_early=False
+                subtensor.get_subnet_mechanisms(netuid), exit_early=False
             )
             selected_mechanism_id = self.ask_subnet_mechanism(
                 mechanism_id, mechanism_count, netuid

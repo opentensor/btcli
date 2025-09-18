@@ -216,8 +216,12 @@ async def subnets_list(
     """List all subnet netuids in the network."""
 
     async def fetch_subnet_data():
-        block_number_ = await subtensor.substrate.get_block_number(None)
-        subnets_ = await subtensor.all_subnets()
+        block_hash = await subtensor.substrate.get_chain_head()
+        subnets_, mechanisms, block_number_ = await asyncio.gather(
+            subtensor.all_subnets(block_hash=block_hash),
+            subtensor.get_all_subnet_mechanisms(block_hash=block_hash),
+            subtensor.substrate.get_block_number(block_hash=block_hash),
+        )
 
         # Sort subnets by market cap, keeping the root subnet in the first position
         root_subnet = next(s for s in subnets_ if s.netuid == 0)
@@ -227,7 +231,7 @@ async def subnets_list(
             reverse=True,
         )
         sorted_subnets = [root_subnet] + other_subnets
-        return sorted_subnets, block_number_
+        return sorted_subnets, block_number_, mechanisms
 
     def calculate_emission_stats(
         subnets_: list, block_number_: int
@@ -315,10 +319,15 @@ async def subnets_list(
             justify="left",
             overflow="fold",
         )
+        defined_table.add_column(
+            "[bold white]Mechanisms",
+            style=COLOR_PALETTE["GENERAL"]["SUBHEADING_EXTRA_1"],
+            justify="center",
+        )
         return defined_table
 
     # Non-live mode
-    def _create_table(subnets_, block_number_):
+    def _create_table(subnets_, block_number_, mechanisms):
         rows = []
         _, percentage_string = calculate_emission_stats(subnets_, block_number_)
 
@@ -398,6 +407,8 @@ async def subnets_list(
             else:
                 tempo_cell = "-/-"
 
+            mechanisms_cell = str(mechanisms.get(netuid, 1))
+
             rows.append(
                 (
                     netuid_cell,  # Netuid
@@ -409,6 +420,7 @@ async def subnets_list(
                     alpha_out_cell,  # Stake α_out
                     supply_cell,  # Supply
                     tempo_cell,  # Tempo k/n
+                    mechanisms_cell,  # Mechanism count
                 )
             )
 
@@ -430,7 +442,7 @@ async def subnets_list(
             defined_table.add_row(*row)
         return defined_table
 
-    def dict_table(subnets_, block_number_) -> dict:
+    def dict_table(subnets_, block_number_, mechanisms) -> dict:
         subnet_rows = {}
         total_tao_emitted, _ = calculate_emission_stats(subnets_, block_number_)
         total_emissions = 0.0
@@ -470,6 +482,7 @@ async def subnets_list(
                 "alpha_out": alpha_out,
                 "supply": supply,
                 "tempo": tempo,
+                "mechanisms": mechanisms.get(netuid, 1),
             }
         output = {
             "total_tao_emitted": total_tao_emitted,
@@ -482,7 +495,7 @@ async def subnets_list(
         return output
 
     # Live mode
-    def create_table_live(subnets_, previous_data_, block_number_):
+    def create_table_live(subnets_, previous_data_, block_number_, mechanisms):
         def format_cell(
             value, previous_value, unit="", unit_first=False, precision=4, millify=False
         ):
@@ -718,6 +731,7 @@ async def subnets_list(
                     alpha_out_cell,  # Stake α_out
                     supply_cell,  # Supply
                     tempo_cell,  # Tempo k/n
+                    str(mechanisms.get(netuid, 1)),  # Mechanisms
                 )
             )
 
@@ -764,7 +778,7 @@ async def subnets_list(
         with Live(console=console, screen=True, auto_refresh=True) as live:
             try:
                 while True:
-                    subnets, block_number = await fetch_subnet_data()
+                    subnets, block_number, mechanisms = await fetch_subnet_data()
 
                     # Update block numbers
                     previous_block = current_block
@@ -776,7 +790,7 @@ async def subnets_list(
                     )
 
                     table, current_data = create_table_live(
-                        subnets, previous_data, block_number
+                        subnets, previous_data, block_number, mechanisms
                     )
                     previous_data = current_data
                     progress.reset(progress_task)
@@ -802,11 +816,13 @@ async def subnets_list(
                 pass  # Ctrl + C
     else:
         # Non-live mode
-        subnets, block_number = await fetch_subnet_data()
+        subnets, block_number, mechanisms = await fetch_subnet_data()
         if json_output:
-            json_console.print(json.dumps(dict_table(subnets, block_number)))
+            json_console.print(
+                json.dumps(dict_table(subnets, block_number, mechanisms))
+            )
         else:
-            table = _create_table(subnets, block_number)
+            table = _create_table(subnets, block_number, mechanisms)
             console.print(table)
 
         return
