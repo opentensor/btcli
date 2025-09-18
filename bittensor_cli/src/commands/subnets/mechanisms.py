@@ -92,13 +92,15 @@ async def get_emission_split(
 
     count_ = await subtensor.get_subnet_mechanism_count(netuid)
     if count_ == 1:
-        console.print(f"Subnet {netuid} does not currently contain any mechanisms.")
+        console.print(
+            f"Subnet {netuid} only has the primary mechanism (mechanism 0). No emission split to display."
+        )
         if json_output:
             json_console.print(
                 json.dumps(
                     {
                         "success": False,
-                        "error": "Subnet does not contain any mechanisms.",
+                        "error": "Subnet only has the primary mechanism (mechanism 0). No emission split to display.",
                     }
                 )
             )
@@ -150,7 +152,8 @@ async def get_emission_split(
                 justify="right",
                 style=COLOR_PALETTE.POOLS.EMISSION,
             ),
-            title=f"\n[{COLOR_PALETTE.G.HEADER}]Subnet {netuid} emission split[/]",
+            title=f"\n[{COLOR_PALETTE.G.HEADER}]Subnet {netuid} • Emission split[/]\n"
+            f"[{COLOR_PALETTE.G.SUBHEAD}]Network: {subtensor.network}[/{COLOR_PALETTE.G.SUBHEAD}]",
             box=box.SIMPLE,
             show_footer=True,
             border_style="bright_black",
@@ -412,6 +415,7 @@ async def set_mechanism_count(
     subtensor: "SubtensorInterface",
     netuid: int,
     mechanism_count: int,
+    previous_count: int,
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
     json_output: bool,
@@ -431,7 +435,9 @@ async def set_mechanism_count(
         return False, err_msg
 
     if not Confirm.ask(
-        f"Set mechanism count to {mechanism_count} for subnet {netuid}?"
+        f"Subnet [blue]{netuid}[/blue] currently has [blue]{previous_count}[/blue] mechanism"
+        f"{'s' if previous_count != 1 else ''}."
+        f" Set it to [blue]{mechanism_count}[/blue]?"
     ):
         return False, "User cancelled"
 
