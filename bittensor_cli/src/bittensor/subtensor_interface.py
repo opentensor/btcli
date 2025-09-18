@@ -1171,7 +1171,7 @@ class SubtensorInterface:
 
         return SubnetHyperparameters.from_any(result)
 
-    async def get_subnet_mechanism_count(
+    async def get_subnet_mechanisms(
         self, netuid: int, block_hash: Optional[str] = None
     ) -> int:
         """Return the number of mechanisms that belong to the provided subnet."""
@@ -1186,6 +1186,22 @@ class SubtensorInterface:
         if result is None:
             return 0
         return int(result)
+
+    async def get_all_subnet_mechanisms(
+        self, block_hash: Optional[str] = None
+    ) -> dict[int, int]:
+        """Return mechanism counts for every subnet with a recorded value."""
+
+        results = await self.substrate.query_map(
+            module="SubtensorModule",
+            storage_function="MechanismCountCurrent",
+            params=[],
+            block_hash=block_hash,
+        )
+        res = {}
+        async for netuid, count in results:
+            res[int(netuid)] = int(count.value)
+        return res
 
     async def get_mechanism_emission_split(
         self, netuid: int, block_hash: Optional[str] = None

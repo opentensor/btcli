@@ -43,7 +43,7 @@ async def count(
         f":satellite:Retrieving mechanism count from {subtensor.network}...",
         spinner="aesthetic",
     ):
-        mechanism_count = await subtensor.get_subnet_mechanism_count(
+        mechanism_count = await subtensor.get_subnet_mechanisms(
             netuid, block_hash=block_hash
         )
         if not mechanism_count:
@@ -90,7 +90,7 @@ async def get_emission_split(
 ) -> Optional[dict]:
     """Display the emission split across mechanisms for a subnet."""
 
-    count_ = await subtensor.get_subnet_mechanism_count(netuid)
+    count_ = await subtensor.get_subnet_mechanisms(netuid)
     if count_ == 1:
         console.print(
             f"Subnet {netuid} only has the primary mechanism (mechanism 0). No emission split to display."
@@ -198,7 +198,7 @@ async def set_emission_split(
     """Set the emission split across mechanisms for a subnet."""
 
     mech_count, existing_split = await asyncio.gather(
-        subtensor.get_subnet_mechanism_count(netuid),
+        subtensor.get_subnet_mechanisms(netuid),
         subtensor.get_mechanism_emission_split(netuid),
     )
 
