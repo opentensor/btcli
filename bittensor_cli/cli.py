@@ -5109,7 +5109,20 @@ class CLIManager:
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
-        """Set the number of mechanisms registered under a subnet."""
+        """
+        Configure how many mechanisms are registered for a subnet.
+
+        The base mechanism at index 0 and new ones are incremented by 1.
+
+        [bold]Common Examples:[/bold]
+
+        1. Prompt for the new mechanism count interactively:
+        [green]$[/green] btcli subnet mech set --netuid 12
+
+        2. Set the count to 2 using a specific wallet:
+        [green]$[/green] btcli subnet mech set --netuid 12 --count 2 --wallet.name my_wallet --wallet.hotkey admin
+
+        """
 
         self.verbosity_handler(quiet, verbose, json_output)
         subtensor = self.initialize_chain(network)
@@ -5198,7 +5211,14 @@ class CLIManager:
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
-        """Display the number of mechanisms registered under a subnet."""
+        """
+        Display how many mechanisms are registered under a subnet.
+
+        Includes the base mechanism (index 0). Helpful for verifying the active
+        mechanism counts in a subnet.
+
+        [green]$[/green] btcli subnet mech count --netuid 12
+        """
 
         self.verbosity_handler(quiet, verbose, json_output)
         subtensor = self.initialize_chain(network)
@@ -5229,7 +5249,21 @@ class CLIManager:
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
-        """Set the emission split across mechanisms for a subnet."""
+        """
+        Update the emission split across mechanisms for a subnet.
+
+        Accepts comma-separated weights (U16 values or percentages). When `--split`
+        is omitted and prompts remain enabled, you will be guided interactively and
+        the CLI automatically normalises the weights.
+
+        [bold]Common Examples:[/bold]
+
+        1. Configure the split interactively:
+        [green]$[/green] btcli subnet mech emissions-split --netuid 12
+
+        2. Apply a 70/30 distribution in one command:
+        [green]$[/green] btcli subnet mech emissions-split --netuid 12 --split 70,30 --wallet.name my_wallet --wallet.hotkey admin
+        """
 
         self.verbosity_handler(quiet, verbose, json_output)
         subtensor = self.initialize_chain(network)
@@ -5261,7 +5295,14 @@ class CLIManager:
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
-        """Display the emission split across mechanisms for a subnet."""
+        """
+        Display the current emission split across mechanisms for a subnet.
+
+        Shows raw U16 weights alongside percentage shares for each mechanism. Useful
+        for verifying the emission split in a subnet.
+
+        [green]$[/green] btcli subnet mech emissions --netuid 12
+        """
 
         self.verbosity_handler(quiet, verbose, json_output)
         subtensor = self.initialize_chain(network)
@@ -5791,11 +5832,19 @@ class CLIManager:
         json_output: bool = Options.json_output,
     ):
         """
-        Displays detailed information about a subnet including participants and their state.
+        Inspect the metagraph for a subnet.
 
-        EXAMPLE
+        Shows miners, validators, stake, ranks, emissions, and other runtime stats.
+        When multiple mechanisms exist, the CLI prompts for one unless `--mechid`
+        is supplied. Netuid 0 always uses mechid 0.
 
-        [green]$[/green] btcli subnets show
+        [bold]Common Examples:[/bold]
+
+        1. Inspect the mechanism with prompts for selection:
+        [green]$[/green] btcli subnets show --netuid 12
+
+        2. Pick mechanism 1 explicitly:
+        [green]$[/green] btcli subnets show --netuid 12 --mechid 1
         """
         self.verbosity_handler(quiet, verbose, json_output)
         subtensor = self.initialize_chain(network)
