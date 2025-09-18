@@ -235,6 +235,7 @@ class Options:
     )
     mechanism_id = typer.Option(
         None,
+        "mechid",
         "--mech-id",
         "--mech_id",
         "--mechanism_id",
