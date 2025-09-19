@@ -666,6 +666,7 @@ HYPERPARAMS = {
     "user_liquidity_enabled": ("toggle_user_liquidity", True),
     "bonds_reset_enabled": ("sudo_set_bonds_reset_enabled", False),
     "transfers_enabled": ("sudo_set_toggle_transfer", False),
+    "min_allowed_uids": ("sudo_set_min_allowed_uids", True),
 }
 
 HYPERPARAMS_MODULE = {
