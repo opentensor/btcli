@@ -72,6 +72,7 @@ from bittensor_cli.src.commands.liquidity.utils import (
     prompt_position_id,
 )
 from bittensor_cli.src.commands.stake import (
+    auto_staking as auto_stake,
     children_hotkeys,
     list as list_stake,
     move as move_stake,
@@ -905,6 +906,9 @@ class CLIManager:
         self.stake_app.command(
             "add", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
         )(self.stake_add)
+        self.stake_app.command(
+            "auto", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
+        )(self.get_auto_stake)
         self.stake_app.command(
             "remove", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
         )(self.stake_remove)
@@ -3502,6 +3506,62 @@ class CLIManager:
                 subtensor=self.initialize_chain(network),
                 new_coldkey_ss58=new_wallet_coldkey_ss58,
                 force_swap=force_swap,
+            )
+        )
+
+    def get_auto_stake(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        coldkey_ss58=typer.Option(
+            None,
+            "--ss58",
+            "--coldkey_ss58",
+            "--coldkey.ss58_address",
+            "--coldkey.ss58",
+            help="Coldkey address of the wallet",
+        ),
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """Display auto-stake destinations for a wallet across all subnets."""
+
+        self.verbosity_handler(quiet, verbose, json_output)
+
+        wallet = None
+        if coldkey_ss58:
+            if not is_valid_ss58_address(coldkey_ss58):
+                print_error("You entered an invalid ss58 address")
+                raise typer.Exit()
+        else:
+            if wallet_name:
+                coldkey_or_ss58 = wallet_name
+            else:
+                coldkey_or_ss58 = Prompt.ask(
+                    "Enter the [blue]wallet name[/blue] or [blue]coldkey ss58 address[/blue]",
+                    default=self.config.get("wallet_name") or defaults.wallet.name,
+                )
+            if is_valid_ss58_address(coldkey_or_ss58):
+                coldkey_ss58 = coldkey_or_ss58
+            else:
+                wallet_name = coldkey_or_ss58 if coldkey_or_ss58 else wallet_name
+                wallet = self.wallet_ask(
+                    wallet_name,
+                    wallet_path,
+                    None,
+                    ask_for=[WO.NAME, WO.PATH],
+                    validate=WV.WALLET,
+                )
+
+        return self._run_command(
+            auto_stake.show_auto_destinations(
+                wallet,
+                self.initialize_chain(network),
+                coldkey_ss58=coldkey_ss58,
+                json_output=json_output,
+                verbose=verbose,
             )
         )
 
