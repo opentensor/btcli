@@ -167,3 +167,127 @@ async def show_auto_destinations(
     )
 
     return None
+
+
+async def set_auto_stake_destination(
+    wallet: Wallet,
+    subtensor: "SubtensorInterface",
+    netuid: int,
+    hotkey_ss58: str,
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = False,
+    prompt_user: bool = True,
+    json_output: bool = False,
+) -> bool:
+    """Set the auto-stake destination hotkey for a coldkey on a subnet."""
+
+    if not is_valid_ss58_address(hotkey_ss58):
+        print_error("You entered an invalid hotkey ss58 address")
+        return False
+
+    try:
+        chain_head = await subtensor.substrate.get_chain_head()
+        subnet_info, identities, delegate_identities = await asyncio.gather(
+            subtensor.subnet(netuid, block_hash=chain_head),
+            subtensor.fetch_coldkey_hotkey_identities(block_hash=chain_head),
+            subtensor.get_delegate_identities(block_hash=chain_head),
+        )
+    except ValueError:
+        print_error(f"Subnet with netuid {netuid} does not exist")
+        return False
+
+    hotkey_identity = ""
+    identities = identities or {}
+    delegate_identities = delegate_identities or {}
+
+    hotkey_identity_entry = identities.get("hotkeys", {}).get(hotkey_ss58, {})
+    if identity_data := hotkey_identity_entry.get("identity"):
+        hotkey_identity = (
+            identity_data.get("name") or identity_data.get("display") or ""
+        )
+    if not hotkey_identity:
+        delegate_info = delegate_identities.get(hotkey_ss58)
+        if delegate_info and getattr(delegate_info, "display", ""):
+            hotkey_identity = delegate_info.display
+
+    if prompt_user and not json_output:
+        table = Table(
+            title=(
+                f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Confirm Auto-Stake Destination"
+                f"[/{COLOR_PALETTE['GENERAL']['HEADER']}]"
+            ),
+            show_edge=False,
+            header_style="bold white",
+            border_style="bright_black",
+            style="bold",
+            title_justify="center",
+            show_lines=False,
+            pad_edge=True,
+            box=box.SIMPLE_HEAD,
+        )
+        table.add_column(
+            "Netuid", justify="center", style=COLOR_PALETTE["GENERAL"]["SYMBOL"]
+        )
+        table.add_column("Subnet", style="cyan", justify="left")
+        table.add_column(
+            "Destination Hotkey",
+            style=COLOR_PALETTE["GENERAL"]["HOTKEY"],
+            justify="center",
+        )
+        table.add_column(
+            "Identity", style=COLOR_PALETTE["GENERAL"]["SUBHEADING"], justify="left"
+        )
+        table.add_row(
+            str(netuid),
+            get_subnet_name(subnet_info),
+            hotkey_ss58,
+            hotkey_identity or "",
+        )
+        console.print(table)
+
+        if not Confirm.ask("\nSet this auto-stake destination?", default=True):
+            return False
+
+    if not unlock_key(wallet).success:
+        return False
+
+    call = await subtensor.substrate.compose_call(
+        call_module="SubtensorModule",
+        call_function="set_coldkey_auto_stake_hotkey",
+        call_params={
+            "netuid": netuid,
+            "hotkey": hotkey_ss58,
+        },
+    )
+
+    with console.status(
+        f":satellite: Setting auto-stake destination on [white]{subtensor.network}[/white]...",
+        spinner="earth",
+    ):
+        success, error_message = await subtensor.sign_and_send_extrinsic(
+            call,
+            wallet,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+        )
+
+    if json_output:
+        json_console.print(
+            json.dumps(
+                {
+                    "success": success,
+                    "error": error_message,
+                    "netuid": netuid,
+                    "hotkey": hotkey_ss58,
+                }
+            )
+        )
+
+    if success:
+        console.print(
+            f":white_heavy_check_mark: [dark_sea_green3]Auto-stake destination set for netuid {netuid}[/dark_sea_green3]"
+        )
+        return True
+
+    err_console.print(f":cross_mark: [red]Failed[/red]: {error_message}")
+    return False
