@@ -1,5 +1,10 @@
 # Changelog
 
+## 9.11.2 /2025-09-19
+* Fix: Stake movement between non-root sns by @ibraheem-abe in https://github.com/opentensor/btcli/pull/629
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.11.1...v9.11.2
+
 ## 9.11.1 /2025-09-16
 
 * Transfer not staking warning by @thewhaleking in https://github.com/opentensor/btcli/pull/618
