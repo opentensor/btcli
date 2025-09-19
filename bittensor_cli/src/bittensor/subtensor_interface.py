@@ -224,6 +224,30 @@ class SubtensorInterface:
         stakes: list[StakeInfo] = StakeInfo.list_from_any(result)
         return [stake for stake in stakes if stake.stake > 0]
 
+    async def get_auto_stake_destinations(
+        self,
+        coldkey_ss58: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> dict[int, str]:
+        """Retrieve auto-stake destinations configured for a coldkey."""
+
+        query = await self.substrate.query_map(
+            module="SubtensorModule",
+            storage_function="AutoStakeDestination",
+            params=[coldkey_ss58],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        destinations: dict[int, str] = {}
+        async for netuid, destination in query:
+            hotkey_ss58 = decode_account_id(destination.value[0])
+            if hotkey_ss58:
+                destinations[int(netuid)] = hotkey_ss58
+
+        return destinations
+
     async def get_stake_for_coldkey_and_hotkey(
         self,
         hotkey_ss58: str,
