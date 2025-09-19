@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 
 
-async def show_auto_destinations(
+async def show_auto_stake_destinations(
     wallet: Optional[Wallet],
     subtensor: "SubtensorInterface",
     coldkey_ss58: Optional[str] = None,

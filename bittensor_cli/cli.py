@@ -3559,7 +3559,7 @@ class CLIManager:
                 )
 
         return self._run_command(
-            auto_stake.show_auto_destinations(
+            auto_stake.show_auto_stake_destinations(
                 wallet,
                 self.initialize_chain(network),
                 coldkey_ss58=coldkey_ss58,
