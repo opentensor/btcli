@@ -910,6 +910,9 @@ class CLIManager:
             "auto", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
         )(self.get_auto_stake)
         self.stake_app.command(
+            "set-auto", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
+        )(self.set_auto_stake)
+        self.stake_app.command(
             "remove", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
         )(self.stake_remove)
         self.stake_app.command(
@@ -3562,6 +3565,81 @@ class CLIManager:
                 coldkey_ss58=coldkey_ss58,
                 json_output=json_output,
                 verbose=verbose,
+            )
+        )
+
+    def set_auto_stake(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        netuid: Optional[int] = Options.netuid_not_req,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        prompt: bool = Options.prompt,
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        json_output: bool = Options.json_output,
+    ):
+        """Set the auto-stake destination hotkey for a coldkey."""
+
+        self.verbosity_handler(quiet, verbose, json_output)
+
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            None,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.WALLET,
+        )
+
+        if netuid is None:
+            netuid = IntPrompt.ask(
+                "Enter the [blue]netuid[/blue] to configure",
+                default=defaults.netuid,
+            )
+        validate_netuid(netuid)
+
+        hotkey_prompt = Prompt.ask(
+            "Enter the [blue]hotkey ss58 address[/blue] to auto-stake to "
+            "[dim](Press Enter to view delegates)[/dim]",
+            default="",
+            show_default=False,
+        ).strip()
+
+        if not hotkey_prompt:
+            selected_hotkey = self._run_command(
+                subnets.show(
+                    subtensor=self.initialize_chain(network),
+                    netuid=netuid,
+                    sort=False,
+                    max_rows=20,
+                    prompt=False,
+                    delegate_selection=True,
+                ),
+                exit_early=False,
+            )
+            if not selected_hotkey:
+                print_error("No delegate selected. Exiting.")
+                return
+            hotkey_ss58 = selected_hotkey
+        else:
+            hotkey_ss58 = hotkey_prompt
+
+        if not is_valid_ss58_address(hotkey_ss58):
+            print_error("You entered an invalid hotkey ss58 address")
+            return
+
+        return self._run_command(
+            auto_stake.set_auto_stake_destination(
+                wallet,
+                self.initialize_chain(network),
+                netuid,
+                hotkey_ss58,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+                prompt_user=prompt,
+                json_output=json_output,
             )
         )
 
