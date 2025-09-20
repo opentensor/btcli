@@ -13,6 +13,7 @@ from bittensor_cli.src.bittensor.utils import (
     u16_normalized_float as u16tf,
     u64_normalized_float as u64tf,
     decode_account_id,
+    get_netuid_and_subuid_by_storage_index,
 )
 
 
@@ -1084,12 +1085,13 @@ class MetagraphInfo(InfoBase):
     alpha_dividends_per_hotkey: list[
         tuple[str, Balance]
     ]  # List of dividend payout in alpha via subnet.
+    subuid: int = 0
 
     @classmethod
     def _fix_decoded(cls, decoded: dict) -> "MetagraphInfo":
         """Returns a MetagraphInfo object from decoded chain data."""
         # Subnet index
-        _netuid = decoded["netuid"]
+        _netuid, _subuid = get_netuid_and_subuid_by_storage_index(decoded["netuid"])
 
         # Name and symbol
         decoded.update({"name": bytes(decoded.get("name")).decode()})
@@ -1102,6 +1104,7 @@ class MetagraphInfo(InfoBase):
         return cls(
             # Subnet index
             netuid=_netuid,
+            subuid=_subuid,
             # Name and symbol
             name=decoded["name"],
             symbol=decoded["symbol"],
