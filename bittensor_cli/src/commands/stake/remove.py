@@ -4,6 +4,7 @@ from functools import partial
 
 from typing import TYPE_CHECKING, Optional
 
+from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
@@ -134,7 +135,8 @@ async def unstake(
     skip_remaining_subnets = False
     if len(netuids) > 1 and not amount:
         console.print(
-            "[dark_sea_green3]Tip: Enter 'q' any time to stop going over remaining subnets and process current unstakes.\n"
+            "[dark_sea_green3]Tip: Enter 'q' any time to stop going over "
+            "remaining subnets and process current unstakes.\n"
         )
 
     # Iterate over hotkeys and netuids to collect unstake operations
@@ -335,7 +337,8 @@ async def unstake(
                 func = _unstake_extrinsic
                 specific_args = {"current_stake": op["current_stake_balance"]}
 
-            suc = await func(**common_args, **specific_args)
+            suc, ext_receipt = await func(**common_args, **specific_args)
+            ext_id = await ext_receipt.get_extrinsic_identifier() if suc else None
 
             successes.append(
                 {
@@ -343,6 +346,7 @@ async def unstake(
                     "hotkey_ss58": op["hotkey_ss58"],
                     "unstake_amount": op["amount_to_unstake"].tao,
                     "success": suc,
+                    "extrinsic_identifier": ext_id,
                 }
             )
 
@@ -350,7 +354,7 @@ async def unstake(
         f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]Unstaking operations completed."
     )
     if json_output:
-        json_console.print(json.dumps(successes))
+        json_console.print_json(data=successes)
     return True
 
 
@@ -533,7 +537,7 @@ async def unstake_all(
     successes = {}
     with console.status("Unstaking all stakes...") as status:
         for hotkey_ss58 in hotkey_ss58s:
-            successes[hotkey_ss58] = await _unstake_all_extrinsic(
+            success, ext_receipt = await _unstake_all_extrinsic(
                 wallet=wallet,
                 subtensor=subtensor,
                 hotkey_ss58=hotkey_ss58,
@@ -542,6 +546,11 @@ async def unstake_all(
                 status=status,
                 era=era,
             )
+            ext_id = await ext_receipt.get_extrinsic_identifier() if successes else None
+            successes[hotkey_ss58] = {
+                "success": success,
+                "extrinsic_identifier": ext_id,
+            }
     if json_output:
         return json_console.print(json.dumps({"success": successes}))
 
@@ -556,7 +565,7 @@ async def _unstake_extrinsic(
     hotkey_ss58: str,
     status=None,
     era: int = 3,
-) -> bool:
+) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """Execute a standard unstake extrinsic.
 
     Args:
@@ -604,8 +613,11 @@ async def _unstake_extrinsic(
                 f"{failure_prelude} with error: "
                 f"{format_error_message(await response.error_message)}"
             )
-            return False
+            return False, None
         # Fetch latest balance and stake
+        console.print(
+            f"Your extrinsic has been included as {await response.get_extrinsic_identifier()}"
+        )
         block_hash = await subtensor.substrate.get_chain_head()
         new_balance, new_stake = await asyncio.gather(
             subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash),
@@ -625,11 +637,11 @@ async def _unstake_extrinsic(
             f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
             f" Stake:\n  [blue]{current_stake}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}"
         )
-        return True
+        return True, response
 
     except Exception as e:
         err_out(f"{failure_prelude} with error: {str(e)}")
-        return False
+        return False, None
 
 
 async def _safe_unstake_extrinsic(
@@ -642,7 +654,7 @@ async def _safe_unstake_extrinsic(
     allow_partial_stake: bool,
     status=None,
     era: int = 3,
-) -> bool:
+) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """Execute a safe unstake extrinsic with price limit.
 
     Args:
@@ -708,14 +720,16 @@ async def _safe_unstake_extrinsic(
             )
         else:
             err_out(f"\n{failure_prelude} with error: {format_error_message(e)}")
-        return False
+        return False, None
 
     if not await response.is_success:
         err_out(
             f"\n{failure_prelude} with error: {format_error_message(await response.error_message)}"
         )
-        return False
-
+        return False, None
+    console.print(
+        f"Your extrinsic has been included as {await response.get_extrinsic_identifier()}"
+    )
     block_hash = await subtensor.substrate.get_chain_head()
     new_balance, new_stake = await asyncio.gather(
         subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash),
@@ -745,7 +759,7 @@ async def _safe_unstake_extrinsic(
         f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] "
         f"Stake:\n  [blue]{current_stake}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}"
     )
-    return True
+    return True, response
 
 
 async def _unstake_all_extrinsic(
@@ -756,7 +770,7 @@ async def _unstake_all_extrinsic(
     unstake_all_alpha: bool,
     status=None,
     era: int = 3,
-) -> None:
+) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """Execute an unstake all extrinsic.
 
     Args:
@@ -774,7 +788,7 @@ async def _unstake_all_extrinsic(
 
     if status:
         status.update(
-            f"\n:satellite: {'Unstaking all Alpha stakes' if unstake_all_alpha else 'Unstaking all stakes'} from {hotkey_name} ..."
+            f"\n:satellite: Unstaking all {'Alpha ' if unstake_all_alpha else ''}stakes from {hotkey_name} ..."
         )
 
     block_hash = await subtensor.substrate.get_chain_head()
@@ -817,7 +831,11 @@ async def _unstake_all_extrinsic(
                 f"{failure_prelude} with error: "
                 f"{format_error_message(await response.error_message)}"
             )
-            return
+            return False, None
+        else:
+            console.print(
+                f"Your extrinsic has been included as {await response.get_extrinsic_identifier()}"
+            )
 
         # Fetch latest balance and stake
         block_hash = await subtensor.substrate.get_chain_head()
@@ -855,9 +873,11 @@ async def _unstake_all_extrinsic(
                 f"[blue]{previous_root_stake}[/blue] :arrow_right: "
                 f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_root_stake}"
             )
+        return True, response
 
     except Exception as e:
         err_out(f"{failure_prelude} with error: {str(e)}")
+        return False, None
 
 
 async def _get_extrinsic_fee(

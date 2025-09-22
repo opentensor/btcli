@@ -4379,7 +4379,7 @@ class CLIManager:
             f"interactive_selection: {interactive_selection}\n"
             f"prompt: {prompt}\n"
         )
-        result = self._run_command(
+        result, ext_id = self._run_command(
             move_stake.move_stake(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
@@ -4395,7 +4395,9 @@ class CLIManager:
             )
         )
         if json_output:
-            json_console.print(json.dumps({"success": result}))
+            json_console.print(
+                json.dumps({"success": result, "extrinsic_identifier": ext_id or None})
+            )
         return result
 
     def stake_transfer(
@@ -4555,7 +4557,7 @@ class CLIManager:
             f"era: {period}\n"
             f"stake_all: {stake_all}"
         )
-        result = self._run_command(
+        result, ext_id = self._run_command(
             move_stake.transfer_stake(
                 wallet=wallet,
                 subtensor=self.initialize_chain(network),
@@ -4571,7 +4573,9 @@ class CLIManager:
             )
         )
         if json_output:
-            json_console.print(json.dumps({"success": result}))
+            json_console.print(
+                json.dumps({"success": result, "extrinsic_identifier": ext_id or None})
+            )
         return result
 
     def stake_swap(
@@ -4675,7 +4679,7 @@ class CLIManager:
             f"wait_for_inclusion: {wait_for_inclusion}\n"
             f"wait_for_finalization: {wait_for_finalization}\n"
         )
-        result = self._run_command(
+        result, ext_id = self._run_command(
             move_stake.swap_stake(
                 wallet=wallet,
                 subtensor=self.initialize_chain(network),
@@ -4691,7 +4695,9 @@ class CLIManager:
             )
         )
         if json_output:
-            json_console.print(json.dumps({"success": result}))
+            json_console.print(
+                json.dumps({"success": result, "extrinsic_identifier": ext_id or None})
+            )
         return result
 
     def stake_get_children(
@@ -4990,7 +4996,7 @@ class CLIManager:
             f"wait_for_inclusion: {wait_for_inclusion}\n"
             f"wait_for_finalization: {wait_for_finalization}\n"
         )
-        results: list[tuple[Optional[int], bool]] = self._run_command(
+        results: list[tuple[Optional[int], bool, Optional[str]]] = self._run_command(
             children_hotkeys.childkey_take(
                 wallet=wallet,
                 subtensor=self.initialize_chain(network),
@@ -5004,8 +5010,8 @@ class CLIManager:
         )
         if json_output:
             output = {}
-            for netuid_, success in results:
-                output[netuid_] = success
+            for netuid_, success, ext_id in results:
+                output[netuid_] = {"success": success, "extrinsic_identifier": ext_id}
             json_console.print(json.dumps(output))
         return results
 
