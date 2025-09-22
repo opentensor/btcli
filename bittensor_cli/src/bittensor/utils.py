@@ -507,6 +507,7 @@ def get_explorer_url_for_network(
 
     :return: The explorer url for the given block hash and network
     """
+    # TODO remove
 
     explorer_urls: dict[str, str] = {}
     # Will be None if the network is not known. i.e. not in network_map

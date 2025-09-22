@@ -18,6 +18,7 @@ import typing
 from typing import Optional
 import subprocess
 
+from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet
 from Crypto.Hash import keccak
 import numpy as np
@@ -1749,7 +1750,7 @@ async def swap_hotkey_extrinsic(
     new_wallet: Wallet,
     netuid: Optional[int] = None,
     prompt: bool = False,
-) -> bool:
+) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """
     Performs an extrinsic update for swapping two hotkeys on the chain
 
@@ -1770,14 +1771,14 @@ async def swap_hotkey_extrinsic(
         err_console.print(
             f":cross_mark: [red]Failed[/red]: Original hotkey {hk_ss58} is not registered on subnet {netuid}"
         )
-        return False
+        return False, None
 
     elif not len(netuids_registered) > 0:
         err_console.print(
             f"Original hotkey [dark_orange]{hk_ss58}[/dark_orange] is not registered on any subnet. "
             f"Please register and try again"
         )
-        return False
+        return False, None
 
     if netuid is not None:
         if netuid in netuids_registered_new_hotkey:
@@ -1785,17 +1786,17 @@ async def swap_hotkey_extrinsic(
                 f":cross_mark: [red]Failed[/red]: New hotkey {new_hk_ss58} "
                 f"is already registered on subnet {netuid}"
             )
-            return False
+            return False, None
     else:
         if len(netuids_registered_new_hotkey) > 0:
             err_console.print(
                 f":cross_mark: [red]Failed[/red]: New hotkey {new_hk_ss58} "
                 f"is already registered on subnet(s) {netuids_registered_new_hotkey}"
             )
-            return False
+            return False, None
 
     if not unlock_key(wallet).success:
-        return False
+        return False, None
 
     if prompt:
         # Prompt user for confirmation.
@@ -1815,7 +1816,7 @@ async def swap_hotkey_extrinsic(
             )
 
         if not Confirm.ask(confirm_message):
-            return False
+            return False, None
     print_verbose(
         f"Swapping {wallet.name}'s hotkey ({hk_ss58} - {wallet.hotkey_str}) with "
         f"{new_wallet.name}'s hotkey ({new_hk_ss58} - {new_wallet.hotkey_str})"
@@ -1832,15 +1833,17 @@ async def swap_hotkey_extrinsic(
             call_function="swap_hotkey",
             call_params=call_params,
         )
-        success, err_msg = await subtensor.sign_and_send_extrinsic(call, wallet)
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
+            call, wallet
+        )
 
         if success:
             console.print(
                 f"Hotkey {hk_ss58} ({wallet.hotkey_str}) swapped for new hotkey: "
                 f"{new_hk_ss58} ({new_wallet.hotkey_str})"
             )
-            return True
+            return True, ext_receipt
         else:
             err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
             time.sleep(0.5)
-            return False
+            return False, ext_receipt
