@@ -6222,6 +6222,7 @@ class CLIManager:
         [green]$[/green] btcli wt reveal --netuid 1 --uids 1,2,3,4 --weights 0.1,0.2,0.3,0.4 --salt 163,241,217,11,161,142,147,189
         """
         self.verbosity_handler(quiet, verbose, json_output)
+        # TODO think we need to ','.split uids and weights ?
         uids = list_prompt(uids, int, "UIDs of interest for the specified netuid")
         weights = list_prompt(
             weights, float, "Corresponding weights for the specified UIDs"
