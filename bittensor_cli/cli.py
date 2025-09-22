@@ -5262,6 +5262,7 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
+        logger.debug(f"args:\nnetwork: {network}\nproposal: {proposal}\nvote: {vote}\n")
         return self._run_command(
             sudo.senate_vote(
                 wallet, self.initialize_chain(network), proposal, vote, prompt
@@ -5885,13 +5886,15 @@ class CLIManager:
         logger.debug(
             f"args:\nnetwork: {network}\nnetuid: {netuid}\nidentity: {identity}"
         )
-        success = self._run_command(
+        success, ext_id = self._run_command(
             subnets.set_identity(
                 wallet, self.initialize_chain(network), netuid, identity, prompt
             )
         )
         if json_output:
-            json_console.print(json.dumps({"success": success}))
+            json_console.print(
+                json.dumps({"success": success, "extrinsic_identifier": ext_id})
+            )
 
     def subnets_pow_register(
         self,

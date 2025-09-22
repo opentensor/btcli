@@ -54,7 +54,7 @@ async def register_subnetwork_extrinsic(
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = True,
     prompt: bool = False,
-) -> tuple[bool, Optional[int]]:
+) -> tuple[bool, Optional[int], Optional[str]]:
     """Registers a new subnetwork.
 
         wallet (bittensor.wallet):
@@ -66,9 +66,11 @@ async def register_subnetwork_extrinsic(
         prompt (bool):
             If true, the call waits for confirmation from the user before proceeding.
     Returns:
-        success (bool):
-            Flag is ``true`` if extrinsic was finalized or included in the block.
-            If we did not wait for finalization / inclusion, the response is ``true``.
+        tuple including:
+        success: Flag is `True` if extrinsic was finalized or included in the block.
+            If we did not wait for finalization/inclusion, the response is `True`.
+        error_message: Optional error message.
+        extrinsic_identifier: Optional extrinsic identifier, if the extrinsic was included.
     """
 
     async def _find_event_attributes_in_extrinsic_receipt(
@@ -103,7 +105,7 @@ async def register_subnetwork_extrinsic(
             f"[{COLOR_PALETTE['POOLS']['TAO']}]{sn_burn_cost}[{COLOR_PALETTE['POOLS']['TAO']}] "
             f"to register a subnet."
         )
-        return False, None
+        return False, None, None
 
     if prompt:
         console.print(
@@ -112,7 +114,7 @@ async def register_subnetwork_extrinsic(
         if not Confirm.ask(
             f"Do you want to burn [{COLOR_PALETTE['POOLS']['TAO']}]{sn_burn_cost} to register a subnet?"
         ):
-            return False, None
+            return False, None, None
 
     call_params = {
         "hotkey": get_hotkey_pub_ss58(wallet),
@@ -157,10 +159,10 @@ async def register_subnetwork_extrinsic(
                     f"[red]Error:[/red] Identity field [white]{field}[/white] must be <= {max_size} bytes.\n"
                     f"Value '{value.decode()}' is {len(value)} bytes."
                 )
-                return False, None
+                return False, None, None
 
     if not unlock_key(wallet).success:
-        return False, None
+        return False, None, None
 
     with console.status(":satellite: Registering subnet...", spinner="earth"):
         substrate = subtensor.substrate
@@ -181,14 +183,14 @@ async def register_subnetwork_extrinsic(
 
         # We only wait here if we expect finalization.
         if not wait_for_finalization and not wait_for_inclusion:
-            return True, None
+            return True, None, None
 
         if not await response.is_success:
             err_console.print(
                 f":cross_mark: [red]Failed[/red]: {format_error_message(await response.error_message)}"
             )
             await asyncio.sleep(0.5)
-            return False, None
+            return False, None, None
 
         # Successful registration, final check for membership
         else:
@@ -196,9 +198,12 @@ async def register_subnetwork_extrinsic(
                 response, "NetworkAdded"
             )
             console.print(
+                f"You extrinsic was included as {(ext_id := await response.get_extrinsic_identifier())}"
+            )
+            console.print(
                 f":white_heavy_check_mark: [dark_sea_green3]Registered subnetwork with netuid: {attributes[0]}"
             )
-            return True, int(attributes[0])
+            return True, int(attributes[0]), ext_id
 
 
 # commands
@@ -1486,13 +1491,17 @@ async def create(
     """Register a subnetwork"""
 
     # Call register command.
-    success, netuid = await register_subnetwork_extrinsic(
+    success, netuid, ext_id = await register_subnetwork_extrinsic(
         subtensor, wallet, subnet_identity, prompt=prompt
     )
     if json_output:
         # technically, netuid can be `None`, but only if not wait for finalization/inclusion. However, as of present
         # (2025/04/03), we always use the default `wait_for_finalization=True`, so it will always have a netuid.
-        json_console.print(json.dumps({"success": success, "netuid": netuid}))
+        json_console.print(
+            json.dumps(
+                {"success": success, "netuid": netuid, "extrinsic_identifier": ext_id}
+            )
+        )
         return success
     if success and prompt:
         # Prompt for user to set identity.
@@ -1584,9 +1593,11 @@ async def register(
         err_console.print(f"[red]Subnet {netuid} does not exist[/red]")
         if json_output:
             json_console.print(
-                json.dumps(
-                    {"success": False, "error": f"Subnet {netuid} does not exist"}
-                )
+                data={
+                    "success": False,
+                    "msg": f"Subnet {netuid} does not exist",
+                    "extrinsic_identifier": None,
+                }
             )
         return
 
@@ -1604,9 +1615,12 @@ async def register(
 
     # Check balance is sufficient
     if balance < current_recycle:
-        err_console.print(
-            f"[red]Insufficient balance {balance} to register neuron. Current recycle is {current_recycle} TAO[/red]"
-        )
+        err_msg = f"Insufficient balance {balance} to register neuron. Current recycle is {current_recycle} TAO"
+        err_console.print(f"[red]{err_msg}[/red]")
+        if json_output:
+            json_console.print_json(
+                data={"success": False, "msg": err_msg, "extrinsic_identifier": None}
+            )
         return
 
     if prompt and not json_output:
@@ -1671,9 +1685,9 @@ async def register(
             return
 
     if netuid == 0:
-        success, msg = await root_register_extrinsic(subtensor, wallet=wallet)
+        success, msg, ext_id = await root_register_extrinsic(subtensor, wallet=wallet)
     else:
-        success, msg = await burned_register_extrinsic(
+        success, msg, ext_id = await burned_register_extrinsic(
             subtensor,
             wallet=wallet,
             netuid=netuid,
@@ -1681,7 +1695,9 @@ async def register(
             era=era,
         )
     if json_output:
-        json_console.print(json.dumps({"success": success, "msg": msg}))
+        json_console.print(
+            json.dumps({"success": success, "msg": msg, "extrinsic_identifier": ext_id})
+        )
     else:
         if not success:
             err_console.print(f"Failure: {msg}")
@@ -2207,12 +2223,12 @@ async def set_identity(
     netuid: int,
     subnet_identity: dict,
     prompt: bool = False,
-) -> bool:
+) -> tuple[bool, Optional[str]]:
     """Set identity information for a subnet"""
 
     if not await subtensor.subnet_exists(netuid):
         err_console.print(f"Subnet {netuid} does not exist")
-        return False
+        return False, None
 
     identity_data = {
         "netuid": netuid,
@@ -2227,13 +2243,13 @@ async def set_identity(
     }
 
     if not unlock_key(wallet).success:
-        return False
+        return False, None
 
     if prompt:
         if not Confirm.ask(
             "Are you sure you want to set subnet's identity? This is subject to a fee."
         ):
-            return False
+            return False, None
 
     call = await subtensor.substrate.compose_call(
         call_module="SubtensorModule",
@@ -2245,12 +2261,15 @@ async def set_identity(
         " :satellite: [dark_sea_green3]Setting subnet identity on-chain...",
         spinner="earth",
     ):
-        success, err_msg = await subtensor.sign_and_send_extrinsic(call, wallet)
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
+            call, wallet
+        )
 
         if not success:
             err_console.print(f"[red]:cross_mark: Failed![/red] {err_msg}")
-            return False
-
+            return False, None
+        ext_id = await ext_receipt.get_extrinsic_identifier()
+        console.print(f"Your extrinsic was included as {ext_id}")
         console.print(
             ":white_heavy_check_mark: [dark_sea_green3]Successfully set subnet identity\n"
         )
@@ -2275,7 +2294,7 @@ async def set_identity(
             table.add_row(key, str(value) if value else "~")
         console.print(table)
 
-    return True
+    return True, ext_id
 
 
 async def get_identity(
@@ -2434,6 +2453,9 @@ async def start_subnet(
 
         if await response.is_success:
             console.print(
+                f"Your extrinsic was included as {await response.get_extrinsic_identifier()}"
+            )
+            console.print(
                 f":white_heavy_check_mark: [green]Successfully started subnet {netuid}'s emission schedule.[/green]"
             )
             return True
@@ -2467,7 +2489,9 @@ async def set_symbol(
     if not await subtensor.subnet_exists(netuid):
         err = f"Subnet {netuid} does not exist."
         if json_output:
-            json_console.print_json(data={"success": False, "message": err})
+            json_console.print_json(
+                data={"success": False, "message": err, "extrinsic_identifier": None}
+            )
         else:
             err_console.print(err)
         return False
@@ -2503,16 +2527,26 @@ async def set_symbol(
         wait_for_inclusion=True,
     )
     if await response.is_success:
+        ext_id = await response.get_extrinsic_identifier()
+        console.print(f"Your extrinsic was included as {ext_id}")
         message = f"Successfully updated SN{netuid}'s symbol to {symbol}."
         if json_output:
-            json_console.print_json(data={"success": True, "message": message})
+            json_console.print_json(
+                data={
+                    "success": True,
+                    "message": message,
+                    "extrinsic_identifier": ext_id,
+                }
+            )
         else:
             console.print(f":white_heavy_check_mark:[dark_sea_green3] {message}\n")
         return True
     else:
         err = format_error_message(await response.error_message)
         if json_output:
-            json_console.print_json(data={"success": False, "message": err})
+            json_console.print_json(
+                data={"success": False, "message": err, "extrinsic_identifier": None}
+            )
         else:
             err_console.print(f":cross_mark: [red]Failed[/red]: {err}")
         return False
