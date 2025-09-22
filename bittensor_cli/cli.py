@@ -5134,7 +5134,7 @@ class CLIManager:
             f"param_name: {param_name}\n"
             f"param_value: {param_value}"
         )
-        result, err_msg = self._run_command(
+        result, err_msg, ext_id = self._run_command(
             sudo.sudo_set_hyperparameter(
                 wallet,
                 self.initialize_chain(network),
@@ -5146,7 +5146,7 @@ class CLIManager:
             )
         )
         if json_output:
-            json_console.print(json.dumps({"success": result, "err_msg": err_msg}))
+            json_console.print(json.dumps({"success": result, "err_msg": err_msg, "extrinsic_identifier": ext_id}))
         return result
 
     def sudo_get(
@@ -5231,7 +5231,7 @@ class CLIManager:
             None,
             "--vote-aye/--vote-nay",
             prompt="Enter y to vote Aye, or enter n to vote Nay",
-            help="The vote casted on the proposal",
+            help="The vote cast on the proposal",
         ),
     ):
         """
@@ -5254,7 +5254,6 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
-        logger.debug(f"args:\nnetwork: {network}\nproposal: {proposal}\nvote: {vote}\n")
         return self._run_command(
             sudo.senate_vote(
                 wallet, self.initialize_chain(network), proposal, vote, prompt

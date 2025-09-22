@@ -178,7 +178,7 @@ async def set_hyperparameter_extrinsic(
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = True,
     prompt: bool = True,
-) -> tuple[bool, str]:
+) -> tuple[bool, str, Optional[str]]:
     """Sets a hyperparameter for a specific subnetwork.
 
     :param subtensor: initialized SubtensorInterface object
@@ -191,8 +191,11 @@ async def set_hyperparameter_extrinsic(
     :param wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `True`,
                                   or returns `False` if the extrinsic fails to be finalized within the timeout.
 
-    :return: success: `True` if extrinsic was finalized or included in the block. If we did not wait for
+    :return: tuple including:
+             success: `True` if extrinsic was finalized or included in the block. If we did not wait for
                       finalization/inclusion, the response is `True`.
+             message: error message if the extrinsic failed
+             extrinsic_identifier: optional extrinsic identifier if the extrinsic was included
     """
     print_verbose("Confirming subnet owner")
     subnet_owner = await subtensor.query(
@@ -205,10 +208,10 @@ async def set_hyperparameter_extrinsic(
             ":cross_mark: [red]This wallet doesn't own the specified subnet.[/red]"
         )
         err_console.print(err_msg)
-        return False, err_msg
+        return False, err_msg, None
 
     if not (ulw := unlock_key(wallet)).success:
-        return False, ulw.message
+        return False, ulw.message, None
 
     arbitrary_extrinsic = False
 
@@ -227,7 +230,7 @@ async def set_hyperparameter_extrinsic(
         if not Confirm.ask(
             "This hyperparam is only settable by root sudo users. If you are not, this will fail. Please confirm"
         ):
-            return False, "This hyperparam is only settable by root sudo users"
+            return False, "This hyperparam is only settable by root sudo users", None
 
     substrate = subtensor.substrate
     msg_value = value if not arbitrary_extrinsic else call_params
@@ -259,7 +262,7 @@ async def set_hyperparameter_extrinsic(
                         "Not enough values provided in the list for all parameters"
                     )
                     err_console.print(err_msg)
-                    return False, err_msg
+                    return False, err_msg, None
 
                 call_params.update(
                     {name: val for name, val in zip(non_netuid_fields, value)}
@@ -287,25 +290,28 @@ async def set_hyperparameter_extrinsic(
             )
         else:
             call = call_
-        success, err_msg = await subtensor.sign_and_send_extrinsic(
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
             call, wallet, wait_for_inclusion, wait_for_finalization
         )
         if not success:
             err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
-            return False, err_msg
-        elif arbitrary_extrinsic:
-            console.print(
-                f":white_heavy_check_mark: "
-                f"[dark_sea_green3]Hyperparameter {parameter} values changed to {call_params}[/dark_sea_green3]"
-            )
-            return True, ""
-        # Successful registration, final check for membership
+            return False, err_msg, None
         else:
-            console.print(
-                f":white_heavy_check_mark: "
-                f"[dark_sea_green3]Hyperparameter {parameter} changed to {value}[/dark_sea_green3]"
-            )
-            return True, ""
+            ext_id = await ext_receipt.get_extrinsic_identifier()
+            console.print(f"Your extrinsic was included as {ext_id}")
+            if arbitrary_extrinsic:
+                console.print(
+                    f":white_heavy_check_mark: "
+                    f"[dark_sea_green3]Hyperparameter {parameter} values changed to {call_params}[/dark_sea_green3]"
+                )
+                return True, "", ext_id
+            # Successful registration, final check for membership
+            else:
+                console.print(
+                    f":white_heavy_check_mark: "
+                    f"[dark_sea_green3]Hyperparameter {parameter} changed to {value}[/dark_sea_green3]"
+                )
+                return True, "", ext_id
 
 
 async def _get_senate_members(
@@ -506,7 +512,7 @@ async def vote_senate_extrinsic(
                 "approve": vote,
             },
         )
-        success, err_msg = await subtensor.sign_and_send_extrinsic(
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
             call, wallet, wait_for_inclusion, wait_for_finalization
         )
         if not success:
@@ -515,6 +521,7 @@ async def vote_senate_extrinsic(
             return False
         # Successful vote, final check for data
         else:
+            console.print(f"Your extrinsic was included as {await ext_receipt.get_extrinsic_identifier()}")
             if vote_data := await subtensor.get_vote_data(proposal_hash):
                 hotkey_ss58 = get_hotkey_pub_ss58(wallet)
                 if (
@@ -621,7 +628,7 @@ async def sudo_set_hyperparameter(
     param_value: Optional[str],
     prompt: bool,
     json_output: bool,
-) -> tuple[bool, str]:
+) -> tuple[bool, str, Optional[str]]:
     """Set subnet hyperparameters."""
     is_allowed_value, value = allowed_value(param_name, param_value)
     if not is_allowed_value:
@@ -630,17 +637,17 @@ async def sudo_set_hyperparameter(
             f"Value is {param_value} but must be {value}"
         )
         err_console.print(err_msg)
-        return False, err_msg
-    success, err_msg = await set_hyperparameter_extrinsic(
+        return False, err_msg, None
+    success, err_msg, ext_id = await set_hyperparameter_extrinsic(
         subtensor, wallet, netuid, param_name, value, prompt=prompt
     )
     if json_output:
-        return success, err_msg
+        return success, err_msg, ext_id
     if success:
         console.print("\n")
         print_verbose("Fetching hyperparameters")
         await get_hyperparameters(subtensor, netuid=netuid)
-    return success, err_msg
+    return success, err_msg, ext_id
 
 
 async def get_hyperparameters(
