@@ -5146,7 +5146,15 @@ class CLIManager:
             )
         )
         if json_output:
-            json_console.print(json.dumps({"success": result, "err_msg": err_msg, "extrinsic_identifier": ext_id}))
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": result,
+                        "err_msg": err_msg,
+                        "extrinsic_identifier": ext_id,
+                    }
+                )
+            )
         return result
 
     def sudo_get(
@@ -5307,11 +5315,13 @@ class CLIManager:
             )
             raise typer.Exit()
         logger.debug(f"args:\nnetwork: {network}\ntake: {take}")
-        result = self._run_command(
+        result, ext_id = self._run_command(
             sudo.set_take(wallet, self.initialize_chain(network), take)
         )
         if json_output:
-            json_console.print(json.dumps({"success": result}))
+            json_console.print(
+                json.dumps({"success": result, "extrinsic_identifier": ext_id})
+            )
         return result
 
     def sudo_get_take(
