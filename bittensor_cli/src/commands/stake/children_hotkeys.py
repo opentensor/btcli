@@ -22,6 +22,7 @@ from bittensor_cli.src.bittensor.utils import (
     unlock_key,
     json_console,
     get_hotkey_pub_ss58,
+    print_extrinsic_id,
 )
 
 
@@ -133,7 +134,7 @@ async def set_children_extrinsic(
 
         if success:
             ext_id = await ext_receipt.get_extrinsic_identifier()
-            console.print(f"Your extrinsic was included as {ext_id}")
+            await print_extrinsic_id(ext_receipt)
             modifier = "included"
             if wait_for_finalization:
                 console.print(":white_heavy_check_mark: [green]Finalized[/green]")
@@ -217,7 +218,7 @@ async def set_childkey_take_extrinsic(
 
             if success:
                 ext_id = await ext_receipt.get_extrinsic_identifier()
-                console.print(f"Your extrinsic was included as {ext_id}")
+                await print_extrinsic_id(ext_receipt)
                 modifier = "included"
                 if wait_for_finalization:
                     modifier = "finalized"

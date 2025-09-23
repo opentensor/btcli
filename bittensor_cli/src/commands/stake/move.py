@@ -17,6 +17,7 @@ from bittensor_cli.src.bittensor.utils import (
     get_subnet_name,
     unlock_key,
     get_hotkey_pub_ss58,
+    print_extrinsic_id,
 )
 
 if TYPE_CHECKING:
@@ -563,9 +564,8 @@ async def move_stake(
         response = await subtensor.substrate.submit_extrinsic(
             extrinsic, wait_for_inclusion=True, wait_for_finalization=False
         )
-    console.print(
-        f"Your extrinsic has been included at {(ext_id := await response.get_extrinsic_identifier())}"
-    )
+    await print_extrinsic_id(response)
+    ext_id = await response.get_extrinsic_identifier()
 
     if not prompt:
         console.print(":white_heavy_check_mark: [green]Sent[/green]")
@@ -752,9 +752,8 @@ async def transfer_stake(
         response = await subtensor.substrate.submit_extrinsic(
             extrinsic, wait_for_inclusion=True, wait_for_finalization=False
         )
-    console.print(
-        f"Your extrinsic has been included as {(ext_id := await response.get_extrinsic_identifier())}"
-    )
+    ext_id = await response.get_extrinsic_identifier()
+    await print_extrinsic_id(extrinsic)
 
     if not prompt:
         console.print(":white_heavy_check_mark: [green]Sent[/green]")
@@ -929,9 +928,8 @@ async def swap_stake(
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
         )
-    console.print(
-        f"Your extrinsic has been included as {(ext_id := await response.get_extrinsic_identifier())}"
-    )
+    ext_id = await response.get_extrinsic_identifier()
+    await print_extrinsic_id(response)
 
     if not prompt:
         console.print(":white_heavy_check_mark: [green]Sent[/green]")

@@ -27,6 +27,7 @@ from bittensor_cli.src.bittensor.utils import (
     string_to_u16,
     string_to_u64,
     get_hotkey_pub_ss58,
+    print_extrinsic_id,
 )
 
 if TYPE_CHECKING:
@@ -298,7 +299,7 @@ async def set_hyperparameter_extrinsic(
             return False, err_msg, None
         else:
             ext_id = await ext_receipt.get_extrinsic_identifier()
-            console.print(f"Your extrinsic was included as {ext_id}")
+            await print_extrinsic_id(ext_receipt)
             if arbitrary_extrinsic:
                 console.print(
                     f":white_heavy_check_mark: "
@@ -521,9 +522,7 @@ async def vote_senate_extrinsic(
             return False
         # Successful vote, final check for data
         else:
-            console.print(
-                f"Your extrinsic was included as {await ext_receipt.get_extrinsic_identifier()}"
-            )
+            await print_extrinsic_id(ext_receipt)
             if vote_data := await subtensor.get_vote_data(proposal_hash):
                 hotkey_ss58 = get_hotkey_pub_ss58(wallet)
                 if (
@@ -622,7 +621,7 @@ async def set_take_extrinsic(
             ":white_heavy_check_mark: [dark_sea_green_3]Success[/dark_sea_green_3]"
         )
         ext_id = await ext_receipt.get_extrinsic_identifier()
-        console.print(f"Your extrinsic was included at {ext_id}")
+        await print_extrinsic_id(ext_receipt)
     return success, ext_id
 
 
@@ -1031,7 +1030,7 @@ async def trim(
                 data={"success": True, "message": msg, "extrinsic_identifier": ext_id}
             )
         else:
-            console.print(f"Your extrinsic was included as {ext_id}")
+            await print_extrinsic_id(ext_receipt)
             console.print(
                 f":white_heavy_check_mark: [dark_sea_green3]{msg}[/dark_sea_green3]"
             )

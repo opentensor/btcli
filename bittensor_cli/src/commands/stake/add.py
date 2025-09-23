@@ -23,6 +23,7 @@ from bittensor_cli.src.bittensor.utils import (
     unlock_key,
     json_console,
     get_hotkey_pub_ss58,
+    print_extrinsic_id,
 )
 from bittensor_wallet import Wallet
 
@@ -164,9 +165,7 @@ async def stake_add(
             if json_output:
                 # the rest of this checking is not necessary if using json_output
                 return True, "", response
-            console.print(
-                f"Your extrinsic has been included as {await response.get_extrinsic_identifier()}"
-            )
+            await print_extrinsic_id(response)
             block_hash = await subtensor.substrate.get_chain_head()
             new_balance, new_stake = await asyncio.gather(
                 subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash),
@@ -246,9 +245,7 @@ async def stake_add(
                 if json_output:
                     # the rest of this is not necessary if using json_output
                     return True, "", response
-                console.print(
-                    f"Your extrinsic has been included as {await response.get_extrinsic_identifier()}"
-                )
+                await print_extrinsic_id(response)
                 new_block_hash = await subtensor.substrate.get_chain_head()
                 new_balance, new_stake = await asyncio.gather(
                     subtensor.get_balance(

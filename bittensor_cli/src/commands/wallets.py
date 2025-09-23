@@ -49,6 +49,7 @@ from bittensor_cli.src.bittensor.utils import (
     blocks_to_duration,
     decode_account_id,
     get_hotkey_pub_ss58,
+    print_extrinsic_id,
 )
 
 
@@ -116,8 +117,7 @@ async def associate_hotkey(
             f"wallet [blue]{wallet.name}[/blue], "
             f"SS58: [{COLORS.GENERAL.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.GENERAL.CK}]"
         )
-        ext_id = await ext_receipt.get_extrinsic_identifier()
-        console.print(f"Your extrinsic has been included as {ext_id}")
+        await print_extrinsic_id(ext_receipt)
         return True
 
 
@@ -1499,7 +1499,7 @@ async def transfer(
             json.dumps({"success": result, "extrinsic_identifier": ext_id})
         )
     else:
-        console.print(f"Your extrinsic has been included as {ext_id}")
+        await print_extrinsic_id(ext_receipt)
     return result
 
 
@@ -1705,7 +1705,7 @@ async def swap_hotkey(
             json.dumps({"success": result, "extrinsic_identifier": ext_id})
         )
     else:
-        console.print(f"Your extrinsic has been included as {ext_id}")
+        await print_extrinsic_id(ext_receipt)
     return result
 
 
@@ -1784,7 +1784,7 @@ async def set_id(
         else:
             console.print(":white_heavy_check_mark: [dark_sea_green3]Success!")
             ext_id = await ext_receipt.get_extrinsic_identifier()
-            console.print(f"Your extrinsic has been included as {ext_id}")
+            await print_extrinsic_id(ext_receipt)
             output_dict["success"] = True
             identity = await subtensor.query_identity(wallet.coldkeypub.ss58_address)
 
@@ -2055,9 +2055,7 @@ async def schedule_coldkey_swap(
         console.print(
             ":white_heavy_check_mark: [green]Successfully scheduled coldkey swap"
         )
-        console.print(
-            f"Your extrinsic has been included as {await ext_receipt.get_extrinsic_identifier()}"
-        )
+        await print_extrinsic_id(ext_receipt)
         for event in await ext_receipt.triggered_events:
             if (
                 event.get("event", {}).get("module_id") == "SubtensorModule"

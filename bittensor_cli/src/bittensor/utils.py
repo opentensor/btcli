@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 from functools import partial
 import re
 
+from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet, Keypair
 from bittensor_wallet.utils import SS58_FORMAT
 from bittensor_wallet.errors import KeyFileError, PasswordError
@@ -1463,3 +1464,30 @@ def get_hotkey_pub_ss58(wallet: Wallet) -> str:
         return wallet.hotkeypub.ss58_address
     except (KeyFileError, AttributeError):
         return wallet.hotkey.ss58_address
+
+
+async def print_extrinsic_id(
+    extrinsic_receipt: Optional[AsyncExtrinsicReceipt],
+) -> None:
+    """
+    Prints the extrinsic identifier to the console. If the substrate attached to the extrinsic receipt is on a finney
+        node, it will also include a link to browse the extrinsic in tao dot app.
+    Args:
+        extrinsic_receipt: AsyncExtrinsicReceipt object from a successful extrinsic submission.
+    """
+    if extrinsic_receipt is None:
+        return
+    substrate = extrinsic_receipt.substrate
+    ext_id = await extrinsic_receipt.get_extrinsic_identifier()
+    if substrate:
+        query = await substrate.rpc_request("system_chainType", [])
+        if query.get("result") == "Live":
+            console.print(
+                f":white_heavy_check_mark:Your extrinsic has been included as {ext_id}: "
+                f"[blue]https://tao.app/extrinsic/{ext_id}[/blue]"
+            )
+            return
+    console.print(
+        f":white_heavy_check_mark:Your extrinsic has been included as {ext_id}"
+    )
+    return

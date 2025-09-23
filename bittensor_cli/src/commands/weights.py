@@ -16,6 +16,7 @@ from bittensor_cli.src.bittensor.utils import (
     format_error_message,
     json_console,
     get_hotkey_pub_ss58,
+    print_extrinsic_id,
 )
 from bittensor_cli.src.bittensor.extrinsics.root import (
     convert_weights_and_uids_for_emit,
@@ -271,9 +272,9 @@ class SetWeightsExtrinsic:
                 return True, "Not waiting for finalization or inclusion.", None
 
             if await response.is_success:
-                ext_id = await response.get_extrinsic_identifier()
-                console.print(f"Your extrinsic was included as {ext_id}")
-                return True, "Successfully set weights.", ext_id
+                ext_id_ = await response.get_extrinsic_identifier()
+                await print_extrinsic_id(response)
+                return True, "Successfully set weights.", ext_id_
             else:
                 return False, format_error_message(await response.error_message), None
 
@@ -333,7 +334,7 @@ class SetWeightsExtrinsic:
                     "",
                     await response.get_extrinsic_identifier(),
                 )
-                console.print(f"Your extrinsic was included as {ext_id}")
+                await print_extrinsic_id(response)
             else:
                 success, error_message, ext_id = (
                     False,
@@ -374,7 +375,7 @@ class SetWeightsExtrinsic:
 
         if await response.is_success:
             ext_id = await response.get_extrinsic_identifier()
-            console.print(f"Your extrinsic was included as {ext_id}")
+            await print_extrinsic_id(response)
             return True, None, ext_id
         else:
             return False, await response.error_message, None

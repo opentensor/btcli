@@ -38,6 +38,7 @@ from bittensor_cli.src.bittensor.utils import (
     format_error_message,
     unlock_key,
     get_hotkey_pub_ss58,
+    print_extrinsic_id,
 )
 
 if TYPE_CHECKING:
@@ -340,7 +341,7 @@ async def root_register_extrinsic(
         # Successful registration, final check for neuron and pubkey
         else:
             ext_id = await ext_receipt.get_extrinsic_identifier()
-            console.print(f"Your extrinsic was included as {ext_id}")
+            await print_extrinsic_id(ext_receipt)
             uid = await subtensor.query(
                 module="SubtensorModule",
                 storage_function="Uids",

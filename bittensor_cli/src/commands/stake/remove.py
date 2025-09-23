@@ -24,6 +24,7 @@ from bittensor_cli.src.bittensor.utils import (
     unlock_key,
     json_console,
     get_hotkey_pub_ss58,
+    print_extrinsic_id,
 )
 
 if TYPE_CHECKING:
@@ -615,9 +616,7 @@ async def _unstake_extrinsic(
             )
             return False, None
         # Fetch latest balance and stake
-        console.print(
-            f"Your extrinsic has been included as {await response.get_extrinsic_identifier()}"
-        )
+        await print_extrinsic_id(response)
         block_hash = await subtensor.substrate.get_chain_head()
         new_balance, new_stake = await asyncio.gather(
             subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash),
@@ -727,9 +726,7 @@ async def _safe_unstake_extrinsic(
             f"\n{failure_prelude} with error: {format_error_message(await response.error_message)}"
         )
         return False, None
-    console.print(
-        f"Your extrinsic has been included as {await response.get_extrinsic_identifier()}"
-    )
+    await print_extrinsic_id(response)
     block_hash = await subtensor.substrate.get_chain_head()
     new_balance, new_stake = await asyncio.gather(
         subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash),
@@ -833,9 +830,7 @@ async def _unstake_all_extrinsic(
             )
             return False, None
         else:
-            console.print(
-                f"Your extrinsic has been included as {await response.get_extrinsic_identifier()}"
-            )
+            await print_extrinsic_id(response)
 
         # Fetch latest balance and stake
         block_hash = await subtensor.substrate.get_chain_head()

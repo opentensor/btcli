@@ -41,6 +41,7 @@ from bittensor_cli.src.bittensor.utils import (
     unlock_key,
     hex_to_bytes,
     get_hotkey_pub_ss58,
+    print_extrinsic_id,
 )
 
 if typing.TYPE_CHECKING:
@@ -767,7 +768,7 @@ async def burned_register_extrinsic(
     # Successful registration, final check for neuron and pubkey
     else:
         ext_id = await ext_receipt.get_extrinsic_identifier()
-        console.print(f"Your extrinsic was included as {ext_id}")
+        await print_extrinsic_id(ext_receipt)
         with console.status(":satellite: Checking Balance...", spinner="aesthetic"):
             block_hash = await subtensor.substrate.get_chain_head()
             new_balance, netuids_for_hotkey, my_uid = await asyncio.gather(

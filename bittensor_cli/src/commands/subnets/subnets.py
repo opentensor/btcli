@@ -37,6 +37,7 @@ from bittensor_cli.src.bittensor.utils import (
     blocks_to_duration,
     json_console,
     get_hotkey_pub_ss58,
+    print_extrinsic_id,
 )
 
 if TYPE_CHECKING:
@@ -2269,7 +2270,7 @@ async def set_identity(
             err_console.print(f"[red]:cross_mark: Failed![/red] {err_msg}")
             return False, None
         ext_id = await ext_receipt.get_extrinsic_identifier()
-        console.print(f"Your extrinsic was included as {ext_id}")
+        await print_extrinsic_id(ext_receipt)
         console.print(
             ":white_heavy_check_mark: [dark_sea_green3]Successfully set subnet identity\n"
         )
@@ -2452,9 +2453,7 @@ async def start_subnet(
         )
 
         if await response.is_success:
-            console.print(
-                f"Your extrinsic was included as {await response.get_extrinsic_identifier()}"
-            )
+            await print_extrinsic_id(response)
             console.print(
                 f":white_heavy_check_mark: [green]Successfully started subnet {netuid}'s emission schedule.[/green]"
             )
@@ -2528,7 +2527,7 @@ async def set_symbol(
     )
     if await response.is_success:
         ext_id = await response.get_extrinsic_identifier()
-        console.print(f"Your extrinsic was included as {ext_id}")
+        await print_extrinsic_id(response)
         message = f"Successfully updated SN{netuid}'s symbol to {symbol}."
         if json_output:
             json_console.print_json(
