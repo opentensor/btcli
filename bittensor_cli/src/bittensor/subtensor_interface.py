@@ -4,6 +4,7 @@ import time
 from typing import Optional, Any, Union, TypedDict, Iterable
 
 import aiohttp
+from async_substrate_interface import AsyncExtrinsicReceipt
 from async_substrate_interface.async_substrate import (
     DiskCachedAsyncSubstrateInterface,
     AsyncSubstrateInterface,
@@ -1105,7 +1106,7 @@ class SubtensorInterface:
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = False,
         era: Optional[dict[str, int]] = None,
-    ) -> tuple[bool, str]:
+    ) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
         """
         Helper method to sign and submit an extrinsic call to chain.
 
@@ -1117,7 +1118,10 @@ class SubtensorInterface:
 
         :return: (success, error message)
         """
-        call_args = {"call": call, "keypair": wallet.coldkey}
+        call_args: dict[str, Union[GenericCall, Keypair, dict[str, int]]] = {
+            "call": call,
+            "keypair": wallet.coldkey,
+        }
         if era is not None:
             call_args["era"] = era
         extrinsic = await self.substrate.create_signed_extrinsic(
@@ -1131,13 +1135,13 @@ class SubtensorInterface:
             )
             # We only wait here if we expect finalization.
             if not wait_for_finalization and not wait_for_inclusion:
-                return True, ""
+                return True, "", response
             if await response.is_success:
-                return True, ""
+                return True, "", response
             else:
-                return False, format_error_message(await response.error_message)
+                return False, format_error_message(await response.error_message), None
         except SubstrateRequestException as e:
-            return False, format_error_message(e)
+            return False, format_error_message(e), None
 
     async def get_children(self, hotkey, netuid) -> tuple[bool, list, str]:
         """

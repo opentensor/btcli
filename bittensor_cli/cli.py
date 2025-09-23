@@ -4517,7 +4517,7 @@ class CLIManager:
             f"interactive_selection: {interactive_selection}\n"
             f"prompt: {prompt}\n"
         )
-        result = self._run_command(
+        result, ext_id = self._run_command(
             move_stake.move_stake(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
@@ -4533,7 +4533,9 @@ class CLIManager:
             )
         )
         if json_output:
-            json_console.print(json.dumps({"success": result}))
+            json_console.print(
+                json.dumps({"success": result, "extrinsic_identifier": ext_id or None})
+            )
         return result
 
     def stake_transfer(
@@ -4693,7 +4695,7 @@ class CLIManager:
             f"era: {period}\n"
             f"stake_all: {stake_all}"
         )
-        result = self._run_command(
+        result, ext_id = self._run_command(
             move_stake.transfer_stake(
                 wallet=wallet,
                 subtensor=self.initialize_chain(network),
@@ -4709,7 +4711,9 @@ class CLIManager:
             )
         )
         if json_output:
-            json_console.print(json.dumps({"success": result}))
+            json_console.print(
+                json.dumps({"success": result, "extrinsic_identifier": ext_id or None})
+            )
         return result
 
     def stake_swap(
@@ -4813,7 +4817,7 @@ class CLIManager:
             f"wait_for_inclusion: {wait_for_inclusion}\n"
             f"wait_for_finalization: {wait_for_finalization}\n"
         )
-        result = self._run_command(
+        result, ext_id = self._run_command(
             move_stake.swap_stake(
                 wallet=wallet,
                 subtensor=self.initialize_chain(network),
@@ -4829,7 +4833,9 @@ class CLIManager:
             )
         )
         if json_output:
-            json_console.print(json.dumps({"success": result}))
+            json_console.print(
+                json.dumps({"success": result, "extrinsic_identifier": ext_id or None})
+            )
         return result
 
     def stake_get_children(
@@ -5128,7 +5134,7 @@ class CLIManager:
             f"wait_for_inclusion: {wait_for_inclusion}\n"
             f"wait_for_finalization: {wait_for_finalization}\n"
         )
-        results: list[tuple[Optional[int], bool]] = self._run_command(
+        results: list[tuple[Optional[int], bool, Optional[str]]] = self._run_command(
             children_hotkeys.childkey_take(
                 wallet=wallet,
                 subtensor=self.initialize_chain(network),
@@ -5142,8 +5148,8 @@ class CLIManager:
         )
         if json_output:
             output = {}
-            for netuid_, success in results:
-                output[netuid_] = success
+            for netuid_, success, ext_id in results:
+                output[netuid_] = {"success": success, "extrinsic_identifier": ext_id}
             json_console.print(json.dumps(output))
         return results
 
@@ -5266,7 +5272,7 @@ class CLIManager:
             f"param_name: {param_name}\n"
             f"param_value: {param_value}"
         )
-        result, err_msg = self._run_command(
+        result, err_msg, ext_id = self._run_command(
             sudo.sudo_set_hyperparameter(
                 wallet,
                 self.initialize_chain(network),
@@ -5278,7 +5284,15 @@ class CLIManager:
             )
         )
         if json_output:
-            json_console.print(json.dumps({"success": result, "err_msg": err_msg}))
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": result,
+                        "err_msg": err_msg,
+                        "extrinsic_identifier": ext_id,
+                    }
+                )
+            )
         return result
 
     def sudo_get(
@@ -5363,7 +5377,7 @@ class CLIManager:
             None,
             "--vote-aye/--vote-nay",
             prompt="Enter y to vote Aye, or enter n to vote Nay",
-            help="The vote casted on the proposal",
+            help="The vote cast on the proposal",
         ),
     ):
         """
@@ -5440,11 +5454,13 @@ class CLIManager:
             )
             raise typer.Exit()
         logger.debug(f"args:\nnetwork: {network}\ntake: {take}")
-        result = self._run_command(
+        result, ext_id = self._run_command(
             sudo.set_take(wallet, self.initialize_chain(network), take)
         )
         if json_output:
-            json_console.print(json.dumps({"success": result}))
+            json_console.print(
+                json.dumps({"success": result, "extrinsic_identifier": ext_id})
+            )
         return result
 
     def sudo_get_take(
@@ -6008,13 +6024,15 @@ class CLIManager:
         logger.debug(
             f"args:\nnetwork: {network}\nnetuid: {netuid}\nidentity: {identity}"
         )
-        success = self._run_command(
+        success, ext_id = self._run_command(
             subnets.set_identity(
                 wallet, self.initialize_chain(network), netuid, identity, prompt
             )
         )
         if json_output:
-            json_console.print(json.dumps({"success": success}))
+            json_console.print(
+                json.dumps({"success": success, "extrinsic_identifier": ext_id})
+            )
 
     def subnets_pow_register(
         self,
@@ -6342,6 +6360,7 @@ class CLIManager:
         [green]$[/green] btcli wt reveal --netuid 1 --uids 1,2,3,4 --weights 0.1,0.2,0.3,0.4 --salt 163,241,217,11,161,142,147,189
         """
         self.verbosity_handler(quiet, verbose, json_output)
+        # TODO think we need to ','.split uids and weights ?
         uids = list_prompt(uids, int, "UIDs of interest for the specified netuid")
         weights = list_prompt(
             weights, float, "Corresponding weights for the specified UIDs"
