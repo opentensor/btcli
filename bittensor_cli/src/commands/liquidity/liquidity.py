@@ -2,6 +2,7 @@ import asyncio
 import json
 from typing import TYPE_CHECKING, Optional
 
+from async_substrate_interface import AsyncExtrinsicReceipt
 from rich.prompt import Confirm
 from rich.table import Column, Table
 
@@ -11,6 +12,7 @@ from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
     json_console,
+    print_extrinsic_id,
 )
 from bittensor_cli.src.bittensor.balances import Balance, fixed_to_float
 from bittensor_cli.src.commands.liquidity.utils import (
@@ -36,7 +38,7 @@ async def add_liquidity_extrinsic(
     price_high: Balance,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
-) -> tuple[bool, str]:
+) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
     """
     Adds liquidity to the specified price range.
 
@@ -60,7 +62,7 @@ async def add_liquidity_extrinsic(
         `toggle_user_liquidity_extrinsic` to enable/disable user liquidity.
     """
     if not (unlock := unlock_key(wallet)).success:
-        return False, unlock.message
+        return False, unlock.message, None
 
     tick_low = price_to_tick(price_low.tao)
     tick_high = price_to_tick(price_high.tao)
@@ -94,7 +96,7 @@ async def modify_liquidity_extrinsic(
     liquidity_delta: Balance,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
-) -> tuple[bool, str]:
+) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
     """Modifies liquidity in liquidity position by adding or removing liquidity from it.
 
     Arguments:
@@ -116,7 +118,7 @@ async def modify_liquidity_extrinsic(
         Call `toggle_user_liquidity_extrinsic` to enable/disable user liquidity.
     """
     if not (unlock := unlock_key(wallet)).success:
-        return False, unlock.message
+        return False, unlock.message, None
 
     call = await subtensor.substrate.compose_call(
         call_module="Swap",
@@ -145,7 +147,7 @@ async def remove_liquidity_extrinsic(
     position_id: int,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
-) -> tuple[bool, str]:
+) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
     """Remove liquidity and credit balances back to wallet's hotkey stake.
 
     Arguments:
@@ -166,7 +168,7 @@ async def remove_liquidity_extrinsic(
         Call `toggle_user_liquidity_extrinsic` to enable/disable user liquidity.
     """
     if not (unlock := unlock_key(wallet)).success:
-        return False, unlock.message
+        return False, unlock.message, None
 
     call = await subtensor.substrate.compose_call(
         call_module="Swap",
@@ -193,7 +195,7 @@ async def toggle_user_liquidity_extrinsic(
     enable: bool,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
-) -> tuple[bool, str]:
+) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
     """Allow to toggle user liquidity for specified subnet.
 
     Arguments:
@@ -210,7 +212,7 @@ async def toggle_user_liquidity_extrinsic(
             - False and an error message if the submission fails or the wallet cannot be unlocked.
     """
     if not (unlock := unlock_key(wallet)).success:
-        return False, unlock.message
+        return False, unlock.message, None
 
     call = await subtensor.substrate.compose_call(
         call_module="Swap",
@@ -232,16 +234,16 @@ async def add_liquidity(
     wallet: "Wallet",
     hotkey_ss58: str,
     netuid: Optional[int],
-    liquidity: Optional[float],
-    price_low: Optional[float],
-    price_high: Optional[float],
+    liquidity: Balance,
+    price_low: Balance,
+    price_high: Balance,
     prompt: bool,
     json_output: bool,
 ) -> tuple[bool, str]:
     """Add liquidity position to provided subnet."""
     # Check wallet access
-    if not unlock_key(wallet).success:
-        return False
+    if not (ulw := unlock_key(wallet)).success:
+        return False, ulw.message
 
     # Check that the subnet exists.
     if not await subtensor.subnet_exists(netuid=netuid):
@@ -260,7 +262,7 @@ async def add_liquidity(
         if not Confirm.ask("Would you like to continue?"):
             return False, "User cancelled operation."
 
-    success, message = await add_liquidity_extrinsic(
+    success, message, ext_receipt = await add_liquidity_extrinsic(
         subtensor=subtensor,
         wallet=wallet,
         hotkey_ss58=hotkey_ss58,
@@ -269,8 +271,14 @@ async def add_liquidity(
         price_low=price_low,
         price_high=price_high,
     )
+    await print_extrinsic_id(ext_receipt)
+    ext_id = await ext_receipt.get_extrinsic_identifier()
     if json_output:
-        json_console.print(json.dumps({"success": success, "message": message}))
+        json_console.print(
+            json.dumps(
+                {"success": success, "message": message, "extrinsic_identifier": ext_id}
+            )
+        )
     else:
         if success:
             console.print(
@@ -278,6 +286,7 @@ async def add_liquidity(
             )
         else:
             err_console.print(f"[red]Error: {message}[/red]")
+    return success, message
 
 
 async def get_liquidity_list(
@@ -535,11 +544,12 @@ async def remove_liquidity(
         success, msg, positions = await get_liquidity_list(subtensor, wallet, netuid)
         if not success:
             if json_output:
-                return json_console.print(
-                    {"success": False, "err_msg": msg, "positions": positions}
+                json_console.print_json(
+                    data={"success": False, "err_msg": msg, "positions": positions}
                 )
             else:
                 return err_console.print(f"Error: {msg}")
+            return False, msg
         else:
             position_ids = [p.id for p in positions]
     else:
@@ -568,16 +578,21 @@ async def remove_liquidity(
         ]
     )
     if not json_output:
-        for (success, msg), posid in zip(results, position_ids):
+        for (success, msg, ext_receipt), posid in zip(results, position_ids):
             if success:
+                await print_extrinsic_id(ext_receipt)
                 console.print(f"[green] Position {posid} has been removed.")
             else:
                 err_console.print(f"[red] Error removing {posid}: {msg}")
     else:
         json_table = {}
-        for (success, msg), posid in zip(results, position_ids):
-            json_table[posid] = {"success": success, "err_msg": msg}
-        json_console.print(json.dumps(json_table))
+        for (success, msg, ext_receipt), posid in zip(results, position_ids):
+            json_table[posid] = {
+                "success": success,
+                "err_msg": msg,
+                "extrinsic_identifier": await ext_receipt.get_extrinsic_identifier(),
+            }
+        json_console.print_json(data=json_table)
 
 
 async def modify_liquidity(
@@ -586,7 +601,7 @@ async def modify_liquidity(
     hotkey_ss58: str,
     netuid: int,
     position_id: int,
-    liquidity_delta: Optional[float],
+    liquidity_delta: Balance,
     prompt: Optional[bool] = None,
     json_output: bool = False,
 ) -> bool:
@@ -611,7 +626,7 @@ async def modify_liquidity(
         if not Confirm.ask("Would you like to continue?"):
             return False
 
-    success, msg = await modify_liquidity_extrinsic(
+    success, msg, ext_receipt = await modify_liquidity_extrinsic(
         subtensor=subtensor,
         wallet=wallet,
         hotkey_ss58=hotkey_ss58,
@@ -620,9 +635,14 @@ async def modify_liquidity(
         liquidity_delta=liquidity_delta,
     )
     if json_output:
-        json_console.print(json.dumps({"success": success, "err_msg": msg}))
+        ext_id = await ext_receipt.get_extrinsic_identifier() if success else None
+        json_console.print_json(
+            data={"success": success, "err_msg": msg, "extrinsic_identifier": ext_id}
+        )
     else:
         if success:
+            await print_extrinsic_id(ext_receipt)
             console.print(f"[green] Position {position_id} has been modified.")
         else:
             err_console.print(f"[red] Error modifying {position_id}: {msg}")
+    return success
