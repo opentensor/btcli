@@ -1,5 +1,4 @@
 import asyncio
-import json
 import math
 from typing import TYPE_CHECKING, Optional
 
@@ -15,6 +14,7 @@ from bittensor_cli.src.bittensor.utils import (
     err_console,
     json_console,
     U16_MAX,
+    print_extrinsic_id,
 )
 
 if TYPE_CHECKING:
@@ -32,10 +32,8 @@ async def count(
     if not await subtensor.subnet_exists(netuid=netuid, block_hash=block_hash):
         err_console.print(f"[red]Subnet {netuid} does not exist[/red]")
         if json_output:
-            json_console.print(
-                json.dumps(
-                    {"success": False, "error": f"Subnet {netuid} does not exist"}
-                )
+            json_console.print_json(
+                data={"success": False, "error": f"Subnet {netuid} does not exist"}
             )
         return None
 
@@ -48,14 +46,12 @@ async def count(
         )
         if not mechanism_count:
             if json_output:
-                json_console.print(
-                    json.dumps(
-                        {
-                            "netuid": netuid,
-                            "count": None,
-                            "error": "Failed to get mechanism count",
-                        }
-                    )
+                json_console.print_json(
+                    data={
+                        "netuid": netuid,
+                        "count": None,
+                        "error": "Failed to get mechanism count",
+                    }
                 )
             else:
                 err_console.print(
@@ -64,14 +60,12 @@ async def count(
             return None
 
     if json_output:
-        json_console.print(
-            json.dumps(
-                {
-                    "netuid": netuid,
-                    "count": mechanism_count,
-                    "error": "",
-                }
-            )
+        json_console.print_json(
+            data={
+                "netuid": netuid,
+                "count": mechanism_count,
+                "error": "",
+            }
         )
     else:
         console.print(
@@ -96,13 +90,11 @@ async def get_emission_split(
             f"Subnet {netuid} only has the primary mechanism (mechanism 0). No emission split to display."
         )
         if json_output:
-            json_console.print(
-                json.dumps(
-                    {
-                        "success": False,
-                        "error": "Subnet only has the primary mechanism (mechanism 0). No emission split to display.",
-                    }
-                )
+            json_console.print_json(
+                data={
+                    "success": False,
+                    "error": "Subnet only has the primary mechanism (mechanism 0). No emission split to display.",
+                }
             )
         return None
 
@@ -134,7 +126,7 @@ async def get_emission_split(
     }
 
     if json_output:
-        json_console.print(json.dumps(data))
+        json_console.print_json(data=data)
     else:
         table = Table(
             Column(
@@ -207,7 +199,7 @@ async def set_emission_split(
             f"Subnet {netuid} does not currently contain any mechanisms to configure."
         )
         if json_output:
-            json_console.print(json.dumps({"success": False, "error": message}))
+            json_console.print_json(data={"success": False, "error": message})
         else:
             err_console.print(message)
         return False
@@ -235,7 +227,7 @@ async def set_emission_split(
                 "Invalid `--split` values. Provide a comma-separated list of numbers."
             )
             if json_output:
-                json_console.print(json.dumps({"success": False, "error": message}))
+                json_console.print_json(data={"success": False, "error": message})
             else:
                 err_console.print(message)
             return False
@@ -274,7 +266,7 @@ async def set_emission_split(
     if len(weights) != mech_count:
         message = f"Expected {mech_count} weight values, received {len(weights)}."
         if json_output:
-            json_console.print(json.dumps({"success": False, "error": message}))
+            json_console.print_json(data={"success": False, "error": message})
         else:
             err_console.print(message)
         return False
@@ -282,7 +274,7 @@ async def set_emission_split(
     if any(value < 0 for value in weights):
         message = "Weights must be non-negative."
         if json_output:
-            json_console.print(json.dumps({"success": False, "error": message}))
+            json_console.print_json(data={"success": False, "error": message})
         else:
             err_console.print(message)
         return False
@@ -292,7 +284,7 @@ async def set_emission_split(
     except ValueError as exc:
         message = str(exc)
         if json_output:
-            json_console.print(json.dumps({"success": False, "error": message}))
+            json_console.print_json(data={"success": False, "error": message})
         else:
             err_console.print(message)
         return False
@@ -300,15 +292,14 @@ async def set_emission_split(
     if normalized_weights == existing_split:
         message = ":white_heavy_check_mark: [dark_sea_green3]Emission split unchanged.[/dark_sea_green3]"
         if json_output:
-            json_console.print(
-                json.dumps(
-                    {
-                        "success": True,
-                        "message": "Emission split unchanged.",
-                        "split": normalized_weights,
-                        "percentages": [round(value * 100, 6) for value in fractions],
-                    }
-                )
+            json_console.print_json(
+                data={
+                    "success": True,
+                    "message": "Emission split unchanged.",
+                    "split": normalized_weights,
+                    "percentages": [round(value * 100, 6) for value in fractions],
+                    "extrinsic_identifier": None,
+                }
             )
         else:
             console.print(message)
@@ -360,7 +351,7 @@ async def set_emission_split(
             console.print(":cross_mark: Aborted!")
             return False
 
-    success, err_msg = await set_mechanism_emission(
+    success, err_msg, ext_id = await set_mechanism_emission(
         wallet=wallet,
         subtensor=subtensor,
         netuid=netuid,
@@ -371,15 +362,14 @@ async def set_emission_split(
     )
 
     if json_output:
-        json_console.print(
-            json.dumps(
-                {
-                    "success": success,
-                    "err_msg": err_msg,
-                    "split": normalized_weights,
-                    "percentages": [round(value * 100, 6) for value in fractions],
-                }
-            )
+        json_console.print_json(
+            data={
+                "success": success,
+                "err_msg": err_msg,
+                "split": normalized_weights,
+                "percentages": [round(value * 100, 6) for value in fractions],
+                "extrinsic_identifier": ext_id,
+            }
         )
 
     return success
@@ -398,7 +388,7 @@ def _normalize_emission_weights(values: list[float]) -> tuple[list[int], list[fl
     if remainder > 0:
         fractional_parts = [value - math.floor(value) for value in scaled]
         order = sorted(
-            range(len(base)), key=lambda idx: fractional_parts[idx], reverse=True
+            range(len(base)), key=lambda idx_: fractional_parts[idx_], reverse=True
         )
         idx = 0
         length = len(order)
@@ -419,29 +409,29 @@ async def set_mechanism_count(
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
     json_output: bool,
-) -> tuple[bool, str]:
+) -> tuple[bool, str, Optional[str]]:
     """Set the number of mechanisms for a subnet."""
 
     if mechanism_count < 1:
         err_msg = "Mechanism count must be greater than or equal to one."
         if not json_output:
             err_console.print(err_msg)
-        return False, err_msg
+        return False, err_msg, None
 
     if not await subtensor.subnet_exists(netuid):
         err_msg = f"Subnet with netuid {netuid} does not exist."
         if not json_output:
             err_console.print(err_msg)
-        return False, err_msg
+        return False, err_msg, None
 
     if not Confirm.ask(
         f"Subnet [blue]{netuid}[/blue] currently has [blue]{previous_count}[/blue] mechanism"
         f"{'s' if previous_count != 1 else ''}."
         f" Set it to [blue]{mechanism_count}[/blue]?"
     ):
-        return False, "User cancelled"
+        return False, "User cancelled", None
 
-    success, err_msg = await sudo.set_mechanism_count_extrinsic(
+    success, err_msg, ext_receipt = await sudo.set_mechanism_count_extrinsic(
         subtensor=subtensor,
         wallet=wallet,
         netuid=netuid,
@@ -449,11 +439,13 @@ async def set_mechanism_count(
         wait_for_inclusion=wait_for_inclusion,
         wait_for_finalization=wait_for_finalization,
     )
+    ext_id = await ext_receipt.get_extrinsic_identifier() if success else None
 
     if json_output:
-        return success, err_msg
+        return success, err_msg, ext_id
 
     if success:
+        await print_extrinsic_id(ext_receipt)
         console.print(
             ":white_heavy_check_mark: "
             f"[dark_sea_green3]Mechanism count set to {mechanism_count} for subnet {netuid}[/dark_sea_green3]"
@@ -461,7 +453,7 @@ async def set_mechanism_count(
     else:
         err_console.print(f":cross_mark: [red]{err_msg}[/red]")
 
-    return success, err_msg
+    return success, err_msg, ext_id
 
 
 async def set_mechanism_emission(
@@ -472,16 +464,16 @@ async def set_mechanism_emission(
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
     json_output: bool,
-) -> tuple[bool, str]:
+) -> tuple[bool, str, Optional[str]]:
     """Set the emission split for mechanisms within a subnet."""
 
     if not split:
         err_msg = "Emission split must include at least one weight."
         if not json_output:
             err_console.print(err_msg)
-        return False, err_msg
+        return False, err_msg, None
 
-    success, err_msg = await sudo.set_mechanism_emission_extrinsic(
+    success, err_msg, ext_receipt = await sudo.set_mechanism_emission_extrinsic(
         subtensor=subtensor,
         wallet=wallet,
         netuid=netuid,
@@ -489,11 +481,13 @@ async def set_mechanism_emission(
         wait_for_inclusion=wait_for_inclusion,
         wait_for_finalization=wait_for_finalization,
     )
+    ext_id = await ext_receipt.get_extrinsic_identifier() if success else None
 
     if json_output:
-        return success, err_msg
+        return success, err_msg, ext_id
 
     if success:
+        await print_extrinsic_id(ext_receipt)
         console.print(
             ":white_heavy_check_mark: "
             f"[dark_sea_green3]Emission split updated for subnet {netuid}[/dark_sea_green3]"
@@ -501,4 +495,4 @@ async def set_mechanism_emission(
     else:
         err_console.print(f":cross_mark: [red]{err_msg}[/red]")
 
-    return success, err_msg
+    return success, err_msg, ext_id

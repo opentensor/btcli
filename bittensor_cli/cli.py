@@ -5173,6 +5173,7 @@ class CLIManager:
                         {
                             "success": True,
                             "message": f"Subnet {netuid} already has {visible_count} mechanisms.",
+                            "extrinsic_identifier": None,
                         }
                     )
                 )
@@ -5194,7 +5195,7 @@ class CLIManager:
             f"mechanism_count: {mechanism_count}\n"
         )
 
-        result, err_msg = self._run_command(
+        result, err_msg, ext_id = self._run_command(
             subnet_mechanisms.set_mechanism_count(
                 wallet=wallet,
                 subtensor=subtensor,
@@ -5208,7 +5209,13 @@ class CLIManager:
         )
 
         if json_output:
-            json_console.print(json.dumps({"success": result, "err_msg": err_msg}))
+            json_console.print_json(
+                data={
+                    "success": result,
+                    "message": err_msg,
+                    "extrinsic_identifier": ext_id,
+                }
+            )
 
         return result
 

@@ -2,6 +2,7 @@ import asyncio
 import json
 from typing import TYPE_CHECKING, Union, Optional
 
+from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet
 from rich import box
 from rich.table import Column, Table
@@ -177,12 +178,12 @@ async def set_mechanism_count_extrinsic(
     mech_count: int,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
-) -> tuple[bool, str]:
+) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
     """Sets the number of mechanisms for a subnet via AdminUtils."""
 
     unlock_result = unlock_key(wallet)
     if not unlock_result.success:
-        return False, unlock_result.message
+        return False, unlock_result.message, None
 
     substrate = subtensor.substrate
     call_params = {"netuid": netuid, "mechanism_count": mech_count}
@@ -197,7 +198,7 @@ async def set_mechanism_count_extrinsic(
             call_function="sudo_set_mechanism_count",
             call_params=call_params,
         )
-        success, err_msg = await subtensor.sign_and_send_extrinsic(
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
             call,
             wallet,
             wait_for_inclusion=wait_for_inclusion,
@@ -205,9 +206,9 @@ async def set_mechanism_count_extrinsic(
         )
 
     if not success:
-        return False, err_msg
+        return False, err_msg, None
 
-    return True, ""
+    return True, "", ext_receipt
 
 
 async def set_mechanism_emission_extrinsic(
@@ -217,12 +218,12 @@ async def set_mechanism_emission_extrinsic(
     split: list[int],
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
-) -> tuple[bool, str]:
+) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
     """Sets the emission split for a subnet's mechanisms via AdminUtils."""
 
     unlock_result = unlock_key(wallet)
     if not unlock_result.success:
-        return False, unlock_result.message
+        return False, unlock_result.message, None
 
     substrate = subtensor.substrate
 
@@ -235,7 +236,7 @@ async def set_mechanism_emission_extrinsic(
             call_function="sudo_set_mechanism_emission_split",
             call_params={"netuid": netuid, "maybe_split": split},
         )
-        success, err_msg = await subtensor.sign_and_send_extrinsic(
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
             call,
             wallet,
             wait_for_inclusion=wait_for_inclusion,
@@ -243,9 +244,9 @@ async def set_mechanism_emission_extrinsic(
         )
 
     if not success:
-        return False, err_msg
+        return False, err_msg, None
 
-    return True, ""
+    return True, "", ext_receipt
 
 
 async def set_hyperparameter_extrinsic(
