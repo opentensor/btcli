@@ -62,7 +62,7 @@ def test_hyperparams_setting(local_chain, wallet_setup):
     result_output = json.loads(result.stdout)
     assert result_output["success"] is True
     assert result_output["netuid"] == netuid
-    print(result_output)
+    assert isinstance(result_output["extrinsic_identifier"], str)
 
     # Fetch the hyperparameters of the subnet
     hyperparams = exec_command_alice(
@@ -119,6 +119,7 @@ def test_hyperparams_setting(local_chain, wallet_setup):
             )
             cmd_json = json.loads(cmd.stdout)
             assert cmd_json["success"] is True, (key, new_val, cmd.stdout, cmd_json)
+            assert isinstance(cmd_json["extrinsic_identifier"], str)
             print(f"Successfully set hyperparameter {key} to value {new_val}")
     # also test hidden hyperparam
     cmd = exec_command_alice(
@@ -145,6 +146,7 @@ def test_hyperparams_setting(local_chain, wallet_setup):
     )
     cmd_json = json.loads(cmd.stdout)
     assert cmd_json["success"] is True, (cmd.stdout, cmd_json)
+    assert isinstance(cmd_json["extrinsic_identifier"], str)
     print("Successfully set hyperparameters")
     print("Testing trimming UIDs")
     cmd = exec_command_alice(
@@ -169,4 +171,5 @@ def test_hyperparams_setting(local_chain, wallet_setup):
     )
     cmd_json = json.loads(cmd.stdout)
     assert cmd_json["success"] is True, (cmd.stdout, cmd_json)
+    assert isinstance(cmd_json["extrinsic_identifier"], str)
     print("Successfully trimmed UIDs")

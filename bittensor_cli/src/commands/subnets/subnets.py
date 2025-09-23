@@ -198,9 +198,8 @@ async def register_subnetwork_extrinsic(
             attributes = await _find_event_attributes_in_extrinsic_receipt(
                 response, "NetworkAdded"
             )
-            console.print(
-                f"You extrinsic was included as {(ext_id := await response.get_extrinsic_identifier())}"
-            )
+            await print_extrinsic_id(response)
+            ext_id = await response.get_extrinsic_identifier()
             console.print(
                 f":white_heavy_check_mark: [dark_sea_green3]Registered subnetwork with netuid: {attributes[0]}"
             )
