@@ -5370,7 +5370,7 @@ class CLIManager:
         Allows subnet owners to trim UIDs on their subnet to a specified max number of netuids.
 
         EXAMPLE
-        [green]$[/green] btcli sudo trim --netuid 95 --wallet-name my_wallet --wallet-hotkey my_hotkey --max 6
+        [green]$[/green] btcli sudo trim --netuid 95 --wallet-name my_wallet --wallet-hotkey my_hotkey --max 64
         """
         self.verbosity_handler(quiet, verbose, json_output)
 
