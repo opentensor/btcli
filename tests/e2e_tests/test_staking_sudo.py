@@ -1,6 +1,7 @@
 import asyncio
 import json
 import re
+from typing import Union
 
 from bittensor_cli.src.bittensor.balances import Balance
 from .utils import turn_off_hyperparam_freeze_window
@@ -105,6 +106,7 @@ def test_staking(local_chain, wallet_setup):
     result_output = json.loads(result.stdout)
     assert result_output["success"] is True
     assert result_output["netuid"] == netuid
+    assert isinstance(result_output["extrinsic_identifier"], str)
 
     # Register another subnet with sudo as Alice
     result_for_second_repo = exec_command_alice(
@@ -142,6 +144,7 @@ def test_staking(local_chain, wallet_setup):
     result_output_second = json.loads(result_for_second_repo.stdout)
     assert result_output_second["success"] is True
     assert result_output_second["netuid"] == multiple_netuids[1]
+    assert isinstance(result_output_second["extrinsic_identifier"], str)
 
     # Register Alice in netuid = 2 using her hotkey
     register_subnet = exec_command_alice(
@@ -162,6 +165,7 @@ def test_staking(local_chain, wallet_setup):
         ],
     )
     assert "✅ Already Registered" in register_subnet.stdout
+    assert "Your extrinsic has been included" not in register_subnet.stdout
 
     register_subnet_json = exec_command_alice(
         command="subnets",
@@ -184,6 +188,7 @@ def test_staking(local_chain, wallet_setup):
     register_subnet_json_output = json.loads(register_subnet_json.stdout)
     assert register_subnet_json_output["success"] is True
     assert register_subnet_json_output["msg"] == "Already registered"
+    assert register_subnet_json_output["extrinsic_identifier"] is None
 
     # set identity
     set_identity = exec_command_alice(
@@ -222,6 +227,7 @@ def test_staking(local_chain, wallet_setup):
     )
     set_identity_output = json.loads(set_identity.stdout)
     assert set_identity_output["success"] is True
+    assert isinstance(set_identity_output["extrinsic_identifier"], str)
 
     get_identity = exec_command_alice(
         "subnets",
@@ -271,6 +277,7 @@ def test_staking(local_chain, wallet_setup):
         set_symbol_output["message"]
         == f"Successfully updated SN{netuid}'s symbol to シ."
     )
+    assert isinstance(set_identity_output["extrinsic_identifier"], str)
 
     get_s_price = exec_command_alice(
         "subnets",
@@ -314,6 +321,9 @@ def test_staking(local_chain, wallet_setup):
             f"Successfully started subnet {netuid_}'s emission schedule"
             in start_subnet_emissions.stdout
         ), start_subnet_emissions.stderr
+        assert "Your extrinsic has been included" in start_subnet_emissions.stdout, (
+            start_subnet_emissions.stdout
+        )
 
     # Add stake to Alice's hotkey
     add_stake_single = exec_command_alice(
@@ -341,6 +351,9 @@ def test_staking(local_chain, wallet_setup):
         ],
     )
     assert "✅ Finalized" in add_stake_single.stdout, add_stake_single.stderr
+    assert "Your extrinsic has been included" in add_stake_single.stdout, (
+        add_stake_single.stdout
+    )
 
     # Execute stake show for Alice's wallet
     show_stake_adding_single = exec_command_alice(
@@ -408,6 +421,9 @@ def test_staking(local_chain, wallet_setup):
         ],
     )
     assert "✅ Finalized" in remove_stake.stdout
+    assert "Your extrinsic has been included" in remove_stake.stdout, (
+        remove_stake.stdout
+    )
 
     add_stake_multiple = exec_command_alice(
         command="stake",
@@ -436,18 +452,15 @@ def test_staking(local_chain, wallet_setup):
     )
     add_stake_multiple_output = json.loads(add_stake_multiple.stdout)
     for netuid_ in multiple_netuids:
-        assert (
-            add_stake_multiple_output["staking_success"][str(netuid_)][
+
+        def line(key: str) -> Union[str, bool]:
+            return add_stake_multiple_output[key][str(netuid_)][
                 wallet_alice.hotkey.ss58_address
             ]
-            is True
-        )
-        assert (
-            add_stake_multiple_output["error_messages"][str(netuid_)][
-                wallet_alice.hotkey.ss58_address
-            ]
-            == ""
-        )
+
+        assert line("staking_success") is True
+        assert line("error_messages") == ""
+        assert isinstance(line("extrinsic_ids"), str)
 
     # Fetch the hyperparameters of the subnet
     hyperparams = exec_command_alice(
@@ -506,6 +519,9 @@ def test_staking(local_chain, wallet_setup):
     )
     assert (
         "✅ Hyperparameter max_burn changed to 10000000000" in change_hyperparams.stdout
+    )
+    assert "Your extrinsic has been included" in change_hyperparams.stdout, (
+        change_hyperparams.stdout
     )
 
     # Fetch the hyperparameters again to verify
@@ -576,6 +592,7 @@ def test_staking(local_chain, wallet_setup):
     assert change_yuma3_hyperparam_json["success"] is True, (
         change_yuma3_hyperparam.stdout
     )
+    assert isinstance(change_yuma3_hyperparam_json["extrinsic_identifier"], str)
 
     changed_yuma3_hyperparam = exec_command_alice(
         command="sudo",
@@ -626,3 +643,4 @@ def test_staking(local_chain, wallet_setup):
         change_arbitrary_hyperparam.stdout,
         change_arbitrary_hyperparam.stderr,
     )
+    assert isinstance(change_yuma3_hyperparam_json["extrinsic_identifier"], str)

@@ -18,7 +18,7 @@
 import asyncio
 import hashlib
 import time
-from typing import Union, List, TYPE_CHECKING
+from typing import Union, List, TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet, Keypair
 import numpy as np
@@ -38,6 +38,7 @@ from bittensor_cli.src.bittensor.utils import (
     format_error_message,
     unlock_key,
     get_hotkey_pub_ss58,
+    print_extrinsic_id,
 )
 
 if TYPE_CHECKING:
@@ -291,7 +292,7 @@ async def root_register_extrinsic(
     wallet: Wallet,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
-) -> tuple[bool, str]:
+) -> tuple[bool, str, Optional[str]]:
     r"""Registers the wallet to root network.
 
     :param subtensor: The SubtensorInterface object
@@ -307,7 +308,7 @@ async def root_register_extrinsic(
     """
 
     if not (unlock := unlock_key(wallet)).success:
-        return False, unlock.message
+        return False, unlock.message, None
 
     print_verbose(f"Checking if hotkey ({wallet.hotkey_str}) is registered on root")
     is_registered = await is_hotkey_registered(
@@ -317,7 +318,7 @@ async def root_register_extrinsic(
         console.print(
             ":white_heavy_check_mark: [green]Already registered on root network.[/green]"
         )
-        return True, "Already registered on root network"
+        return True, "Already registered on root network", None
 
     with console.status(":satellite: Registering to root network...", spinner="earth"):
         call = await subtensor.substrate.compose_call(
@@ -325,7 +326,7 @@ async def root_register_extrinsic(
             call_function="root_register",
             call_params={"hotkey": get_hotkey_pub_ss58(wallet)},
         )
-        success, err_msg = await subtensor.sign_and_send_extrinsic(
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
             call,
             wallet=wallet,
             wait_for_inclusion=wait_for_inclusion,
@@ -335,10 +336,12 @@ async def root_register_extrinsic(
         if not success:
             err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
             await asyncio.sleep(0.5)
-            return False, err_msg
+            return False, err_msg, None
 
         # Successful registration, final check for neuron and pubkey
         else:
+            ext_id = await ext_receipt.get_extrinsic_identifier()
+            await print_extrinsic_id(ext_receipt)
             uid = await subtensor.query(
                 module="SubtensorModule",
                 storage_function="Uids",
@@ -348,13 +351,13 @@ async def root_register_extrinsic(
                 console.print(
                     f":white_heavy_check_mark: [green]Registered with UID {uid}[/green]"
                 )
-                return True, f"Registered with UID {uid}"
+                return True, f"Registered with UID {uid}", ext_id
             else:
                 # neuron not found, try again
                 err_console.print(
                     ":cross_mark: [red]Unknown error. Neuron not found.[/red]"
                 )
-                return False, "Unknown error. Neuron not found."
+                return False, "Unknown error. Neuron not found.", ext_id
 
 
 async def set_root_weights_extrinsic(

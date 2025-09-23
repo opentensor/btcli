@@ -1,10 +1,11 @@
 import asyncio
+from typing import Optional, Union
 
+from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm
 from async_substrate_interface.errors import SubstrateRequestException
 
-from bittensor_cli.src import NETWORK_EXPLORER_MAP
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
@@ -12,7 +13,6 @@ from bittensor_cli.src.bittensor.utils import (
     err_console,
     print_verbose,
     format_error_message,
-    get_explorer_url_for_network,
     is_valid_bittensor_address_or_public_key,
     print_error,
     unlock_key,
@@ -30,7 +30,7 @@ async def transfer_extrinsic(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt: bool = False,
-) -> bool:
+) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """Transfers funds from this wallet to the destination public key address.
 
     :param subtensor: initialized SubtensorInterface object used for transfer
@@ -75,7 +75,7 @@ async def transfer_extrinsic(
 
         return Balance.from_rao(payment_info["partial_fee"])
 
-    async def do_transfer() -> tuple[bool, str, str]:
+    async def do_transfer() -> tuple[bool, str, str, AsyncExtrinsicReceipt]:
         """
         Makes transfer from wallet to destination public key address.
         :return: success, block hash, formatted error message
@@ -95,27 +95,32 @@ async def transfer_extrinsic(
         )
         # We only wait here if we expect finalization.
         if not wait_for_finalization and not wait_for_inclusion:
-            return True, "", ""
+            return True, "", "", response
 
         # Otherwise continue with finalization.
         if await response.is_success:
             block_hash_ = response.block_hash
-            return True, block_hash_, ""
+            return True, block_hash_, "", response
         else:
-            return False, "", format_error_message(await response.error_message)
+            return (
+                False,
+                "",
+                format_error_message(await response.error_message),
+                response,
+            )
 
     # Validate destination address.
     if not is_valid_bittensor_address_or_public_key(destination):
         err_console.print(
             f":cross_mark: [red]Invalid destination SS58 address[/red]:[bold white]\n  {destination}[/bold white]"
         )
-        return False
+        return False, None
     console.print(f"[dark_orange]Initiating transfer on network: {subtensor.network}")
     # Unlock wallet coldkey.
     if not unlock_key(wallet).success:
-        return False
+        return False, None
 
-    call_params = {"dest": destination}
+    call_params: dict[str, Optional[Union[str, int]]] = {"dest": destination}
     if transfer_all:
         call_function = "transfer_all"
         if allow_death:
@@ -158,7 +163,7 @@ async def transfer_extrinsic(
             f"   would bring you under the existential deposit: [bright_cyan]{existential_deposit}[/bright_cyan].\n"
             f"You can try again with `--allow-death`."
         )
-        return False
+        return False, None
     elif account_balance < (amount + fee) and allow_death:
         print_error(
             ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
@@ -166,7 +171,7 @@ async def transfer_extrinsic(
             f"  amount: [bright_red]{amount}[/bright_red]\n"
             f"  for fee: [bright_red]{fee}[/bright_red]"
         )
-        return False
+        return False, None
 
     # Ask before moving on.
     if prompt:
@@ -179,27 +184,15 @@ async def transfer_extrinsic(
             f"[bright_yellow]Transferring is not the same as staking. To instead stake, use "
             f"[dark_orange]btcli stake add[/dark_orange] instead[/bright_yellow]"
         ):
-            return False
+            return False, None
 
-    with console.status(":satellite: Transferring...", spinner="earth") as status:
-        success, block_hash, err_msg = await do_transfer()
+    with console.status(":satellite: Transferring...", spinner="earth"):
+        success, block_hash, err_msg, ext_receipt = await do_transfer()
 
         if success:
             console.print(":white_heavy_check_mark: [green]Finalized[/green]")
             console.print(f"[green]Block Hash: {block_hash}[/green]")
 
-            if subtensor.network == "finney":
-                print_verbose("Fetching explorer URLs", status)
-                explorer_urls = get_explorer_url_for_network(
-                    subtensor.network, block_hash, NETWORK_EXPLORER_MAP
-                )
-                if explorer_urls != {} and explorer_urls:
-                    console.print(
-                        f"[green]Opentensor Explorer Link: {explorer_urls.get('opentensor')}[/green]"
-                    )
-                    console.print(
-                        f"[green]Taostats Explorer Link: {explorer_urls.get('taostats')}[/green]"
-                    )
         else:
             console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
 
@@ -212,6 +205,6 @@ async def transfer_extrinsic(
                 f"Balance:\n"
                 f"  [blue]{account_balance}[/blue] :arrow_right: [green]{new_balance}[/green]"
             )
-            return True
+            return True, ext_receipt
 
-    return False
+    return False, None

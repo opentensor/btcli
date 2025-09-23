@@ -85,6 +85,7 @@ def test_liquidity(local_chain, wallet_setup):
     result_output = json.loads(result.stdout)
     assert result_output["success"] is True
     assert result_output["netuid"] == netuid
+    assert isinstance(result_output["extrinsic_identifier"], str)
 
     # verify no results for list thus far (subnet not yet started)
     liquidity_list_result = liquidity_list()
@@ -115,6 +116,7 @@ def test_liquidity(local_chain, wallet_setup):
         f"Successfully started subnet {netuid}'s emission schedule"
         in start_subnet_emissions.stdout
     ), start_subnet_emissions.stderr
+    assert "Your extrinsic has been included " in start_subnet_emissions.stdout
 
     liquidity_list_result = liquidity_list()
     result_output = json.loads(liquidity_list_result.stdout)
@@ -146,6 +148,7 @@ def test_liquidity(local_chain, wallet_setup):
     )
     enable_user_liquidity_result = json.loads(enable_user_liquidity.stdout)
     assert enable_user_liquidity_result["success"] is True
+    assert isinstance(enable_user_liquidity_result["extrinsic_identifier"], str)
 
     add_liquidity = exec_command_alice(
         command="liquidity",
@@ -174,6 +177,7 @@ def test_liquidity(local_chain, wallet_setup):
     add_liquidity_result = json.loads(add_liquidity.stdout)
     assert add_liquidity_result["success"] is True
     assert add_liquidity_result["message"] == ""
+    assert isinstance(add_liquidity_result["extrinsic_identifier"], str)
 
     liquidity_list_result = liquidity_list()
     liquidity_list_result = json.loads(liquidity_list_result.stdout)
@@ -212,6 +216,7 @@ def test_liquidity(local_chain, wallet_setup):
     )
     modify_liquidity_result = json.loads(modify_liquidity.stdout)
     assert modify_liquidity_result["success"] is True
+    assert isinstance(modify_liquidity_result["extrinsic_identifier"], str)
 
     liquidity_list_result = json.loads(liquidity_list().stdout)
     assert len(liquidity_list_result["positions"]) == 1
@@ -240,6 +245,9 @@ def test_liquidity(local_chain, wallet_setup):
     )
     removal_result = json.loads(removal.stdout)
     assert removal_result[str(liquidity_position["id"])]["success"] is True
+    assert isinstance(
+        removal_result[str(liquidity_position["id"])]["extrinsic_identifier"], str
+    )
 
     liquidity_list_result = json.loads(liquidity_list().stdout)
     assert liquidity_list_result["success"] is True

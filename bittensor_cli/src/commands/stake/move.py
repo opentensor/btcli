@@ -17,6 +17,7 @@ from bittensor_cli.src.bittensor.utils import (
     get_subnet_name,
     unlock_key,
     get_hotkey_pub_ss58,
+    print_extrinsic_id,
 )
 
 if TYPE_CHECKING:
@@ -436,12 +437,12 @@ async def move_stake(
     era: int,
     interactive_selection: bool = False,
     prompt: bool = True,
-) -> bool:
+) -> tuple[bool, str]:
     if interactive_selection:
         try:
             selection = await stake_move_transfer_selection(subtensor, wallet)
         except ValueError:
-            return False
+            return False, ""
         origin_hotkey = selection["origin_hotkey"]
         origin_netuid = selection["origin_netuid"]
         amount = selection["amount"]
@@ -472,7 +473,7 @@ async def move_stake(
             f"in Netuid: "
             f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{origin_netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
         )
-        return False
+        return False, ""
 
     console.print(
         f"\nOrigin Netuid: "
@@ -507,7 +508,7 @@ async def move_stake(
             f" < Moving amount: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
             f"{amount_to_move_as_balance}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
         )
-        return False
+        return False, ""
 
     call = await subtensor.substrate.compose_call(
         call_module="SubtensorModule",
@@ -545,13 +546,13 @@ async def move_stake(
                 extrinsic_fee=extrinsic_fee,
             )
         except ValueError:
-            return False
+            return False, ""
         if not Confirm.ask("Would you like to continue?"):
-            return False
+            return False, ""
 
     # Perform moving operation.
     if not unlock_key(wallet).success:
-        return False
+        return False, ""
     with console.status(
         f"\n:satellite: Moving [blue]{amount_to_move_as_balance}[/blue] from [blue]{origin_hotkey}[/blue] on netuid: "
         f"[blue]{origin_netuid}[/blue] \nto "
@@ -563,17 +564,19 @@ async def move_stake(
         response = await subtensor.substrate.submit_extrinsic(
             extrinsic, wait_for_inclusion=True, wait_for_finalization=False
         )
+    await print_extrinsic_id(response)
+    ext_id = await response.get_extrinsic_identifier()
 
     if not prompt:
         console.print(":white_heavy_check_mark: [green]Sent[/green]")
-        return True
+        return True, ext_id
     else:
         if not await response.is_success:
             err_console.print(
                 f"\n:cross_mark: [red]Failed[/red] with error:"
                 f" {format_error_message(await response.error_message)}"
             )
-            return False
+            return False, ""
         else:
             console.print(
                 ":white_heavy_check_mark: [dark_sea_green3]Stake moved.[/dark_sea_green3]"
@@ -605,7 +608,7 @@ async def move_stake(
                 f"Destination Stake:\n  [blue]{destination_stake_balance}[/blue] :arrow_right: "
                 f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_destination_stake_balance}"
             )
-            return True
+            return True, ext_id
 
 
 async def transfer_stake(
@@ -620,7 +623,7 @@ async def transfer_stake(
     interactive_selection: bool = False,
     stake_all: bool = False,
     prompt: bool = True,
-) -> bool:
+) -> tuple[bool, str]:
     """Transfers stake from one network to another.
 
     Args:
@@ -653,11 +656,11 @@ async def transfer_stake(
     )
     if not dest_exists:
         err_console.print(f"[red]Subnet {dest_netuid} does not exist[/red]")
-        return False
+        return False, ""
 
     if not origin_exists:
         err_console.print(f"[red]Subnet {origin_netuid} does not exist[/red]")
-        return False
+        return False, ""
 
     # Get current stake balances
     with console.status(f"Retrieving stake data from {subtensor.network}..."):
@@ -676,7 +679,7 @@ async def transfer_stake(
         err_console.print(
             f"[red]No stake found for hotkey: {origin_hotkey} on netuid: {origin_netuid}[/red]"
         )
-        return False
+        return False, ""
 
     if amount:
         amount_to_transfer = Balance.from_tao(amount).set_unit(origin_netuid)
@@ -694,7 +697,7 @@ async def transfer_stake(
             f"Stake balance: [{COLOR_PALETTE.S.STAKE_AMOUNT}]{current_stake}[/{COLOR_PALETTE.S.STAKE_AMOUNT}] < "
             f"Transfer amount: [{COLOR_PALETTE.S.STAKE_AMOUNT}]{amount_to_transfer}[/{COLOR_PALETTE.S.STAKE_AMOUNT}]"
         )
-        return False
+        return False, ""
 
     call = await subtensor.substrate.compose_call(
         call_module="SubtensorModule",
@@ -732,14 +735,14 @@ async def transfer_stake(
                 extrinsic_fee=extrinsic_fee,
             )
         except ValueError:
-            return False
+            return False, ""
 
         if not Confirm.ask("Would you like to continue?"):
-            return False
+            return False, ""
 
     # Perform transfer operation
     if not unlock_key(wallet).success:
-        return False
+        return False, ""
 
     with console.status("\n:satellite: Transferring stake ..."):
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
@@ -749,17 +752,19 @@ async def transfer_stake(
         response = await subtensor.substrate.submit_extrinsic(
             extrinsic, wait_for_inclusion=True, wait_for_finalization=False
         )
+    ext_id = await response.get_extrinsic_identifier()
+    await print_extrinsic_id(extrinsic)
 
     if not prompt:
         console.print(":white_heavy_check_mark: [green]Sent[/green]")
-        return True
+        return True, ext_id
 
     if not await response.is_success:
         err_console.print(
             f":cross_mark: [red]Failed[/red] with error: "
             f"{format_error_message(await response.error_message)}"
         )
-        return False
+        return False, ""
 
     # Get and display new stake balances
     new_stake, new_dest_stake = await asyncio.gather(
@@ -783,7 +788,7 @@ async def transfer_stake(
         f"Destination Stake:\n  [blue]{current_dest_stake}[/blue] :arrow_right: "
         f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_dest_stake}"
     )
-    return True
+    return True, ext_id
 
 
 async def swap_stake(
@@ -798,7 +803,7 @@ async def swap_stake(
     prompt: bool = True,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
-) -> bool:
+) -> tuple[bool, str]:
     """Swaps stake between subnets while keeping the same coldkey-hotkey pair ownership.
 
     Args:
@@ -833,11 +838,11 @@ async def swap_stake(
     )
     if not dest_exists:
         err_console.print(f"[red]Subnet {destination_netuid} does not exist[/red]")
-        return False
+        return False, ""
 
     if not origin_exists:
         err_console.print(f"[red]Subnet {origin_netuid} does not exist[/red]")
-        return False
+        return False, ""
 
     # Get current stake balances
     with console.status(f"Retrieving stake data from {subtensor.network}..."):
@@ -864,7 +869,7 @@ async def swap_stake(
             f"Stake balance: [{COLOR_PALETTE.S.STAKE_AMOUNT}]{current_stake}[/{COLOR_PALETTE.S.STAKE_AMOUNT}] < "
             f"Swap amount: [{COLOR_PALETTE.S.STAKE_AMOUNT}]{amount_to_swap}[/{COLOR_PALETTE.S.STAKE_AMOUNT}]"
         )
-        return False
+        return False, ""
 
     call = await subtensor.substrate.compose_call(
         call_module="SubtensorModule",
@@ -901,14 +906,14 @@ async def swap_stake(
                 extrinsic_fee=extrinsic_fee,
             )
         except ValueError:
-            return False
+            return False, ""
 
         if not Confirm.ask("Would you like to continue?"):
-            return False
+            return False, ""
 
     # Perform swap operation
     if not unlock_key(wallet).success:
-        return False
+        return False, ""
 
     with console.status(
         f"\n:satellite: Swapping stake from netuid [blue]{origin_netuid}[/blue] "
@@ -923,17 +928,19 @@ async def swap_stake(
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
         )
+    ext_id = await response.get_extrinsic_identifier()
+    await print_extrinsic_id(response)
 
     if not prompt:
         console.print(":white_heavy_check_mark: [green]Sent[/green]")
-        return True
+        return True, ext_id
 
     if not await response.is_success:
         err_console.print(
             f":cross_mark: [red]Failed[/red] with error: "
             f"{format_error_message(await response.error_message)}"
         )
-        return False
+        return False, ""
 
     # Get and display new stake balances
     new_stake, new_dest_stake = await asyncio.gather(
@@ -957,4 +964,4 @@ async def swap_stake(
         f"Destination Stake:\n  [blue]{current_dest_stake}[/blue] :arrow_right: "
         f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_dest_stake}"
     )
-    return True
+    return True, ext_id

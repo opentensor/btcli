@@ -49,6 +49,7 @@ from bittensor_cli.src.bittensor.utils import (
     blocks_to_duration,
     decode_account_id,
     get_hotkey_pub_ss58,
+    print_extrinsic_id,
 )
 
 
@@ -98,7 +99,7 @@ async def associate_hotkey(
     )
 
     with console.status(":satellite: Associating hotkey on-chain..."):
-        success, err_msg = await subtensor.sign_and_send_extrinsic(
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
             call,
             wallet,
             wait_for_inclusion=True,
@@ -116,6 +117,7 @@ async def associate_hotkey(
             f"wallet [blue]{wallet.name}[/blue], "
             f"SS58: [{COLORS.GENERAL.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.GENERAL.CK}]"
         )
+        await print_extrinsic_id(ext_receipt)
         return True
 
 
@@ -1481,7 +1483,7 @@ async def transfer(
     json_output: bool,
 ):
     """Transfer token of amount to destination."""
-    result = await transfer_extrinsic(
+    result, ext_receipt = await transfer_extrinsic(
         subtensor=subtensor,
         wallet=wallet,
         destination=destination,
@@ -1491,8 +1493,13 @@ async def transfer(
         era=era,
         prompt=prompt,
     )
+    ext_id = (await ext_receipt.get_extrinsic_identifier()) if result else None
     if json_output:
-        json_console.print(json.dumps({"success": result}))
+        json_console.print(
+            json.dumps({"success": result, "extrinsic_identifier": ext_id})
+        )
+    else:
+        await print_extrinsic_id(ext_receipt)
     return result
 
 
@@ -1682,15 +1689,23 @@ async def swap_hotkey(
     json_output: bool,
 ):
     """Swap your hotkey for all registered axons on the network."""
-    result = await swap_hotkey_extrinsic(
+    result, ext_receipt = await swap_hotkey_extrinsic(
         subtensor,
         original_wallet,
         new_wallet,
         netuid=netuid,
         prompt=prompt,
     )
+    if result:
+        ext_id = await ext_receipt.get_extrinsic_identifier()
+    else:
+        ext_id = None
     if json_output:
-        json_console.print(json.dumps({"success": result}))
+        json_console.print(
+            json.dumps({"success": result, "extrinsic_identifier": ext_id})
+        )
+    else:
+        await print_extrinsic_id(ext_receipt)
     return result
 
 
@@ -1731,7 +1746,7 @@ async def set_id(
     github_repo: str,
     prompt: bool,
     json_output: bool = False,
-):
+) -> bool:
     """Create a new or update existing identity on-chain."""
     output_dict = {"success": False, "identity": None, "error": ""}
     identity_data = {
@@ -1756,16 +1771,20 @@ async def set_id(
     with console.status(
         " :satellite: [dark_sea_green3]Updating identity on-chain...", spinner="earth"
     ):
-        success, err_msg = await subtensor.sign_and_send_extrinsic(call, wallet)
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
+            call, wallet
+        )
 
         if not success:
             err_console.print(f"[red]:cross_mark: Failed![/red] {err_msg}")
             output_dict["error"] = err_msg
             if json_output:
                 json_console.print(json.dumps(output_dict))
-            return
+            return False
         else:
             console.print(":white_heavy_check_mark: [dark_sea_green3]Success!")
+            ext_id = await ext_receipt.get_extrinsic_identifier()
+            await print_extrinsic_id(ext_receipt)
             output_dict["success"] = True
             identity = await subtensor.query_identity(wallet.coldkeypub.ss58_address)
 
@@ -1774,9 +1793,12 @@ async def set_id(
     for key, value in identity.items():
         table.add_row(key, str(value) if value else "~")
     output_dict["identity"] = identity
-    console.print(table)
+    output_dict["extrinsic_identifier"] = ext_id
     if json_output:
         json_console.print(json.dumps(output_dict))
+    else:
+        console.print(table)
+    return True
 
 
 async def get_id(
@@ -2016,9 +2038,9 @@ async def schedule_coldkey_swap(
             },
         ),
     )
-
+    swap_info = None
     with console.status(":satellite: Scheduling coldkey swap on-chain..."):
-        success, err_msg = await subtensor.sign_and_send_extrinsic(
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
             call,
             wallet,
             wait_for_inclusion=True,
@@ -2033,13 +2055,29 @@ async def schedule_coldkey_swap(
         console.print(
             ":white_heavy_check_mark: [green]Successfully scheduled coldkey swap"
         )
+        await print_extrinsic_id(ext_receipt)
+        for event in await ext_receipt.triggered_events:
+            if (
+                event.get("event", {}).get("module_id") == "SubtensorModule"
+                and event.get("event", {}).get("event_id") == "ColdkeySwapScheduled"
+            ):
+                attributes = event["event"].get("attributes", {})
+                old_coldkey = decode_account_id(attributes["old_coldkey"][0])
 
-    swap_info = await find_coldkey_swap_extrinsic(
-        subtensor=subtensor,
-        start_block=block_pre_call,
-        end_block=block_post_call,
-        wallet_ss58=wallet.coldkeypub.ss58_address,
-    )
+                if old_coldkey == wallet.coldkeypub.ss58_address:
+                    swap_info = {
+                        "block_num": block_pre_call,
+                        "dest_coldkey": decode_account_id(attributes["new_coldkey"][0]),
+                        "execution_block": attributes["execution_block"],
+                    }
+
+    if not swap_info:
+        swap_info = await find_coldkey_swap_extrinsic(
+            subtensor=subtensor,
+            start_block=block_pre_call,
+            end_block=block_post_call,
+            wallet_ss58=wallet.coldkeypub.ss58_address,
+        )
 
     if not swap_info:
         console.print(
