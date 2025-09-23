@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 from functools import partial
 import re
 
+from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet, Keypair
 from bittensor_wallet.utils import SS58_FORMAT
 from bittensor_wallet.errors import KeyFileError, PasswordError
@@ -508,6 +509,7 @@ def get_explorer_url_for_network(
 
     :return: The explorer url for the given block hash and network
     """
+    # TODO remove
 
     explorer_urls: dict[str, str] = {}
     # Will be None if the network is not known. i.e. not in network_map
@@ -1483,3 +1485,30 @@ def get_netuid_and_subuid_by_storage_index(storage_index: int) -> tuple[int, int
         storage_index % GLOBAL_MAX_SUBNET_COUNT,
         storage_index // GLOBAL_MAX_SUBNET_COUNT,
     )
+
+
+async def print_extrinsic_id(
+    extrinsic_receipt: Optional[AsyncExtrinsicReceipt],
+) -> None:
+    """
+    Prints the extrinsic identifier to the console. If the substrate attached to the extrinsic receipt is on a finney
+        node, it will also include a link to browse the extrinsic in tao dot app.
+    Args:
+        extrinsic_receipt: AsyncExtrinsicReceipt object from a successful extrinsic submission.
+    """
+    if extrinsic_receipt is None:
+        return
+    substrate = extrinsic_receipt.substrate
+    ext_id = await extrinsic_receipt.get_extrinsic_identifier()
+    if substrate:
+        query = await substrate.rpc_request("system_chainType", [])
+        if query.get("result") == "Live":
+            console.print(
+                f":white_heavy_check_mark:Your extrinsic has been included as {ext_id}: "
+                f"[blue]https://tao.app/extrinsic/{ext_id}[/blue]"
+            )
+            return
+    console.print(
+        f":white_heavy_check_mark:Your extrinsic has been included as {ext_id}"
+    )
+    return

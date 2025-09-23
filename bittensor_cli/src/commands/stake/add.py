@@ -4,6 +4,8 @@ from collections import defaultdict
 from functools import partial
 
 from typing import TYPE_CHECKING, Optional
+
+from async_substrate_interface import AsyncExtrinsicReceipt
 from rich.table import Table
 from rich.prompt import Confirm, Prompt
 
@@ -21,6 +23,7 @@ from bittensor_cli.src.bittensor.utils import (
     unlock_key,
     json_console,
     get_hotkey_pub_ss58,
+    print_extrinsic_id,
 )
 from bittensor_wallet import Wallet
 
@@ -112,7 +115,7 @@ async def stake_add(
         hotkey_ss58_: str,
         price_limit: Balance,
         status=None,
-    ) -> tuple[bool, str]:
+    ) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
         err_out = partial(print_error, status=status)
         failure_prelude = (
             f":cross_mark: [red]Failed[/red] to stake {amount_} on Netuid {netuid_}"
@@ -153,15 +156,16 @@ async def stake_add(
             else:
                 err_msg = f"{failure_prelude} with error: {format_error_message(e)}"
                 err_out("\n" + err_msg)
-            return False, err_msg
+            return False, err_msg, None
         if not await response.is_success:
             err_msg = f"{failure_prelude} with error: {format_error_message(await response.error_message)}"
             err_out("\n" + err_msg)
-            return False, err_msg
+            return False, err_msg, None
         else:
             if json_output:
                 # the rest of this checking is not necessary if using json_output
-                return True, ""
+                return True, "", response
+            await print_extrinsic_id(response)
             block_hash = await subtensor.substrate.get_chain_head()
             new_balance, new_stake = await asyncio.gather(
                 subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash),
@@ -199,11 +203,11 @@ async def stake_add(
                 f":arrow_right: "
                 f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}\n"
             )
-            return True, ""
+            return True, "", response
 
     async def stake_extrinsic(
         netuid_i, amount_, current, staking_address_ss58, status=None
-    ) -> tuple[bool, str]:
+    ) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
         err_out = partial(print_error, status=status)
         current_balance, next_nonce, call = await asyncio.gather(
             subtensor.get_balance(wallet.coldkeypub.ss58_address),
@@ -231,16 +235,17 @@ async def stake_add(
         except SubstrateRequestException as e:
             err_msg = f"{failure_prelude} with error: {format_error_message(e)}"
             err_out("\n" + err_msg)
-            return False, err_msg
+            return False, err_msg, None
         else:
             if not await response.is_success:
                 err_msg = f"{failure_prelude} with error: {format_error_message(await response.error_message)}"
                 err_out("\n" + err_msg)
-                return False, err_msg
+                return False, err_msg, None
             else:
                 if json_output:
                     # the rest of this is not necessary if using json_output
-                    return True, ""
+                    return True, "", response
+                await print_extrinsic_id(response)
                 new_block_hash = await subtensor.substrate.get_chain_head()
                 new_balance, new_stake = await asyncio.gather(
                     subtensor.get_balance(
@@ -269,7 +274,7 @@ async def stake_add(
                     f":arrow_right: "
                     f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}\n"
                 )
-                return True, ""
+                return True, "", response
 
     netuids = (
         netuids if netuids is not None else await subtensor.get_all_subnet_netuids()
@@ -470,15 +475,23 @@ async def stake_add(
         }
     successes = defaultdict(dict)
     error_messages = defaultdict(dict)
+    extrinsic_ids = defaultdict(dict)
     with console.status(f"\n:satellite: Staking on netuid(s): {netuids} ..."):
         # We can gather them all at once but balance reporting will be in race-condition.
         for (ni, staking_address), coroutine in stake_coroutines.items():
-            success, er_msg = await coroutine
+            success, er_msg, ext_receipt = await coroutine
             successes[ni][staking_address] = success
             error_messages[ni][staking_address] = er_msg
+            extrinsic_ids[ni][
+                staking_address
+            ] = await ext_receipt.get_extrinsic_identifier()
     if json_output:
-        json_console.print(
-            json.dumps({"staking_success": successes, "error_messages": error_messages})
+        json_console.print_json(
+            data={
+                "staking_success": successes,
+                "error_messages": error_messages,
+                "extrinsic_ids": extrinsic_ids,
+            }
         )
 
 
