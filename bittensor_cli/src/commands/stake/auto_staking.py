@@ -16,6 +16,7 @@ from bittensor_cli.src.bittensor.utils import (
     print_error,
     err_console,
     unlock_key,
+    print_extrinsic_id,
 )
 
 if TYPE_CHECKING:
@@ -264,12 +265,14 @@ async def set_auto_stake_destination(
         f":satellite: Setting auto-stake destination on [white]{subtensor.network}[/white]...",
         spinner="earth",
     ):
-        success, error_message = await subtensor.sign_and_send_extrinsic(
+        success, error_message, ext_receipt = await subtensor.sign_and_send_extrinsic(
             call,
             wallet,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
         )
+
+    ext_id = await ext_receipt.get_extrinsic_identifier() if success else None
 
     if json_output:
         json_console.print(
@@ -279,11 +282,13 @@ async def set_auto_stake_destination(
                     "error": error_message,
                     "netuid": netuid,
                     "hotkey": hotkey_ss58,
+                    "extrinsic_identifier": ext_id,
                 }
             )
         )
 
     if success:
+        await print_extrinsic_id(ext_receipt)
         console.print(
             f":white_heavy_check_mark: [dark_sea_green3]Auto-stake destination set for netuid {netuid}[/dark_sea_green3]"
         )
