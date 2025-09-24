@@ -813,12 +813,21 @@ async def wallet_history(wallet: Wallet):
     console.print(table)
 
 
-async def wallet_list(wallet_path: str, json_output: bool):
+async def wallet_list(
+    wallet_path: str, json_output: bool, wallet_name: Optional[str] = None
+):
     """Lists wallets."""
     wallets = utils.get_coldkey_wallets_for_path(wallet_path)
     print_verbose(f"Using wallets path: {wallet_path}")
     if not wallets:
         err_console.print(f"[red]No wallets found in dir: {wallet_path}[/red]")
+
+    if wallet_name:
+        wallets = [wallet for wallet in wallets if wallet.name == wallet_name]
+        if not wallets:
+            err_console.print(
+                f"[red]Wallet '{wallet_name}' not found in dir: {wallet_path}[/red]"
+            )
 
     root = Tree("Wallets")
     main_data_dict = {"wallets": []}
@@ -876,7 +885,12 @@ async def wallet_list(wallet_path: str, json_output: bool):
 
     if not wallets:
         print_verbose(f"No wallets found in path: {wallet_path}")
-        root.add("[bold red]No wallets found.")
+        message = (
+            "[bold red]No wallets found."
+            if not wallet_name
+            else f"[bold red]Wallet '{wallet_name}' not found."
+        )
+        root.add(message)
     if json_output:
         json_console.print(json.dumps(main_data_dict))
     else:
