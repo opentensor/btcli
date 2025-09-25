@@ -1875,6 +1875,7 @@ class CLIManager:
 
     def wallet_list(
         self,
+        wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -1898,7 +1899,13 @@ class CLIManager:
         wallet = self.wallet_ask(
             None, wallet_path, None, ask_for=[WO.PATH], validate=WV.NONE
         )
-        return self._run_command(wallets.wallet_list(wallet.path, json_output))
+        return self._run_command(
+            wallets.wallet_list(
+                wallet.path,
+                json_output,
+                wallet_name=wallet_name,
+            )
+        )
 
     def wallet_overview(
         self,
