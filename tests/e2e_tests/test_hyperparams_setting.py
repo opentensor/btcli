@@ -62,7 +62,7 @@ def test_hyperparams_setting(local_chain, wallet_setup):
     result_output = json.loads(result.stdout)
     assert result_output["success"] is True
     assert result_output["netuid"] == netuid
-    print(result_output)
+    assert isinstance(result_output["extrinsic_identifier"], str)
 
     # Fetch the hyperparameters of the subnet
     hyperparams = exec_command_alice(
@@ -119,5 +119,57 @@ def test_hyperparams_setting(local_chain, wallet_setup):
             )
             cmd_json = json.loads(cmd.stdout)
             assert cmd_json["success"] is True, (key, new_val, cmd.stdout, cmd_json)
+            assert isinstance(cmd_json["extrinsic_identifier"], str)
             print(f"Successfully set hyperparameter {key} to value {new_val}")
+    # also test hidden hyperparam
+    cmd = exec_command_alice(
+        command="sudo",
+        sub_command="set",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--netuid",
+            netuid,
+            "--json-out",
+            "--no-prompt",
+            "--param",
+            "min_allowed_uids",
+            "--value",
+            "110",
+        ],
+    )
+    cmd_json = json.loads(cmd.stdout)
+    assert cmd_json["success"] is True, (cmd.stdout, cmd_json)
+    assert isinstance(cmd_json["extrinsic_identifier"], str)
     print("Successfully set hyperparameters")
+    print("Testing trimming UIDs")
+    cmd = exec_command_alice(
+        command="sudo",
+        sub_command="trim",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--netuid",
+            netuid,
+            "--max",
+            "120",
+            "--json-out",
+            "--no-prompt",
+        ],
+    )
+    cmd_json = json.loads(cmd.stdout)
+    assert cmd_json["success"] is True, (cmd.stdout, cmd_json)
+    assert isinstance(cmd_json["extrinsic_identifier"], str)
+    print("Successfully trimmed UIDs")

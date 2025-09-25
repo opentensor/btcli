@@ -4,6 +4,7 @@ import time
 from typing import Optional, Any, Union, TypedDict, Iterable
 
 import aiohttp
+from async_substrate_interface import AsyncExtrinsicReceipt
 from async_substrate_interface.async_substrate import (
     DiskCachedAsyncSubstrateInterface,
     AsyncSubstrateInterface,
@@ -1081,7 +1082,7 @@ class SubtensorInterface:
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = False,
         era: Optional[dict[str, int]] = None,
-    ) -> tuple[bool, str]:
+    ) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
         """
         Helper method to sign and submit an extrinsic call to chain.
 
@@ -1093,7 +1094,10 @@ class SubtensorInterface:
 
         :return: (success, error message)
         """
-        call_args = {"call": call, "keypair": wallet.coldkey}
+        call_args: dict[str, Union[GenericCall, Keypair, dict[str, int]]] = {
+            "call": call,
+            "keypair": wallet.coldkey,
+        }
         if era is not None:
             call_args["era"] = era
         extrinsic = await self.substrate.create_signed_extrinsic(
@@ -1107,13 +1111,13 @@ class SubtensorInterface:
             )
             # We only wait here if we expect finalization.
             if not wait_for_finalization and not wait_for_inclusion:
-                return True, ""
+                return True, "", response
             if await response.is_success:
-                return True, ""
+                return True, "", response
             else:
-                return False, format_error_message(await response.error_message)
+                return False, format_error_message(await response.error_message), None
         except SubstrateRequestException as e:
-            return False, format_error_message(e)
+            return False, format_error_message(e), None
 
     async def get_children(self, hotkey, netuid) -> tuple[bool, list, str]:
         """
@@ -1170,6 +1174,55 @@ class SubtensorInterface:
             return []
 
         return SubnetHyperparameters.from_any(result)
+
+    async def get_subnet_mechanisms(
+        self, netuid: int, block_hash: Optional[str] = None
+    ) -> int:
+        """Return the number of mechanisms that belong to the provided subnet."""
+
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="MechanismCountCurrent",
+            params=[netuid],
+            block_hash=block_hash,
+        )
+
+        if result is None:
+            return 0
+        return int(result)
+
+    async def get_all_subnet_mechanisms(
+        self, block_hash: Optional[str] = None
+    ) -> dict[int, int]:
+        """Return mechanism counts for every subnet with a recorded value."""
+
+        results = await self.substrate.query_map(
+            module="SubtensorModule",
+            storage_function="MechanismCountCurrent",
+            params=[],
+            block_hash=block_hash,
+        )
+        res = {}
+        async for netuid, count in results:
+            res[int(netuid)] = int(count.value)
+        return res
+
+    async def get_mechanism_emission_split(
+        self, netuid: int, block_hash: Optional[str] = None
+    ) -> list[int]:
+        """Return the emission split configured for the provided subnet."""
+
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="MechanismEmissionSplit",
+            params=[netuid],
+            block_hash=block_hash,
+        )
+
+        if not result:
+            return []
+
+        return [int(value) for value in result]
 
     async def burn_cost(self, block_hash: Optional[str] = None) -> Optional[Balance]:
         result = await self.query_runtime_api(
@@ -1296,37 +1349,51 @@ class SubtensorInterface:
         else:
             return Balance.from_rao(fixed_to_float(_result)).set_unit(int(netuid))
 
+    async def get_mechagraph_info(
+        self, netuid: int, mech_id: int, block_hash: Optional[str] = None
+    ) -> Optional[MetagraphInfo]:
+        """
+        Returns the metagraph info for a given subnet and mechanism id.
+        And yes, it is indeed 'mecha'graph
+        """
+        query = await self.query_runtime_api(
+            runtime_api="SubnetInfoRuntimeApi",
+            method="get_mechagraph",
+            params=[netuid, mech_id],
+            block_hash=block_hash,
+        )
+
+        if query is None:
+            return None
+
+        return MetagraphInfo.from_any(query)
+
     async def get_metagraph_info(
         self, netuid: int, block_hash: Optional[str] = None
     ) -> Optional[MetagraphInfo]:
-        hex_bytes_result = await self.query_runtime_api(
+        query = await self.query_runtime_api(
             runtime_api="SubnetInfoRuntimeApi",
             method="get_metagraph",
             params=[netuid],
             block_hash=block_hash,
         )
 
-        if hex_bytes_result is None:
+        if query is None:
             return None
 
-        try:
-            bytes_result = bytes.fromhex(hex_bytes_result[2:])
-        except ValueError:
-            bytes_result = bytes.fromhex(hex_bytes_result)
-
-        return MetagraphInfo.from_any(bytes_result)
+        return MetagraphInfo.from_any(query)
 
     async def get_all_metagraphs_info(
         self, block_hash: Optional[str] = None
     ) -> list[MetagraphInfo]:
-        hex_bytes_result = await self.query_runtime_api(
+        query = await self.query_runtime_api(
             runtime_api="SubnetInfoRuntimeApi",
             method="get_all_metagraphs",
             params=[],
             block_hash=block_hash,
         )
 
-        return MetagraphInfo.list_from_any(hex_bytes_result)
+        return MetagraphInfo.list_from_any(query)
 
     async def multi_get_stake_for_coldkey_and_hotkey_on_netuid(
         self,
