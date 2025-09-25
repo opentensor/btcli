@@ -221,8 +221,12 @@ async def subnets_list(
     """List all subnet netuids in the network."""
 
     async def fetch_subnet_data():
-        block_number_ = await subtensor.substrate.get_block_number(None)
-        subnets_ = await subtensor.all_subnets()
+        block_hash = await subtensor.substrate.get_chain_head()
+        subnets_, mechanisms, block_number_ = await asyncio.gather(
+            subtensor.all_subnets(block_hash=block_hash),
+            subtensor.get_all_subnet_mechanisms(block_hash=block_hash),
+            subtensor.substrate.get_block_number(block_hash=block_hash),
+        )
 
         # Sort subnets by market cap, keeping the root subnet in the first position
         root_subnet = next(s for s in subnets_ if s.netuid == 0)
@@ -232,7 +236,7 @@ async def subnets_list(
             reverse=True,
         )
         sorted_subnets = [root_subnet] + other_subnets
-        return sorted_subnets, block_number_
+        return sorted_subnets, block_number_, mechanisms
 
     def calculate_emission_stats(
         subnets_: list, block_number_: int
@@ -320,10 +324,15 @@ async def subnets_list(
             justify="left",
             overflow="fold",
         )
+        defined_table.add_column(
+            "[bold white]Mechanisms",
+            style=COLOR_PALETTE["GENERAL"]["SUBHEADING_EXTRA_1"],
+            justify="center",
+        )
         return defined_table
 
     # Non-live mode
-    def _create_table(subnets_, block_number_):
+    def _create_table(subnets_, block_number_, mechanisms):
         rows = []
         _, percentage_string = calculate_emission_stats(subnets_, block_number_)
 
@@ -403,6 +412,8 @@ async def subnets_list(
             else:
                 tempo_cell = "-/-"
 
+            mechanisms_cell = str(mechanisms.get(netuid, 1))
+
             rows.append(
                 (
                     netuid_cell,  # Netuid
@@ -414,6 +425,7 @@ async def subnets_list(
                     alpha_out_cell,  # Stake α_out
                     supply_cell,  # Supply
                     tempo_cell,  # Tempo k/n
+                    mechanisms_cell,  # Mechanism count
                 )
             )
 
@@ -435,7 +447,7 @@ async def subnets_list(
             defined_table.add_row(*row)
         return defined_table
 
-    def dict_table(subnets_, block_number_) -> dict:
+    def dict_table(subnets_, block_number_, mechanisms) -> dict:
         subnet_rows = {}
         total_tao_emitted, _ = calculate_emission_stats(subnets_, block_number_)
         total_emissions = 0.0
@@ -475,6 +487,7 @@ async def subnets_list(
                 "alpha_out": alpha_out,
                 "supply": supply,
                 "tempo": tempo,
+                "mechanisms": mechanisms.get(netuid, 1),
             }
         output = {
             "total_tao_emitted": total_tao_emitted,
@@ -487,7 +500,7 @@ async def subnets_list(
         return output
 
     # Live mode
-    def create_table_live(subnets_, previous_data_, block_number_):
+    def create_table_live(subnets_, previous_data_, block_number_, mechanisms):
         def format_cell(
             value, previous_value, unit="", unit_first=False, precision=4, millify=False
         ):
@@ -723,6 +736,7 @@ async def subnets_list(
                     alpha_out_cell,  # Stake α_out
                     supply_cell,  # Supply
                     tempo_cell,  # Tempo k/n
+                    str(mechanisms.get(netuid, 1)),  # Mechanisms
                 )
             )
 
@@ -769,7 +783,7 @@ async def subnets_list(
         with Live(console=console, screen=True, auto_refresh=True) as live:
             try:
                 while True:
-                    subnets, block_number = await fetch_subnet_data()
+                    subnets, block_number, mechanisms = await fetch_subnet_data()
 
                     # Update block numbers
                     previous_block = current_block
@@ -781,7 +795,7 @@ async def subnets_list(
                     )
 
                     table, current_data = create_table_live(
-                        subnets, previous_data, block_number
+                        subnets, previous_data, block_number, mechanisms
                     )
                     previous_data = current_data
                     progress.reset(progress_task)
@@ -807,11 +821,13 @@ async def subnets_list(
                 pass  # Ctrl + C
     else:
         # Non-live mode
-        subnets, block_number = await fetch_subnet_data()
+        subnets, block_number, mechanisms = await fetch_subnet_data()
         if json_output:
-            json_console.print(json.dumps(dict_table(subnets, block_number)))
+            json_console.print(
+                json.dumps(dict_table(subnets, block_number, mechanisms))
+            )
         else:
-            table = _create_table(subnets, block_number)
+            table = _create_table(subnets, block_number, mechanisms)
             console.print(table)
 
         return
@@ -877,6 +893,8 @@ async def subnets_list(
 async def show(
     subtensor: "SubtensorInterface",
     netuid: int,
+    mechanism_id: Optional[int] = None,
+    mechanism_count: Optional[int] = None,
     sort: bool = False,
     max_rows: Optional[int] = None,
     delegate_selection: bool = False,
@@ -1090,43 +1108,57 @@ async def show(
                 )
                 return selected_hotkey
 
-    async def show_subnet(netuid_: int):
+    async def show_subnet(
+        netuid_: int,
+        mechanism_id: Optional[int],
+        mechanism_count: Optional[int],
+    ):
         if not await subtensor.subnet_exists(netuid=netuid):
             err_console.print(f"[red]Subnet {netuid} does not exist[/red]")
             return False
+
         block_hash = await subtensor.substrate.get_chain_head()
         (
             subnet_info,
-            subnet_state,
             identities,
             old_identities,
             current_burn_cost,
         ) = await asyncio.gather(
             subtensor.subnet(netuid=netuid_, block_hash=block_hash),
-            subtensor.get_subnet_state(netuid=netuid_, block_hash=block_hash),
             subtensor.query_all_identities(block_hash=block_hash),
             subtensor.get_delegate_identities(block_hash=block_hash),
             subtensor.get_hyperparameter(
                 param_name="Burn", netuid=netuid_, block_hash=block_hash
             ),
         )
-        if subnet_state is None:
-            print_error(f"Subnet {netuid_} does not exist")
+
+        selected_mechanism_id = mechanism_id or 0
+
+        metagraph_info = await subtensor.get_mechagraph_info(
+            netuid_, selected_mechanism_id, block_hash=block_hash
+        )
+
+        if metagraph_info is None:
+            print_error(
+                f"Subnet {netuid_} with mechanism: {selected_mechanism_id} does not exist"
+            )
             return False
 
         if subnet_info is None:
             print_error(f"Subnet {netuid_} does not exist")
             return False
 
-        if len(subnet_state.hotkeys) == 0:
+        if len(metagraph_info.hotkeys) == 0:
             print_error(f"Subnet {netuid_} is currently empty with 0 UIDs registered.")
             return False
 
         # Define table properties
+        mechanism_label = f"Mechanism {selected_mechanism_id}"
+
         table = Table(
             title=f"[{COLOR_PALETTE['GENERAL']['HEADER']}]Subnet [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid_}"
             f"{': ' + get_subnet_name(subnet_info)}"
-            f"\nNetwork: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{subtensor.network}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]\n",
+            f"\n[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]Network: {subtensor.network} • {mechanism_label}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]\n",
             show_footer=True,
             show_edge=False,
             header_style="bold white",
@@ -1138,33 +1170,11 @@ async def show(
         )
 
         # For table footers
-        alpha_sum = sum(
-            [
-                subnet_state.alpha_stake[idx].tao
-                for idx in range(len(subnet_state.alpha_stake))
-            ]
-        )
-        stake_sum = sum(
-            [
-                subnet_state.total_stake[idx].tao
-                for idx in range(len(subnet_state.total_stake))
-            ]
-        )
-        tao_sum = sum(
-            [
-                subnet_state.tao_stake[idx].tao * TAO_WEIGHT
-                for idx in range(len(subnet_state.tao_stake))
-            ]
-        )
-        dividends_sum = sum(
-            subnet_state.dividends[idx] for idx in range(len(subnet_state.dividends))
-        )
-        emission_sum = sum(
-            [
-                subnet_state.emission[idx].tao
-                for idx in range(len(subnet_state.emission))
-            ]
-        )
+        alpha_sum = sum(stake.tao for stake in metagraph_info.alpha_stake)
+        stake_sum = sum(stake.tao for stake in metagraph_info.total_stake)
+        tao_sum = sum((stake * TAO_WEIGHT).tao for stake in metagraph_info.tao_stake)
+        dividends_sum = sum(metagraph_info.dividends)
+        emission_sum = sum(emission.tao for emission in metagraph_info.emission)
 
         owner_hotkeys = await subtensor.get_owned_hotkeys(subnet_info.owner_coldkey)
         if subnet_info.owner_hotkey not in owner_hotkeys:
@@ -1179,7 +1189,7 @@ async def show(
                     break
 
         sorted_indices = sorted(
-            range(len(subnet_state.hotkeys)),
+            range(len(metagraph_info.hotkeys)),
             key=lambda i: (
                 # If sort is True, sort only by UIDs
                 i
@@ -1188,11 +1198,11 @@ async def show(
                     # Otherwise
                     # Sort by owner status first
                     not (
-                        subnet_state.coldkeys[i] == subnet_info.owner_coldkey
-                        or subnet_state.hotkeys[i] in owner_hotkeys
+                        metagraph_info.coldkeys[i] == subnet_info.owner_coldkey
+                        or metagraph_info.hotkeys[i] in owner_hotkeys
                     ),
                     # Then sort by stake amount (higher stakes first)
-                    -subnet_state.total_stake[i].tao,
+                    -metagraph_info.total_stake[i].tao,
                 )
             ),
         )
@@ -1201,10 +1211,10 @@ async def show(
         json_out_rows = []
         for idx in sorted_indices:
             # Get identity for this uid
-            coldkey_identity = identities.get(subnet_state.coldkeys[idx], {}).get(
+            coldkey_identity = identities.get(metagraph_info.coldkeys[idx], {}).get(
                 "name", ""
             )
-            hotkey_identity = old_identities.get(subnet_state.hotkeys[idx])
+            hotkey_identity = old_identities.get(metagraph_info.hotkeys[idx])
             uid_identity = (
                 coldkey_identity
                 if coldkey_identity
@@ -1212,8 +1222,8 @@ async def show(
             )
 
             if (
-                subnet_state.coldkeys[idx] == subnet_info.owner_coldkey
-                or subnet_state.hotkeys[idx] in owner_hotkeys
+                metagraph_info.coldkeys[idx] == subnet_info.owner_coldkey
+                or metagraph_info.hotkeys[idx] in owner_hotkeys
             ):
                 if uid_identity == "~":
                     uid_identity = (
@@ -1225,44 +1235,44 @@ async def show(
                     )
 
             # Modify tao stake with TAO_WEIGHT
-            tao_stake = subnet_state.tao_stake[idx] * TAO_WEIGHT
+            tao_stake = metagraph_info.tao_stake[idx] * TAO_WEIGHT
             rows.append(
                 (
                     str(idx),  # UID
-                    f"{subnet_state.total_stake[idx].tao:.4f} {subnet_info.symbol}"
+                    f"{metagraph_info.total_stake[idx].tao:.4f} {subnet_info.symbol}"
                     if verbose
-                    else f"{millify_tao(subnet_state.total_stake[idx])} {subnet_info.symbol}",  # Stake
-                    f"{subnet_state.alpha_stake[idx].tao:.4f} {subnet_info.symbol}"
+                    else f"{millify_tao(metagraph_info.total_stake[idx])} {subnet_info.symbol}",  # Stake
+                    f"{metagraph_info.alpha_stake[idx].tao:.4f} {subnet_info.symbol}"
                     if verbose
-                    else f"{millify_tao(subnet_state.alpha_stake[idx])} {subnet_info.symbol}",  # Alpha Stake
+                    else f"{millify_tao(metagraph_info.alpha_stake[idx])} {subnet_info.symbol}",  # Alpha Stake
                     f"τ {tao_stake.tao:.4f}"
                     if verbose
                     else f"τ {millify_tao(tao_stake)}",  # Tao Stake
-                    f"{subnet_state.dividends[idx]:.6f}",  # Dividends
-                    f"{subnet_state.incentives[idx]:.6f}",  # Incentive
-                    f"{Balance.from_tao(subnet_state.emission[idx].tao).set_unit(netuid_).tao:.6f} {subnet_info.symbol}",  # Emissions
-                    f"{subnet_state.hotkeys[idx][:6]}"
+                    f"{metagraph_info.dividends[idx]:.6f}",  # Dividends
+                    f"{metagraph_info.incentives[idx]:.6f}",  # Incentive
+                    f"{Balance.from_tao(metagraph_info.emission[idx].tao).set_unit(netuid_).tao:.6f} {subnet_info.symbol}",  # Emissions
+                    f"{metagraph_info.hotkeys[idx][:6]}"
                     if not verbose
-                    else f"{subnet_state.hotkeys[idx]}",  # Hotkey
-                    f"{subnet_state.coldkeys[idx][:6]}"
+                    else f"{metagraph_info.hotkeys[idx]}",  # Hotkey
+                    f"{metagraph_info.coldkeys[idx][:6]}"
                     if not verbose
-                    else f"{subnet_state.coldkeys[idx]}",  # Coldkey
+                    else f"{metagraph_info.coldkeys[idx]}",  # Coldkey
                     uid_identity,  # Identity
                 )
             )
             json_out_rows.append(
                 {
                     "uid": idx,
-                    "stake": subnet_state.total_stake[idx].tao,
-                    "alpha_stake": subnet_state.alpha_stake[idx].tao,
+                    "stake": metagraph_info.total_stake[idx].tao,
+                    "alpha_stake": metagraph_info.alpha_stake[idx].tao,
                     "tao_stake": tao_stake.tao,
-                    "dividends": subnet_state.dividends[idx],
-                    "incentive": subnet_state.incentives[idx],
-                    "emissions": Balance.from_tao(subnet_state.emission[idx].tao)
+                    "dividends": metagraph_info.dividends[idx],
+                    "incentive": metagraph_info.incentives[idx],
+                    "emissions": Balance.from_tao(metagraph_info.emission[idx].tao)
                     .set_unit(netuid_)
                     .tao,
-                    "hotkey": subnet_state.hotkeys[idx],
-                    "coldkey": subnet_state.coldkeys[idx],
+                    "hotkey": metagraph_info.hotkeys[idx],
+                    "coldkey": metagraph_info.coldkeys[idx],
                     "identity": uid_identity,
                 }
             )
@@ -1358,8 +1368,16 @@ async def show(
                 if current_burn_cost
                 else Balance(0)
             )
+            total_mechanisms = mechanism_count if mechanism_count is not None else 1
+
             output_dict = {
                 "netuid": netuid_,
+                "mechanism_id": selected_mechanism_id,
+                **(
+                    {"mechanism_count": mechanism_count}
+                    if mechanism_count is not None
+                    else {}
+                ),
                 "name": subnet_name_display,
                 "owner": subnet_info.owner_coldkey,
                 "owner_identity": owner_identity,
@@ -1377,8 +1395,21 @@ async def show(
             if json_output:
                 json_console.print(json.dumps(output_dict))
 
+            mech_line = (
+                f"\n  Mechanism ID: [{COLOR_PALETTE['GENERAL']['SUBHEADING_EXTRA_1']}]#{selected_mechanism_id}"
+                f"[/{COLOR_PALETTE['GENERAL']['SUBHEADING_EXTRA_1']}]"
+                if total_mechanisms > 1
+                else ""
+            )
+            total_mech_line = (
+                f"\n  Total mechanisms: [{COLOR_PALETTE['GENERAL']['SUBHEADING_EXTRA_2']}]"
+                f"{total_mechanisms}[/{COLOR_PALETTE['GENERAL']['SUBHEADING_EXTRA_2']}]"
+            )
+
             console.print(
                 f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]Subnet {netuid_}{subnet_name_display}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
+                f"{mech_line}"
+                f"{total_mech_line}"
                 f"\n  Owner: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{subnet_info.owner_coldkey}{' (' + owner_identity + ')' if owner_identity else ''}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]"
                 f"\n  Rate: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{subnet_info.price.tao:.4f} τ/{subnet_info.symbol}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
                 f"\n  Emission: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]τ {subnet_info.emission.tao:,.4f}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
@@ -1424,7 +1455,7 @@ async def show(
                     # Check if the UID exists in the subnet
                     if uid in [int(row[0]) for row in rows]:
                         row_data = next(row for row in rows if int(row[0]) == uid)
-                        hotkey = subnet_state.hotkeys[uid]
+                        hotkey = metagraph_info.hotkeys[uid]
                         identity = "" if row_data[9] == "~" else row_data[9]
                         identity_str = f" ({identity})" if identity else ""
                         console.print(
@@ -1444,7 +1475,7 @@ async def show(
         result = await show_root()
         return result
     else:
-        result = await show_subnet(netuid)
+        result = await show_subnet(netuid, mechanism_id, mechanism_count)
         return result
 
 

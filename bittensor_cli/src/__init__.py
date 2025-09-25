@@ -700,6 +700,10 @@ HELP_PANELS = {
         "GOVERNANCE": "Governance",
         "TAKE": "Delegate take configuration",
     },
+    "MECHANISMS": {
+        "CONFIG": "Mechanism Configuration",
+        "EMISSION": "Mechanism Emission",
+    },
     "SUBNETS": {
         "INFO": "Subnet Information",
         "CREATION": "Subnet Creation & Management",

@@ -35,6 +35,7 @@ if TYPE_CHECKING:
 
 BT_DOCS_LINK = "https://docs.learnbittensor.org"
 
+GLOBAL_MAX_SUBNET_COUNT = 4096
 
 console = Console()
 json_console = Console()
@@ -1464,6 +1465,26 @@ def get_hotkey_pub_ss58(wallet: Wallet) -> str:
         return wallet.hotkeypub.ss58_address
     except (KeyFileError, AttributeError):
         return wallet.hotkey.ss58_address
+
+
+def get_netuid_and_subuid_by_storage_index(storage_index: int) -> tuple[int, int]:
+    """Returns the netuid and subuid from the storage index.
+
+    Chain APIs (e.g., SubMetagraph response) returns netuid which is storage index that encodes both the netuid and
+    subuid. This function reverses the encoding to extract these components.
+
+    Parameters:
+        storage_index: The storage index of the subnet.
+
+    Returns:
+        tuple[int, int]:
+            - netuid subnet identifier.
+            - subuid identifier.
+    """
+    return (
+        storage_index % GLOBAL_MAX_SUBNET_COUNT,
+        storage_index // GLOBAL_MAX_SUBNET_COUNT,
+    )
 
 
 async def print_extrinsic_id(

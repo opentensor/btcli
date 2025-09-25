@@ -2,6 +2,7 @@ import asyncio
 import json
 from typing import TYPE_CHECKING, Union, Optional
 
+from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet
 from rich import box
 from rich.table import Column, Table
@@ -168,6 +169,84 @@ def requires_bool(metadata, param_name, pallet: str = DEFAULT_PALLET) -> bool:
                 else:
                     return False
     raise ValueError(f"{param_name} not found in pallet.")
+
+
+async def set_mechanism_count_extrinsic(
+    subtensor: "SubtensorInterface",
+    wallet: "Wallet",
+    netuid: int,
+    mech_count: int,
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = True,
+) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
+    """Sets the number of mechanisms for a subnet via AdminUtils."""
+
+    unlock_result = unlock_key(wallet)
+    if not unlock_result.success:
+        return False, unlock_result.message, None
+
+    substrate = subtensor.substrate
+    call_params = {"netuid": netuid, "mechanism_count": mech_count}
+
+    with console.status(
+        f":satellite: Setting mechanism count to [white]{mech_count}[/white] on "
+        f"[{COLOR_PALETTE.G.SUBHEAD}]{netuid}[/{COLOR_PALETTE.G.SUBHEAD}] ...",
+        spinner="earth",
+    ):
+        call = await substrate.compose_call(
+            call_module=DEFAULT_PALLET,
+            call_function="sudo_set_mechanism_count",
+            call_params=call_params,
+        )
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
+            call,
+            wallet,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+        )
+
+    if not success:
+        return False, err_msg, None
+
+    return True, "", ext_receipt
+
+
+async def set_mechanism_emission_extrinsic(
+    subtensor: "SubtensorInterface",
+    wallet: "Wallet",
+    netuid: int,
+    split: list[int],
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = True,
+) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
+    """Sets the emission split for a subnet's mechanisms via AdminUtils."""
+
+    unlock_result = unlock_key(wallet)
+    if not unlock_result.success:
+        return False, unlock_result.message, None
+
+    substrate = subtensor.substrate
+
+    with console.status(
+        f":satellite: Setting emission split for subnet {netuid}...",
+        spinner="earth",
+    ):
+        call = await substrate.compose_call(
+            call_module=DEFAULT_PALLET,
+            call_function="sudo_set_mechanism_emission_split",
+            call_params={"netuid": netuid, "maybe_split": split},
+        )
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
+            call,
+            wallet,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+        )
+
+    if not success:
+        return False, err_msg, None
+
+    return True, "", ext_receipt
 
 
 async def set_hyperparameter_extrinsic(

@@ -78,7 +78,11 @@ from bittensor_cli.src.commands.stake import (
     add as add_stake,
     remove as remove_stake,
 )
-from bittensor_cli.src.commands.subnets import price, subnets
+from bittensor_cli.src.commands.subnets import (
+    price,
+    subnets,
+    mechanisms as subnet_mechanisms,
+)
 from bittensor_cli.version import __version__, __version_as_int__
 
 try:
@@ -228,6 +232,15 @@ class Options:
         None,
         help="The netuid of the subnet in the network, (e.g. 1).",
         prompt=False,
+    )
+    mechanism_id = typer.Option(
+        None,
+        "--mechid",
+        "--mech-id",
+        "--mech_id",
+        "--mechanism_id",
+        "--mechanism-id",
+        help="Mechanism ID within the subnet (defaults to 0).",
     )
     all_netuids = typer.Option(
         False,
@@ -650,6 +663,7 @@ class CLIManager:
     :var wallet_app: the Typer app as it relates to wallet commands
     :var stake_app: the Typer app as it relates to stake commands
     :var sudo_app: the Typer app as it relates to sudo commands
+    :var subnet_mechanisms_app: the Typer app for subnet mechanism commands
     :var subnets_app: the Typer app as it relates to subnets commands
     :var subtensor: the `SubtensorInterface` object passed to the various commands that require it
     """
@@ -658,7 +672,9 @@ class CLIManager:
     app: typer.Typer
     config_app: typer.Typer
     wallet_app: typer.Typer
+    sudo_app: typer.Typer
     subnets_app: typer.Typer
+    subnet_mechanisms_app: typer.Typer
     weights_app: typer.Typer
     utils_app: typer.Typer
     view_app: typer.Typer
@@ -733,6 +749,7 @@ class CLIManager:
         self.stake_app = typer.Typer(epilog=_epilog)
         self.sudo_app = typer.Typer(epilog=_epilog)
         self.subnets_app = typer.Typer(epilog=_epilog)
+        self.subnet_mechanisms_app = typer.Typer(epilog=_epilog)
         self.weights_app = typer.Typer(epilog=_epilog)
         self.view_app = typer.Typer(epilog=_epilog)
         self.liquidity_app = typer.Typer(epilog=_epilog)
@@ -794,6 +811,19 @@ class CLIManager:
             self.subnets_app, name="subnet", hidden=True, no_args_is_help=True
         )
 
+        # subnet mechanisms aliases
+        self.subnets_app.add_typer(
+            self.subnet_mechanisms_app,
+            name="mechanisms",
+            short_help="Subnet mechanism commands, alias: `mech`",
+            no_args_is_help=True,
+        )
+        self.subnets_app.add_typer(
+            self.subnet_mechanisms_app,
+            name="mech",
+            hidden=True,
+            no_args_is_help=True,
+        )
         # weights aliases
         self.app.add_typer(
             self.weights_app,
@@ -937,6 +967,20 @@ class CLIManager:
         children_app.command("set")(self.stake_set_children)
         children_app.command("revoke")(self.stake_revoke_children)
         children_app.command("take")(self.stake_childkey_take)
+
+        # subnet mechanism commands
+        self.subnet_mechanisms_app.command(
+            "count", rich_help_panel=HELP_PANELS["MECHANISMS"]["CONFIG"]
+        )(self.mechanism_count_get)
+        self.subnet_mechanisms_app.command(
+            "set", rich_help_panel=HELP_PANELS["MECHANISMS"]["CONFIG"]
+        )(self.mechanism_count_set)
+        self.subnet_mechanisms_app.command(
+            "emissions", rich_help_panel=HELP_PANELS["MECHANISMS"]["EMISSION"]
+        )(self.mechanism_emission_get)
+        self.subnet_mechanisms_app.command(
+            "emissions-split", rich_help_panel=HELP_PANELS["MECHANISMS"]["EMISSION"]
+        )(self.mechanism_emission_set)
 
         # sudo commands
         self.sudo_app.command("set", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(
@@ -1761,6 +1805,43 @@ class CLIManager:
             )
             logger.debug(f"Partial staking {partial_staking}")
             return False
+
+    def ask_subnet_mechanism(
+        self,
+        mechanism_id: Optional[int],
+        mechanism_count: int,
+        netuid: int,
+    ) -> int:
+        """Resolve the mechanism ID to use."""
+
+        if mechanism_count is None or mechanism_count <= 0:
+            err_console.print(f"Subnet {netuid} does not exist.")
+            raise typer.Exit()
+
+        if mechanism_id is not None:
+            if mechanism_id < 0 or mechanism_id >= mechanism_count:
+                err_console.print(
+                    f"Mechanism ID {mechanism_id} is out of range for subnet {netuid}. "
+                    f"Valid range: [bold cyan]0 to {mechanism_count - 1}[/bold cyan]."
+                )
+                raise typer.Exit()
+            return mechanism_id
+
+        if mechanism_count == 1:
+            return 0
+
+        while True:
+            selected_mechanism_id = IntPrompt.ask(
+                f"Select mechanism ID for subnet {netuid} "
+                f"([bold cyan]0 to {mechanism_count - 1}[/bold cyan])",
+                default=0,
+            )
+            if 0 <= selected_mechanism_id < mechanism_count:
+                return selected_mechanism_id
+            err_console.print(
+                f"Mechanism ID {selected_mechanism_id} is out of range for subnet {netuid}. "
+                f"Valid range: [bold cyan]0 to {mechanism_count - 1}[/bold cyan]."
+            )
 
     def wallet_ask(
         self,
@@ -3761,6 +3842,8 @@ class CLIManager:
                     subnets.show(
                         subtensor=self.initialize_chain(network),
                         netuid=netuid_,
+                        mechanism_id=0,
+                        mechanism_count=1,
                         sort=False,
                         max_rows=12,
                         prompt=False,
@@ -5022,6 +5105,238 @@ class CLIManager:
             json_console.print(json.dumps(output))
         return results
 
+    def mechanism_count_set(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        netuid: int = Options.netuid,
+        mechanism_count: Optional[int] = typer.Option(
+            None,
+            "--count",
+            "--mech-count",
+            help="Number of mechanisms to set for the subnet.",
+        ),
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Configure how many mechanisms are registered for a subnet.
+
+        The base mechanism at index 0 and new ones are incremented by 1.
+
+        [bold]Common Examples:[/bold]
+
+        1. Prompt for the new mechanism count interactively:
+        [green]$[/green] btcli subnet mech set --netuid 12
+
+        2. Set the count to 2 using a specific wallet:
+        [green]$[/green] btcli subnet mech set --netuid 12 --count 2 --wallet.name my_wallet --wallet.hotkey admin
+
+        """
+
+        self.verbosity_handler(quiet, verbose, json_output)
+        subtensor = self.initialize_chain(network)
+
+        if not json_output:
+            current_count = self._run_command(
+                subnet_mechanisms.count(
+                    subtensor=subtensor,
+                    netuid=netuid,
+                    json_output=False,
+                ),
+                exit_early=False,
+            )
+        else:
+            current_count = self._run_command(
+                subtensor.get_subnet_mechanisms(netuid),
+                exit_early=False,
+            )
+
+        if mechanism_count is None:
+            if not prompt:
+                err_console.print(
+                    "Mechanism count not supplied with `--no-prompt` flag. Cannot continue."
+                )
+                return False
+            prompt_text = "\n\nEnter the [blue]number of mechanisms[/blue] to set"
+            mechanism_count = IntPrompt.ask(prompt_text)
+
+        if mechanism_count == current_count:
+            visible_count = max(mechanism_count - 1, 0)
+            message = (
+                ":white_heavy_check_mark: "
+                f"[dark_sea_green3]Subnet {netuid} already has {visible_count} mechanism"
+                f"{'s' if visible_count != 1 else ''}.[/dark_sea_green3]"
+            )
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {
+                            "success": True,
+                            "message": f"Subnet {netuid} already has {visible_count} mechanisms.",
+                            "extrinsic_identifier": None,
+                        }
+                    )
+                )
+            else:
+                console.print(message)
+            return True
+
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH],
+        )
+
+        logger.debug(
+            "args:\n"
+            f"network: {network}\n"
+            f"netuid: {netuid}\n"
+            f"mechanism_count: {mechanism_count}\n"
+        )
+
+        result, err_msg, ext_id = self._run_command(
+            subnet_mechanisms.set_mechanism_count(
+                wallet=wallet,
+                subtensor=subtensor,
+                netuid=netuid,
+                mechanism_count=mechanism_count,
+                previous_count=current_count or 0,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+                json_output=json_output,
+            )
+        )
+
+        if json_output:
+            json_console.print_json(
+                data={
+                    "success": result,
+                    "message": err_msg,
+                    "extrinsic_identifier": ext_id,
+                }
+            )
+
+        return result
+
+    def mechanism_count_get(
+        self,
+        network: Optional[list[str]] = Options.network,
+        netuid: int = Options.netuid,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Display how many mechanisms are registered under a subnet.
+
+        Includes the base mechanism (index 0). Helpful for verifying the active
+        mechanism counts in a subnet.
+
+        [green]$[/green] btcli subnet mech count --netuid 12
+        """
+
+        self.verbosity_handler(quiet, verbose, json_output)
+        subtensor = self.initialize_chain(network)
+        return self._run_command(
+            subnet_mechanisms.count(
+                subtensor=subtensor,
+                netuid=netuid,
+                json_output=json_output,
+            )
+        )
+
+    def mechanism_emission_set(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        netuid: int = Options.netuid,
+        split: Optional[str] = typer.Option(
+            None,
+            "--split",
+            help="Comma-separated relative weights for each mechanism (normalised automatically).",
+        ),
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Update the emission split across mechanisms for a subnet.
+
+        Accepts comma-separated weights (U16 values or percentages). When `--split`
+        is omitted and prompts remain enabled, you will be guided interactively and
+        the CLI automatically normalises the weights.
+
+        [bold]Common Examples:[/bold]
+
+        1. Configure the split interactively:
+        [green]$[/green] btcli subnet mech emissions-split --netuid 12
+
+        2. Apply a 70/30 distribution in one command:
+        [green]$[/green] btcli subnet mech emissions-split --netuid 12 --split 70,30 --wallet.name my_wallet --wallet.hotkey admin
+        """
+
+        self.verbosity_handler(quiet, verbose, json_output)
+        subtensor = self.initialize_chain(network)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH],
+        )
+
+        return self._run_command(
+            subnet_mechanisms.set_emission_split(
+                subtensor=subtensor,
+                wallet=wallet,
+                netuid=netuid,
+                new_emission_split=split,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+                prompt=prompt,
+                json_output=json_output,
+            )
+        )
+
+    def mechanism_emission_get(
+        self,
+        network: Optional[list[str]] = Options.network,
+        netuid: int = Options.netuid,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Display the current emission split across mechanisms for a subnet.
+
+        Shows raw U16 weights alongside percentage shares for each mechanism. Useful
+        for verifying the emission split in a subnet.
+
+        [green]$[/green] btcli subnet mech emissions --netuid 12
+        """
+
+        self.verbosity_handler(quiet, verbose, json_output)
+        subtensor = self.initialize_chain(network)
+        return self._run_command(
+            subnet_mechanisms.get_emission_split(
+                subtensor=subtensor,
+                netuid=netuid,
+                json_output=json_output,
+            )
+        )
+
     def sudo_set(
         self,
         network: Optional[list[str]] = Options.network,
@@ -5585,6 +5900,7 @@ class CLIManager:
         self,
         network: Optional[list[str]] = Options.network,
         netuid: int = Options.netuid,
+        mechanism_id: Optional[int] = Options.mechanism_id,
         sort: bool = typer.Option(
             False,
             "--sort",
@@ -5596,18 +5912,43 @@ class CLIManager:
         json_output: bool = Options.json_output,
     ):
         """
-        Displays detailed information about a subnet including participants and their state.
+        Inspect the metagraph for a subnet.
 
-        EXAMPLE
+        Shows miners, validators, stake, ranks, emissions, and other runtime stats.
+        When multiple mechanisms exist, the CLI prompts for one unless `--mechid`
+        is supplied. Netuid 0 always uses mechid 0.
 
-        [green]$[/green] btcli subnets show
+        [bold]Common Examples:[/bold]
+
+        1. Inspect the mechanism with prompts for selection:
+        [green]$[/green] btcli subnets show --netuid 12
+
+        2. Pick mechanism 1 explicitly:
+        [green]$[/green] btcli subnets show --netuid 12 --mechid 1
         """
         self.verbosity_handler(quiet, verbose, json_output)
         subtensor = self.initialize_chain(network)
+        if netuid == 0:
+            mechanism_count = 1
+            selected_mechanism_id = 0
+            if mechanism_id not in (None, 0):
+                console.print(
+                    "[dim]Mechanism selection ignored for the root subnet (only mechanism 0 exists).[/dim]"
+                )
+        else:
+            mechanism_count = self._run_command(
+                subtensor.get_subnet_mechanisms(netuid), exit_early=False
+            )
+            selected_mechanism_id = self.ask_subnet_mechanism(
+                mechanism_id, mechanism_count, netuid
+            )
+
         return self._run_command(
             subnets.show(
                 subtensor=subtensor,
                 netuid=netuid,
+                mechanism_id=selected_mechanism_id,
+                mechanism_count=mechanism_count,
                 sort=sort,
                 max_rows=None,
                 delegate_selection=False,

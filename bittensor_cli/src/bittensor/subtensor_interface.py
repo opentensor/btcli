@@ -1175,6 +1175,55 @@ class SubtensorInterface:
 
         return SubnetHyperparameters.from_any(result)
 
+    async def get_subnet_mechanisms(
+        self, netuid: int, block_hash: Optional[str] = None
+    ) -> int:
+        """Return the number of mechanisms that belong to the provided subnet."""
+
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="MechanismCountCurrent",
+            params=[netuid],
+            block_hash=block_hash,
+        )
+
+        if result is None:
+            return 0
+        return int(result)
+
+    async def get_all_subnet_mechanisms(
+        self, block_hash: Optional[str] = None
+    ) -> dict[int, int]:
+        """Return mechanism counts for every subnet with a recorded value."""
+
+        results = await self.substrate.query_map(
+            module="SubtensorModule",
+            storage_function="MechanismCountCurrent",
+            params=[],
+            block_hash=block_hash,
+        )
+        res = {}
+        async for netuid, count in results:
+            res[int(netuid)] = int(count.value)
+        return res
+
+    async def get_mechanism_emission_split(
+        self, netuid: int, block_hash: Optional[str] = None
+    ) -> list[int]:
+        """Return the emission split configured for the provided subnet."""
+
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="MechanismEmissionSplit",
+            params=[netuid],
+            block_hash=block_hash,
+        )
+
+        if not result:
+            return []
+
+        return [int(value) for value in result]
+
     async def burn_cost(self, block_hash: Optional[str] = None) -> Optional[Balance]:
         result = await self.query_runtime_api(
             runtime_api="SubnetRegistrationRuntimeApi",
@@ -1300,37 +1349,51 @@ class SubtensorInterface:
         else:
             return Balance.from_rao(fixed_to_float(_result)).set_unit(int(netuid))
 
+    async def get_mechagraph_info(
+        self, netuid: int, mech_id: int, block_hash: Optional[str] = None
+    ) -> Optional[MetagraphInfo]:
+        """
+        Returns the metagraph info for a given subnet and mechanism id.
+        And yes, it is indeed 'mecha'graph
+        """
+        query = await self.query_runtime_api(
+            runtime_api="SubnetInfoRuntimeApi",
+            method="get_mechagraph",
+            params=[netuid, mech_id],
+            block_hash=block_hash,
+        )
+
+        if query is None:
+            return None
+
+        return MetagraphInfo.from_any(query)
+
     async def get_metagraph_info(
         self, netuid: int, block_hash: Optional[str] = None
     ) -> Optional[MetagraphInfo]:
-        hex_bytes_result = await self.query_runtime_api(
+        query = await self.query_runtime_api(
             runtime_api="SubnetInfoRuntimeApi",
             method="get_metagraph",
             params=[netuid],
             block_hash=block_hash,
         )
 
-        if hex_bytes_result is None:
+        if query is None:
             return None
 
-        try:
-            bytes_result = bytes.fromhex(hex_bytes_result[2:])
-        except ValueError:
-            bytes_result = bytes.fromhex(hex_bytes_result)
-
-        return MetagraphInfo.from_any(bytes_result)
+        return MetagraphInfo.from_any(query)
 
     async def get_all_metagraphs_info(
         self, block_hash: Optional[str] = None
     ) -> list[MetagraphInfo]:
-        hex_bytes_result = await self.query_runtime_api(
+        query = await self.query_runtime_api(
             runtime_api="SubnetInfoRuntimeApi",
             method="get_all_metagraphs",
             params=[],
             block_hash=block_hash,
         )
 
-        return MetagraphInfo.list_from_any(hex_bytes_result)
+        return MetagraphInfo.list_from_any(query)
 
     async def multi_get_stake_for_coldkey_and_hotkey_on_netuid(
         self,
