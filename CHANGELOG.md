@@ -1,5 +1,14 @@
 # Changelog
 
+## 9.12.0 /2025-09-25
+* Removes warning icon in transfer by @ibraheem-abe in https://github.com/opentensor/btcli/pull/634
+* Add Extrinsic Identifier Output by @thewhaleking in https://github.com/opentensor/btcli/pull/633
+* Update the example text for sudo trim by @thewhaleking in https://github.com/opentensor/btcli/pull/636
+* Feat/Individual wallet list by @ibraheem-abe in https://github.com/opentensor/btcli/pull/638
+* Feat/ subnet mechanisms by @ibraheem-abe in https://github.com/opentensor/btcli/pull/627
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.11.2...v9.12.0
+
 ## 9.11.2 /2025-09-19
 * Fix: Stake movement between non-root sns by @ibraheem-abe in https://github.com/opentensor/btcli/pull/629
 
