@@ -979,7 +979,7 @@ class CLIManager:
             "emissions", rich_help_panel=HELP_PANELS["MECHANISMS"]["EMISSION"]
         )(self.mechanism_emission_get)
         self.subnet_mechanisms_app.command(
-            "emissions-split", rich_help_panel=HELP_PANELS["MECHANISMS"]["EMISSION"]
+            "split-emissions", rich_help_panel=HELP_PANELS["MECHANISMS"]["EMISSION"]
         )(self.mechanism_emission_set)
 
         # sudo commands
@@ -1113,6 +1113,9 @@ class CLIManager:
         self.subnets_app.command("set_identity", hidden=True)(self.subnets_set_identity)
         self.subnets_app.command("get_identity", hidden=True)(self.subnets_get_identity)
         self.subnets_app.command("check_start", hidden=True)(self.subnets_check_start)
+        self.subnet_mechanisms_app.command("emissions-split", hidden=True)(
+            self.mechanism_emission_set
+        )
 
         # Sudo
         self.sudo_app.command("senate_vote", hidden=True)(self.sudo_senate_vote)
