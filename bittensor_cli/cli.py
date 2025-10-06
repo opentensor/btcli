@@ -72,6 +72,7 @@ from bittensor_cli.src.commands.liquidity.utils import (
     prompt_position_id,
 )
 from bittensor_cli.src.commands.stake import (
+    auto_staking as auto_stake,
     children_hotkeys,
     list as list_stake,
     move as move_stake,
@@ -936,6 +937,12 @@ class CLIManager:
         self.stake_app.command(
             "add", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
         )(self.stake_add)
+        self.stake_app.command(
+            "auto", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
+        )(self.get_auto_stake)
+        self.stake_app.command(
+            "set-auto", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
+        )(self.set_auto_stake)
         self.stake_app.command(
             "remove", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
         )(self.stake_remove)
@@ -3599,6 +3606,137 @@ class CLIManager:
             )
         )
 
+    def get_auto_stake(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        coldkey_ss58=typer.Option(
+            None,
+            "--ss58",
+            "--coldkey_ss58",
+            "--coldkey.ss58_address",
+            "--coldkey.ss58",
+            help="Coldkey address of the wallet",
+        ),
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """Display auto-stake destinations for a wallet across all subnets."""
+
+        self.verbosity_handler(quiet, verbose, json_output)
+
+        wallet = None
+        if coldkey_ss58:
+            if not is_valid_ss58_address(coldkey_ss58):
+                print_error("You entered an invalid ss58 address")
+                raise typer.Exit()
+        else:
+            if wallet_name:
+                coldkey_or_ss58 = wallet_name
+            else:
+                coldkey_or_ss58 = Prompt.ask(
+                    "Enter the [blue]wallet name[/blue] or [blue]coldkey ss58 address[/blue]",
+                    default=self.config.get("wallet_name") or defaults.wallet.name,
+                )
+            if is_valid_ss58_address(coldkey_or_ss58):
+                coldkey_ss58 = coldkey_or_ss58
+            else:
+                wallet_name = coldkey_or_ss58 if coldkey_or_ss58 else wallet_name
+                wallet = self.wallet_ask(
+                    wallet_name,
+                    wallet_path,
+                    None,
+                    ask_for=[WO.NAME, WO.PATH],
+                    validate=WV.WALLET,
+                )
+
+        return self._run_command(
+            auto_stake.show_auto_stake_destinations(
+                wallet,
+                self.initialize_chain(network),
+                coldkey_ss58=coldkey_ss58,
+                json_output=json_output,
+                verbose=verbose,
+            )
+        )
+
+    def set_auto_stake(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        netuid: Optional[int] = Options.netuid_not_req,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        prompt: bool = Options.prompt,
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        json_output: bool = Options.json_output,
+    ):
+        """Set the auto-stake destination hotkey for a coldkey."""
+
+        self.verbosity_handler(quiet, verbose, json_output)
+
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            None,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.WALLET,
+        )
+
+        if netuid is None:
+            netuid = IntPrompt.ask(
+                "Enter the [blue]netuid[/blue] to configure",
+                default=defaults.netuid,
+            )
+        validate_netuid(netuid)
+
+        hotkey_prompt = Prompt.ask(
+            "Enter the [blue]hotkey ss58 address[/blue] to auto-stake to "
+            "[dim](Press Enter to view delegates)[/dim]",
+            default="",
+            show_default=False,
+        ).strip()
+
+        if not hotkey_prompt:
+            selected_hotkey = self._run_command(
+                subnets.show(
+                    subtensor=self.initialize_chain(network),
+                    netuid=netuid,
+                    sort=False,
+                    max_rows=20,
+                    prompt=False,
+                    delegate_selection=True,
+                ),
+                exit_early=False,
+            )
+            if not selected_hotkey:
+                print_error("No delegate selected. Exiting.")
+                return
+            hotkey_ss58 = selected_hotkey
+        else:
+            hotkey_ss58 = hotkey_prompt
+
+        if not is_valid_ss58_address(hotkey_ss58):
+            print_error("You entered an invalid hotkey ss58 address")
+            return
+
+        return self._run_command(
+            auto_stake.set_auto_stake_destination(
+                wallet,
+                self.initialize_chain(network),
+                netuid,
+                hotkey_ss58,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+                prompt_user=prompt,
+                json_output=json_output,
+            )
+        )
+
     def stake_list(
         self,
         network: Optional[list[str]] = Options.network,
@@ -4324,7 +4462,19 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey_ss58,
+        wallet_hotkey: Optional[str] = typer.Option(
+            None,
+            "--from",
+            "--hotkey",
+            "--hotkey-ss58",
+            "-H",
+            "--wallet_hotkey",
+            "--wallet_hotkey_ss58",
+            "--wallet-hotkey",
+            "--wallet-hotkey-ss58",
+            "--wallet.hotkey",
+            help="Validator hotkey or SS58 where the stake is currently located.",
+        ),
         origin_netuid: Optional[int] = typer.Option(
             None, "--origin-netuid", help="Origin netuid"
         ),
@@ -4332,7 +4482,12 @@ class CLIManager:
             None, "--dest-netuid", help="Destination netuid"
         ),
         destination_hotkey: Optional[str] = typer.Option(
-            None, "--dest-ss58", "--dest", help="Destination hotkey", prompt=False
+            None,
+            "--to",
+            "--dest-ss58",
+            "--dest",
+            help="Destination validator hotkey SS58",
+            prompt=False,
         ),
         amount: float = typer.Option(
             None,
