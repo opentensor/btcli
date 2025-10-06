@@ -4459,7 +4459,19 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey_ss58,
+        wallet_hotkey: Optional[str] = typer.Option(
+            None,
+            "--from",
+            "--hotkey",
+            "--hotkey-ss58",
+            "-H",
+            "--wallet_hotkey",
+            "--wallet_hotkey_ss58",
+            "--wallet-hotkey",
+            "--wallet-hotkey-ss58",
+            "--wallet.hotkey",
+            help="Validator hotkey or SS58 where the stake is currently located.",
+        ),
         origin_netuid: Optional[int] = typer.Option(
             None, "--origin-netuid", help="Origin netuid"
         ),
@@ -4467,7 +4479,12 @@ class CLIManager:
             None, "--dest-netuid", help="Destination netuid"
         ),
         destination_hotkey: Optional[str] = typer.Option(
-            None, "--dest-ss58", "--dest", help="Destination hotkey", prompt=False
+            None,
+            "--to",
+            "--dest-ss58",
+            "--dest",
+            help="Destination validator hotkey SS58",
+            prompt=False,
         ),
         amount: float = typer.Option(
             None,
