@@ -618,7 +618,7 @@ def commands_callback(value: bool):
     if value:
         cli = CLIManager()
         console.print(cli.generate_command_tree())
-    raise typer.Exit()
+        raise typer.Exit()
 
 
 def debug_callback(value: bool):
