@@ -49,7 +49,7 @@ from bittensor_cli.src.bittensor.utils import (
     blocks_to_duration,
     decode_account_id,
     get_hotkey_pub_ss58,
-    print_extrinsic_id,
+    print_extrinsic_id, SingleTransactionJsonOutput,
 )
 
 
@@ -1509,9 +1509,7 @@ async def transfer(
     )
     ext_id = (await ext_receipt.get_extrinsic_identifier()) if result else None
     if json_output:
-        json_console.print(
-            json.dumps({"success": result, "extrinsic_identifier": ext_id})
-        )
+        SingleTransactionJsonOutput(result, extrinsic_identifier=ext_id).print()
     else:
         await print_extrinsic_id(ext_receipt)
     return result
@@ -1715,9 +1713,7 @@ async def swap_hotkey(
     else:
         ext_id = None
     if json_output:
-        json_console.print(
-            json.dumps({"success": result, "extrinsic_identifier": ext_id})
-        )
+        SingleTransactionJsonOutput(result, extrinsic_identifier=ext_id).print()
     else:
         await print_extrinsic_id(ext_receipt)
     return result

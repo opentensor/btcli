@@ -28,7 +28,7 @@ from bittensor_cli.src.bittensor.utils import (
     string_to_u16,
     string_to_u64,
     get_hotkey_pub_ss58,
-    print_extrinsic_id,
+    print_extrinsic_id, SingleTransactionJsonOutput,
 )
 
 if TYPE_CHECKING:
@@ -1071,7 +1071,7 @@ async def trim(
     if subnet_owner != wallet.coldkeypub.ss58_address:
         err_msg = "This wallet doesn't own the specified subnet."
         if json_output:
-            json_console.print_json(data={"success": False, "message": err_msg})
+            SingleTransactionJsonOutput(False, err_msg).print()
         else:
             err_console.print(f":cross_mark: [red]{err_msg}[/red]")
         return False
@@ -1091,13 +1091,7 @@ async def trim(
     )
     if not success:
         if json_output:
-            json_console.print_json(
-                data={
-                    "success": False,
-                    "message": err_msg,
-                    "extrinsic_identifier": None,
-                }
-            )
+            SingleTransactionJsonOutput(False, err_msg, None).print()
         else:
             err_console.print(f":cross_mark: [red]{err_msg}[/red]")
         return False
@@ -1105,9 +1099,7 @@ async def trim(
         ext_id = await ext_receipt.get_extrinsic_identifier()
         msg = f"Successfully trimmed UIDs on SN{netuid} to {max_n}"
         if json_output:
-            json_console.print_json(
-                data={"success": True, "message": msg, "extrinsic_identifier": ext_id}
-            )
+            SingleTransactionJsonOutput(True, msg, ext_id).print()
         else:
             await print_extrinsic_id(ext_receipt)
             console.print(

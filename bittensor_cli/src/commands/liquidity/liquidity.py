@@ -12,7 +12,7 @@ from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
     json_console,
-    print_extrinsic_id,
+    print_extrinsic_id, SingleTransactionJsonOutput,
 )
 from bittensor_cli.src.bittensor.balances import Balance, fixed_to_float
 from bittensor_cli.src.commands.liquidity.utils import (
@@ -274,11 +274,7 @@ async def add_liquidity(
     await print_extrinsic_id(ext_receipt)
     ext_id = await ext_receipt.get_extrinsic_identifier()
     if json_output:
-        json_console.print(
-            json.dumps(
-                {"success": success, "message": message, "extrinsic_identifier": ext_id}
-            )
-        )
+        SingleTransactionJsonOutput(success, message, ext_id).print()
     else:
         if success:
             console.print(

@@ -1512,3 +1512,30 @@ async def print_extrinsic_id(
         f":white_heavy_check_mark:Your extrinsic has been included as {ext_id}"
     )
     return
+
+
+class SingleTransactionJsonOutput:
+    def __init__(
+        self,
+        success: bool,
+        message: Optional[str] = None,
+        extrinsic_identifier: Optional[str] = None,
+    ):
+        self.success = success
+        self.message = message
+        self.extrinsic_identifier = extrinsic_identifier
+
+    def print(self) -> None:
+        json_console.print_json(data={
+            "success": self.success,
+            "message": self.message,
+            "extrinsic_identifier": self.extrinsic_identifier,
+        })
+
+
+class MultiTransactionJsonOutput:
+    def __init__(
+        self,
+
+    ):
+        pass
