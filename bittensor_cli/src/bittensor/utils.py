@@ -1526,16 +1526,25 @@ class SingleTransactionJsonOutput:
         self.extrinsic_identifier = extrinsic_identifier
 
     def print(self) -> None:
-        json_console.print_json(data={
+        json_console.print_json(data=self.as_dict())
+
+    def as_dict(self) -> dict:
+        return {
             "success": self.success,
             "message": self.message,
             "extrinsic_identifier": self.extrinsic_identifier,
-        })
+        }
 
 
 class MultiTransactionJsonOutput:
-    def __init__(
-        self,
+    def __init__(self):
+        self.dict = {}
 
-    ):
-        pass
+    def add_item(self, key: str, value: SingleTransactionJsonOutput) -> None:
+        self.dict[key] = value
+
+    def print(self) -> None:
+        json_console.print_json(data=self.as_dict())
+
+    def as_dict(self) -> dict:
+        return {k: v.as_dict() for k, v in self.dict.items()}

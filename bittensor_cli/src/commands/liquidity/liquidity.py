@@ -12,7 +12,9 @@ from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
     json_console,
-    print_extrinsic_id, SingleTransactionJsonOutput,
+    print_extrinsic_id,
+    SingleTransactionJsonOutput,
+    MultiTransactionJsonOutput,
 )
 from bittensor_cli.src.bittensor.balances import Balance, fixed_to_float
 from bittensor_cli.src.commands.liquidity.utils import (
@@ -533,16 +535,26 @@ async def remove_liquidity(
     json_output: bool = False,
 ) -> tuple[bool, str]:
     """Remove liquidity position from provided subnet."""
+    json_response = MultiTransactionJsonOutput()
     if not await subtensor.subnet_exists(netuid=netuid):
-        return False, f"Subnet with netuid: {netuid} does not exist in {subtensor}."
+        err_msg = f"Subnet with netuid: {netuid} does not exist in {subtensor}."
+        if json_output:
+            json_response.add_item("0", SingleTransactionJsonOutput(False, err_msg))
+            json_response.print()
+        return False, err_msg
 
     if all_liquidity_ids:
         success, msg, positions = await get_liquidity_list(subtensor, wallet, netuid)
         if not success:
             if json_output:
-                json_console.print_json(
-                    data={"success": False, "err_msg": msg, "positions": positions}
-                )
+                if len(positions) == 0:
+                    json_response.add_item("0", SingleTransactionJsonOutput(False, msg))
+                else:
+                    for position in positions:
+                        json_response.add_item(
+                            str(position.id), SingleTransactionJsonOutput(False, msg)
+                        )
+                json_response.print()
             else:
                 return err_console.print(f"Error: {msg}")
             return False, msg
@@ -552,11 +564,12 @@ async def remove_liquidity(
         position_ids = [position_id]
 
     if prompt:
-        console.print("You are about to remove LiquidityPositions with:")
-        console.print(f"\tSubnet: {netuid}")
-        console.print(f"\tWallet name: {wallet.name}")
-        for pos in position_ids:
-            console.print(f"\tPosition id: {pos}")
+        console.print(
+            "You are about to remove LiquidityPositions with:\n"
+            f"\tSubnet: {netuid}\n"
+            f"\tWallet name: {wallet.name}"
+            + "\n".join(f"\tPosition id: {pos}" for pos in position_ids)
+        )
 
         if not Confirm.ask("Would you like to continue?"):
             return False, "User cancelled operation."
@@ -581,14 +594,14 @@ async def remove_liquidity(
             else:
                 err_console.print(f"[red] Error removing {posid}: {msg}")
     else:
-        json_table = {}
-        for (success, msg, ext_receipt), posid in zip(results, position_ids):
-            json_table[posid] = {
-                "success": success,
-                "err_msg": msg,
-                "extrinsic_identifier": await ext_receipt.get_extrinsic_identifier(),
-            }
-        json_console.print_json(data=json_table)
+        ext_ids = await asyncio.gather(
+            *[ext_receipt.get_extrinsic_identifier() for _, _, ext_receipt in results]
+        )
+        for (success, msg, _), posid, ext_id in zip(results, position_ids, ext_ids):
+            json_response.add_item(
+                str(posid), SingleTransactionJsonOutput(success, msg, ext_id)
+            )
+        json_response.print()
 
 
 async def modify_liquidity(
@@ -605,7 +618,7 @@ async def modify_liquidity(
     if not await subtensor.subnet_exists(netuid=netuid):
         err_msg = f"Subnet with netuid: {netuid} does not exist in {subtensor}."
         if json_output:
-            json_console.print(json.dumps({"success": False, "err_msg": err_msg}))
+            SingleTransactionJsonOutput(False, err_msg).print()
         else:
             err_console.print(err_msg)
         return False
@@ -632,9 +645,7 @@ async def modify_liquidity(
     )
     if json_output:
         ext_id = await ext_receipt.get_extrinsic_identifier() if success else None
-        json_console.print_json(
-            data={"success": success, "err_msg": msg, "extrinsic_identifier": ext_id}
-        )
+        SingleTransactionJsonOutput(success, msg, ext_id).print()
     else:
         if success:
             await print_extrinsic_id(ext_receipt)

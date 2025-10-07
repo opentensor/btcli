@@ -49,7 +49,8 @@ from bittensor_cli.src.bittensor.utils import (
     blocks_to_duration,
     decode_account_id,
     get_hotkey_pub_ss58,
-    print_extrinsic_id, SingleTransactionJsonOutput,
+    print_extrinsic_id,
+    SingleTransactionJsonOutput,
 )
 
 

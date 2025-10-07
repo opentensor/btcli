@@ -28,7 +28,8 @@ from bittensor_cli.src.bittensor.utils import (
     string_to_u16,
     string_to_u64,
     get_hotkey_pub_ss58,
-    print_extrinsic_id, SingleTransactionJsonOutput,
+    print_extrinsic_id,
+    SingleTransactionJsonOutput,
 )
 
 if TYPE_CHECKING:
