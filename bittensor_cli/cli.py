@@ -618,6 +618,7 @@ def commands_callback(value: bool):
     if value:
         cli = CLIManager()
         console.print(cli.generate_command_tree())
+        raise typer.Exit()
 
 
 def debug_callback(value: bool):
@@ -1112,7 +1113,9 @@ class CLIManager:
             "get_identity",
             hidden=True,
         )(self.wallet_get_id)
-        self.wallet_app.command("associate_hotkey")(self.wallet_associate_hotkey)
+        self.wallet_app.command("associate_hotkey", hidden=True)(
+            self.wallet_associate_hotkey
+        )
 
         # Subnets
         self.subnets_app.command("burn_cost", hidden=True)(self.subnets_burn_cost)
