@@ -247,9 +247,9 @@ async def set_emission_split(
                 (current_value / total_existing) * 100 if total_existing else 0
             )
             label = (
-                "[blue]Main Mechanism (1)[/blue]"
+                "[blue]Main Mechanism (0)[/blue]"
                 if idx == 0
-                else f"[blue]Mechanism {idx + 1}[/blue]"
+                else f"[blue]Mechanism {idx}[/blue]"
             )
             response = Prompt.ask(
                 (
