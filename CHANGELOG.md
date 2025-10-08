@@ -1,5 +1,16 @@
 # Changelog
 
+## 9.13.0 /2025-10-09
+
+## What's Changed
+* Updates wording in transfer confirm by @thewhaleking in https://github.com/opentensor/btcli/pull/642
+* Update/split emissions by @ibraheem-abe in https://github.com/opentensor/btcli/pull/643
+* Feat/auto staking by @ibraheem-abe in https://github.com/opentensor/btcli/pull/632
+* Updates wording on origin/destination hotkey in `st move` by @thewhaleking in https://github.com/opentensor/btcli/pull/647
+* commands list fixes by @thewhaleking in https://github.com/opentensor/btcli/pull/648
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.12.0...v9.13.0
+
 ## 9.12.0 /2025-09-25
 * Removes warning icon in transfer by @ibraheem-abe in https://github.com/opentensor/btcli/pull/634
 * Add Extrinsic Identifier Output by @thewhaleking in https://github.com/opentensor/btcli/pull/633
