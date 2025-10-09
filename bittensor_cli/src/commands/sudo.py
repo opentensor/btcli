@@ -132,7 +132,6 @@ def search_metadata(
     pallet = metadata.get_metadata_pallet(pallet_name)
     for call in pallet.calls:
         if call.name == param_name:
-            print(call.name)
             if "netuid" not in [x.name for x in call.args]:
                 return False, None
             call_args = [arg for arg in call.args if arg.value["name"] != "netuid"]
