@@ -318,7 +318,6 @@ async def set_hyperparameter_extrinsic(
     msg_value = value if not arbitrary_extrinsic else call_params
     pallet = HYPERPARAMS_MODULE.get(parameter) or DEFAULT_PALLET
 
-
     if not arbitrary_extrinsic:
         extrinsic_params = await substrate.get_metadata_call_function(
             module_name=pallet, call_function_name=extrinsic
