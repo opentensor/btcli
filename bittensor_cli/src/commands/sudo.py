@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import TYPE_CHECKING, Union, Optional
+from typing import TYPE_CHECKING, Union, Optional, Type
 
 from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet
@@ -84,7 +84,7 @@ def allowed_value(
     return True, value
 
 
-def string_to_bool(val) -> bool:
+def string_to_bool(val) -> Union[bool, Type[ValueError]]:
     try:
         return {"true": True, "1": True, "0": False, "false": False}[val.lower()]
     except KeyError:
@@ -160,7 +160,7 @@ def requires_bool(metadata, param_name, pallet: str = DEFAULT_PALLET) -> bool:
     for call in pallet.calls:
         if call.name == param_name:
             if "netuid" not in [x.name for x in call.args]:
-                return False, None
+                return False
             call_args = [arg for arg in call.args if arg.value["name"] != "netuid"]
             if len(call_args) != 1:
                 return False
@@ -272,6 +272,7 @@ async def set_hyperparameter_extrinsic(
                                `False` if the extrinsic fails to enter the block within the timeout.
     :param wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `True`,
                                   or returns `False` if the extrinsic fails to be finalized within the timeout.
+    :param prompt: If set to False, will not prompt the user.
 
     :return: tuple including:
              success: `True` if extrinsic was finalized or included in the block. If we did not wait for
@@ -350,63 +351,61 @@ async def set_hyperparameter_extrinsic(
                 len(extrinsic_params["fields"]) - 1
             ]
             call_params[str(value_argument["name"])] = value
-        # create extrinsic call
-        call_ = await substrate.compose_call(
-            call_module=pallet,
-            call_function=extrinsic,
-            call_params=call_params,
+    # create extrinsic call
+    call_ = await substrate.compose_call(
+        call_module=pallet,
+        call_function=extrinsic,
+        call_params=call_params,
+    )
+    if sudo_ is RootSudoOnly.TRUE:
+        call = await substrate.compose_call(
+            call_module="Sudo", call_function="sudo", call_params={"call": call_}
         )
-        if sudo_ is RootSudoOnly.TRUE:
-            call = await substrate.compose_call(
-                call_module="Sudo", call_function="sudo", call_params={"call": call_}
+    elif sudo_ is RootSudoOnly.COMPLICATED:
+        if not prompt:
+            to_sudo_or_not_to_sudo = True  # default to sudo true when no-prompt is set
+        else:
+            to_sudo_or_not_to_sudo = Confirm.ask(
+                f"This hyperparam can be executed as sudo or not. Do you want to execute as sudo [y] or not [n]?"
             )
-        elif sudo_ is RootSudoOnly.COMPLICATED:
-            if not prompt:
-                to_sudo_or_not_to_sudo = (
-                    True  # default to sudo true when no-prompt is set
-                )
-            else:
-                to_sudo_or_not_to_sudo = Confirm.ask(
-                    f"This hyperparam can be executed as sudo or not. Do you want to execute as sudo [y] or not [n]?"
-                )
-            if to_sudo_or_not_to_sudo:
-                call = await substrate.compose_call(
-                    call_module="Sudo",
-                    call_function="sudo",
-                    call_params={"call": call_},
-                )
-            else:
-                call = call_
+        if to_sudo_or_not_to_sudo:
+            call = await substrate.compose_call(
+                call_module="Sudo",
+                call_function="sudo",
+                call_params={"call": call_},
+            )
         else:
             call = call_
-        with console.status(
-            f":satellite: Setting hyperparameter [{COLOR_PALETTE.G.SUBHEAD}]{parameter}[/{COLOR_PALETTE.G.SUBHEAD}]"
-            f" to [{COLOR_PALETTE.G.SUBHEAD}]{msg_value}[/{COLOR_PALETTE.G.SUBHEAD}]"
-            f" on subnet: [{COLOR_PALETTE.G.SUBHEAD}]{netuid}[/{COLOR_PALETTE.G.SUBHEAD}] ...",
-            spinner="earth",
-        ):
-            success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
-                call, wallet, wait_for_inclusion, wait_for_finalization
+    else:
+        call = call_
+    with console.status(
+        f":satellite: Setting hyperparameter [{COLOR_PALETTE.G.SUBHEAD}]{parameter}[/{COLOR_PALETTE.G.SUBHEAD}]"
+        f" to [{COLOR_PALETTE.G.SUBHEAD}]{msg_value}[/{COLOR_PALETTE.G.SUBHEAD}]"
+        f" on subnet: [{COLOR_PALETTE.G.SUBHEAD}]{netuid}[/{COLOR_PALETTE.G.SUBHEAD}] ...",
+        spinner="earth",
+    ):
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
+            call, wallet, wait_for_inclusion, wait_for_finalization
+        )
+    if not success:
+        err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+        return False, err_msg, None
+    else:
+        ext_id = await ext_receipt.get_extrinsic_identifier()
+        await print_extrinsic_id(ext_receipt)
+        if arbitrary_extrinsic:
+            console.print(
+                f":white_heavy_check_mark: "
+                f"[dark_sea_green3]Hyperparameter {parameter} values changed to {call_params}[/dark_sea_green3]"
             )
-        if not success:
-            err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
-            return False, err_msg, None
+            return True, "", ext_id
+        # Successful registration, final check for membership
         else:
-            ext_id = await ext_receipt.get_extrinsic_identifier()
-            await print_extrinsic_id(ext_receipt)
-            if arbitrary_extrinsic:
-                console.print(
-                    f":white_heavy_check_mark: "
-                    f"[dark_sea_green3]Hyperparameter {parameter} values changed to {call_params}[/dark_sea_green3]"
-                )
-                return True, "", ext_id
-            # Successful registration, final check for membership
-            else:
-                console.print(
-                    f":white_heavy_check_mark: "
-                    f"[dark_sea_green3]Hyperparameter {parameter} changed to {value}[/dark_sea_green3]"
-                )
-                return True, "", ext_id
+            console.print(
+                f":white_heavy_check_mark: "
+                f"[dark_sea_green3]Hyperparameter {parameter} changed to {value}[/dark_sea_green3]"
+            )
+            return True, "", ext_id
 
 
 async def _get_senate_members(
