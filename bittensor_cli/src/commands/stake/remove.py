@@ -370,7 +370,7 @@ async def unstake_all(
     era: int = 3,
     prompt: bool = True,
     json_output: bool = False,
-) -> bool:
+) -> None:
     """Unstakes all stakes from all hotkeys in all subnets."""
     include_hotkeys = include_hotkeys or []
     exclude_hotkeys = exclude_hotkeys or []
@@ -419,7 +419,7 @@ async def unstake_all(
 
         if not stake_info:
             console.print("[red]No stakes found to unstake[/red]")
-            return False
+            return
 
         all_sn_dynamic_info = {info.netuid: info for info in all_sn_dynamic_info_}
 
@@ -531,10 +531,10 @@ async def unstake_all(
     if prompt and not Confirm.ask(
         "\nDo you want to proceed with unstaking everything?"
     ):
-        return False
+        return
 
     if not unlock_key(wallet).success:
-        return False
+        return
     successes = {}
     with console.status("Unstaking all stakes...") as status:
         for hotkey_ss58 in hotkey_ss58s:
@@ -553,7 +553,7 @@ async def unstake_all(
                 "extrinsic_identifier": ext_id,
             }
     if json_output:
-        return json_console.print(json.dumps({"success": successes}))
+        json_console.print(json.dumps({"success": successes}))
 
 
 # Extrinsics

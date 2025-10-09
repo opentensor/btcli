@@ -458,7 +458,7 @@ async def show_liquidity_list(
     wallet: "Wallet",
     netuid: int,
     json_output: bool = False,
-):
+) -> None:
     current_price_, (success, err_msg, positions) = await asyncio.gather(
         subtensor.subnet(netuid=netuid), get_liquidity_list(subtensor, wallet, netuid)
     )
@@ -467,10 +467,10 @@ async def show_liquidity_list(
             json_console.print(
                 json.dumps({"success": success, "err_msg": err_msg, "positions": []})
             )
-            return False
+            return
         else:
             err_console.print(f"Error: {err_msg}")
-            return False
+            return
     liquidity_table = Table(
         Column("ID", justify="center"),
         Column("Liquidity", justify="center"),
@@ -535,10 +535,10 @@ async def remove_liquidity(
     prompt: Optional[bool] = None,
     all_liquidity_ids: Optional[bool] = None,
     json_output: bool = False,
-) -> tuple[bool, str]:
+) -> None:
     """Remove liquidity position from provided subnet."""
     if not await subtensor.subnet_exists(netuid=netuid):
-        return False, f"Subnet with netuid: {netuid} does not exist in {subtensor}."
+        return None
 
     if all_liquidity_ids:
         success, msg, positions = await get_liquidity_list(subtensor, wallet, netuid)
@@ -549,7 +549,7 @@ async def remove_liquidity(
                 )
             else:
                 return err_console.print(f"Error: {msg}")
-            return False, msg
+            return None
         else:
             position_ids = [p.id for p in positions]
     else:
@@ -563,7 +563,7 @@ async def remove_liquidity(
             console.print(f"\tPosition id: {pos}")
 
         if not Confirm.ask("Would you like to continue?"):
-            return False, "User cancelled operation."
+            return None
 
     results = await asyncio.gather(
         *[
@@ -593,6 +593,7 @@ async def remove_liquidity(
                 "extrinsic_identifier": await ext_receipt.get_extrinsic_identifier(),
             }
         json_console.print_json(data=json_table)
+    return None
 
 
 async def modify_liquidity(

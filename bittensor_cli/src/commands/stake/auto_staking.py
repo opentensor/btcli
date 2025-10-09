@@ -28,7 +28,6 @@ async def show_auto_stake_destinations(
     subtensor: "SubtensorInterface",
     coldkey_ss58: Optional[str] = None,
     json_output: bool = False,
-    verbose: bool = False,
 ) -> Optional[dict[int, dict[str, Optional[str]]]]:
     """Display auto-stake destinations for the supplied wallet."""
 
