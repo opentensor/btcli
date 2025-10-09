@@ -2166,6 +2166,9 @@ class CLIManager:
         [green]$[/green] btcli wallet transfer --dest 5Dp8... --amount 100
 
         [bold]NOTE[/bold]: This command is used for executing token transfers within the Bittensor network. Users should verify the destination address and the TAO amount before confirming the transaction to avoid errors or loss of funds.
+
+        JSON OUTPUT SCHEMA
+        {success: bool, message: Optional[str], extrinsic_identifier: Optional[str]}
         """
         if not is_valid_ss58_address(destination_ss58_address):
             print_error("You have entered an incorrect ss58 address. Please try again.")
@@ -2243,6 +2246,9 @@ class CLIManager:
         EXAMPLE
 
         [green]$[/green] btcli wallet swap_hotkey destination_hotkey_name --wallet-name your_wallet_name --wallet-hotkey original_hotkey --netuid 1
+
+        JSON OUTPUT SCHEMA
+        {success: bool, message: Optional[str], extrinsic_identifier: Optional[str]}
         """
         netuid = get_optional_netuid(netuid, all_netuids)
         self.verbosity_handler(quiet, verbose, json_output)
@@ -5870,6 +5876,9 @@ class CLIManager:
 
         EXAMPLE
         [green]$[/green] btcli sudo trim --netuid 95 --wallet-name my_wallet --wallet-hotkey my_hotkey --max 64
+
+        JSON OUTPUT SCHEMA
+        {success: bool, message: Optional[str], extrinsic_identifier: Optional[str]}
         """
         self.verbosity_handler(quiet, verbose, json_output)
 
@@ -7109,7 +7118,12 @@ class CLIManager:
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
-        """Remove liquidity from the swap (as a combination of TAO + Alpha)."""
+        """
+        Remove liquidity from the swap (as a combination of TAO + Alpha).
+
+        JSON OUTPUT SCHEMA
+        {position_id: {success: bool, message: Optional[str], extrinsic_identifier: Optional[str]}}
+        """
 
         self.verbosity_handler(quiet, verbose, json_output)
 
@@ -7180,7 +7194,12 @@ class CLIManager:
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
-        """Modifies the liquidity position for the given subnet."""
+        """
+        Modifies the liquidity position for the given subnet.
+
+        JSON OUTPUT SCHEMA
+        {success: bool, message: Optional[str], extrinsic_identifier: Optional[str]}
+        """
         self.verbosity_handler(quiet, verbose, json_output)
         if not netuid:
             netuid = IntPrompt.ask(
