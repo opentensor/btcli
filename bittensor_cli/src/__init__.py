@@ -626,47 +626,62 @@ NETWORK_EXPLORER_MAP = {
 }
 
 
+class RootSudoOnly(Enum):
+    FALSE = 0
+    TRUE = 1
+    COMPLICATED = 2
+
+
 HYPERPARAMS = {
-    # btcli name: (subtensor method, root-only bool)
-    "rho": ("sudo_set_rho", False),
-    "kappa": ("sudo_set_kappa", False),
-    "immunity_period": ("sudo_set_immunity_period", False),
-    "min_allowed_weights": ("sudo_set_min_allowed_weights", False),
-    "max_weights_limit": ("sudo_set_max_weight_limit", False),
-    "tempo": ("sudo_set_tempo", True),
-    "min_difficulty": ("sudo_set_min_difficulty", True),
-    "max_difficulty": ("sudo_set_max_difficulty", False),
-    "weights_version": ("sudo_set_weights_version_key", False),
-    "weights_rate_limit": ("sudo_set_weights_set_rate_limit", True),
-    "adjustment_interval": ("sudo_set_adjustment_interval", True),
-    "activity_cutoff": ("sudo_set_activity_cutoff", False),
-    "target_regs_per_interval": ("sudo_set_target_registrations_per_interval", True),
-    "min_burn": ("sudo_set_min_burn", False),
-    "max_burn": ("sudo_set_max_burn", True),
-    "bonds_moving_avg": ("sudo_set_bonds_moving_average", False),
-    "max_regs_per_block": ("sudo_set_max_registrations_per_block", True),
-    "serving_rate_limit": ("sudo_set_serving_rate_limit", False),
-    "max_validators": ("sudo_set_max_allowed_validators", True),
-    "adjustment_alpha": ("sudo_set_adjustment_alpha", False),
-    "difficulty": ("sudo_set_difficulty", True),
+    # btcli name: (subtensor method, root-only enum)
+    "rho": ("sudo_set_rho", RootSudoOnly.FALSE),
+    "kappa": ("sudo_set_kappa", RootSudoOnly.FALSE),
+    "immunity_period": ("sudo_set_immunity_period", RootSudoOnly.FALSE),
+    "min_allowed_weights": ("sudo_set_min_allowed_weights", RootSudoOnly.FALSE),
+    "max_weights_limit": ("sudo_set_max_weight_limit", RootSudoOnly.FALSE),
+    "tempo": ("sudo_set_tempo", RootSudoOnly.TRUE),
+    "min_difficulty": ("sudo_set_min_difficulty", RootSudoOnly.TRUE),
+    "max_difficulty": ("sudo_set_max_difficulty", RootSudoOnly.FALSE),
+    "weights_version": ("sudo_set_weights_version_key", RootSudoOnly.FALSE),
+    "weights_rate_limit": ("sudo_set_weights_set_rate_limit", RootSudoOnly.TRUE),
+    "adjustment_interval": ("sudo_set_adjustment_interval", RootSudoOnly.TRUE),
+    "activity_cutoff": ("sudo_set_activity_cutoff", RootSudoOnly.FALSE),
+    "target_regs_per_interval": (
+        "sudo_set_target_registrations_per_interval",
+        RootSudoOnly.TRUE,
+    ),
+    "min_burn": ("sudo_set_min_burn", RootSudoOnly.FALSE),
+    "max_burn": ("sudo_set_max_burn", RootSudoOnly.TRUE),
+    "bonds_moving_avg": ("sudo_set_bonds_moving_average", RootSudoOnly.FALSE),
+    "max_regs_per_block": ("sudo_set_max_registrations_per_block", RootSudoOnly.TRUE),
+    "serving_rate_limit": ("sudo_set_serving_rate_limit", RootSudoOnly.FALSE),
+    "max_validators": ("sudo_set_max_allowed_validators", RootSudoOnly.TRUE),
+    "adjustment_alpha": ("sudo_set_adjustment_alpha", RootSudoOnly.FALSE),
+    "difficulty": ("sudo_set_difficulty", RootSudoOnly.TRUE),
     "commit_reveal_period": (
         "sudo_set_commit_reveal_weights_interval",
-        False,
+        RootSudoOnly.FALSE,
     ),
-    "commit_reveal_weights_enabled": ("sudo_set_commit_reveal_weights_enabled", False),
-    "alpha_values": ("sudo_set_alpha_values", False),
-    "liquid_alpha_enabled": ("sudo_set_liquid_alpha_enabled", False),
-    "registration_allowed": ("sudo_set_network_registration_allowed", True),
+    "commit_reveal_weights_enabled": (
+        "sudo_set_commit_reveal_weights_enabled",
+        RootSudoOnly.FALSE,
+    ),
+    "alpha_values": ("sudo_set_alpha_values", RootSudoOnly.FALSE),
+    "liquid_alpha_enabled": ("sudo_set_liquid_alpha_enabled", RootSudoOnly.FALSE),
+    "registration_allowed": (
+        "sudo_set_network_registration_allowed",
+        RootSudoOnly.TRUE,
+    ),
     "network_pow_registration_allowed": (
         "sudo_set_network_pow_registration_allowed",
-        False,
+        RootSudoOnly.FALSE,
     ),
-    "yuma3_enabled": ("sudo_set_yuma3_enabled", False),
-    "alpha_sigmoid_steepness": ("sudo_set_alpha_sigmoid_steepness", True),
-    "user_liquidity_enabled": ("toggle_user_liquidity", True),
-    "bonds_reset_enabled": ("sudo_set_bonds_reset_enabled", False),
-    "transfers_enabled": ("sudo_set_toggle_transfer", False),
-    "min_allowed_uids": ("sudo_set_min_allowed_uids", True),
+    "yuma3_enabled": ("sudo_set_yuma3_enabled", RootSudoOnly.FALSE),
+    "alpha_sigmoid_steepness": ("sudo_set_alpha_sigmoid_steepness", RootSudoOnly.TRUE),
+    "user_liquidity_enabled": ("toggle_user_liquidity", RootSudoOnly.COMPLICATED),
+    "bonds_reset_enabled": ("sudo_set_bonds_reset_enabled", RootSudoOnly.FALSE),
+    "transfers_enabled": ("sudo_set_toggle_transfer", RootSudoOnly.FALSE),
+    "min_allowed_uids": ("sudo_set_min_allowed_uids", RootSudoOnly.TRUE),
 }
 
 HYPERPARAMS_MODULE = {
