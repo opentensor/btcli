@@ -500,7 +500,7 @@ class SubtensorInterface:
 
     async def current_take(
         self,
-        hotkey_ss58: int,
+        hotkey_ss58: str,
         block_hash: Optional[str] = None,
         reuse_block: bool = False,
     ) -> Optional[float]:
