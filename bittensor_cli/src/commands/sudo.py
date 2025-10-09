@@ -132,6 +132,7 @@ def search_metadata(
     pallet = metadata.get_metadata_pallet(pallet_name)
     for call in pallet.calls:
         if call.name == param_name:
+            print(call.name)
             if "netuid" not in [x.name for x in call.args]:
                 return False, None
             call_args = [arg for arg in call.args if arg.value["name"] != "netuid"]
@@ -361,14 +362,13 @@ async def set_hyperparameter_extrinsic(
             )
         elif sudo_ is RootSudoOnly.COMPLICATED:
             if not prompt:
-                return (
-                    False,
-                    "This hyperparam requires interactivity to set, and cannot be run with --no-prompt",
-                    None,
+                to_sudo_or_not_to_sudo = (
+                    True  # default to sudo true when no-prompt is set
                 )
-            to_sudo_or_not_to_sudo = Confirm.ask(
-                f"This hyperparam can be executed as sudo or not. Do you want to execute as sudo [y] or not [n]?"
-            )
+            else:
+                to_sudo_or_not_to_sudo = Confirm.ask(
+                    f"This hyperparam can be executed as sudo or not. Do you want to execute as sudo [y] or not [n]?"
+                )
             if to_sudo_or_not_to_sudo:
                 call = await substrate.compose_call(
                     call_module="Sudo",
