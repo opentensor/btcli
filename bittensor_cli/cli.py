@@ -3658,7 +3658,6 @@ class CLIManager:
                 self.initialize_chain(network),
                 coldkey_ss58=coldkey_ss58,
                 json_output=json_output,
-                verbose=verbose,
             )
         )
 
