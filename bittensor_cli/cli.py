@@ -66,6 +66,7 @@ from bittensor_cli.src.bittensor.utils import (
 )
 from bittensor_cli.src.commands import sudo, wallets, view
 from bittensor_cli.src.commands import weights as weights_cmds
+from bittensor_cli.src.commands.crowd import initiator as crowd_initiator
 from bittensor_cli.src.commands.liquidity import liquidity
 from bittensor_cli.src.commands.liquidity.utils import (
     prompt_liquidity,
@@ -678,6 +679,7 @@ class CLIManager:
     subnets_app: typer.Typer
     subnet_mechanisms_app: typer.Typer
     weights_app: typer.Typer
+    crowd_app: typer.Typer
     utils_app: typer.Typer
     view_app: typer.Typer
     asyncio_runner = asyncio
@@ -755,6 +757,7 @@ class CLIManager:
         self.weights_app = typer.Typer(epilog=_epilog)
         self.view_app = typer.Typer(epilog=_epilog)
         self.liquidity_app = typer.Typer(epilog=_epilog)
+        self.crowd_app = typer.Typer(epilog=_epilog)
         self.utils_app = typer.Typer(epilog=_epilog)
 
         # config alias
@@ -1132,6 +1135,18 @@ class CLIManager:
         self.sudo_app.command("get_take", hidden=True)(self.sudo_get_take)
         self.sudo_app.command("set_take", hidden=True)(self.sudo_set_take)
 
+        # Crowdloan
+        self.app.add_typer(
+            self.crowd_app,
+            name="crowd",
+            short_help="Crowdloan commands, aliases: `cr`, `crowdloan`",
+            no_args_is_help=True,
+        )
+        self.app.add_typer(self.crowd_app, name="cr", hidden=True, no_args_is_help=True)
+        self.app.add_typer(
+            self.crowd_app, name="crowdloan", hidden=True, no_args_is_help=True
+        )
+
         # Liquidity
         self.app.add_typer(
             self.liquidity_app,
@@ -1155,6 +1170,9 @@ class CLIManager:
         self.liquidity_app.command(
             "remove", rich_help_panel=HELP_PANELS["LIQUIDITY"]["LIQUIDITY_MGMT"]
         )(self.liquidity_remove)
+        self.crowd_app.command(
+            "create", rich_help_panel=HELP_PANELS["CROWD"]["INITIATOR"]
+        )(self.crowd_create)
 
         # utils app
         self.utils_app.command("convert")(self.convert)
@@ -7223,6 +7241,77 @@ class CLIManager:
                 netuid=netuid,
                 position_id=position_id,
                 liquidity_delta=liquidity_delta,
+                prompt=prompt,
+                json_output=json_output,
+            )
+        )
+
+    def crowd_create(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        deposit: Optional[float] = typer.Option(
+            None,
+            "--deposit",
+            help="Initial deposit in TAO to secure the crowdloan.",
+            min=1,
+        ),
+        min_contribution: Optional[float] = typer.Option(
+            None,
+            "--min-contribution",
+            "--min_contribution",
+            help="Minimum contribution amount in TAO.",
+            min=0.1,
+        ),
+        cap: Optional[int] = typer.Option(
+            None,
+            "--cap",
+            help="Maximum amount in TAO the crowdloan will raise.",
+            min=1,
+        ),
+        duration: Optional[int] = typer.Option(
+            None,
+            "--duration",
+            help="Crowdloan duration in blocks.",
+            min=1,
+        ),
+        target_address: Optional[str] = typer.Option(
+            None,
+            "--target-address",
+            "--target",
+            help="Optional target SS58 address to receive the raised funds.",
+        ),
+        prompt: bool = Options.prompt,
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """Create a new crowdloan."""
+        self.verbosity_handler(quiet, verbose, json_output)
+
+        wallet = self.wallet_ask(
+            wallet_name=wallet_name,
+            wallet_path=wallet_path,
+            wallet_hotkey=wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.WALLET,
+        )
+
+        return self._run_command(
+            crowd_initiator.create_crowdloan(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                deposit_tao=deposit,
+                min_contribution_tao=min_contribution,
+                cap_tao=cap,
+                duration_blocks=duration,
+                target_address=target_address,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
                 prompt=prompt,
                 json_output=json_output,
             )
