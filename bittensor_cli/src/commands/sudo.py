@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import TYPE_CHECKING, Union, Optional
+from typing import TYPE_CHECKING, Union, Optional, Type
 
 from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet
@@ -12,6 +12,7 @@ from scalecodec import GenericCall
 from bittensor_cli.src import (
     HYPERPARAMS,
     HYPERPARAMS_MODULE,
+    RootSudoOnly,
     DelegatesDetails,
     COLOR_PALETTE,
 )
@@ -83,7 +84,7 @@ def allowed_value(
     return True, value
 
 
-def string_to_bool(val) -> bool:
+def string_to_bool(val) -> Union[bool, Type[ValueError]]:
     try:
         return {"true": True, "1": True, "0": False, "false": False}[val.lower()]
     except KeyError:
@@ -158,7 +159,7 @@ def requires_bool(metadata, param_name, pallet: str = DEFAULT_PALLET) -> bool:
     for call in pallet.calls:
         if call.name == param_name:
             if "netuid" not in [x.name for x in call.args]:
-                return False, None
+                return False
             call_args = [arg for arg in call.args if arg.value["name"] != "netuid"]
             if len(call_args) != 1:
                 return False
@@ -270,6 +271,7 @@ async def set_hyperparameter_extrinsic(
                                `False` if the extrinsic fails to enter the block within the timeout.
     :param wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `True`,
                                   or returns `False` if the extrinsic fails to be finalized within the timeout.
+    :param prompt: If set to False, will not prompt the user.
 
     :return: tuple including:
              success: `True` if extrinsic was finalized or included in the block. If we did not wait for
@@ -295,7 +297,7 @@ async def set_hyperparameter_extrinsic(
 
     arbitrary_extrinsic = False
 
-    extrinsic, sudo_ = HYPERPARAMS.get(parameter, ("", False))
+    extrinsic, sudo_ = HYPERPARAMS.get(parameter, ("", RootSudoOnly.FALSE))
     call_params = {"netuid": netuid}
     if not extrinsic:
         arbitrary_extrinsic, call_params = search_metadata(
@@ -305,8 +307,8 @@ async def set_hyperparameter_extrinsic(
         if not arbitrary_extrinsic:
             err_msg = ":cross_mark: [red]Invalid hyperparameter specified.[/red]"
             err_console.print(err_msg)
-            return False, err_msg
-    if sudo_ and prompt:
+            return False, err_msg, None
+    if sudo_ is RootSudoOnly.TRUE and prompt:
         if not Confirm.ask(
             "This hyperparam is only settable by root sudo users. If you are not, this will fail. Please confirm"
         ):
@@ -316,82 +318,93 @@ async def set_hyperparameter_extrinsic(
     msg_value = value if not arbitrary_extrinsic else call_params
     pallet = HYPERPARAMS_MODULE.get(parameter) or DEFAULT_PALLET
 
-    with console.status(
-        f":satellite: Setting hyperparameter [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{parameter}"
-        f"[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] to [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{msg_value}"
-        f"[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] on subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
-        f"{netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] ...",
-        spinner="earth",
-    ):
-        if not arbitrary_extrinsic:
-            extrinsic_params = await substrate.get_metadata_call_function(
-                module_name=pallet, call_function_name=extrinsic
+    if not arbitrary_extrinsic:
+        extrinsic_params = await substrate.get_metadata_call_function(
+            module_name=pallet, call_function_name=extrinsic
+        )
+
+        # if input value is a list, iterate through the list and assign values
+        if isinstance(value, list):
+            # Ensure that there are enough values for all non-netuid parameters
+            non_netuid_fields = [
+                pn_str
+                for param in extrinsic_params["fields"]
+                if "netuid" not in (pn_str := str(param["name"]))
+            ]
+
+            if len(value) < len(non_netuid_fields):
+                err_msg = "Not enough values provided in the list for all parameters"
+                err_console.print(err_msg)
+                return False, err_msg, None
+
+            call_params.update(
+                {name: val for name, val in zip(non_netuid_fields, value)}
             )
 
-            # if input value is a list, iterate through the list and assign values
-            if isinstance(value, list):
-                # Ensure that there are enough values for all non-netuid parameters
-                non_netuid_fields = [
-                    pn_str
-                    for param in extrinsic_params["fields"]
-                    if "netuid" not in (pn_str := str(param["name"]))
-                ]
-
-                if len(value) < len(non_netuid_fields):
-                    err_msg = (
-                        "Not enough values provided in the list for all parameters"
-                    )
-                    err_console.print(err_msg)
-                    return False, err_msg, None
-
-                call_params.update(
-                    {name: val for name, val in zip(non_netuid_fields, value)}
-                )
-
-            else:
-                if requires_bool(
-                    substrate.metadata, param_name=extrinsic, pallet=pallet
-                ) and isinstance(value, str):
-                    value = string_to_bool(value)
-                value_argument = extrinsic_params["fields"][
-                    len(extrinsic_params["fields"]) - 1
-                ]
-                call_params[str(value_argument["name"])] = value
-
-        # create extrinsic call
-        call_ = await substrate.compose_call(
-            call_module=pallet,
-            call_function=extrinsic,
-            call_params=call_params,
+        else:
+            if requires_bool(
+                substrate.metadata, param_name=extrinsic, pallet=pallet
+            ) and isinstance(value, str):
+                value = string_to_bool(value)
+            value_argument = extrinsic_params["fields"][
+                len(extrinsic_params["fields"]) - 1
+            ]
+            call_params[str(value_argument["name"])] = value
+    # create extrinsic call
+    call_ = await substrate.compose_call(
+        call_module=pallet,
+        call_function=extrinsic,
+        call_params=call_params,
+    )
+    if sudo_ is RootSudoOnly.TRUE:
+        call = await substrate.compose_call(
+            call_module="Sudo", call_function="sudo", call_params={"call": call_}
         )
-        if sudo_:
+    elif sudo_ is RootSudoOnly.COMPLICATED:
+        if not prompt:
+            to_sudo_or_not_to_sudo = True  # default to sudo true when no-prompt is set
+        else:
+            to_sudo_or_not_to_sudo = Confirm.ask(
+                f"This hyperparam can be executed as sudo or not. Do you want to execute as sudo [y] or not [n]?"
+            )
+        if to_sudo_or_not_to_sudo:
             call = await substrate.compose_call(
-                call_module="Sudo", call_function="sudo", call_params={"call": call_}
+                call_module="Sudo",
+                call_function="sudo",
+                call_params={"call": call_},
             )
         else:
             call = call_
+    else:
+        call = call_
+    with console.status(
+        f":satellite: Setting hyperparameter [{COLOR_PALETTE.G.SUBHEAD}]{parameter}[/{COLOR_PALETTE.G.SUBHEAD}]"
+        f" to [{COLOR_PALETTE.G.SUBHEAD}]{msg_value}[/{COLOR_PALETTE.G.SUBHEAD}]"
+        f" on subnet: [{COLOR_PALETTE.G.SUBHEAD}]{netuid}[/{COLOR_PALETTE.G.SUBHEAD}] ...",
+        spinner="earth",
+    ):
         success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
             call, wallet, wait_for_inclusion, wait_for_finalization
         )
-        if not success:
-            err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
-            return False, err_msg, None
+    if not success:
+        err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+        return False, err_msg, None
+    else:
+        ext_id = await ext_receipt.get_extrinsic_identifier()
+        await print_extrinsic_id(ext_receipt)
+        if arbitrary_extrinsic:
+            console.print(
+                f":white_heavy_check_mark: "
+                f"[dark_sea_green3]Hyperparameter {parameter} values changed to {call_params}[/dark_sea_green3]"
+            )
+            return True, "", ext_id
+        # Successful registration, final check for membership
         else:
-            ext_id = await ext_receipt.get_extrinsic_identifier()
-            await print_extrinsic_id(ext_receipt)
-            if arbitrary_extrinsic:
-                console.print(
-                    f":white_heavy_check_mark: "
-                    f"[dark_sea_green3]Hyperparameter {parameter} values changed to {call_params}[/dark_sea_green3]"
-                )
-                return True, "", ext_id
-            # Successful registration, final check for membership
-            else:
-                console.print(
-                    f":white_heavy_check_mark: "
-                    f"[dark_sea_green3]Hyperparameter {parameter} changed to {value}[/dark_sea_green3]"
-                )
-                return True, "", ext_id
+            console.print(
+                f":white_heavy_check_mark: "
+                f"[dark_sea_green3]Hyperparameter {parameter} changed to {value}[/dark_sea_green3]"
+            )
+            return True, "", ext_id
 
 
 async def _get_senate_members(
@@ -725,6 +738,8 @@ async def sudo_set_hyperparameter(
         )
         err_console.print(err_msg)
         return False, err_msg, None
+    if json_output:
+        prompt = False
     success, err_msg, ext_id = await set_hyperparameter_extrinsic(
         subtensor, wallet, netuid, param_name, value, prompt=prompt
     )

@@ -1,5 +1,4 @@
 import asyncio
-import json
 from collections import defaultdict
 from functools import partial
 
@@ -349,7 +348,7 @@ async def stake_add(
                     f"[red]Not enough stake[/red]:[bold white]\n wallet balance:{remaining_wallet_balance} < "
                     f"staking amount: {amount_to_stake}[/bold white]"
                 )
-                return False
+                return
             remaining_wallet_balance -= amount_to_stake
 
             # Calculate slippage
@@ -432,9 +431,9 @@ async def stake_add(
 
     if prompt:
         if not Confirm.ask("Would you like to continue?"):
-            return False
+            return
     if not unlock_key(wallet).success:
-        return False
+        return
 
     if safe_staking:
         stake_coroutines = {}
@@ -537,6 +536,8 @@ def _prompt_stake_amount(
             return Balance.from_tao(amount), False
         except ValueError:
             console.print("[red]Please enter a valid number or 'all'[/red]")
+    # will never return this, but fixes the type checker
+    return Balance(0), False
 
 
 def _get_hotkeys_to_stake_to(

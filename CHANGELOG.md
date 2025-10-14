@@ -1,5 +1,11 @@
 # Changelog
 
+# 9.13.1 /2025-10-14
+* Fix for complicated (user_liquidity_enabled) hyperparams by @thewhaleking in https://github.com/opentensor/btcli/pull/652
+* Fixes a number of type annotations by @thewhaleking in https://github.com/opentensor/btcli/pull/653
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.13.0...v9.13.1
+
 ## 9.13.0 /2025-10-09
 
 ## What's Changed

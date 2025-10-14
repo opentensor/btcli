@@ -198,3 +198,5 @@ def prompt_position_id() -> int:
             return position_id
         except ValueError:
             console.print("[red]Please enter a valid number[/red].")
+    # will never return this, but fixes the type checker
+    return 0

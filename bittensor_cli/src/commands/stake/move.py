@@ -201,6 +201,8 @@ def prompt_stake_amount(
             return Balance.from_tao(amount), False
         except ValueError:
             console.print("[red]Please enter a valid number or 'all'[/red]")
+    # can never return this, but fixes the type checker
+    return Balance(0), False
 
 
 async def stake_move_transfer_selection(
@@ -818,14 +820,16 @@ async def swap_stake(
         wait_for_finalization (bool): If true, waits for the transaction to be finalized.
 
     Returns:
-        bool: True if the swap was successful, False otherwise.
+        (success, extrinsic_identifier):
+            success is True if the swap was successful, False otherwise.
+            extrinsic_identifier if the extrinsic was successfully included
     """
     hotkey_ss58 = get_hotkey_pub_ss58(wallet)
     if interactive_selection:
         try:
             selection = await stake_swap_selection(subtensor, wallet)
         except ValueError:
-            return False
+            return False, ""
         origin_netuid = selection["origin_netuid"]
         amount = selection["amount"]
         destination_netuid = selection["destination_netuid"]
