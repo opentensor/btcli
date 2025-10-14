@@ -1697,11 +1697,16 @@ class SubtensorInterface:
     async def get_crowdloans(
         self, block_hash: Optional[str] = None
     ) -> list[CrowdloanData]:
-        """
-        Retrieves all crowdloans stored in the `Crowdloan::Crowdloans` map.
+        """Retrieves all crowdloans from the network.
 
-        :param block_hash: Optional block hash to query against.
-        :return: A list of `CrowdloanData` objects describing each crowdloan.
+        Args:
+            block_hash (Optional[str]): The blockchain block hash at which to perform the query.
+
+        Returns:
+            dict[int, CrowdloanData]: A dictionary mapping crowdloan IDs to CrowdloanData objects
+                containing details such as creator, deposit, cap, raised amount, and finalization status.
+
+        This function fetches information about all crowdloans
         """
         crowdloans_data = await self.substrate.query_map(
             module="Crowdloan",
