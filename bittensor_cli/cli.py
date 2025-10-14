@@ -66,8 +66,11 @@ from bittensor_cli.src.bittensor.utils import (
 )
 from bittensor_cli.src.commands import sudo, wallets, view
 from bittensor_cli.src.commands import weights as weights_cmds
-from bittensor_cli.src.commands.crowd import initiator as crowd_initiator
 from bittensor_cli.src.commands.liquidity import liquidity
+from bittensor_cli.src.commands.crowd import (
+    create as create_crowdloan,
+    view as view_crowdloan,
+)
 from bittensor_cli.src.commands.liquidity.utils import (
     prompt_liquidity,
     prompt_position_id,
@@ -1170,6 +1173,9 @@ class CLIManager:
         self.liquidity_app.command(
             "remove", rich_help_panel=HELP_PANELS["LIQUIDITY"]["LIQUIDITY_MGMT"]
         )(self.liquidity_remove)
+        self.crowd_app.command("list", rich_help_panel=HELP_PANELS["CROWD"]["INFO"])(
+            self.crowd_list
+        )
         self.crowd_app.command(
             "create", rich_help_panel=HELP_PANELS["CROWD"]["INITIATOR"]
         )(self.crowd_create)
@@ -7246,6 +7252,21 @@ class CLIManager:
             )
         )
 
+    def crowd_list(
+        self,
+        network: Optional[list[str]] = Options.network,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        self.verbosity_handler(quiet, verbose, False)
+        return self._run_command(
+            view_crowdloan.list_crowdloans(
+                subtensor=self.initialize_chain(network),
+                verbose=verbose,
+            )
+        )
+
     def crowd_create(
         self,
         network: Optional[list[str]] = Options.network,
@@ -7302,7 +7323,7 @@ class CLIManager:
         )
 
         return self._run_command(
-            crowd_initiator.create_crowdloan(
+            create_crowdloan.create_crowdloan(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
                 deposit_tao=deposit,
