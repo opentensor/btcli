@@ -1749,6 +1749,36 @@ class SubtensorInterface:
             return CrowdloanData.from_any(crowdloan_info)
         return None
 
+    async def get_crowdloan_contribution(
+        self,
+        crowdloan_id: int,
+        contributor: str,
+        block_hash: Optional[str] = None,
+    ) -> Optional[Balance]:
+        """Retrieves a user's contribution to a specific crowdloan.
+
+        Args:
+            crowdloan_id (int): The ID of the crowdloan.
+            contributor (str): The SS58 address of the contributor.
+            block_hash (Optional[str]): The blockchain block hash at which to perform the query.
+
+        Returns:
+            Optional[Balance]: The contribution amount as a Balance object if found, None otherwise.
+
+        This function queries the Contributions storage to find the amount a specific address
+        has contributed to a given crowdloan.
+        """
+        contribution = await self.substrate.query(
+            module="Crowdloan",
+            storage_function="Contributions",
+            params=[crowdloan_id, contributor],
+            block_hash=block_hash,
+        )
+
+        if contribution and contribution.value:
+            return Balance.from_rao(contribution.value)
+        return None
+
     async def get_coldkey_swap_schedule_duration(
         self,
         block_hash: Optional[str] = None,
