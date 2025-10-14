@@ -1213,3 +1213,45 @@ class SimSwapResult:
             tao_fee=Balance.from_rao(d["tao_fee"]).set_unit(0),
             alpha_fee=Balance.from_rao(d["alpha_fee"]).set_unit(netuid),
         )
+
+
+@dataclass
+class CrowdloanData(InfoBase):
+    creator: Optional[str]
+    funds_account: Optional[str]
+    deposit: Balance
+    min_contribution: Balance
+    cap: Balance
+    raised: Balance
+    end: int
+    finalized: bool
+    contributors_count: int
+    target_address: Optional[str]
+    has_call: bool
+
+    @classmethod
+    def _fix_decoded(cls, decoded: dict[str, Any]) -> "CrowdloanData":
+        creator = decode_account_id(decoded["creator"]) if decoded["creator"] else None
+        funds_account = (
+            decode_account_id(decoded["funds_account"])
+            if decoded["funds_account"]
+            else None
+        )
+        target_address = (
+            decode_account_id(decoded["target_address"])
+            if decoded["target_address"]
+            else None
+        )
+        return cls(
+            creator=creator,
+            funds_account=funds_account,
+            deposit=Balance.from_rao(int(decoded["deposit"])),
+            min_contribution=Balance.from_rao(int(decoded["min_contribution"])),
+            cap=Balance.from_rao(int(decoded["cap"])),
+            raised=Balance.from_rao(int(decoded["raised"])),
+            end=int(decoded["end"]),
+            finalized=bool(decoded["finalized"]),
+            contributors_count=int(decoded["contributors_count"]),
+            target_address=target_address,
+            has_call=bool(decoded["call"]),
+        )
