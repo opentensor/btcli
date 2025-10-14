@@ -227,16 +227,19 @@ async def list_crowdloans(
 async def show_crowdloan_details(
     subtensor: SubtensorInterface,
     crowdloan_id: int,
+    crowdloan: Optional[CrowdloanData] = None,
+    current_block: Optional[int] = None,
     wallet: Optional[Wallet] = None,
     verbose: bool = False,
 ) -> tuple[bool, str]:
     """Display detailed information about a specific crowdloan."""
 
-    current_block, loan = await asyncio.gather(
-        subtensor.substrate.get_block_number(None),
-        subtensor.get_single_crowdloan(crowdloan_id),
-    )
-    if not loan:
+    if not crowdloan or not current_block:
+        current_block, crowdloan = await asyncio.gather(
+            subtensor.substrate.get_block_number(None),
+            subtensor.get_single_crowdloan(crowdloan_id),
+        )
+    if not crowdloan:
         err_console.print(f"[red]Crowdloan #{crowdloan_id} not found.[/red]")
         return False, f"Crowdloan #{crowdloan_id} not found."
 
@@ -247,7 +250,7 @@ async def show_crowdloan_details(
         )
 
     # Overview section
-    status = _status(loan, current_block)
+    status = _status(crowdloan, current_block)
     status_color_map = {
         "Finalized": COLOR_PALETTE["GENERAL"]["SUCCESS"],
         "Funded": COLOR_PALETTE["POOLS"]["EMISSION"],
@@ -270,8 +273,8 @@ async def show_crowdloan_details(
     elif status == "Finalized":
         overview_lines.append("\t\t\t[green](successfully completed)[/green]")
 
-    creator_display = loan.creator
-    funds_display = loan.funds_account
+    creator_display = crowdloan.creator
+    funds_display = crowdloan.funds_account
 
     overview_lines.extend(
         [
@@ -282,19 +285,21 @@ async def show_crowdloan_details(
     sections.append(("\n[bold cyan]OVERVIEW[/bold cyan]", "\n".join(overview_lines)))
 
     # Funding Progress section
-    raised_pct = (loan.raised.tao / loan.cap.tao * 100) if loan.cap.tao > 0 else 0
+    raised_pct = (
+        (crowdloan.raised.tao / crowdloan.cap.tao * 100) if crowdloan.cap.tao > 0 else 0
+    )
     progress_filled = int(raised_pct / 100 * 16)
     progress_empty = 16 - progress_filled
     progress_bar = f"[dark_sea_green]{'█' * progress_filled}[/dark_sea_green][grey35]{'░' * progress_empty}[/grey35]"
 
     if verbose:
-        raised_str = f"τ {loan.raised.tao:,.4f} / τ {loan.cap.tao:,.4f}"
-        deposit_str = f"τ {loan.deposit.tao:,.4f}"
-        min_contrib_str = f"τ {loan.min_contribution.tao:,.4f}"
+        raised_str = f"τ {crowdloan.raised.tao:,.4f} / τ {crowdloan.cap.tao:,.4f}"
+        deposit_str = f"τ {crowdloan.deposit.tao:,.4f}"
+        min_contrib_str = f"τ {crowdloan.min_contribution.tao:,.4f}"
     else:
-        raised_str = f"τ {millify_tao(loan.raised.tao)} / τ {millify_tao(loan.cap.tao)}"
-        deposit_str = f"τ {millify_tao(loan.deposit.tao)}"
-        min_contrib_str = f"τ {millify_tao(loan.min_contribution.tao)}"
+        raised_str = f"τ {millify_tao(crowdloan.raised.tao)} / τ {millify_tao(crowdloan.cap.tao)}"
+        deposit_str = f"τ {millify_tao(crowdloan.deposit.tao)}"
+        min_contrib_str = f"τ {millify_tao(crowdloan.min_contribution.tao)}"
 
     funding_lines = [
         f"[bold white]Raised/Cap:[/bold white]\t{raised_str}",
@@ -308,7 +313,7 @@ async def show_crowdloan_details(
     )
 
     # Timeline section
-    time_label = _time_remaining(loan, current_block)
+    time_label = _time_remaining(crowdloan, current_block)
     if "Closed" in time_label:
         time_display = f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{time_label}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
     elif time_label == "due":
@@ -317,7 +322,7 @@ async def show_crowdloan_details(
         time_display = f"[{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{time_label}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
 
     timeline_lines = [
-        f"[bold white]Ends at Block:[/bold white]\t{loan.end}",
+        f"[bold white]Ends at Block:[/bold white]\t{crowdloan.end}",
         f"[bold white]Current Block:[/bold white]\t{current_block}",
         f"[bold white]Time Remaining:[/bold white]\t{time_display}",
     ]
@@ -325,15 +330,15 @@ async def show_crowdloan_details(
 
     # Participation section
     participation_lines = [
-        f"[bold white]Contributors:[/bold white]\t{loan.contributors_count}",
+        f"[bold white]Contributors:[/bold white]\t{crowdloan.contributors_count}",
     ]
 
-    if loan.contributors_count > 0:
-        net_contributions = loan.raised.tao - loan.deposit.tao
+    if crowdloan.contributors_count > 0:
+        net_contributions = crowdloan.raised.tao - crowdloan.deposit.tao
         avg_contribution = (
-            net_contributions / (loan.contributors_count - 1)
-            if loan.contributors_count > 1
-            else loan.deposit.tao
+            net_contributions / (crowdloan.contributors_count - 1)
+            if crowdloan.contributors_count > 1
+            else crowdloan.deposit.tao
         )
         if verbose:
             avg_contrib_str = f"τ {avg_contribution:,.4f}"
@@ -344,16 +349,16 @@ async def show_crowdloan_details(
         )
 
     if user_contribution:
-        is_creator = wallet.coldkeypub.ss58_address == loan.creator
+        is_creator = wallet.coldkeypub.ss58_address == crowdloan.creator
         if verbose:
             user_contrib_str = f"τ {user_contribution.tao:,.4f}"
         else:
             user_contrib_str = f"τ {millify_tao(user_contribution.tao)}"
 
         contrib_status = ""
-        if status == "Active" and not loan.finalized:
-            if is_creator and user_contribution.tao > loan.deposit.tao:
-                withdrawable = user_contribution.tao - loan.deposit.tao
+        if status == "Active" and not crowdloan.finalized:
+            if is_creator and user_contribution.tao > crowdloan.deposit.tao:
+                withdrawable = user_contribution.tao - crowdloan.deposit.tao
                 if verbose:
                     withdrawable_str = f"τ {withdrawable:,.4f}"
                 else:
@@ -380,8 +385,8 @@ async def show_crowdloan_details(
     # Target section
     target_lines = []
 
-    if loan.target_address:
-        target_display = loan.target_address
+    if crowdloan.target_address:
+        target_display = crowdloan.target_address
         target_lines.append(f"[bold white]Address:[/bold white]\t\t{target_display}")
     else:
         target_lines.append(
@@ -390,7 +395,7 @@ async def show_crowdloan_details(
 
     has_call_display = (
         f"[{COLOR_PALETTE['GENERAL']['SUCCESS']}]Yes[/{COLOR_PALETTE['GENERAL']['SUCCESS']}]"
-        if loan.has_call
+        if crowdloan.has_call
         else f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]No[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
     )
     target_lines.append(f"[bold white]Has Call:[/bold white]\t\t{has_call_display}")
