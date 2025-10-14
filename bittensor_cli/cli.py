@@ -1176,6 +1176,9 @@ class CLIManager:
         self.crowd_app.command("list", rich_help_panel=HELP_PANELS["CROWD"]["INFO"])(
             self.crowd_list
         )
+        self.crowd_app.command("info", rich_help_panel=HELP_PANELS["CROWD"]["INFO"])(
+            self.crowd_info
+        )
         self.crowd_app.command(
             "create", rich_help_panel=HELP_PANELS["CROWD"]["INITIATOR"]
         )(self.crowd_create)
@@ -7263,6 +7266,52 @@ class CLIManager:
         return self._run_command(
             view_crowdloan.list_crowdloans(
                 subtensor=self.initialize_chain(network),
+                verbose=verbose,
+            )
+        )
+
+    def crowd_info(
+        self,
+        crowdloan_id: Optional[int] = typer.Option(
+            None,
+            "--crowdloan-id",
+            "--crowdloan_id",
+            "--id",
+            help="The ID of the crowdloan to display",
+        ),
+        network: Optional[list[str]] = Options.network,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """Display detailed information about a specific crowdloan."""
+        self.verbosity_handler(quiet, verbose, False)
+
+        if crowdloan_id is None:
+            crowdloan_id = IntPrompt.ask(
+                f"Enter the [{COLORS.G.SUBHEAD_MAIN}]crowdloan id[/{COLORS.G.SUBHEAD_MAIN}]",
+                default=None,
+                show_default=False,
+            )
+
+        wallet = None
+        if wallet_name or wallet_path or wallet_hotkey:
+            wallet = self.wallet_ask(
+                wallet_name=wallet_name,
+                wallet_path=wallet_path,
+                wallet_hotkey=wallet_hotkey,
+                ask_for=[],
+                validate=WV.WALLET,
+            )
+
+        return self._run_command(
+            view_crowdloan.show_crowdloan_details(
+                subtensor=self.initialize_chain(network),
+                crowdloan_id=crowdloan_id,
+                wallet=wallet,
                 verbose=verbose,
             )
         )
