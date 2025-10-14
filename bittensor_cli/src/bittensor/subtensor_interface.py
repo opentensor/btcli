@@ -1720,6 +1720,35 @@ class SubtensorInterface:
 
         return crowdloans
 
+    async def get_single_crowdloan(
+        self,
+        crowdloan_id: int,
+        block_hash: Optional[str] = None,
+    ) -> Optional[CrowdloanData]:
+        """Retrieves detailed information about a specific crowdloan.
+
+        Args:
+            crowdloan_id (int): The unique identifier of the crowdloan to retrieve.
+            block_hash (Optional[str]): The blockchain block hash at which to perform the query.
+
+        Returns:
+            Optional[CrowdloanData]: A CrowdloanData object containing the crowdloan's details if found,
+                None if the crowdloan does not exist.
+
+        The returned data includes crowdloan details such as funding targets,
+        contribution minimums, timeline, and current funding status
+        """
+        crowdloan_info = await self.substrate.query(
+            module="Crowdloan",
+            storage_function="Crowdloans",
+            params=[crowdloan_id],
+            block_hash=block_hash,
+        )
+
+        if crowdloan_info:
+            return CrowdloanData.from_any(crowdloan_info)
+        return None
+
     async def get_coldkey_swap_schedule_duration(
         self,
         block_hash: Optional[str] = None,
