@@ -30,6 +30,7 @@ from bittensor_cli.src.bittensor.chain_data import (
     SubnetState,
     MetagraphInfo,
     SimSwapResult,
+    CrowdloanData,
 )
 from bittensor_cli.src import DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance, fixed_to_float
@@ -1692,6 +1693,27 @@ class SubtensorInterface:
         async for ss58, _ in result:
             keys_pending_swap.append(decode_account_id(ss58))
         return keys_pending_swap
+
+    async def get_crowdloans(
+        self, block_hash: Optional[str] = None
+    ) -> list[CrowdloanData]:
+        """
+        Retrieves all crowdloans stored in the `Crowdloan::Crowdloans` map.
+
+        :param block_hash: Optional block hash to query against.
+        :return: A list of `CrowdloanData` objects describing each crowdloan.
+        """
+        crowdloans_data = await self.substrate.query_map(
+            module="Crowdloan",
+            storage_function="Crowdloans",
+            block_hash=block_hash,
+            fully_exhaust=True,
+        )
+        crowdloans = {}
+        async for fund_id, fund_info in crowdloans_data:
+            crowdloans[fund_id] = CrowdloanData.from_any(fund_info)
+
+        return crowdloans
 
     async def get_coldkey_swap_schedule_duration(
         self,
