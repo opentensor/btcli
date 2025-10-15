@@ -3,8 +3,9 @@ from typing import Optional
 
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm, IntPrompt, Prompt, FloatPrompt
+from rich.table import Table, Column, box
 
-from bittensor_cli.src import COLORS
+from bittensor_cli.src import COLORS, COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
@@ -12,7 +13,6 @@ from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
     is_valid_ss58_address,
-    print_extrinsic_id,
     unlock_key,
 )
 
@@ -220,17 +220,32 @@ async def create_crowdloan(
             else f"[{COLORS.G.SUBHEAD_MAIN}]Not specified[/{COLORS.G.SUBHEAD_MAIN}]"
         )
 
-        console.print(
-            f"You are about to create a crowdloan on "
-            f"[{COLORS.G.SUBHEAD_MAIN}]{subtensor.network}[/{COLORS.G.SUBHEAD_MAIN}]\n"
-            f"  Deposit: [{COLORS.P.TAO}]{deposit}[/{COLORS.P.TAO}]\n"
-            f"  Min contribution: [{COLORS.P.TAO}]{min_contribution}[/{COLORS.P.TAO}]\n"
-            f"  Cap: [{COLORS.P.TAO}]{cap}[/{COLORS.P.TAO}]\n"
-            f"  Duration: [bold]{duration}[/bold] blocks (~{duration_text})\n"
-            f"  Ends at block: [bold]{end_block}[/bold]\n"
-            f"  Target address: {target_text}\n"
-            f"  Estimated fee: [{COLORS.P.TAO}]{extrinsic_fee}[/{COLORS.P.TAO}]"
+        table = Table(
+            Column("[bold white]Field", style=COLOR_PALETTE["GENERAL"]["SUBHEADING"]),
+            Column("[bold white]Value", style=COLOR_PALETTE["GENERAL"]["TEMPO"]),
+            title=f"\n[bold cyan]Crowdloan Creation Summary[/bold cyan]\n"
+            f"Network: [{COLORS.G.SUBHEAD_MAIN}]{subtensor.network}[/{COLORS.G.SUBHEAD_MAIN}]",
+            show_footer=False,
+            show_header=False,
+            width=None,
+            pad_edge=False,
+            box=box.SIMPLE,
+            show_edge=True,
+            border_style="bright_black",
         )
+
+        table.add_row("Deposit", f"[{COLORS.P.TAO}]{deposit}[/{COLORS.P.TAO}]")
+        table.add_row(
+            "Min contribution", f"[{COLORS.P.TAO}]{min_contribution}[/{COLORS.P.TAO}]"
+        )
+        table.add_row("Cap", f"[{COLORS.P.TAO}]{cap}[/{COLORS.P.TAO}]")
+        table.add_row("Duration", f"[bold]{duration}[/bold] blocks (~{duration_text})")
+        table.add_row("Ends at block", f"[bold]{end_block}[/bold]")
+        table.add_row("Target address", target_text)
+        table.add_row(
+            "Estimated fee", f"[{COLORS.P.TAO}]{extrinsic_fee}[/{COLORS.P.TAO}]"
+        )
+        console.print(table)
 
         if not Confirm.ask("Proceed with creating the crowdloan?"):
             console.print("[yellow]Cancelled crowdloan creation.[/yellow]")
@@ -245,7 +260,6 @@ async def create_crowdloan(
 
     extrinsic_id = None
     if extrinsic_receipt:
-        await print_extrinsic_id(extrinsic_receipt)
         extrinsic_id = await extrinsic_receipt.get_extrinsic_identifier()
 
     if not success:
