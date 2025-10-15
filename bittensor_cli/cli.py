@@ -68,6 +68,7 @@ from bittensor_cli.src.commands import sudo, wallets, view
 from bittensor_cli.src.commands import weights as weights_cmds
 from bittensor_cli.src.commands.liquidity import liquidity
 from bittensor_cli.src.commands.crowd import (
+    contribute as crowd_contribute,
     create as create_crowdloan,
     view as view_crowdloan,
 )
@@ -1149,6 +1150,9 @@ class CLIManager:
         self.app.add_typer(
             self.crowd_app, name="crowdloan", hidden=True, no_args_is_help=True
         )
+        self.crowd_app.command(
+            "contribute", rich_help_panel=HELP_PANELS["CROWD"]["PARTICIPANT"]
+        )(self.crowd_contribute)
 
         # Liquidity
         self.app.add_typer(
@@ -7262,6 +7266,7 @@ class CLIManager:
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
+        """List all crowdloans."""
         self.verbosity_handler(quiet, verbose, False)
         return self._run_command(
             view_crowdloan.list_crowdloans(
@@ -7360,7 +7365,7 @@ class CLIManager:
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
-        """Create a new crowdloan."""
+        """Start a new crowdloan campaign to raise funds for a subnet."""
         self.verbosity_handler(quiet, verbose, json_output)
 
         wallet = self.wallet_ask(
@@ -7384,6 +7389,72 @@ class CLIManager:
                 wait_for_finalization=wait_for_finalization,
                 prompt=prompt,
                 json_output=json_output,
+            )
+        )
+
+    def crowd_contribute(
+        self,
+        crowdloan_id: Optional[int] = typer.Option(
+            None,
+            "--crowdloan-id",
+            "--crowdloan_id",
+            "--id",
+            help="The ID of the crowdloan to display",
+        ),
+        amount: Optional[float] = typer.Option(
+            None,
+            "--amount",
+            "-a",
+            help="Amount to contribute in TAO",
+            min=0.001,
+        ),
+        network: Optional[list[str]] = Options.network,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        prompt: bool = Options.prompt,
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """Contribute TAO to an active crowdloan.
+
+        This command allows you to contribute TAO to a crowdloan that is currently accepting contributions.
+        The contribution will be automatically adjusted if it would exceed the crowdloan's cap.
+
+        EXAMPLES
+
+        [green]$[/green] btcli crowd contribute --id 0 --amount 100
+
+        [green]$[/green] btcli crowd contribute --id 1
+        """
+        self.verbosity_handler(quiet, verbose, False)
+
+        if crowdloan_id is None:
+            crowdloan_id = IntPrompt.ask(
+                f"Enter the [{COLORS.G.SUBHEAD_MAIN}]crowdloan id[/{COLORS.G.SUBHEAD_MAIN}]",
+                default=None,
+                show_default=False,
+            )
+
+        wallet = self.wallet_ask(
+            wallet_name=wallet_name,
+            wallet_path=wallet_path,
+            wallet_hotkey=wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.WALLET,
+        )
+
+        return self._run_command(
+            crowd_contribute.contribute_to_crowdloan(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                crowdloan_id=crowdloan_id,
+                amount=amount,
+                prompt=prompt,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
             )
         )
 
