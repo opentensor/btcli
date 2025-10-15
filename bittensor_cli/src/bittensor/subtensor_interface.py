@@ -14,7 +14,7 @@ from async_substrate_interface.utils.storage import StorageKey
 from bittensor_wallet import Wallet
 from bittensor_wallet.bittensor_wallet import Keypair
 from bittensor_wallet.utils import SS58_FORMAT
-from scalecodec import GenericCall
+from scalecodec import GenericCall, ScaleBytes
 import typer
 import websockets
 
@@ -44,6 +44,7 @@ from bittensor_cli.src.bittensor.utils import (
     u16_normalized_float,
     U16_MAX,
     get_hotkey_pub_ss58,
+    flatten_inline_call,
 )
 
 
@@ -167,6 +168,66 @@ class SubtensorInterface:
             return result.value
         else:
             return result
+
+    async def _decode_inline_call(
+        self,
+        call_option: Any,
+        block_hash: Optional[str] = None,
+    ) -> Optional[dict[str, Any]]:
+        """
+        Decode an `Option<BoundedCall>` returned from storage into a structured dictionary.
+        """
+        if not call_option:
+            return None
+
+        if isinstance(call_option, dict) and {
+            "call_module",
+            "call_function",
+        }.issubset(call_option.keys()):
+            return {
+                "call_index": call_option.get("call_index"),
+                "pallet": call_option.get("call_module"),
+                "method": call_option.get("call_function"),
+                "args": call_option.get("call_args", []),
+                "hash": call_option.get("call_hash"),
+            }
+
+        inline_payload = None
+        if isinstance(call_option, dict):
+            inline_payload = call_option.get("Inline") or call_option.get("inline")
+        else:
+            inline_payload = call_option
+
+        if inline_payload is None:
+            return None
+
+        call_bytes = flatten_inline_call(inline_payload)
+        call_obj = await self.substrate.create_scale_object(
+            "Call",
+            data=ScaleBytes(call_bytes),
+            block_hash=block_hash,
+        )
+        call_value = call_obj.decode()
+
+        if not isinstance(call_value, dict):
+            return None
+
+        call_args = call_value.get("call_args") or []
+        args_map: dict[str, dict[str, Any]] = {}
+        for arg in call_args:
+            if isinstance(arg, dict) and arg.get("name"):
+                args_map[arg["name"]] = {
+                    "type": arg.get("type"),
+                    "value": arg.get("value"),
+                }
+
+        return {
+            "call_index": call_value.get("call_index"),
+            "pallet": call_value.get("call_module"),
+            "method": call_value.get("call_function"),
+            "args": args_map,
+            "hash": call_value.get("call_hash"),
+        }
 
     async def get_all_subnet_netuids(
         self, block_hash: Optional[str] = None
@@ -1716,7 +1777,13 @@ class SubtensorInterface:
         )
         crowdloans = {}
         async for fund_id, fund_info in crowdloans_data:
-            crowdloans[fund_id] = CrowdloanData.from_any(fund_info)
+            decoded_call = await self._decode_inline_call(
+                fund_info["call"],
+                block_hash=block_hash,
+            )
+            info_dict = dict(fund_info.value)
+            info_dict["call_details"] = decoded_call
+            crowdloans[fund_id] = CrowdloanData.from_any(info_dict)
 
         return crowdloans
 
@@ -1744,8 +1811,12 @@ class SubtensorInterface:
             params=[crowdloan_id],
             block_hash=block_hash,
         )
-
         if crowdloan_info:
+            decoded_call = await self._decode_inline_call(
+                crowdloan_info.get("call"),
+                block_hash=block_hash,
+            )
+            crowdloan_info["call_details"] = decoded_call
             return CrowdloanData.from_any(crowdloan_info)
         return None
 
