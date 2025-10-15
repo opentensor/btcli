@@ -377,9 +377,9 @@ async def show_crowdloan_details(
             if is_creator and user_contribution.tao > crowdloan.deposit.tao:
                 withdrawable = user_contribution.tao - crowdloan.deposit.tao
                 if verbose:
-                    withdrawable_str = f"τ {withdrawable:,.4f}"
+                    withdrawable_str = f"{withdrawable:,.4f}"
                 else:
-                    withdrawable_str = f"τ {millify_tao(withdrawable)}"
+                    withdrawable_str = f"{millify_tao(withdrawable)}"
                 contrib_status = (
                     f" [yellow](τ {withdrawable_str} withdrawable)[/yellow]"
                 )
