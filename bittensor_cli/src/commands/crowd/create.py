@@ -5,7 +5,7 @@ from bittensor_wallet import Wallet
 from rich.prompt import Confirm, IntPrompt, Prompt, FloatPrompt
 from rich.table import Table, Column, box
 
-from bittensor_cli.src import COLORS, COLOR_PALETTE
+from bittensor_cli.src import COLORS
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
@@ -221,8 +221,8 @@ async def create_crowdloan(
         )
 
         table = Table(
-            Column("[bold white]Field", style=COLOR_PALETTE["GENERAL"]["SUBHEADING"]),
-            Column("[bold white]Value", style=COLOR_PALETTE["GENERAL"]["TEMPO"]),
+            Column("[bold white]Field", style=COLORS.G.SUBHEAD),
+            Column("[bold white]Value", style=COLORS.G.TEMPO),
             title=f"\n[bold cyan]Crowdloan Creation Summary[/bold cyan]\n"
             f"Network: [{COLORS.G.SUBHEAD_MAIN}]{subtensor.network}[/{COLORS.G.SUBHEAD_MAIN}]",
             show_footer=False,
