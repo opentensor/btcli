@@ -5,7 +5,7 @@ from bittensor_wallet import Wallet
 from rich import box
 from rich.table import Column, Table
 
-from bittensor_cli.src import COLOR_PALETTE, COLORS
+from bittensor_cli.src import COLORS
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import CrowdloanData
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
@@ -75,8 +75,8 @@ async def list_crowdloans(
         )
 
     table = Table(
-        title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Crowdloans"
-        f"\nNetwork: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{subtensor.network}\n\n",
+        title=f"\n[{COLORS.G.HEADER}]Crowdloans"
+        f"\nNetwork: [{COLORS.G.SUBHEAD}]{subtensor.network}\n\n",
         show_footer=True,
         show_edge=False,
         header_style="bold white",
@@ -104,37 +104,35 @@ async def list_crowdloans(
     )
     table.add_column(
         f"[bold white]Min Contribution\n({Balance.get_unit(0)})",
-        style=COLOR_PALETTE["POOLS"]["EMISSION"],
+        style=COLORS.P.EMISSION,
         justify="left",
     )
-    table.add_column(
-        "[bold white]Ends (Block)", style=COLOR_PALETTE["STAKE"]["TAO"], justify="left"
-    )
+    table.add_column("[bold white]Ends (Block)", style=COLORS.S.TAO, justify="left")
     table.add_column(
         "[bold white]Time Remaining",
-        style=COLOR_PALETTE["STAKE"]["STAKE_ALPHA"],
+        style=COLORS.S.ALPHA,
         justify="left",
     )
     table.add_column(
         "[bold white]Contributors",
-        style=COLOR_PALETTE["POOLS"]["ALPHA_IN"],
+        style=COLORS.P.ALPHA_IN,
         justify="center",
         footer=str(total_contributors),
     )
     table.add_column(
         "[bold white]Creator",
-        style=COLOR_PALETTE["GENERAL"]["TEMPO"],
+        style=COLORS.G.TEMPO,
         justify="left",
         overflow="fold",
     )
     table.add_column(
         "[bold white]Target",
-        style=COLOR_PALETTE["GENERAL"]["SUBHEADING_EXTRA_1"],
+        style=COLORS.G.SUBHEAD_EX_1,
         justify="center",
     )
     table.add_column(
         "[bold white]Funds Account",
-        style=COLOR_PALETTE["GENERAL"]["SUBHEADING_EXTRA_2"],
+        style=COLORS.G.SUBHEAD_EX_2,
         justify="left",
         overflow="fold",
     )
@@ -171,16 +169,16 @@ async def list_crowdloans(
         )
 
         status_color_map = {
-            "Finalized": COLOR_PALETTE["GENERAL"]["SUCCESS"],
-            "Funded": COLOR_PALETTE["POOLS"]["EMISSION"],
-            "Closed": COLOR_PALETTE["GENERAL"]["SYMBOL"],
-            "Active": COLOR_PALETTE["GENERAL"]["HINT"],
+            "Finalized": COLORS.G.SUCCESS,
+            "Funded": COLORS.P.EMISSION,
+            "Closed": COLORS.G.SYM,
+            "Active": COLORS.G.HINT,
         }
         status_color = status_color_map.get(status, "white")
         status_cell = f"[{status_color}]{status}[/{status_color}]"
 
         if "Closed" in time_label:
-            time_cell = f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{time_label}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
+            time_cell = f"[{COLORS.G.SYM}]{time_label}[/{COLORS.G.SYM}]"
         elif time_label == "due":
             time_cell = f"[red]{time_label}[/red]"
         else:
@@ -200,9 +198,9 @@ async def list_crowdloans(
         )
 
         call_cell = (
-            f"[{COLOR_PALETTE['GENERAL']['SUCCESS']}]Yes[/{COLOR_PALETTE['GENERAL']['SUCCESS']}]"
+            f"[{COLORS.G.SUCCESS}]Yes[/{COLORS.G.SUCCESS}]"
             if loan.has_call
-            else f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]No[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
+            else f"[{COLORS.G.SYM}]No[/{COLORS.G.SYM}]"
         )
 
         table.add_row(
@@ -252,22 +250,22 @@ async def show_crowdloan_details(
 
     status = _status(crowdloan, current_block)
     status_color_map = {
-        "Finalized": COLOR_PALETTE["GENERAL"]["SUCCESS"],
-        "Funded": COLOR_PALETTE["POOLS"]["EMISSION"],
-        "Closed": COLOR_PALETTE["GENERAL"]["SYMBOL"],
-        "Active": COLOR_PALETTE["GENERAL"]["HINT"],
+        "Finalized": COLORS.G.SUCCESS,
+        "Funded": COLORS.P.EMISSION,
+        "Closed": COLORS.G.SYM,
+        "Active": COLORS.G.HINT,
     }
     status_color = status_color_map.get(status, "white")
 
     table = Table(
         Column(
             "Field",
-            style=COLOR_PALETTE["GENERAL"]["SUBHEADING"],
+            style=COLORS.G.SUBHEAD,
             min_width=20,
             no_wrap=True,
         ),
-        Column("Value", style=COLOR_PALETTE["GENERAL"]["TEMPO"]),
-        title=f"\n[underline][{COLOR_PALETTE.G.HEADER}]CROWDLOAN #{crowdloan_id}[/underline][/{COLOR_PALETTE.G.HEADER}] - [{status_color} underline]{status.upper()}[/{status_color} underline]",
+        Column("Value", style=COLORS.G.TEMPO),
+        title=f"\n[underline][{COLORS.G.HEADER}]CROWDLOAN #{crowdloan_id}[/underline][/{COLORS.G.HEADER}] - [{status_color} underline]{status.upper()}[/{status_color} underline]",
         show_header=False,
         show_footer=False,
         width=None,
@@ -295,11 +293,11 @@ async def show_crowdloan_details(
     table.add_row("Status", f"[{status_color}]{status}[/{status_color}]{status_detail}")
     table.add_row(
         "Creator",
-        f"[{COLOR_PALETTE['GENERAL']['TEMPO']}]{crowdloan.creator}[/{COLOR_PALETTE['GENERAL']['TEMPO']}]",
+        f"[{COLORS.G.TEMPO}]{crowdloan.creator}[/{COLORS.G.TEMPO}]",
     )
     table.add_row(
         "Funds Account",
-        f"[{COLOR_PALETTE['GENERAL']['SUBHEADING_EXTRA_2']}]{crowdloan.funds_account}[/{COLOR_PALETTE['GENERAL']['SUBHEADING_EXTRA_2']}]",
+        f"[{COLORS.G.SUBHEAD_EX_2}]{crowdloan.funds_account}[/{COLORS.G.SUBHEAD_EX_2}]",
     )
 
     # FUNDING PROGRESS Section
@@ -337,11 +335,11 @@ async def show_crowdloan_details(
 
     time_label = _time_remaining(crowdloan, current_block)
     if "Closed" in time_label:
-        time_display = f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{time_label}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
+        time_display = f"[{COLORS.G.SYM}]{time_label}[/{COLORS.G.SYM}]"
     elif time_label == "due":
         time_display = "[red]Due now[/red]"
     else:
-        time_display = f"[{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{time_label}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
+        time_display = f"[{COLORS.S.ALPHA}]{time_label}[/{COLORS.S.ALPHA}]"
 
     table.add_row("Ends at Block", f"{crowdloan.end}")
     table.add_row("Current Block", f"{current_block}")
@@ -410,9 +408,9 @@ async def show_crowdloan_details(
     table.add_row("Address", target_display)
 
     has_call_display = (
-        f"[{COLOR_PALETTE['GENERAL']['SUCCESS']}]Yes[/{COLOR_PALETTE['GENERAL']['SUCCESS']}]"
+        f"[{COLORS.G.SUCCESS}]Yes[/{COLORS.G.SUCCESS}]"
         if crowdloan.has_call
-        else f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]No[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
+        else f"[{COLORS.G.SYM}]No[/{COLORS.G.SYM}]"
     )
     table.add_row("Has Call", has_call_display)
 
