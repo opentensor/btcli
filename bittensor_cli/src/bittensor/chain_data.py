@@ -1228,6 +1228,7 @@ class CrowdloanData(InfoBase):
     contributors_count: int
     target_address: Optional[str]
     has_call: bool
+    call_details: Optional[dict] = None
 
     @classmethod
     def _fix_decoded(cls, decoded: dict[str, Any]) -> "CrowdloanData":
@@ -1254,4 +1255,5 @@ class CrowdloanData(InfoBase):
             contributors_count=int(decoded["contributors_count"]),
             target_address=target_address,
             has_call=bool(decoded["call"]),
+            call_details=decoded["call_details"],
         )
