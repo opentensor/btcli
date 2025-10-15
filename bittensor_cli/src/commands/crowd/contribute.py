@@ -146,6 +146,7 @@ async def contribute_to_crowdloan(
         },
     )
     extrinsic_fee = await subtensor.get_extrinsic_fee(call, wallet.coldkeypub)
+    updated_balance = user_balance - actual_contribution - extrinsic_fee
 
     table = Table(
         Column("[bold white]Field", style=COLORS.G.SUBHEAD),
@@ -188,7 +189,7 @@ async def contribute_to_crowdloan(
     table.add_row("Transaction Fee", str(extrinsic_fee))
     table.add_row(
         "Balance After",
-        f"[blue]{user_balance}[/blue] → [{COLORS.S.AMOUNT}]{Balance.from_rao(user_balance.rao - actual_contribution.rao - extrinsic_fee.rao)}[/{COLORS.S.AMOUNT}]",
+        f"[blue]{user_balance}[/blue] → [{COLORS.S.AMOUNT}]{updated_balance}[/{COLORS.S.AMOUNT}]",
     )
     console.print(table)
 
@@ -231,7 +232,7 @@ async def contribute_to_crowdloan(
     )
 
     console.print(
-        f"\n:white_heavy_check_mark: [dark_sea_green3]Successfully contributed to crowdloan #{crowdloan_id}![/dark_sea_green3]"
+        f"\n[dark_sea_green3]Successfully contributed to crowdloan #{crowdloan_id}![/dark_sea_green3]"
     )
 
     console.print(
@@ -265,3 +266,192 @@ async def contribute_to_crowdloan(
         await print_extrinsic_id(extrinsic_receipt)
 
     return True, "Successfully contributed to crowdloan."
+
+
+async def withdraw_from_crowdloan(
+    subtensor: SubtensorInterface,
+    wallet: Wallet,
+    crowdloan_id: int,
+    wait_for_inclusion: bool,
+    wait_for_finalization: bool,
+    prompt: bool,
+) -> tuple[bool, str]:
+    """
+    Withdraw contributions from a non-finalized crowdloan.
+
+    Non-creators can withdraw their full contribution.
+    Creators can only withdraw amounts above their initial deposit.
+
+    Args:
+        subtensor: SubtensorInterface instance for blockchain interaction
+        wallet: Wallet instance containing the user's keys
+        crowdloan_id: The ID of the crowdloan to withdraw from
+        wait_for_inclusion: Whether to wait for transaction inclusion
+        wait_for_finalization: Whether to wait for transaction finalization
+        prompt: Whether to prompt for user confirmation
+
+    Returns:
+        Tuple of (success, message) indicating the result
+    """
+
+    crowdloan, current_block = await asyncio.gather(
+        subtensor.get_single_crowdloan(crowdloan_id),
+        subtensor.substrate.get_block_number(None),
+    )
+
+    if not crowdloan:
+        err_console.print(f"[red]Crowdloan #{crowdloan_id} does not exist.[/red]")
+        return False, f"Crowdloan #{crowdloan_id} does not exist."
+
+    if crowdloan.finalized:
+        err_console.print(
+            f"[red]Crowdloan #{crowdloan_id} is already finalized. Withdrawals are not allowed.[/red]"
+        )
+        return False, "Cannot withdraw from finalized crowdloan."
+
+    user_contribution, user_balance = await asyncio.gather(
+        subtensor.get_crowdloan_contribution(
+            crowdloan_id, wallet.coldkeypub.ss58_address
+        ),
+        subtensor.get_balance(wallet.coldkeypub.ss58_address),
+    )
+
+    if user_contribution == Balance.from_tao(0):
+        err_console.print(
+            f"[red]You have no contribution to withdraw from crowdloan #{crowdloan_id}.[/red]"
+        )
+        return False, "No contribution to withdraw."
+
+    is_creator = wallet.coldkeypub.ss58_address == crowdloan.creator
+    if is_creator:
+        withdrawable = user_contribution - crowdloan.deposit
+        if withdrawable <= 0:
+            err_console.print(
+                f"[red]As the creator, you cannot withdraw your deposit of {crowdloan.deposit}. "
+                f"Only contributions above the deposit can be withdrawn.[/red]"
+            )
+            return False, "Creator cannot withdraw deposit amount."
+        remaining_contribution = crowdloan.deposit
+    else:
+        withdrawable = user_contribution
+        remaining_contribution = Balance.from_tao(0)
+
+    call = await subtensor.substrate.compose_call(
+        call_module="Crowdloan",
+        call_function="withdraw",
+        call_params={
+            "crowdloan_id": crowdloan_id,
+        },
+    )
+    extrinsic_fee = await subtensor.get_extrinsic_fee(call, wallet.coldkeypub)
+    await show_crowdloan_details(
+        subtensor=subtensor,
+        crowdloan_id=crowdloan_id,
+        wallet=wallet,
+        verbose=False,
+        crowdloan=crowdloan,
+        current_block=current_block,
+    )
+
+    if prompt:
+        new_balance = user_balance + withdrawable - extrinsic_fee
+        new_raised = crowdloan.raised - withdrawable
+        table = Table(
+            Column("[bold white]Field", style=COLORS.G.SUBHEAD),
+            Column("[bold white]Value", style=COLORS.G.TEMPO),
+            title="\n[bold cyan]Withdrawal Summary[/bold cyan]",
+            show_footer=False,
+            show_header=False,
+            width=None,
+            pad_edge=False,
+            box=box.SIMPLE,
+            show_edge=True,
+            border_style="bright_black",
+        )
+
+        table.add_row("Crowdloan ID", str(crowdloan_id))
+
+        if is_creator:
+            table.add_row("Role", "[yellow]Creator[/yellow]")
+            table.add_row("Current Contribution", str(user_contribution))
+            table.add_row("Deposit (Locked)", f"[yellow]{crowdloan.deposit}[/yellow]")
+            table.add_row(
+                "Withdrawable Amount",
+                f"[{COLORS.S.AMOUNT}]{withdrawable}[/{COLORS.S.AMOUNT}]",
+            )
+            table.add_row(
+                "Remaining After Withdrawal",
+                f"[yellow]{remaining_contribution}[/yellow] (deposit)",
+            )
+        else:
+            table.add_row("Current Contribution", str(user_contribution))
+            table.add_row(
+                "Withdrawal Amount",
+                f"[{COLORS.S.AMOUNT}]{withdrawable}[/{COLORS.S.AMOUNT}]",
+            )
+
+        table.add_row("Transaction Fee", str(extrinsic_fee))
+        table.add_row(
+            "Balance After",
+            f"[blue]{user_balance}[/blue] → [{COLORS.S.AMOUNT}]{new_balance}[/{COLORS.S.AMOUNT}]",
+        )
+
+        table.add_row(
+            "Crowdloan Total After",
+            f"[blue]{crowdloan.raised}[/blue] → [{COLORS.S.AMOUNT}]{new_raised}[/{COLORS.S.AMOUNT}]",
+        )
+
+        console.print(table)
+
+        if not Confirm.ask("\nProceed with withdrawal?"):
+            console.print("[yellow]Withdrawal cancelled.[/yellow]")
+            return False, "Withdrawal cancelled by user."
+
+    unlock_status = unlock_key(wallet)
+    if not unlock_status.success:
+        err_console.print(f"[red]{unlock_status.message}[/red]")
+        return False, unlock_status.message
+
+    with console.status(f"\n:satellite: Withdrawing from crowdloan #{crowdloan_id}..."):
+        (
+            success,
+            error_message,
+            extrinsic_receipt,
+        ) = await subtensor.sign_and_send_extrinsic(
+            call=call,
+            wallet=wallet,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+        )
+
+    if not success:
+        err_console.print(
+            f"[red]Failed to withdraw: {error_message or 'Unknown error'}[/red]"
+        )
+        return False, error_message or "Failed to withdraw from crowdloan."
+
+    console.print(
+        f"\n✅ [green]Successfully withdrew from crowdloan #{crowdloan_id}![/green]\n"
+    )
+
+    new_balance, updated_contribution = await asyncio.gather(
+        subtensor.get_balance(wallet.coldkeypub.ss58_address),
+        subtensor.get_crowdloan_contribution(
+            crowdloan_id, wallet.coldkeypub.ss58_address
+        ),
+    )
+
+    console.print(
+        f"Amount Withdrawn: [{COLORS.S.AMOUNT}]{withdrawable}[/{COLORS.S.AMOUNT}]\n"
+        f"Balance:\n  [blue]{user_balance}[/blue] → [{COLORS.S.AMOUNT}]{new_balance}[/{COLORS.S.AMOUNT}]"
+    )
+
+    if is_creator and updated_contribution:
+        console.print(
+            f"Remaining Contribution: [{COLORS.S.AMOUNT}]{updated_contribution}[/{COLORS.S.AMOUNT}] (deposit locked)"
+        )
+
+    if extrinsic_receipt:
+        await print_extrinsic_id(extrinsic_receipt)
+
+    return True, "Successfully withdrew from crowdloan."
