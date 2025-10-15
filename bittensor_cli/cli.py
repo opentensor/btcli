@@ -1153,6 +1153,9 @@ class CLIManager:
         self.crowd_app.command(
             "contribute", rich_help_panel=HELP_PANELS["CROWD"]["PARTICIPANT"]
         )(self.crowd_contribute)
+        self.crowd_app.command(
+            "withdraw", rich_help_panel=HELP_PANELS["CROWD"]["PARTICIPANT"]
+        )(self.crowd_withdraw)
 
         # Liquidity
         self.app.add_typer(
@@ -7455,6 +7458,57 @@ class CLIManager:
                 prompt=prompt,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
+            )
+        )
+
+    def crowd_withdraw(
+        self,
+        crowdloan_id: Optional[int] = typer.Option(
+            None,
+            "--crowdloan-id",
+            "--crowdloan_id",
+            "--id",
+            help="The ID of the crowdloan to withdraw from",
+        ),
+        network: Optional[list[str]] = Options.network,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        prompt: bool = Options.prompt,
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Withdraw contributions from a non-finalized crowdloan.
+
+        Non-creators can withdraw their full contribution.
+        Creators can only withdraw amounts above their initial deposit.
+        """
+        if crowdloan_id is None:
+            crowdloan_id = IntPrompt.ask(
+                f"Enter the [{COLORS.G.SUBHEAD_MAIN}]crowdloan id[/{COLORS.G.SUBHEAD_MAIN}]",
+                default=None,
+                show_default=False,
+            )
+
+        wallet = self.wallet_ask(
+            wallet_name=wallet_name,
+            wallet_path=wallet_path,
+            wallet_hotkey=wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.WALLET,
+        )
+
+        return self._run_command(
+            crowd_contribute.withdraw_from_crowdloan(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                crowdloan_id=crowdloan_id,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+                prompt=prompt,
             )
         )
 
