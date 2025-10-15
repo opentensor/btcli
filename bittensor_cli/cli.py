@@ -1156,6 +1156,9 @@ class CLIManager:
         self.crowd_app.command(
             "withdraw", rich_help_panel=HELP_PANELS["CROWD"]["PARTICIPANT"]
         )(self.crowd_withdraw)
+        self.crowd_app.command(
+            "finalize", rich_help_panel=HELP_PANELS["CROWD"]["INITIATOR"]
+        )(self.crowd_finalize)
 
         # Liquidity
         self.app.add_typer(
@@ -7359,7 +7362,27 @@ class CLIManager:
             None,
             "--target-address",
             "--target",
-            help="Optional target SS58 address to receive the raised funds.",
+            help="Optional target SS58 address to receive the raised funds (for fundraising type).",
+        ),
+        subnet_lease: Optional[bool] = typer.Option(
+            None,
+            "--subnet-lease/--fundraising",
+            help="Create a subnet leasing crowdloan (True) or general fundraising (False).",
+        ),
+        emissions_share: Optional[int] = typer.Option(
+            None,
+            "--emissions-share",
+            "--emissions",
+            help="Percentage of emissions for contributors (0-100) for subnet leasing.",
+            min=0,
+            max=100,
+        ),
+        lease_end_block: Optional[int] = typer.Option(
+            None,
+            "--lease-end-block",
+            "--lease-end",
+            help="Block number when subnet lease ends (omit for perpetual lease).",
+            min=1,
         ),
         prompt: bool = Options.prompt,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
@@ -7368,7 +7391,23 @@ class CLIManager:
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
-        """Start a new crowdloan campaign to raise funds for a subnet."""
+        """Start a new crowdloan campaign for fundraising or subnet leasing.
+
+        Create a crowdloan that can either:
+        1. Raise funds for a specific address (general fundraising)
+        2. Create a new leased subnet where contributors receive emissions
+
+        EXAMPLES
+
+        General fundraising:
+        [green]$[/green] btcli crowd create --deposit 10 --cap 1000 --target-address 5D...
+
+        Subnet leasing with 30% emissions for contributors:
+        [green]$[/green] btcli crowd create --subnet-lease --emissions-share 30
+
+        Subnet lease ending at block 500000:
+        [green]$[/green] btcli crowd create --subnet-lease --emissions-share 25 --lease-end-block 500000
+        """
         self.verbosity_handler(quiet, verbose, json_output)
 
         wallet = self.wallet_ask(
@@ -7388,6 +7427,9 @@ class CLIManager:
                 cap_tao=cap,
                 duration_blocks=duration,
                 target_address=target_address,
+                subnet_lease=subnet_lease,
+                emissions_share=emissions_share,
+                lease_end_block=lease_end_block,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 prompt=prompt,
@@ -7503,6 +7545,57 @@ class CLIManager:
 
         return self._run_command(
             crowd_contribute.withdraw_from_crowdloan(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                crowdloan_id=crowdloan_id,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+                prompt=prompt,
+            )
+        )
+
+    def crowd_finalize(
+        self,
+        crowdloan_id: Optional[int] = typer.Option(
+            None,
+            "--crowdloan-id",
+            "--crowdloan_id",
+            "--id",
+            help="The ID of the crowdloan to finalize",
+        ),
+        network: Optional[list[str]] = Options.network,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        prompt: bool = Options.prompt,
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Finalize a successful crowdloan that has reached its cap.
+
+        Only the creator can finalize. This will transfer funds to the target
+        address (if specified) and execute any attached call (e.g., subnet creation).
+        """
+        if crowdloan_id is None:
+            crowdloan_id = IntPrompt.ask(
+                f"Enter the [{COLORS.G.SUBHEAD_MAIN}]crowdloan id[/{COLORS.G.SUBHEAD_MAIN}]",
+                default=None,
+                show_default=False,
+            )
+
+        wallet = self.wallet_ask(
+            wallet_name=wallet_name,
+            wallet_path=wallet_path,
+            wallet_hotkey=wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.WALLET,
+        )
+
+        return self._run_command(
+            create_crowdloan.finalize_crowdloan(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
                 crowdloan_id=crowdloan_id,
