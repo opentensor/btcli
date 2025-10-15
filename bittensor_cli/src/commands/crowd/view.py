@@ -2,7 +2,8 @@ from typing import Optional
 
 import asyncio
 from bittensor_wallet import Wallet
-from rich.table import Table
+from rich import box
+from rich.table import Column, Table
 
 from bittensor_cli.src import COLOR_PALETTE, COLORS
 from bittensor_cli.src.bittensor.balances import Balance
@@ -249,7 +250,6 @@ async def show_crowdloan_details(
             crowdloan_id, wallet.coldkeypub.ss58_address
         )
 
-    # Overview section
     status = _status(crowdloan, current_block)
     status_color_map = {
         "Finalized": COLOR_PALETTE["GENERAL"]["SUCCESS"],
@@ -258,33 +258,55 @@ async def show_crowdloan_details(
         "Active": COLOR_PALETTE["GENERAL"]["HINT"],
     }
     status_color = status_color_map.get(status, "white")
-    header = f"[bold white]CROWDLOAN #{crowdloan_id}[/bold white] - [{status_color}]{status.upper()}[/{status_color}]"
-    sections = []
-    overview_lines = [
-        f"[bold white]Status:[/bold white]\t\t[{status_color}]{status}[/{status_color}]",
-    ]
 
-    if status == "Active":
-        overview_lines.append("\t\t\t[dim](accepting contributions)[/dim]")
-    elif status == "Funded":
-        overview_lines.append("\t\t\t[yellow](awaiting finalization)[/yellow]")
-    elif status == "Closed":
-        overview_lines.append("\t\t\t[dim](failed to reach cap)[/dim]")
-    elif status == "Finalized":
-        overview_lines.append("\t\t\t[green](successfully completed)[/green]")
-
-    creator_display = crowdloan.creator
-    funds_display = crowdloan.funds_account
-
-    overview_lines.extend(
-        [
-            f"[bold white]Creator:[/bold white]\t\t[{COLOR_PALETTE['GENERAL']['TEMPO']}]{creator_display}[/{COLOR_PALETTE['GENERAL']['TEMPO']}]",
-            f"[bold white]Funds Account:[/bold white]\t[{COLOR_PALETTE['GENERAL']['SUBHEADING_EXTRA_2']}]{funds_display}[/{COLOR_PALETTE['GENERAL']['SUBHEADING_EXTRA_2']}]",
-        ]
+    table = Table(
+        Column(
+            "Field",
+            style=COLOR_PALETTE["GENERAL"]["SUBHEADING"],
+            min_width=20,
+            no_wrap=True,
+        ),
+        Column("Value", style=COLOR_PALETTE["GENERAL"]["TEMPO"]),
+        title=f"\n[underline][{COLOR_PALETTE.G.HEADER}]CROWDLOAN #{crowdloan_id}[/underline][/{COLOR_PALETTE.G.HEADER}] - [{status_color} underline]{status.upper()}[/{status_color} underline]",
+        show_header=False,
+        show_footer=False,
+        width=None,
+        pad_edge=False,
+        box=box.SIMPLE,
+        show_edge=True,
+        border_style="bright_black",
+        expand=False,
     )
-    sections.append(("\n[bold cyan]OVERVIEW[/bold cyan]", "\n".join(overview_lines)))
 
-    # Funding Progress section
+    # OVERVIEW Section
+    table.add_row("[cyan underline]OVERVIEW[/cyan underline]", "")
+    table.add_section()
+
+    status_detail = ""
+    if status == "Active":
+        status_detail = " [dim](accepting contributions)[/dim]"
+    elif status == "Funded":
+        status_detail = " [yellow](awaiting finalization)[/yellow]"
+    elif status == "Closed":
+        status_detail = " [dim](failed to reach cap)[/dim]"
+    elif status == "Finalized":
+        status_detail = " [green](successfully completed)[/green]"
+
+    table.add_row("Status", f"[{status_color}]{status}[/{status_color}]{status_detail}")
+    table.add_row(
+        "Creator",
+        f"[{COLOR_PALETTE['GENERAL']['TEMPO']}]{crowdloan.creator}[/{COLOR_PALETTE['GENERAL']['TEMPO']}]",
+    )
+    table.add_row(
+        "Funds Account",
+        f"[{COLOR_PALETTE['GENERAL']['SUBHEADING_EXTRA_2']}]{crowdloan.funds_account}[/{COLOR_PALETTE['GENERAL']['SUBHEADING_EXTRA_2']}]",
+    )
+
+    # FUNDING PROGRESS Section
+    table.add_section()
+    table.add_row("[cyan underline]FUNDING PROGRESS[/cyan underline]", "")
+    table.add_section()
+
     raised_pct = (
         (crowdloan.raised.tao / crowdloan.cap.tao * 100) if crowdloan.cap.tao > 0 else 0
     )
@@ -301,18 +323,18 @@ async def show_crowdloan_details(
         deposit_str = f"τ {millify_tao(crowdloan.deposit.tao)}"
         min_contrib_str = f"τ {millify_tao(crowdloan.min_contribution.tao)}"
 
-    funding_lines = [
-        f"[bold white]Raised/Cap:[/bold white]\t{raised_str}",
-        f"[bold white]Progress:[/bold white]\t\t[{progress_bar}] [dark_sea_green]{raised_pct:.2f}%[/dark_sea_green]",
-        f"[bold white]Deposit:[/bold white]\t\t{deposit_str}",
-        f"[bold white]Min Contribution:[/bold white]\t{min_contrib_str}",
-    ]
-
-    sections.append(
-        ("\n[bold cyan]FUNDING PROGRESS[/bold cyan]", "\n".join(funding_lines))
+    table.add_row("Raised/Cap", raised_str)
+    table.add_row(
+        "Progress", f"{progress_bar} [dark_sea_green]{raised_pct:.2f}%[/dark_sea_green]"
     )
+    table.add_row("Deposit", deposit_str)
+    table.add_row("Min Contribution", min_contrib_str)
 
-    # Timeline section
+    # TIMELINE Section
+    table.add_section()
+    table.add_row("[cyan underline]TIMELINE[/cyan underline]", "")
+    table.add_section()
+
     time_label = _time_remaining(crowdloan, current_block)
     if "Closed" in time_label:
         time_display = f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{time_label}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
@@ -321,17 +343,16 @@ async def show_crowdloan_details(
     else:
         time_display = f"[{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]{time_label}[/{COLOR_PALETTE['STAKE']['STAKE_ALPHA']}]"
 
-    timeline_lines = [
-        f"[bold white]Ends at Block:[/bold white]\t{crowdloan.end}",
-        f"[bold white]Current Block:[/bold white]\t{current_block}",
-        f"[bold white]Time Remaining:[/bold white]\t{time_display}",
-    ]
-    sections.append(("\n[bold cyan]TIMELINE[/bold cyan]", "\n".join(timeline_lines)))
+    table.add_row("Ends at Block", f"{crowdloan.end}")
+    table.add_row("Current Block", f"{current_block}")
+    table.add_row("Time Remaining", time_display)
 
-    # Participation section
-    participation_lines = [
-        f"[bold white]Contributors:[/bold white]\t{crowdloan.contributors_count}",
-    ]
+    # PARTICIPATION Section
+    table.add_section()
+    table.add_row("[cyan underline]PARTICIPATION[/cyan underline]", "")
+    table.add_section()
+
+    table.add_row("Contributors", f"{crowdloan.contributors_count}")
 
     if crowdloan.contributors_count > 0:
         net_contributions = crowdloan.raised.tao - crowdloan.deposit.tao
@@ -344,9 +365,7 @@ async def show_crowdloan_details(
             avg_contrib_str = f"τ {avg_contribution:,.4f}"
         else:
             avg_contrib_str = f"τ {millify_tao(avg_contribution)}"
-        participation_lines.append(
-            f"[bold white]Avg Contribution:[/bold white]\t{avg_contrib_str}"
-        )
+        table.add_row("Avg Contribution", avg_contrib_str)
 
     if user_contribution:
         is_creator = wallet.coldkeypub.ss58_address == crowdloan.creator
@@ -371,52 +390,31 @@ async def show_crowdloan_details(
         elif status == "Closed":
             contrib_status = " [green](refundable)[/green]"
 
-        participation_lines.append(
-            f"[bold white]Your Contribution:[/bold white]\t{user_contrib_str}{contrib_status}"
-        )
-
+        your_contrib_value = f"{user_contrib_str}{contrib_status}"
         if is_creator:
-            participation_lines.append("\t\t\t[dim](You are the creator)[/dim]")
+            your_contrib_value += " [dim](You are the creator)[/dim]"
+        table.add_row("Your Contribution", your_contrib_value)
 
-    sections.append(
-        ("\n[bold cyan]PARTICIPATION[/bold cyan]", "\n".join(participation_lines))
-    )
-
-    # Target section
-    target_lines = []
+    # TARGET Section
+    table.add_section()
+    table.add_row("[cyan underline]TARGET[/cyan underline]", "")
+    table.add_section()
 
     if crowdloan.target_address:
         target_display = crowdloan.target_address
-        target_lines.append(f"[bold white]Address:[/bold white]\t\t{target_display}")
     else:
-        target_lines.append(
-            f"[bold white]Address:[/bold white]\t\t[{COLORS.G.SUBHEAD_MAIN}]Not specified[/{COLORS.G.SUBHEAD_MAIN}]"
+        target_display = (
+            f"[{COLORS.G.SUBHEAD_MAIN}]Not specified[/{COLORS.G.SUBHEAD_MAIN}]"
         )
+
+    table.add_row("Address", target_display)
 
     has_call_display = (
         f"[{COLOR_PALETTE['GENERAL']['SUCCESS']}]Yes[/{COLOR_PALETTE['GENERAL']['SUCCESS']}]"
         if crowdloan.has_call
         else f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]No[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
     )
-    target_lines.append(f"[bold white]Has Call:[/bold white]\t\t{has_call_display}")
+    table.add_row("Has Call", has_call_display)
 
-    sections.append(("\n[bold cyan]TARGET[/bold cyan]", "\n".join(target_lines)))
-
-    # All sections
-    divider_width = 63
-    divider = "═" * divider_width
-    header_text = f"CROWDLOAN #{crowdloan_id} - {status.upper()}"
-    padding_needed = (divider_width - len(header_text)) // 2
-    centered_header = " " * padding_needed + header
-
-    console.print(f"\n[bright_black]{divider}[/bright_black]")
-    console.print(centered_header)
-    console.print(f"[bright_black]{divider}[/bright_black]")
-
-    for section_title, section_content in sections:
-        console.print(section_title)
-        console.print(section_content)
-
-    console.print(f"[bright_black]{divider}[/bright_black]\n")
-
+    console.print(table)
     return True, f"Displayed info for crowdloan #{crowdloan_id}"
