@@ -197,11 +197,24 @@ async def list_crowdloans(
             loan.funds_account if verbose else _shorten(loan.funds_account)
         )
 
-        call_cell = (
-            f"[{COLORS.G.SUCCESS}]Yes[/{COLORS.G.SUCCESS}]"
-            if loan.has_call
-            else f"[{COLORS.G.SYM}]No[/{COLORS.G.SYM}]"
-        )
+        if loan.call_details:
+            pallet = loan.call_details.get("pallet", "")
+            method = loan.call_details.get("method", "")
+
+            if pallet == "SubtensorModule" and method == "register_leased_network":
+                call_label = "[magenta]Subnet Leasing[/magenta]"
+            else:
+                call_label = (
+                    f"{pallet}.{method}"
+                    if pallet and method
+                    else method or pallet or "Unknown"
+                )
+
+            call_cell = call_label
+        elif loan.has_call:
+            call_cell = f"[{COLORS.G.SYM}]Unknown[/{COLORS.G.SYM}]"
+        else:
+            call_cell = "-"
 
         table.add_row(
             str(loan_id),
@@ -413,6 +426,46 @@ async def show_crowdloan_details(
         else f"[{COLORS.G.SYM}]No[/{COLORS.G.SYM}]"
     )
     table.add_row("Has Call", has_call_display)
+
+    if crowdloan.has_call and crowdloan.call_details:
+        table.add_section()
+        table.add_row("[cyan underline]CALL DETAILS[/cyan underline]", "")
+        table.add_section()
+
+        pallet = crowdloan.call_details.get("pallet", "Unknown")
+        method = crowdloan.call_details.get("method", "Unknown")
+        args = crowdloan.call_details.get("args", {})
+
+        if pallet == "SubtensorModule" and method == "register_leased_network":
+            table.add_row("Type", "[magenta]Subnet Leasing[/magenta]")
+            emissions_share = args.get("emissions_share", {}).get("value")
+            if emissions_share is not None:
+                table.add_row("Emissions Share", f"[cyan]{emissions_share}%[/cyan]")
+
+            end_block = args.get("end_block", {}).get("value")
+            if end_block:
+                table.add_row("Lease Ends", f"Block {end_block}")
+            else:
+                table.add_row("Lease Duration", "[green]Perpetual[/green]")
+        else:
+            table.add_row("Pallet", pallet)
+            table.add_row("Method", method)
+            if args:
+                for arg_name, arg_data in args.items():
+                    if isinstance(arg_data, dict):
+                        display_value = arg_data.get("value")
+                        arg_type = arg_data.get("type")
+                    else:
+                        display_value = arg_data
+                        arg_type = None
+
+                    if arg_type:
+                        table.add_row(
+                            f"{arg_name} [{arg_type}]",
+                            str(display_value),
+                        )
+                    else:
+                        table.add_row(arg_name, str(display_value))
 
     console.print(table)
     return True, f"Displayed info for crowdloan #{crowdloan_id}"
