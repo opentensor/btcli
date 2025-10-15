@@ -85,3 +85,183 @@ async def contribute_to_crowdloan(
     if not is_valid:
         err_console.print(f"[red]{error_message}[/red]")
         return False, error_message
+
+    contributor_address = wallet.coldkeypub.ss58_address
+    current_contribution, user_balance, _ = await asyncio.gather(
+        subtensor.get_crowdloan_contribution(crowdloan_id, contributor_address),
+        subtensor.get_balance(contributor_address),
+        show_crowdloan_details(
+            subtensor=subtensor,
+            crowdloan_id=crowdloan_id,
+            wallet=wallet,
+            verbose=False,
+            crowdloan=crowdloan,
+            current_block=current_block,
+        ),
+    )
+
+    if amount is None:
+        left_to_raise = crowdloan.cap - crowdloan.raised
+        max_contribution = min(user_balance, left_to_raise)
+
+        console.print(
+            f"\n[bold cyan]Contribution Options:[/bold cyan]\n"
+            f"  Your Balance: {user_balance}\n"
+            f"  Maximum You Can Contribute: [{COLORS.S.AMOUNT}]{max_contribution}[/{COLORS.S.AMOUNT}]"
+        )
+        amount = FloatPrompt.ask(
+            f"\nEnter contribution amount in {Balance.unit}",
+            default=float(crowdloan.min_contribution.tao),
+        )
+
+    contribution_amount = Balance.from_tao(amount)
+    if contribution_amount < crowdloan.min_contribution:
+        err_console.print(
+            f"[red]Contribution amount ({contribution_amount}) is below minimum ({crowdloan.min_contribution}).[/red]"
+        )
+        return False, "Contribution below minimum requirement."
+
+    if contribution_amount > user_balance:
+        err_console.print(
+            f"[red]Insufficient balance. You have {user_balance} but trying to contribute {contribution_amount}.[/red]"
+        )
+        return False, "Insufficient balance."
+
+    # Auto-adjustment
+    left_to_raise = crowdloan.cap - crowdloan.raised
+    actual_contribution = contribution_amount
+    will_be_adjusted = False
+
+    if contribution_amount > left_to_raise:
+        actual_contribution = left_to_raise
+        will_be_adjusted = True
+
+    # Extrinsic fee
+    call = await subtensor.substrate.compose_call(
+        call_module="Crowdloan",
+        call_function="contribute",
+        call_params={
+            "crowdloan_id": crowdloan_id,
+            "amount": contribution_amount.rao,
+        },
+    )
+    extrinsic_fee = await subtensor.get_extrinsic_fee(call, wallet.coldkeypub)
+
+    table = Table(
+        Column("[bold white]Field", style=COLORS.G.SUBHEAD),
+        Column("[bold white]Value", style=COLORS.G.TEMPO),
+        title="\n[bold cyan]Contribution Summary[/bold cyan]",
+        show_footer=False,
+        width=None,
+        pad_edge=False,
+        box=box.SIMPLE,
+        show_edge=True,
+        border_style="bright_black",
+    )
+
+    table.add_row("Crowdloan ID", str(crowdloan_id))
+    table.add_row("Creator", crowdloan.creator)
+    table.add_row(
+        "Current Progress",
+        f"{crowdloan.raised} / {crowdloan.cap} ({(crowdloan.raised.tao / crowdloan.cap.tao * 100):.2f}%)",
+    )
+
+    if current_contribution:
+        table.add_row("Your Current Contribution", str(current_contribution))
+        table.add_row("New Contribution", str(actual_contribution))
+        table.add_row(
+            "Total After Contribution",
+            f"[{COLORS.S.AMOUNT}]{Balance.from_rao(current_contribution.rao + actual_contribution.rao)}[/{COLORS.S.AMOUNT}]",
+        )
+    else:
+        table.add_row(
+            "Contribution Amount",
+            f"[{COLORS.S.AMOUNT}]{actual_contribution}[/{COLORS.S.AMOUNT}]",
+        )
+
+    if will_be_adjusted:
+        table.add_row(
+            "Note",
+            f"[yellow]Amount adjusted from {contribution_amount} to {actual_contribution} (cap limit)[/yellow]",
+        )
+
+    table.add_row("Transaction Fee", str(extrinsic_fee))
+    table.add_row(
+        "Balance After",
+        f"[blue]{user_balance}[/blue] → [{COLORS.S.AMOUNT}]{Balance.from_rao(user_balance.rao - actual_contribution.rao - extrinsic_fee.rao)}[/{COLORS.S.AMOUNT}]",
+    )
+    console.print(table)
+
+    if will_be_adjusted:
+        console.print(
+            f"\n[yellow] Your contribution will be automatically adjusted to {actual_contribution} "
+            f"because the crowdloan only needs {left_to_raise} more to reach its cap.[/yellow]"
+        )
+
+    if prompt:
+        if not Confirm.ask("\nProceed with contribution?"):
+            console.print("[yellow]Contribution cancelled.[/yellow]")
+            return False, "Contribution cancelled by user."
+
+    unlock_status = unlock_key(wallet)
+    if not unlock_status.success:
+        err_console.print(f"[red]{unlock_status.message}[/red]")
+        return False, unlock_status.message
+
+    with console.status(f"\n:satellite: Contributing to crowdloan #{crowdloan_id}..."):
+        (
+            success,
+            error_message,
+            extrinsic_receipt,
+        ) = await subtensor.sign_and_send_extrinsic(
+            call=call,
+            wallet=wallet,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+        )
+
+    if not success:
+        err_console.print(f"[red]Failed to contribute: {error_message}[/red]")
+        return False, error_message or "Failed to contribute."
+
+    new_balance, new_contribution, updated_crowdloan = await asyncio.gather(
+        subtensor.get_balance(contributor_address),
+        subtensor.get_crowdloan_contribution(crowdloan_id, contributor_address),
+        subtensor.get_single_crowdloan(crowdloan_id),
+    )
+
+    console.print(
+        f"\n:white_heavy_check_mark: [dark_sea_green3]Successfully contributed to crowdloan #{crowdloan_id}![/dark_sea_green3]"
+    )
+
+    console.print(
+        f"Balance:\n  [blue]{user_balance}[/blue] → "
+        f"[{COLORS.S.AMOUNT}]{new_balance}[/{COLORS.S.AMOUNT}]"
+    )
+
+    if new_contribution:
+        if current_contribution:
+            console.print(
+                f"Your Contribution:\n  [blue]{current_contribution}[/blue] → "
+                f"[{COLORS.S.AMOUNT}]{new_contribution}[/{COLORS.S.AMOUNT}]"
+            )
+        else:
+            console.print(
+                f"Your Contribution: [{COLORS.S.AMOUNT}]{new_contribution}[/{COLORS.S.AMOUNT}]"
+            )
+
+    if updated_crowdloan:
+        console.print(
+            f"Crowdloan Progress:\n  [blue]{crowdloan.raised}[/blue] → "
+            f"[{COLORS.S.AMOUNT}]{updated_crowdloan.raised}[/{COLORS.S.AMOUNT}] / {updated_crowdloan.cap}"
+        )
+
+        if updated_crowdloan.raised >= updated_crowdloan.cap:
+            console.print(
+                "\n[bold green]🎉 Crowdloan has reached its funding cap![/bold green]"
+            )
+
+    if extrinsic_receipt:
+        await print_extrinsic_id(extrinsic_receipt)
+
+    return True, "Successfully contributed to crowdloan."
