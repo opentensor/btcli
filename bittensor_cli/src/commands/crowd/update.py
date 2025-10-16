@@ -1,4 +1,5 @@
 import asyncio
+import json
 from typing import Optional
 
 from bittensor_wallet import Wallet
@@ -11,6 +12,7 @@ from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
     blocks_to_duration,
     console,
+    json_console,
     print_error,
     unlock_key,
     print_extrinsic_id,
@@ -29,6 +31,7 @@ async def update_crowdloan(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt: bool = True,
+    json_output: bool = False,
 ) -> tuple[bool, str]:
     """Update parameters of a non-finalized crowdloan.
 
@@ -62,23 +65,35 @@ async def update_crowdloan(
     absolute_min = Balance.from_rao(absolute_min_rao)
 
     if not crowdloan:
-        print_error(f"[red]Crowdloan #{crowdloan_id} not found.[/red]")
-        return False, f"Crowdloan #{crowdloan_id} not found."
+        error_msg = f"Crowdloan #{crowdloan_id} not found."
+        if json_output:
+            json_console.print(json.dumps({"success": False, "error": error_msg}))
+        else:
+            print_error(f"[red]{error_msg}[/red]")
+        return False, error_msg
 
     if crowdloan.finalized:
-        print_error(
-            f"[red]Crowdloan #{crowdloan_id} is already finalized and cannot be updated.[/red]"
+        error_msg = (
+            f"Crowdloan #{crowdloan_id} is already finalized and cannot be updated."
         )
+        if json_output:
+            json_console.print(json.dumps({"success": False, "error": error_msg}))
+        else:
+            print_error(f"[red]{error_msg}[/red]")
         return False, f"Crowdloan #{crowdloan_id} is already finalized."
 
     creator_address = wallet.coldkeypub.ss58_address
     if creator_address != crowdloan.creator:
-        print_error(
-            f"[red]Only the creator can update this crowdloan.[/red]\n"
-            f"Creator: [blue]{crowdloan.creator}[/blue]\n"
-            f"Your address: [blue]{creator_address}[/blue]"
-        )
-        return False, "Only the creator can update this crowdloan."
+        error_msg = "Only the creator can update this crowdloan."
+        if json_output:
+            json_console.print(json.dumps({"success": False, "error": error_msg}))
+        else:
+            print_error(
+                f"[red]Only the creator can update this crowdloan.[/red]\n"
+                f"Creator: [blue]{crowdloan.creator}[/blue]\n"
+                f"Your address: [blue]{creator_address}[/blue]"
+            )
+        return False, error_msg
 
     await show_crowdloan_details(
         subtensor=subtensor,
@@ -105,7 +120,12 @@ async def update_crowdloan(
         )
 
         if choice == 4:
-            console.print("[yellow]Update cancelled.[/yellow]")
+            if json_output:
+                json_console.print(
+                    json.dumps({"success": False, "error": "Update cancelled by user."})
+                )
+            else:
+                console.print("[yellow]Update cancelled.[/yellow]")
             return False, "Update cancelled by user."
 
         if choice == 1:
@@ -215,45 +235,69 @@ async def update_crowdloan(
         update_type = "End Block"
 
     if call_function is None or value is None or param_name is None:
-        print_error("[red]No update parameter specified.[/red]")
-        return False, "No update parameter specified."
+        error_msg = "No update parameter specified."
+        if json_output:
+            json_console.print(json.dumps({"success": False, "error": error_msg}))
+        else:
+            print_error(f"[red]{error_msg}[/red]")
+        return False, error_msg
 
     # Validation
     if call_function == "update_min_contribution":
         if value.rao < absolute_min.rao:
-            print_error(
-                f"[red]Minimum contribution ({value}) must be at least {absolute_min}.[/red]"
-            )
-            return False, f"Minimum contribution must be at least {absolute_min}."
+            error_msg = f"Minimum contribution must be at least {absolute_min}."
+            if json_output:
+                json_console.print(json.dumps({"success": False, "error": error_msg}))
+            else:
+                print_error(
+                    f"[red]Minimum contribution ({value}) must be at least {absolute_min}.[/red]"
+                )
+            return False, error_msg
 
     elif call_function == "update_end":
         if value <= current_block:
-            print_error(
-                f"[red]End block ({value:,}) must be after current block ({current_block:,}).[/red]"
-            )
-            return False, "End block must be in the future."
+            error_msg = "End block must be in the future."
+            if json_output:
+                json_console.print(json.dumps({"success": False, "error": error_msg}))
+            else:
+                print_error(
+                    f"[red]End block ({value:,}) must be after current block ({current_block:,}).[/red]"
+                )
+            return False, error_msg
 
         block_duration = value - current_block
         if block_duration < min_duration:
-            print_error(
-                f"[red]Duration ({blocks_to_duration(block_duration)}) is too short. "
-                f"Minimum: [dim]{min_end_block} - {blocks_to_duration(min_duration)}[/dim][/red]"
-            )
-            return False, "Block duration too short."
+            error_msg = "Block duration too short."
+            if json_output:
+                json_console.print(json.dumps({"success": False, "error": error_msg}))
+            else:
+                print_error(
+                    f"[red]Duration ({blocks_to_duration(block_duration)}) is too short. "
+                    f"Minimum: [dim]{min_end_block} - {blocks_to_duration(min_duration)}[/dim][/red]"
+                )
+            return False, error_msg
 
         if block_duration > max_duration:
-            print_error(
-                f"[red]Duration ({blocks_to_duration(block_duration)}) is too long. "
-                f"Maximum: [dim]{max_end_block} - {blocks_to_duration(max_duration)}[/dim][/red]"
-            )
-            return False, "Block duration too long."
+            error_msg = "Block duration too long."
+            if json_output:
+                json_console.print(json.dumps({"success": False, "error": error_msg}))
+            else:
+                print_error(
+                    f"[red]Duration ({blocks_to_duration(block_duration)}) is too long. "
+                    f"Maximum: [dim]{max_end_block} - {blocks_to_duration(max_duration)}[/dim][/red]"
+                )
+            return False, error_msg
 
     elif call_function == "update_cap":
         if value < crowdloan.raised:
-            print_error(
-                f"[red]New cap ({value}) must be at least the amount already raised ({crowdloan.raised}).[/red]"
-            )
-            return False, "Cap must be >= raised amount."
+            error_msg = "Cap must be >= raised amount."
+            if json_output:
+                json_console.print(json.dumps({"success": False, "error": error_msg}))
+            else:
+                print_error(
+                    f"[red]New cap ({value}) must be at least the amount already raised ({crowdloan.raised}).[/red]"
+                )
+            return False, error_msg
 
     # Update summary
     table = Table(
@@ -287,15 +331,25 @@ async def update_crowdloan(
     if prompt and not Confirm.ask(
         f"\n[bold]Proceed with updating {update_type}?[/bold]", default=False
     ):
-        console.print("[yellow]Update cancelled.[/yellow]")
+        if json_output:
+            json_console.print(
+                json.dumps({"success": False, "error": "Update cancelled by user."})
+            )
+        else:
+            console.print("[yellow]Update cancelled.[/yellow]")
         return False, "Update cancelled by user."
 
     unlock_status = unlock_key(wallet)
     if not unlock_status.success:
-        print_error(f"[red]{unlock_status.message}[/red]")
+        if json_output:
+            json_console.print(
+                json.dumps({"success": False, "error": unlock_status.message})
+            )
+        else:
+            print_error(f"[red]{unlock_status.message}[/red]")
         return False, unlock_status.message
 
-    if call_function == "update_min_contribution":
+    if call_function != "update_end":
         value = value.rao
 
     with console.status(
@@ -319,14 +373,36 @@ async def update_crowdloan(
         )
 
     if not success:
-        print_error(f"[red]Failed to update {update_type}.[/red]\n{error_message}")
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": False,
+                        "error": error_message or f"Failed to update {update_type}.",
+                    }
+                )
+            )
+        else:
+            print_error(f"[red]Failed to update {update_type}.[/red]\n{error_message}")
         return False, error_message
 
-    console.print(
-        f"[green]{update_type} updated successfully![/green]\n"
-        f"Crowdloan #{crowdloan_id} has been updated."
-    )
-    if extrinsic_receipt:
+    if json_output:
+        extrinsic_id = await extrinsic_receipt.get_extrinsic_identifier()
+        output_dict = {
+            "success": True,
+            "error": None,
+            "extrinsic_identifier": extrinsic_id,
+            "data": {
+                "crowdloan_id": crowdloan_id,
+                "update_type": update_type,
+            },
+        }
+        json_console.print(json.dumps(output_dict))
+    else:
+        console.print(
+            f"[green]{update_type} updated successfully![/green]\n"
+            f"Crowdloan #{crowdloan_id} has been updated."
+        )
         await print_extrinsic_id(extrinsic_receipt)
 
     return True, f"{update_type} updated successfully."
