@@ -1782,7 +1782,7 @@ class SubtensorInterface:
         The returned data includes crowdloan details such as funding targets,
         contribution minimums, timeline, and current funding status
         """
-        crowdloan_info = await self.substrate.query(
+        crowdloan_info = await self.query(
             module="Crowdloan",
             storage_function="Crowdloans",
             params=[crowdloan_id],
@@ -1816,15 +1816,15 @@ class SubtensorInterface:
         This function queries the Contributions storage to find the amount a specific address
         has contributed to a given crowdloan.
         """
-        contribution = await self.substrate.query(
+        contribution = await self.query(
             module="Crowdloan",
             storage_function="Contributions",
             params=[crowdloan_id, contributor],
             block_hash=block_hash,
         )
 
-        if contribution and contribution.value:
-            return Balance.from_rao(contribution.value)
+        if contribution:
+            return Balance.from_rao(contribution)
         return None
 
     async def get_coldkey_swap_schedule_duration(
