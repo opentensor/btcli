@@ -47,18 +47,17 @@ async def update_crowdloan(
         tuple[bool, str]: Success status and message
     """
 
-    (
-        crowdloan,
-        current_block,
-        absolute_min_rao,
-        min_duration,
-        max_duration,
-    ) = await asyncio.gather(
-        subtensor.get_single_crowdloan(crowdloan_id),
-        subtensor.substrate.get_block_number(None),
-        get_constant(subtensor, "AbsoluteMinimumContribution"),
-        get_constant(subtensor, "MinimumBlockDuration"),
-        get_constant(subtensor, "MaximumBlockDuration"),
+    block_hash = await subtensor.substrate.get_chain_head()
+    crowdloan, current_block = await asyncio.gather(
+        subtensor.get_single_crowdloan(crowdloan_id, block_hash=block_hash),
+        subtensor.substrate.get_block_number(block_hash=block_hash),
+    )
+
+    runtime = await subtensor.substrate.init_runtime(block_hash=block_hash)
+    absolute_min_rao, min_duration, max_duration = await asyncio.gather(
+        get_constant(subtensor, "AbsoluteMinimumContribution", runtime=runtime),
+        get_constant(subtensor, "MinimumBlockDuration", runtime=runtime),
+        get_constant(subtensor, "MaximumBlockDuration", runtime=runtime),
     )
     absolute_min = Balance.from_rao(absolute_min_rao)
 
@@ -329,6 +328,5 @@ async def update_crowdloan(
     )
     if extrinsic_receipt:
         await print_extrinsic_id(extrinsic_receipt)
-
 
     return True, f"{update_type} updated successfully."

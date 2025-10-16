@@ -77,16 +77,18 @@ async def create_crowdloan(
         print_error("Crowdloan type not specified and no prompt provided.")
         return False, "Crowdloan type not specified and no prompt provided."
 
+    block_hash = await subtensor.substrate.get_chain_head()
+    runtime = await subtensor.substrate.init_runtime(block_hash=block_hash)
     (
         minimum_deposit_raw,
         min_contribution_raw,
         min_duration,
         max_duration,
     ) = await asyncio.gather(
-        get_constant(subtensor, "MinimumDeposit"),
-        get_constant(subtensor, "AbsoluteMinimumContribution"),
-        get_constant(subtensor, "MinimumBlockDuration"),
-        get_constant(subtensor, "MaximumBlockDuration"),
+        get_constant(subtensor, "MinimumDeposit", runtime=runtime),
+        get_constant(subtensor, "AbsoluteMinimumContribution", runtime=runtime),
+        get_constant(subtensor, "MinimumBlockDuration", runtime=runtime),
+        get_constant(subtensor, "MaximumBlockDuration", runtime=runtime),
     )
 
     minimum_deposit = Balance.from_rao(minimum_deposit_raw)
