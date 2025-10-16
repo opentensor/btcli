@@ -70,7 +70,10 @@ from bittensor_cli.src.commands.liquidity import liquidity
 from bittensor_cli.src.commands.crowd import (
     contribute as crowd_contribute,
     create as create_crowdloan,
+    dissolve as crowd_dissolve,
     view as view_crowdloan,
+    update as crowd_update,
+    refund as crowd_refund,
 )
 from bittensor_cli.src.commands.liquidity.utils import (
     prompt_liquidity,
@@ -1159,6 +1162,24 @@ class CLIManager:
         self.crowd_app.command(
             "finalize", rich_help_panel=HELP_PANELS["CROWD"]["INITIATOR"]
         )(self.crowd_finalize)
+        self.crowd_app.command("list", rich_help_panel=HELP_PANELS["CROWD"]["INFO"])(
+            self.crowd_list
+        )
+        self.crowd_app.command("info", rich_help_panel=HELP_PANELS["CROWD"]["INFO"])(
+            self.crowd_info
+        )
+        self.crowd_app.command(
+            "create", rich_help_panel=HELP_PANELS["CROWD"]["INITIATOR"]
+        )(self.crowd_create)
+        self.crowd_app.command(
+            "update", rich_help_panel=HELP_PANELS["CROWD"]["INITIATOR"]
+        )(self.crowd_update)
+        self.crowd_app.command(
+            "refund", rich_help_panel=HELP_PANELS["CROWD"]["INITIATOR"]
+        )(self.crowd_refund)
+        self.crowd_app.command(
+            "dissolve", rich_help_panel=HELP_PANELS["CROWD"]["INITIATOR"]
+        )(self.crowd_dissolve)
 
         # Liquidity
         self.app.add_typer(
@@ -1183,15 +1204,6 @@ class CLIManager:
         self.liquidity_app.command(
             "remove", rich_help_panel=HELP_PANELS["LIQUIDITY"]["LIQUIDITY_MGMT"]
         )(self.liquidity_remove)
-        self.crowd_app.command("list", rich_help_panel=HELP_PANELS["CROWD"]["INFO"])(
-            self.crowd_list
-        )
-        self.crowd_app.command("info", rich_help_panel=HELP_PANELS["CROWD"]["INFO"])(
-            self.crowd_info
-        )
-        self.crowd_app.command(
-            "create", rich_help_panel=HELP_PANELS["CROWD"]["INITIATOR"]
-        )(self.crowd_create)
 
         # utils app
         self.utils_app.command("convert")(self.convert)
@@ -7596,6 +7608,194 @@ class CLIManager:
 
         return self._run_command(
             create_crowdloan.finalize_crowdloan(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                crowdloan_id=crowdloan_id,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+                prompt=prompt,
+            )
+        )
+
+    def crowd_update(
+        self,
+        crowdloan_id: Optional[int] = typer.Option(
+            None,
+            "--crowdloan-id",
+            "--crowdloan_id",
+            "--id",
+            help="The ID of the crowdloan to update",
+        ),
+        min_contribution: Optional[float] = typer.Option(
+            None,
+            "--min-contribution",
+            "--min",
+            help="Update the minimum contribution amount (in TAO)",
+        ),
+        end: Optional[int] = typer.Option(
+            None,
+            "--end",
+            "--end-block",
+            help="Update the end block number",
+        ),
+        cap: Optional[float] = typer.Option(
+            None,
+            "--cap",
+            help="Update the cap amount (in TAO)",
+        ),
+        network: Optional[list[str]] = Options.network,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        prompt: bool = Options.prompt,
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Update one mutable field on a non-finalized crowdloan.
+
+        Only the creator can invoke this. You may change the minimum contribution,
+        the end block, or the cap in a single call. When no flag is provided an
+        interactive prompt guides you through the update and validates the input
+        against the chain constants (absolute minimum contribution, block-duration
+        bounds, etc.).
+        """
+        if crowdloan_id is None:
+            crowdloan_id = IntPrompt.ask(
+                f"Enter the [{COLORS.G.SUBHEAD_MAIN}]crowdloan id[/{COLORS.G.SUBHEAD_MAIN}]",
+                default=None,
+                show_default=False,
+            )
+
+        wallet = self.wallet_ask(
+            wallet_name=wallet_name,
+            wallet_path=wallet_path,
+            wallet_hotkey=wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.WALLET,
+        )
+
+        min_contribution_balance = (
+            Balance.from_tao(min_contribution) if min_contribution is not None else None
+        )
+        cap_balance = Balance.from_tao(cap) if cap is not None else None
+
+        return self._run_command(
+            crowd_update.update_crowdloan(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                crowdloan_id=crowdloan_id,
+                min_contribution=min_contribution_balance,
+                end=end,
+                cap=cap_balance,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+                prompt=prompt,
+            )
+        )
+
+    def crowd_refund(
+        self,
+        crowdloan_id: Optional[int] = typer.Option(
+            None,
+            "--crowdloan-id",
+            "--crowdloan_id",
+            "--id",
+            help="The ID of the crowdloan to refund",
+        ),
+        network: Optional[list[str]] = Options.network,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        prompt: bool = Options.prompt,
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Refund contributors of a non-finalized crowdloan.
+
+        Any account may call this once the crowdloan is no longer wanted. Each call
+        refunds up to the on-chain `RefundContributorsLimit` contributors (currently
+        50) excluding the creator. Run it repeatedly until everyone except the creator
+        has been reimbursed.
+        """
+        if crowdloan_id is None:
+            crowdloan_id = IntPrompt.ask(
+                f"Enter the [{COLORS.G.SUBHEAD_MAIN}]crowdloan id[/{COLORS.G.SUBHEAD_MAIN}]",
+                default=None,
+                show_default=False,
+            )
+
+        wallet = self.wallet_ask(
+            wallet_name=wallet_name,
+            wallet_path=wallet_path,
+            wallet_hotkey=wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.WALLET,
+        )
+
+        return self._run_command(
+            crowd_refund.refund_crowdloan(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                crowdloan_id=crowdloan_id,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+                prompt=prompt,
+            )
+        )
+
+    def crowd_dissolve(
+        self,
+        crowdloan_id: Optional[int] = typer.Option(
+            None,
+            "--crowdloan-id",
+            "--crowdloan_id",
+            "--id",
+            help="The ID of the crowdloan to dissolve",
+        ),
+        network: Optional[list[str]] = Options.network,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        prompt: bool = Options.prompt,
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Dissolve a crowdloan after all contributors have been refunded.
+
+        Only the creator can dissolve. The crowdloan must be non-finalized and the
+        raised balance must equal the creator's own contribution (i.e., all other
+        contributions have been withdrawn or refunded). Dissolving returns the
+        creator's deposit and removes the crowdloan from storage.
+
+        If there are funds still available other than the creator's contribution,
+        you can run `btcli crowd refund` to refund the remaining contributors.
+        """
+        if crowdloan_id is None:
+            crowdloan_id = IntPrompt.ask(
+                f"Enter the [{COLORS.G.SUBHEAD_MAIN}]crowdloan id[/{COLORS.G.SUBHEAD_MAIN}]",
+                default=None,
+                show_default=False,
+            )
+
+        wallet = self.wallet_ask(
+            wallet_name=wallet_name,
+            wallet_path=wallet_path,
+            wallet_hotkey=wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.WALLET,
+        )
+
+        return self._run_command(
+            crowd_dissolve.dissolve_crowdloan(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
                 crowdloan_id=crowdloan_id,
