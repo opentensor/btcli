@@ -7299,11 +7299,12 @@ class CLIManager:
 
         [green]$[/green] btcli crowd list --verbose
         """
-        self.verbosity_handler(quiet, verbose, False)
+        self.verbosity_handler(quiet, verbose, json_output)
         return self._run_command(
             view_crowdloan.list_crowdloans(
                 subtensor=self.initialize_chain(network),
                 verbose=verbose,
+                json_output=json_output,
             )
         )
 
@@ -7335,7 +7336,7 @@ class CLIManager:
 
         [green]$[/green] btcli crowd info --id 1 --verbose
         """
-        self.verbosity_handler(quiet, verbose, False)
+        self.verbosity_handler(quiet, verbose, json_output)
 
         if crowdloan_id is None:
             crowdloan_id = IntPrompt.ask(
@@ -7360,6 +7361,7 @@ class CLIManager:
                 crowdloan_id=crowdloan_id,
                 wallet=wallet,
                 verbose=verbose,
+                json_output=json_output,
             )
         )
 
