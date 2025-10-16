@@ -88,3 +88,73 @@ async def dissolve_crowdloan(
         crowdloan=crowdloan,
         current_block=current_block,
     )
+
+    summary = Table(
+        Column("Field", style=COLORS.G.SUBHEAD),
+        Column("Value", style=COLORS.G.TEMPO),
+        box=box.SIMPLE,
+        show_header=False,
+    )
+    summary.add_row("Crowdloan ID", f"#{crowdloan_id}")
+    summary.add_row("Raised", str(crowdloan.raised))
+    summary.add_row("Creator Contribution", str(creator_contribution))
+    summary.add_row(
+        "Remaining Contributors",
+        str(max(0, crowdloan.contributors_count - 1)),
+    )
+    time_remaining = crowdloan.end - current_block
+    summary.add_row(
+        "Time Remaining",
+        blocks_to_duration(time_remaining) if time_remaining > 0 else "Ended",
+    )
+
+    console.print("\n[bold cyan]Crowdloan Dissolution Summary[/bold cyan]")
+    console.print(summary)
+
+    if prompt and not Confirm.ask(
+        f"\n[bold]Proceed with dissolving crowdloan #{crowdloan_id}?[/bold]",
+        default=False,
+    ):
+        console.print("[yellow]Dissolution cancelled.[/yellow]")
+        return False, "Dissolution cancelled by user."
+
+    unlock_status = unlock_key(wallet)
+    if not unlock_status.success:
+        print_error(f"[red]{unlock_status.message}[/red]")
+        return False, unlock_status.message
+
+    with console.status(
+        ":satellite: Submitting dissolve transaction...", spinner="aesthetic"
+    ):
+        call = await subtensor.substrate.compose_call(
+            call_module="Crowdloan",
+            call_function="dissolve",
+            call_params={"crowdloan_id": crowdloan_id},
+        )
+        extrinsic = await subtensor.substrate.create_signed_extrinsic(
+            call=call,
+            keypair=wallet.coldkey,
+        )
+        response = await subtensor.substrate.submit_extrinsic(
+            extrinsic,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+        )
+
+    if not wait_for_finalization and not wait_for_inclusion:
+        console.print("[green]Dissolve transaction submitted.[/green]")
+        return True, "Dissolve transaction submitted."
+
+    await response.process_events()
+
+    if not await response.is_success:
+        print_error(
+            f"[red]Failed to dissolve crowdloan.[/red]\n{format_error_message(await response.error_message)}"
+        )
+        return False, format_error_message(await response.error_message)
+
+    await print_extrinsic_id(response)
+
+    console.print("[green]Crowdloan dissolved successfully![/green]")
+
+    return True, "Crowdloan dissolved successfully."
