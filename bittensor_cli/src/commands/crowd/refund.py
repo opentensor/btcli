@@ -121,3 +121,60 @@ async def refund_crowdloan(
         )
 
     console.print(info_table)
+
+    if estimated_calls > 1:
+        console.print(
+            f"\n[yellow]Note:[/yellow] Due to the [cyan]Refund Contributors Limit[/cyan] of {refund_limit:,} contributors per call,\n"
+            f"  you may need to execute this command [yellow]{estimated_calls} times[/yellow] to refund all contributors.\n"
+            f"  Each call will refund up to {refund_limit:,} contributors until all are processed.\n"
+        )
+
+    if prompt and not Confirm.ask(
+        f"\n[bold]Proceed with refunding contributors of Crowdloan #{crowdloan_id}?[/bold]",
+        default=False,
+    ):
+        console.print("[yellow]Refund cancelled.[/yellow]")
+        return False, "Refund cancelled by user."
+
+    unlock_status = unlock_key(wallet)
+    if not unlock_status.success:
+        print_error(f"[red]{unlock_status.message}[/red]")
+        return False, unlock_status.message
+
+    with console.status(
+        ":satellite: Submitting refund transaction...", spinner="aesthetic"
+    ):
+        call = await subtensor.substrate.compose_call(
+            call_module="Crowdloan",
+            call_function="refund",
+            call_params={
+                "crowdloan_id": crowdloan_id,
+            },
+        )
+        extrinsic = await subtensor.substrate.create_signed_extrinsic(
+            call=call, keypair=wallet.coldkey
+        )
+        response = await subtensor.substrate.submit_extrinsic(
+            extrinsic,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+        )
+
+    if not wait_for_finalization and not wait_for_inclusion:
+        console.print("[green]Refund transaction submitted.[/green]")
+        return True, "Refund transaction submitted."
+
+    await response.process_events()
+
+    if not await response.is_success:
+        print_error(
+            f":cross_mark: [red]Failed to refund contributors.[/red]\n"
+            f"{response.error_message}"
+        )
+        return False, await response.error_message.get("name", "Unknown error")
+    console.print(
+        f"[green]Refund transaction succeeded![/green]\n"
+        f"Contributors have been refunded for Crowdloan #{crowdloan_id}."
+    )
+    await print_extrinsic_id(response)
+    return True, "Refund completed successfully."
