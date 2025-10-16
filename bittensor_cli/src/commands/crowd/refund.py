@@ -48,6 +48,7 @@ async def refund_crowdloan(
     Returns:
         tuple[bool, str]: Success status and message
     """
+    creator_ss58 = wallet.coldkeypub.ss58_address
     crowdloan, current_block = await asyncio.gather(
         subtensor.get_single_crowdloan(crowdloan_id),
         subtensor.substrate.get_block_number(None),
@@ -69,20 +70,17 @@ async def refund_crowdloan(
             print_error(f"[red]{error_msg}[/red]")
         return False, f"Crowdloan #{crowdloan_id} is already finalized."
 
-    if crowdloan.end > current_block:
-        time_remaining = blocks_to_duration(crowdloan.end - current_block)
-        error_msg = (
-            f"Crowdloan #{crowdloan_id} is not yet ended. "
-            f"End block: {crowdloan.end} ({time_remaining} remaining)"
-        )
+    if creator_ss58 != crowdloan.creator:
+        error_msg = f"Only the creator can refund this crowdloan. Creator: {crowdloan.creator}, Your address: {creator_ss58}"
         if json_output:
             json_console.print(json.dumps({"success": False, "error": error_msg}))
         else:
             print_error(
-                f"Crowdloan #{crowdloan_id} is not yet ended. "
-                f"End block: [cyan]{crowdloan.end}[/cyan] ([dim]{time_remaining} remaining[/dim])"
+                f"[red]Only the creator can refund this crowdloan.[/red]\n"
+                f"Creator: [blue]{crowdloan.creator}[/blue]\n"
+                f"Your address: [blue]{creator_ss58}[/blue]"
             )
-        return False, f"Crowdloan #{crowdloan_id} is not yet ended."
+        return False, "Only the creator can refund this crowdloan."
 
     await show_crowdloan_details(
         subtensor=subtensor,
