@@ -13,7 +13,6 @@ from bittensor_cli.src.bittensor.utils import (
     print_extrinsic_id,
     print_error,
     unlock_key,
-    format_error_message,
 )
 
 
@@ -131,29 +130,23 @@ async def dissolve_crowdloan(
             call_function="dissolve",
             call_params={"crowdloan_id": crowdloan_id},
         )
-        extrinsic = await subtensor.substrate.create_signed_extrinsic(
+        (
+            success,
+            error_message,
+            extrinsic_receipt,
+        ) = await subtensor.sign_and_send_extrinsic(
             call=call,
-            keypair=wallet.coldkey,
-        )
-        response = await subtensor.substrate.submit_extrinsic(
-            extrinsic,
+            wallet=wallet,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
         )
 
-    if not wait_for_finalization and not wait_for_inclusion:
-        console.print("[green]Dissolve transaction submitted.[/green]")
-        return True, "Dissolve transaction submitted."
+    if not success:
+        print_error(f"[red]Failed to dissolve crowdloan.[/red]\n{error_message}")
+        return False, error_message
 
-    await response.process_events()
-
-    if not await response.is_success:
-        print_error(
-            f"[red]Failed to dissolve crowdloan.[/red]\n{format_error_message(await response.error_message)}"
-        )
-        return False, format_error_message(await response.error_message)
-
-    await print_extrinsic_id(response)
+    if extrinsic_receipt:
+        await print_extrinsic_id(extrinsic_receipt)
 
     console.print("[green]Crowdloan dissolved successfully![/green]")
 
