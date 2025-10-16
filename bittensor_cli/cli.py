@@ -7686,6 +7686,7 @@ class CLIManager:
         wait_for_finalization: bool = Options.wait_for_finalization,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Update one mutable field on a non-finalized crowdloan.
@@ -7696,6 +7697,8 @@ class CLIManager:
         against the chain constants (absolute minimum contribution, block-duration
         bounds, etc.).
         """
+        self.verbosity_handler(quiet, verbose, json_output)
+
         if crowdloan_id is None:
             crowdloan_id = IntPrompt.ask(
                 f"Enter the [{COLORS.G.SUBHEAD_MAIN}]crowdloan id[/{COLORS.G.SUBHEAD_MAIN}]",
@@ -7727,6 +7730,7 @@ class CLIManager:
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 prompt=prompt,
+                json_output=json_output,
             )
         )
 
@@ -7748,6 +7752,7 @@ class CLIManager:
         wait_for_finalization: bool = Options.wait_for_finalization,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Refund contributors of a non-finalized crowdloan.
@@ -7757,6 +7762,8 @@ class CLIManager:
         50) excluding the creator. Run it repeatedly until everyone except the creator
         has been reimbursed.
         """
+        self.verbosity_handler(quiet, verbose, json_output)
+
         if crowdloan_id is None:
             crowdloan_id = IntPrompt.ask(
                 f"Enter the [{COLORS.G.SUBHEAD_MAIN}]crowdloan id[/{COLORS.G.SUBHEAD_MAIN}]",
@@ -7780,6 +7787,7 @@ class CLIManager:
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 prompt=prompt,
+                json_output=json_output,
             )
         )
 
