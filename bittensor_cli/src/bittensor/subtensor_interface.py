@@ -3,7 +3,6 @@ import os
 import time
 from typing import Optional, Any, Union, TypedDict, Iterable
 
-import aiohttp
 from async_substrate_interface import AsyncExtrinsicReceipt
 from async_substrate_interface.async_substrate import (
     DiskCachedAsyncSubstrateInterface,
@@ -1301,56 +1300,23 @@ class SubtensorInterface:
         :return: {ss58: DelegatesDetails, ...}
 
         """
-        timeout = aiohttp.ClientTimeout(10.0)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            identities_info, response = await asyncio.gather(
-                self.substrate.query_map(
-                    module="Registry",
-                    storage_function="IdentityOf",
-                    block_hash=block_hash,
-                ),
-                session.get(Constants.delegates_detail_url),
+        identities_info = await self.substrate.query_map(
+            module="Registry",
+            storage_function="IdentityOf",
+            block_hash=block_hash,
+        )
+
+        all_delegates_details = {}
+        async for ss58_address, identity in identities_info:
+            all_delegates_details.update(
+                {
+                    decode_account_id(
+                        ss58_address[0]
+                    ): DelegatesDetails.from_chain_data(
+                        decode_hex_identity_dict(identity.value["info"])
+                    )
+                }
             )
-
-            all_delegates_details = {}
-            async for ss58_address, identity in identities_info:
-                all_delegates_details.update(
-                    {
-                        decode_account_id(
-                            ss58_address[0]
-                        ): DelegatesDetails.from_chain_data(
-                            decode_hex_identity_dict(identity.value["info"])
-                        )
-                    }
-                )
-
-            if response.ok:
-                all_delegates: dict[str, Any] = await response.json(content_type=None)
-
-                for delegate_hotkey, delegate_details in all_delegates.items():
-                    delegate_info = all_delegates_details.setdefault(
-                        delegate_hotkey,
-                        DelegatesDetails(
-                            display=delegate_details.get("name", ""),
-                            web=delegate_details.get("url", ""),
-                            additional=delegate_details.get("description", ""),
-                            pgp_fingerprint=delegate_details.get("fingerprint", ""),
-                        ),
-                    )
-                    delegate_info.display = (
-                        delegate_info.display or delegate_details.get("name", "")
-                    )
-                    delegate_info.web = delegate_info.web or delegate_details.get(
-                        "url", ""
-                    )
-                    delegate_info.additional = (
-                        delegate_info.additional
-                        or delegate_details.get("description", "")
-                    )
-                    delegate_info.pgp_fingerprint = (
-                        delegate_info.pgp_fingerprint
-                        or delegate_details.get("fingerprint", "")
-                    )
 
         return all_delegates_details
 
