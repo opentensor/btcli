@@ -177,34 +177,12 @@ class SubtensorInterface:
         """
         Decode an `Option<BoundedCall>` returned from storage into a structured dictionary.
         """
-        if not call_option:
+        if not call_option or "Inline" not in call_option:
             return None
-
-        if isinstance(call_option, dict) and {
-            "call_module",
-            "call_function",
-        }.issubset(call_option.keys()):
-            return {
-                "call_index": call_option.get("call_index"),
-                "pallet": call_option.get("call_module"),
-                "method": call_option.get("call_function"),
-                "args": call_option.get("call_args", []),
-                "hash": call_option.get("call_hash"),
-            }
-
-        inline_payload = None
-        if isinstance(call_option, dict):
-            inline_payload = call_option.get("Inline") or call_option.get("inline")
-        else:
-            inline_payload = call_option
-
-        if inline_payload is None:
-            return None
-
-        call_bytes = flatten_inline_call(inline_payload)
+        inline_bytes = bytes(call_option["Inline"][0][0])
         call_obj = await self.substrate.create_scale_object(
             "Call",
-            data=ScaleBytes(call_bytes),
+            data=ScaleBytes(inline_bytes),
             block_hash=block_hash,
         )
         call_value = call_obj.decode()

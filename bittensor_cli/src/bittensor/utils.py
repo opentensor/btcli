@@ -1426,28 +1426,6 @@ def hex_to_bytes(hex_str: str) -> bytes:
     return bytes_result
 
 
-def flatten_inline_call(raw: Any) -> bytes:
-    """
-    Convert SCALE inline call payloads to bytes.
-    """
-
-    def _to_bytes(value: Any) -> bytes:
-        if isinstance(value, (bytes, bytearray)):
-            return bytes(value)
-        if isinstance(value, int):
-            if not 0 <= value <= 255:
-                raise ValueError(f"Byte out of range: {value}")
-            return bytes((value,))
-        if isinstance(value, str):
-            hex_str = value[2:] if value.startswith("0x") else value
-            return bytes.fromhex(hex_str)
-        if isinstance(value, (tuple, list)):
-            return b"".join(_to_bytes(item) for item in value)
-        raise TypeError(f"Unsupported call encoding: {type(value)!r}")
-
-    return _to_bytes(raw)
-
-
 def blocks_to_duration(blocks: int) -> str:
     """Convert blocks to human readable duration string using two largest units.
 
