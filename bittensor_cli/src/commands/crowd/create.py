@@ -13,9 +13,8 @@ from bittensor_cli.src.commands.crowd.utils import get_constant
 from bittensor_cli.src.bittensor.utils import (
     blocks_to_duration,
     console,
-    err_console,
-    is_valid_ss58_address,
     print_error,
+    is_valid_ss58_address,
     unlock_key,
     print_extrinsic_id,
 )
@@ -44,7 +43,7 @@ async def create_crowdloan(
 
     unlock_status = unlock_key(wallet)
     if not unlock_status.success:
-        err_console.print(f"[red]{unlock_status.message}[/red]")
+        print_error(f"[red]{unlock_status.message}[/red]")
         return False, unlock_status.message
 
     crowdloan_type = None
@@ -55,7 +54,7 @@ async def create_crowdloan(
             "\n[bold cyan]What type of crowdloan would you like to create?[/bold cyan]\n"
             "[cyan][1][/cyan] General Fundraising (funds go to address)\n"
             "[cyan][2][/cyan] Subnet Leasing (create new subnet)",
-            choices=["1", "2"]
+            choices=["1", "2"],
         )
         crowdloan_type = "subnet" if type_choice == 2 else "fundraising"
 
@@ -104,7 +103,7 @@ async def create_crowdloan(
         if duration_blocks is None:
             missing_fields.append("--duration")
         if missing_fields:
-            err_console.print(
+            print_error(
                 "[red]The following options must be provided when prompts are disabled:[/red] "
                 + ", ".join(missing_fields)
             )
@@ -120,12 +119,12 @@ async def create_crowdloan(
         deposit = Balance.from_tao(deposit_value)
         if deposit < minimum_deposit:
             if prompt:
-                err_console.print(
+                print_error(
                     f"[red]Deposit must be at least {minimum_deposit.tao:,.4f} TAO.[/red]"
                 )
                 deposit_value = None
                 continue
-            err_console.print(
+            print_error(
                 f"[red]Deposit is below the minimum required deposit "
                 f"({minimum_deposit.tao:,.4f} TAO).[/red]"
             )
@@ -142,13 +141,13 @@ async def create_crowdloan(
         min_contribution = Balance.from_tao(min_contribution_value)
         if min_contribution < min_contribution:
             if prompt:
-                err_console.print(
+                print_error(
                     f"[red]Minimum contribution must be at least "
                     f"{min_contribution.tao:,.4f} TAO.[/red]"
                 )
                 min_contribution_value = None
                 continue
-            err_console.print(
+            print_error(
                 "[red]Minimum contribution is below the chain's absolute minimum.[/red]"
             )
             return False, "Minimum contribution is below the chain's absolute minimum."
@@ -163,14 +162,12 @@ async def create_crowdloan(
         cap = Balance.from_tao(cap_value)
         if cap <= deposit:
             if prompt:
-                err_console.print(
+                print_error(
                     f"[red]Cap must be greater than the deposit ({deposit.tao:,.4f} TAO).[/red]"
                 )
                 cap_value = None
                 continue
-            err_console.print(
-                "[red]Cap must be greater than the initial deposit.[/red]"
-            )
+            print_error("[red]Cap must be greater than the initial deposit.[/red]")
             return False, "Cap must be greater than the initial deposit."
         break
 
@@ -183,15 +180,13 @@ async def create_crowdloan(
             )
         if duration_value < min_duration or duration_value > max_duration:
             if prompt:
-                err_console.print(
+                print_error(
                     f"[red]Duration must be between {min_duration} and "
                     f"{max_duration} blocks.[/red]"
                 )
                 duration_value = None
                 continue
-            err_console.print(
-                "[red]Crowdloan duration is outside the allowed range.[/red]"
-            )
+            print_error("[red]Crowdloan duration is outside the allowed range.[/red]")
             return False, "Crowdloan duration is outside the allowed range."
         duration = duration_value
         break
@@ -208,7 +203,7 @@ async def create_crowdloan(
             )
 
         if not 0 <= emissions_share <= 100:
-            err_console.print(
+            print_error(
                 f"[red]Emissions share must be between 0 and 100, got {emissions_share}[/red]"
             )
             return False, "Invalid emissions share percentage."
@@ -228,14 +223,14 @@ async def create_crowdloan(
             call_params={
                 "emissions_share": emissions_share,
                 "end_block": None if lease_perpetual else lease_end_block,
-            }
+            },
         )
         call_to_attach = register_lease_call
     else:
         if target_address:
             target_address = target_address.strip()
             if not is_valid_ss58_address(target_address):
-                err_console.print(
+                print_error(
                     f"[red]Invalid target SS58 address provided: {target_address}[/red]"
                 )
                 return False, "Invalid target SS58 address provided."
@@ -246,7 +241,7 @@ async def create_crowdloan(
             target_address = target_input.strip() or None
 
         if target_address and not is_valid_ss58_address(target_address):
-            err_console.print(
+            print_error(
                 f"[red]Invalid target SS58 address provided: {target_address}[/red]"
             )
             return False, "Invalid target SS58 address provided."
@@ -255,7 +250,7 @@ async def create_crowdloan(
 
     creator_balance = await subtensor.get_balance(wallet.coldkeypub.ss58_address)
     if deposit > creator_balance:
-        err_console.print(
+        print_error(
             f"[red]Insufficient balance to cover the deposit. "
             f"Available: {creator_balance}, required: {deposit}[/red]"
         )
@@ -297,7 +292,9 @@ async def create_crowdloan(
 
         if crowdloan_type == "subnet":
             table.add_row("Type", "[magenta]Subnet Leasing[/magenta]")
-            table.add_row("Emissions Share", f"[cyan]{emissions_share}%[/cyan] for contributors")
+            table.add_row(
+                "Emissions Share", f"[cyan]{emissions_share}%[/cyan] for contributors"
+            )
             if lease_end_block:
                 table.add_row("Lease Ends", f"Block {lease_end_block}")
             else:
@@ -327,6 +324,7 @@ async def create_crowdloan(
             console.print("[yellow]Cancelled crowdloan creation.[/yellow]")
             return False, "Cancelled crowdloan creation."
 
+    # TODO: Update wait_fors + extrinsic_receipt after applying the patch
     success, error_message, extrinsic_receipt = await subtensor.sign_and_send_extrinsic(
         call=call,
         wallet=wallet,
@@ -339,9 +337,7 @@ async def create_crowdloan(
     #     extrinsic_id = await extrinsic_receipt.get_extrinsic_identifier()
 
     if not success:
-        err_console.print(
-            f"[red]{error_message or 'Failed to create crowdloan.'}[/red]"
-        )
+        print_error(f"[red]{error_message or 'Failed to create crowdloan.'}[/red]")
         return False, error_message or "Failed to create crowdloan."
 
     if crowdloan_type == "subnet":
@@ -412,22 +408,22 @@ async def finalize_crowdloan(
     )
 
     if not crowdloan:
-        err_console.print(f"[red]Crowdloan #{crowdloan_id} does not exist.[/red]")
+        print_error(f"[red]Crowdloan #{crowdloan_id} does not exist.[/red]")
         return False, f"Crowdloan #{crowdloan_id} does not exist."
 
     if wallet.coldkeypub.ss58_address != crowdloan.creator:
-        err_console.print(
+        print_error(
             f"[red]Only the creator can finalize a crowdloan. "
             f"Creator: {crowdloan.creator}[/red]"
         )
         return False, "Only the creator can finalize a crowdloan."
 
     if crowdloan.finalized:
-        err_console.print(f"[red]Crowdloan #{crowdloan_id} is already finalized.[/red]")
+        print_error(f"[red]Crowdloan #{crowdloan_id} is already finalized.[/red]")
         return False, "Crowdloan is already finalized."
 
     if crowdloan.raised < crowdloan.cap:
-        err_console.print(
+        print_error(
             f"[red]Crowdloan #{crowdloan_id} has not reached its cap.\n"
             f"Raised: {crowdloan.raised}, Cap: {crowdloan.cap}\n"
             f"Still needed: {Balance.from_rao(crowdloan.cap.rao - crowdloan.raised.rao)}[/red]"
@@ -515,7 +511,7 @@ async def finalize_crowdloan(
 
     unlock_status = unlock_key(wallet)
     if not unlock_status.success:
-        err_console.print(f"[red]{unlock_status.message}[/red]")
+        print_error(f"[red]{unlock_status.message}[/red]")
         return False, unlock_status.message
 
     success, error_message, extrinsic_receipt = await subtensor.sign_and_send_extrinsic(
@@ -526,7 +522,7 @@ async def finalize_crowdloan(
     )
 
     if not success:
-        err_console.print(
+        print_error(
             f"[red]Failed to finalize: {error_message or 'Unknown error'}[/red]"
         )
         return False, error_message or "Failed to finalize crowdloan."
@@ -537,21 +533,17 @@ async def finalize_crowdloan(
 
     console.print(
         f"[bold]Finalization Complete:[/bold]\n"
-        f"  • Total Raised: [{COLORS.S.AMOUNT}]{crowdloan.raised}[/{COLORS.S.AMOUNT}]\n"
-        f"  • Contributors: {crowdloan.contributors_count}"
+        f"\t• Total Raised: [{COLORS.S.AMOUNT}]{crowdloan.raised}[/{COLORS.S.AMOUNT}]\n"
+        f"\t• Contributors: {crowdloan.contributors_count}"
     )
 
     if crowdloan.target_address:
         console.print(
-            f"  • Funds transferred to: [{COLORS.G.SUBHEAD_EX_1}]{crowdloan.target_address}[/{COLORS.G.SUBHEAD_EX_1}]"
-        )
-    else:
-        console.print(
-            f"  • Funds remain in: [{COLORS.G.SUBHEAD_EX_2}]{crowdloan.funds_account}[/{COLORS.G.SUBHEAD_EX_2}]"
+            f"\t• Funds transferred to: [{COLORS.G.SUBHEAD_EX_1}]{crowdloan.target_address}[/{COLORS.G.SUBHEAD_EX_1}]"
         )
 
     if crowdloan.has_call:
-        console.print("  • [yellow]Associated call has been executed[/yellow]")
+        console.print("\t• [green]Associated call has been executed[/green]")
 
     if extrinsic_receipt:
         await print_extrinsic_id(extrinsic_receipt)
