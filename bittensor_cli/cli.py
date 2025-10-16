@@ -7284,7 +7284,21 @@ class CLIManager:
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
-        """List all crowdloans."""
+        """
+        List crowdloans together with their funding progress and key metadata.
+
+        Shows every crowdloan on the selected network, including current status
+        (Active, Funded, Closed, Finalized), whether it is a subnet leasing crowdloan,
+        or a general fundraising crowdloan.
+
+        Use `--verbose` for full-precision amounts and longer addresses.
+
+        EXAMPLES
+
+        [green]$[/green] btcli crowd list
+
+        [green]$[/green] btcli crowd list --verbose
+        """
         self.verbosity_handler(quiet, verbose, False)
         return self._run_command(
             view_crowdloan.list_crowdloans(
@@ -7310,7 +7324,17 @@ class CLIManager:
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
-        """Display detailed information about a specific crowdloan."""
+        """
+        Display detailed information about a specific crowdloan.
+
+        Includes funding progress, target account, and call details among other information.
+
+        EXAMPLES
+
+        [green]$[/green] btcli crowd info --id 0
+
+        [green]$[/green] btcli crowd info --id 1 --verbose
+        """
         self.verbosity_handler(quiet, verbose, False)
 
         if crowdloan_id is None:

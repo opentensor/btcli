@@ -44,7 +44,6 @@ from bittensor_cli.src.bittensor.utils import (
     u16_normalized_float,
     U16_MAX,
     get_hotkey_pub_ss58,
-    flatten_inline_call,
 )
 
 
