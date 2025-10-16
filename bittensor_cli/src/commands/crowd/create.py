@@ -45,7 +45,12 @@ async def create_crowdloan(
 
     unlock_status = unlock_key(wallet)
     if not unlock_status.success:
-        print_error(f"[red]{unlock_status.message}[/red]")
+        if json_output:
+            json_console.print(
+                json.dumps({"success": False, "error": unlock_status.message})
+            )
+        else:
+            print_error(f"[red]{unlock_status.message}[/red]")
         return False, unlock_status.message
 
     crowdloan_type = None
@@ -76,8 +81,12 @@ async def create_crowdloan(
                 "  • Contributors can withdraw if the cap is not reached\n"
             )
     else:
-        print_error("Crowdloan type not specified and no prompt provided.")
-        return False, "Crowdloan type not specified and no prompt provided."
+        error_msg = "Crowdloan type not specified and no prompt provided."
+        if json_output:
+            json_console.print(json.dumps({"success": False, "error": error_msg}))
+        else:
+            print_error(error_msg)
+        return False, error_msg
 
     block_hash = await subtensor.substrate.get_chain_head()
     runtime = await subtensor.substrate.init_runtime(block_hash=block_hash)
@@ -107,10 +116,14 @@ async def create_crowdloan(
         if duration_blocks is None:
             missing_fields.append("--duration")
         if missing_fields:
-            print_error(
-                "[red]The following options must be provided when prompts are disabled:[/red] "
+            error_msg = (
+                "The following options must be provided when prompts are disabled: "
                 + ", ".join(missing_fields)
             )
+            if json_output:
+                json_console.print(json.dumps({"success": False, "error": error_msg}))
+            else:
+                print_error(f"[red]{error_msg}[/red]")
             return False, "Missing required options when prompts are disabled."
 
     deposit_value = deposit_tao
@@ -128,10 +141,11 @@ async def create_crowdloan(
                 )
                 deposit_value = None
                 continue
-            print_error(
-                f"[red]Deposit is below the minimum required deposit "
-                f"({minimum_deposit.tao:,.4f} TAO).[/red]"
-            )
+            error_msg = f"Deposit is below the minimum required deposit ({minimum_deposit.tao} TAO)."
+            if json_output:
+                json_console.print(json.dumps({"success": False, "error": error_msg}))
+            else:
+                print_error(f"[red]{error_msg}[/red]")
             return False, "Deposit is below the minimum required deposit."
         break
 
@@ -325,7 +339,14 @@ async def create_crowdloan(
         console.print(table)
 
         if not Confirm.ask("Proceed with creating the crowdloan?"):
-            console.print("[yellow]Cancelled crowdloan creation.[/yellow]")
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {"success": False, "error": "Cancelled crowdloan creation."}
+                    )
+                )
+            else:
+                console.print("[yellow]Cancelled crowdloan creation.[/yellow]")
             return False, "Cancelled crowdloan creation."
 
     success, error_message, extrinsic_receipt = await subtensor.sign_and_send_extrinsic(
@@ -335,44 +356,75 @@ async def create_crowdloan(
         wait_for_finalization=wait_for_finalization,
     )
 
-    extrinsic_id = None
-    if extrinsic_receipt:
-        extrinsic_id = await extrinsic_receipt.get_extrinsic_identifier()
-
     if not success:
-        print_error(f"[red]{error_message or 'Failed to create crowdloan.'}[/red]")
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": False,
+                        "error": error_message or "Failed to create crowdloan.",
+                    }
+                )
+            )
+        else:
+            print_error(f"[red]{error_message or 'Failed to create crowdloan.'}[/red]")
         return False, error_message or "Failed to create crowdloan."
 
-    if crowdloan_type == "subnet":
-        message = "Subnet lease crowdloan created successfully."
-        console.print(
-            f"\n:white_check_mark: [green]{message}[/green]\n"
-            f"  Type: [magenta]Subnet Leasing[/magenta]\n"
-            f"  Emissions Share: [cyan]{emissions_share}%[/cyan]\n"
-            f"  Deposit: [{COLORS.P.TAO}]{deposit}[/{COLORS.P.TAO}]\n"
-            f"  Min contribution: [{COLORS.P.TAO}]{min_contribution}[/{COLORS.P.TAO}]\n"
-            f"  Cap: [{COLORS.P.TAO}]{cap}[/{COLORS.P.TAO}]\n"
-            f"  Ends at block: [bold]{end_block}[/bold]"
-        )
-        if lease_end_block:
-            console.print(f"  Lease ends at block: [bold]{lease_end_block}[/bold]")
-        else:
-            console.print("  Lease: [green]Perpetual[/green]")
-    else:
-        message = "Fundraising crowdloan created successfully."
-        console.print(
-            f"\n:white_check_mark: [green]{message}[/green]\n"
-            f"  Type: [cyan]General Fundraising[/cyan]\n"
-            f"  Deposit: [{COLORS.P.TAO}]{deposit}[/{COLORS.P.TAO}]\n"
-            f"  Min contribution: [{COLORS.P.TAO}]{min_contribution}[/{COLORS.P.TAO}]\n"
-            f"  Cap: [{COLORS.P.TAO}]{cap}[/{COLORS.P.TAO}]\n"
-            f"  Ends at block: [bold]{end_block}[/bold]"
-        )
-        if target_address:
-            console.print(f"  Target address: {target_address}")
+    if json_output:
+        extrinsic_id = await extrinsic_receipt.get_extrinsic_identifier()
+        output_dict = {
+            "success": True,
+            "error": None,
+            "data": {
+                "type": crowdloan_type,
+                "deposit": deposit.tao,
+                "min_contribution": min_contribution.tao,
+                "cap": cap.tao,
+                "duration": duration,
+                "end_block": end_block,
+                "extrinsic_id": extrinsic_id,
+            },
+        }
 
-    if extrinsic_id:
-        console.print(f"  Extrinsic ID: [bold]{extrinsic_id}[/bold]")
+        if crowdloan_type == "subnet":
+            output_dict["data"]["emissions_share"] = emissions_share
+            output_dict["data"]["lease_end_block"] = lease_end_block
+            output_dict["data"]["perpetual_lease"] = lease_end_block is None
+        else:
+            output_dict["data"]["target_address"] = target_address
+
+        json_console.print(json.dumps(output_dict))
+        message = f"{crowdloan_type.capitalize()} crowdloan created successfully."
+    else:
+        if crowdloan_type == "subnet":
+            message = "Subnet lease crowdloan created successfully."
+            console.print(
+                f"\n:white_check_mark: [green]{message}[/green]\n"
+                f"  Type: [magenta]Subnet Leasing[/magenta]\n"
+                f"  Emissions Share: [cyan]{emissions_share}%[/cyan]\n"
+                f"  Deposit: [{COLORS.P.TAO}]{deposit}[/{COLORS.P.TAO}]\n"
+                f"  Min contribution: [{COLORS.P.TAO}]{min_contribution}[/{COLORS.P.TAO}]\n"
+                f"  Cap: [{COLORS.P.TAO}]{cap}[/{COLORS.P.TAO}]\n"
+                f"  Ends at block: [bold]{end_block}[/bold]"
+            )
+            if lease_end_block:
+                console.print(f"  Lease ends at block: [bold]{lease_end_block}[/bold]")
+            else:
+                console.print("  Lease: [green]Perpetual[/green]")
+        else:
+            message = "Fundraising crowdloan created successfully."
+            console.print(
+                f"\n:white_check_mark: [green]{message}[/green]\n"
+                f"  Type: [cyan]General Fundraising[/cyan]\n"
+                f"  Deposit: [{COLORS.P.TAO}]{deposit}[/{COLORS.P.TAO}]\n"
+                f"  Min contribution: [{COLORS.P.TAO}]{min_contribution}[/{COLORS.P.TAO}]\n"
+                f"  Cap: [{COLORS.P.TAO}]{cap}[/{COLORS.P.TAO}]\n"
+                f"  Ends at block: [bold]{end_block}[/bold]"
+            )
+            if target_address:
+                console.print(f"  Target address: {target_address}")
+
+        await print_extrinsic_id(extrinsic_receipt)
 
     return True, message
 
