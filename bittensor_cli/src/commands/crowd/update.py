@@ -299,45 +299,36 @@ async def update_crowdloan(
     if call_function == "update_min_contribution":
         value = value.rao
 
-    with console.status(f":satellite: Updating {update_type}...", spinner="earth"):
+    with console.status(
+        ":satellite: Submitting update transaction...", spinner="aesthetic"
+    ):
         call = await subtensor.substrate.compose_call(
             call_module="Crowdloan",
             call_function=call_function,
             call_params={"crowdloan_id": crowdloan_id, param_name: value},
         )
 
-        extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey
-        )
-
-    with console.status(
-        ":satellite: Submitting update transaction...", spinner="aesthetic"
-    ):
-        response = await subtensor.substrate.submit_extrinsic(
-            extrinsic,
+        (
+            success,
+            error_message,
+            extrinsic_receipt,
+        ) = await subtensor.sign_and_send_extrinsic(
+            call=call,
+            wallet=wallet,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
         )
 
-    if not wait_for_finalization and not wait_for_inclusion:
-        console.print(
-            ":white_heavy_check_mark: [green]Update transaction submitted.[/green]"
-        )
-        return True, "Update transaction submitted."
-
-    await response.process_events()
-
-    if not await response.is_success:
-        print_error(
-            f":cross_mark: [red]Failed to update {update_type}.[/red]\n"
-            f"{response.error_message}"
-        )
-        return False, response.error_message.get("name", "Unknown error")
+    if not success:
+        print_error(f"[red]Failed to update {update_type}.[/red]\n{error_message}")
+        return False, error_message
 
     console.print(
-        f":white_heavy_check_mark: [green]{update_type} updated successfully![/green]\n"
+        f"[green]{update_type} updated successfully![/green]\n"
         f"Crowdloan #{crowdloan_id} has been updated."
     )
-    await print_extrinsic_id(response)
+    if extrinsic_receipt:
+        await print_extrinsic_id(extrinsic_receipt)
+
 
     return True, f"{update_type} updated successfully."
