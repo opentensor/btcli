@@ -7498,6 +7498,7 @@ class CLIManager:
         wait_for_finalization: bool = Options.wait_for_finalization,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """Contribute TAO to an active crowdloan.
 
@@ -7510,7 +7511,7 @@ class CLIManager:
 
         [green]$[/green] btcli crowd contribute --id 1
         """
-        self.verbosity_handler(quiet, verbose, False)
+        self.verbosity_handler(quiet, verbose, json_output)
 
         if crowdloan_id is None:
             crowdloan_id = IntPrompt.ask(
@@ -7536,6 +7537,7 @@ class CLIManager:
                 prompt=prompt,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
+                json_output=json_output,
             )
         )
 
@@ -7557,6 +7559,7 @@ class CLIManager:
         wait_for_finalization: bool = Options.wait_for_finalization,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Withdraw contributions from a non-finalized crowdloan.
@@ -7564,6 +7567,8 @@ class CLIManager:
         Non-creators can withdraw their full contribution.
         Creators can only withdraw amounts above their initial deposit.
         """
+        self.verbosity_handler(quiet, verbose, json_output)
+
         if crowdloan_id is None:
             crowdloan_id = IntPrompt.ask(
                 f"Enter the [{COLORS.G.SUBHEAD_MAIN}]crowdloan id[/{COLORS.G.SUBHEAD_MAIN}]",
@@ -7587,6 +7592,7 @@ class CLIManager:
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 prompt=prompt,
+                json_output=json_output,
             )
         )
 

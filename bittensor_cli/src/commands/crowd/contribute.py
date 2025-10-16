@@ -1,3 +1,4 @@
+import json
 from typing import Optional
 
 from async_substrate_interface.utils.cache import asyncio
@@ -11,6 +12,7 @@ from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
     console,
+    json_console,
     print_error,
     print_extrinsic_id,
     unlock_key,
@@ -56,6 +58,7 @@ async def contribute_to_crowdloan(
     prompt: bool,
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
+    json_output: bool = False,
 ) -> tuple[bool, str]:
     """Contribute TAO to an active crowdloan.
 
@@ -76,14 +79,21 @@ async def contribute_to_crowdloan(
         subtensor.substrate.get_block_number(None),
     )
     if not crowdloan:
-        print_error(f"[red]Crowdloan #{crowdloan_id} not found.[/red]")
-        return False, f"Crowdloan #{crowdloan_id} not found."
+        error_msg = f"Crowdloan #{crowdloan_id} not found."
+        if json_output:
+            json_console.print(json.dumps({"success": False, "error": error_msg}))
+        else:
+            print_error(f"[red]{error_msg}[/red]")
+        return False, error_msg
 
     is_valid, error_message = validate_for_contribution(
         crowdloan, crowdloan_id, current_block
     )
     if not is_valid:
-        print_error(f"[red]{error_message}[/red]")
+        if json_output:
+            json_console.print(json.dumps({"success": False, "error": error_message}))
+        else:
+            print_error(f"[red]{error_message}[/red]")
         return False, error_message
 
     contributor_address = wallet.coldkeypub.ss58_address
@@ -116,15 +126,19 @@ async def contribute_to_crowdloan(
 
     contribution_amount = Balance.from_tao(amount)
     if contribution_amount < crowdloan.min_contribution:
-        print_error(
-            f"[red]Contribution amount ({contribution_amount}) is below minimum ({crowdloan.min_contribution}).[/red]"
-        )
+        error_msg = f"Contribution amount ({contribution_amount}) is below minimum ({crowdloan.min_contribution})."
+        if json_output:
+            json_console.print(json.dumps({"success": False, "error": error_msg}))
+        else:
+            print_error(f"[red]{error_msg}[/red]")
         return False, "Contribution below minimum requirement."
 
     if contribution_amount > user_balance:
-        print_error(
-            f"[red]Insufficient balance. You have {user_balance} but trying to contribute {contribution_amount}.[/red]"
-        )
+        error_msg = f"Insufficient balance. You have {user_balance} but trying to contribute {contribution_amount}."
+        if json_output:
+            json_console.print(json.dumps({"success": False, "error": error_msg}))
+        else:
+            print_error(f"[red]{error_msg}[/red]")
         return False, "Insufficient balance."
 
     # Auto-adjustment
@@ -201,12 +215,24 @@ async def contribute_to_crowdloan(
 
     if prompt:
         if not Confirm.ask("\nProceed with contribution?"):
-            console.print("[yellow]Contribution cancelled.[/yellow]")
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {"success": False, "error": "Contribution cancelled by user."}
+                    )
+                )
+            else:
+                console.print("[yellow]Contribution cancelled.[/yellow]")
             return False, "Contribution cancelled by user."
 
     unlock_status = unlock_key(wallet)
     if not unlock_status.success:
-        print_error(f"[red]{unlock_status.message}[/red]")
+        if json_output:
+            json_console.print(
+                json.dumps({"success": False, "error": unlock_status.message})
+            )
+        else:
+            print_error(f"[red]{unlock_status.message}[/red]")
         return False, unlock_status.message
 
     with console.status(f"\n:satellite: Contributing to crowdloan #{crowdloan_id}..."):
@@ -222,7 +248,17 @@ async def contribute_to_crowdloan(
         )
 
     if not success:
-        print_error(f"[red]Failed to contribute: {error_message}[/red]")
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": False,
+                        "error": error_message or "Failed to contribute.",
+                    }
+                )
+            )
+        else:
+            print_error(f"[red]Failed to contribute: {error_message}[/red]")
         return False, error_message or "Failed to contribute."
 
     new_balance, new_contribution, updated_crowdloan = await asyncio.gather(
@@ -231,38 +267,76 @@ async def contribute_to_crowdloan(
         subtensor.get_single_crowdloan(crowdloan_id),
     )
 
-    console.print(
-        f"\n[dark_sea_green3]Successfully contributed to crowdloan #{crowdloan_id}![/dark_sea_green3]"
-    )
-
-    console.print(
-        f"Balance:\n  [blue]{user_balance}[/blue] → "
-        f"[{COLORS.S.AMOUNT}]{new_balance}[/{COLORS.S.AMOUNT}]"
-    )
-
-    if new_contribution:
-        if current_contribution:
-            console.print(
-                f"Your Contribution:\n  [blue]{current_contribution}[/blue] → "
-                f"[{COLORS.S.AMOUNT}]{new_contribution}[/{COLORS.S.AMOUNT}]"
-            )
-        else:
-            console.print(
-                f"Your Contribution: [{COLORS.S.AMOUNT}]{new_contribution}[/{COLORS.S.AMOUNT}]"
-            )
-
-    if updated_crowdloan:
+    extrinsic_id = await extrinsic_receipt.get_extrinsic_identifier()
+    if json_output:
+        output_dict = {
+            "success": True,
+            "error": None,
+            "extrinsic_identifier": extrinsic_id,
+            "data": {
+                "crowdloan_id": crowdloan_id,
+                "contributor": contributor_address,
+                "contribution_amount": actual_contribution.tao,
+                "previous_contribution": current_contribution.tao
+                if current_contribution
+                else 0.0,
+                "total_contribution": new_contribution.tao if new_contribution else 0.0,
+                "balance": {
+                    "before": user_balance.tao,
+                    "after": new_balance.tao,
+                    "fee": extrinsic_fee.tao,
+                },
+                "crowdloan": {
+                    "raised_before": crowdloan.raised.tao,
+                    "raised_after": updated_crowdloan.raised.tao
+                    if updated_crowdloan
+                    else crowdloan.raised.tao,
+                    "cap": crowdloan.cap.tao,
+                    "percentage": (
+                        updated_crowdloan.raised.tao / updated_crowdloan.cap.tao * 100
+                    )
+                    if updated_crowdloan
+                    else 0.0,
+                },
+                "adjusted": will_be_adjusted,
+                "cap_reached": updated_crowdloan.raised >= updated_crowdloan.cap
+                if updated_crowdloan
+                else False,
+            },
+        }
+        json_console.print(json.dumps(output_dict))
+    else:
         console.print(
-            f"Crowdloan Progress:\n  [blue]{crowdloan.raised}[/blue] → "
-            f"[{COLORS.S.AMOUNT}]{updated_crowdloan.raised}[/{COLORS.S.AMOUNT}] / {updated_crowdloan.cap}"
+            f"\n[dark_sea_green3]Successfully contributed to crowdloan #{crowdloan_id}![/dark_sea_green3]"
         )
 
-        if updated_crowdloan.raised >= updated_crowdloan.cap:
+        console.print(
+            f"Balance:\n  [blue]{user_balance}[/blue] → "
+            f"[{COLORS.S.AMOUNT}]{new_balance}[/{COLORS.S.AMOUNT}]"
+        )
+
+        if new_contribution:
+            if current_contribution:
+                console.print(
+                    f"Your Contribution:\n  [blue]{current_contribution}[/blue] → "
+                    f"[{COLORS.S.AMOUNT}]{new_contribution}[/{COLORS.S.AMOUNT}]"
+                )
+            else:
+                console.print(
+                    f"Your Contribution: [{COLORS.S.AMOUNT}]{new_contribution}[/{COLORS.S.AMOUNT}]"
+                )
+
+        if updated_crowdloan:
             console.print(
-                "\n[bold green]🎉 Crowdloan has reached its funding cap![/bold green]"
+                f"Crowdloan Progress:\n  [blue]{crowdloan.raised}[/blue] → "
+                f"[{COLORS.S.AMOUNT}]{updated_crowdloan.raised}[/{COLORS.S.AMOUNT}] / {updated_crowdloan.cap}"
             )
 
-    if extrinsic_receipt:
+            if updated_crowdloan.raised >= updated_crowdloan.cap:
+                console.print(
+                    "\n[bold green]🎉 Crowdloan has reached its funding cap![/bold green]"
+                )
+
         await print_extrinsic_id(extrinsic_receipt)
 
     return True, "Successfully contributed to crowdloan."
@@ -275,6 +349,7 @@ async def withdraw_from_crowdloan(
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
     prompt: bool,
+    json_output: bool = False,
 ) -> tuple[bool, str]:
     """
     Withdraw contributions from a non-finalized crowdloan.
@@ -300,13 +375,19 @@ async def withdraw_from_crowdloan(
     )
 
     if not crowdloan:
-        print_error(f"[red]Crowdloan #{crowdloan_id} does not exist.[/red]")
-        return False, f"Crowdloan #{crowdloan_id} does not exist."
+        error_msg = f"Crowdloan #{crowdloan_id} does not exist."
+        if json_output:
+            json_console.print(json.dumps({"success": False, "error": error_msg}))
+        else:
+            print_error(f"[red]{error_msg}[/red]")
+        return False, error_msg
 
     if crowdloan.finalized:
-        print_error(
-            f"[red]Crowdloan #{crowdloan_id} is already finalized. Withdrawals are not allowed.[/red]"
-        )
+        error_msg = f"Crowdloan #{crowdloan_id} is already finalized. Withdrawals are not allowed."
+        if json_output:
+            json_console.print(json.dumps({"success": False, "error": error_msg}))
+        else:
+            print_error(f"[red]{error_msg}[/red]")
         return False, "Cannot withdraw from finalized crowdloan."
 
     user_contribution, user_balance = await asyncio.gather(
@@ -317,19 +398,24 @@ async def withdraw_from_crowdloan(
     )
 
     if user_contribution == Balance.from_tao(0):
-        print_error(
-            f"[red]You have no contribution to withdraw from crowdloan #{crowdloan_id}.[/red]"
+        error_msg = (
+            f"You have no contribution to withdraw from crowdloan #{crowdloan_id}."
         )
+        if json_output:
+            json_console.print(json.dumps({"success": False, "error": error_msg}))
+        else:
+            print_error(f"[red]{error_msg}[/red]")
         return False, "No contribution to withdraw."
 
     is_creator = wallet.coldkeypub.ss58_address == crowdloan.creator
     if is_creator:
         withdrawable = user_contribution - crowdloan.deposit
         if withdrawable <= 0:
-            print_error(
-                f"[red]As the creator, you cannot withdraw your deposit of {crowdloan.deposit}. "
-                f"Only contributions above the deposit can be withdrawn.[/red]"
-            )
+            error_msg = f"As the creator, you cannot withdraw your deposit of {crowdloan.deposit}. Only contributions above the deposit can be withdrawn."
+            if json_output:
+                json_console.print(json.dumps({"success": False, "error": error_msg}))
+            else:
+                print_error(f"[red]{error_msg}[/red]")
             return False, "Creator cannot withdraw deposit amount."
         remaining_contribution = crowdloan.deposit
     else:
@@ -404,12 +490,24 @@ async def withdraw_from_crowdloan(
         console.print(table)
 
         if not Confirm.ask("\nProceed with withdrawal?"):
-            console.print("[yellow]Withdrawal cancelled.[/yellow]")
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {"success": False, "error": "Withdrawal cancelled by user."}
+                    )
+                )
+            else:
+                console.print("[yellow]Withdrawal cancelled.[/yellow]")
             return False, "Withdrawal cancelled by user."
 
     unlock_status = unlock_key(wallet)
     if not unlock_status.success:
-        print_error(f"[red]{unlock_status.message}[/red]")
+        if json_output:
+            json_console.print(
+                json.dumps({"success": False, "error": unlock_status.message})
+            )
+        else:
+            print_error(f"[red]{unlock_status.message}[/red]")
         return False, unlock_status.message
 
     with console.status(f"\n:satellite: Withdrawing from crowdloan #{crowdloan_id}..."):
@@ -425,33 +523,75 @@ async def withdraw_from_crowdloan(
         )
 
     if not success:
-        print_error(
-            f"[red]Failed to withdraw: {error_message or 'Unknown error'}[/red]"
-        )
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": False,
+                        "error": error_message or "Failed to withdraw from crowdloan.",
+                    }
+                )
+            )
+        else:
+            print_error(
+                f"[red]Failed to withdraw: {error_message or 'Unknown error'}[/red]"
+            )
         return False, error_message or "Failed to withdraw from crowdloan."
 
-    console.print(
-        f"\n✅ [green]Successfully withdrew from crowdloan #{crowdloan_id}![/green]\n"
-    )
-
-    new_balance, updated_contribution = await asyncio.gather(
+    new_balance, updated_contribution, updated_crowdloan = await asyncio.gather(
         subtensor.get_balance(wallet.coldkeypub.ss58_address),
         subtensor.get_crowdloan_contribution(
             crowdloan_id, wallet.coldkeypub.ss58_address
         ),
+        subtensor.get_single_crowdloan(crowdloan_id),
     )
 
-    console.print(
-        f"Amount Withdrawn: [{COLORS.S.AMOUNT}]{withdrawable}[/{COLORS.S.AMOUNT}]\n"
-        f"Balance:\n  [blue]{user_balance}[/blue] → [{COLORS.S.AMOUNT}]{new_balance}[/{COLORS.S.AMOUNT}]"
-    )
-
-    if is_creator and updated_contribution:
+    extrinsic_id = await extrinsic_receipt.get_extrinsic_identifier()
+    if json_output:
+        output_dict = {
+            "success": True,
+            "error": None,
+            "extrinsic_identifier": extrinsic_id,
+            "data": {
+                "crowdloan_id": crowdloan_id,
+                "is_creator": is_creator,
+                "withdrawal_amount": withdrawable.tao,
+                "previous_contribution": user_contribution.tao,
+                "remaining_contribution": updated_contribution.tao
+                if updated_contribution
+                else 0.0,
+                "deposit_locked": crowdloan.deposit.tao if is_creator else None,
+                "balance": {
+                    "before": user_balance.tao,
+                    "after": new_balance.tao,
+                    "fee": extrinsic_fee.tao,
+                },
+                "crowdloan": {
+                    "raised_before": crowdloan.raised.tao,
+                    "raised_after": updated_crowdloan.raised.tao
+                    if updated_crowdloan
+                    else (crowdloan.raised.tao - withdrawable.tao),
+                },
+            },
+        }
+        json_console.print(json.dumps(output_dict))
+    else:
         console.print(
-            f"Remaining Contribution: [{COLORS.S.AMOUNT}]{updated_contribution}[/{COLORS.S.AMOUNT}] (deposit locked)"
+            f"\n✅ [green]Successfully withdrew from crowdloan #{crowdloan_id}![/green]\n"
         )
 
-    if extrinsic_receipt:
+        console.print(
+            f"Amount Withdrawn: [{COLORS.S.AMOUNT}]{withdrawable}[/{COLORS.S.AMOUNT}]\n"
+            f"Balance:\n  [blue]{user_balance}[/blue] → [{COLORS.S.AMOUNT}]{new_balance}[/{COLORS.S.AMOUNT}]"
+            f"Crowdloan raised before: [{COLORS.S.AMOUNT}]{crowdloan.raised}[/{COLORS.S.AMOUNT}]"
+            f"Crowdloan raised after: [{COLORS.S.AMOUNT}]{updated_crowdloan.raised}[/{COLORS.S.AMOUNT}]"
+        )
+
+        if is_creator and updated_contribution:
+            console.print(
+                f"Remaining Contribution: [{COLORS.S.AMOUNT}]{updated_contribution}[/{COLORS.S.AMOUNT}] (deposit locked)"
+            )
+
         await print_extrinsic_id(extrinsic_receipt)
 
     return True, "Successfully withdrew from crowdloan."
