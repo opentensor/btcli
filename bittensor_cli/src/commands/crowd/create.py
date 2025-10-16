@@ -324,17 +324,16 @@ async def create_crowdloan(
             console.print("[yellow]Cancelled crowdloan creation.[/yellow]")
             return False, "Cancelled crowdloan creation."
 
-    # TODO: Update wait_fors + extrinsic_receipt after applying the patch
     success, error_message, extrinsic_receipt = await subtensor.sign_and_send_extrinsic(
         call=call,
         wallet=wallet,
-        wait_for_inclusion=False,
-        wait_for_finalization=False,
+        wait_for_inclusion=wait_for_inclusion,
+        wait_for_finalization=wait_for_finalization,
     )
 
     extrinsic_id = None
-    # if extrinsic_receipt:
-    #     extrinsic_id = await extrinsic_receipt.get_extrinsic_identifier()
+    if extrinsic_receipt:
+        extrinsic_id = await extrinsic_receipt.get_extrinsic_identifier()
 
     if not success:
         print_error(f"[red]{error_message or 'Failed to create crowdloan.'}[/red]")
