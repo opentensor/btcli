@@ -267,8 +267,8 @@ async def contribute_to_crowdloan(
         subtensor.get_single_crowdloan(crowdloan_id),
     )
 
-    extrinsic_id = await extrinsic_receipt.get_extrinsic_identifier()
     if json_output:
+        extrinsic_id = await extrinsic_receipt.get_extrinsic_identifier()
         output_dict = {
             "success": True,
             "error": None,
@@ -546,8 +546,8 @@ async def withdraw_from_crowdloan(
         subtensor.get_single_crowdloan(crowdloan_id),
     )
 
-    extrinsic_id = await extrinsic_receipt.get_extrinsic_identifier()
     if json_output:
+        extrinsic_id = await extrinsic_receipt.get_extrinsic_identifier()
         output_dict = {
             "success": True,
             "error": None,
