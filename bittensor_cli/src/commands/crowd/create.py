@@ -9,6 +9,7 @@ from bittensor_cli.src import COLORS
 from bittensor_cli.src.commands.crowd.view import show_crowdloan_details
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
+from bittensor_cli.src.commands.crowd.utils import get_constant
 from bittensor_cli.src.bittensor.utils import (
     blocks_to_duration,
     console,
@@ -77,23 +78,16 @@ async def create_crowdloan(
         print_error("Crowdloan type not specified and no prompt provided.")
         return False, "Crowdloan type not specified and no prompt provided."
 
-    async def _get_constant(constant_name: str) -> int:
-        result = await subtensor.substrate.get_constant(
-            module_name="Crowdloan",
-            constant_name=constant_name,
-        )
-        return getattr(result, "value", result)
-
     (
         minimum_deposit_raw,
         min_contribution_raw,
         min_duration,
         max_duration,
     ) = await asyncio.gather(
-        _get_constant("MinimumDeposit"),
-        _get_constant("AbsoluteMinimumContribution"),
-        _get_constant("MinimumBlockDuration"),
-        _get_constant("MaximumBlockDuration"),
+        get_constant(subtensor, "MinimumDeposit"),
+        get_constant(subtensor, "AbsoluteMinimumContribution"),
+        get_constant(subtensor, "MinimumBlockDuration"),
+        get_constant(subtensor, "MaximumBlockDuration"),
     )
 
     minimum_deposit = Balance.from_rao(minimum_deposit_raw)
