@@ -255,3 +255,89 @@ async def update_crowdloan(
                 f"[red]New cap ({value}) must be at least the amount already raised ({crowdloan.raised}).[/red]"
             )
             return False, "Cap must be >= raised amount."
+
+    # Update summary
+    table = Table(
+        Column("[bold white]Parameter", style=COLORS.G.SUBHEAD),
+        Column("[bold white]Current Value", style=COLORS.G.TEMPO),
+        Column("[bold white]New Value", style=COLORS.G.TEMPO),
+        title="\n[bold cyan]Update Summary[/bold cyan]",
+        show_footer=False,
+        width=None,
+        pad_edge=False,
+        box=box.SIMPLE,
+        show_edge=True,
+        border_style="bright_black",
+    )
+
+    if call_function == "update_min_contribution":
+        table.add_row(
+            "Minimum Contribution", str(crowdloan.min_contribution), str(value)
+        )
+    elif call_function == "update_end":
+        table.add_row(
+            "End Block",
+            f"{crowdloan.end:,} ({blocks_to_duration(crowdloan.end - current_block)} remaining)",
+            f"{value:,} ({blocks_to_duration(value - current_block)} remaining)",
+        )
+    elif call_function == "update_cap":
+        table.add_row("Cap", str(crowdloan.cap), str(value))
+
+    console.print(table)
+
+    if prompt and not Confirm.ask(
+        f"\n[bold]Proceed with updating {update_type}?[/bold]", default=False
+    ):
+        console.print("[yellow]Update cancelled.[/yellow]")
+        return False, "Update cancelled by user."
+
+    unlock_status = unlock_key(wallet)
+    if not unlock_status.success:
+        print_error(f"[red]{unlock_status.message}[/red]")
+        return False, unlock_status.message
+
+    if call_function == "update_min_contribution":
+        value = value.rao
+
+    with console.status(f":satellite: Updating {update_type}...", spinner="earth"):
+        call = await subtensor.substrate.compose_call(
+            call_module="Crowdloan",
+            call_function=call_function,
+            call_params={"crowdloan_id": crowdloan_id, param_name: value},
+        )
+
+        extrinsic = await subtensor.substrate.create_signed_extrinsic(
+            call=call, keypair=wallet.coldkey
+        )
+
+    with console.status(
+        ":satellite: Submitting update transaction...", spinner="aesthetic"
+    ):
+        response = await subtensor.substrate.submit_extrinsic(
+            extrinsic,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+        )
+
+    if not wait_for_finalization and not wait_for_inclusion:
+        console.print(
+            ":white_heavy_check_mark: [green]Update transaction submitted.[/green]"
+        )
+        return True, "Update transaction submitted."
+
+    await response.process_events()
+
+    if not await response.is_success:
+        print_error(
+            f":cross_mark: [red]Failed to update {update_type}.[/red]\n"
+            f"{response.error_message}"
+        )
+        return False, response.error_message.get("name", "Unknown error")
+
+    console.print(
+        f":white_heavy_check_mark: [green]{update_type} updated successfully![/green]\n"
+        f"Crowdloan #{crowdloan_id} has been updated."
+    )
+    await print_extrinsic_id(response)
+
+    return True, f"{update_type} updated successfully."
