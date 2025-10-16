@@ -1,6 +1,7 @@
 from typing import Optional
 
 import asyncio
+import json
 from bittensor_wallet import Wallet
 from rich import box
 from rich.table import Column, Table
@@ -12,6 +13,7 @@ from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
     blocks_to_duration,
     console,
+    json_console,
     print_error,
     millify_tao,
 )
@@ -45,15 +47,33 @@ def _time_remaining(loan: CrowdloanData, current_block: int) -> str:
 async def list_crowdloans(
     subtensor: SubtensorInterface,
     verbose: bool = False,
+    json_output: bool = False,
 ) -> bool:
-    """List all crowdloans in a tabular format."""
+    """List all crowdloans in a tabular format or JSON output."""
 
     current_block, loans = await asyncio.gather(
         subtensor.substrate.get_block_number(None),
         subtensor.get_crowdloans(),
     )
     if not loans:
-        console.print("[yellow]No crowdloans found.[/yellow]")
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": True,
+                        "error": None,
+                        "data": {
+                            "crowdloans": [],
+                            "total_count": 0,
+                            "total_raised": 0,
+                            "total_cap": 0,
+                            "total_contributors": 0,
+                        },
+                    }
+                )
+            )
+        else:
+            console.print("[yellow]No crowdloans found.[/yellow]")
         return True
 
     total_raised = sum(loan.raised.tao for loan in loans.values())
@@ -66,6 +86,69 @@ async def list_crowdloans(
     formatted_percentage = (
         f"[{percentage_color}]{funding_percentage:.2f}%[/{percentage_color}]"
     )
+
+    if json_output:
+        crowdloans_list = []
+        for loan_id, loan in loans.items():
+            status = _status(loan, current_block)
+            time_remaining = _time_remaining(loan, current_block)
+
+            call_info = None
+            if loan.call_details:
+                pallet = loan.call_details.get("pallet", "")
+                method = loan.call_details.get("method", "")
+                if pallet == "SubtensorModule" and method == "register_leased_network":
+                    call_info = "Subnet Leasing"
+                else:
+                    call_info = (
+                        f"{pallet}.{method}"
+                        if pallet and method
+                        else method or pallet or "Unknown"
+                    )
+            elif loan.has_call:
+                call_info = "Unknown"
+
+            crowdloan_data = {
+                "id": loan_id,
+                "status": status,
+                "raised": loan.raised.tao,
+                "cap": loan.cap.tao,
+                "deposit": loan.deposit.tao,
+                "min_contribution": loan.min_contribution.tao,
+                "end_block": loan.end,
+                "time_remaining": time_remaining,
+                "contributors_count": loan.contributors_count,
+                "creator": loan.creator,
+                "target_address": loan.target_address,
+                "funds_account": loan.funds_account,
+                "call": call_info,
+                "finalized": loan.finalized,
+            }
+            crowdloans_list.append(crowdloan_data)
+
+        crowdloans_list.sort(
+            key=lambda x: (
+                x["status"] != "Active",
+                -x["raised"],
+            )
+        )
+
+        output_dict = {
+            "success": True,
+            "error": None,
+            "data": {
+                "crowdloans": crowdloans_list,
+                "total_count": total_loans,
+                "total_raised": total_raised,
+                "total_cap": total_cap,
+                "total_contributors": total_contributors,
+                "funding_percentage": funding_percentage,
+                "current_block": current_block,
+                "network": subtensor.network,
+            },
+        }
+        json_console.print(json.dumps(output_dict))
+        return True
 
     if not verbose:
         funding_string = f"τ {millify_tao(total_raised)}/{millify_tao(total_cap)} ({formatted_percentage})"
@@ -243,6 +326,7 @@ async def show_crowdloan_details(
     current_block: Optional[int] = None,
     wallet: Optional[Wallet] = None,
     verbose: bool = False,
+    json_output: bool = False,
 ) -> tuple[bool, str]:
     """Display detailed information about a specific crowdloan."""
 
@@ -252,8 +336,12 @@ async def show_crowdloan_details(
             subtensor.get_single_crowdloan(crowdloan_id),
         )
     if not crowdloan:
-        print_error(f"[red]Crowdloan #{crowdloan_id} not found.[/red]")
-        return False, f"Crowdloan #{crowdloan_id} not found."
+        error_msg = f"Crowdloan #{crowdloan_id} not found."
+        if json_output:
+            json_console.print(json.dumps({"success": False, "error": error_msg}))
+        else:
+            print_error(f"[red]{error_msg}[/red]")
+        return False, error_msg
 
     user_contribution = None
     if wallet and wallet.coldkeypub:
@@ -269,6 +357,88 @@ async def show_crowdloan_details(
         "Active": COLORS.G.HINT,
     }
     status_color = status_color_map.get(status, "white")
+
+    if json_output:
+        time_remaining = _time_remaining(crowdloan, current_block)
+
+        avg_contribution = None
+        if crowdloan.contributors_count > 0:
+            net_contributions = crowdloan.raised.tao - crowdloan.deposit.tao
+            avg_contribution = (
+                net_contributions / (crowdloan.contributors_count - 1)
+                if crowdloan.contributors_count > 1
+                else crowdloan.deposit.tao
+            )
+
+        call_info = None
+        if crowdloan.has_call and crowdloan.call_details:
+            pallet = crowdloan.call_details.get("pallet", "Unknown")
+            method = crowdloan.call_details.get("method", "Unknown")
+            args = crowdloan.call_details.get("args", {})
+
+            if pallet == "SubtensorModule" and method == "register_leased_network":
+                call_info = {
+                    "type": "Subnet Leasing",
+                    "pallet": pallet,
+                    "method": method,
+                    "emissions_share": args.get("emissions_share", {}).get("value"),
+                    "end_block": args.get("end_block", {}).get("value"),
+                }
+            else:
+                call_info = {"pallet": pallet, "method": method, "args": args}
+
+        user_contribution_info = None
+        if user_contribution:
+            is_creator = (
+                wallet
+                and wallet.coldkeypub
+                and wallet.coldkeypub.ss58_address == crowdloan.creator
+            )
+            withdrawable_amount = None
+
+            if status == "Active" and not crowdloan.finalized:
+                if is_creator and user_contribution.tao > crowdloan.deposit.tao:
+                    withdrawable_amount = user_contribution.tao - crowdloan.deposit.tao
+                elif not is_creator:
+                    withdrawable_amount = user_contribution.tao
+
+            user_contribution_info = {
+                "amount": user_contribution.tao,
+                "is_creator": is_creator,
+                "withdrawable": withdrawable_amount,
+                "refundable": status == "Closed",
+            }
+
+        output_dict = {
+            "success": True,
+            "error": None,
+            "data": {
+                "crowdloan_id": crowdloan_id,
+                "status": status,
+                "finalized": crowdloan.finalized,
+                "creator": crowdloan.creator,
+                "funds_account": crowdloan.funds_account,
+                "raised": crowdloan.raised.tao,
+                "cap": crowdloan.cap.tao,
+                "raised_percentage": (crowdloan.raised.tao / crowdloan.cap.tao * 100)
+                if crowdloan.cap.tao > 0
+                else 0,
+                "deposit": crowdloan.deposit.tao,
+                "min_contribution": crowdloan.min_contribution.tao,
+                "end_block": crowdloan.end,
+                "current_block": current_block,
+                "time_remaining": time_remaining,
+                "contributors_count": crowdloan.contributors_count,
+                "average_contribution": avg_contribution,
+                "target_address": crowdloan.target_address,
+                "has_call": crowdloan.has_call,
+                "call_details": call_info,
+                "user_contribution": user_contribution_info,
+                "network": subtensor.network,
+            },
+        }
+        json_console.print(json.dumps(output_dict))
+        return True, f"Displayed info for crowdloan #{crowdloan_id}"
 
     table = Table(
         Column(
