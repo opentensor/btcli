@@ -236,11 +236,11 @@ async def create_crowdloan(
                 return False, "Invalid target SS58 address provided."
         elif prompt:
             target_input = Prompt.ask(
-                "Enter a target SS58 address (leave blank for none)",
+                "Enter a target SS58 address",
             )
             target_address = target_input.strip() or None
 
-        if target_address and not is_valid_ss58_address(target_address):
+        if not is_valid_ss58_address(target_address):
             print_error(
                 f"[red]Invalid target SS58 address provided: {target_address}[/red]"
             )
@@ -474,11 +474,6 @@ async def finalize_crowdloan(
             table.add_row(
                 "Funds Will Go To",
                 f"[{COLORS.G.SUBHEAD_EX_1}]{crowdloan.target_address}[/{COLORS.G.SUBHEAD_EX_1}]",
-            )
-        else:
-            table.add_row(
-                "Funds Will Go To",
-                "[yellow]Funds Account (manual transfer required)[/yellow]",
             )
 
         if crowdloan.has_call:
