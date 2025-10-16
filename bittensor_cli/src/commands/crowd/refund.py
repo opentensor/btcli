@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm
@@ -9,6 +10,7 @@ from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
     blocks_to_duration,
     console,
+    json_console,
     print_extrinsic_id,
     print_error,
     unlock_key,
@@ -24,6 +26,7 @@ async def refund_crowdloan(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt: bool = True,
+    json_output: bool = False,
 ) -> tuple[bool, str]:
     """Refund contributors of a non-finalized crowdloan.
 
@@ -51,20 +54,34 @@ async def refund_crowdloan(
     )
 
     if not crowdloan:
-        print_error(f"[red]Crowdloan #{crowdloan_id} not found.[/red]")
-        return False, f"Crowdloan #{crowdloan_id} not found."
+        error_msg = f"Crowdloan #{crowdloan_id} not found."
+        if json_output:
+            json_console.print(json.dumps({"success": False, "error": error_msg}))
+        else:
+            print_error(f"[red]{error_msg}[/red]")
+        return False, error_msg
 
     if crowdloan.finalized:
-        print_error(
-            f"[red]Crowdloan #{crowdloan_id} is already finalized. "
-            "Finalized crowdloans cannot be refunded.[/red]"
-        )
+        error_msg = f"Crowdloan #{crowdloan_id} is already finalized. Finalized crowdloans cannot be refunded."
+        if json_output:
+            json_console.print(json.dumps({"success": False, "error": error_msg}))
+        else:
+            print_error(f"[red]{error_msg}[/red]")
         return False, f"Crowdloan #{crowdloan_id} is already finalized."
+
     if crowdloan.end > current_block:
-        print_error(
-            f"[red]Crowdloan #{crowdloan_id} is not yet ended. "
-            f"End block: [cyan]{crowdloan.end:,}[/cyan] ([dim]{blocks_to_duration(crowdloan.end - current_block)} remaining[/dim])[/red]"
+        time_remaining = blocks_to_duration(crowdloan.end - current_block)
+        error_msg = (
+            f"Crowdloan #{crowdloan_id} is not yet ended. "
+            f"End block: {crowdloan.end} ({time_remaining} remaining)"
         )
+        if json_output:
+            json_console.print(json.dumps({"success": False, "error": error_msg}))
+        else:
+            print_error(
+                f"Crowdloan #{crowdloan_id} is not yet ended. "
+                f"End block: [cyan]{crowdloan.end}[/cyan] ([dim]{time_remaining} remaining[/dim])"
+            )
         return False, f"Crowdloan #{crowdloan_id} is not yet ended."
 
     await show_crowdloan_details(
@@ -133,12 +150,22 @@ async def refund_crowdloan(
         f"\n[bold]Proceed with refunding contributors of Crowdloan #{crowdloan_id}?[/bold]",
         default=False,
     ):
-        console.print("[yellow]Refund cancelled.[/yellow]")
+        if json_output:
+            json_console.print(
+                json.dumps({"success": False, "error": "Refund cancelled by user."})
+            )
+        else:
+            console.print("[yellow]Refund cancelled.[/yellow]")
         return False, "Refund cancelled by user."
 
     unlock_status = unlock_key(wallet)
     if not unlock_status.success:
-        print_error(f"[red]{unlock_status.message}[/red]")
+        if json_output:
+            json_console.print(
+                json.dumps({"success": False, "error": unlock_status.message})
+            )
+        else:
+            print_error(f"[red]{unlock_status.message}[/red]")
         return False, unlock_status.message
 
     with console.status(
@@ -163,13 +190,38 @@ async def refund_crowdloan(
         )
 
     if not success:
-        print_error(f"[red]Failed to refund contributors.[/red]\n{error_message}")
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": False,
+                        "error": error_message or "Failed to refund contributors.",
+                    }
+                )
+            )
+        else:
+            print_error(f"[red]Failed to refund contributors.[/red]\n{error_message}")
         return False, error_message
 
-    console.print(
-        f"[green]Contributors have been refunded for Crowdloan #{crowdloan_id}.[/green]"
-    )
-    if extrinsic_receipt:
+    if json_output:
+        extrinsic_id = await extrinsic_receipt.get_extrinsic_identifier()
+        output_dict = {
+            "success": True,
+            "error": None,
+            "extrinsic_identifier": extrinsic_id,
+            "data": {
+                "crowdloan_id": crowdloan_id,
+                "refund_limit_per_call": refund_limit,
+                "total_contributors": crowdloan.contributors_count,
+                "estimated_calls_remaining": max(0, estimated_calls - 1),
+                "amount_refunded": (crowdloan.raised - crowdloan.deposit).tao,
+            },
+        }
+        json_console.print(json.dumps(output_dict))
+    else:
+        console.print(
+            f"[green]Contributors have been refunded for Crowdloan #{crowdloan_id}.[/green]"
+        )
         await print_extrinsic_id(extrinsic_receipt)
 
-    return True, "Contributors have been refunded for Crowdloan #{crowdloan_id}."
+    return True, f"Contributors have been refunded for Crowdloan #{crowdloan_id}."
