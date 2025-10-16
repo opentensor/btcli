@@ -420,6 +420,10 @@ async def show_crowdloan_details(
 
     table.add_row("Address", target_display)
 
+    table.add_section()
+    table.add_row("[cyan underline]CALL DETAILS[/cyan underline]", "")
+    table.add_section()
+
     has_call_display = (
         f"[{COLORS.G.SUCCESS}]Yes[/{COLORS.G.SUCCESS}]"
         if crowdloan.has_call
@@ -428,10 +432,6 @@ async def show_crowdloan_details(
     table.add_row("Has Call", has_call_display)
 
     if crowdloan.has_call and crowdloan.call_details:
-        table.add_section()
-        table.add_row("[cyan underline]CALL DETAILS[/cyan underline]", "")
-        table.add_section()
-
         pallet = crowdloan.call_details.get("pallet", "Unknown")
         method = crowdloan.call_details.get("method", "Unknown")
         args = crowdloan.call_details.get("args", {})
