@@ -11,7 +11,7 @@ from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
     console,
-    err_console,
+    print_error,
     print_extrinsic_id,
     unlock_key,
 )
@@ -76,14 +76,14 @@ async def contribute_to_crowdloan(
         subtensor.substrate.get_block_number(None),
     )
     if not crowdloan:
-        err_console.print(f"[red]Crowdloan #{crowdloan_id} not found.[/red]")
+        print_error(f"[red]Crowdloan #{crowdloan_id} not found.[/red]")
         return False, f"Crowdloan #{crowdloan_id} not found."
 
     is_valid, error_message = validate_for_contribution(
         crowdloan, crowdloan_id, current_block
     )
     if not is_valid:
-        err_console.print(f"[red]{error_message}[/red]")
+        print_error(f"[red]{error_message}[/red]")
         return False, error_message
 
     contributor_address = wallet.coldkeypub.ss58_address
@@ -116,13 +116,13 @@ async def contribute_to_crowdloan(
 
     contribution_amount = Balance.from_tao(amount)
     if contribution_amount < crowdloan.min_contribution:
-        err_console.print(
+        print_error(
             f"[red]Contribution amount ({contribution_amount}) is below minimum ({crowdloan.min_contribution}).[/red]"
         )
         return False, "Contribution below minimum requirement."
 
     if contribution_amount > user_balance:
-        err_console.print(
+        print_error(
             f"[red]Insufficient balance. You have {user_balance} but trying to contribute {contribution_amount}.[/red]"
         )
         return False, "Insufficient balance."
@@ -206,7 +206,7 @@ async def contribute_to_crowdloan(
 
     unlock_status = unlock_key(wallet)
     if not unlock_status.success:
-        err_console.print(f"[red]{unlock_status.message}[/red]")
+        print_error(f"[red]{unlock_status.message}[/red]")
         return False, unlock_status.message
 
     with console.status(f"\n:satellite: Contributing to crowdloan #{crowdloan_id}..."):
@@ -222,7 +222,7 @@ async def contribute_to_crowdloan(
         )
 
     if not success:
-        err_console.print(f"[red]Failed to contribute: {error_message}[/red]")
+        print_error(f"[red]Failed to contribute: {error_message}[/red]")
         return False, error_message or "Failed to contribute."
 
     new_balance, new_contribution, updated_crowdloan = await asyncio.gather(
@@ -300,11 +300,11 @@ async def withdraw_from_crowdloan(
     )
 
     if not crowdloan:
-        err_console.print(f"[red]Crowdloan #{crowdloan_id} does not exist.[/red]")
+        print_error(f"[red]Crowdloan #{crowdloan_id} does not exist.[/red]")
         return False, f"Crowdloan #{crowdloan_id} does not exist."
 
     if crowdloan.finalized:
-        err_console.print(
+        print_error(
             f"[red]Crowdloan #{crowdloan_id} is already finalized. Withdrawals are not allowed.[/red]"
         )
         return False, "Cannot withdraw from finalized crowdloan."
@@ -317,7 +317,7 @@ async def withdraw_from_crowdloan(
     )
 
     if user_contribution == Balance.from_tao(0):
-        err_console.print(
+        print_error(
             f"[red]You have no contribution to withdraw from crowdloan #{crowdloan_id}.[/red]"
         )
         return False, "No contribution to withdraw."
@@ -326,7 +326,7 @@ async def withdraw_from_crowdloan(
     if is_creator:
         withdrawable = user_contribution - crowdloan.deposit
         if withdrawable <= 0:
-            err_console.print(
+            print_error(
                 f"[red]As the creator, you cannot withdraw your deposit of {crowdloan.deposit}. "
                 f"Only contributions above the deposit can be withdrawn.[/red]"
             )
@@ -409,7 +409,7 @@ async def withdraw_from_crowdloan(
 
     unlock_status = unlock_key(wallet)
     if not unlock_status.success:
-        err_console.print(f"[red]{unlock_status.message}[/red]")
+        print_error(f"[red]{unlock_status.message}[/red]")
         return False, unlock_status.message
 
     with console.status(f"\n:satellite: Withdrawing from crowdloan #{crowdloan_id}..."):
@@ -425,7 +425,7 @@ async def withdraw_from_crowdloan(
         )
 
     if not success:
-        err_console.print(
+        print_error(
             f"[red]Failed to withdraw: {error_message or 'Unknown error'}[/red]"
         )
         return False, error_message or "Failed to withdraw from crowdloan."

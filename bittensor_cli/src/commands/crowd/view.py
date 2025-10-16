@@ -12,7 +12,7 @@ from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
     blocks_to_duration,
     console,
-    err_console,
+    print_error,
     millify_tao,
 )
 
@@ -252,7 +252,7 @@ async def show_crowdloan_details(
             subtensor.get_single_crowdloan(crowdloan_id),
         )
     if not crowdloan:
-        err_console.print(f"[red]Crowdloan #{crowdloan_id} not found.[/red]")
+        print_error(f"[red]Crowdloan #{crowdloan_id} not found.[/red]")
         return False, f"Crowdloan #{crowdloan_id} not found."
 
     user_contribution = None
