@@ -1232,15 +1232,19 @@ class CrowdloanData(InfoBase):
 
     @classmethod
     def _fix_decoded(cls, decoded: dict[str, Any]) -> "CrowdloanData":
-        creator = decode_account_id(decoded["creator"]) if decoded["creator"] else None
+        creator = (
+            decode_account_id(creator_raw)
+            if (creator_raw := decoded.get("creator"))
+            else None
+        )
         funds_account = (
-            decode_account_id(decoded["funds_account"])
-            if decoded["funds_account"]
+            decode_account_id(funds_raw)
+            if (funds_raw := decoded.get("funds_account"))
             else None
         )
         target_address = (
-            decode_account_id(decoded["target_address"])
-            if decoded["target_address"]
+            decode_account_id(target_raw)
+            if (target_raw := decoded.get("target_address"))
             else None
         )
         return cls(
