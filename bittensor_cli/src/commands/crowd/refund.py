@@ -151,30 +151,25 @@ async def refund_crowdloan(
                 "crowdloan_id": crowdloan_id,
             },
         )
-        extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey
-        )
-        response = await subtensor.substrate.submit_extrinsic(
-            extrinsic,
+        (
+            success,
+            error_message,
+            extrinsic_receipt,
+        ) = await subtensor.sign_and_send_extrinsic(
+            call=call,
+            wallet=wallet,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
         )
 
-    if not wait_for_finalization and not wait_for_inclusion:
-        console.print("[green]Refund transaction submitted.[/green]")
-        return True, "Refund transaction submitted."
+    if not success:
+        print_error(f"[red]Failed to refund contributors.[/red]\n{error_message}")
+        return False, error_message
 
-    await response.process_events()
-
-    if not await response.is_success:
-        print_error(
-            f":cross_mark: [red]Failed to refund contributors.[/red]\n"
-            f"{response.error_message}"
-        )
-        return False, await response.error_message.get("name", "Unknown error")
     console.print(
-        f"[green]Refund transaction succeeded![/green]\n"
-        f"Contributors have been refunded for Crowdloan #{crowdloan_id}."
+        f"[green]Contributors have been refunded for Crowdloan #{crowdloan_id}.[/green]"
     )
-    await print_extrinsic_id(response)
-    return True, "Refund completed successfully."
+    if extrinsic_receipt:
+        await print_extrinsic_id(extrinsic_receipt)
+
+    return True, "Contributors have been refunded for Crowdloan #{crowdloan_id}."
