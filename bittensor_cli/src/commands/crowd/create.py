@@ -1,4 +1,5 @@
 import asyncio
+import json
 from typing import Optional
 
 from bittensor_wallet import Wallet
@@ -13,6 +14,7 @@ from bittensor_cli.src.commands.crowd.utils import get_constant
 from bittensor_cli.src.bittensor.utils import (
     blocks_to_duration,
     console,
+    json_console,
     print_error,
     is_valid_ss58_address,
     unlock_key,
@@ -382,6 +384,7 @@ async def finalize_crowdloan(
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
     prompt: bool,
+    json_output: bool = False,
 ) -> tuple[bool, str]:
     """
     Finalize a successful crowdloan that has reached its cap.
@@ -409,26 +412,45 @@ async def finalize_crowdloan(
     )
 
     if not crowdloan:
-        print_error(f"[red]Crowdloan #{crowdloan_id} does not exist.[/red]")
-        return False, f"Crowdloan #{crowdloan_id} does not exist."
+        error_msg = f"Crowdloan #{crowdloan_id} does not exist."
+        if json_output:
+            json_console.print(json.dumps({"success": False, "error": error_msg}))
+        else:
+            print_error(f"[red]{error_msg}[/red]")
+        return False, error_msg
 
     if wallet.coldkeypub.ss58_address != crowdloan.creator:
-        print_error(
-            f"[red]Only the creator can finalize a crowdloan. "
-            f"Creator: {crowdloan.creator}[/red]"
+        error_msg = (
+            f"Only the creator can finalize a crowdloan. Creator: {crowdloan.creator}"
         )
+        if json_output:
+            json_console.print(json.dumps({"success": False, "error": error_msg}))
+        else:
+            print_error(f"[red]{error_msg}[/red]")
         return False, "Only the creator can finalize a crowdloan."
 
     if crowdloan.finalized:
-        print_error(f"[red]Crowdloan #{crowdloan_id} is already finalized.[/red]")
+        error_msg = f"Crowdloan #{crowdloan_id} is already finalized."
+        if json_output:
+            json_console.print(json.dumps({"success": False, "error": error_msg}))
+        else:
+            print_error(f"[red]{error_msg}[/red]")
         return False, "Crowdloan is already finalized."
 
     if crowdloan.raised < crowdloan.cap:
-        print_error(
-            f"[red]Crowdloan #{crowdloan_id} has not reached its cap.\n"
-            f"Raised: {crowdloan.raised}, Cap: {crowdloan.cap}\n"
-            f"Still needed: {Balance.from_rao(crowdloan.cap.rao - crowdloan.raised.rao)}[/red]"
+        still_needed = crowdloan.cap - crowdloan.raised
+        error_msg = (
+            f"Crowdloan #{crowdloan_id} has not reached its cap. Raised: {crowdloan.raised.tao}, "
+            f"Cap: {crowdloan.cap.tao}, Still needed: {still_needed.tao}"
         )
+        if json_output:
+            json_console.print(json.dumps({"success": False, "error": error_msg}))
+        else:
+            print_error(
+                f"[red]Crowdloan #{crowdloan_id} has not reached its cap.\n"
+                f"Raised: {crowdloan.raised}, Cap: {crowdloan.cap}\n"
+                f"Still needed: {still_needed.tao}[/red]"
+            )
         return False, "Crowdloan has not reached its cap."
 
     call = await subtensor.substrate.compose_call(
@@ -502,12 +524,24 @@ async def finalize_crowdloan(
         )
 
         if not Confirm.ask("\nProceed with finalization?"):
-            console.print("[yellow]Finalization cancelled.[/yellow]")
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {"success": False, "error": "Finalization cancelled by user."}
+                    )
+                )
+            else:
+                console.print("[yellow]Finalization cancelled.[/yellow]")
             return False, "Finalization cancelled by user."
 
     unlock_status = unlock_key(wallet)
     if not unlock_status.success:
-        print_error(f"[red]{unlock_status.message}[/red]")
+        if json_output:
+            json_console.print(
+                json.dumps({"success": False, "error": unlock_status.message})
+            )
+        else:
+            print_error(f"[red]{unlock_status.message}[/red]")
         return False, unlock_status.message
 
     success, error_message, extrinsic_receipt = await subtensor.sign_and_send_extrinsic(
@@ -518,30 +552,56 @@ async def finalize_crowdloan(
     )
 
     if not success:
-        print_error(
-            f"[red]Failed to finalize: {error_message or 'Unknown error'}[/red]"
-        )
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": False,
+                        "error": error_message or "Failed to finalize crowdloan.",
+                    }
+                )
+            )
+        else:
+            print_error(
+                f"[red]Failed to finalize: {error_message or 'Unknown error'}[/red]"
+            )
         return False, error_message or "Failed to finalize crowdloan."
 
-    console.print(
-        f"\n[dark_sea_green3]Successfully finalized crowdloan #{crowdloan_id}![/dark_sea_green3]\n"
-    )
-
-    console.print(
-        f"[bold]Finalization Complete:[/bold]\n"
-        f"\t• Total Raised: [{COLORS.S.AMOUNT}]{crowdloan.raised}[/{COLORS.S.AMOUNT}]\n"
-        f"\t• Contributors: {crowdloan.contributors_count}"
-    )
-
-    if crowdloan.target_address:
+    if json_output:
+        extrinsic_id = await extrinsic_receipt.get_extrinsic_identifier()
+        output_dict = {
+            "success": True,
+            "error": None,
+            "extrinsic_identifier": extrinsic_id,
+            "data": {
+                "crowdloan_id": crowdloan_id,
+                "total_raised": crowdloan.raised.tao,
+                "contributors_count": crowdloan.contributors_count,
+                "target_address": crowdloan.target_address,
+                "has_call": crowdloan.has_call,
+                "call_executed": crowdloan.has_call,
+            },
+        }
+        json_console.print(json.dumps(output_dict))
+    else:
         console.print(
-            f"\t• Funds transferred to: [{COLORS.G.SUBHEAD_EX_1}]{crowdloan.target_address}[/{COLORS.G.SUBHEAD_EX_1}]"
+            f"\n[dark_sea_green3]Successfully finalized crowdloan #{crowdloan_id}![/dark_sea_green3]\n"
         )
 
-    if crowdloan.has_call:
-        console.print("\t• [green]Associated call has been executed[/green]")
+        console.print(
+            f"[bold]Finalization Complete:[/bold]\n"
+            f"\t• Total Raised: [{COLORS.S.AMOUNT}]{crowdloan.raised}[/{COLORS.S.AMOUNT}]\n"
+            f"\t• Contributors: {crowdloan.contributors_count}"
+        )
 
-    if extrinsic_receipt:
+        if crowdloan.target_address:
+            console.print(
+                f"\t• Funds transferred to: [{COLORS.G.SUBHEAD_EX_1}]{crowdloan.target_address}[/{COLORS.G.SUBHEAD_EX_1}]"
+            )
+
+        if crowdloan.has_call:
+            console.print("\t• [green]Associated call has been executed[/green]")
+
         await print_extrinsic_id(extrinsic_receipt)
 
     return True, "Successfully finalized crowdloan."

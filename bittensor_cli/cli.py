@@ -7614,6 +7614,7 @@ class CLIManager:
         wait_for_finalization: bool = Options.wait_for_finalization,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Finalize a successful crowdloan that has reached its cap.
@@ -7621,6 +7622,8 @@ class CLIManager:
         Only the creator can finalize. This will transfer funds to the target
         address (if specified) and execute any attached call (e.g., subnet creation).
         """
+        self.verbosity_handler(quiet, verbose, json_output)
+
         if crowdloan_id is None:
             crowdloan_id = IntPrompt.ask(
                 f"Enter the [{COLORS.G.SUBHEAD_MAIN}]crowdloan id[/{COLORS.G.SUBHEAD_MAIN}]",
@@ -7644,6 +7647,7 @@ class CLIManager:
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 prompt=prompt,
+                json_output=json_output,
             )
         )
 
