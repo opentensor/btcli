@@ -732,6 +732,11 @@ HELP_PANELS = {
     "LIQUIDITY": {
         "LIQUIDITY_MGMT": "Liquidity Management",
     },
+    "CROWD": {
+        "INITIATOR": "Crowdloan Creation & Management",
+        "PARTICIPANT": "Crowdloan Participation",
+        "INFO": "Crowdloan Information",
+    },
 }
 
 

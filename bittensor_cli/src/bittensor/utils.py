@@ -1504,11 +1504,11 @@ async def print_extrinsic_id(
         query = await substrate.rpc_request("system_chainType", [])
         if query.get("result") == "Live":
             console.print(
-                f":white_heavy_check_mark:Your extrinsic has been included as {ext_id}: "
+                f":white_heavy_check_mark: Your extrinsic has been included as {ext_id}: "
                 f"[blue]https://tao.app/extrinsic/{ext_id}[/blue]"
             )
             return
     console.print(
-        f":white_heavy_check_mark:Your extrinsic has been included as {ext_id}"
+        f":white_heavy_check_mark: Your extrinsic has been included as {ext_id}"
     )
     return
