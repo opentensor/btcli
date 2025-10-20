@@ -5178,7 +5178,12 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         wallet_path: Optional[str] = Options.wallet_path,
         network: Optional[list[str]] = Options.network,
-        hotkey: Optional[str] = None,
+        child_hotkey_ss58: Optional[str] = typer.Option(
+            None,
+            "child-hotkey-ss58",
+            help="The hotkey SS58 to designate as child (not specifying will use the provided wallet's hotkey)",
+            prompt=False,
+        ),
         netuid: Optional[int] = typer.Option(
             None,
             help="The netuid of the subnet, (e.g. 23)",
@@ -5215,11 +5220,11 @@ class CLIManager:
 
         To get the current take value, do not use the '--take' option:
 
-            [green]$[/green] btcli stake child take --hotkey <child_hotkey> --netuid 1
+            [green]$[/green] btcli stake child take --child-hotkey-ss58 <child_hotkey> --netuid 1
 
         To set a new take value, use the '--take' option:
 
-            [green]$[/green] btcli stake child take --hotkey <child_hotkey> --take 0.12 --netuid 1
+            [green]$[/green] btcli stake child take --child-hotkey-ss58 <child_hotkey> --take 0.12 --netuid 1
         """
         self.verbosity_handler(quiet, verbose, json_output)
         wallet = self.wallet_ask(
