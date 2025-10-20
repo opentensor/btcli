@@ -9,10 +9,14 @@ Verify commands:
 
 import asyncio
 import json
+import pytest
 
 from .utils import call_add_proposal
 
 
+@pytest.mark.skip(
+    reason="See: https://github.com/opentensor/bittensor/pull/3102. Skipping until new governance is set up."
+)
 def test_senate(local_chain, wallet_setup):
     """
     Test the senate functionality in Bittensor
