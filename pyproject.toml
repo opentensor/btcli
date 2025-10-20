@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bittensor-cli"
-version = "9.13.1"
+version = "9.14.0"
 description = "Bittensor CLI"
 readme = "README.md"
 authors = [
@@ -25,7 +25,7 @@ dependencies = [
     "pycryptodome>=3.0.0,<4.0.0",
     "PyYAML~=6.0.1",
     "rich>=13.7,<15.0",
-    "scalecodec==1.2.11",
+    "scalecodec==1.2.12",
     "typer>=0.16",
     "bittensor-wallet>=4.0.0",
     "packaging",

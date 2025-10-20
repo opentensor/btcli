@@ -3,7 +3,6 @@ import os
 import time
 from typing import Optional, Any, Union, TypedDict, Iterable
 
-import aiohttp
 from async_substrate_interface import AsyncExtrinsicReceipt
 from async_substrate_interface.async_substrate import (
     DiskCachedAsyncSubstrateInterface,
@@ -14,7 +13,7 @@ from async_substrate_interface.utils.storage import StorageKey
 from bittensor_wallet import Wallet
 from bittensor_wallet.bittensor_wallet import Keypair
 from bittensor_wallet.utils import SS58_FORMAT
-from scalecodec import GenericCall
+from scalecodec import GenericCall, ScaleBytes
 import typer
 import websockets
 
@@ -30,6 +29,7 @@ from bittensor_cli.src.bittensor.chain_data import (
     SubnetState,
     MetagraphInfo,
     SimSwapResult,
+    CrowdloanData,
 )
 from bittensor_cli.src import DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance, fixed_to_float
@@ -166,6 +166,44 @@ class SubtensorInterface:
             return result.value
         else:
             return result
+
+    async def _decode_inline_call(
+        self,
+        call_option: Any,
+        block_hash: Optional[str] = None,
+    ) -> Optional[dict[str, Any]]:
+        """
+        Decode an `Option<BoundedCall>` returned from storage into a structured dictionary.
+        """
+        if not call_option or "Inline" not in call_option:
+            return None
+        inline_bytes = bytes(call_option["Inline"][0][0])
+        call_obj = await self.substrate.create_scale_object(
+            "Call",
+            data=ScaleBytes(inline_bytes),
+            block_hash=block_hash,
+        )
+        call_value = call_obj.decode()
+
+        if not isinstance(call_value, dict):
+            return None
+
+        call_args = call_value.get("call_args") or []
+        args_map: dict[str, dict[str, Any]] = {}
+        for arg in call_args:
+            if isinstance(arg, dict) and arg.get("name"):
+                args_map[arg["name"]] = {
+                    "type": arg.get("type"),
+                    "value": arg.get("value"),
+                }
+
+        return {
+            "call_index": call_value.get("call_index"),
+            "pallet": call_value.get("call_module"),
+            "method": call_value.get("call_function"),
+            "args": args_map,
+            "hash": call_value.get("call_hash"),
+        }
 
     async def get_all_subnet_netuids(
         self, block_hash: Optional[str] = None
@@ -1301,56 +1339,23 @@ class SubtensorInterface:
         :return: {ss58: DelegatesDetails, ...}
 
         """
-        timeout = aiohttp.ClientTimeout(10.0)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            identities_info, response = await asyncio.gather(
-                self.substrate.query_map(
-                    module="Registry",
-                    storage_function="IdentityOf",
-                    block_hash=block_hash,
-                ),
-                session.get(Constants.delegates_detail_url),
+        identities_info = await self.substrate.query_map(
+            module="Registry",
+            storage_function="IdentityOf",
+            block_hash=block_hash,
+        )
+
+        all_delegates_details = {}
+        async for ss58_address, identity in identities_info:
+            all_delegates_details.update(
+                {
+                    decode_account_id(
+                        ss58_address[0]
+                    ): DelegatesDetails.from_chain_data(
+                        decode_hex_identity_dict(identity.value["info"])
+                    )
+                }
             )
-
-            all_delegates_details = {}
-            async for ss58_address, identity in identities_info:
-                all_delegates_details.update(
-                    {
-                        decode_account_id(
-                            ss58_address[0]
-                        ): DelegatesDetails.from_chain_data(
-                            decode_hex_identity_dict(identity.value["info"])
-                        )
-                    }
-                )
-
-            if response.ok:
-                all_delegates: dict[str, Any] = await response.json(content_type=None)
-
-                for delegate_hotkey, delegate_details in all_delegates.items():
-                    delegate_info = all_delegates_details.setdefault(
-                        delegate_hotkey,
-                        DelegatesDetails(
-                            display=delegate_details.get("name", ""),
-                            web=delegate_details.get("url", ""),
-                            additional=delegate_details.get("description", ""),
-                            pgp_fingerprint=delegate_details.get("fingerprint", ""),
-                        ),
-                    )
-                    delegate_info.display = (
-                        delegate_info.display or delegate_details.get("name", "")
-                    )
-                    delegate_info.web = delegate_info.web or delegate_details.get(
-                        "url", ""
-                    )
-                    delegate_info.additional = (
-                        delegate_info.additional
-                        or delegate_details.get("description", "")
-                    )
-                    delegate_info.pgp_fingerprint = (
-                        delegate_info.pgp_fingerprint
-                        or delegate_details.get("fingerprint", "")
-                    )
 
         return all_delegates_details
 
@@ -1692,6 +1697,101 @@ class SubtensorInterface:
         async for ss58, _ in result:
             keys_pending_swap.append(decode_account_id(ss58))
         return keys_pending_swap
+
+    async def get_crowdloans(
+        self, block_hash: Optional[str] = None
+    ) -> list[CrowdloanData]:
+        """Retrieves all crowdloans from the network.
+
+        Args:
+            block_hash (Optional[str]): The blockchain block hash at which to perform the query.
+
+        Returns:
+            dict[int, CrowdloanData]: A dictionary mapping crowdloan IDs to CrowdloanData objects
+                containing details such as creator, deposit, cap, raised amount, and finalization status.
+
+        This function fetches information about all crowdloans
+        """
+        crowdloans_data = await self.substrate.query_map(
+            module="Crowdloan",
+            storage_function="Crowdloans",
+            block_hash=block_hash,
+            fully_exhaust=True,
+        )
+        crowdloans = {}
+        async for fund_id, fund_info in crowdloans_data:
+            decoded_call = await self._decode_inline_call(
+                fund_info["call"],
+                block_hash=block_hash,
+            )
+            info_dict = dict(fund_info.value)
+            info_dict["call_details"] = decoded_call
+            crowdloans[fund_id] = CrowdloanData.from_any(info_dict)
+
+        return crowdloans
+
+    async def get_single_crowdloan(
+        self,
+        crowdloan_id: int,
+        block_hash: Optional[str] = None,
+    ) -> Optional[CrowdloanData]:
+        """Retrieves detailed information about a specific crowdloan.
+
+        Args:
+            crowdloan_id (int): The unique identifier of the crowdloan to retrieve.
+            block_hash (Optional[str]): The blockchain block hash at which to perform the query.
+
+        Returns:
+            Optional[CrowdloanData]: A CrowdloanData object containing the crowdloan's details if found,
+                None if the crowdloan does not exist.
+
+        The returned data includes crowdloan details such as funding targets,
+        contribution minimums, timeline, and current funding status
+        """
+        crowdloan_info = await self.query(
+            module="Crowdloan",
+            storage_function="Crowdloans",
+            params=[crowdloan_id],
+            block_hash=block_hash,
+        )
+        if crowdloan_info:
+            decoded_call = await self._decode_inline_call(
+                crowdloan_info.get("call"),
+                block_hash=block_hash,
+            )
+            crowdloan_info["call_details"] = decoded_call
+            return CrowdloanData.from_any(crowdloan_info)
+        return None
+
+    async def get_crowdloan_contribution(
+        self,
+        crowdloan_id: int,
+        contributor: str,
+        block_hash: Optional[str] = None,
+    ) -> Optional[Balance]:
+        """Retrieves a user's contribution to a specific crowdloan.
+
+        Args:
+            crowdloan_id (int): The ID of the crowdloan.
+            contributor (str): The SS58 address of the contributor.
+            block_hash (Optional[str]): The blockchain block hash at which to perform the query.
+
+        Returns:
+            Optional[Balance]: The contribution amount as a Balance object if found, None otherwise.
+
+        This function queries the Contributions storage to find the amount a specific address
+        has contributed to a given crowdloan.
+        """
+        contribution = await self.query(
+            module="Crowdloan",
+            storage_function="Contributions",
+            params=[crowdloan_id, contributor],
+            block_hash=block_hash,
+        )
+
+        if contribution:
+            return Balance.from_rao(contribution)
+        return None
 
     async def get_coldkey_swap_schedule_duration(
         self,
