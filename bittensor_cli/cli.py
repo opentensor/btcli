@@ -2288,7 +2288,7 @@ class CLIManager:
         - Make sure that you use a newly created hotkeyB in this command. A hotkeyB that is already registered cannot be used in this command.
         - If NO netuid is specified, the swap will be initiated for ALL subnets (recommended for most users).
         - If a SPECIFIC netuid is specified (e.g., --netuid 1), the swap will only affect that particular subnet.
-        - WARNING: Using --netuid 0 will ONLY move child hotkey delegation mappings on root, NOT a full swap. Use without --netuid for full swap.
+        - WARNING: Using --netuid 0 will ONLY swap on the root network (netuid 0), NOT a full swap across all subnets. Use without --netuid for full swap.
         - Finally, note that this command requires a fee of 1 TAO for recycling and this fee is taken from your wallet (coldkeyA).
 
         EXAMPLE
@@ -2302,21 +2302,16 @@ class CLIManager:
         netuid = get_optional_netuid(netuid, all_netuids)
         self.verbosity_handler(quiet, verbose, json_output)
         
-        # Warning for netuid 0 - only moves child hotkey delegation, not a full swap
+        # Warning for netuid 0 - only swaps on root network, not a full swap
         if netuid == 0 and prompt:
             console.print(
                 "\n[bold yellow]⚠️  WARNING: Using --netuid 0 for swap_hotkey[/bold yellow]\n"
             )
             console.print(
-                "[yellow]Specifying --netuid 0 will ONLY move the child hotkey delegation mappings "
-                "on the root network.[/yellow]\n"
+                "[yellow]Specifying --netuid 0 will ONLY swap the hotkey on the root network (netuid 0).[/yellow]\n"
             )
             console.print(
-                "[yellow]This is NOT a full hotkey swap across all subnets.[/yellow]\n"
-            )
-            console.print(
-                "[bold cyan]💡 Recommended:[/bold cyan] Use this command [bold]WITHOUT[/bold] the --netuid flag "
-                "to swap your hotkey across ALL subnets:\n"
+                "[yellow]It will NOT move child hotkey delegation mappings on root.[/yellow]\n"
             )
             console.print(
                 f"[bold green]btcli wallet swap_hotkey {destination_hotkey_name or '<destination_hotkey>'} "
@@ -2325,7 +2320,7 @@ class CLIManager:
             )
             
             if not Confirm.ask(
-                "Are you SURE you want to proceed with --netuid 0 (only child hotkey delegation)?",
+                "Are you SURE you want to proceed with --netuid 0 (only root network swap)?",
                 default=False
             ):
                 return

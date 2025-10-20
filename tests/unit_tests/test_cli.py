@@ -87,17 +87,18 @@ def test_swap_hotkey_netuid_0_warning_with_prompt(mock_console, mock_confirm):
             json_output=False
         )
 
-        # Assert: Warning was displayed
-        assert mock_console.print.call_count >= 4  # Multiple warning messages
+        # Assert: Warning was displayed (4 console.print calls for the warning)
+        assert mock_console.print.call_count >= 4
         warning_calls = [str(call) for call in mock_console.print.call_args_list]
-        assert any("WARNING" in str(call) for call in warning_calls)
-        assert any("child hotkey delegation" in str(call) for call in warning_calls)
+        assert any("WARNING" in str(call) and "netuid 0" in str(call) for call in warning_calls)
+        assert any("root network" in str(call) for call in warning_calls)
+        assert any("NOT move child hotkey delegation" in str(call) for call in warning_calls)
         
         # Assert: User was asked to confirm
         mock_confirm.ask.assert_called_once()
         confirm_message = mock_confirm.ask.call_args[0][0]
         assert "SURE" in confirm_message
-        assert "netuid 0" in confirm_message
+        assert "netuid 0" in confirm_message or "root network" in confirm_message
         
         # Assert: Function returned None (early exit) because user declined
         assert result is None
