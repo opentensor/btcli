@@ -2529,7 +2529,7 @@ class CLIManager:
         """
         Regenerate a coldkey for a wallet on the Bittensor blockchain network.
 
-        This command is used to create a new coldkey from an existing mnemonic, seed, or JSON file.
+        This command is used to create a new instance of a coldkey from an existing mnemonic, seed, or JSON file.
 
         USAGE
 
