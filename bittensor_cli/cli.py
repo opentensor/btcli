@@ -2301,7 +2301,7 @@ class CLIManager:
         """
         netuid = get_optional_netuid(netuid, all_netuids)
         self.verbosity_handler(quiet, verbose, json_output)
-        
+
         # Warning for netuid 0 - only swaps on root network, not a full swap
         if netuid == 0 and prompt:
             console.print(
@@ -2318,10 +2318,10 @@ class CLIManager:
                 f"--wallet-name {wallet_name or '<wallet_name>'} "
                 f"--wallet-hotkey {wallet_hotkey or '<original_hotkey>'}[/bold green]\n"
             )
-            
+
             if not Confirm.ask(
                 "Are you SURE you want to proceed with --netuid 0 (only root network swap)?",
-                default=False
+                default=False,
             ):
                 return
         original_wallet = self.wallet_ask(
