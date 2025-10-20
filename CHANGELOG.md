@@ -1,4 +1,12 @@
 # Changelog
+## 9.14.0 /2025-10-20
+* Skips senate tests by @thewhaleking in https://github.com/opentensor/btcli/pull/658
+* Feat/crowdloans by @ibraheem-abe in https://github.com/opentensor/btcli/pull/657
+* Removes the fetching of identities in GitHub by @thewhaleking in https://github.com/opentensor/btcli/pull/659
+* Fixes the double `--hotkey` arg in set childkey take by @thewhaleking in https://github.com/opentensor/btcli/pull/662
+* Updates the help text for coldkey regen by @thewhaleking in https://github.com/opentensor/btcli/pull/663
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.13.1...v9.14.0
 
 # 9.13.1 /2025-10-14
 * Fix for complicated (user_liquidity_enabled) hyperparams by @thewhaleking in https://github.com/opentensor/btcli/pull/652
