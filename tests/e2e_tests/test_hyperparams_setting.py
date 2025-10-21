@@ -1,7 +1,7 @@
 import asyncio
 import json
 
-from bittensor_cli.src import HYPERPARAMS
+from bittensor_cli.src import HYPERPARAMS, RootSudoOnly
 from .utils import turn_off_hyperparam_freeze_window
 
 """
@@ -83,7 +83,7 @@ def test_hyperparams_setting(local_chain, wallet_setup):
     for hyperparam in all_hyperparams:
         hp[hyperparam["hyperparameter"]] = hyperparam["value"]
     for key, (_, sudo_only) in HYPERPARAMS.items():
-        if key in hp.keys() and not sudo_only:
+        if key in hp.keys() and sudo_only == RootSudoOnly.FALSE:
             if isinstance(hp[key], bool):
                 new_val = not hp[key]
             elif isinstance(hp[key], int):
