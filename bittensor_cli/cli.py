@@ -5229,7 +5229,7 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         child_hotkey_ss58: Optional[str] = typer.Option(
             None,
-            "child-hotkey-ss58",
+            "--child-hotkey-ss58",
             help="The hotkey SS58 to designate as child (not specifying will use the provided wallet's hotkey)",
             prompt=False,
         ),
@@ -5306,7 +5306,7 @@ class CLIManager:
                 subtensor=self.initialize_chain(network),
                 netuid=netuid,
                 take=take,
-                hotkey=hotkey,
+                hotkey=child_hotkey_ss58,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 prompt=prompt,
