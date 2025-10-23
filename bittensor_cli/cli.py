@@ -4573,9 +4573,17 @@ class CLIManager:
         [green]$[/green] btcli stake move
         """
         self.verbosity_handler(quiet, verbose, json_output)
-        console.print(
-            "[dim]This command moves stake from one hotkey to another hotkey while keeping the same coldkey.[/dim]"
-        )
+        if prompt:
+            if not Confirm.ask(
+                "This transaction will [bold]move stake[/bold] to another hotkey while keeping the same "
+                "coldkey ownership. Do you wish to continue? ",
+                default=False,
+            ):
+                raise typer.Exit()
+        else:
+            console.print(
+                "[dim]This command moves stake from one hotkey to another hotkey while keeping the same coldkey.[/dim]"
+            )
         if not destination_hotkey:
             dest_wallet_or_ss58 = Prompt.ask(
                 "Enter the [blue]destination wallet[/blue] where destination hotkey is located or "
@@ -4770,9 +4778,18 @@ class CLIManager:
         [green]$[/green] btcli stake transfer --all --origin-netuid 1 --dest-netuid 2
         """
         self.verbosity_handler(quiet, verbose, json_output)
-        console.print(
-            "[dim]This command transfers stake from one coldkey to another while keeping the same hotkey.[/dim]"
-        )
+        if prompt:
+            if not Confirm.ask(
+                "This transaction will [bold]transfer ownership[/bold] from one coldkey to another, in subnets "
+                "which have enabled it. You should ensure that the destination coldkey is "
+                "[bold]not a validator hotkey[/bold] before continuing. Do you wish to continue?",
+                default=False,
+            ):
+                raise typer.Exit()
+        else:
+            console.print(
+                "[dim]This command transfers stake from one coldkey to another while keeping the same hotkey.[/dim]"
+            )
 
         if not dest_ss58:
             dest_ss58 = Prompt.ask(
