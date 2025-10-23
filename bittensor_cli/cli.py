@@ -2291,15 +2291,44 @@ class CLIManager:
 
         - Make sure that your original key pair (coldkeyA, hotkeyA) is already registered.
         - Make sure that you use a newly created hotkeyB in this command. A hotkeyB that is already registered cannot be used in this command.
-        - You can specify the netuid for which you want to swap the hotkey for. If it is not defined, the swap will be initiated for all subnets.
+        - If NO netuid is specified, the swap will be initiated for ALL subnets (recommended for most users).
+        - If a SPECIFIC netuid is specified (e.g., --netuid 1), the swap will only affect that particular subnet.
+        - WARNING: Using --netuid 0 will ONLY swap on the root network (netuid 0), NOT a full swap across all subnets. Use without --netuid for full swap.
         - Finally, note that this command requires a fee of 1 TAO for recycling and this fee is taken from your wallet (coldkeyA).
 
         EXAMPLE
 
+        Full swap across all subnets (recommended):
+        [green]$[/green] btcli wallet swap_hotkey destination_hotkey_name --wallet-name your_wallet_name --wallet-hotkey original_hotkey
+
+        Swap for a specific subnet only:
         [green]$[/green] btcli wallet swap_hotkey destination_hotkey_name --wallet-name your_wallet_name --wallet-hotkey original_hotkey --netuid 1
         """
         netuid = get_optional_netuid(netuid, all_netuids)
         self.verbosity_handler(quiet, verbose, json_output)
+
+        # Warning for netuid 0 - only swaps on root network, not a full swap
+        if netuid == 0 and prompt:
+            console.print(
+                "\n[bold yellow]⚠️  WARNING: Using --netuid 0 for swap_hotkey[/bold yellow]\n"
+            )
+            console.print(
+                "[yellow]Specifying --netuid 0 will ONLY swap the hotkey on the root network (netuid 0).[/yellow]\n"
+            )
+            console.print(
+                "[yellow]It will NOT move child hotkey delegation mappings on root.[/yellow]\n"
+            )
+            console.print(
+                f"[bold green]btcli wallet swap_hotkey {destination_hotkey_name or '<destination_hotkey>'} "
+                f"--wallet-name {wallet_name or '<wallet_name>'} "
+                f"--wallet-hotkey {wallet_hotkey or '<original_hotkey>'}[/bold green]\n"
+            )
+
+            if not Confirm.ask(
+                "Are you SURE you want to proceed with --netuid 0 (only root network swap)?",
+                default=False,
+            ):
+                return
         original_wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -4578,9 +4607,17 @@ class CLIManager:
         [green]$[/green] btcli stake move
         """
         self.verbosity_handler(quiet, verbose, json_output)
-        console.print(
-            "[dim]This command moves stake from one hotkey to another hotkey while keeping the same coldkey.[/dim]"
-        )
+        if prompt:
+            if not Confirm.ask(
+                "This transaction will [bold]move stake[/bold] to another hotkey while keeping the same "
+                "coldkey ownership. Do you wish to continue? ",
+                default=False,
+            ):
+                raise typer.Exit()
+        else:
+            console.print(
+                "[dim]This command moves stake from one hotkey to another hotkey while keeping the same coldkey.[/dim]"
+            )
         if not destination_hotkey:
             dest_wallet_or_ss58 = Prompt.ask(
                 "Enter the [blue]destination wallet[/blue] where destination hotkey is located or "
@@ -4775,9 +4812,18 @@ class CLIManager:
         [green]$[/green] btcli stake transfer --all --origin-netuid 1 --dest-netuid 2
         """
         self.verbosity_handler(quiet, verbose, json_output)
-        console.print(
-            "[dim]This command transfers stake from one coldkey to another while keeping the same hotkey.[/dim]"
-        )
+        if prompt:
+            if not Confirm.ask(
+                "This transaction will [bold]transfer ownership[/bold] from one coldkey to another, in subnets "
+                "which have enabled it. You should ensure that the destination coldkey is "
+                "[bold]not a validator hotkey[/bold] before continuing. Do you wish to continue?",
+                default=False,
+            ):
+                raise typer.Exit()
+        else:
+            console.print(
+                "[dim]This command transfers stake from one coldkey to another while keeping the same hotkey.[/dim]"
+            )
 
         if not dest_ss58:
             dest_ss58 = Prompt.ask(
@@ -5234,7 +5280,7 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         child_hotkey_ss58: Optional[str] = typer.Option(
             None,
-            "child-hotkey-ss58",
+            "--child-hotkey-ss58",
             help="The hotkey SS58 to designate as child (not specifying will use the provided wallet's hotkey)",
             prompt=False,
         ),
@@ -5311,7 +5357,7 @@ class CLIManager:
                 subtensor=self.initialize_chain(network),
                 netuid=netuid,
                 take=take,
-                hotkey=hotkey,
+                hotkey=child_hotkey_ss58,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 prompt=prompt,
@@ -7769,10 +7815,10 @@ class CLIManager:
         """
         Refund contributors of a non-finalized crowdloan.
 
-        Any account may call this once the crowdloan is no longer wanted. Each call
-        refunds up to the on-chain `RefundContributorsLimit` contributors (currently
-        50) excluding the creator. Run it repeatedly until everyone except the creator
-        has been reimbursed.
+        Only the creator may call this. Each call refunds up to the on-chain `RefundContributorsLimit` contributors
+        (currently 50) excluding the creator. Run it repeatedly until everyone except the creator has been reimbursed.
+
+        Contributors can call `btcli crowdloan withdraw` at will.
         """
         self.verbosity_handler(quiet, verbose, json_output)
 
