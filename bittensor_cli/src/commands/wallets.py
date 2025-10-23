@@ -3,6 +3,7 @@ import itertools
 import json
 import os
 from collections import defaultdict
+from enum import Enum
 from typing import Generator, Optional, Union
 
 import aiohttp
@@ -51,6 +52,27 @@ from bittensor_cli.src.bittensor.utils import (
     get_hotkey_pub_ss58,
     print_extrinsic_id,
 )
+
+
+class SortByBalance(Enum):
+    name = "name"
+    free = "free"
+    staked = "staked"
+    total = "total"
+
+
+def _sort_by_balance_key(sort_by: SortByBalance):
+    """Get the sort key function based on the enum"""
+    if sort_by == SortByBalance.name:
+        return lambda row: row[0].lower()  # Case-insensitive alphabetical sort
+    elif sort_by == SortByBalance.free:
+        return lambda row: row[2]
+    elif sort_by == SortByBalance.staked:
+        return lambda row: row[3]
+    elif sort_by == SortByBalance.total:
+        return lambda row: row[4]
+    else:
+        raise ValueError("Invalid sort key")
 
 
 async def associate_hotkey(
@@ -565,6 +587,7 @@ async def wallet_balance(
     subtensor: SubtensorInterface,
     all_balances: bool,
     ss58_addresses: Optional[str] = None,
+    sort_by: Optional[SortByBalance] = None,
     json_output: bool = False,
 ):
     """Retrieves the current balance of the specified wallet"""
@@ -644,14 +667,26 @@ async def wallet_balance(
         width=None,
         leading=True,
     )
-
-    for name, (coldkey, free, staked) in balances.items():
+    balance_rows = [
+        (name, coldkey, free, staked, free + staked)
+        for (name, (coldkey, free, staked)) in balances.items()
+    ]
+    sorted_balances = (
+        sorted(
+            balance_rows,
+            key=_sort_by_balance_key(sort_by),
+            reverse=(sort_by != SortByBalance.name),
+        )
+        if sort_by is not None
+        else balance_rows
+    )
+    for name, coldkey, free, staked, total in sorted_balances:
         table.add_row(
             name,
             coldkey,
             str(free),
             str(staked),
-            str(free + staked),
+            str(total),
         )
     table.add_row()
     table.add_row(

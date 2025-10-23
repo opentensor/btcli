@@ -39,6 +39,7 @@ from bittensor_cli.src import (
     Constants,
     COLORS,
     HYPERPARAMS,
+    WalletOptions,
 )
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
@@ -92,6 +93,7 @@ from bittensor_cli.src.commands.subnets import (
     subnets,
     mechanisms as subnet_mechanisms,
 )
+from bittensor_cli.src.commands.wallets import SortByBalance
 from bittensor_cli.version import __version__, __version_as_int__
 
 try:
@@ -1915,7 +1917,7 @@ class CLIManager:
         wallet_name: Optional[str],
         wallet_path: Optional[str],
         wallet_hotkey: Optional[str],
-        ask_for: Optional[list[Literal[WO.NAME, WO.PATH, WO.HOTKEY]]] = None,
+        ask_for: Optional[list[WalletOptions]] = None,
         validate: WV = WV.WALLET,
         return_wallet_and_hotkey: bool = False,
     ) -> Union[Wallet, tuple[Wallet, str]]:
@@ -3166,6 +3168,11 @@ class CLIManager:
             "-a",
             help="Whether to display the balances for all the wallets.",
         ),
+        sort_by: Optional[wallets.SortByBalance] = typer.Option(
+            None,
+            "--sort",
+            help="When using `--all`, sorts the wallets by a given column",
+        ),
         network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3265,7 +3272,7 @@ class CLIManager:
         subtensor = self.initialize_chain(network)
         return self._run_command(
             wallets.wallet_balance(
-                wallet, subtensor, all_balances, ss58_addresses, json_output
+                wallet, subtensor, all_balances, ss58_addresses, sort_by, json_output
             )
         )
 
