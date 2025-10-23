@@ -1302,6 +1302,7 @@ class CLIManager:
 
         async def _run():
             initiated = False
+            exception_occurred = False
             try:
                 if self.subtensor:
                     await self.subtensor.substrate.initialize()
@@ -1311,6 +1312,7 @@ class CLIManager:
             except (ConnectionRefusedError, ssl.SSLError, InvalidHandshake):
                 err_console.print(f"Unable to connect to the chain: {self.subtensor}")
                 verbose_console.print(traceback.format_exc())
+                exception_occurred = True
             except (
                 ConnectionClosed,
                 SubstrateRequestException,
@@ -1322,9 +1324,11 @@ class CLIManager:
                 elif isinstance(e, RuntimeError):
                     pass  # Temporarily to handle loop bound issues
                 verbose_console.print(traceback.format_exc())
+                exception_occurred = True
             except Exception as e:
                 err_console.print(f"An unknown error has occurred: {e}")
                 verbose_console.print(traceback.format_exc())
+                exception_occurred = True
             finally:
                 if initiated is False:
                     asyncio.create_task(cmd).cancel()
@@ -1337,7 +1341,8 @@ class CLIManager:
                         except Exception as e:  # ensures we always exit cleanly
                             if not isinstance(e, (typer.Exit, RuntimeError)):
                                 err_console.print(f"An unknown error has occurred: {e}")
-                    raise typer.Exit()
+                    if exception_occurred:
+                        raise typer.Exit()
 
         return self.event_loop.run_until_complete(_run())
 
