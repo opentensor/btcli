@@ -1,4 +1,19 @@
 # Changelog
+## 9.14.1 /2025-10-23
+* Updates kappa to root sudo only in-line with devnet-ready by @thewhaleking in https://github.com/opentensor/btcli/pull/668
+* Adds additional warnings for move vs transfer by @thewhaleking in https://github.com/opentensor/btcli/pull/672
+* Childkey take was incorrectly labeled. by @thewhaleking in https://github.com/opentensor/btcli/pull/669
+* Updates the help text of crownloan refund by @thewhaleking in https://github.com/opentensor/btcli/pull/674
+* Add a warn flag when --netuid 0 is used for btcli hotkey swap by @nstankov-stkd in https://github.com/opentensor/btcli/pull/666
+  * Add warning and confirmation for `wallet swap_hotkey --netuid 0` to prevent accidental misuse. Using `--netuid 0` only swaps the hotkey on the root network (netuid 0) and does NOT move child hotkey delegation mappings. This is not a full swap across all subnets. Updated documentation and added comprehensive unit tests to clarify proper usage.
+* Edge case bug fixes by @thewhaleking in https://github.com/opentensor/btcli/pull/675
+* Adds wallet balance sorting by @thewhaleking in https://github.com/opentensor/btcli/pull/676
+
+## New Contributors
+* @nstankov-stkd made their first contribution in https://github.com/opentensor/btcli/pull/666
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.14.0...v9.14.1
+
 ## 9.14.0 /2025-10-20
 * Skips senate tests by @thewhaleking in https://github.com/opentensor/btcli/pull/658
 * Feat/crowdloans by @ibraheem-abe in https://github.com/opentensor/btcli/pull/657
