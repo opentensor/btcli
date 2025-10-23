@@ -566,7 +566,6 @@ async def move_stake(
         response = await subtensor.substrate.submit_extrinsic(
             extrinsic, wait_for_inclusion=True, wait_for_finalization=False
         )
-    await print_extrinsic_id(response)
     ext_id = await response.get_extrinsic_identifier()
 
     if not prompt:
@@ -580,6 +579,7 @@ async def move_stake(
             )
             return False, ""
         else:
+            await print_extrinsic_id(response)
             console.print(
                 ":white_heavy_check_mark: [dark_sea_green3]Stake moved.[/dark_sea_green3]"
             )
@@ -755,7 +755,6 @@ async def transfer_stake(
             extrinsic, wait_for_inclusion=True, wait_for_finalization=False
         )
     ext_id = await response.get_extrinsic_identifier()
-    await print_extrinsic_id(extrinsic)
 
     if not prompt:
         console.print(":white_heavy_check_mark: [green]Sent[/green]")
@@ -767,7 +766,7 @@ async def transfer_stake(
             f"{format_error_message(await response.error_message)}"
         )
         return False, ""
-
+    await print_extrinsic_id(extrinsic)
     # Get and display new stake balances
     new_stake, new_dest_stake = await asyncio.gather(
         subtensor.get_stake(
@@ -933,7 +932,6 @@ async def swap_stake(
             wait_for_finalization=wait_for_finalization,
         )
     ext_id = await response.get_extrinsic_identifier()
-    await print_extrinsic_id(response)
 
     if not prompt:
         console.print(":white_heavy_check_mark: [green]Sent[/green]")
@@ -945,7 +943,7 @@ async def swap_stake(
             f"{format_error_message(await response.error_message)}"
         )
         return False, ""
-
+    await print_extrinsic_id(response)
     # Get and display new stake balances
     new_stake, new_dest_stake = await asyncio.gather(
         subtensor.get_stake(
