@@ -39,6 +39,7 @@ from bittensor_cli.src import (
     Constants,
     COLORS,
     HYPERPARAMS,
+    WalletOptions,
 )
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
@@ -92,6 +93,7 @@ from bittensor_cli.src.commands.subnets import (
     subnets,
     mechanisms as subnet_mechanisms,
 )
+from bittensor_cli.src.commands.wallets import SortByBalance
 from bittensor_cli.version import __version__, __version_as_int__
 
 try:
@@ -1302,6 +1304,7 @@ class CLIManager:
 
         async def _run():
             initiated = False
+            exception_occurred = False
             try:
                 if self.subtensor:
                     await self.subtensor.substrate.initialize()
@@ -1311,6 +1314,7 @@ class CLIManager:
             except (ConnectionRefusedError, ssl.SSLError, InvalidHandshake):
                 err_console.print(f"Unable to connect to the chain: {self.subtensor}")
                 verbose_console.print(traceback.format_exc())
+                exception_occurred = True
             except (
                 ConnectionClosed,
                 SubstrateRequestException,
@@ -1322,22 +1326,25 @@ class CLIManager:
                 elif isinstance(e, RuntimeError):
                     pass  # Temporarily to handle loop bound issues
                 verbose_console.print(traceback.format_exc())
+                exception_occurred = True
             except Exception as e:
                 err_console.print(f"An unknown error has occurred: {e}")
                 verbose_console.print(traceback.format_exc())
+                exception_occurred = True
             finally:
                 if initiated is False:
                     asyncio.create_task(cmd).cancel()
                 if (
                     exit_early is True
                 ):  # temporarily to handle multiple run commands in one session
-                    try:
-                        if self.subtensor:
+                    if self.subtensor:
+                        try:
                             await self.subtensor.substrate.close()
+                        except Exception as e:  # ensures we always exit cleanly
+                            if not isinstance(e, (typer.Exit, RuntimeError)):
+                                err_console.print(f"An unknown error has occurred: {e}")
+                    if exception_occurred:
                         raise typer.Exit()
-                    except Exception as e:  # ensures we always exit cleanly
-                        if not isinstance(e, (typer.Exit, RuntimeError)):
-                            err_console.print(f"An unknown error has occurred: {e}")
 
         return self.event_loop.run_until_complete(_run())
 
@@ -1910,7 +1917,7 @@ class CLIManager:
         wallet_name: Optional[str],
         wallet_path: Optional[str],
         wallet_hotkey: Optional[str],
-        ask_for: Optional[list[Literal[WO.NAME, WO.PATH, WO.HOTKEY]]] = None,
+        ask_for: Optional[list[WalletOptions]] = None,
         validate: WV = WV.WALLET,
         return_wallet_and_hotkey: bool = False,
     ) -> Union[Wallet, tuple[Wallet, str]]:
@@ -2286,15 +2293,44 @@ class CLIManager:
 
         - Make sure that your original key pair (coldkeyA, hotkeyA) is already registered.
         - Make sure that you use a newly created hotkeyB in this command. A hotkeyB that is already registered cannot be used in this command.
-        - You can specify the netuid for which you want to swap the hotkey for. If it is not defined, the swap will be initiated for all subnets.
+        - If NO netuid is specified, the swap will be initiated for ALL subnets (recommended for most users).
+        - If a SPECIFIC netuid is specified (e.g., --netuid 1), the swap will only affect that particular subnet.
+        - WARNING: Using --netuid 0 will ONLY swap on the root network (netuid 0), NOT a full swap across all subnets. Use without --netuid for full swap.
         - Finally, note that this command requires a fee of 1 TAO for recycling and this fee is taken from your wallet (coldkeyA).
 
         EXAMPLE
 
+        Full swap across all subnets (recommended):
+        [green]$[/green] btcli wallet swap_hotkey destination_hotkey_name --wallet-name your_wallet_name --wallet-hotkey original_hotkey
+
+        Swap for a specific subnet only:
         [green]$[/green] btcli wallet swap_hotkey destination_hotkey_name --wallet-name your_wallet_name --wallet-hotkey original_hotkey --netuid 1
         """
         netuid = get_optional_netuid(netuid, all_netuids)
         self.verbosity_handler(quiet, verbose, json_output)
+
+        # Warning for netuid 0 - only swaps on root network, not a full swap
+        if netuid == 0 and prompt:
+            console.print(
+                "\n[bold yellow]⚠️  WARNING: Using --netuid 0 for swap_hotkey[/bold yellow]\n"
+            )
+            console.print(
+                "[yellow]Specifying --netuid 0 will ONLY swap the hotkey on the root network (netuid 0).[/yellow]\n"
+            )
+            console.print(
+                "[yellow]It will NOT move child hotkey delegation mappings on root.[/yellow]\n"
+            )
+            console.print(
+                f"[bold green]btcli wallet swap_hotkey {destination_hotkey_name or '<destination_hotkey>'} "
+                f"--wallet-name {wallet_name or '<wallet_name>'} "
+                f"--wallet-hotkey {wallet_hotkey or '<original_hotkey>'}[/bold green]\n"
+            )
+
+            if not Confirm.ask(
+                "Are you SURE you want to proceed with --netuid 0 (only root network swap)?",
+                default=False,
+            ):
+                return
         original_wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -3132,6 +3168,11 @@ class CLIManager:
             "-a",
             help="Whether to display the balances for all the wallets.",
         ),
+        sort_by: Optional[wallets.SortByBalance] = typer.Option(
+            None,
+            "--sort",
+            help="When using `--all`, sorts the wallets by a given column",
+        ),
         network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3231,7 +3272,7 @@ class CLIManager:
         subtensor = self.initialize_chain(network)
         return self._run_command(
             wallets.wallet_balance(
-                wallet, subtensor, all_balances, ss58_addresses, json_output
+                wallet, subtensor, all_balances, ss58_addresses, sort_by, json_output
             )
         )
 
@@ -4573,9 +4614,17 @@ class CLIManager:
         [green]$[/green] btcli stake move
         """
         self.verbosity_handler(quiet, verbose, json_output)
-        console.print(
-            "[dim]This command moves stake from one hotkey to another hotkey while keeping the same coldkey.[/dim]"
-        )
+        if prompt:
+            if not Confirm.ask(
+                "This transaction will [bold]move stake[/bold] to another hotkey while keeping the same "
+                "coldkey ownership. Do you wish to continue? ",
+                default=False,
+            ):
+                raise typer.Exit()
+        else:
+            console.print(
+                "[dim]This command moves stake from one hotkey to another hotkey while keeping the same coldkey.[/dim]"
+            )
         if not destination_hotkey:
             dest_wallet_or_ss58 = Prompt.ask(
                 "Enter the [blue]destination wallet[/blue] where destination hotkey is located or "
@@ -4770,9 +4819,18 @@ class CLIManager:
         [green]$[/green] btcli stake transfer --all --origin-netuid 1 --dest-netuid 2
         """
         self.verbosity_handler(quiet, verbose, json_output)
-        console.print(
-            "[dim]This command transfers stake from one coldkey to another while keeping the same hotkey.[/dim]"
-        )
+        if prompt:
+            if not Confirm.ask(
+                "This transaction will [bold]transfer ownership[/bold] from one coldkey to another, in subnets "
+                "which have enabled it. You should ensure that the destination coldkey is "
+                "[bold]not a validator hotkey[/bold] before continuing. Do you wish to continue?",
+                default=False,
+            ):
+                raise typer.Exit()
+        else:
+            console.print(
+                "[dim]This command transfers stake from one coldkey to another while keeping the same hotkey.[/dim]"
+            )
 
         if not dest_ss58:
             dest_ss58 = Prompt.ask(
@@ -5229,7 +5287,7 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         child_hotkey_ss58: Optional[str] = typer.Option(
             None,
-            "child-hotkey-ss58",
+            "--child-hotkey-ss58",
             help="The hotkey SS58 to designate as child (not specifying will use the provided wallet's hotkey)",
             prompt=False,
         ),
@@ -5306,7 +5364,7 @@ class CLIManager:
                 subtensor=self.initialize_chain(network),
                 netuid=netuid,
                 take=take,
-                hotkey=hotkey,
+                hotkey=child_hotkey_ss58,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 prompt=prompt,
@@ -7764,10 +7822,10 @@ class CLIManager:
         """
         Refund contributors of a non-finalized crowdloan.
 
-        Any account may call this once the crowdloan is no longer wanted. Each call
-        refunds up to the on-chain `RefundContributorsLimit` contributors (currently
-        50) excluding the creator. Run it repeatedly until everyone except the creator
-        has been reimbursed.
+        Only the creator may call this. Each call refunds up to the on-chain `RefundContributorsLimit` contributors
+        (currently 50) excluding the creator. Run it repeatedly until everyone except the creator has been reimbursed.
+
+        Contributors can call `btcli crowdloan withdraw` at will.
         """
         self.verbosity_handler(quiet, verbose, json_output)
 

@@ -635,7 +635,7 @@ class RootSudoOnly(Enum):
 HYPERPARAMS = {
     # btcli name: (subtensor method, root-only enum)
     "rho": ("sudo_set_rho", RootSudoOnly.FALSE),
-    "kappa": ("sudo_set_kappa", RootSudoOnly.FALSE),
+    "kappa": ("sudo_set_kappa", RootSudoOnly.TRUE),
     "immunity_period": ("sudo_set_immunity_period", RootSudoOnly.FALSE),
     "min_allowed_weights": ("sudo_set_min_allowed_weights", RootSudoOnly.FALSE),
     "max_weights_limit": ("sudo_set_max_weight_limit", RootSudoOnly.FALSE),
