@@ -1123,6 +1123,7 @@ class SubtensorInterface:
         self,
         hotkey_ss58: str,
         block_hash: Optional[str] = None,
+        check_exists: bool = True,
     ) -> Optional[str]:
         val = await self.query(
             module="SubtensorModule",
@@ -1130,10 +1131,15 @@ class SubtensorInterface:
             params=[hotkey_ss58],
             block_hash=block_hash,
         )
-        if val:
-            exists = await self.does_hotkey_exist(hotkey_ss58, block_hash=block_hash)
+        if check_exists:
+            if val:
+                exists = await self.does_hotkey_exist(
+                    hotkey_ss58, block_hash=block_hash
+                )
+            else:
+                exists = False
         else:
-            exists = False
+            exists = True
         hotkey_owner = val if exists else None
         return hotkey_owner
 

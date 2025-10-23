@@ -175,6 +175,15 @@ async def transfer_extrinsic(
 
     # Ask before moving on.
     if prompt:
+        hk_owner = await subtensor.get_hotkey_owner(destination, check_exists=False)
+        if hk_owner and hk_owner != destination:
+            if not Confirm.ask(
+                f"The destination appears to be a hotkey, owned by [bright_magenta]{hk_owner}[/bright_magenta]. "
+                f"Only proceed if you are absolutely sure that [bright_magenta]{destination}[/bright_magenta] is the "
+                f"correct destination.",
+                default=False,
+            ):
+                return False, None
         if not Confirm.ask(
             "Do you want to transfer:[bold white]\n"
             f"  amount: [bright_cyan]{amount if not transfer_all else account_balance}[/bright_cyan]\n"
