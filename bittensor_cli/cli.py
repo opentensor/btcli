@@ -7764,10 +7764,10 @@ class CLIManager:
         """
         Refund contributors of a non-finalized crowdloan.
 
-        Any account may call this once the crowdloan is no longer wanted. Each call
-        refunds up to the on-chain `RefundContributorsLimit` contributors (currently
-        50) excluding the creator. Run it repeatedly until everyone except the creator
-        has been reimbursed.
+        Only the creator may call this. Each call refunds up to the on-chain `RefundContributorsLimit` contributors
+        (currently 50) excluding the creator. Run it repeatedly until everyone except the creator has been reimbursed.
+
+        Contributors can call `btcli crowdloan withdraw` at will.
         """
         self.verbosity_handler(quiet, verbose, json_output)
 
