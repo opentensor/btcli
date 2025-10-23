@@ -1331,13 +1331,13 @@ class CLIManager:
                 if (
                     exit_early is True
                 ):  # temporarily to handle multiple run commands in one session
-                    try:
-                        if self.subtensor:
+                    if self.subtensor:
+                        try:
                             await self.subtensor.substrate.close()
-                        raise typer.Exit()
-                    except Exception as e:  # ensures we always exit cleanly
-                        if not isinstance(e, (typer.Exit, RuntimeError)):
-                            err_console.print(f"An unknown error has occurred: {e}")
+                        except Exception as e:  # ensures we always exit cleanly
+                            if not isinstance(e, (typer.Exit, RuntimeError)):
+                                err_console.print(f"An unknown error has occurred: {e}")
+                    raise typer.Exit()
 
         return self.event_loop.run_until_complete(_run())
 
