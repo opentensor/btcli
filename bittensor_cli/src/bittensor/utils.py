@@ -1496,7 +1496,7 @@ async def print_extrinsic_id(
     Args:
         extrinsic_receipt: AsyncExtrinsicReceipt object from a successful extrinsic submission.
     """
-    if extrinsic_receipt is None:
+    if extrinsic_receipt is None or not (await extrinsic_receipt.is_success):
         return
     substrate = extrinsic_receipt.substrate
     ext_id = await extrinsic_receipt.get_extrinsic_identifier()

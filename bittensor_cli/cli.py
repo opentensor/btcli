@@ -1302,6 +1302,7 @@ class CLIManager:
 
         async def _run():
             initiated = False
+            exception_occurred = False
             try:
                 if self.subtensor:
                     await self.subtensor.substrate.initialize()
@@ -1311,6 +1312,7 @@ class CLIManager:
             except (ConnectionRefusedError, ssl.SSLError, InvalidHandshake):
                 err_console.print(f"Unable to connect to the chain: {self.subtensor}")
                 verbose_console.print(traceback.format_exc())
+                exception_occurred = True
             except (
                 ConnectionClosed,
                 SubstrateRequestException,
@@ -1322,22 +1324,25 @@ class CLIManager:
                 elif isinstance(e, RuntimeError):
                     pass  # Temporarily to handle loop bound issues
                 verbose_console.print(traceback.format_exc())
+                exception_occurred = True
             except Exception as e:
                 err_console.print(f"An unknown error has occurred: {e}")
                 verbose_console.print(traceback.format_exc())
+                exception_occurred = True
             finally:
                 if initiated is False:
                     asyncio.create_task(cmd).cancel()
                 if (
                     exit_early is True
                 ):  # temporarily to handle multiple run commands in one session
-                    try:
-                        if self.subtensor:
+                    if self.subtensor:
+                        try:
                             await self.subtensor.substrate.close()
+                        except Exception as e:  # ensures we always exit cleanly
+                            if not isinstance(e, (typer.Exit, RuntimeError)):
+                                err_console.print(f"An unknown error has occurred: {e}")
+                    if exception_occurred:
                         raise typer.Exit()
-                    except Exception as e:  # ensures we always exit cleanly
-                        if not isinstance(e, (typer.Exit, RuntimeError)):
-                            err_console.print(f"An unknown error has occurred: {e}")
 
         return self.event_loop.run_until_complete(_run())
 
