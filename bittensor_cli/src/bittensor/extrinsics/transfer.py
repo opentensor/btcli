@@ -116,9 +116,6 @@ async def transfer_extrinsic(
         )
         return False, None
     console.print(f"[dark_orange]Initiating transfer on network: {subtensor.network}")
-    # Unlock wallet coldkey.
-    if not unlock_key(wallet).success:
-        return False, None
 
     call_params: dict[str, Optional[Union[str, int]]] = {"dest": destination}
     if transfer_all:
@@ -188,13 +185,17 @@ async def transfer_extrinsic(
             "Do you want to transfer:[bold white]\n"
             f"  amount: [bright_cyan]{amount if not transfer_all else account_balance}[/bright_cyan]\n"
             f"  from: [light_goldenrod2]{wallet.name}[/light_goldenrod2] : "
-            f"[bright_magenta]{wallet.coldkey.ss58_address}\n[/bright_magenta]"
+            f"[bright_magenta]{wallet.coldkeypub.ss58_address}\n[/bright_magenta]"
             f"  to: [bright_magenta]{destination}[/bright_magenta]\n  for fee: [bright_cyan]{fee}[/bright_cyan]\n"
             f"[bright_yellow]Transferring is not the same as staking. To instead stake, use "
             f"[dark_orange]btcli stake add[/dark_orange] instead[/bright_yellow].\n"
             f"Proceed with transfer?"
         ):
             return False, None
+
+    # Unlock wallet coldkey.
+    if not unlock_key(wallet).success:
+        return False, None
 
     with console.status(":satellite: Transferring...", spinner="earth"):
         success, block_hash, err_msg, ext_receipt = await do_transfer()
