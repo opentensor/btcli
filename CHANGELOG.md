@@ -8,9 +8,6 @@
 
 **Full Changelog**: https://github.com/opentensor/btcli/compare/v9.13.1...v9.14.0
 
-# 9.13.2 /2025-10-20
-* Add warning and confirmation for `wallet swap_hotkey --netuid 0` to prevent accidental misuse. Using `--netuid 0` only swaps the hotkey on the root network (netuid 0) and does NOT move child hotkey delegation mappings. This is not a full swap across all subnets. Updated documentation and added comprehensive unit tests to clarify proper usage.
-
 # 9.13.1 /2025-10-14
 * Fix for complicated (user_liquidity_enabled) hyperparams by @thewhaleking in https://github.com/opentensor/btcli/pull/652
 * Fixes a number of type annotations by @thewhaleking in https://github.com/opentensor/btcli/pull/653
