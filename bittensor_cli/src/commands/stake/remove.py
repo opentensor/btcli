@@ -547,7 +547,7 @@ async def unstake_all(
                 status=status,
                 era=era,
             )
-            ext_id = await ext_receipt.get_extrinsic_identifier() if successes else None
+            ext_id = await ext_receipt.get_extrinsic_identifier() if success else None
             successes[hotkey_ss58] = {
                 "success": success,
                 "extrinsic_identifier": ext_id,
