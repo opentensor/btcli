@@ -28,8 +28,8 @@ class ExecCommand(Protocol):
         self,
         command: str,
         sub_command: str,
-        extra_args: Optional[list[str]],
-        inputs: Optional[list[str]],
+        extra_args: Optional[list[str]] = None,
+        inputs: Optional[list[str]] = None,
     ) -> Result: ...
 
 
