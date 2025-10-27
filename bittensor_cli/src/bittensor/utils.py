@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 from functools import partial
 import re
 
+import aiohttp
 from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet, Keypair
 from bittensor_wallet.utils import SS58_FORMAT
@@ -1512,3 +1513,27 @@ async def print_extrinsic_id(
         f":white_heavy_check_mark: Your extrinsic has been included as {ext_id}"
     )
     return
+
+
+async def check_img_mimetype(img_url: str) -> tuple[bool, str, str]:
+    """
+    Checks to see if the given URL is an image, as defined by its mimetype.
+
+    Args:
+        img_url: the URL to check
+
+    Returns:
+        tuple:
+            bool: True if the URL has a MIME type indicating image (e.g. 'image/...'), False otherwise.
+            str: MIME type of the URL.
+            str: error message if the URL could not be retrieved
+
+    """
+    async with aiohttp.ClientSession() as session:
+        async with session.get(img_url) as response:
+            if response.status != 200:
+                return False, "", "Could not fetch image"
+            elif "image/" not in response.content_type:
+                return False, response.content_type, ""
+            else:
+                return True, response.content_type, ""
