@@ -13,7 +13,7 @@ import traceback
 import warnings
 from dataclasses import fields
 from pathlib import Path
-from typing import Coroutine, Optional, Union, Literal
+from typing import Coroutine, Optional, Union
 
 import numpy as np
 import rich
@@ -93,7 +93,6 @@ from bittensor_cli.src.commands.subnets import (
     subnets,
     mechanisms as subnet_mechanisms,
 )
-from bittensor_cli.src.commands.wallets import SortByBalance
 from bittensor_cli.version import __version__, __version_as_int__
 
 try:

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import time
 from typing import Optional, Any, Union, TypedDict, Iterable
@@ -44,6 +45,8 @@ from bittensor_cli.src.bittensor.utils import (
     U16_MAX,
     get_hotkey_pub_ss58,
 )
+
+logger = logging.getLogger("btcli")
 
 
 class ParamWithTypes(TypedDict):
@@ -113,6 +116,7 @@ class SubtensorInterface:
             if (use_disk_cache or os.getenv("DISK_CACHE", "0") == "1")
             else AsyncSubstrateInterface
         )
+        logger.debug(f"Using substrate class {substrate_class.__name__}")
         self.substrate = substrate_class(
             url=self.chain_endpoint,
             ss58_format=SS58_FORMAT,
@@ -438,11 +442,13 @@ class SubtensorInterface:
 
         :return: {address: Balance objects}
         """
-        sub_stakes = await self.get_stake_for_coldkeys(
+        sub_stakes, dynamic_info = await asyncio.gather(
+            self.get_stake_for_coldkeys(
             list(ss58_addresses), block_hash=block_hash
+        ),
+            # Token pricing info
+            self.all_subnets(block_hash=block_hash),
         )
-        # Token pricing info
-        dynamic_info = await self.all_subnets()
 
         results = {}
         for ss58, stake_info_list in sub_stakes.items():
