@@ -1530,10 +1530,13 @@ async def check_img_mimetype(img_url: str) -> tuple[bool, str, str]:
 
     """
     async with aiohttp.ClientSession() as session:
-        async with session.get(img_url) as response:
-            if response.status != 200:
-                return False, "", "Could not fetch image"
-            elif "image/" not in response.content_type:
-                return False, response.content_type, ""
-            else:
-                return True, response.content_type, ""
+        try:
+            async with session.get(img_url) as response:
+                if response.status != 200:
+                    return False, "", "Could not fetch image"
+                elif "image/" not in response.content_type:
+                    return False, response.content_type, ""
+                else:
+                    return True, response.content_type, ""
+        except aiohttp.ClientError:
+            return False, "", "Could not fetch image"
