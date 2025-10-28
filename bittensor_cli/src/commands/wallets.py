@@ -697,7 +697,6 @@ async def wallet_balance(
         str(total_free_balance + total_staked_balance),
     )
     console.print(Padding(table, (0, 0, 0, 4)))
-    await subtensor.substrate.close()
     if json_output:
         output_balances = {
             key: {

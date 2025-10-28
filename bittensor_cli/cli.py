@@ -1338,9 +1338,7 @@ class CLIManager:
                 ):  # temporarily to handle multiple run commands in one session
                     if self.subtensor:
                         try:
-                            # TODO for some reason having the close here tries to close it twice.
-                            print(1341, "not closing connection")
-                            # await self.subtensor.substrate.close()
+                            await self.subtensor.substrate.close()
                         except Exception as e:  # ensures we always exit cleanly
                             if not isinstance(e, (typer.Exit, RuntimeError)):
                                 err_console.print(f"An unknown error has occurred: {e}")
