@@ -1391,7 +1391,7 @@ class CLIManager:
                 )  # Add group to the tree
                 for command in content.get("commands", []):
                     group_node.add(
-                        f"[green]{command.name}[/]: [light_green]{command.short_help}[/light_green]"
+                        f"[green]{command.name}[/]: [dim]{command.short_help}[/dim]"
                     )  # Add commands to the group
                 build_rich_tree(content, group_node)  # Recurse for subgroups
 
