@@ -2,6 +2,7 @@
 ## 9.14.2 /2025-10-28
 * `stake remove --all` fails when unsuccessful by @thewhaleking in https://github.com/opentensor/btcli/pull/679
 * check subnet logo url by @thewhaleking in https://github.com/opentensor/btcli/pull/681
+* `st transfer` extrinsic id fix by @thewhaleking in https://github.com/opentensor/btcli/pull/685
 
 **Full Changelog**: https://github.com/opentensor/btcli/compare/v9.14.1...v9.14.2
 
