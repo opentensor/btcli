@@ -1389,9 +1389,16 @@ class CLIManager:
                 group_node = parent.add(
                     f"{arg__(group.name)}: {group.short_help}"
                 )  # Add group to the tree
+                max_command_length = max(
+                    (len(command.name) for command in content.get("commands", [])),
+                    default=0
+                )
+
                 for command in content.get("commands", []):
+                    spaces_needed = max_command_length - len(command.name)
+                    padding = " " * spaces_needed
                     group_node.add(
-                        f"[green]{command.name}[/]: [dim]{command.short_help}[/dim]"
+                        f"[green]{command.name}[/]:{padding}\t[dim]{command.short_help}[/dim]"
                     )  # Add commands to the group
                 build_rich_tree(content, group_node)  # Recurse for subgroups
 
