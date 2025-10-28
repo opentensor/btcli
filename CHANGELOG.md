@@ -1,4 +1,11 @@
 # Changelog
+## 9.14.2 /2025-10-28
+* `stake remove --all` fails when unsuccessful by @thewhaleking in https://github.com/opentensor/btcli/pull/679
+* check subnet logo url by @thewhaleking in https://github.com/opentensor/btcli/pull/681
+* `st transfer` extrinsic id fix by @thewhaleking in https://github.com/opentensor/btcli/pull/685
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.14.1...v9.14.2
+
 ## 9.14.1 /2025-10-23
 * Updates kappa to root sudo only in-line with devnet-ready by @thewhaleking in https://github.com/opentensor/btcli/pull/668
 * Adds additional warnings for move vs transfer by @thewhaleking in https://github.com/opentensor/btcli/pull/672
