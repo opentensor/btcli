@@ -766,7 +766,7 @@ async def transfer_stake(
             f"{format_error_message(await response.error_message)}"
         )
         return False, ""
-    await print_extrinsic_id(extrinsic)
+    await print_extrinsic_id(response)
     # Get and display new stake balances
     new_stake, new_dest_stake = await asyncio.gather(
         subtensor.get_stake(
