@@ -38,6 +38,7 @@ from bittensor_cli.src.bittensor.utils import (
     json_console,
     get_hotkey_pub_ss58,
     print_extrinsic_id,
+    check_img_mimetype,
 )
 
 if TYPE_CHECKING:
@@ -2257,7 +2258,28 @@ async def set_identity(
 ) -> tuple[bool, Optional[str]]:
     """Set identity information for a subnet"""
 
-    if not await subtensor.subnet_exists(netuid):
+    if prompt and (logo_url := subnet_identity.get("logo_url")):
+        sn_exists, img_validation = await asyncio.gather(
+            subtensor.subnet_exists(netuid),
+            check_img_mimetype(subnet_identity["logo_url"]),
+        )
+        img_valid, content_type, err_msg = img_validation
+        if not img_valid:
+            confirmation_msg = f"Are you sure you want to use [blue]{logo_url}[/blue] as your image URL?"
+            if err_msg:
+                if not Confirm.ask(f"{err_msg}\n{confirmation_msg}"):
+                    return False, None
+            else:
+                if not Confirm.ask(
+                    f"The provided image's MIME type is {content_type}, which is not recognized as a valid"
+                    f" image MIME type.\n{confirmation_msg}"
+                ):
+                    return False, None
+
+    else:
+        sn_exists = await subtensor.subnet_exists(netuid)
+
+    if not sn_exists:
         err_console.print(f"Subnet {netuid} does not exist")
         return False, None
 
