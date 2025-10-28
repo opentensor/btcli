@@ -443,9 +443,7 @@ class SubtensorInterface:
         :return: {address: Balance objects}
         """
         sub_stakes, dynamic_info = await asyncio.gather(
-            self.get_stake_for_coldkeys(
-            list(ss58_addresses), block_hash=block_hash
-        ),
+            self.get_stake_for_coldkeys(list(ss58_addresses), block_hash=block_hash),
             # Token pricing info
             self.all_subnets(block_hash=block_hash),
         )
