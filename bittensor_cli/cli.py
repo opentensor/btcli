@@ -1391,7 +1391,7 @@ class CLIManager:
                 )  # Add group to the tree
                 max_command_length = max(
                     (len(command.name) for command in content.get("commands", [])),
-                    default=0
+                    default=0,
                 )
 
                 for command in content.get("commands", []):
