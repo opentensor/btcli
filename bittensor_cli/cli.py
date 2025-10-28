@@ -855,7 +855,11 @@ class CLIManager:
 
         # utils app
         self.app.add_typer(
-            self.utils_app, name="utils", no_args_is_help=True, hidden=False
+            self.utils_app,
+            name="utils",
+            no_args_is_help=True,
+            hidden=False,
+            short_help="Non-chain utilities",
         )
 
         # view app
@@ -866,51 +870,104 @@ class CLIManager:
             no_args_is_help=True,
         )
 
+        # crowdloan app/aliases
+        self.app.add_typer(
+            self.crowd_app,
+            name="crowd",
+            short_help="Crowdloan commands, aliases: `cr`, `crowdloan`",
+            no_args_is_help=True,
+        )
+        self.app.add_typer(self.crowd_app, name="cr", hidden=True, no_args_is_help=True)
+        self.app.add_typer(
+            self.crowd_app, name="crowdloan", hidden=True, no_args_is_help=True
+        )
+
+        # liquidity app/aliases
+        self.app.add_typer(
+            self.liquidity_app,
+            name="liquidity",
+            short_help="liquidity commands, aliases: `l`",
+            no_args_is_help=True,
+        )
+        self.app.add_typer(
+            self.liquidity_app, name="l", hidden=True, no_args_is_help=True
+        )
+
         # config commands
-        self.config_app.command("set")(self.set_config)
-        self.config_app.command("get")(self.get_config)
-        self.config_app.command("clear")(self.del_config)
+        self.config_app.command("set", short_help="Set config options")(self.set_config)
+        self.config_app.command("get", short_help="Print current config")(
+            self.get_config
+        )
+        self.config_app.command("clear", short_help="Clear the config to defaults.")(
+            self.del_config
+        )
         # self.config_app.command("metagraph", hidden=True)(self.metagraph_config)
 
         # wallet commands
         self.wallet_app.command(
-            "list", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"]
+            "list",
+            rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"],
+            short_help="List wallets in a path",
         )(self.wallet_list)
         self.wallet_app.command(
-            "swap-hotkey", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
+            "swap-hotkey",
+            rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"],
+            short_help="Swap hotkeys of a given wallet on the blockchain",
         )(self.wallet_swap_hotkey)
         self.wallet_app.command(
-            "swap-coldkey", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
+            "swap-coldkey",
+            rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"],
+            short_help="Schedule a coldkey swap for a wallet",
         )(self.wallet_swap_coldkey)
         self.wallet_app.command(
-            "swap-check", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
+            "swap-check",
+            rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"],
+            short_help="Check the status of scheduled coldkey swaps",
         )(self.wallet_check_ck_swap)
         self.wallet_app.command(
-            "regen-coldkey", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
+            "regen-coldkey",
+            rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"],
+            short_help="Regenerate a coldkey for a wallet on the network",
         )(self.wallet_regen_coldkey)
         self.wallet_app.command(
-            "regen-coldkeypub", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
+            "regen-coldkeypub",
+            rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"],
+            short_help="Regenerates the public part of a coldkey",
         )(self.wallet_regen_coldkey_pub)
         self.wallet_app.command(
-            "regen-hotkey", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
+            "regen-hotkey",
+            rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"],
+            short_help="Regenerates a hotkey for a wallet",
         )(self.wallet_regen_hotkey)
         self.wallet_app.command(
-            "regen-hotkeypub", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
+            "regen-hotkeypub",
+            rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"],
+            short_help="Regenerates the public part of a hotkey",
         )(self.wallet_regen_hotkey_pub)
         self.wallet_app.command(
-            "new-hotkey", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"]
+            "new-hotkey",
+            rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"],
+            short_help="Create a new hotkey for a wallet",
         )(self.wallet_new_hotkey)
         self.wallet_app.command(
-            "new-coldkey", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"]
+            "new-coldkey",
+            rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"],
+            short_help="Create a new coldkey for a wallet",
         )(self.wallet_new_coldkey)
         self.wallet_app.command(
-            "associate-hotkey", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"]
+            "associate-hotkey",
+            rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"],
+            short_help="Associate a hotkey with a wallet(coldkey)",
         )(self.wallet_associate_hotkey)
         self.wallet_app.command(
-            "create", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"]
+            "create",
+            rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"],
+            short_help="Create a complete wallet by setting up both coldkey and hotkeys",
         )(self.wallet_create_wallet)
         self.wallet_app.command(
-            "balance", rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"]
+            "balance",
+            rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"],
+            short_help="Check the balance of the wallet",
         )(self.wallet_balance)
         self.wallet_app.command(
             "history",
@@ -920,9 +977,12 @@ class CLIManager:
         self.wallet_app.command(
             "overview",
             rich_help_panel=HELP_PANELS["WALLET"]["INFORMATION"],
+            short_help="Displays a detailed overview of the user's registered accounts",
         )(self.wallet_overview)
         self.wallet_app.command(
-            "transfer", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"]
+            "transfer",
+            rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"],
+            short_help="Send TAO tokens from one wallet to another",
         )(self.wallet_transfer)
         self.wallet_app.command(
             "inspect",
@@ -930,45 +990,71 @@ class CLIManager:
             hidden=True,
         )(self.wallet_inspect)
         self.wallet_app.command(
-            "faucet", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"]
+            "faucet",
+            rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"],
+            short_help="Obtain test TAO tokens by performing Proof of Work (PoW)",
         )(self.wallet_faucet)
         self.wallet_app.command(
-            "set-identity", rich_help_panel=HELP_PANELS["WALLET"]["IDENTITY"]
+            "set-identity",
+            rich_help_panel=HELP_PANELS["WALLET"]["IDENTITY"],
+            short_help="Create or update the on-chain identity of a coldkey or a hotkey",
         )(self.wallet_set_id)
         self.wallet_app.command(
-            "get-identity", rich_help_panel=HELP_PANELS["WALLET"]["IDENTITY"]
+            "get-identity",
+            rich_help_panel=HELP_PANELS["WALLET"]["IDENTITY"],
+            short_help="Shows the identity details of a user's coldkey or hotkey",
         )(self.wallet_get_id)
         self.wallet_app.command(
-            "sign", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"]
+            "sign",
+            rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"],
+            short_help="Allows users to sign a message with the provided wallet or wallet hotkey",
         )(self.wallet_sign)
         self.wallet_app.command(
-            "verify", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"]
+            "verify",
+            rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"],
+            short_help="Verify a message signature using the signer's public key or SS58 address",
         )(self.wallet_verify)
 
         # stake commands
         self.stake_app.command(
-            "add", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
+            "add",
+            rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"],
+            short_help="Stake TAO to one or more hotkeys on specific netuids with your coldkey",
         )(self.stake_add)
         self.stake_app.command(
-            "auto", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
+            "auto",
+            rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"],
+            short_help="Display auto-stake destinations for a wallet across all subnets",
         )(self.get_auto_stake)
         self.stake_app.command(
-            "set-auto", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
+            "set-auto",
+            rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"],
+            short_help="Set the auto-stake destination hotkey for a coldkey",
         )(self.set_auto_stake)
         self.stake_app.command(
-            "remove", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
+            "remove",
+            rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"],
+            short_help="Unstake TAO from one or more hotkeys and transfer them back to the user's coldkey wallet",
         )(self.stake_remove)
         self.stake_app.command(
-            "list", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
+            "list",
+            rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"],
+            short_help="Display detailed stake information for a wallet across all subnets",
         )(self.stake_list)
         self.stake_app.command(
-            "move", rich_help_panel=HELP_PANELS["STAKE"]["MOVEMENT"]
+            "move",
+            rich_help_panel=HELP_PANELS["STAKE"]["MOVEMENT"],
+            short_help="Move staked TAO between hotkeys while keeping the same coldkey ownership",
         )(self.stake_move)
         self.stake_app.command(
-            "transfer", rich_help_panel=HELP_PANELS["STAKE"]["MOVEMENT"]
+            "transfer",
+            rich_help_panel=HELP_PANELS["STAKE"]["MOVEMENT"],
+            short_help="Transfer stake between coldkeys while keeping the same hotkey ownership",
         )(self.stake_transfer)
         self.stake_app.command(
-            "swap", rich_help_panel=HELP_PANELS["STAKE"]["MOVEMENT"]
+            "swap",
+            rich_help_panel=HELP_PANELS["STAKE"]["MOVEMENT"],
+            short_help="Swap stake between different subnets while keeping the same coldkey-hotkey pair ownership",
         )(self.stake_swap)
 
         # stake-children commands
@@ -983,107 +1069,255 @@ class CLIManager:
         self.stake_app.add_typer(
             children_app, name="children", hidden=True, no_args_is_help=True
         )
-        children_app.command("get")(self.stake_get_children)
-        children_app.command("set")(self.stake_set_children)
-        children_app.command("revoke")(self.stake_revoke_children)
-        children_app.command("take")(self.stake_childkey_take)
+        children_app.command(
+            "get", short_help="Get all the child hotkeys on a specified subnet"
+        )(self.stake_get_children)
+        children_app.command(
+            "set", short_help="Set child hotkeys on a specified subnet (or all)"
+        )(self.stake_set_children)
+        children_app.command(
+            "revoke",
+            short_help="Remove all children hotkeys on a specified subnet (or all)",
+        )(self.stake_revoke_children)
+        children_app.command(
+            "take",
+            short_help="Get and set your child hotkey take on a specified subnet",
+        )(self.stake_childkey_take)
 
         # subnet mechanism commands
         self.subnet_mechanisms_app.command(
-            "count", rich_help_panel=HELP_PANELS["MECHANISMS"]["CONFIG"]
+            "count",
+            rich_help_panel=HELP_PANELS["MECHANISMS"]["CONFIG"],
+            short_help="Display how many mechanisms are registered under a subnet",
         )(self.mechanism_count_get)
         self.subnet_mechanisms_app.command(
-            "set", rich_help_panel=HELP_PANELS["MECHANISMS"]["CONFIG"]
+            "set",
+            rich_help_panel=HELP_PANELS["MECHANISMS"]["CONFIG"],
+            short_help="Configure how many mechanisms are registered for a subnet",
         )(self.mechanism_count_set)
         self.subnet_mechanisms_app.command(
-            "emissions", rich_help_panel=HELP_PANELS["MECHANISMS"]["EMISSION"]
+            "emissions",
+            rich_help_panel=HELP_PANELS["MECHANISMS"]["EMISSION"],
+            short_help="Display the current emission split across mechanisms for a subnet",
         )(self.mechanism_emission_get)
         self.subnet_mechanisms_app.command(
-            "split-emissions", rich_help_panel=HELP_PANELS["MECHANISMS"]["EMISSION"]
+            "split-emissions",
+            rich_help_panel=HELP_PANELS["MECHANISMS"]["EMISSION"],
+            short_help="Update the emission split across mechanisms for a subnet",
         )(self.mechanism_emission_set)
 
         # sudo commands
-        self.sudo_app.command("set", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(
-            self.sudo_set
-        )
-        self.sudo_app.command("get", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(
-            self.sudo_get
-        )
         self.sudo_app.command(
-            "senate", rich_help_panel=HELP_PANELS["SUDO"]["GOVERNANCE"]
+            "set",
+            rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"],
+            short_help="Used to set hyperparameters for a specific subnet",
+        )(self.sudo_set)
+        self.sudo_app.command(
+            "get",
+            rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"],
+            short_help="Shows a list of the hyperparameters for the specified subnet",
+        )(self.sudo_get)
+        self.sudo_app.command(
+            "senate",
+            rich_help_panel=HELP_PANELS["SUDO"]["GOVERNANCE"],
+            short_help="Shows the Senate members of the Bittensor's governance protocol",
         )(self.sudo_senate)
         self.sudo_app.command(
-            "proposals", rich_help_panel=HELP_PANELS["SUDO"]["GOVERNANCE"]
+            "proposals",
+            rich_help_panel=HELP_PANELS["SUDO"]["GOVERNANCE"],
+            short_help="View active proposals for the senate in the Bittensor's governance protocol",
         )(self.sudo_proposals)
         self.sudo_app.command(
-            "senate-vote", rich_help_panel=HELP_PANELS["SUDO"]["GOVERNANCE"]
+            "senate-vote",
+            rich_help_panel=HELP_PANELS["SUDO"]["GOVERNANCE"],
+            short_help="Cast a vote on an active proposal in Bittensor's governance protocol",
         )(self.sudo_senate_vote)
-        self.sudo_app.command("set-take", rich_help_panel=HELP_PANELS["SUDO"]["TAKE"])(
-            self.sudo_set_take
-        )
-        self.sudo_app.command("get-take", rich_help_panel=HELP_PANELS["SUDO"]["TAKE"])(
-            self.sudo_get_take
-        )
-        self.sudo_app.command("trim", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(
-            self.sudo_trim
-        )
+        self.sudo_app.command(
+            "set-take",
+            rich_help_panel=HELP_PANELS["SUDO"]["TAKE"],
+            short_help="Allows users to change their delegate take percentage",
+        )(self.sudo_set_take)
+        self.sudo_app.command(
+            "get-take",
+            rich_help_panel=HELP_PANELS["SUDO"]["TAKE"],
+            short_help="Allows users to check their delegate take percentage",
+        )(self.sudo_get_take)
+        self.sudo_app.command(
+            "trim",
+            rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"],
+            short_help="Allows subnet owners to trim UIDs on their subnet to a specified max number of netuids",
+        )(self.sudo_trim)
 
         # subnets commands
         self.subnets_app.command(
-            "hyperparameters", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
+            "hyperparameters",
+            rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"],
+            short_help="Shows a list of the hyperparameters for the specified subnet",
         )(self.sudo_get)
         self.subnets_app.command(
-            "list", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
+            "list",
+            rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"],
+            short_help="List all subnets and their detailed information",
         )(self.subnets_list)
         self.subnets_app.command(
-            "burn-cost", rich_help_panel=HELP_PANELS["SUBNETS"]["CREATION"]
+            "burn-cost",
+            rich_help_panel=HELP_PANELS["SUBNETS"]["CREATION"],
+            short_help="Shows the required amount of TAO to be recycled for creating a new subnet",
         )(self.subnets_burn_cost)
         self.subnets_app.command(
-            "create", rich_help_panel=HELP_PANELS["SUBNETS"]["CREATION"]
+            "create",
+            rich_help_panel=HELP_PANELS["SUBNETS"]["CREATION"],
+            short_help="Registers a new subnet on the network",
         )(self.subnets_create)
         self.subnets_app.command(
-            "pow-register", rich_help_panel=HELP_PANELS["SUBNETS"]["REGISTER"]
+            "pow-register",
+            rich_help_panel=HELP_PANELS["SUBNETS"]["REGISTER"],
+            short_help="Register a neuron (a subnet validator or a subnet miner) using Proof of Work (POW)",
         )(self.subnets_pow_register)
         self.subnets_app.command(
-            "register", rich_help_panel=HELP_PANELS["SUBNETS"]["REGISTER"]
+            "register",
+            rich_help_panel=HELP_PANELS["SUBNETS"]["REGISTER"],
+            short_help="Register a neuron (a subnet validator or a subnet miner) in the specified subnet by recycling some TAO",
         )(self.subnets_register)
         self.subnets_app.command(
-            "metagraph", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"], hidden=True
+            "metagraph",
+            rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"],
+            hidden=True,
+            short_help="Inspect the metagraph for a subnet",
         )(self.subnets_show)  # Aliased to `s show` for now
         self.subnets_app.command(
-            "show", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
+            "show",
+            rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"],
+            short_help="Show the metagraph for a subnet",
         )(self.subnets_show)
         self.subnets_app.command(
-            "price", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
+            "price",
+            rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"],
+            short_help="Shows the historical price of a subnet for the past 24 hours",
         )(self.subnets_price)
         self.subnets_app.command(
-            "set-identity", rich_help_panel=HELP_PANELS["SUBNETS"]["IDENTITY"]
+            "set-identity",
+            rich_help_panel=HELP_PANELS["SUBNETS"]["IDENTITY"],
+            short_help="Set or update the identity information for a subnet",
         )(self.subnets_set_identity)
         self.subnets_app.command(
-            "get-identity", rich_help_panel=HELP_PANELS["SUBNETS"]["IDENTITY"]
+            "get-identity",
+            rich_help_panel=HELP_PANELS["SUBNETS"]["IDENTITY"],
+            short_help="Get the identity information for a subnet",
         )(self.subnets_get_identity)
         self.subnets_app.command(
-            "start", rich_help_panel=HELP_PANELS["SUBNETS"]["CREATION"]
+            "start",
+            rich_help_panel=HELP_PANELS["SUBNETS"]["CREATION"],
+            short_help="Starts a subnet's emission schedule",
         )(self.subnets_start)
         self.subnets_app.command(
-            "check-start", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
+            "check-start",
+            rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"],
+            short_help="Checks if a subnet's emission schedule can be started",
         )(self.subnets_check_start)
         self.subnets_app.command(
-            "set-symbol", rich_help_panel=HELP_PANELS["SUBNETS"]["IDENTITY"]
+            "set-symbol",
+            rich_help_panel=HELP_PANELS["SUBNETS"]["IDENTITY"],
+            short_help="Allows the user to update their subnet symbol to a different available symbol",
         )(self.subnets_set_symbol)
 
         # weights commands
         self.weights_app.command(
-            "reveal", rich_help_panel=HELP_PANELS["WEIGHTS"]["COMMIT_REVEAL"]
+            "reveal",
+            rich_help_panel=HELP_PANELS["WEIGHTS"]["COMMIT_REVEAL"],
+            short_help="Reveal weights for a specific subnet",
         )(self.weights_reveal)
         self.weights_app.command(
-            "commit", rich_help_panel=HELP_PANELS["WEIGHTS"]["COMMIT_REVEAL"]
+            "commit",
+            rich_help_panel=HELP_PANELS["WEIGHTS"]["COMMIT_REVEAL"],
+            short_help="Commit weights for specific subnet",
         )(self.weights_commit)
 
         # view commands
         self.view_app.command(
-            "dashboard", rich_help_panel=HELP_PANELS["VIEW"]["DASHBOARD"]
+            "dashboard",
+            rich_help_panel=HELP_PANELS["VIEW"]["DASHBOARD"],
+            short_help="Display html dashboard with subnets list, stake, and neuron information",
         )(self.view_dashboard)
+
+        # Crowdloan
+        self.crowd_app.command(
+            "contribute",
+            rich_help_panel=HELP_PANELS["CROWD"]["PARTICIPANT"],
+            short_help="Contribute TAO to an active crowdloan",
+        )(self.crowd_contribute)
+        self.crowd_app.command(
+            "withdraw",
+            rich_help_panel=HELP_PANELS["CROWD"]["PARTICIPANT"],
+            short_help="Withdraw contributions from a non-finalized crowdloan",
+        )(self.crowd_withdraw)
+        self.crowd_app.command(
+            "finalize",
+            rich_help_panel=HELP_PANELS["CROWD"]["INITIATOR"],
+            short_help="Finalize a successful crowdloan that has reached its cap",
+        )(self.crowd_finalize)
+        self.crowd_app.command(
+            "list",
+            rich_help_panel=HELP_PANELS["CROWD"]["INFO"],
+            short_help="List crowdloans together with their funding progress and key metadata",
+        )(self.crowd_list)
+        self.crowd_app.command(
+            "info",
+            rich_help_panel=HELP_PANELS["CROWD"]["INFO"],
+            short_help="Display detailed information about a specific crowdloan",
+        )(self.crowd_info)
+        self.crowd_app.command(
+            "create",
+            rich_help_panel=HELP_PANELS["CROWD"]["INITIATOR"],
+            short_help="Start a new crowdloan campaign for fundraising or subnet leasing",
+        )(self.crowd_create)
+        self.crowd_app.command(
+            "update",
+            rich_help_panel=HELP_PANELS["CROWD"]["INITIATOR"],
+            short_help="Update one mutable field on a non-finalized crowdloan",
+        )(self.crowd_update)
+        self.crowd_app.command(
+            "refund",
+            rich_help_panel=HELP_PANELS["CROWD"]["INITIATOR"],
+            short_help="Refund contributors of a non-finalized crowdloan",
+        )(self.crowd_refund)
+        self.crowd_app.command(
+            "dissolve",
+            rich_help_panel=HELP_PANELS["CROWD"]["INITIATOR"],
+            short_help="Dissolve a crowdloan after all contributors have been refunded",
+        )(self.crowd_dissolve)
+
+        # liquidity commands
+        self.liquidity_app.command(
+            "add",
+            rich_help_panel=HELP_PANELS["LIQUIDITY"]["LIQUIDITY_MGMT"],
+            short_help="Add liquidity to the swap (as a combination of TAO + Alpha)",
+        )(self.liquidity_add)
+        self.liquidity_app.command(
+            "list",
+            rich_help_panel=HELP_PANELS["LIQUIDITY"]["LIQUIDITY_MGMT"],
+            short_help="Displays liquidity positions in given subnet",
+        )(self.liquidity_list)
+        self.liquidity_app.command(
+            "modify",
+            rich_help_panel=HELP_PANELS["LIQUIDITY"]["LIQUIDITY_MGMT"],
+            short_help="Modifies the liquidity position for the given subnet",
+        )(self.liquidity_modify)
+        self.liquidity_app.command(
+            "remove",
+            rich_help_panel=HELP_PANELS["LIQUIDITY"]["LIQUIDITY_MGMT"],
+            short_help="Remove liquidity from the swap (as a combination of TAO + Alpha)",
+        )(self.liquidity_remove)
+
+        # utils app
+        self.utils_app.command(
+            "convert",
+            short_help="Allows for converting between tao and rao using the specified flags",
+        )(self.convert)
+        self.utils_app.command(
+            "latency",
+            short_help="Gives the latency of all finney-like networks + additional",
+        )(self.best_connection)
 
         # Sub command aliases
         # Wallet
@@ -1144,73 +1378,6 @@ class CLIManager:
         self.sudo_app.command("get_take", hidden=True)(self.sudo_get_take)
         self.sudo_app.command("set_take", hidden=True)(self.sudo_set_take)
 
-        # Crowdloan
-        self.app.add_typer(
-            self.crowd_app,
-            name="crowd",
-            short_help="Crowdloan commands, aliases: `cr`, `crowdloan`",
-            no_args_is_help=True,
-        )
-        self.app.add_typer(self.crowd_app, name="cr", hidden=True, no_args_is_help=True)
-        self.app.add_typer(
-            self.crowd_app, name="crowdloan", hidden=True, no_args_is_help=True
-        )
-        self.crowd_app.command(
-            "contribute", rich_help_panel=HELP_PANELS["CROWD"]["PARTICIPANT"]
-        )(self.crowd_contribute)
-        self.crowd_app.command(
-            "withdraw", rich_help_panel=HELP_PANELS["CROWD"]["PARTICIPANT"]
-        )(self.crowd_withdraw)
-        self.crowd_app.command(
-            "finalize", rich_help_panel=HELP_PANELS["CROWD"]["INITIATOR"]
-        )(self.crowd_finalize)
-        self.crowd_app.command("list", rich_help_panel=HELP_PANELS["CROWD"]["INFO"])(
-            self.crowd_list
-        )
-        self.crowd_app.command("info", rich_help_panel=HELP_PANELS["CROWD"]["INFO"])(
-            self.crowd_info
-        )
-        self.crowd_app.command(
-            "create", rich_help_panel=HELP_PANELS["CROWD"]["INITIATOR"]
-        )(self.crowd_create)
-        self.crowd_app.command(
-            "update", rich_help_panel=HELP_PANELS["CROWD"]["INITIATOR"]
-        )(self.crowd_update)
-        self.crowd_app.command(
-            "refund", rich_help_panel=HELP_PANELS["CROWD"]["INITIATOR"]
-        )(self.crowd_refund)
-        self.crowd_app.command(
-            "dissolve", rich_help_panel=HELP_PANELS["CROWD"]["INITIATOR"]
-        )(self.crowd_dissolve)
-
-        # Liquidity
-        self.app.add_typer(
-            self.liquidity_app,
-            name="liquidity",
-            short_help="liquidity commands, aliases: `l`",
-            no_args_is_help=True,
-        )
-        self.app.add_typer(
-            self.liquidity_app, name="l", hidden=True, no_args_is_help=True
-        )
-        # liquidity commands
-        self.liquidity_app.command(
-            "add", rich_help_panel=HELP_PANELS["LIQUIDITY"]["LIQUIDITY_MGMT"]
-        )(self.liquidity_add)
-        self.liquidity_app.command(
-            "list", rich_help_panel=HELP_PANELS["LIQUIDITY"]["LIQUIDITY_MGMT"]
-        )(self.liquidity_list)
-        self.liquidity_app.command(
-            "modify", rich_help_panel=HELP_PANELS["LIQUIDITY"]["LIQUIDITY_MGMT"]
-        )(self.liquidity_modify)
-        self.liquidity_app.command(
-            "remove", rich_help_panel=HELP_PANELS["LIQUIDITY"]["LIQUIDITY_MGMT"]
-        )(self.liquidity_remove)
-
-        # utils app
-        self.utils_app.command("convert")(self.convert)
-        self.utils_app.command("latency")(self.best_connection)
-
     def generate_command_tree(self) -> Tree:
         """
         Generates a rich.Tree of the commands, subcommands, and groups of this app
@@ -1219,24 +1386,24 @@ class CLIManager:
         def build_rich_tree(data: dict, parent: Tree):
             for group, content in data.get("groups", {}).items():
                 group_node = parent.add(
-                    f"[bold cyan]{group}[/]"
+                    f"[bold cyan]{group.name}[/]: {group.short_help}"
                 )  # Add group to the tree
                 for command in content.get("commands", []):
-                    group_node.add(f"[green]{command}[/]")  # Add commands to the group
+                    group_node.add(
+                        f"[green]{command.name}[/]: {command.short_help}"
+                    )  # Add commands to the group
                 build_rich_tree(content, group_node)  # Recurse for subgroups
 
         def traverse_group(group: typer.Typer) -> dict:
             tree = {}
-            if commands := [
-                cmd.name for cmd in group.registered_commands if not cmd.hidden
-            ]:
+            if commands := [cmd for cmd in group.registered_commands if not cmd.hidden]:
                 tree["commands"] = commands
             for group in group.registered_groups:
                 if "groups" not in tree:
                     tree["groups"] = {}
                 if not group.hidden:
                     if group_transversal := traverse_group(group.typer_instance):
-                        tree["groups"][group.name] = group_transversal
+                        tree["groups"][group] = group_transversal
 
             return tree
 
@@ -1359,7 +1526,7 @@ class CLIManager:
         commands: Annotated[
             Optional[bool],
             typer.Option(
-                "--commands", callback=commands_callback, help="Show BTCLI commands"
+                "--commands", callback=commands_callback, help="Show all BTCLI commands"
             ),
         ] = None,
         debug_log: Annotated[
@@ -7955,7 +8122,7 @@ class CLIManager:
         ),
     ):
         """
-        This command will give you the latency of all finney-like network in additional to any additional networks you specify via the '--network' flag
+        This command will give you the latency of all finney-like network chain endpoints in addition to any other networks you specify via the '--network' flag
 
         The results are three-fold. One column is the overall time to initialise a connection, send the requests, and wait for the results. The second column measures single ping-pong speed once connected. The third makes a real world call to fetch the chain head.
 
