@@ -773,7 +773,7 @@ class CLIManager:
         self.app.add_typer(
             self.config_app,
             name="config",
-            short_help="Config commands, aliases: `c`, `conf`",
+            short_help=f"Config commands, aliases: {arg__('c')}, {arg__('conf')}",
             no_args_is_help=True,
         )
         self.app.add_typer(
@@ -785,7 +785,7 @@ class CLIManager:
         self.app.add_typer(
             self.wallet_app,
             name="wallet",
-            short_help="Wallet commands, aliases: `wallets`, `w`",
+            short_help=f"Wallet commands, aliases: {arg__('wallets')}, {arg__('w')}",
             no_args_is_help=True,
         )
         self.app.add_typer(self.wallet_app, name="w", hidden=True, no_args_is_help=True)
@@ -797,7 +797,7 @@ class CLIManager:
         self.app.add_typer(
             self.stake_app,
             name="stake",
-            short_help="Stake commands, alias: `st`",
+            short_help=f"Stake commands, alias: {arg__('st')}",
             no_args_is_help=True,
         )
         self.app.add_typer(self.stake_app, name="st", hidden=True, no_args_is_help=True)
@@ -806,7 +806,7 @@ class CLIManager:
         self.app.add_typer(
             self.sudo_app,
             name="sudo",
-            short_help="Sudo commands, alias: `su`",
+            short_help=f"Sudo commands, alias: {arg__('su')}",
             no_args_is_help=True,
         )
         self.app.add_typer(self.sudo_app, name="su", hidden=True, no_args_is_help=True)
@@ -815,7 +815,7 @@ class CLIManager:
         self.app.add_typer(
             self.subnets_app,
             name="subnets",
-            short_help="Subnets commands, alias: `s`, `subnet`",
+            short_help=f"Subnets commands, alias: {arg__('s')}, {arg__('subnet')}",
             no_args_is_help=True,
         )
         self.app.add_typer(
@@ -829,7 +829,7 @@ class CLIManager:
         self.subnets_app.add_typer(
             self.subnet_mechanisms_app,
             name="mechanisms",
-            short_help="Subnet mechanism commands, alias: `mech`",
+            short_help=f"Subnet mechanism commands, alias: {arg__('mech')}",
             no_args_is_help=True,
         )
         self.subnets_app.add_typer(
@@ -842,7 +842,7 @@ class CLIManager:
         self.app.add_typer(
             self.weights_app,
             name="weights",
-            short_help="Weights commands, aliases: `wt`, `weight`",
+            short_help=f"Weights commands, aliases: {arg__('wt')}, {arg__('weight')}",
             hidden=True,
             no_args_is_help=True,
         )
@@ -874,7 +874,7 @@ class CLIManager:
         self.app.add_typer(
             self.crowd_app,
             name="crowd",
-            short_help="Crowdloan commands, aliases: `cr`, `crowdloan`",
+            short_help=f"Crowdloan commands, aliases: {arg__('cr')}, {arg__('crowdloan')}",
             no_args_is_help=True,
         )
         self.app.add_typer(self.crowd_app, name="cr", hidden=True, no_args_is_help=True)
@@ -886,7 +886,7 @@ class CLIManager:
         self.app.add_typer(
             self.liquidity_app,
             name="liquidity",
-            short_help="liquidity commands, aliases: `l`",
+            short_help=f"liquidity commands, aliases: {arg__('l')}",
             no_args_is_help=True,
         )
         self.app.add_typer(
@@ -898,7 +898,7 @@ class CLIManager:
         self.config_app.command("get", short_help="Print current config")(
             self.get_config
         )
-        self.config_app.command("clear", short_help="Clear the config to defaults.")(
+        self.config_app.command("clear", short_help="Clear the config to defaults")(
             self.del_config
         )
         # self.config_app.command("metagraph", hidden=True)(self.metagraph_config)
@@ -1177,7 +1177,8 @@ class CLIManager:
         self.subnets_app.command(
             "register",
             rich_help_panel=HELP_PANELS["SUBNETS"]["REGISTER"],
-            short_help="Register a neuron (a subnet validator or a subnet miner) in the specified subnet by recycling some TAO",
+            short_help="Register a neuron (a subnet validator or a subnet miner) in the specified subnet by "
+            "recycling some TAO",
         )(self.subnets_register)
         self.subnets_app.command(
             "metagraph",
@@ -1386,11 +1387,11 @@ class CLIManager:
         def build_rich_tree(data: dict, parent: Tree):
             for group, content in data.get("groups", {}).items():
                 group_node = parent.add(
-                    f"[bold cyan]{group.name}[/]: {group.short_help}"
+                    f"{arg__(group.name)}: {group.short_help}"
                 )  # Add group to the tree
                 for command in content.get("commands", []):
                     group_node.add(
-                        f"[green]{command.name}[/]: {command.short_help}"
+                        f"[green]{command.name}[/]: [light_green]{command.short_help}[/light_green]"
                     )  # Add commands to the group
                 build_rich_tree(content, group_node)  # Recurse for subgroups
 
