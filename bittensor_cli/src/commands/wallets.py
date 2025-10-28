@@ -2174,7 +2174,10 @@ async def find_coldkey_swap_extrinsic(
     ):
         console.print("Querying archive node for coldkey swap events...")
         await subtensor.substrate.close()
-        subtensor = SubtensorInterface("archive")
+        subtensor.substrate.chain_endpoint = Constants.archive_entrypoint
+        subtensor.substrate.url = Constants.archive_entrypoint
+        subtensor.substrate.initialized = False
+        await subtensor.substrate.initialize()
 
     block_hashes = await asyncio.gather(
         *[
