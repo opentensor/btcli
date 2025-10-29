@@ -907,11 +907,18 @@ async def show(
         # TODO json_output for this, don't forget
         block_hash = await subtensor.substrate.get_chain_head()
 
-        all_subnets, root_state, identities, old_identities = await asyncio.gather(
+        (
+            all_subnets,
+            root_state,
+            identities,
+            old_identities,
+            root_claim_types,
+        ) = await asyncio.gather(
             subtensor.all_subnets(block_hash=block_hash),
             subtensor.get_subnet_state(netuid=0, block_hash=block_hash),
             subtensor.query_all_identities(block_hash=block_hash),
             subtensor.get_delegate_identities(block_hash=block_hash),
+            subtensor.get_all_root_claim_types(block_hash=block_hash),
         )
         root_info = next((s for s in all_subnets if s.netuid == 0), None)
         if root_info is None:
@@ -971,6 +978,11 @@ async def show(
             style=COLOR_PALETTE["GENERAL"]["SYMBOL"],
             justify="left",
         )
+        table.add_column(
+            "[bold white]Root Claim",
+            style=COLOR_PALETTE["GENERAL"]["SUBHEADING"],
+            justify="center",
+        )
 
         sorted_hotkeys = sorted(
             enumerate(root_state.hotkeys),
@@ -1001,6 +1013,9 @@ async def show(
                 else (hotkey_identity.display if hotkey_identity else "")
             )
 
+            coldkey_ss58 = root_state.coldkeys[idx]
+            claim_type = root_claim_types.get(coldkey_ss58, "Swap")
+
             sorted_rows.append(
                 (
                     str((pos + 1)),  # Position
@@ -1021,6 +1036,7 @@ async def show(
                     if not verbose
                     else f"{root_state.coldkeys[idx]}",  # Coldkey
                     validator_identity,  # Identity
+                    claim_type,  # Root Claim Type
                 )
             )
             sorted_hks_delegation.append(root_state.hotkeys[idx])
@@ -1072,6 +1088,7 @@ async def show(
             - Emission: The emission accrued to this hotkey across all subnets every block measured in TAO.
             - Hotkey: The hotkey ss58 address.
             - Coldkey: The coldkey ss58 address.
+            - Root Claim: The root claim type for this coldkey. 'Swap' converts Alpha to TAO every epoch. 'Keep' keeps Alpha emissions.
     """
             )
         if delegate_selection:
