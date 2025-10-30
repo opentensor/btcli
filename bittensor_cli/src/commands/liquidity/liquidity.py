@@ -342,6 +342,8 @@ async def get_liquidity_list(
             block_hash=block_hash,
         ),
     )
+    if len(positions_response.records) == 0:
+        return False, "No liquidity positions found.", []
 
     current_sqrt_price = fixed_to_float(current_sqrt_price)
     fee_global_tao = fixed_to_float(fee_global_tao)

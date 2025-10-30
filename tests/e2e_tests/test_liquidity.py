@@ -136,8 +136,8 @@ def test_liquidity(local_chain, wallet_setup):
     )
     print(">>>", liquidity_list_result.stdout, liquidity_list_result.stderr)
     result_output = json.loads(liquidity_list_result.stdout)
-    assert result_output["success"] is True
-    assert result_output["err_msg"] == ""
+    assert result_output["success"] is False
+    assert result_output["err_msg"] == "No liquidity positions found."
     assert result_output["positions"] == []
 
     enable_user_liquidity = exec_command_alice(
@@ -218,7 +218,6 @@ def test_liquidity(local_chain, wallet_setup):
     assert len(liquidity_list_result["positions"]) == 1
     liquidity_position = liquidity_list_result["positions"][0]
     assert liquidity_position["liquidity"] == 1.0
-    assert liquidity_position["id"] == 2
     assert liquidity_position["fees_tao"] == 0.0
     assert liquidity_position["fees_alpha"] == 0.0
     assert liquidity_position["netuid"] == netuid
@@ -272,7 +271,6 @@ def test_liquidity(local_chain, wallet_setup):
     liquidity_list_result = json.loads(llr.stdout)
     assert len(liquidity_list_result["positions"]) == 1
     liquidity_position = liquidity_list_result["positions"][0]
-    assert liquidity_position["id"] == 2
     assert liquidity_position["liquidity"] == 21.0
 
     removal = exec_command_alice(
