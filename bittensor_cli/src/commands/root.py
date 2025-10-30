@@ -83,3 +83,34 @@ async def set_claim_type(
             f":cross_mark: [red]Failed to unlock wallet: {unlock.message}[/red]"
         )
         return False, f"Failed to unlock wallet: {unlock.message}", None
+
+    with console.status(
+        f":satellite: Setting root claim type to '{new_type}'...", spinner="earth"
+    ):
+        try:
+            call = await subtensor.substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function="set_root_claim_type",
+                call_params={"new_root_claim_type": new_type},
+            )
+            success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
+                call, wallet
+            )
+            if success:
+                console.print(
+                    f":white_heavy_check_mark: [green]Successfully set root claim type to '{new_type}'[/green]"
+                )
+                ext_id = await ext_receipt.get_extrinsic_identifier()
+                await print_extrinsic_id(ext_receipt)
+                return True, f"Successfully set root claim type to '{new_type}'", ext_id
+            else:
+                err_console.print(
+                    f":cross_mark: [red]Failed to set root claim type: {err_msg}[/red]"
+                )
+                return False, f"Failed to set root claim type: {err_msg}", None
+
+        except Exception as e:
+            err_console.print(
+                f":cross_mark: [red]Error setting root claim type: {e}[/red]"
+            )
+            return False, f"Error setting root claim type: {e}", None
