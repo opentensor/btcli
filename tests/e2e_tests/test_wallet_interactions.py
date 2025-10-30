@@ -421,7 +421,7 @@ def test_wallet_identities(local_chain, wallet_setup):
             wallet_alice.name,
             "--wallet-hotkey",
             wallet_alice.hotkey_str,
-            "--name",
+            "--id-name",
             alice_identity["name"],
             "--web-url",
             alice_identity["url"],
