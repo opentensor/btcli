@@ -1824,6 +1824,39 @@ class SubtensorInterface:
 
         return result
 
+    async def get_root_claim_type(
+        self,
+        coldkey_ss58: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> str:
+        """
+        Retrieves the root claim type for a specific coldkey.
+
+        Root claim types control how staking emissions are handled on the ROOT network (subnet 0):
+        - "Swap": Future Root Alpha Emissions are swapped to TAO at claim time and added to your root stake
+        - "Keep": Future Root Alpha Emissions are kept as Alpha
+
+        Args:
+            coldkey_ss58: The SS58 address of the coldkey to query.
+            block_hash: The hash of the blockchain block number for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            str: The root claim type for the coldkey ("Swap" or "Keep").
+        """
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="RootClaimType",
+            params=[coldkey_ss58],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        if result is None:
+            return "Swap"
+        return next(iter(result.keys()))
+
     async def get_all_root_claim_types(
         self,
         block_hash: Optional[str] = None,
