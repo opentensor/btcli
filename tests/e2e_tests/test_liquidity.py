@@ -317,5 +317,6 @@ def test_liquidity(local_chain, wallet_setup):
     )
     print(">>>", liquidity_list_result.stdout, liquidity_list_result.stderr)
     liquidity_list_result = json.loads(liquidity_list_result.stdout)
-    assert liquidity_list_result["success"] is True
+    assert liquidity_list_result["success"] is False
+    assert result_output["err_msg"] == "No liquidity positions found."
     assert liquidity_list_result["positions"] == []
