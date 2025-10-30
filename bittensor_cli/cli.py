@@ -65,7 +65,7 @@ from bittensor_cli.src.bittensor.utils import (
     validate_rate_tolerance,
     get_hotkey_pub_ss58,
 )
-from bittensor_cli.src.commands import sudo, wallets, view
+from bittensor_cli.src.commands import root, sudo, wallets, view
 from bittensor_cli.src.commands import weights as weights_cmds
 from bittensor_cli.src.commands.liquidity import liquidity
 from bittensor_cli.src.commands.crowd import (
@@ -760,6 +760,7 @@ class CLIManager:
         )
         self.wallet_app = typer.Typer(epilog=_epilog)
         self.stake_app = typer.Typer(epilog=_epilog)
+        self.root_app = typer.Typer(epilog=_epilog)
         self.sudo_app = typer.Typer(epilog=_epilog)
         self.subnets_app = typer.Typer(epilog=_epilog)
         self.subnet_mechanisms_app = typer.Typer(epilog=_epilog)
@@ -801,6 +802,14 @@ class CLIManager:
             no_args_is_help=True,
         )
         self.app.add_typer(self.stake_app, name="st", hidden=True, no_args_is_help=True)
+
+        # root aliases
+        self.app.add_typer(
+            self.root_app,
+            name="root",
+            short_help="Root claim commands",
+            no_args_is_help=True,
+        )
 
         # sudo aliases
         self.app.add_typer(
@@ -987,6 +996,9 @@ class CLIManager:
         children_app.command("set")(self.stake_set_children)
         children_app.command("revoke")(self.stake_revoke_children)
         children_app.command("take")(self.stake_childkey_take)
+
+        # root claim commands
+        self.root_app.command("set-claim")(self.root_set_claim_type)
 
         # subnet mechanism commands
         self.subnet_mechanisms_app.command(
@@ -7063,6 +7075,48 @@ class CLIManager:
                 save_file=save_file,
                 dashboard_path=dashboard_path,
                 coldkey_ss58=coldkey_ss58,
+            )
+        )
+
+    def root_set_claim_type(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        network: Optional[list[str]] = Options.network,
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Set the root claim type for your coldkey.
+
+        Root claim types control how staking emissions are handled on the ROOT network (subnet 0):
+
+        [bold]Claim Types:[/bold]
+        • [green]Swap[/green]: Future Root Alpha Emissions are swapped to TAO and added to root stake (default)
+        • [yellow]Keep[/yellow]: Future Root Alpha Emissions are kept as Alpha tokens
+
+        USAGE:
+
+        [green]$[/green] btcli root set-claim-type
+
+        With specific wallet:
+
+        [green]$[/green] btcli root set-claim-type --wallet-name my_wallet
+        """
+        self.verbosity_handler(quiet, verbose)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+        )
+        return self._run_command(
+            root.set_claim_type(
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                prompt=prompt,
             )
         )
 
