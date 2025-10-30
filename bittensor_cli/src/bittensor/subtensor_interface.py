@@ -2030,6 +2030,64 @@ class SubtensorInterface:
         )
         return all_rates.get(netuid, 0.0)
 
+    async def get_claimable_stake(
+        self,
+        coldkey_ss58: str,
+        hotkey_ss58: str,
+        netuid: int,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> Balance:
+        """Retrieves the root claimable stake for a given coldkey address.
+
+        Args:
+            coldkey_ss58: Delegate's ColdKey SS58 address.
+            hotkey_ss58: The root validator hotkey SS58 address.
+            netuid: Delegate's netuid where stake will be claimed.
+            block_hash: The blockchain block hash for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            Balance: Available for claiming root stake.
+
+        Note:
+            After manual claim, claimable (available) stake will be added to subnet stake.
+        """
+        root_stake = await self.get_stake_for_coldkey_and_hotkey_on_netuid(
+            coldkey_ss58=coldkey_ss58,
+            hotkey_ss58=hotkey_ss58,
+            netuid=0,
+            block_hash=block_hash,
+        )
+
+        # Get the claimable rate
+        root_claimable_rate = await self.claimable_rate_netuid(
+            hotkey_ss58=hotkey_ss58,
+            netuid=netuid,
+            block_hash=block_hash,
+            reuse_block=reuse_block,
+        )
+
+        # Calculate claimable stake
+        root_claimable_stake = (root_claimable_rate * root_stake).set_unit(
+            netuid=netuid
+        )
+
+        # Get already claimed amount
+        root_claimed = await self.get_root_claimed_netuid(
+            coldkey_ss58=coldkey_ss58,
+            hotkey_ss58=hotkey_ss58,
+            netuid=netuid,
+            block_hash=block_hash,
+            reuse_block=reuse_block,
+        )
+
+        # Return the difference (what's left to claim)
+        return max(
+            root_claimable_stake - root_claimed,
+            Balance.from_rao(0).set_unit(netuid=netuid),
+        )
+
     async def get_subnet_price(
         self,
         netuid: int = None,
