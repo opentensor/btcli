@@ -1975,7 +1975,7 @@ class SubtensorInterface:
             )
         return total_claimed
 
-    async def claimable_rate_all_subnets(
+    async def claimable_rate_all_netuids(
         self,
         hotkey_ss58: str,
         block_hash: Optional[str] = None,
@@ -2004,6 +2004,31 @@ class SubtensorInterface:
 
         bits_list = next(iter(query))
         return {bits[0]: fixed_to_float(bits[1], frac_bits=32) for bits in bits_list}
+
+    async def claimable_rate_netuid(
+        self,
+        hotkey_ss58: str,
+        netuid: int,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> float:
+        """Retrieves the root claimable rate from a given hotkey address for provided netuid.
+
+        Args:
+            hotkey_ss58: The SS58 address of the root validator.
+            netuid: The unique identifier of the subnet to get the rate.
+            block_hash: The blockchain block hash for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            float: The rate of claimable stake from validator's hotkey for provided subnet.
+        """
+        all_rates = await self.claimable_rate_all_netuids(
+            hotkey_ss58=hotkey_ss58,
+            block_hash=block_hash,
+            reuse_block=reuse_block,
+        )
+        return all_rates.get(netuid, 0.0)
 
     async def get_subnet_price(
         self,
