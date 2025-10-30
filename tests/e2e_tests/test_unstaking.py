@@ -218,26 +218,26 @@ def test_unstaking(local_chain, wallet_setup):
     # Add initial stake to enable V3
     for netuid_ in [0, 2, 3]:
         stake_to_enable_v3 = exec_command_bob(
-        command="stake",
-        sub_command="add",
-        extra_args=[
-            "--netuid",
-            netuid_,
-            "--wallet-path",
-            wallet_path_bob,
-            "--wallet-name",
-            wallet_bob.name,
-            "--hotkey",
-            wallet_bob.hotkey_str,
-            "--chain",
-            "ws://127.0.0.1:9945",
-            "--amount",
-            "1",
-            "--unsafe",
-            "--no-prompt",
-            "--era",
-            "144",
-        ],
+            command="stake",
+            sub_command="add",
+            extra_args=[
+                "--netuid",
+                netuid_,
+                "--wallet-path",
+                wallet_path_bob,
+                "--wallet-name",
+                wallet_bob.name,
+                "--hotkey",
+                wallet_bob.hotkey_str,
+                "--chain",
+                "ws://127.0.0.1:9945",
+                "--amount",
+                "1",
+                "--unsafe",
+                "--no-prompt",
+                "--era",
+                "144",
+            ],
         )
         assert "✅ Finalized" in stake_to_enable_v3.stdout, stake_to_enable_v3.stderr
 
