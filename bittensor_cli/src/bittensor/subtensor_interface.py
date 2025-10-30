@@ -1888,6 +1888,32 @@ class SubtensorInterface:
 
         return root_claim_types
 
+    async def get_staking_hotkeys(
+        self,
+        coldkey_ss58: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> list[str]:
+        """Retrieves all hotkeys that a coldkey is staking to.
+
+        Args:
+            coldkey_ss58: The SS58 address of the coldkey.
+            block_hash: The hash of the blockchain block for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            list[str]: A list of hotkey SS58 addresses that the coldkey has staked to.
+        """
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="StakingHotkeys",
+            params=[coldkey_ss58],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+        staked_hotkeys = [decode_account_id(hotkey) for hotkey in result]
+        return staked_hotkeys
+
     async def get_subnet_price(
         self,
         netuid: int = None,
