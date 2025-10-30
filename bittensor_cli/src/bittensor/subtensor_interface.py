@@ -1914,6 +1914,35 @@ class SubtensorInterface:
         staked_hotkeys = [decode_account_id(hotkey) for hotkey in result]
         return staked_hotkeys
 
+    async def get_root_claimed_netuid(
+        self,
+        coldkey_ss58: str,
+        hotkey_ss58: str,
+        netuid: int,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> Balance:
+        """Retrieves the root claimed Alpha shares for coldkey from hotkey in provided subnet.
+
+        Args:
+            coldkey_ss58: The SS58 address of the staker.
+            hotkey_ss58: The SS58 address of the root validator.
+            netuid: The unique identifier of the subnet.
+            block_hash: The blockchain block hash for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            Balance: The number of Alpha stake claimed from the root validator.
+        """
+        query = await self.query(
+            module="SubtensorModule",
+            storage_function="RootClaimed",
+            params=[hotkey_ss58, coldkey_ss58, netuid],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+        return Balance.from_rao(query).set_unit(netuid=netuid)
+
     async def get_subnet_price(
         self,
         netuid: int = None,
