@@ -117,6 +117,30 @@ def test_liquidity(local_chain, wallet_setup):
     ), start_subnet_emissions.stderr
     assert "Your extrinsic has been included " in start_subnet_emissions.stdout
 
+    stake_to_enable_v3 = exec_command_alice(
+        command="stake",
+        sub_command="add",
+        extra_args=[
+            "--netuid",
+            "2",
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--hotkey",
+            wallet_alice.hotkey_str,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--amount",
+            "1",
+            "--unsafe",
+            "--no-prompt",
+            "--era",
+            "144",
+        ],
+    )
+    assert "✅ Finalized" in stake_to_enable_v3.stdout, stake_to_enable_v3.stderr
+    time.sleep(10)
     liquidity_list_result = exec_command_alice(
         command="liquidity",
         sub_command="list",
