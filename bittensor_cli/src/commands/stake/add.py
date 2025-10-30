@@ -481,9 +481,10 @@ async def stake_add(
             success, er_msg, ext_receipt = await coroutine
             successes[ni][staking_address] = success
             error_messages[ni][staking_address] = er_msg
-            extrinsic_ids[ni][
-                staking_address
-            ] = await ext_receipt.get_extrinsic_identifier()
+            if success:
+                extrinsic_ids[ni][
+                    staking_address
+                ] = await ext_receipt.get_extrinsic_identifier()
     if json_output:
         json_console.print_json(
             data={
