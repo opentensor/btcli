@@ -2,7 +2,10 @@ from typing import TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm, Prompt
+from rich.table import Table, Column
+from rich import box
 
+from bittensor_cli.src import COLORS
 from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
@@ -41,11 +44,31 @@ async def set_claim_type(
     current_type = await subtensor.get_root_claim_type(
         coldkey_ss58=wallet.coldkeypub.ss58_address
     )
-    console.print(
-        f"\nCurrent root claim type for coldkey:\n"
-        f"  Coldkey: [cyan]{wallet.coldkeypub.ss58_address}[/cyan]\n"
-        f"  Current type: [yellow]{current_type}[/yellow]\n"
+
+    claim_table = Table(
+        Column(
+            "[bold white]Coldkey",
+            style=COLORS.GENERAL.COLDKEY,
+            justify="left",
+        ),
+        Column(
+            "[bold white]Root Claim Type",
+            style=COLORS.GENERAL.SUBHEADING,
+            justify="center",
+        ),
+        show_header=True,
+        show_footer=False,
+        show_edge=True,
+        border_style="bright_black",
+        box=box.SIMPLE,
+        pad_edge=False,
+        width=None,
+        title=f"\n[{COLORS.GENERAL.HEADER}]Current root claim type:[/{COLORS.GENERAL.HEADER}]",
     )
+    claim_table.add_row(
+        wallet.coldkeypub.ss58_address, f"[yellow]{current_type}[/yellow]"
+    )
+    console.print(claim_table)
     new_type = Prompt.ask(
         "Select new root claim type", choices=["Swap", "Keep"], default=current_type
     )
@@ -61,8 +84,7 @@ async def set_claim_type(
 
     if prompt:
         console.print(
-            f"\n[bold]You are about to change the root claim type:[/bold]\n"
-            f"  [yellow]{current_type}[/yellow] -> [dark_sea_green3]{new_type}[/dark_sea_green3]\n"
+            f"\n[bold]Changing root claim type from '{current_type}' -> '{new_type}'[/bold]\n"
         )
 
         if new_type == "Swap":
