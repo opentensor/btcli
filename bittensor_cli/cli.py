@@ -3326,7 +3326,7 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         name: str = typer.Option(
             "",
-            "--name",
+            "--id-name",
             help="The display name for the identity.",
         ),
         web_url: str = typer.Option(
@@ -6427,7 +6427,7 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         netuid: int = Options.netuid,
         subnet_name: Optional[str] = typer.Option(
-            None, "--subnet-name", "--name", help="Name of the subnet"
+            None, "--subnet-name", "--sn-name", help="Name of the subnet"
         ),
         github_repo: Optional[str] = typer.Option(
             None, "--github-repo", "--repo", help="GitHub repository URL"
