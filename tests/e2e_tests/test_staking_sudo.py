@@ -325,6 +325,32 @@ def test_staking(local_chain, wallet_setup):
             start_subnet_emissions.stdout
         )
 
+    # Add initial stake to enable V3
+    for netuid_ in multiple_netuids:
+        stake_to_enable_v3 = exec_command_alice(
+        command="stake",
+        sub_command="add",
+        extra_args=[
+            "--netuid",
+            netuid_,
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--hotkey",
+            wallet_alice.hotkey_str,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--amount",
+            "1",
+            "--unsafe",
+            "--no-prompt",
+            "--era",
+            "144",
+        ],
+        )
+        assert "✅ Finalized" in stake_to_enable_v3.stdout, stake_to_enable_v3.stderr
+
     # Add stake to Alice's hotkey
     add_stake_single = exec_command_alice(
         command="stake",
