@@ -27,7 +27,7 @@ jobs:
 
   find-tests:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.draft == false && !startsWith(github.head_ref, 'changelog/')) }}
     outputs:
       test-files: ${{ steps.get-tests.outputs.test-files }}
     steps:
@@ -43,6 +43,7 @@ jobs:
 
   pull-docker-image:
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.draft == false && !startsWith(github.head_ref, 'changelog/')) }}
     steps:
       - name: Log in to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
