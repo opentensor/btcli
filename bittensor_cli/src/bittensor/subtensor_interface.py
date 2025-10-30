@@ -1943,6 +1943,68 @@ class SubtensorInterface:
         )
         return Balance.from_rao(query).set_unit(netuid=netuid)
 
+    async def get_root_claimed_all_netuids(
+        self,
+        coldkey_ss58: str,
+        hotkey_ss58: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> dict[int, Balance]:
+        """Retrieves the root claimed Alpha shares for coldkey from hotkey in all subnets.
+
+        Args:
+            coldkey_ss58: The SS58 address of the staker.
+            hotkey_ss58: The SS58 address of the root validator.
+            block_hash: The blockchain block hash for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            dict[int, Balance]: Dictionary mapping netuid to claimed stake.
+        """
+        query = await self.substrate.query_map(
+            module="SubtensorModule",
+            storage_function="RootClaimed",
+            params=[hotkey_ss58, coldkey_ss58],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+        total_claimed = {}
+        async for netuid, claimed in query:
+            total_claimed[netuid] = Balance.from_rao(claimed.value).set_unit(
+                netuid=netuid
+            )
+        return total_claimed
+
+    async def claimable_rate_all_subnets(
+        self,
+        hotkey_ss58: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> dict[int, float]:
+        """Retrieves all root claimable rates from a given hotkey address for all subnets with this validator.
+
+        Args:
+            hotkey_ss58: The SS58 address of the root validator.
+            block_hash: The blockchain block hash for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            dict[int, float]: Dictionary mapping netuid to claimable rate.
+        """
+        query = await self.query(
+            module="SubtensorModule",
+            storage_function="RootClaimable",
+            params=[hotkey_ss58],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        if not query:
+            return {}
+
+        bits_list = next(iter(query))
+        return {bits[0]: fixed_to_float(bits[1], frac_bits=32) for bits in bits_list}
+
     async def get_subnet_price(
         self,
         netuid: int = None,
