@@ -342,6 +342,8 @@ async def get_liquidity_list(
             block_hash=block_hash,
         ),
     )
+    if len(positions_response.records) == 0:
+        return False, "No liquidity positions found.", []
 
     current_sqrt_price = fixed_to_float(current_sqrt_price)
     fee_global_tao = fixed_to_float(fee_global_tao)
@@ -459,9 +461,21 @@ async def show_liquidity_list(
     netuid: int,
     json_output: bool = False,
 ) -> None:
-    current_price_, (success, err_msg, positions) = await asyncio.gather(
-        subtensor.subnet(netuid=netuid), get_liquidity_list(subtensor, wallet, netuid)
+    current_price_, liquidity_list_ = await asyncio.gather(
+        subtensor.subnet(netuid=netuid),
+        get_liquidity_list(subtensor, wallet, netuid),
+        return_exceptions=True,
     )
+    if isinstance(current_price_, Exception):
+        success = False
+        err_msg = str(current_price_)
+        positions = []
+    elif isinstance(liquidity_list_, Exception):
+        success = False
+        err_msg = str(liquidity_list_)
+        positions = []
+    else:
+        (success, err_msg, positions) = liquidity_list_
     if not success:
         if json_output:
             json_console.print(

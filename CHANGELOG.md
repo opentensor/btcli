@@ -1,4 +1,10 @@
 # Changelog
+## 9.14.3 /2025-10-30
+* Allows for installing on Py 3.14 by @thewhaleking in https://github.com/opentensor/btcli/pull/688
+  * corrects `--name` param in `wallet set-identity` and `subnets set-identity` which was a duplicate param alias of `--wallet-name`
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.14.2...v9.14.3
+
 ## 9.14.2 /2025-10-28
 * `stake remove --all` fails when unsuccessful by @thewhaleking in https://github.com/opentensor/btcli/pull/679
 * check subnet logo url by @thewhaleking in https://github.com/opentensor/btcli/pull/681
