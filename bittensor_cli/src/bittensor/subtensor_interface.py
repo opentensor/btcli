@@ -2153,6 +2153,33 @@ class SubtensorInterface:
             self.substrate.query_multi(batch_claimed_calls, block_hash=block_hash),
         )
 
+        claimable_rates = {}
+        claimed_amounts = {}
+        for idx, (_, result) in enumerate(batch_claimable):
+            hotkey = unique_hotkeys[idx]
+            if result:
+                for netuid, rate in result:
+                    if hotkey not in claimable_rates:
+                        claimable_rates[hotkey] = {}
+                    claimable_rates[hotkey][netuid] = fixed_to_float(rate, frac_bits=32)
+
+        for idx, (_, result) in enumerate(batch_claimed):
+            hotkey, netuid = claimed_pairs[idx]
+            value = result or 0
+            claimed_amounts[(hotkey, netuid)] = Balance.from_rao(value).set_unit(netuid)
+
+        # Calculate the claimable stake for each pair
+        results = {}
+        for hotkey, netuid in target_pairs:
+            root_stake = root_stakes[hotkey]
+            rate = claimable_rates[hotkey][netuid]
+            claimable_stake = rate * root_stake
+            already_claimed = claimed_amounts[(hotkey, netuid)]
+            net_claimable = claimable_stake - already_claimed
+            if hotkey not in results:
+                results[hotkey] = {}
+            results[hotkey][netuid] = net_claimable.set_unit(netuid)
+        return results
 
     async def get_subnet_price(
         self,
