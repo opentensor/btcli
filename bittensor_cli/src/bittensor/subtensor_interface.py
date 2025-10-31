@@ -1824,7 +1824,7 @@ class SubtensorInterface:
 
         return result
 
-    async def get_root_claim_type(
+    async def get_coldkey_claim_type(
         self,
         coldkey_ss58: str,
         block_hash: Optional[str] = None,
@@ -1857,7 +1857,7 @@ class SubtensorInterface:
             return "Swap"
         return next(iter(result.keys()))
 
-    async def get_all_root_claim_types(
+    async def get_all_coldkeys_claim_type(
         self,
         block_hash: Optional[str] = None,
         reuse_block: bool = False,
@@ -1914,7 +1914,7 @@ class SubtensorInterface:
         staked_hotkeys = [decode_account_id(hotkey) for hotkey in result]
         return staked_hotkeys
 
-    async def get_root_claimed_netuid(
+    async def get_claimed_amount(
         self,
         coldkey_ss58: str,
         hotkey_ss58: str,
@@ -1943,7 +1943,7 @@ class SubtensorInterface:
         )
         return Balance.from_rao(query).set_unit(netuid=netuid)
 
-    async def get_root_claimed_all_netuids(
+    async def get_claimed_amount_all_netuids(
         self,
         coldkey_ss58: str,
         hotkey_ss58: str,
@@ -2053,35 +2053,31 @@ class SubtensorInterface:
         Note:
             After manual claim, claimable (available) stake will be added to subnet stake.
         """
-        root_stake = await self.get_stake_for_coldkey_and_hotkey_on_netuid(
-            coldkey_ss58=coldkey_ss58,
-            hotkey_ss58=hotkey_ss58,
-            netuid=0,
-            block_hash=block_hash,
+        root_stake, root_claimable_rate, root_claimed = await asyncio.gather(
+            self.get_stake_for_coldkey_and_hotkey_on_netuid(
+                coldkey_ss58=coldkey_ss58,
+                hotkey_ss58=hotkey_ss58,
+                netuid=0,
+                block_hash=block_hash,
+            ),
+            self.claimable_rate_netuid(
+                hotkey_ss58=hotkey_ss58,
+                netuid=netuid,
+                block_hash=block_hash,
+                reuse_block=reuse_block,
+            ),
+            self.get_claimed_amount(
+                coldkey_ss58=coldkey_ss58,
+                hotkey_ss58=hotkey_ss58,
+                netuid=netuid,
+                block_hash=block_hash,
+                reuse_block=reuse_block,
+            ),
         )
 
-        # Get the claimable rate
-        root_claimable_rate = await self.claimable_rate_netuid(
-            hotkey_ss58=hotkey_ss58,
-            netuid=netuid,
-            block_hash=block_hash,
-            reuse_block=reuse_block,
-        )
-
-        # Calculate claimable stake
         root_claimable_stake = (root_claimable_rate * root_stake).set_unit(
             netuid=netuid
         )
-
-        # Get already claimed amount
-        root_claimed = await self.get_root_claimed_netuid(
-            coldkey_ss58=coldkey_ss58,
-            hotkey_ss58=hotkey_ss58,
-            netuid=netuid,
-            block_hash=block_hash,
-            reuse_block=reuse_block,
-        )
-
         # Return the difference (what's left to claim)
         return max(
             root_claimable_stake - root_claimed,
