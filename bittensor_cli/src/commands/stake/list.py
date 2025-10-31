@@ -49,12 +49,21 @@ async def stake_list(
             subtensor.get_delegate_identities(block_hash=block_hash_),
             subtensor.all_subnets(block_hash=block_hash_),
         )
+
+        claimable_amounts = {}
+        if sub_stakes_:
+            claimable_amounts = await subtensor.get_claimable_stakes_batch(
+                coldkey_ss58=coldkey_address,
+                stakes_info=sub_stakes_,
+                block_hash=block_hash_,
+            )
         # sub_stakes = substakes[coldkey_address]
         dynamic_info__ = {info.netuid: info for info in _dynamic_info}
         return (
             sub_stakes_,
             registered_delegate_info_,
             dynamic_info__,
+            claimable_amounts,
         )
 
     def define_table(
@@ -135,9 +144,18 @@ async def stake_list(
             style=COLOR_PALETTE["POOLS"]["EMISSION"],
             justify="right",
         )
+        defined_table.add_column(
+            f"[white]Claimable \n({Balance.get_unit(1)})",
+            style=COLOR_PALETTE["STAKE"]["STAKE_ALPHA"],
+            justify="right",
+        )
         return defined_table
 
-    def create_table(hotkey_: str, substakes: list[StakeInfo]):
+    def create_table(
+        hotkey_: str,
+        substakes: list[StakeInfo],
+        claimable_amounts_: dict[str, dict[int, Balance]],
+    ):
         name_ = (
             f"{registered_delegate_info[hotkey_].display} ({hotkey_})"
             if hotkey_ in registered_delegate_info
@@ -194,6 +212,23 @@ async def stake_list(
                 subnet_name = get_subnet_name(dynamic_info[netuid])
                 subnet_name_cell = f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{symbol if netuid != 0 else 'τ'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}] {subnet_name}"
 
+                # Claimable amount cell
+                claimable_amount = Balance.from_rao(0)
+                if (
+                    hotkey_ in claimable_amounts_
+                    and netuid in claimable_amounts_[hotkey_]
+                ):
+                    claimable_amount = claimable_amounts_[hotkey_][netuid]
+
+                if claimable_amount.tao > 0.00001:
+                    claimable_cell = (
+                        f"{claimable_amount.tao:.5f} {symbol}"
+                        if not verbose
+                        else f"{claimable_amount}"
+                    )
+                else:
+                    claimable_cell = "-"
+
                 rows.append(
                     [
                         str(netuid),  # Number
@@ -215,6 +250,7 @@ async def stake_list(
                         # if substake_.is_registered
                         # else f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]N/A",  # Emission(α/block)
                         str(Balance.from_tao(per_block_tao_emission)),
+                        claimable_cell,  # Claimable amount
                     ]
                 )
                 substakes_values.append(
@@ -230,6 +266,7 @@ async def stake_list(
                             "alpha": per_block_emission,
                             "tao": per_block_tao_emission,
                         },
+                        "claimable": claimable_amount.tao,
                     }
                 )
         created_table = define_table(
@@ -420,6 +457,7 @@ async def stake_list(
             sub_stakes,
             registered_delegate_info,
             dynamic_info,
+            claimable_amounts,
         ),
         balance,
     ) = await asyncio.gather(
@@ -487,6 +525,7 @@ async def stake_list(
                         sub_stakes,
                         registered_delegate_info,
                         dynamic_info_,
+                        claimable_amounts_live,
                     ) = await get_stake_data(block_hash)
                     selected_stakes = [
                         stake
@@ -553,7 +592,7 @@ async def stake_list(
         for hotkey, substakes in hotkeys_to_substakes.items():
             counter += 1
             tao_value, swapped_tao_value, substake_values_ = create_table(
-                hotkey, substakes
+                hotkey, substakes, claimable_amounts
             )
             dict_output["stake_info"][hotkey] = substake_values_
             all_hks_tao_value += tao_value
