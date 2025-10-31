@@ -2088,6 +2088,72 @@ class SubtensorInterface:
             Balance.from_rao(0).set_unit(netuid=netuid),
         )
 
+    async def get_claimable_stakes_batch(
+        self,
+        coldkey_ss58: str,
+        stakes_info: list["StakeInfo"],
+        block_hash: Optional[str] = None,
+    ) -> dict[str, dict[int, "Balance"]]:
+        """Batch query claimable stakes for multiple hotkey-netuid pairs.
+
+        Args:
+            coldkey_ss58: The coldkey SS58 address.
+            stakes_info: List of StakeInfo objects containing stake data.
+            block_hash: Optional block hash for the query.
+
+        Returns:
+            dict[str, dict[int, Balance]]: Mapping of hotkey to netuid to claimable Balance.
+        """
+        if not stakes_info:
+            return {}
+
+        root_stakes = {}
+        for stake_info in stakes_info:
+            if stake_info.netuid == 0 and stake_info.stake.rao > 0:
+                root_stakes[stake_info.hotkey_ss58] = stake_info.stake
+
+        target_pairs = []
+        for s in stakes_info:
+            if s.netuid != 0 and s.stake.rao > 0 and s.hotkey_ss58 in root_stakes:
+                pair = (s.hotkey_ss58, s.netuid)
+                target_pairs.append(pair)
+
+        if not target_pairs:
+            return {}
+
+        unique_hotkeys = list(set(h for h, _ in target_pairs))
+        if not unique_hotkeys:
+            return {}
+
+        batch_claimable_calls = []
+        batch_claimed_calls = []
+
+        # Get the claimable rate
+        for hotkey in unique_hotkeys:
+            batch_claimable_calls.append(
+                await self.substrate.create_storage_key(
+                    "SubtensorModule", "RootClaimable", [hotkey], block_hash=block_hash
+                )
+            )
+
+        # Get already claimed
+        claimed_pairs = target_pairs
+        for hotkey, netuid in claimed_pairs:
+            batch_claimed_calls.append(
+                await self.substrate.create_storage_key(
+                    "SubtensorModule",
+                    "RootClaimed",
+                    [hotkey, coldkey_ss58, netuid],
+                    block_hash=block_hash,
+                )
+            )
+
+        batch_claimable, batch_claimed = await asyncio.gather(
+            self.substrate.query_multi(batch_claimable_calls, block_hash=block_hash),
+            self.substrate.query_multi(batch_claimed_calls, block_hash=block_hash),
+        )
+
+
     async def get_subnet_price(
         self,
         netuid: int = None,
