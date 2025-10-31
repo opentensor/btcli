@@ -979,7 +979,7 @@ async def show(
             justify="left",
         )
         table.add_column(
-            "[bold white]Root Claim",
+            "[bold white]Claim Type",
             style=COLOR_PALETTE["GENERAL"]["SUBHEADING"],
             justify="center",
         )
@@ -1141,6 +1141,7 @@ async def show(
             identities,
             old_identities,
             current_burn_cost,
+            root_claim_types,
         ) = await asyncio.gather(
             subtensor.subnet(netuid=netuid_, block_hash=block_hash),
             subtensor.query_all_identities(block_hash=block_hash),
@@ -1148,6 +1149,7 @@ async def show(
             subtensor.get_hyperparameter(
                 param_name="Burn", netuid=netuid_, block_hash=block_hash
             ),
+            subtensor.get_all_root_claim_types(block_hash=block_hash),
         )
 
         selected_mechanism_id = mechanism_id or 0
@@ -1254,6 +1256,14 @@ async def show(
 
             # Modify tao stake with TAO_WEIGHT
             tao_stake = metagraph_info.tao_stake[idx] * TAO_WEIGHT
+
+            # Get claim type for this coldkey if applicable TAO stake
+            coldkey_ss58 = metagraph_info.coldkeys[idx]
+            if tao_stake.tao > 0:
+                claim_type = root_claim_types.get(coldkey_ss58, "Swap")
+            else:
+                claim_type = "-"
+
             rows.append(
                 (
                     str(idx),  # UID
@@ -1276,6 +1286,7 @@ async def show(
                     if not verbose
                     else f"{metagraph_info.coldkeys[idx]}",  # Coldkey
                     uid_identity,  # Identity
+                    claim_type,  # Root Claim Type
                 )
             )
             json_out_rows.append(
@@ -1292,6 +1303,7 @@ async def show(
                     "hotkey": metagraph_info.hotkeys[idx],
                     "coldkey": metagraph_info.coldkeys[idx],
                     "identity": uid_identity,
+                    "claim_type": claim_type,
                 }
             )
 
@@ -1356,6 +1368,12 @@ async def show(
             style=COLOR_PALETTE["GENERAL"]["SYMBOL"],
             no_wrap=True,
             justify="left",
+        )
+        table.add_column(
+            "Claim Type",
+            style=COLOR_PALETTE["GENERAL"]["SUBHEADING"],
+            no_wrap=True,
+            justify="center",
         )
         for pos, row in enumerate(rows, 1):
             table_row = []
