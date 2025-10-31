@@ -281,6 +281,7 @@ async def stake_list(
         substakes: list,
         dynamic_info_for_lt: dict,
         hotkey_name_: str,
+        claimable_amounts_: dict,
         previous_data_: Optional[dict] = None,
     ) -> tuple[Table, dict]:
         rows = []
@@ -425,6 +426,26 @@ async def stake_list(
                 f" {get_subnet_name(dynamic_info_for_lt[netuid])}"
             )
 
+            # Claimable amount cell
+            hotkey_ss58 = substake_.hotkey_ss58
+            claimable_amount = Balance.from_rao(0)
+            if (
+                hotkey_ss58 in claimable_amounts_
+                and netuid in claimable_amounts_[hotkey_ss58]
+            ):
+                claimable_amount = claimable_amounts_[hotkey_ss58][netuid]
+
+            current_data_[netuid]["claimable"] = claimable_amount.tao
+
+            claimable_cell = format_cell(
+                claimable_amount.tao,
+                prev.get("claimable"),
+                unit=symbol,
+                unit_first_=unit_first,
+                precision=5,
+                millify=True if not verbose else False,
+            )
+
             rows.append(
                 [
                     str(netuid),  # Netuid
@@ -438,6 +459,7 @@ async def stake_list(
                     else f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]NO",  # Registration status
                     emission_cell,  # Emission rate
                     tao_emission_cell,  # TAO emission rate
+                    claimable_cell,  # Claimable amount
                 ]
             )
 
@@ -547,6 +569,7 @@ async def stake_list(
                         selected_stakes,
                         dynamic_info_,
                         hotkey_name,
+                        claimable_amounts_live,
                         previous_data,
                     )
 
