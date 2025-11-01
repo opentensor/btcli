@@ -905,21 +905,21 @@ async def show(
 ) -> Optional[str]:
     async def show_root():
         # TODO json_output for this, don't forget
-        block_hash = await subtensor.substrate.get_chain_head()
-
-        (
-            all_subnets,
-            root_state,
-            identities,
-            old_identities,
-            root_claim_types,
-        ) = await asyncio.gather(
-            subtensor.all_subnets(block_hash=block_hash),
-            subtensor.get_subnet_state(netuid=0, block_hash=block_hash),
-            subtensor.query_all_identities(block_hash=block_hash),
-            subtensor.get_delegate_identities(block_hash=block_hash),
-            subtensor.get_all_coldkeys_claim_type(block_hash=block_hash),
-        )
+        with console.status(":satellite: Retrieving root network information..."):
+            block_hash = await subtensor.substrate.get_chain_head()
+            (
+                all_subnets,
+                root_state,
+                identities,
+                old_identities,
+                root_claim_types,
+            ) = await asyncio.gather(
+                subtensor.all_subnets(block_hash=block_hash),
+                subtensor.get_subnet_state(netuid=0, block_hash=block_hash),
+                subtensor.query_all_identities(block_hash=block_hash),
+                subtensor.get_delegate_identities(block_hash=block_hash),
+                subtensor.get_all_coldkeys_claim_type(block_hash=block_hash),
+            )
         root_info = next((s for s in all_subnets if s.netuid == 0), None)
         if root_info is None:
             print_error("The root subnet does not exist")
@@ -1131,32 +1131,32 @@ async def show(
         mechanism_id: Optional[int],
         mechanism_count: Optional[int],
     ):
-        if not await subtensor.subnet_exists(netuid=netuid):
-            err_console.print(f"[red]Subnet {netuid} does not exist[/red]")
-            return False
+        with console.status(":satellite: Retrieving subnet information..."):
+            block_hash = await subtensor.substrate.get_chain_head()
+            if not await subtensor.subnet_exists(netuid=netuid_, block_hash=block_hash):
+                err_console.print(f"[red]Subnet {netuid_} does not exist[/red]")
+                return False
+            (
+                subnet_info,
+                identities,
+                old_identities,
+                current_burn_cost,
+                root_claim_types,
+            ) = await asyncio.gather(
+                subtensor.subnet(netuid=netuid_, block_hash=block_hash),
+                subtensor.query_all_identities(block_hash=block_hash),
+                subtensor.get_delegate_identities(block_hash=block_hash),
+                subtensor.get_hyperparameter(
+                    param_name="Burn", netuid=netuid_, block_hash=block_hash
+                ),
+                subtensor.get_all_coldkeys_claim_type(block_hash=block_hash),
+            )
 
-        block_hash = await subtensor.substrate.get_chain_head()
-        (
-            subnet_info,
-            identities,
-            old_identities,
-            current_burn_cost,
-            root_claim_types,
-        ) = await asyncio.gather(
-            subtensor.subnet(netuid=netuid_, block_hash=block_hash),
-            subtensor.query_all_identities(block_hash=block_hash),
-            subtensor.get_delegate_identities(block_hash=block_hash),
-            subtensor.get_hyperparameter(
-                param_name="Burn", netuid=netuid_, block_hash=block_hash
-            ),
-            subtensor.get_all_coldkeys_claim_type(block_hash=block_hash),
-        )
+            selected_mechanism_id = mechanism_id or 0
 
-        selected_mechanism_id = mechanism_id or 0
-
-        metagraph_info = await subtensor.get_mechagraph_info(
-            netuid_, selected_mechanism_id, block_hash=block_hash
-        )
+            metagraph_info = await subtensor.get_mechagraph_info(
+                netuid_, selected_mechanism_id, block_hash=block_hash
+            )
 
         if metagraph_info is None:
             print_error(

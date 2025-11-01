@@ -282,7 +282,7 @@ async def process_pending_claims(
                         "success": True,
                         "message": msg,
                         "extrinsic_identifier": None,
-                        "netuids": [],
+                        "netuids": netuids,
                     }
                 )
             )
