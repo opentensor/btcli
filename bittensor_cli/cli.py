@@ -7178,6 +7178,7 @@ class CLIManager:
                 netuids=parsed_netuids,
                 prompt=prompt,
                 json_output=json_output,
+                verbose=verbose,
             )
         )
 

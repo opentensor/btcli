@@ -15,6 +15,7 @@ from bittensor_cli.src.bittensor.utils import (
     unlock_key,
     print_extrinsic_id,
     json_console,
+    millify_tao,
 )
 
 if TYPE_CHECKING:
@@ -198,6 +199,7 @@ async def process_pending_claims(
     netuids: Optional[list[int]] = None,
     prompt: bool = True,
     json_output: bool = False,
+    verbose: bool = False,
 ) -> tuple[bool, str, Optional[str]]:
     """Claims root network emissions for the coldkey across specified subnets"""
 
@@ -282,7 +284,7 @@ async def process_pending_claims(
             )
         return True, msg, None
 
-    _print_claimable_table(wallet, claimable_stake_info)
+    _print_claimable_table(wallet, claimable_stake_info, verbose)
     selected_netuids = (
         netuids if netuids else _prompt_claim_selection(claimable_stake_info)
     )
@@ -414,7 +416,9 @@ def _prompt_claim_selection(claimable_stake: dict) -> Optional[list[int]]:
         return selected
 
 
-def _print_claimable_table(wallet: Wallet, claimable_stake: dict):
+def _print_claimable_table(
+    wallet: Wallet, claimable_stake: dict, verbose: bool = False
+):
     """Prints claimable stakes table grouped by netuid"""
 
     table = Table(
@@ -438,14 +442,26 @@ def _print_claimable_table(wallet: Wallet, claimable_stake: dict):
         first_row = True
 
         for hotkey, info in hotkeys_info.items():
-            stake_display = info["stake"]
-            claimable_display = info["claimable"]
-            hotkey_display = f"{hotkey[:8]}...{hotkey[-8:]}"
+            hotkey_display = hotkey if verbose else f"{hotkey[:8]}...{hotkey[-8:]}"
             netuid_display = str(netuid) if first_row else ""
+
+            stake_display = info["stake"]
+            stake_formatted = (
+                f"{stake_display.tao:.4f} {stake_display.unit}"
+                if verbose
+                else f"{millify_tao(stake_display.tao)} {stake_display.unit}"
+            )
+
+            claimable_display = info["claimable"]
+            claimable_formatted = (
+                f"{claimable_display.tao:.4f} {claimable_display.unit}"
+                if verbose
+                else f"{millify_tao(claimable_display.tao)} {claimable_display.unit}"
+            )
             table.add_row(
                 netuid_display,
-                f"{stake_display.tao:.4f} {stake_display.unit}",
-                f"{claimable_display.tao:.4f} {claimable_display.unit}",
+                stake_formatted,
+                claimable_formatted,
                 hotkey_display,
                 info.get("identity", "~"),
             )
