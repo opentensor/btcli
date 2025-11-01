@@ -1151,6 +1151,16 @@ class CLIManager:
         self.sudo_app.command("get_take", hidden=True)(self.sudo_get_take)
         self.sudo_app.command("set_take", hidden=True)(self.sudo_set_take)
 
+        # Stake
+        self.stake_app.command(
+            "claim",
+            hidden=True,
+        )(self.stake_set_claim_type)
+        self.stake_app.command(
+            "unclaim",
+            hidden=True,
+        )(self.stake_set_claim_type)
+
         # Crowdloan
         self.app.add_typer(
             self.crowd_app,
