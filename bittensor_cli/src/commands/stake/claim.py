@@ -154,41 +154,42 @@ async def set_claim_type(
         success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
             call, wallet
         )
-        if success:
-            ext_id = await ext_receipt.get_extrinsic_identifier()
-            msg = f"Successfully set root claim type to '{new_type}'"
-            console.print(f":white_heavy_check_mark: [green]{msg}[/green]")
-            await print_extrinsic_id(ext_receipt)
-            if json_output:
-                json_console.print(
-                    json.dumps(
-                        {
-                            "success": True,
-                            "message": msg,
-                            "extrinsic_identifier": ext_id,
-                            "old_type": current_type,
-                            "new_type": new_type,
-                        }
-                    )
-                )
-            return True, msg, ext_id
 
-        else:
-            msg = f"Failed to set root claim type: {err_msg}"
-            err_console.print(f":cross_mark: [red]{msg}[/red]")
-            if json_output:
-                json_console.print(
-                    json.dumps(
-                        {
-                            "success": False,
-                            "message": msg,
-                            "extrinsic_identifier": None,
-                            "old_type": current_type,
-                            "new_type": new_type,
-                        }
-                    )
+    if success:
+        ext_id = await ext_receipt.get_extrinsic_identifier()
+        msg = f"Successfully set root claim type to '{new_type}'"
+        console.print(f":white_heavy_check_mark: [green]{msg}[/green]")
+        await print_extrinsic_id(ext_receipt)
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": True,
+                        "message": msg,
+                        "extrinsic_identifier": ext_id,
+                        "old_type": current_type,
+                        "new_type": new_type,
+                    }
                 )
-            return False, msg, None
+            )
+        return True, msg, ext_id
+
+    else:
+        msg = f"Failed to set root claim type: {err_msg}"
+        err_console.print(f":cross_mark: [red]{msg}[/red]")
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": False,
+                        "message": msg,
+                        "extrinsic_identifier": None,
+                        "old_type": current_type,
+                        "new_type": new_type,
+                    }
+                )
+            )
+        return False, msg, None
 
 
 async def process_pending_claims(
