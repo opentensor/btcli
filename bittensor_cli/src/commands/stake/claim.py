@@ -139,6 +139,71 @@ async def set_claim_type(
             return False, f"Error setting root claim type: {e}", None
 
 
+async def process_pending_claims(
+    wallet: Wallet,
+    subtensor: "SubtensorInterface",
+    netuids: Optional[list[int]] = None,
+    prompt: bool = True,
+) -> tuple[bool, str, Optional[str]]:
+    """Claims root network emissions for the coldkey across specified subnets"""
+
+    with console.status(":satellite: Discovering claimable emissions..."):
+        all_stakes, identities = await asyncio.gather(
+            subtensor.get_stake_for_coldkey(
+                coldkey_ss58=wallet.coldkeypub.ss58_address
+            ),
+            subtensor.query_all_identities(),
+        )
+        if not all_stakes:
+            console.print("[yellow]No stakes found for this coldkey[/yellow]")
+            return True, "No stakes found", None
+
+        current_stakes = {
+            (stake.hotkey_ss58, stake.netuid): stake for stake in all_stakes
+        }
+        claimable_by_hotkey = await subtensor.get_claimable_stakes_batch(
+            coldkey_ss58=wallet.coldkeypub.ss58_address,
+            stakes_info=all_stakes,
+        )
+        hotkey_owner_tasks = [
+            subtensor.get_hotkey_owner(hotkey, check_exists=False)
+            for hotkey in claimable_by_hotkey.keys()
+        ]
+        hotkey_owners = await asyncio.gather(*hotkey_owner_tasks)
+        hotkey_to_owner = dict(zip(claimable_by_hotkey.keys(), hotkey_owners))
+
+        # Consolidate data
+        claimable_stake = {}
+        for vali_hotkey, claimable_stakes in claimable_by_hotkey.items():
+            vali_coldkey = hotkey_to_owner.get(vali_hotkey, "~")
+            vali_identity = identities.get(vali_coldkey, {}).get("name", "~")
+            for netuid, stake in claimable_stakes.items():
+                if stake.rao > 0:
+                    if netuid not in claimable_stake:
+                        claimable_stake[netuid] = {}
+                    current_stake = current_stakes.get((vali_hotkey, netuid), None)
+                    claimable_stake[netuid][vali_hotkey] = {
+                        "claimable": stake,
+                        "stake": current_stake,
+                        "coldkey": vali_coldkey,
+                        "identity": vali_identity,
+                    }
+
+    if netuids:
+        claimable_stake = {
+            netuid: hotkeys_info
+            for netuid, hotkeys_info in claimable_stake.items()
+            if netuid in netuids
+        }
+
+    if not claimable_stake:
+        console.print("[yellow]No claimable emissions found[/yellow]")
+        return True, "No claimable emissions found", None
+
+    _print_claimable_table(wallet, claimable_stake)
+    selected_netuids = netuids if netuids else _prompt_claim_selection(claimable_stake)
+
+
 def _prompt_claim_selection(claimable_stake: dict) -> Optional[list[int]]:
     """Prompts user to select up to 5 netuids to claim from"""
 
