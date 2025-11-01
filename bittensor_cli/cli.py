@@ -971,8 +971,12 @@ class CLIManager:
         self.stake_app.command(
             "swap", rich_help_panel=HELP_PANELS["STAKE"]["MOVEMENT"]
         )(self.stake_swap)
-        self.stake_app.command("set-claim")(self.stake_set_claim_type)
-        self.stake_app.command("process-claim")(self.stake_process_claim)
+        self.stake_app.command(
+            "set-claim", rich_help_panel=HELP_PANELS["STAKE"]["CLAIM"]
+        )(self.stake_set_claim_type)
+        self.stake_app.command(
+            "process-claim", rich_help_panel=HELP_PANELS["STAKE"]["CLAIM"]
+        )(self.stake_process_claim)
 
         # stake-children commands
         children_app = typer.Typer()
