@@ -1,3 +1,4 @@
+import asyncio
 from typing import TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet
@@ -41,7 +42,7 @@ async def set_claim_type(
             - Optional[str]: Extrinsic identifier if successful
     """
 
-    current_type = await subtensor.get_root_claim_type(
+    current_type = await subtensor.get_coldkey_claim_type(
         coldkey_ss58=wallet.coldkeypub.ss58_address
     )
 
@@ -136,3 +137,43 @@ async def set_claim_type(
                 f":cross_mark: [red]Error setting root claim type: {e}[/red]"
             )
             return False, f"Error setting root claim type: {e}", None
+
+
+def _print_claimable_table(wallet: Wallet, claimable_stake: dict):
+    """Prints claimable stakes table grouped by netuid"""
+
+    table = Table(
+        show_header=True,
+        show_footer=False,
+        show_edge=True,
+        border_style="bright_black",
+        box=box.SIMPLE,
+        pad_edge=False,
+        title=f"\n[{COLORS.GENERAL.HEADER}]Claimable emissions for coldkey: {wallet.coldkeypub.ss58_address}",
+    )
+
+    table.add_column("Netuid", style=COLORS.GENERAL.NETUID, justify="center")
+    table.add_column("Current Stake", style=COLORS.GENERAL.SUBHEADING, justify="right")
+    table.add_column("Claimable", style=COLORS.GENERAL.SUCCESS, justify="right")
+    table.add_column("Hotkey", style=COLORS.GENERAL.HOTKEY, justify="left")
+    table.add_column("Identity", style=COLORS.GENERAL.SUBHEADING, justify="left")
+
+    for netuid in sorted(claimable_stake.keys()):
+        hotkeys_info = claimable_stake[netuid]
+        first_row = True
+
+        for hotkey, info in hotkeys_info.items():
+            stake_display = info["stake"]
+            claimable_display = info["claimable"]
+            hotkey_display = f"{hotkey[:8]}...{hotkey[-8:]}"
+            netuid_display = str(netuid) if first_row else ""
+            table.add_row(
+                netuid_display,
+                f"{stake_display.tao:.4f} {stake_display.unit}",
+                f"{claimable_display.tao:.4f} {claimable_display.unit}",
+                hotkey_display,
+                info.get("identity", "~"),
+            )
+            first_row = False
+
+    console.print(table)
