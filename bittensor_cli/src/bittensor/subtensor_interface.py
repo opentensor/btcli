@@ -2168,10 +2168,10 @@ class SubtensorInterface:
         results = {}
         for hotkey, netuid in target_pairs:
             root_stake = root_stakes[hotkey]
-            rate = claimable_rates[hotkey][netuid]
+            rate = claimable_rates[hotkey].get(netuid, 0)
             claimable_stake = rate * root_stake
-            already_claimed = claimed_amounts[(hotkey, netuid)]
-            net_claimable = claimable_stake - already_claimed
+            already_claimed = claimed_amounts.get((hotkey, netuid), 0)
+            net_claimable = max(claimable_stake - already_claimed, 0)
             if hotkey not in results:
                 results[hotkey] = {}
             results[hotkey][netuid] = net_claimable.set_unit(netuid)
