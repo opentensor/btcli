@@ -197,6 +197,7 @@ async def process_pending_claims(
     subtensor: "SubtensorInterface",
     netuids: Optional[list[int]] = None,
     prompt: bool = True,
+    json_output: bool = False,
 ) -> tuple[bool, str, Optional[str]]:
     """Claims root network emissions for the coldkey across specified subnets"""
 
@@ -208,8 +209,20 @@ async def process_pending_claims(
             subtensor.query_all_identities(),
         )
         if not all_stakes:
-            console.print("[yellow]No stakes found for this coldkey[/yellow]")
-            return True, "No stakes found", None
+            msg = "No stakes found for this coldkey"
+            console.print(f"[yellow]{msg}[/yellow]")
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {
+                            "success": True,
+                            "message": msg,
+                            "extrinsic_identifier": None,
+                            "netuids": [],
+                        }
+                    )
+                )
+            return True, msg, None
 
         current_stakes = {
             (stake.hotkey_ss58, stake.netuid): stake for stake in all_stakes
@@ -254,8 +267,20 @@ async def process_pending_claims(
         }
 
     if not claimable_stake_info:
-        console.print("[yellow]No claimable emissions found[/yellow]")
-        return True, "No claimable emissions found", None
+        msg = "No claimable emissions found"
+        console.print(f"[yellow]{msg}[/yellow]")
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": True,
+                        "message": msg,
+                        "extrinsic_identifier": None,
+                        "netuids": [],
+                    }
+                )
+            )
+        return True, msg, None
 
     _print_claimable_table(wallet, claimable_stake_info)
     selected_netuids = (
@@ -272,14 +297,36 @@ async def process_pending_claims(
 
     if prompt:
         if not Confirm.ask("Do you want to proceed?"):
-            console.print("[yellow]Operation cancelled.[/yellow]")
-            return False, "Operation cancelled by user", None
+            msg = "Operation cancelled by user"
+            console.print(f"[yellow]{msg}[/yellow]")
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {
+                            "success": False,
+                            "message": msg,
+                            "extrinsic_identifier": None,
+                            "netuids": selected_netuids,
+                        }
+                    )
+                )
+            return False, msg, None
 
     if not (unlock := unlock_key(wallet)).success:
-        err_console.print(
-            f":cross_mark: [red]Failed to unlock wallet: {unlock.message}[/red]"
-        )
-        return False, f"Failed to unlock wallet: {unlock.message}", None
+        msg = f"Failed to unlock wallet: {unlock.message}"
+        err_console.print(f":cross_mark: [red]{msg}[/red]")
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": False,
+                        "message": msg,
+                        "extrinsic_identifier": None,
+                        "netuids": selected_netuids,
+                    }
+                )
+            )
+        return False, msg, None
 
     with console.status(
         f":satellite: Claiming root emissions for {len(selected_netuids)} subnet(s)...",
@@ -289,21 +336,37 @@ async def process_pending_claims(
             call, wallet
         )
         if success:
-            console.print(
-                f"[dark_sea_green3]Successfully claimed root emissions for {len(selected_netuids)} subnet(s)[/dark_sea_green3]"
-            )
             ext_id = await ext_receipt.get_extrinsic_identifier()
+            msg = f"Successfully claimed root emissions for {len(selected_netuids)} subnet(s)"
+            console.print(f"[dark_sea_green3]{msg}[/dark_sea_green3]")
             await print_extrinsic_id(ext_receipt)
-            return (
-                True,
-                f"Successfully claimed root emissions for {len(selected_netuids)} subnet(s)",
-                ext_id,
-            )
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {
+                            "success": True,
+                            "message": msg,
+                            "extrinsic_identifier": ext_id,
+                            "netuids": selected_netuids,
+                        }
+                    )
+                )
+            return True, msg, ext_id
         else:
-            err_console.print(
-                f":cross_mark: [red]Failed to claim root emissions: {err_msg}[/red]"
-            )
-            return False, f"Failed to claim root emissions: {err_msg}", None
+            msg = f"Failed to claim root emissions: {err_msg}"
+            err_console.print(f":cross_mark: [red]{msg}[/red]")
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {
+                            "success": False,
+                            "message": msg,
+                            "extrinsic_identifier": None,
+                            "netuids": selected_netuids,
+                        }
+                    )
+                )
+            return False, msg, None
 
 
 def _prompt_claim_selection(claimable_stake: dict) -> Optional[list[int]]:
