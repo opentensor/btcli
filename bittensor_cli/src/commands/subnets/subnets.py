@@ -918,7 +918,7 @@ async def show(
             subtensor.get_subnet_state(netuid=0, block_hash=block_hash),
             subtensor.query_all_identities(block_hash=block_hash),
             subtensor.get_delegate_identities(block_hash=block_hash),
-            subtensor.get_all_root_claim_types(block_hash=block_hash),
+            subtensor.get_all_coldkeys_claim_type(block_hash=block_hash),
         )
         root_info = next((s for s in all_subnets if s.netuid == 0), None)
         if root_info is None:
@@ -1149,7 +1149,7 @@ async def show(
             subtensor.get_hyperparameter(
                 param_name="Burn", netuid=netuid_, block_hash=block_hash
             ),
-            subtensor.get_all_root_claim_types(block_hash=block_hash),
+            subtensor.get_all_coldkeys_claim_type(block_hash=block_hash),
         )
 
         selected_mechanism_id = mechanism_id or 0
