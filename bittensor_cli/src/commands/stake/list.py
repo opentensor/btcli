@@ -52,7 +52,7 @@ async def stake_list(
 
         claimable_amounts = {}
         if sub_stakes_:
-            claimable_amounts = await subtensor.get_claimable_stakes_batch(
+            claimable_amounts = await subtensor.get_claimable_stakes_for_coldkey(
                 coldkey_ss58=coldkey_address,
                 stakes_info=sub_stakes_,
                 block_hash=block_hash_,

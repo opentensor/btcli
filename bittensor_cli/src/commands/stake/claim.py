@@ -229,7 +229,7 @@ async def process_pending_claims(
         current_stakes = {
             (stake.hotkey_ss58, stake.netuid): stake for stake in all_stakes
         }
-        claimable_by_hotkey = await subtensor.get_claimable_stakes_batch(
+        claimable_by_hotkey = await subtensor.get_claimable_stakes_for_coldkey(
             coldkey_ss58=wallet.coldkeypub.ss58_address,
             stakes_info=all_stakes,
         )

@@ -1975,7 +1975,8 @@ class SubtensorInterface:
             )
         return total_claimed
 
-    async def claimable_rate_all_netuids(
+
+    async def get_claimable_rate_all_netuids(
         self,
         hotkey_ss58: str,
         block_hash: Optional[str] = None,
@@ -2005,7 +2006,7 @@ class SubtensorInterface:
         bits_list = next(iter(query))
         return {bits[0]: fixed_to_float(bits[1], frac_bits=32) for bits in bits_list}
 
-    async def claimable_rate_netuid(
+    async def get_claimable_rate_netuid(
         self,
         hotkey_ss58: str,
         netuid: int,
@@ -2023,14 +2024,14 @@ class SubtensorInterface:
         Returns:
             float: The rate of claimable stake from validator's hotkey for provided subnet.
         """
-        all_rates = await self.claimable_rate_all_netuids(
+        all_rates = await self.get_claimable_rate_all_netuids(
             hotkey_ss58=hotkey_ss58,
             block_hash=block_hash,
             reuse_block=reuse_block,
         )
         return all_rates.get(netuid, 0.0)
 
-    async def get_claimable_stake(
+    async def get_claimable_stake_for_netuid(
         self,
         coldkey_ss58: str,
         hotkey_ss58: str,
@@ -2060,7 +2061,7 @@ class SubtensorInterface:
                 netuid=0,
                 block_hash=block_hash,
             ),
-            self.claimable_rate_netuid(
+            self.get_claimable_rate_netuid(
                 hotkey_ss58=hotkey_ss58,
                 netuid=netuid,
                 block_hash=block_hash,
@@ -2084,7 +2085,7 @@ class SubtensorInterface:
             Balance.from_rao(0).set_unit(netuid=netuid),
         )
 
-    async def get_claimable_stakes_batch(
+    async def get_claimable_stakes_for_coldkey(
         self,
         coldkey_ss58: str,
         stakes_info: list["StakeInfo"],
