@@ -7082,6 +7082,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Set the root claim type for your coldkey.
@@ -7100,7 +7101,7 @@ class CLIManager:
 
         [green]$[/green] btcli root set-claim-type --wallet-name my_wallet
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -7112,6 +7113,7 @@ class CLIManager:
                 wallet=wallet,
                 subtensor=self.initialize_chain(network),
                 prompt=prompt,
+                json_output=json_output,
             )
         )
 
@@ -7125,6 +7127,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Manually claim accumulated root network emissions for your coldkey.
@@ -7147,7 +7150,7 @@ class CLIManager:
         [green]$[/green] btcli stake process-claim --netuids 1,2 --wallet-name my_wallet
 
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, json_output)
 
         parsed_netuids = None
         if netuids:
@@ -7174,6 +7177,7 @@ class CLIManager:
                 subtensor=self.initialize_chain(network),
                 netuids=parsed_netuids,
                 prompt=prompt,
+                json_output=json_output,
             )
         )
 
