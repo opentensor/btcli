@@ -139,6 +139,51 @@ async def set_claim_type(
             return False, f"Error setting root claim type: {e}", None
 
 
+def _prompt_claim_selection(claimable_stake: dict) -> Optional[list[int]]:
+    """Prompts user to select up to 5 netuids to claim from"""
+
+    available_netuids = sorted(claimable_stake.keys())
+    while True:
+        netuid_input = Prompt.ask(
+            "Enter up to 5 netuids to claim from (comma-separated)",
+            default=",".join(str(n) for n in available_netuids),
+        )
+
+        try:
+            if "," in netuid_input:
+                selected = [int(n.strip()) for n in netuid_input.split(",")]
+            else:
+                selected = [int(netuid_input.strip())]
+        except ValueError:
+            err_console.print(
+                ":cross_mark: [red]Invalid input. Please enter numbers only.[/red]"
+            )
+            continue
+
+        if len(selected) > 5:
+            err_console.print(
+                f":cross_mark: [red]You selected {len(selected)} netuids. Maximum is 5. Please try again.[/red]"
+            )
+            continue
+
+        if len(selected) == 0:
+            err_console.print(
+                ":cross_mark: [red]Please select at least one netuid.[/red]"
+            )
+            continue
+
+        invalid_netuids = [n for n in selected if n not in available_netuids]
+        if invalid_netuids:
+            err_console.print(
+                f":cross_mark: [red]Invalid netuids: {', '.join(map(str, invalid_netuids))}[/red]"
+            )
+            continue
+
+        selected = list(dict.fromkeys(selected))
+
+        return selected
+
+
 def _print_claimable_table(wallet: Wallet, claimable_stake: dict):
     """Prints claimable stakes table grouped by netuid"""
 
