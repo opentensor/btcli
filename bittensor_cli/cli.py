@@ -7116,7 +7116,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.HOTKEY],
+            ask_for=[WO.NAME],
         )
         return self._run_command(
             claim_stake.set_claim_type(
