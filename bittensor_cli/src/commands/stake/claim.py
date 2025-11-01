@@ -1,4 +1,5 @@
 import asyncio
+import json
 from typing import TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet
@@ -13,6 +14,7 @@ from bittensor_cli.src.bittensor.utils import (
     err_console,
     unlock_key,
     print_extrinsic_id,
+    json_console,
 )
 
 if TYPE_CHECKING:
@@ -23,6 +25,7 @@ async def set_claim_type(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
     prompt: bool = True,
+    json_output: bool = False,
 ) -> tuple[bool, str, Optional[str]]:
     """
     Sets the root claim type for the coldkey.
@@ -35,6 +38,7 @@ async def set_claim_type(
         wallet: Bittensor wallet object
         subtensor: SubtensorInterface object
         prompt: Whether to prompt for user confirmation
+        json_output: Whether to output JSON
 
     Returns:
         tuple[bool, str, Optional[str]]: Tuple containing:
@@ -75,14 +79,21 @@ async def set_claim_type(
         "Select new root claim type", choices=["Swap", "Keep"], default=current_type
     )
     if new_type == current_type:
-        console.print(
-            f"[yellow]Root claim type is already set to '{current_type}'. No change needed.[/yellow]"
-        )
-        return (
-            True,
-            "Root claim type is already set to '{current_type}'. No change needed.",
-            None,
-        )
+        msg = f"Root claim type is already set to '{current_type}'. No change needed."
+        console.print(f"[yellow]{msg}[/yellow]")
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": True,
+                        "message": msg,
+                        "extrinsic_identifier": None,
+                        "old_type": current_type,
+                        "new_type": current_type,
+                    }
+                )
+            )
+        return True, msg, None
 
     if prompt:
         console.print(
@@ -99,45 +110,85 @@ async def set_claim_type(
             )
 
         if not Confirm.ask("\nDo you want to proceed?"):
-            console.print("[yellow]Operation cancelled.[/yellow]")
-            return False, "Operation cancelled.", None
+            msg = "Operation cancelled."
+            console.print(f"[yellow]{msg}[/yellow]")
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {
+                            "success": False,
+                            "message": msg,
+                            "extrinsic_identifier": None,
+                            "old_type": current_type,
+                            "new_type": new_type,
+                        }
+                    )
+                )
+            return False, msg, None
 
     if not (unlock := unlock_key(wallet)).success:
-        err_console.print(
-            f":cross_mark: [red]Failed to unlock wallet: {unlock.message}[/red]"
-        )
-        return False, f"Failed to unlock wallet: {unlock.message}", None
+        msg = f"Failed to unlock wallet: {unlock.message}"
+        err_console.print(f":cross_mark: [red]{msg}[/red]")
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": False,
+                        "message": msg,
+                        "extrinsic_identifier": None,
+                        "old_type": current_type,
+                        "new_type": new_type,
+                    }
+                )
+            )
+        return False, msg, None
 
     with console.status(
         f":satellite: Setting root claim type to '{new_type}'...", spinner="earth"
     ):
-        try:
-            call = await subtensor.substrate.compose_call(
-                call_module="SubtensorModule",
-                call_function="set_root_claim_type",
-                call_params={"new_root_claim_type": new_type},
-            )
-            success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
-                call, wallet
-            )
-            if success:
-                console.print(
-                    f":white_heavy_check_mark: [green]Successfully set root claim type to '{new_type}'[/green]"
+        call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="set_root_claim_type",
+            call_params={"new_root_claim_type": new_type},
+        )
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
+            call, wallet
+        )
+        if success:
+            ext_id = await ext_receipt.get_extrinsic_identifier()
+            msg = f"Successfully set root claim type to '{new_type}'"
+            console.print(f":white_heavy_check_mark: [green]{msg}[/green]")
+            await print_extrinsic_id(ext_receipt)
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {
+                            "success": True,
+                            "message": msg,
+                            "extrinsic_identifier": ext_id,
+                            "old_type": current_type,
+                            "new_type": new_type,
+                        }
+                    )
                 )
-                ext_id = await ext_receipt.get_extrinsic_identifier()
-                await print_extrinsic_id(ext_receipt)
-                return True, f"Successfully set root claim type to '{new_type}'", ext_id
-            else:
-                err_console.print(
-                    f":cross_mark: [red]Failed to set root claim type: {err_msg}[/red]"
-                )
-                return False, f"Failed to set root claim type: {err_msg}", None
+            return True, msg, ext_id
 
-        except Exception as e:
-            err_console.print(
-                f":cross_mark: [red]Error setting root claim type: {e}[/red]"
-            )
-            return False, f"Error setting root claim type: {e}", None
+        else:
+            msg = f"Failed to set root claim type: {err_msg}"
+            err_console.print(f":cross_mark: [red]{msg}[/red]")
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {
+                            "success": False,
+                            "message": msg,
+                            "extrinsic_identifier": None,
+                            "old_type": current_type,
+                            "new_type": new_type,
+                        }
+                    )
+                )
+            return False, msg, None
 
 
 async def process_pending_claims(
