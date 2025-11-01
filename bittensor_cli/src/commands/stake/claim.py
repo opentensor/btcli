@@ -204,11 +204,12 @@ async def process_pending_claims(
     """Claims root network emissions for the coldkey across specified subnets"""
 
     with console.status(":satellite: Discovering claimable emissions..."):
+        block_hash = await subtensor.substrate.get_chain_head()
         all_stakes, identities = await asyncio.gather(
             subtensor.get_stake_for_coldkey(
-                coldkey_ss58=wallet.coldkeypub.ss58_address
+                coldkey_ss58=wallet.coldkeypub.ss58_address, block_hash=block_hash
             ),
-            subtensor.query_all_identities(),
+            subtensor.query_all_identities(block_hash=block_hash),
         )
         if not all_stakes:
             msg = "No stakes found for this coldkey"
@@ -232,9 +233,12 @@ async def process_pending_claims(
         claimable_by_hotkey = await subtensor.get_claimable_stakes_for_coldkey(
             coldkey_ss58=wallet.coldkeypub.ss58_address,
             stakes_info=all_stakes,
+            block_hash=block_hash,
         )
         hotkey_owner_tasks = [
-            subtensor.get_hotkey_owner(hotkey, check_exists=False)
+            subtensor.get_hotkey_owner(
+                hotkey, check_exists=False, block_hash=block_hash
+            )
             for hotkey in claimable_by_hotkey.keys()
         ]
         hotkey_owners = await asyncio.gather(*hotkey_owner_tasks)
