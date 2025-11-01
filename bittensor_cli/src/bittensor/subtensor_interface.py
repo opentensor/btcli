@@ -1975,7 +1975,6 @@ class SubtensorInterface:
             )
         return total_claimed
 
-
     async def get_claimable_rate_all_netuids(
         self,
         hotkey_ss58: str,
