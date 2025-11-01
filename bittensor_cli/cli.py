@@ -972,6 +972,7 @@ class CLIManager:
             "swap", rich_help_panel=HELP_PANELS["STAKE"]["MOVEMENT"]
         )(self.stake_swap)
         self.stake_app.command("set-claim")(self.stake_set_claim_type)
+        self.stake_app.command("process-claim")(self.stake_process_claim)
 
         # stake-children commands
         children_app = typer.Typer()
@@ -7106,6 +7107,68 @@ class CLIManager:
             claim_stake.set_claim_type(
                 wallet=wallet,
                 subtensor=self.initialize_chain(network),
+                prompt=prompt,
+            )
+        )
+
+    def stake_process_claim(
+        self,
+        netuids: Optional[str] = Options.netuids,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        network: Optional[list[str]] = Options.network,
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Manually claim accumulated root network emissions for your coldkey.
+
+        [bold]Note:[/bold] The network will eventually process your pending emissions automatically.
+        However, you can choose to manually claim your emissions with a small extrinsic fee.
+
+        A maximum of 5 netuids can be processed in one call.
+
+        USAGE:
+
+        [green]$[/green] btcli stake process-claim
+
+        Claim from specific netuids:
+
+        [green]$[/green] btcli stake process-claim --netuids 1,2,3
+
+        Claim with specific wallet:
+
+        [green]$[/green] btcli stake process-claim --netuids 1,2 --wallet-name my_wallet
+
+        """
+        self.verbosity_handler(quiet, verbose)
+
+        parsed_netuids = None
+        if netuids:
+            parsed_netuids = parse_to_list(
+                netuids,
+                int,
+                "Netuids must be a comma-separated list of ints, e.g., `--netuids 1,2,3`.",
+            )
+
+            if len(parsed_netuids) > 5:
+                print_error("Maximum 5 netuids allowed per claim")
+                return
+
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME],
+        )
+
+        return self._run_command(
+            claim_stake.process_pending_claims(
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                netuids=parsed_netuids,
                 prompt=prompt,
             )
         )
