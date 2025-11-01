@@ -203,6 +203,49 @@ async def process_pending_claims(
     _print_claimable_table(wallet, claimable_stake)
     selected_netuids = netuids if netuids else _prompt_claim_selection(claimable_stake)
 
+    call = await subtensor.substrate.compose_call(
+        call_module="SubtensorModule",
+        call_function="claim_root",
+        call_params={"subnets": selected_netuids},
+    )
+    extrinsic_fee = await subtensor.get_extrinsic_fee(call, wallet.coldkeypub)
+    console.print(f"\n[dim]Estimated extrinsic fee: {extrinsic_fee.tao:.9f} τ[/dim]")
+
+    if prompt:
+        if not Confirm.ask("Do you want to proceed?"):
+            console.print("[yellow]Operation cancelled.[/yellow]")
+            return False, "Operation cancelled by user", None
+
+    if not (unlock := unlock_key(wallet)).success:
+        err_console.print(
+            f":cross_mark: [red]Failed to unlock wallet: {unlock.message}[/red]"
+        )
+        return False, f"Failed to unlock wallet: {unlock.message}", None
+
+    with console.status(
+        f":satellite: Claiming root emissions for {len(selected_netuids)} subnet(s)...",
+        spinner="earth",
+    ):
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
+            call, wallet
+        )
+        if success:
+            console.print(
+                f"[dark_sea_green3]Successfully claimed root emissions for {len(selected_netuids)} subnet(s)[/dark_sea_green3]"
+            )
+            ext_id = await ext_receipt.get_extrinsic_identifier()
+            await print_extrinsic_id(ext_receipt)
+            return (
+                True,
+                f"Successfully claimed root emissions for {len(selected_netuids)} subnet(s)",
+                ext_id,
+            )
+        else:
+            err_console.print(
+                f":cross_mark: [red]Failed to claim root emissions: {err_msg}[/red]"
+            )
+            return False, f"Failed to claim root emissions: {err_msg}", None
+
 
 def _prompt_claim_selection(claimable_stake: dict) -> Optional[list[int]]:
     """Prompts user to select up to 5 netuids to claim from"""
