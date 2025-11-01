@@ -7,6 +7,7 @@ from rich.table import Table, Column
 from rich import box
 
 from bittensor_cli.src import COLORS
+from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
@@ -173,35 +174,41 @@ async def process_pending_claims(
         hotkey_to_owner = dict(zip(claimable_by_hotkey.keys(), hotkey_owners))
 
         # Consolidate data
-        claimable_stake = {}
+        claimable_stake_info = {}
         for vali_hotkey, claimable_stakes in claimable_by_hotkey.items():
             vali_coldkey = hotkey_to_owner.get(vali_hotkey, "~")
             vali_identity = identities.get(vali_coldkey, {}).get("name", "~")
-            for netuid, stake in claimable_stakes.items():
-                if stake.rao > 0:
-                    if netuid not in claimable_stake:
-                        claimable_stake[netuid] = {}
-                    current_stake = current_stakes.get((vali_hotkey, netuid), None)
-                    claimable_stake[netuid][vali_hotkey] = {
-                        "claimable": stake,
+            for netuid, claimable_stake in claimable_stakes.items():
+                if claimable_stake.rao > 0:
+                    if netuid not in claimable_stake_info:
+                        claimable_stake_info[netuid] = {}
+                    current_stake = (
+                        stake_info.stake
+                        if (stake_info := current_stakes.get((vali_hotkey, netuid)))
+                        else Balance.from_rao(0).set_unit(netuid)
+                    )
+                    claimable_stake_info[netuid][vali_hotkey] = {
+                        "claimable": claimable_stake,
                         "stake": current_stake,
                         "coldkey": vali_coldkey,
                         "identity": vali_identity,
                     }
 
     if netuids:
-        claimable_stake = {
+        claimable_stake_info = {
             netuid: hotkeys_info
-            for netuid, hotkeys_info in claimable_stake.items()
+            for netuid, hotkeys_info in claimable_stake_info.items()
             if netuid in netuids
         }
 
-    if not claimable_stake:
+    if not claimable_stake_info:
         console.print("[yellow]No claimable emissions found[/yellow]")
         return True, "No claimable emissions found", None
 
-    _print_claimable_table(wallet, claimable_stake)
-    selected_netuids = netuids if netuids else _prompt_claim_selection(claimable_stake)
+    _print_claimable_table(wallet, claimable_stake_info)
+    selected_netuids = (
+        netuids if netuids else _prompt_claim_selection(claimable_stake_info)
+    )
 
     call = await subtensor.substrate.compose_call(
         call_module="SubtensorModule",
