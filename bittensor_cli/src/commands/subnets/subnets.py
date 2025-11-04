@@ -1221,6 +1221,7 @@ async def show(
                 old_identities,
                 current_burn_cost,
                 root_claim_types,
+                ema_tao_inflow,
             ) = await asyncio.gather(
                 subtensor.subnet(netuid=netuid_, block_hash=block_hash),
                 subtensor.query_all_identities(block_hash=block_hash),
@@ -1229,6 +1230,9 @@ async def show(
                     param_name="Burn", netuid=netuid_, block_hash=block_hash
                 ),
                 subtensor.get_all_coldkeys_claim_type(block_hash=block_hash),
+                subtensor.get_subnet_ema_tao_inflow(
+                    netuid=netuid_, block_hash=block_hash
+                ),
             )
 
             selected_mechanism_id = mechanism_id or 0
@@ -1527,6 +1531,7 @@ async def show(
                 f"{total_mech_line}"
                 f"\n  Owner: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{subnet_info.owner_coldkey}{' (' + owner_identity + ')' if owner_identity else ''}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]"
                 f"\n  Rate: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{subnet_info.price.tao:.4f} τ/{subnet_info.symbol}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
+                f"\n  EMA TAO Inflow: [{COLOR_PALETTE['STAKE']['TAO']}]τ {ema_tao_inflow.tao}[/{COLOR_PALETTE['STAKE']['TAO']}]"
                 f"\n  Emission: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]τ {subnet_info.emission.tao:,.4f}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
                 f"\n  TAO Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]τ {tao_pool}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
                 f"\n  Alpha Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{alpha_pool} {subnet_info.symbol}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
