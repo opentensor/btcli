@@ -2258,6 +2258,34 @@ class SubtensorInterface:
             tao_inflow_ema[netuid] = (block_updated, Balance.from_rao(ema_value))
         return tao_inflow_ema
 
+    async def get_subnet_ema_tao_inflow(
+        self,
+        netuid: int,
+        block_hash: Optional[str] = None,
+    ) -> Balance:
+        """
+        Query EMA TAO inflow for a specific subnet.
+
+        This represents the exponential moving average of TAO flowing
+        into or out of a subnet. Negative values indicate net outflow.
+
+        Args:
+            netuid: The unique identifier of the subnet.
+            block_hash: Optional block hash to query at.
+
+        Returns:
+            Balance(EMA TAO inflow).
+        """
+        value = await self.substrate.query(
+            module="SubtensorModule",
+            storage_function="SubnetEmaTaoFlow",
+            params=[netuid],
+            block_hash=block_hash,
+        )
+        _, raw_ema_value = value
+        ema_value = fixed_to_float(raw_ema_value)
+        return Balance.from_rao(ema_value)
+
 
 async def best_connection(networks: list[str]):
     """
