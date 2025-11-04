@@ -39,7 +39,6 @@ from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
     decode_hex_identity_dict,
-    i64f64_to_float,
     validate_chain_endpoint,
     u16_normalized_float,
     U16_MAX,
