@@ -1824,6 +1824,359 @@ class SubtensorInterface:
 
         return result
 
+    async def get_coldkey_claim_type(
+        self,
+        coldkey_ss58: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> str:
+        """
+        Retrieves the root claim type for a specific coldkey.
+
+        Root claim types control how staking emissions are handled on the ROOT network (subnet 0):
+        - "Swap": Future Root Alpha Emissions are swapped to TAO at claim time and added to your root stake
+        - "Keep": Future Root Alpha Emissions are kept as Alpha
+
+        Args:
+            coldkey_ss58: The SS58 address of the coldkey to query.
+            block_hash: The hash of the blockchain block number for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            str: The root claim type for the coldkey ("Swap" or "Keep").
+        """
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="RootClaimType",
+            params=[coldkey_ss58],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        if result is None:
+            return "Swap"
+        return next(iter(result.keys()))
+
+    async def get_all_coldkeys_claim_type(
+        self,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> dict[str, str]:
+        """
+        Retrieves all root claim types for all coldkeys in the network.
+
+        Args:
+            block_hash: The hash of the blockchain block number for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            dict[str, str]: A dictionary mapping coldkey SS58 addresses to their root claim type ("Keep" or "Swap").
+        """
+        result = await self.substrate.query_map(
+            module="SubtensorModule",
+            storage_function="RootClaimType",
+            params=[],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        root_claim_types = {}
+        async for coldkey, claim_type in result:
+            coldkey_ss58 = decode_account_id(coldkey[0])
+            claim_type = next(iter(claim_type.value.keys()))
+            root_claim_types[coldkey_ss58] = claim_type
+
+        return root_claim_types
+
+    async def get_staking_hotkeys(
+        self,
+        coldkey_ss58: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> list[str]:
+        """Retrieves all hotkeys that a coldkey is staking to.
+
+        Args:
+            coldkey_ss58: The SS58 address of the coldkey.
+            block_hash: The hash of the blockchain block for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            list[str]: A list of hotkey SS58 addresses that the coldkey has staked to.
+        """
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="StakingHotkeys",
+            params=[coldkey_ss58],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+        staked_hotkeys = [decode_account_id(hotkey) for hotkey in result]
+        return staked_hotkeys
+
+    async def get_claimed_amount(
+        self,
+        coldkey_ss58: str,
+        hotkey_ss58: str,
+        netuid: int,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> Balance:
+        """Retrieves the root claimed Alpha shares for coldkey from hotkey in provided subnet.
+
+        Args:
+            coldkey_ss58: The SS58 address of the staker.
+            hotkey_ss58: The SS58 address of the root validator.
+            netuid: The unique identifier of the subnet.
+            block_hash: The blockchain block hash for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            Balance: The number of Alpha stake claimed from the root validator.
+        """
+        query = await self.query(
+            module="SubtensorModule",
+            storage_function="RootClaimed",
+            params=[netuid, hotkey_ss58, coldkey_ss58],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+        return Balance.from_rao(query).set_unit(netuid=netuid)
+
+    async def get_claimed_amount_all_netuids(
+        self,
+        coldkey_ss58: str,
+        hotkey_ss58: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> dict[int, Balance]:
+        """Retrieves the root claimed Alpha shares for coldkey from hotkey in all subnets.
+
+        Args:
+            coldkey_ss58: The SS58 address of the staker.
+            hotkey_ss58: The SS58 address of the root validator.
+            block_hash: The blockchain block hash for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            dict[int, Balance]: Dictionary mapping netuid to claimed stake.
+        """
+        query = await self.substrate.query_map(
+            module="SubtensorModule",
+            storage_function="RootClaimed",
+            params=[hotkey_ss58, coldkey_ss58],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+        total_claimed = {}
+        async for netuid, claimed in query:
+            total_claimed[netuid] = Balance.from_rao(claimed.value).set_unit(
+                netuid=netuid
+            )
+        return total_claimed
+
+    async def get_claimable_rate_all_netuids(
+        self,
+        hotkey_ss58: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> dict[int, float]:
+        """Retrieves all root claimable rates from a given hotkey address for all subnets with this validator.
+
+        Args:
+            hotkey_ss58: The SS58 address of the root validator.
+            block_hash: The blockchain block hash for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            dict[int, float]: Dictionary mapping netuid to claimable rate.
+        """
+        query = await self.query(
+            module="SubtensorModule",
+            storage_function="RootClaimable",
+            params=[hotkey_ss58],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        if not query:
+            return {}
+
+        bits_list = next(iter(query))
+        return {bits[0]: fixed_to_float(bits[1], frac_bits=32) for bits in bits_list}
+
+    async def get_claimable_rate_netuid(
+        self,
+        hotkey_ss58: str,
+        netuid: int,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> float:
+        """Retrieves the root claimable rate from a given hotkey address for provided netuid.
+
+        Args:
+            hotkey_ss58: The SS58 address of the root validator.
+            netuid: The unique identifier of the subnet to get the rate.
+            block_hash: The blockchain block hash for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            float: The rate of claimable stake from validator's hotkey for provided subnet.
+        """
+        all_rates = await self.get_claimable_rate_all_netuids(
+            hotkey_ss58=hotkey_ss58,
+            block_hash=block_hash,
+            reuse_block=reuse_block,
+        )
+        return all_rates.get(netuid, 0.0)
+
+    async def get_claimable_stake_for_netuid(
+        self,
+        coldkey_ss58: str,
+        hotkey_ss58: str,
+        netuid: int,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> Balance:
+        """Retrieves the root claimable stake for a given coldkey address.
+
+        Args:
+            coldkey_ss58: Delegate's ColdKey SS58 address.
+            hotkey_ss58: The root validator hotkey SS58 address.
+            netuid: Delegate's netuid where stake will be claimed.
+            block_hash: The blockchain block hash for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            Balance: Available for claiming root stake.
+
+        Note:
+            After manual claim, claimable (available) stake will be added to subnet stake.
+        """
+        root_stake, root_claimable_rate, root_claimed = await asyncio.gather(
+            self.get_stake_for_coldkey_and_hotkey_on_netuid(
+                coldkey_ss58=coldkey_ss58,
+                hotkey_ss58=hotkey_ss58,
+                netuid=0,
+                block_hash=block_hash,
+            ),
+            self.get_claimable_rate_netuid(
+                hotkey_ss58=hotkey_ss58,
+                netuid=netuid,
+                block_hash=block_hash,
+                reuse_block=reuse_block,
+            ),
+            self.get_claimed_amount(
+                coldkey_ss58=coldkey_ss58,
+                hotkey_ss58=hotkey_ss58,
+                netuid=netuid,
+                block_hash=block_hash,
+                reuse_block=reuse_block,
+            ),
+        )
+
+        root_claimable_stake = (root_claimable_rate * root_stake).set_unit(
+            netuid=netuid
+        )
+        # Return the difference (what's left to claim)
+        return max(
+            root_claimable_stake - root_claimed,
+            Balance.from_rao(0).set_unit(netuid=netuid),
+        )
+
+    async def get_claimable_stakes_for_coldkey(
+        self,
+        coldkey_ss58: str,
+        stakes_info: list["StakeInfo"],
+        block_hash: Optional[str] = None,
+    ) -> dict[str, dict[int, "Balance"]]:
+        """Batch query claimable stakes for multiple hotkey-netuid pairs.
+
+        Args:
+            coldkey_ss58: The coldkey SS58 address.
+            stakes_info: List of StakeInfo objects containing stake data.
+            block_hash: Optional block hash for the query.
+
+        Returns:
+            dict[str, dict[int, Balance]]: Mapping of hotkey to netuid to claimable Balance.
+        """
+        if not stakes_info:
+            return {}
+
+        root_stakes = {}
+        for stake_info in stakes_info:
+            if stake_info.netuid == 0 and stake_info.stake.rao > 0:
+                root_stakes[stake_info.hotkey_ss58] = stake_info.stake
+
+        target_pairs = []
+        for s in stakes_info:
+            if s.netuid != 0 and s.stake.rao > 0 and s.hotkey_ss58 in root_stakes:
+                pair = (s.hotkey_ss58, s.netuid)
+                target_pairs.append(pair)
+
+        if not target_pairs:
+            return {}
+
+        unique_hotkeys = list(set(h for h, _ in target_pairs))
+        if not unique_hotkeys:
+            return {}
+
+        batch_claimable_calls = []
+        batch_claimed_calls = []
+
+        # Get the claimable rate
+        for hotkey in unique_hotkeys:
+            batch_claimable_calls.append(
+                await self.substrate.create_storage_key(
+                    "SubtensorModule", "RootClaimable", [hotkey], block_hash=block_hash
+                )
+            )
+
+        # Get already claimed
+        claimed_pairs = target_pairs
+        for hotkey, netuid in claimed_pairs:
+            batch_claimed_calls.append(
+                await self.substrate.create_storage_key(
+                    "SubtensorModule",
+                    "RootClaimed",
+                    [netuid, hotkey, coldkey_ss58],
+                    block_hash=block_hash,
+                )
+            )
+
+        batch_claimable, batch_claimed = await asyncio.gather(
+            self.substrate.query_multi(batch_claimable_calls, block_hash=block_hash),
+            self.substrate.query_multi(batch_claimed_calls, block_hash=block_hash),
+        )
+
+        claimable_rates = {}
+        claimed_amounts = {}
+        for idx, (_, result) in enumerate(batch_claimable):
+            hotkey = unique_hotkeys[idx]
+            if result:
+                for netuid, rate in result:
+                    if hotkey not in claimable_rates:
+                        claimable_rates[hotkey] = {}
+                    claimable_rates[hotkey][netuid] = fixed_to_float(rate, frac_bits=32)
+
+        for idx, (_, result) in enumerate(batch_claimed):
+            hotkey, netuid = claimed_pairs[idx]
+            value = result or 0
+            claimed_amounts[(hotkey, netuid)] = Balance.from_rao(value).set_unit(netuid)
+
+        # Calculate the claimable stake for each pair
+        results = {}
+        for hotkey, netuid in target_pairs:
+            root_stake = root_stakes[hotkey]
+            rate = claimable_rates[hotkey].get(netuid, 0)
+            claimable_stake = rate * root_stake
+            already_claimed = claimed_amounts.get((hotkey, netuid), 0)
+            net_claimable = max(claimable_stake - already_claimed, 0)
+            if hotkey not in results:
+                results[hotkey] = {}
+            results[hotkey][netuid] = net_claimable.set_unit(netuid)
+        return results
+
     async def get_subnet_price(
         self,
         netuid: int = None,
@@ -1873,6 +2226,65 @@ class SubtensorInterface:
             map_[netuid_] = Balance.from_rao(int(current_price * 1e9))
 
         return map_
+
+    async def get_all_subnet_ema_tao_inflow(
+        self,
+        block_hash: Optional[str] = None,
+        page_size: int = 100,
+    ) -> dict[int, tuple[int, float]]:
+        """
+        Query EMA TAO inflow for all subnets.
+
+        This represents the exponential moving average of TAO flowing
+        into or out of a subnet. Negative values indicate net outflow.
+
+        Args:
+            block_hash: Optional block hash to query at.
+            page_size: The page size for batch queries (default: 100).
+
+        Returns:
+            Dict mapping netuid -> (block_number, Balance(EMA TAO inflow)).
+        """
+        query = await self.substrate.query_map(
+            module="SubtensorModule",
+            storage_function="SubnetEmaTaoFlow",
+            page_size=page_size,
+            block_hash=block_hash,
+        )
+        tao_inflow_ema = {}
+        async for netuid, value in query:
+            block_updated, _tao_ema = value
+            ema_value = fixed_to_float(_tao_ema)
+            tao_inflow_ema[netuid] = (block_updated, Balance.from_rao(ema_value))
+        return tao_inflow_ema
+
+    async def get_subnet_ema_tao_inflow(
+        self,
+        netuid: int,
+        block_hash: Optional[str] = None,
+    ) -> Balance:
+        """
+        Query EMA TAO inflow for a specific subnet.
+
+        This represents the exponential moving average of TAO flowing
+        into or out of a subnet. Negative values indicate net outflow.
+
+        Args:
+            netuid: The unique identifier of the subnet.
+            block_hash: Optional block hash to query at.
+
+        Returns:
+            Balance(EMA TAO inflow).
+        """
+        value = await self.substrate.query(
+            module="SubtensorModule",
+            storage_function="SubnetEmaTaoFlow",
+            params=[netuid],
+            block_hash=block_hash,
+        )
+        _, raw_ema_value = value
+        ema_value = fixed_to_float(raw_ema_value)
+        return Balance.from_rao(ema_value)
 
 
 async def best_connection(networks: list[str]):
