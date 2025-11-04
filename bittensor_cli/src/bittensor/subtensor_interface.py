@@ -39,6 +39,7 @@ from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
     decode_hex_identity_dict,
+    i64f64_to_float,
     validate_chain_endpoint,
     u16_normalized_float,
     U16_MAX,
@@ -1937,7 +1938,7 @@ class SubtensorInterface:
         query = await self.query(
             module="SubtensorModule",
             storage_function="RootClaimed",
-            params=[hotkey_ss58, coldkey_ss58, netuid],
+            params=[netuid, hotkey_ss58, coldkey_ss58],
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
@@ -2139,7 +2140,7 @@ class SubtensorInterface:
                 await self.substrate.create_storage_key(
                     "SubtensorModule",
                     "RootClaimed",
-                    [hotkey, coldkey_ss58, netuid],
+                    [netuid, hotkey, coldkey_ss58],
                     block_hash=block_hash,
                 )
             )
