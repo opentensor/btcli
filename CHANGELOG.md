@@ -1,5 +1,11 @@
 # Changelog
 
+## 9.15.1 /2025-11-04
+
+* Update/Subnet list ema by @ibraheem-abe in https://github.com/opentensor/btcli/pull/699
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.15.0...v9.15.1
+
 ## 9.15.0 /2025-11-04
 
 * Stop running e2e tests on changelog branches by @thewhaleking in https://github.com/opentensor/btcli/pull/691

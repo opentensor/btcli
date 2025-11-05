@@ -2231,7 +2231,7 @@ class SubtensorInterface:
         self,
         block_hash: Optional[str] = None,
         page_size: int = 100,
-    ) -> dict[int, tuple[int, float]]:
+    ) -> dict[int, Balance]:
         """
         Query EMA TAO inflow for all subnets.
 
@@ -2243,7 +2243,7 @@ class SubtensorInterface:
             page_size: The page size for batch queries (default: 100).
 
         Returns:
-            Dict mapping netuid -> (block_number, Balance(EMA TAO inflow)).
+            Dict mapping netuid -> Balance(EMA TAO inflow).
         """
         query = await self.substrate.query_map(
             module="SubtensorModule",
@@ -2251,12 +2251,15 @@ class SubtensorInterface:
             page_size=page_size,
             block_hash=block_hash,
         )
-        tao_inflow_ema = {}
+        ema_map = {}
         async for netuid, value in query:
-            block_updated, _tao_ema = value
-            ema_value = fixed_to_float(_tao_ema)
-            tao_inflow_ema[netuid] = (block_updated, Balance.from_rao(ema_value))
-        return tao_inflow_ema
+            if not value:
+                ema_map[netuid] = Balance.from_rao(0)
+            else:
+                _, raw_ema_value = value
+                ema_value = fixed_to_float(raw_ema_value)
+                ema_map[netuid] = Balance.from_rao(ema_value)
+        return ema_map
 
     async def get_subnet_ema_tao_inflow(
         self,
