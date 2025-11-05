@@ -1,4 +1,12 @@
 # Changelog
+
+## 9.15.0 /2025-11-04
+
+* Stop running e2e tests on changelog branches by @thewhaleking in https://github.com/opentensor/btcli/pull/691
+* Feat/root claim by @ibraheem-abe in https://github.com/opentensor/btcli/pull/692
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.14.3...v9.15.0
+
 ## 9.14.3 /2025-10-30
 * Allows for installing on Py 3.14 by @thewhaleking in https://github.com/opentensor/btcli/pull/688
   * corrects `--name` param in `wallet set-identity` and `subnets set-identity` which was a duplicate param alias of `--wallet-name`
