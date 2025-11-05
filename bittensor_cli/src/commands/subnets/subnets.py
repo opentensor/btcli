@@ -223,11 +223,10 @@ async def subnets_list(
 
     async def fetch_subnet_data():
         block_hash = await subtensor.substrate.get_chain_head()
-        subnets_, mechanisms, block_number_, ema_flows = await asyncio.gather(
+        subnets_, mechanisms, block_number_ = await asyncio.gather(
             subtensor.all_subnets(block_hash=block_hash),
             subtensor.get_all_subnet_mechanisms(block_hash=block_hash),
             subtensor.substrate.get_block_number(block_hash=block_hash),
-            subtensor.get_all_subnet_ema_tao_inflow(block_hash=block_hash),
         )
 
         # Sort subnets by market cap, keeping the root subnet in the first position
@@ -238,7 +237,7 @@ async def subnets_list(
             reverse=True,
         )
         sorted_subnets = [root_subnet] + other_subnets
-        return sorted_subnets, block_number_, mechanisms, ema_flows
+        return sorted_subnets, block_number_, mechanisms
 
     def calculate_emission_stats(
         subnets_: list, block_number_: int
@@ -336,11 +335,6 @@ async def subnets_list(
             footer=f"τ {total_emissions}",
         )
         defined_table.add_column(
-            f"[bold white]Net Inflow EMA ({Balance.get_unit(0)})",
-            style=COLOR_PALETTE["POOLS"]["ALPHA_OUT"],
-            justify="left",
-        )
-        defined_table.add_column(
             f"[bold white]P ({Balance.get_unit(0)}_in, {Balance.get_unit(1)}_in)",
             style=COLOR_PALETTE["STAKE"]["TAO"],
             justify="left",
@@ -371,7 +365,7 @@ async def subnets_list(
         return defined_table
 
     # Non-live mode
-    def _create_table(subnets_, block_number_, mechanisms, ema_flows):
+    def _create_table(subnets_, block_number_, mechanisms):
         rows = []
         _, percentage_string = calculate_emission_stats(subnets_, block_number_)
 
@@ -438,18 +432,6 @@ async def subnets_list(
             )
             emission_cell = f"τ {emission_tao:,.4f}"
 
-            # TAO Inflow EMA cell
-            if netuid in ema_flows:
-                _, _ema_value = ema_flows[netuid]
-                ema_value = _ema_value.tao
-                ema_color, ema_sign = format_ema_flow_cell(ema_value)
-                ema_formatted = format_ema_tao_value(ema_value, verbose)
-                ema_flow_cell = (
-                    f"[{ema_color}]{ema_sign}τ {ema_formatted}[/{ema_color}]"
-                )
-            else:
-                ema_flow_cell = "-"
-
             price_cell = f"{price_value} τ/{symbol}"
             alpha_out_cell = (
                 f"{alpha_out_value} {symbol}"
@@ -473,7 +455,6 @@ async def subnets_list(
                     price_cell,  # Rate τ_in/α_in
                     market_cap_cell,  # Market Cap
                     emission_cell,  # Emission (τ)
-                    ema_flow_cell,  # TAO Flow EMA
                     liquidity_cell,  # Liquidity (t_in, a_in)
                     alpha_out_cell,  # Stake α_out
                     supply_cell,  # Supply
@@ -500,7 +481,7 @@ async def subnets_list(
             defined_table.add_row(*row)
         return defined_table
 
-    def dict_table(subnets_, block_number_, mechanisms, ema_flows) -> dict:
+    def dict_table(subnets_, block_number_, mechanisms) -> dict:
         subnet_rows = {}
         total_tao_emitted, _ = calculate_emission_stats(subnets_, block_number_)
         total_emissions = 0.0
@@ -530,18 +511,12 @@ async def subnets_list(
                 ),
                 "sn_tempo": (subnet.tempo if netuid != 0 else None),
             }
-            tao_flow_ema = None
-            if netuid in ema_flows:
-                _, ema_value = ema_flows[netuid]
-                tao_flow_ema = ema_value.tao
-
             subnet_rows[netuid] = {
                 "netuid": netuid,
                 "subnet_name": subnet_name,
                 "price": price_value,
                 "market_cap": market_cap,
                 "emission": emission_tao,
-                "tao_flow_ema": tao_flow_ema,
                 "liquidity": {"tao_in": tao_in, "alpha_in": alpha_in},
                 "alpha_out": alpha_out,
                 "supply": supply,
@@ -559,9 +534,7 @@ async def subnets_list(
         return output
 
     # Live mode
-    def create_table_live(
-        subnets_, previous_data_, block_number_, mechanisms, ema_flows
-    ):
+    def create_table_live(subnets_, previous_data_, block_number_, mechanisms):
         def format_cell(
             value, previous_value, unit="", unit_first=False, precision=4, millify=False
         ):
@@ -679,16 +652,10 @@ async def subnets_list(
             market_cap = (subnet.alpha_in.tao + subnet.alpha_out.tao) * subnet.price.tao
             supply = subnet.alpha_in.tao + subnet.alpha_out.tao
 
-            ema_value = 0
-            if netuid in ema_flows:
-                _, ema_value = ema_flows[netuid]
-                ema_value = ema_value.tao
-
             # Store current values for comparison
             current_data[netuid] = {
                 "market_cap": market_cap,
                 "emission_tao": emission_tao,
-                "tao_flow_ema": ema_value,
                 "alpha_out": subnet.alpha_out.tao,
                 "tao_in": subnet.tao_in.tao,
                 "alpha_in": subnet.alpha_in.tao,
@@ -717,12 +684,6 @@ async def subnets_list(
                 precision=4,
             )
 
-            ema_flow_cell = format_cell(
-                ema_value,
-                prev.get("tao_flow_ema"),
-                unit="τ",
-                precision=6,
-            )
             price_cell = format_cell(
                 subnet.price.tao,
                 prev.get("price"),
@@ -806,7 +767,6 @@ async def subnets_list(
                     price_cell,  # Rate τ_in/α_in
                     market_cap_cell,  # Market Cap
                     emission_cell,  # Emission (τ)
-                    ema_flow_cell,  # TAO Flow EMA
                     liquidity_cell,  # Liquidity (t_in, a_in)
                     alpha_out_cell,  # Stake α_out
                     supply_cell,  # Supply
@@ -862,7 +822,6 @@ async def subnets_list(
                         subnets,
                         block_number,
                         mechanisms,
-                        ema_flows,
                     ) = await fetch_subnet_data()
 
                     # Update block numbers
@@ -875,7 +834,7 @@ async def subnets_list(
                     )
 
                     table, current_data = create_table_live(
-                        subnets, previous_data, block_number, mechanisms, ema_flows
+                        subnets, previous_data, block_number, mechanisms
                     )
                     previous_data = current_data
                     progress.reset(progress_task)
@@ -901,13 +860,13 @@ async def subnets_list(
                 pass  # Ctrl + C
     else:
         # Non-live mode
-        subnets, block_number, mechanisms, ema_flows = await fetch_subnet_data()
+        subnets, block_number, mechanisms = await fetch_subnet_data()
         if json_output:
             json_console.print(
-                json.dumps(dict_table(subnets, block_number, mechanisms, ema_flows))
+                json.dumps(dict_table(subnets, block_number, mechanisms))
             )
         else:
-            table = _create_table(subnets, block_number, mechanisms, ema_flows)
+            table = _create_table(subnets, block_number, mechanisms)
             console.print(table)
 
         return
@@ -1221,7 +1180,6 @@ async def show(
                 old_identities,
                 current_burn_cost,
                 root_claim_types,
-                ema_tao_inflow,
             ) = await asyncio.gather(
                 subtensor.subnet(netuid=netuid_, block_hash=block_hash),
                 subtensor.query_all_identities(block_hash=block_hash),
@@ -1230,9 +1188,6 @@ async def show(
                     param_name="Burn", netuid=netuid_, block_hash=block_hash
                 ),
                 subtensor.get_all_coldkeys_claim_type(block_hash=block_hash),
-                subtensor.get_subnet_ema_tao_inflow(
-                    netuid=netuid_, block_hash=block_hash
-                ),
             )
 
             selected_mechanism_id = mechanism_id or 0
@@ -1531,7 +1486,6 @@ async def show(
                 f"{total_mech_line}"
                 f"\n  Owner: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{subnet_info.owner_coldkey}{' (' + owner_identity + ')' if owner_identity else ''}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]"
                 f"\n  Rate: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{subnet_info.price.tao:.4f} τ/{subnet_info.symbol}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
-                f"\n  EMA TAO Inflow: [{COLOR_PALETTE['STAKE']['TAO']}]τ {ema_tao_inflow.tao}[/{COLOR_PALETTE['STAKE']['TAO']}]"
                 f"\n  Emission: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]τ {subnet_info.emission.tao:,.4f}[/{COLOR_PALETTE['GENERAL']['HOTKEY']}]"
                 f"\n  TAO Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]τ {tao_pool}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
                 f"\n  Alpha Pool: [{COLOR_PALETTE['POOLS']['ALPHA_IN']}]{alpha_pool} {subnet_info.symbol}[/{COLOR_PALETTE['POOLS']['ALPHA_IN']}]"
