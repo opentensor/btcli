@@ -79,12 +79,13 @@ async def set_claim_type(
     )
     console.print(claim_table)
 
-    if claim_type is not None:
-        new_type = claim_type
-    else:
-new_type = claim_type if claim_type else Prompt.ask(
-    "Select new root claim type", choices=["Swap", "Keep"], default=current_type
-)
+    new_type = (
+        claim_type
+        if claim_type
+        else Prompt.ask(
+            "Select new root claim type", choices=["Swap", "Keep"], default=current_type
+        )
+    )
     if new_type == current_type:
         msg = f"Root claim type is already set to '{current_type}'. No change needed."
         console.print(f"[yellow]{msg}[/yellow]")
