@@ -1377,7 +1377,7 @@ async def show(
         # Add columns to the table
         table.add_column("UID", style="grey89", no_wrap=True, justify="center")
         table.add_column(
-            f"Stake ({Balance.get_unit(netuid_)})",
+            f"Stake ({subnet_info.symbol})",
             style=COLOR_PALETTE["POOLS"]["ALPHA_IN"],
             no_wrap=True,
             justify="right",
@@ -1386,7 +1386,7 @@ async def show(
             else f"{millify_tao(stake_sum)} {subnet_info.symbol}",
         )
         table.add_column(
-            f"Alpha ({Balance.get_unit(netuid_)})",
+            f"Alpha ({subnet_info.symbol})",
             style=COLOR_PALETTE["POOLS"]["EXTRA_2"],
             no_wrap=True,
             justify="right",
@@ -1412,11 +1412,11 @@ async def show(
         )
         table.add_column("Incentive", style="#5fd7ff", no_wrap=True, justify="center")
         table.add_column(
-            f"Emissions ({Balance.get_unit(netuid_)})",
+            f"Emissions ({subnet_info.symbol})",
             style=COLOR_PALETTE["POOLS"]["EMISSION"],
             no_wrap=True,
             justify="center",
-            footer=str(Balance.from_tao(emission_sum).set_unit(subnet_info.netuid)),
+            footer=f"{emission_sum:.4f} {subnet_info.symbol}",
         )
         table.add_column(
             "Hotkey",
