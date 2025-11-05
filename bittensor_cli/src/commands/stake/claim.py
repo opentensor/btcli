@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 async def set_claim_type(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
+    claim_type: Optional[str] = None,
     prompt: bool = True,
     json_output: bool = False,
 ) -> tuple[bool, str, Optional[str]]:
@@ -38,6 +39,7 @@ async def set_claim_type(
     Args:
         wallet: Bittensor wallet object
         subtensor: SubtensorInterface object
+        claim_type: Optional claim type ("Keep" or "Swap"). If None, user will be prompted.
         prompt: Whether to prompt for user confirmation
         json_output: Whether to output JSON
 
@@ -76,9 +78,13 @@ async def set_claim_type(
         wallet.coldkeypub.ss58_address, f"[yellow]{current_type}[/yellow]"
     )
     console.print(claim_table)
-    new_type = Prompt.ask(
-        "Select new root claim type", choices=["Swap", "Keep"], default=current_type
-    )
+
+    if claim_type is not None:
+        new_type = claim_type
+    else:
+        new_type = Prompt.ask(
+            "Select new root claim type", choices=["Swap", "Keep"], default=current_type
+        )
     if new_type == current_type:
         msg = f"Root claim type is already set to '{current_type}'. No change needed."
         console.print(f"[yellow]{msg}[/yellow]")
