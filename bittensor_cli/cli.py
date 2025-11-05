@@ -7085,6 +7085,10 @@ class CLIManager:
 
     def stake_set_claim_type(
         self,
+        claim_type: Optional[str] = typer.Argument(
+            None,
+            help="Claim type: 'keep' or 'swap'. If not provided, you'll be prompted to choose.",
+        ),
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
@@ -7105,13 +7109,26 @@ class CLIManager:
 
         USAGE:
 
-        [green]$[/green] btcli root set-claim-type
+        [green]$[/green] btcli stake claim
+        [green]$[/green] btcli stake claim keep
+        [green]$[/green] btcli stake claim swap
 
         With specific wallet:
 
-        [green]$[/green] btcli root set-claim-type --wallet-name my_wallet
+        [green]$[/green] btcli stake claim swap --wallet-name my_wallet
         """
         self.verbosity_handler(quiet, verbose, json_output)
+
+        if claim_type is not None:
+            claim_type_normalized = claim_type.capitalize()
+            if claim_type_normalized not in ["Keep", "Swap"]:
+                err_console.print(
+                    f":cross_mark: [red]Invalid claim type '{claim_type}'. Must be 'keep' or 'swap'.[/red]"
+                )
+                raise typer.Exit()
+        else:
+            claim_type_normalized = None
+
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -7122,6 +7139,7 @@ class CLIManager:
             claim_stake.set_claim_type(
                 wallet=wallet,
                 subtensor=self.initialize_chain(network),
+                claim_type=claim_type_normalized,
                 prompt=prompt,
                 json_output=json_output,
             )
