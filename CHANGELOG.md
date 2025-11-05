@@ -1,5 +1,13 @@
 # Changelog
 
+## 9.15.2 /2025-11-05
+
+## What's Changed
+* Update/btcli stake claim args by @ibraheem-abe in https://github.com/opentensor/btcli/pull/701
+* Update metagraph symbols thru subnet info by @ibraheem-abe in https://github.com/opentensor/btcli/pull/703
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.15.1...v9.15.2
+
 ## 9.15.1 /2025-11-04
 
 * Update/Subnet list ema by @ibraheem-abe in https://github.com/opentensor/btcli/pull/699
