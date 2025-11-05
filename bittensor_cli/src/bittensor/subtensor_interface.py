@@ -2282,6 +2282,8 @@ class SubtensorInterface:
             params=[netuid],
             block_hash=block_hash,
         )
+        if not value:
+            return Balance.from_rao(0)
         _, raw_ema_value = value
         ema_value = fixed_to_float(raw_ema_value)
         return Balance.from_rao(ema_value)
