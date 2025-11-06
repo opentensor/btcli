@@ -1150,6 +1150,7 @@ class SubtensorInterface:
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = False,
         era: Optional[dict[str, int]] = None,
+        proxy: Optional[str] = None,
     ) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
         """
         Helper method to sign and submit an extrinsic call to chain.
@@ -1159,9 +1160,19 @@ class SubtensorInterface:
         :param wait_for_inclusion: whether to wait until the extrinsic call is included on the chain
         :param wait_for_finalization: whether to wait until the extrinsic call is finalized on the chain
         :param era: The length (in blocks) for which a transaction should be valid.
+        :param proxy: The real account used to create the proxy. None if not using a proxy for this call.
 
         :return: (success, error message)
         """
+        if proxy is not None:
+            call = await self.substrate.compose_call(
+                "Proxy",
+                "proxy",
+                {
+                    "real": proxy,
+                    "call": call,
+                }
+            )
         call_args: dict[str, Union[GenericCall, Keypair, dict[str, int]]] = {
             "call": call,
             "keypair": wallet.coldkey,
