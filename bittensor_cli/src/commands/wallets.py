@@ -1736,6 +1736,7 @@ async def swap_hotkey(
     new_wallet: Wallet,
     subtensor: SubtensorInterface,
     netuid: Optional[int],
+    proxy: Optional[str],
     prompt: bool,
     json_output: bool,
 ):
@@ -1746,6 +1747,7 @@ async def swap_hotkey(
         new_wallet,
         netuid=netuid,
         prompt=prompt,
+        proxy=proxy,
     )
     if result:
         ext_id = await ext_receipt.get_extrinsic_identifier()

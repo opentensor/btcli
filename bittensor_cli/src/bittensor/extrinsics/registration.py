@@ -1758,6 +1758,7 @@ async def swap_hotkey_extrinsic(
     wallet: Wallet,
     new_wallet: Wallet,
     netuid: Optional[int] = None,
+    proxy: Optional[str] = None,
     prompt: bool = False,
 ) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """
@@ -1843,7 +1844,7 @@ async def swap_hotkey_extrinsic(
             call_params=call_params,
         )
         success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
-            call, wallet
+            call=call, wallet=wallet, proxy=proxy
         )
 
         if success:

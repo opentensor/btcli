@@ -2362,6 +2362,7 @@ class CLIManager:
         verbose: bool = Options.verbose,
         prompt: bool = Options.prompt,
         json_output: bool = Options.json_output,
+        proxy: Options.proxy = None,
     ):
         """
         Swap hotkeys of a given wallet on the blockchain. For a registered key pair, for example, a (coldkeyA, hotkeyA) pair, this command swaps the hotkeyA with a new, unregistered, hotkeyB to move the original registration to the (coldkeyA, hotkeyB) pair.
@@ -2441,7 +2442,13 @@ class CLIManager:
         self.initialize_chain(network)
         return self._run_command(
             wallets.swap_hotkey(
-                original_wallet, new_wallet, self.subtensor, netuid, prompt, json_output
+                original_wallet=original_wallet,
+                new_wallet=new_wallet,
+                subtensor=self.subtensor,
+                netuid=netuid,
+                proxy=proxy,
+                prompt=prompt,
+                json_output=json_output,
             )
         )
 
