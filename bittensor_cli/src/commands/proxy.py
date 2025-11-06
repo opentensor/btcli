@@ -90,3 +90,123 @@ async def create_proxy(
             )
         else:
             err_console.print(f"Failure: {msg}")  # TODO add more shit here
+
+
+async def remove_proxy(
+    subtensor: "SubtensorInterface",
+    wallet: "Wallet",
+    proxy_type: ProxyType,
+    delegate: str,
+    delay: int,
+    prompt: bool,
+    wait_for_inclusion: bool,
+    wait_for_finalization: bool,
+    period: int,
+    json_output: bool,
+) -> None:
+    if prompt:
+        if not Confirm.ask(
+            f"This will remove a proxy of type {proxy_type.value} for delegate {delegate}."
+            f"Do you want to proceed?"
+        ):
+            return
+    call = await subtensor.substrate.compose_call(
+        call_module="Proxy",
+        call_function="remove_proxy",
+        call_params={
+            "proxy_type": proxy_type.value,
+            "delay": delay,
+            "delegate": delegate,
+        },
+    )
+    success, msg, receipt = await subtensor.sign_and_send_extrinsic(
+        call=call,
+        wallet=wallet,
+        wait_for_inclusion=wait_for_inclusion,
+        wait_for_finalization=wait_for_finalization,
+        era={"period": period},
+    )
+    if success:
+        await print_extrinsic_id(receipt)
+        if json_output:
+            json_console.print_json(
+                data={
+                    "success": success,
+                    "message": msg,
+                    "extrinsic_id": await receipt.get_extrinsic_identifier(),
+                }
+            )
+        else:
+            console.print("Success!")  # TODO add more shit here
+
+    else:
+        if json_output:
+            json_console.print_json(
+                data={
+                    "success": success,
+                    "message": msg,
+                    "extrinsic_id": None,
+                }
+            )
+        else:
+            err_console.print(f"Failure: {msg}")  # TODO add more shit here
+
+
+async def add_proxy(
+    subtensor: "SubtensorInterface",
+    wallet: "Wallet",
+    proxy_type: ProxyType,
+    delegate: str,
+    delay: int,
+    prompt: bool,
+    wait_for_inclusion: bool,
+    wait_for_finalization: bool,
+    period: int,
+    json_output: bool,
+):
+    if prompt:
+        if not Confirm.ask(
+            f"This will add a proxy of type {proxy_type.value} for delegate {delegate}."
+            f"Do you want to proceed?"
+        ):
+            return
+    call = await subtensor.substrate.compose_call(
+        call_module="Proxy",
+        call_function="add_proxy",
+        call_params={
+            "proxy_type": proxy_type.value,
+            "delay": delay,
+            "delegate": delegate,
+        },
+    )
+    success, msg, receipt = await subtensor.sign_and_send_extrinsic(
+        call=call,
+        wallet=wallet,
+        wait_for_inclusion=wait_for_inclusion,
+        wait_for_finalization=wait_for_finalization,
+        era={"period": period},
+    )
+    if success:
+        await print_extrinsic_id(receipt)
+        if json_output:
+            json_console.print_json(
+                data={
+                    "success": success,
+                    "message": msg,
+                    "extrinsic_id": await receipt.get_extrinsic_identifier(),
+                }
+            )
+        else:
+            console.print("Success!")  # TODO add more shit here
+
+    else:
+        if json_output:
+            json_console.print_json(
+                data={
+                    "success": success,
+                    "message": msg,
+                    "extrinsic_id": None,
+                }
+            )
+        else:
+            err_console.print(f"Failure: {msg}")  # TODO add more shit here

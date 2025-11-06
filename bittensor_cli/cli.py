@@ -358,6 +358,12 @@ class Options:
         "--era",
         help="Length (in blocks) for which the transaction should be valid.",
     )
+    proxy_type: ProxyType = typer.Option(
+        ProxyType.Any.value,
+        "--proxy-type",
+        help="Type of proxy",
+        prompt=True,
+    )
 
 
 def list_prompt(init_var: list, list_type: type, help_text: str) -> list:
@@ -395,6 +401,12 @@ def parse_to_list(
         return parsed_list
     except ValueError:
         raise typer.BadParameter(error_message)
+
+
+def is_valid_ss58_address_param(address: str) -> str:
+    if not bittensor_wallet.utils.is_valid_ss58_address(address):
+        raise typer.BadParameter(f"Invalid SS58 address: {address}")
+    return address
 
 
 def verbosity_console_handler(verbosity_level: int = 1) -> None:
@@ -1106,6 +1118,9 @@ class CLIManager:
         self.proxy_app.command(
             "create",  # TODO add rich help panel
         )(self.proxy_create)
+        self.proxy_app.command(
+            "remove",  # TODO add rich help panel
+        )(self.proxy_remove)
 
         # Sub command aliases
         # Wallet
@@ -8078,12 +8093,7 @@ class CLIManager:
     def proxy_create(
         self,
         network: Optional[list[str]] = Options.network,
-        proxy_type: ProxyType = typer.Option(
-            ProxyType.Any.value,
-            "--proxy-type",
-            help="Type of proxy",
-            prompt=True,
-        ),
+        proxy_type: ProxyType = Options.proxy_type,
         delay: int = typer.Option(0, help="Delay, in number of blocks"),
         idx: int = typer.Option(0, "--index", help="TODO lol"),
         wallet_name: str = Options.wallet_name,
@@ -8126,6 +8136,106 @@ class CLIManager:
                 period=period,
             )
         )
+
+    def proxy_add(
+        self,
+        delegate: Annotated[
+            str,
+            typer.Option(
+                callback=is_valid_ss58_address_param,
+                prompt="Enter the SS58 address of the delegate to add, e.g. 5dxds...",
+                help="The SS58 address of the delegate to add",
+            ),
+        ],
+        network: Optional[list[str]] = Options.network,
+        proxy_type: ProxyType = Options.proxy_type,
+        delay: int = typer.Option(0, help="Delay, in number of blocks"),
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        prompt: bool = Options.prompt,
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        period: int = Options.period,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        # TODO add debug logger
+        self.verbosity_handler(quiet, verbose, json_output)
+        wallet = self.wallet_ask(
+            wallet_name=wallet_name,
+            wallet_path=wallet_path,
+            wallet_hotkey=wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.WALLET,
+        )
+        return self._run_command(
+            proxy_commands.remove_proxy(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                delegate=delegate,
+                proxy_type=proxy_type,
+                delay=delay,
+                prompt=prompt,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+                period=period,
+                json_output=json_output,
+            )
+        )
+
+    def proxy_remove(
+        self,
+        delegate: Annotated[
+            str,
+            typer.Option(
+                callback=is_valid_ss58_address_param,
+                prompt="Enter the SS58 address of the delegate to remove, e.g. 5dxds...",
+                help="The SS58 address of the delegate to remove",
+            ),
+        ],
+        network: Optional[list[str]] = Options.network,
+        proxy_type: ProxyType = Options.proxy_type,
+        delay: int = typer.Option(0, help="Delay, in number of blocks"),
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        prompt: bool = Options.prompt,
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        period: int = Options.period,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        # TODO should add a --all flag to call Proxy.remove_proxies ?
+        # TODO add debug logger
+        self.verbosity_handler(quiet, verbose, json_output)
+        wallet = self.wallet_ask(
+            wallet_name=wallet_name,
+            wallet_path=wallet_path,
+            wallet_hotkey=wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.WALLET,
+        )
+        return self._run_command(
+            proxy_commands.remove_proxy(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                delegate=delegate,
+                proxy_type=proxy_type,
+                delay=delay,
+                prompt=prompt,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+                period=period,
+                json_output=json_output,
+            )
+        )
+
+    def proxy_kill(self):
+        pass
 
     @staticmethod
     def convert(
