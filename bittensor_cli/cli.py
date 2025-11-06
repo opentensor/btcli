@@ -80,6 +80,7 @@ from bittensor_cli.src.commands.liquidity.utils import (
     prompt_liquidity,
     prompt_position_id,
 )
+from bittensor_cli.src.commands.proxy import ProxyType
 from bittensor_cli.src.commands.stake import (
     auto_staking as auto_stake,
     children_hotkeys,
@@ -769,6 +770,7 @@ class CLIManager:
         self.liquidity_app = typer.Typer(epilog=_epilog)
         self.crowd_app = typer.Typer(epilog=_epilog)
         self.utils_app = typer.Typer(epilog=_epilog)
+        self.proxy_app = typer.Typer(epilog=_epilog)
 
         # config alias
         self.app.add_typer(
@@ -864,6 +866,14 @@ class CLIManager:
             self.view_app,
             name="view",
             short_help="HTML view commands",
+            no_args_is_help=True,
+        )
+
+        # proxy app
+        self.app.add_typer(
+            self.proxy_app,
+            name="proxy",
+            short_help="Proxy commands",
             no_args_is_help=True,
         )
 
@@ -1091,6 +1101,11 @@ class CLIManager:
         self.view_app.command(
             "dashboard", rich_help_panel=HELP_PANELS["VIEW"]["DASHBOARD"]
         )(self.view_dashboard)
+
+        # proxy commands
+        self.proxy_app.command(
+            "create",  # TODO add rich help panel
+        )(self.proxy_create)
 
         # Sub command aliases
         # Wallet
@@ -8059,6 +8074,36 @@ class CLIManager:
                 json_output=json_output,
             )
         )
+
+    def proxy_create(
+        self,
+        network: Optional[list[str]] = Options.network,
+        proxy_type: ProxyType = typer.Option(
+            ProxyType.Any.value,
+            "--proxy-type",
+            help="Type of proxy",
+            prompt=True,
+        ),
+        delay: int = typer.Option(0, help="Delay, in number of blocks"),
+        idx: int = typer.Option(0, "--index", help="TODO lol"),
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        prompt: bool = Options.prompt,
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        period: int = Options.period,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        TODO ask someone else to write the docs
+
+        Creates a pure proxy
+        """
+        # TODO add debug logger
+        self.verbosity_handler(quiet, verbose, json_output)
 
     @staticmethod
     def convert(
