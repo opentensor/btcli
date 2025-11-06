@@ -388,6 +388,11 @@ class Options:
         help="Type of proxy",
         prompt=True,
     )
+    proxy: Optional[str] = typer.Option(
+        None,
+        "--proxy",
+        help="Optional proxy to use for the transaction.",
+    )
 
 
 def list_prompt(init_var: list, list_type: type, help_text: str) -> list:
@@ -2346,7 +2351,7 @@ class CLIManager:
             help="Transfer balance even if the resulting balance falls below the existential deposit.",
         ),
         period: int = Options.period,
-        proxy: Optional[str] = None,
+        proxy: Optional[str] = Options.proxy,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -2434,7 +2439,7 @@ class CLIManager:
         verbose: bool = Options.verbose,
         prompt: bool = Options.prompt,
         json_output: bool = Options.json_output,
-        proxy: Optional[str] = None,
+        proxy: Optional[str] = Options.proxy,
     ):
         """
         Swap hotkeys of a given wallet on the blockchain. For a registered key pair, for example, a (coldkeyA, hotkeyA) pair, this command swaps the hotkeyA with a new, unregistered, hotkeyB to move the original registration to the (coldkeyA, hotkeyB) pair.
@@ -6782,7 +6787,7 @@ class CLIManager:
             help="Length (in blocks) for which the transaction should be valid. Note that it is possible that if you "
             "use an era for this transaction that you may pay a different fee to register than the one stated.",
         ),
-        proxy: Optional[str] = None,
+        proxy: Optional[str] = Options.proxy,
         json_output: bool = Options.json_output,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
@@ -8378,6 +8383,7 @@ class CLIManager:
         ] = None,
         network: Optional[list[str]] = Options.network,
         proxy_type: ProxyType = Options.proxy_type,
+        proxy: Optional[str] = Options.proxy,
         idx: int = typer.Option(0, "--index", help="TODO lol"),
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
@@ -8396,6 +8402,7 @@ class CLIManager:
         """
         # TODO add debug logger
         self.verbosity_handler(quiet, verbose, json_output)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         wallet = self.wallet_ask(
             wallet_name=wallet_name,
             wallet_path=wallet_path,
@@ -8410,6 +8417,7 @@ class CLIManager:
                 wallet=wallet,
                 proxy_type=proxy_type,
                 height=height,
+                proxy=proxy,
                 ext_index=ext_index,
                 idx=idx,
                 spawner=spawner,

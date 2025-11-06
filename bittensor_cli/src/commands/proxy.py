@@ -46,6 +46,7 @@ async def submit_proxy(
     wait_for_finalization: bool,
     period: int,
     json_output: bool,
+    proxy: Optional[str] = None,
 ) -> None:
     success, msg, receipt = await subtensor.sign_and_send_extrinsic(
         call=call,
@@ -53,6 +54,7 @@ async def submit_proxy(
         wait_for_inclusion=wait_for_inclusion,
         wait_for_finalization=wait_for_finalization,
         era={"period": period},
+        proxy=proxy,
     )
     if success:
         await print_extrinsic_id(receipt)
@@ -274,6 +276,7 @@ async def kill_proxy(
     ext_index: int,
     spawner: Optional[str],
     idx: int,
+    proxy: Optional[str],
     prompt: bool,
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
@@ -309,6 +312,7 @@ async def kill_proxy(
             "spawner": spawner,
         },
     )
+
     return await submit_proxy(
         subtensor=subtensor,
         wallet=wallet,
@@ -317,4 +321,5 @@ async def kill_proxy(
         wait_for_finalization=wait_for_finalization,
         period=period,
         json_output=json_output,
+        proxy=proxy,
     )
