@@ -1162,7 +1162,7 @@ class SubtensorInterface:
         :param era: The length (in blocks) for which a transaction should be valid.
         :param proxy: The real account used to create the proxy. None if not using a proxy for this call.
 
-        :return: (success, error message)
+        :return: (success, error message, extrinsic receipt | None)
         """
         if proxy is not None:
             call = await self.substrate.compose_call(
@@ -1171,7 +1171,7 @@ class SubtensorInterface:
                 {
                     "real": proxy,
                     "call": call,
-                }
+                },
             )
         call_args: dict[str, Union[GenericCall, Keypair, dict[str, int]]] = {
             "call": call,

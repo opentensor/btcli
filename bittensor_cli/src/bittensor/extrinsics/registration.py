@@ -681,6 +681,7 @@ async def burned_register_extrinsic(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
     era: Optional[int] = None,
+    proxy: Optional[str] = None,
 ) -> tuple[bool, str, Optional[str]]:
     """Registers the wallet to chain by recycling TAO.
 
@@ -693,7 +694,7 @@ async def burned_register_extrinsic(
     :param wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `True`,
                                   or returns `False` if the extrinsic fails to be finalized within the timeout.
     :param era: the period (in blocks) for which the transaction should remain valid.
-    :param prompt: If `True`, the call waits for confirmation from the user before proceeding.
+    :param proxy: the proxy address to use for the call.
 
     :return: (success, msg), where success is `True` if extrinsic was finalized or included in the block. If we did not
         wait for finalization/inclusion, the response is `True`.
@@ -758,7 +759,12 @@ async def burned_register_extrinsic(
             },
         )
         success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
-            call, wallet, wait_for_inclusion, wait_for_finalization, era=era_
+            call,
+            wallet,
+            wait_for_inclusion,
+            wait_for_finalization,
+            era=era_,
+            proxy=proxy,
         )
 
     if not success:

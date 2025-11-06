@@ -40,7 +40,7 @@ class ProxyType(str, Enum):
 
 async def submit_proxy(
     subtensor: "SubtensorInterface",
-    wallet: Wallet,
+    wallet: "Wallet",
     call: GenericCall,
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
@@ -229,7 +229,6 @@ async def kill_proxy(
     subtensor: "SubtensorInterface",
     wallet: "Wallet",
     proxy_type: ProxyType,
-    spawner: str,
     height: int,
     ext_index: int,
     idx: int,

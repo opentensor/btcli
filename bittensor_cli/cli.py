@@ -23,8 +23,10 @@ from async_substrate_interface.errors import (
     ConnectionClosed,
     InvalidHandshake,
 )
-import bittensor_wallet
 from bittensor_wallet import Wallet
+from bittensor_wallet.utils import (
+    is_valid_ss58_address as btwallet_is_valid_ss58_address,
+)
 from rich import box
 from rich.prompt import Confirm, FloatPrompt, Prompt, IntPrompt
 from rich.table import Column, Table
@@ -121,6 +123,14 @@ def arg__(arg_name: str) -> str:
     return f"[{COLORS.G.ARG}]{arg_name}[/{COLORS.G.ARG}]"
 
 
+def is_valid_ss58_address_param(address: Optional[str]) -> Optional[str]:
+    if address is None:
+        return None
+    elif not btwallet_is_valid_ss58_address(address):
+        raise typer.BadParameter(f"Invalid SS58 address: {address}")
+    return address
+
+
 class Options:
     """
     Re-usable typer args
@@ -142,6 +152,14 @@ class Options:
         copied_attr = copy.copy(getattr(cls, option_name))
         setattr(copied_attr, "help", help_text)
         return copied_attr
+
+    proxy = Annotated[
+        Optional[str],
+        typer.Option(
+            callback=is_valid_ss58_address_param,
+            help="Optional proxy account to use to make this call",
+        ),
+    ]
 
     wallet_name = typer.Option(
         None,
@@ -402,12 +420,6 @@ def parse_to_list(
         return parsed_list
     except ValueError:
         raise typer.BadParameter(error_message)
-
-
-def is_valid_ss58_address_param(address: str) -> str:
-    if not bittensor_wallet.utils.is_valid_ss58_address(address):
-        raise typer.BadParameter(f"Invalid SS58 address: {address}")
-    return address
 
 
 def verbosity_console_handler(verbosity_level: int = 1) -> None:
@@ -6669,6 +6681,7 @@ class CLIManager:
             help="Length (in blocks) for which the transaction should be valid. Note that it is possible that if you "
             "use an era for this transaction that you may pay a different fee to register than the one stated.",
         ),
+        proxy: Options.proxy = None,
         json_output: bool = Options.json_output,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
@@ -6696,12 +6709,13 @@ class CLIManager:
         logger.debug(f"args:\nnetwork: {network}\nnetuid: {netuid}\nperiod: {period}\n")
         return self._run_command(
             subnets.register(
-                wallet,
-                self.initialize_chain(network),
-                netuid,
-                period,
-                json_output,
-                prompt,
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                netuid=netuid,
+                era=period,
+                json_output=json_output,
+                prompt=prompt,
+                proxy=proxy,
             )
         )
 

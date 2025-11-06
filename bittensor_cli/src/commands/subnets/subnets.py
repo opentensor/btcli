@@ -1718,6 +1718,7 @@ async def register(
     era: Optional[int],
     json_output: bool,
     prompt: bool,
+    proxy: Optional[str] = None,
 ):
     """Register neuron by recycling some TAO."""
 
@@ -1820,7 +1821,9 @@ async def register(
             return
 
     if netuid == 0:
-        success, msg, ext_id = await root_register_extrinsic(subtensor, wallet=wallet)
+        success, msg, ext_id = await root_register_extrinsic(
+            subtensor, wallet=wallet, proxy=proxy
+        )
     else:
         success, msg, ext_id = await burned_register_extrinsic(
             subtensor,
@@ -1828,6 +1831,7 @@ async def register(
             netuid=netuid,
             old_balance=balance,
             era=era,
+            proxy=proxy,
         )
     if json_output:
         json_console.print(
