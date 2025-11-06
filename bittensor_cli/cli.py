@@ -8109,9 +8109,19 @@ class CLIManager:
         json_output: bool = Options.json_output,
     ):
         """
-        TODO ask someone else to write the docs
+        Creates a new pure proxy account. The pure proxy account is a keyless account controlled by your wallet.
 
-        Creates a pure proxy
+        [bold]Note[/bold]: The proxy account has no private key and cannot sign transactions independently. 
+        All operations must be initiated and signed by the delegator.
+
+
+        [bold]Common Examples:[/bold]
+        1. Create a pure proxy account
+        [green]$[/green] btcli proxy create --proxy-type any 
+
+        2. Create a delayed pure proxy account
+        [green]$[/green] btcli proxy create --proxy-type any --delay 1000
+
         """
         # TODO add debug logger
         self.verbosity_handler(quiet, verbose, json_output)
@@ -8163,7 +8173,18 @@ class CLIManager:
         json_output: bool = Options.json_output,
     ):
         """
-        Adds a proxy
+       
+        Registers an existing account as a standard proxy for the delegator. 
+
+        Grants an existing account permission to execute transactions on your behalf with 
+        specified restrictions. 
+
+        [bold]Common Examples:[/bold]
+        1. Create a standard proxy account
+        [green]$[/green] btcli proxy add --delegate 5GDeleg... --proxy-type small-transfer 
+
+        2. Create a delayed standard proxy account
+        [green]$[/green] btcli proxy add --delegate 5GDeleg... --proxy-type transfer --delay 500
 
         """
         # TODO add debug logger
@@ -8215,7 +8236,20 @@ class CLIManager:
         json_output: bool = Options.json_output,
     ):
         """
-        Removes a proxy
+        Unregisters a proxy from an account.
+
+        Revokes proxy permissions previously granted to another account. This prevents the delegate account from executing any further transactions on your behalf.
+
+        [bold]Note[/bold]: You can specify a delegate to remove a single proxy or use the `--all` flag to remove all existing proxies linked to an account.
+
+
+        [bold]Common Examples:[/bold]
+        1. Revoke proxy permissions from a single proxy account 
+        [green]$[/green] btcli proxy remove --delegate 5GDel... --proxy-type transfer
+
+        2. Remove all proxies linked to an account
+        [green]$[/green] btcli proxy remove --all
+
         """
         # TODO should add a --all flag to call Proxy.remove_proxies ?
         # TODO add debug logger
@@ -8269,7 +8303,11 @@ class CLIManager:
     ):
         """
 
-        Kills a pure proxy
+        Permanently removes a pure proxy account.
+
+        Once killed, the pure proxy account is cleared from chain storage and cannot be recovered.
+
+        Requires the spawner account, proxy type, and creation block details.... TBC 
         """
         # TODO add debug logger
         self.verbosity_handler(quiet, verbose, json_output)
