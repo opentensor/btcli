@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from rich.prompt import Confirm
 from scalecodec import GenericCall
@@ -231,6 +231,7 @@ async def kill_proxy(
     proxy_type: ProxyType,
     height: int,
     ext_index: int,
+    spawner: Optional[str],
     idx: int,
     prompt: bool,
     wait_for_inclusion: bool,
@@ -255,7 +256,7 @@ async def kill_proxy(
                 }
             )
         return None
-    spawner = wallet.coldkey.ss58_address
+    spawner = spawner or wallet.coldkeypub.ss58_address
     call = await subtensor.substrate.compose_call(
         call_module="Proxy",
         call_function="kill_pure",

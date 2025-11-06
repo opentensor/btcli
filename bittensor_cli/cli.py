@@ -8295,6 +8295,13 @@ class CLIManager:
             f" ([{COLORS.G.ARG}]btcli proxy create[/{COLORS.G.ARG}])",
             prompt="Enter the extrinsic index of the `btcli proxy create` event.",
         ),
+        spawner: Annotated[
+            Optional[str],
+            typer.Option(
+                callback=is_valid_ss58_address_param,
+                help="The SS58 of the pure proxy creator account. If omitted, the wallet's coldkeypub is used.",
+            ),
+        ] = None,
         network: Optional[list[str]] = Options.network,
         proxy_type: ProxyType = Options.proxy_type,
         idx: int = typer.Option(0, "--index", help="TODO lol"),
@@ -8331,6 +8338,7 @@ class CLIManager:
                 height=height,
                 ext_index=ext_index,
                 idx=idx,
+                spawner=spawner,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 prompt=prompt,
