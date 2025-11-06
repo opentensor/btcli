@@ -166,14 +166,6 @@ class Options:
         setattr(copied_attr, "help", help_text)
         return copied_attr
 
-    proxy = Annotated[
-        Optional[str],
-        typer.Option(
-            callback=is_valid_ss58_address_param,
-            help="Optional proxy account SS58 to use to make this call",
-        ),
-    ]
-
     wallet_name = typer.Option(
         None,
         "--wallet-name",
@@ -745,6 +737,7 @@ class CLIManager:
             "safe_staking": True,
             "allow_partial_stake": False,
             "dashboard_path": None,
+            "proxies": {},
             # Commenting this out as this needs to get updated
             # "metagraph_cols": {
             #     "UID": True,
@@ -919,6 +912,8 @@ class CLIManager:
         self.config_app.command("set")(self.set_config)
         self.config_app.command("get")(self.get_config)
         self.config_app.command("clear")(self.del_config)
+        self.config_app.command("add-proxy")(self.config_add_proxy)
+        self.config_app.command("proxies")(self.config_get_proxies)
         # self.config_app.command("metagraph", hidden=True)(self.metagraph_config)
 
         # wallet commands
@@ -1457,7 +1452,7 @@ class CLIManager:
         # Load or create the config file
         if os.path.exists(self.config_path):
             with open(self.config_path, "r") as f:
-                config = safe_load(f)
+                config = safe_load(f) or {}
         else:
             directory_path = Path(self.config_base_path)
             directory_path.mkdir(exist_ok=True, parents=True)
@@ -1836,6 +1831,82 @@ class CLIManager:
                 table.add_row(str(key), str(value), "")
 
         console.print(table)
+
+    def config_add_proxy(
+        self,
+        name: Annotated[
+            str,
+            typer.Option(
+                help="Name of the proxy", prompt="Enter a name for this proxy"
+            ),
+        ],
+        address: Annotated[
+            str,
+            typer.Option(
+                callback=is_valid_ss58_address_param,
+                help="The SS58 address of the pure proxy",
+                prompt="Enter the SS58 address of the pure proxy",
+            ),
+        ],
+        proxy_type: Annotated[
+            ProxyType,
+            typer.Option(
+                help="The type of this pure proxy",
+                prompt="Enter the type of this pure proxy",
+            ),
+        ],
+    ):
+        proxies = self.config.get("proxies", {})
+        proxies[name] = {"proxy_type": proxy_type.value, "address": address}
+        self.config["proxies"] = proxies
+        with open(self.config_path, "w") as f:
+            safe_dump(self.config, f)
+        self.config_get_proxies()
+
+    def config_get_proxies(self):
+        proxies = self.config.get("proxies", {})
+        table = Table(
+            Column("[bold white]Name", style=f"{COLORS.G.ARG}"),
+            Column("[bold white]Address", style="gold1"),
+            Column("Proxy Type", style="medium_purple"),
+            box=box.SIMPLE_HEAD,
+            title=f"[{COLORS.G.HEADER}]BTCLI Config Proxies[/{COLORS.G.HEADER}]: {arg__(self.config_path)}",
+        )
+        for name, keys in proxies.items():
+            address = keys.get("address")
+            proxy_type = keys.get("proxy_type")
+            table.add_row(name, address, proxy_type)
+        console.print(table)
+
+    def is_valid_proxy_name_or_ss58(self, address: Optional[str]) -> Optional[str]:
+        """
+        Evaluates whether a non-None address is a valid SS58 address. Used as a callback for
+        Annotated typer params.
+
+        Args:
+            address: an SS58 address, proxy name in config, or None
+
+        Returns:
+            the SS58 address (if valid) or None (if None)
+
+        Raises:
+            typer.BadParameter: if the address is not a valid SS58 address
+        """
+        if address is None:
+            return None
+        config_proxies = self.config.get("proxies", {})
+        outer_proxy_from_config = config_proxies.get(address, {})
+        proxy_from_config = outer_proxy_from_config.get("address")
+        if proxy_from_config is not None:
+            if not btwallet_is_valid_ss58_address(proxy_from_config):
+                raise typer.BadParameter(
+                    f"Invalid SS58 address: {proxy_from_config} from config {address}"
+                )
+            else:
+                return proxy_from_config
+        elif not btwallet_is_valid_ss58_address(address):
+            raise typer.BadParameter(f"Invalid SS58 address: {address}")
+        return address
 
     def ask_rate_tolerance(
         self,
@@ -2275,7 +2346,7 @@ class CLIManager:
             help="Transfer balance even if the resulting balance falls below the existential deposit.",
         ),
         period: int = Options.period,
-        proxy: Options.proxy_type = None,
+        proxy: Optional[str] = None,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -2308,6 +2379,7 @@ class CLIManager:
             raise typer.Exit()
 
         self.verbosity_handler(quiet, verbose, json_output)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -2362,7 +2434,7 @@ class CLIManager:
         verbose: bool = Options.verbose,
         prompt: bool = Options.prompt,
         json_output: bool = Options.json_output,
-        proxy: Options.proxy = None,
+        proxy: Optional[str] = None,
     ):
         """
         Swap hotkeys of a given wallet on the blockchain. For a registered key pair, for example, a (coldkeyA, hotkeyA) pair, this command swaps the hotkeyA with a new, unregistered, hotkeyB to move the original registration to the (coldkeyA, hotkeyB) pair.
@@ -2389,6 +2461,7 @@ class CLIManager:
         [green]$[/green] btcli wallet swap_hotkey destination_hotkey_name --wallet-name your_wallet_name --wallet-hotkey original_hotkey --netuid 1
         """
         netuid = get_optional_netuid(netuid, all_netuids)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         self.verbosity_handler(quiet, verbose, json_output)
 
         # Warning for netuid 0 - only swaps on root network, not a full swap
@@ -6709,7 +6782,7 @@ class CLIManager:
             help="Length (in blocks) for which the transaction should be valid. Note that it is possible that if you "
             "use an era for this transaction that you may pay a different fee to register than the one stated.",
         ),
-        proxy: Options.proxy = None,
+        proxy: Optional[str] = None,
         json_output: bool = Options.json_output,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
@@ -6727,6 +6800,7 @@ class CLIManager:
         [green]$[/green] btcli subnets register --netuid 1
         """
         self.verbosity_handler(quiet, verbose, json_output)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,

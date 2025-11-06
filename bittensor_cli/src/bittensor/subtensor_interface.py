@@ -1168,10 +1168,7 @@ class SubtensorInterface:
             call = await self.substrate.compose_call(
                 "Proxy",
                 "proxy",
-                {
-                    "real": proxy,
-                    "call": call,
-                },
+                {"real": proxy, "call": call, "force_proxy_type": None},
             )
         call_args: dict[str, Union[GenericCall, Keypair, dict[str, int]]] = {
             "call": call,

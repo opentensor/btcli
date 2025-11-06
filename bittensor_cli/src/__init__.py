@@ -116,6 +116,7 @@ class Defaults:
                 "HOTKEY": True,
                 "COLDKEY": True,
             },
+            "proxies": {},
         }
 
     class subtensor:

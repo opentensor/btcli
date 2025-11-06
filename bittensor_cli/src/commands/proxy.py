@@ -114,15 +114,56 @@ async def create_proxy(
         call_function="create_pure",
         call_params={"proxy_type": proxy_type.value, "delay": delay, "index": idx},
     )
-    return await submit_proxy(
-        subtensor=subtensor,
-        wallet=wallet,
+    success, msg, receipt = await subtensor.sign_and_send_extrinsic(
         call=call,
+        wallet=wallet,
         wait_for_inclusion=wait_for_inclusion,
         wait_for_finalization=wait_for_finalization,
-        period=period,
-        json_output=json_output,
+        era={"period": period},
     )
+    if success:
+        await print_extrinsic_id(receipt)
+        created_pure = None
+        created_spawner = None
+        created_proxy_type = None
+        for event in await receipt.triggered_events:
+            if event["event_id"] == "PureCreated":
+                attrs = event["attributes"]
+                created_pure = attrs["pure"]
+                created_spawner = attrs["who"]
+                created_proxy_type = attrs["proxy_type"]
+        arg_start = "`" if json_output else "[blue]"
+        arg_end = "`" if json_output else "[/blue]"
+        msg = (
+            f"Created pure '{created_pure}' from spawner '{created_spawner}' with proxy type '{created_proxy_type}'."
+            f" You can add this to your config with {arg_start}"
+            f"btcli config add-proxy "
+            f"--name <PROXY_NAME> --address {created_pure} --proxy-type {created_proxy_type}"
+            f"{arg_end}"
+        )
+        # TODO add to wallets somehow?
+        if json_output:
+            json_console.print_json(
+                data={
+                    "success": success,
+                    "message": msg,
+                    "extrinsic_id": await receipt.get_extrinsic_identifier(),
+                }
+            )
+        else:
+            console.print(f"Success! {msg}")  # TODO add more shit here
+
+    else:
+        if json_output:
+            json_console.print_json(
+                data={
+                    "success": success,
+                    "message": msg,
+                    "extrinsic_id": None,
+                }
+            )
+        else:
+            err_console.print(f"Failure: {msg}")  # TODO add more shit here
 
 
 async def remove_proxy(
