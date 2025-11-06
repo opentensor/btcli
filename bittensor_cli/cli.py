@@ -23,6 +23,7 @@ from async_substrate_interface.errors import (
     ConnectionClosed,
     InvalidHandshake,
 )
+import bittensor_wallet
 from bittensor_wallet import Wallet
 from rich import box
 from rich.prompt import Confirm, FloatPrompt, Prompt, IntPrompt
