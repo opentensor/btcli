@@ -8162,6 +8162,10 @@ class CLIManager:
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
+        """
+        Adds a proxy
+
+        """
         # TODO add debug logger
         self.verbosity_handler(quiet, verbose, json_output)
         wallet = self.wallet_ask(
@@ -8210,6 +8214,9 @@ class CLIManager:
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
+        """
+        Removes a proxy
+        """
         # TODO should add a --all flag to call Proxy.remove_proxies ?
         # TODO add debug logger
         self.verbosity_handler(quiet, verbose, json_output)
@@ -8235,8 +8242,60 @@ class CLIManager:
             )
         )
 
-    def proxy_kill(self):
-        pass
+    def proxy_kill(
+        self,
+        height: int = typer.Option(
+            help="The block number that the proxy was created at",
+            prompt="Enter the block number at which the proxy was created",
+        ),
+        ext_index: int = typer.Option(
+            help=f"The extrinsic index of the Proxy.PureCreated event"
+            f" ([{COLORS.G.ARG}]btcli proxy create[/{COLORS.G.ARG}])",
+            prompt="Enter the extrinsic index of the `btcli proxy create` event.",
+        ),
+        network: Optional[list[str]] = Options.network,
+        proxy_type: ProxyType = Options.proxy_type,
+        idx: int = typer.Option(0, "--index", help="TODO lol"),
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        prompt: bool = Options.prompt,
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        period: int = Options.period,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+
+        Kills a pure proxy
+        """
+        # TODO add debug logger
+        self.verbosity_handler(quiet, verbose, json_output)
+        wallet = self.wallet_ask(
+            wallet_name=wallet_name,
+            wallet_path=wallet_path,
+            wallet_hotkey=wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.WALLET,
+        )
+
+        return self._run_command(
+            proxy_commands.kill_proxy(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                proxy_type=proxy_type,
+                height=height,
+                ext_index=ext_index,
+                idx=idx,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+                prompt=prompt,
+                json_output=json_output,
+                period=period,
+            )
+        )
 
     @staticmethod
     def convert(
