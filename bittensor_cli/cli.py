@@ -124,6 +124,19 @@ def arg__(arg_name: str) -> str:
 
 
 def is_valid_ss58_address_param(address: Optional[str]) -> Optional[str]:
+    """
+    Evaluates whether a non-None address is a valid SS58 address. Used as a callback for
+    Annotated typer params.
+
+    Args:
+        address: an SS58 address, or None
+
+    Returns:
+        the SS58 address (if valid) or None (if None)
+
+    Raises:
+        typer.BadParameter: if the address is not a valid SS58 address
+    """
     if address is None:
         return None
     elif not btwallet_is_valid_ss58_address(address):
@@ -157,7 +170,7 @@ class Options:
         Optional[str],
         typer.Option(
             callback=is_valid_ss58_address_param,
-            help="Optional proxy account to use to make this call",
+            help="Optional proxy account SS58 to use to make this call",
         ),
     ]
 
