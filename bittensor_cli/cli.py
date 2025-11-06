@@ -1145,8 +1145,14 @@ class CLIManager:
             "create",  # TODO add rich help panel
         )(self.proxy_create)
         self.proxy_app.command(
+            "add",  # TODO add rich help panel
+        )(self.proxy_add)
+        self.proxy_app.command(
             "remove",  # TODO add rich help panel
         )(self.proxy_remove)
+        self.proxy_app.command(
+            "kill",  # TODO add rich help panel
+        )(self.proxy_kill)
 
         # Sub command aliases
         # Wallet
@@ -1948,8 +1954,8 @@ class CLIManager:
             logger.debug(f"Partial staking {partial_staking}")
             return False
 
+    @staticmethod
     def ask_subnet_mechanism(
-        self,
         mechanism_id: Optional[int],
         mechanism_count: int,
         netuid: int,
@@ -2269,6 +2275,7 @@ class CLIManager:
             help="Transfer balance even if the resulting balance falls below the existential deposit.",
         ),
         period: int = Options.period,
+        proxy: Options.proxy_type = None,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -2336,6 +2343,7 @@ class CLIManager:
                 era=period,
                 prompt=prompt,
                 json_output=json_output,
+                proxy=proxy,
             )
         )
 

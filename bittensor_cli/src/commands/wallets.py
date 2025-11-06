@@ -1530,6 +1530,7 @@ async def transfer(
     era: int,
     prompt: bool,
     json_output: bool,
+    proxy: Optional[str] = None,
 ):
     """Transfer token of amount to destination."""
     result, ext_receipt = await transfer_extrinsic(
@@ -1541,6 +1542,7 @@ async def transfer(
         allow_death=allow_death,
         era=era,
         prompt=prompt,
+        proxy=proxy,
     )
     ext_id = (await ext_receipt.get_extrinsic_identifier()) if result else None
     if json_output:
