@@ -13,7 +13,7 @@ import traceback
 import warnings
 from dataclasses import fields
 from pathlib import Path
-from typing import Coroutine, Optional, Union, Literal
+from typing import Coroutine, Optional, Union
 
 import numpy as np
 import rich
@@ -80,6 +80,7 @@ from bittensor_cli.src.commands.liquidity.utils import (
     prompt_liquidity,
     prompt_position_id,
 )
+from bittensor_cli.src.commands import proxy as proxy_commands
 from bittensor_cli.src.commands.proxy import ProxyType
 from bittensor_cli.src.commands.stake import (
     auto_staking as auto_stake,
@@ -95,7 +96,6 @@ from bittensor_cli.src.commands.subnets import (
     subnets,
     mechanisms as subnet_mechanisms,
 )
-from bittensor_cli.src.commands.wallets import SortByBalance
 from bittensor_cli.version import __version__, __version_as_int__
 
 try:
@@ -8104,6 +8104,28 @@ class CLIManager:
         """
         # TODO add debug logger
         self.verbosity_handler(quiet, verbose, json_output)
+        wallet = self.wallet_ask(
+            wallet_name=wallet_name,
+            wallet_path=wallet_path,
+            wallet_hotkey=wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.WALLET,
+        )
+
+        return self._run_command(
+            proxy_commands.create_proxy(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                proxy_type=proxy_type,
+                delay=delay,
+                idx=idx,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+                prompt=prompt,
+                json_output=json_output,
+                period=period,
+            )
+        )
 
     @staticmethod
     def convert(
