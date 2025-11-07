@@ -4776,6 +4776,7 @@ class CLIManager:
         stake_all: bool = typer.Option(
             False, "--stake-all", "--all", help="Stake all", prompt=False
         ),
+        proxy: Optional[str] = Options.proxy,
         period: int = Options.period,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
@@ -4803,6 +4804,7 @@ class CLIManager:
         [green]$[/green] btcli stake move
         """
         self.verbosity_handler(quiet, verbose, json_output)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         if prompt:
             if not Confirm.ask(
                 "This transaction will [bold]move stake[/bold] to another hotkey while keeping the same "
@@ -4915,6 +4917,7 @@ class CLIManager:
             f"era: {period}\n"
             f"interactive_selection: {interactive_selection}\n"
             f"prompt: {prompt}\n"
+            f"proxy: {proxy}\n"
         )
         result, ext_id = self._run_command(
             move_stake.move_stake(
@@ -4929,6 +4932,7 @@ class CLIManager:
                 era=period,
                 interactive_selection=interactive_selection,
                 prompt=prompt,
+                proxy=proxy,
             )
         )
         if json_output:

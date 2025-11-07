@@ -1,6 +1,6 @@
 import asyncio
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet
 from rich.table import Table
@@ -439,6 +439,7 @@ async def move_stake(
     era: int,
     interactive_selection: bool = False,
     prompt: bool = True,
+    proxy: Optional[str] = None,
 ) -> tuple[bool, str]:
     if interactive_selection:
         try:
@@ -453,6 +454,7 @@ async def move_stake(
 
     # Get the wallet stake balances.
     block_hash = await subtensor.substrate.get_chain_head()
+    # TODO should this use `proxy if proxy else wallet.coldkeypub.ss58_address`?
     origin_stake_balance, destination_stake_balance = await asyncio.gather(
         subtensor.get_stake(
             coldkey_ss58=wallet.coldkeypub.ss58_address,
@@ -471,23 +473,23 @@ async def move_stake(
     if origin_stake_balance.tao == 0:
         print_error(
             f"Your balance is "
-            f"[{COLOR_PALETTE['POOLS']['TAO']}]0[/{COLOR_PALETTE['POOLS']['TAO']}] "
+            f"[{COLOR_PALETTE.POOLS.TAO}]0[/{COLOR_PALETTE.POOLS.TAO}] "
             f"in Netuid: "
-            f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{origin_netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
+            f"[{COLOR_PALETTE.G.SUBHEAD}]{origin_netuid}[/{COLOR_PALETTE.G.SUBHEAD}]"
         )
         return False, ""
 
     console.print(
         f"\nOrigin Netuid: "
-        f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{origin_netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}], "
+        f"[{COLOR_PALETTE.G.SUBHEAD}]{origin_netuid}[/{COLOR_PALETTE.G.SUBHEAD}], "
         f"Origin stake: "
-        f"[{COLOR_PALETTE['POOLS']['TAO']}]{origin_stake_balance}[/{COLOR_PALETTE['POOLS']['TAO']}]"
+        f"[{COLOR_PALETTE.POOLS.TAO}]{origin_stake_balance}[/{COLOR_PALETTE.POOLS.TAO}]"
     )
     console.print(
         f"Destination netuid: "
-        f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{destination_netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}], "
+        f"[{COLOR_PALETTE.G.SUBHEAD}]{destination_netuid}[/{COLOR_PALETTE.G.SUBHEAD}], "
         f"Destination stake: "
-        f"[{COLOR_PALETTE['POOLS']['TAO']}]{destination_stake_balance}[/{COLOR_PALETTE['POOLS']['TAO']}]\n"
+        f"[{COLOR_PALETTE.POOLS.TAO}]{destination_stake_balance}[/{COLOR_PALETTE.POOLS.TAO}]\n"
     )
 
     # Determine the amount we are moving.
@@ -505,10 +507,8 @@ async def move_stake(
     if amount_to_move_as_balance > origin_stake_balance:
         err_console.print(
             f"[red]Not enough stake[/red]:\n"
-            f" Stake balance: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
-            f"{origin_stake_balance}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
-            f" < Moving amount: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
-            f"{amount_to_move_as_balance}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]"
+            f" Stake balance: [{COLOR_PALETTE.S.AMOUNT}]{origin_stake_balance}[/{COLOR_PALETTE.S.AMOUNT}]"
+            f" < Moving amount: [{COLOR_PALETTE.S.AMOUNT}]{amount_to_move_as_balance}[/{COLOR_PALETTE.S.AMOUNT}]"
         )
         return False, ""
 
@@ -529,7 +529,7 @@ async def move_stake(
             destination_netuid=destination_netuid,
             amount=amount_to_move_as_balance.rao,
         ),
-        subtensor.get_extrinsic_fee(call, wallet.coldkeypub),
+        subtensor.get_extrinsic_fee(call, wallet.coldkeypub, proxy=proxy),
     )
 
     # Display stake movement details
@@ -560,26 +560,20 @@ async def move_stake(
         f"[blue]{origin_netuid}[/blue] \nto "
         f"[blue]{destination_hotkey}[/blue] on netuid: [blue]{destination_netuid}[/blue] ..."
     ):
-        extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey, era={"period": era}
+        success_, err_msg, response = await subtensor.sign_and_send_extrinsic(
+            call=call,
+            wallet=wallet,
+            era={"period": era},
+            proxy=proxy,
         )
-        response = await subtensor.substrate.submit_extrinsic(
-            extrinsic, wait_for_inclusion=True, wait_for_finalization=False
-        )
-    ext_id = await response.get_extrinsic_identifier()
 
-    if not prompt:
-        console.print(":white_heavy_check_mark: [green]Sent[/green]")
-        return True, ext_id
-    else:
-        if not await response.is_success:
-            err_console.print(
-                f"\n:cross_mark: [red]Failed[/red] with error:"
-                f" {format_error_message(await response.error_message)}"
-            )
-            return False, ""
+    ext_id = await response.get_extrinsic_identifier() if response else ""
+    if success_:
+        await print_extrinsic_id(response)
+        if not prompt:
+            console.print(":white_heavy_check_mark: [green]Sent[/green]")
+            return True, ext_id
         else:
-            await print_extrinsic_id(response)
             console.print(
                 ":white_heavy_check_mark: [dark_sea_green3]Stake moved.[/dark_sea_green3]"
             )
@@ -611,6 +605,9 @@ async def move_stake(
                 f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_destination_stake_balance}"
             )
             return True, ext_id
+    else:
+        err_console.print(f"\n:cross_mark: [red]Failed[/red] with error: {err_msg}")
+        return False, ""
 
 
 async def transfer_stake(
