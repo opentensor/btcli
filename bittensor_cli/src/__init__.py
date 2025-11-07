@@ -743,6 +743,9 @@ HELP_PANELS = {
         "PARTICIPANT": "Crowdloan Participation",
         "INFO": "Crowdloan Information",
     },
+    "PROXY": {
+        "MGMT": "Proxy Account Management",
+    },
 }
 
 

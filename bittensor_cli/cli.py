@@ -1146,18 +1146,18 @@ class CLIManager:
         )(self.view_dashboard)
 
         # proxy commands
-        self.proxy_app.command(
-            "create",  # TODO add rich help panel
-        )(self.proxy_create)
-        self.proxy_app.command(
-            "add",  # TODO add rich help panel
-        )(self.proxy_add)
-        self.proxy_app.command(
-            "remove",  # TODO add rich help panel
-        )(self.proxy_remove)
-        self.proxy_app.command(
-            "kill",  # TODO add rich help panel
-        )(self.proxy_kill)
+        self.proxy_app.command("create", rich_help_panel=HELP_PANELS["PROXY"]["MGMT"])(
+            self.proxy_create
+        )
+        self.proxy_app.command("add", rich_help_panel=HELP_PANELS["PROXY"]["MGMT"])(
+            self.proxy_add
+        )
+        self.proxy_app.command("remove", rich_help_panel=HELP_PANELS["PROXY"]["MGMT"])(
+            self.proxy_remove
+        )
+        self.proxy_app.command("kill", rich_help_panel=HELP_PANELS["PROXY"]["MGMT"])(
+            self.proxy_kill
+        )
 
         # Sub command aliases
         # Wallet
