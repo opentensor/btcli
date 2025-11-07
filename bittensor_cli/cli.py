@@ -5302,6 +5302,130 @@ class CLIManager:
             )
         return result
 
+    def stake_set_claim_type(
+        self,
+        claim_type: Annotated[
+            Optional[claim_stake.ClaimType],
+            typer.Argument(
+                None,
+                help="Claim type: 'keep' or 'swap'. If omitted, user will be prompted.",
+            ),
+        ] = None,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        network: Optional[list[str]] = Options.network,
+        proxy: Optional[str] = Options.proxy,
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Set the root claim type for your coldkey.
+
+        Root claim types control how staking emissions are handled on the ROOT network (subnet 0):
+
+        [bold]Claim Types:[/bold]
+        • [green]Swap[/green]: Future Root Alpha Emissions are swapped to TAO and added to root stake (default)
+        • [yellow]Keep[/yellow]: Future Root Alpha Emissions are kept as Alpha tokens
+
+        USAGE:
+
+        [green]$[/green] btcli stake claim
+        [green]$[/green] btcli stake claim keep
+        [green]$[/green] btcli stake claim swap
+
+        With specific wallet:
+
+        [green]$[/green] btcli stake claim swap --wallet-name my_wallet
+        """
+        self.verbosity_handler(quiet, verbose, json_output, prompt)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME],
+        )
+        return self._run_command(
+            claim_stake.set_claim_type(
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                claim_type=claim_type,
+                proxy=proxy,
+                prompt=prompt,
+                json_output=json_output,
+            )
+        )
+
+    def stake_process_claim(
+        self,
+        netuids: Optional[str] = Options.netuids,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        network: Optional[list[str]] = Options.network,
+        proxy: Optional[str] = Options.proxy,
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Manually claim accumulated root network emissions for your coldkey.
+
+        [bold]Note:[/bold] The network will eventually process your pending emissions automatically.
+        However, you can choose to manually claim your emissions with a small extrinsic fee.
+
+        A maximum of 5 netuids can be processed in one call.
+
+        USAGE:
+
+        [green]$[/green] btcli stake process-claim
+
+        Claim from specific netuids:
+
+        [green]$[/green] btcli stake process-claim --netuids 1,2,3
+
+        Claim with specific wallet:
+
+        [green]$[/green] btcli stake process-claim --netuids 1,2 --wallet-name my_wallet
+
+        """
+        self.verbosity_handler(quiet, verbose, json_output, prompt)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
+        parsed_netuids = None
+        if netuids:
+            parsed_netuids = parse_to_list(
+                netuids,
+                int,
+                "Netuids must be a comma-separated list of ints, e.g., `--netuids 1,2,3`.",
+            )
+
+            if len(parsed_netuids) > 5:
+                print_error("Maximum 5 netuids allowed per claim")
+                return
+
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME],
+        )
+
+        return self._run_command(
+            claim_stake.process_pending_claims(
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                netuids=parsed_netuids,
+                proxy=proxy,
+                prompt=prompt,
+                json_output=json_output,
+                verbose=verbose,
+            )
+        )
+
     def stake_get_children(
         self,
         wallet_name: Optional[str] = Options.wallet_name,
@@ -7386,133 +7510,6 @@ class CLIManager:
                 save_file=save_file,
                 dashboard_path=dashboard_path,
                 coldkey_ss58=coldkey_ss58,
-            )
-        )
-
-    def stake_set_claim_type(
-        self,
-        claim_type: Optional[str] = typer.Argument(
-            None,
-            help="Claim type: 'keep' or 'swap'. If not provided, you'll be prompted to choose.",
-        ),
-        wallet_name: Optional[str] = Options.wallet_name,
-        wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        network: Optional[list[str]] = Options.network,
-        prompt: bool = Options.prompt,
-        quiet: bool = Options.quiet,
-        verbose: bool = Options.verbose,
-        json_output: bool = Options.json_output,
-    ):
-        """
-        Set the root claim type for your coldkey.
-
-        Root claim types control how staking emissions are handled on the ROOT network (subnet 0):
-
-        [bold]Claim Types:[/bold]
-        • [green]Swap[/green]: Future Root Alpha Emissions are swapped to TAO and added to root stake (default)
-        • [yellow]Keep[/yellow]: Future Root Alpha Emissions are kept as Alpha tokens
-
-        USAGE:
-
-        [green]$[/green] btcli stake claim
-        [green]$[/green] btcli stake claim keep
-        [green]$[/green] btcli stake claim swap
-
-        With specific wallet:
-
-        [green]$[/green] btcli stake claim swap --wallet-name my_wallet
-        """
-        self.verbosity_handler(quiet, verbose, json_output, prompt)
-
-        if claim_type is not None:
-            claim_type_normalized = claim_type.capitalize()
-            if claim_type_normalized not in ["Keep", "Swap"]:
-                err_console.print(
-                    f":cross_mark: [red]Invalid claim type '{claim_type}'. Must be 'keep' or 'swap'.[/red]"
-                )
-                raise typer.Exit()
-        else:
-            claim_type_normalized = None
-
-        wallet = self.wallet_ask(
-            wallet_name,
-            wallet_path,
-            wallet_hotkey,
-            ask_for=[WO.NAME],
-        )
-        return self._run_command(
-            claim_stake.set_claim_type(
-                wallet=wallet,
-                subtensor=self.initialize_chain(network),
-                claim_type=claim_type_normalized,
-                prompt=prompt,
-                json_output=json_output,
-            )
-        )
-
-    def stake_process_claim(
-        self,
-        netuids: Optional[str] = Options.netuids,
-        wallet_name: Optional[str] = Options.wallet_name,
-        wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        network: Optional[list[str]] = Options.network,
-        prompt: bool = Options.prompt,
-        quiet: bool = Options.quiet,
-        verbose: bool = Options.verbose,
-        json_output: bool = Options.json_output,
-    ):
-        """
-        Manually claim accumulated root network emissions for your coldkey.
-
-        [bold]Note:[/bold] The network will eventually process your pending emissions automatically.
-        However, you can choose to manually claim your emissions with a small extrinsic fee.
-
-        A maximum of 5 netuids can be processed in one call.
-
-        USAGE:
-
-        [green]$[/green] btcli stake process-claim
-
-        Claim from specific netuids:
-
-        [green]$[/green] btcli stake process-claim --netuids 1,2,3
-
-        Claim with specific wallet:
-
-        [green]$[/green] btcli stake process-claim --netuids 1,2 --wallet-name my_wallet
-
-        """
-        self.verbosity_handler(quiet, verbose, json_output, prompt)
-
-        parsed_netuids = None
-        if netuids:
-            parsed_netuids = parse_to_list(
-                netuids,
-                int,
-                "Netuids must be a comma-separated list of ints, e.g., `--netuids 1,2,3`.",
-            )
-
-            if len(parsed_netuids) > 5:
-                print_error("Maximum 5 netuids allowed per claim")
-                return
-
-        wallet = self.wallet_ask(
-            wallet_name,
-            wallet_path,
-            wallet_hotkey,
-            ask_for=[WO.NAME],
-        )
-
-        return self._run_command(
-            claim_stake.process_pending_claims(
-                wallet=wallet,
-                subtensor=self.initialize_chain(network),
-                netuids=parsed_netuids,
-                prompt=prompt,
-                json_output=json_output,
-                verbose=verbose,
             )
         )
 

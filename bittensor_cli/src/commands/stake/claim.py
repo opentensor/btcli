@@ -1,5 +1,6 @@
 import asyncio
 import json
+from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet
@@ -22,10 +23,16 @@ if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 
 
+class ClaimType(str, Enum):
+    keep = "Keep"
+    swap = "Swap"
+
+
 async def set_claim_type(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
-    claim_type: Optional[str] = None,
+    claim_type: Optional[ClaimType],
+    proxy: Optional[str],
     prompt: bool = True,
     json_output: bool = False,
 ) -> tuple[bool, str, Optional[str]]:
@@ -39,7 +46,8 @@ async def set_claim_type(
     Args:
         wallet: Bittensor wallet object
         subtensor: SubtensorInterface object
-        claim_type: Optional claim type ("Keep" or "Swap"). If None, user will be prompted.
+        claim_type: Claim type ("Keep" or "Swap"). If omitted, user will be prompted.
+        proxy: Optional proxy to use with this extrinsic submission.
         prompt: Whether to prompt for user confirmation
         json_output: Whether to output JSON
 
@@ -80,7 +88,7 @@ async def set_claim_type(
     console.print(claim_table)
 
     new_type = (
-        claim_type
+        claim_type.value
         if claim_type
         else Prompt.ask(
             "Select new root claim type", choices=["Swap", "Keep"], default=current_type
@@ -160,7 +168,7 @@ async def set_claim_type(
             call_params={"new_root_claim_type": new_type},
         )
         success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
-            call, wallet
+            call, wallet, proxy=proxy
         )
 
     if success:
@@ -204,6 +212,7 @@ async def process_pending_claims(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
     netuids: Optional[list[int]] = None,
+    proxy: Optional[str] = None,
     prompt: bool = True,
     json_output: bool = False,
     verbose: bool = False,
@@ -305,7 +314,9 @@ async def process_pending_claims(
         call_function="claim_root",
         call_params={"subnets": selected_netuids},
     )
-    extrinsic_fee = await subtensor.get_extrinsic_fee(call, wallet.coldkeypub)
+    extrinsic_fee = await subtensor.get_extrinsic_fee(
+        call, wallet.coldkeypub, proxy=proxy
+    )
     console.print(f"\n[dim]Estimated extrinsic fee: {extrinsic_fee.tao:.9f} τ[/dim]")
 
     if prompt:
@@ -346,7 +357,7 @@ async def process_pending_claims(
         spinner="earth",
     ):
         success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
-            call, wallet
+            call, wallet, proxy=proxy
         )
         if success:
             ext_id = await ext_receipt.get_extrinsic_identifier()
