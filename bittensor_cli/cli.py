@@ -5382,6 +5382,7 @@ class CLIManager:
             help="Enter the stake weight proportions for the child hotkeys (sum should be less than or equal to 1)",
             prompt=False,
         ),
+        proxy: Optional[str] = None,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
         quiet: bool = Options.quiet,
@@ -5401,6 +5402,7 @@ class CLIManager:
         [green]$[/green] btcli stake child set -c 5FCL3gmjtQV4xxxxuEPEFQVhyyyyqYgNwX7drFLw7MSdBnxP -c 5Hp5dxxxxtGg7pu8dN2btyyyyVA1vELmM9dy8KQv3LxV8PA7 --hotkey default --netuid 1 --prop 0.3 --prop 0.7
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         netuid = get_optional_netuid(netuid, all_netuids)
 
         children = list_prompt(
@@ -5435,6 +5437,7 @@ class CLIManager:
             "args:\n"
             f"network: {network}\n"
             f"netuid: {netuid}\n"
+            f"proxy: {proxy}\n"
             f"children: {children}\n"
             f"proportions: {proportions}\n"
             f"wait_for_inclusion: {wait_for_inclusion}\n"
@@ -5451,6 +5454,7 @@ class CLIManager:
                 wait_for_inclusion=wait_for_inclusion,
                 prompt=prompt,
                 json_output=json_output,
+                proxy=proxy,
             )
         )
 
@@ -5472,6 +5476,7 @@ class CLIManager:
             "--allnetuids",
             help="When this flag is used it sets child hotkeys on all the subnets.",
         ),
+        proxy: Optional[str] = Options.proxy,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
         quiet: bool = Options.quiet,
@@ -5489,6 +5494,7 @@ class CLIManager:
         [green]$[/green] btcli stake child revoke --hotkey <parent_hotkey> --netuid 1
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -5509,16 +5515,18 @@ class CLIManager:
             "args:\n"
             f"network: {network}\n"
             f"netuid: {netuid}\n"
+            f"proxy: {proxy}\n"
             f"wait_for_inclusion: {wait_for_inclusion}\n"
             f"wait_for_finalization: {wait_for_finalization}\n"
         )
         return self._run_command(
             children_hotkeys.revoke_children(
-                wallet,
-                self.initialize_chain(network),
-                netuid,
-                wait_for_inclusion,
-                wait_for_finalization,
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                netuid=netuid,
+                proxy=proxy,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
                 prompt=prompt,
                 json_output=json_output,
             )
@@ -5556,6 +5564,7 @@ class CLIManager:
             "take value.",
             prompt=False,
         ),
+        proxy: Optional[str] = Options.proxy,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
         prompt: bool = Options.prompt,
@@ -5579,6 +5588,7 @@ class CLIManager:
             [green]$[/green] btcli stake child take --child-hotkey-ss58 <child_hotkey> --take 0.12 --netuid 1
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -5600,6 +5610,7 @@ class CLIManager:
             f"network: {network}\n"
             f"netuid: {netuid}\n"
             f"take: {take}\n"
+            f"proxy: {proxy}\n"
             f"wait_for_inclusion: {wait_for_inclusion}\n"
             f"wait_for_finalization: {wait_for_finalization}\n"
         )
@@ -5609,6 +5620,7 @@ class CLIManager:
                 subtensor=self.initialize_chain(network),
                 netuid=netuid,
                 take=take,
+                proxy=proxy,
                 hotkey=child_hotkey_ss58,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
