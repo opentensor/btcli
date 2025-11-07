@@ -81,6 +81,7 @@ async def associate_hotkey(
     hotkey_ss58: str,
     hotkey_display: str,
     prompt: bool = False,
+    proxy: Optional[str] = None,
 ):
     """Associates a hotkey with a wallet"""
 
@@ -126,6 +127,7 @@ async def associate_hotkey(
             wallet,
             wait_for_inclusion=True,
             wait_for_finalization=False,
+            proxy=proxy,
         )
 
         if not success:
@@ -1530,6 +1532,7 @@ async def transfer(
     era: int,
     prompt: bool,
     json_output: bool,
+    proxy: Optional[str] = None,
 ):
     """Transfer token of amount to destination."""
     result, ext_receipt = await transfer_extrinsic(
@@ -1541,6 +1544,7 @@ async def transfer(
         allow_death=allow_death,
         era=era,
         prompt=prompt,
+        proxy=proxy,
     )
     ext_id = (await ext_receipt.get_extrinsic_identifier()) if result else None
     if json_output:
@@ -1734,6 +1738,7 @@ async def swap_hotkey(
     new_wallet: Wallet,
     subtensor: SubtensorInterface,
     netuid: Optional[int],
+    proxy: Optional[str],
     prompt: bool,
     json_output: bool,
 ):
@@ -1744,6 +1749,7 @@ async def swap_hotkey(
         new_wallet,
         netuid=netuid,
         prompt=prompt,
+        proxy=proxy,
     )
     if result:
         ext_id = await ext_receipt.get_extrinsic_identifier()
@@ -1793,8 +1799,8 @@ async def set_id(
     description: str,
     additional: str,
     github_repo: str,
-    prompt: bool,
     json_output: bool = False,
+    proxy: Optional[str] = None,
 ) -> bool:
     """Create a new or update existing identity on-chain."""
     output_dict = {"success": False, "identity": None, "error": ""}
@@ -1821,7 +1827,7 @@ async def set_id(
         " :satellite: [dark_sea_green3]Updating identity on-chain...", spinner="earth"
     ):
         success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
-            call, wallet
+            call, wallet, proxy=proxy
         )
 
         if not success:
@@ -2037,6 +2043,7 @@ async def schedule_coldkey_swap(
     subtensor: SubtensorInterface,
     new_coldkey_ss58: str,
     force_swap: bool = False,
+    proxy: Optional[str] = None,
 ) -> bool:
     """Schedules a coldkey swap operation to be executed at a future block.
 
@@ -2094,6 +2101,7 @@ async def schedule_coldkey_swap(
             wallet,
             wait_for_inclusion=True,
             wait_for_finalization=True,
+            proxy=proxy,
         )
         block_post_call = await subtensor.substrate.get_block_number()
 

@@ -46,6 +46,7 @@ async def stake_add(
     allow_partial_stake: bool,
     json_output: bool,
     era: int,
+    proxy: Optional[str],
 ):
     """
     Args:
@@ -63,6 +64,7 @@ async def stake_add(
         allow_partial_stake: whether to allow partial stake
         json_output: whether to output stake info in JSON format
         era: Blocks for which the transaction should be valid.
+        proxy: Optional proxy to use for staking.
 
     Returns:
         bool: True if stake operation is successful, False otherwise
@@ -105,7 +107,7 @@ async def stake_add(
             call_function=call_fn,
             call_params=call_params,
         )
-        return await subtensor.get_extrinsic_fee(call, wallet.coldkeypub)
+        return await subtensor.get_extrinsic_fee(call, wallet.coldkeypub, proxy=proxy)
 
     async def safe_stake_extrinsic(
         netuid_: int,
@@ -134,18 +136,15 @@ async def stake_add(
                 },
             ),
         )
-        extrinsic = await subtensor.substrate.create_signed_extrinsic(
+        success_, err_msg, response = await subtensor.sign_and_send_extrinsic(
             call=call,
-            keypair=wallet.coldkey,
+            wallet=wallet,
             nonce=next_nonce,
             era={"period": era},
+            proxy=proxy,
         )
-        try:
-            response = await subtensor.substrate.submit_extrinsic(
-                extrinsic, wait_for_inclusion=True, wait_for_finalization=False
-            )
-        except SubstrateRequestException as e:
-            if "Custom error: 8" in str(e):
+        if not success_:
+            if "Custom error: 8" in err_msg:
                 err_msg = (
                     f"{failure_prelude}: Price exceeded tolerance limit. "
                     f"Transaction rejected because partial staking is disabled. "
@@ -153,12 +152,8 @@ async def stake_add(
                 )
                 print_error("\n" + err_msg, status=status)
             else:
-                err_msg = f"{failure_prelude} with error: {format_error_message(e)}"
+                err_msg = f"{failure_prelude} with error: {err_msg}"
                 err_out("\n" + err_msg)
-            return False, err_msg, None
-        if not await response.is_success:
-            err_msg = f"{failure_prelude} with error: {format_error_message(await response.error_message)}"
-            err_out("\n" + err_msg)
             return False, err_msg, None
         else:
             if json_output:
@@ -208,8 +203,11 @@ async def stake_add(
         netuid_i, amount_, current, staking_address_ss58, status=None
     ) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
         err_out = partial(print_error, status=status)
+        block_hash = await subtensor.substrate.get_chain_head()
         current_balance, next_nonce, call = await asyncio.gather(
-            subtensor.get_balance(wallet.coldkeypub.ss58_address),
+            subtensor.get_balance(
+                wallet.coldkeypub.ss58_address, block_hash=block_hash
+            ),
             subtensor.substrate.get_account_next_index(wallet.coldkeypub.ss58_address),
             subtensor.substrate.compose_call(
                 call_module="SubtensorModule",
@@ -219,61 +217,57 @@ async def stake_add(
                     "netuid": netuid_i,
                     "amount_staked": amount_.rao,
                 },
+                block_hash=block_hash,
             ),
         )
         failure_prelude = (
             f":cross_mark: [red]Failed[/red] to stake {amount} on Netuid {netuid_i}"
         )
-        extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey, nonce=next_nonce, era={"period": era}
+        success_, err_msg, response = await subtensor.sign_and_send_extrinsic(
+            call=call,
+            wallet=wallet,
+            nonce=next_nonce,
+            era={"period": era},
+            proxy=proxy,
         )
-        try:
-            response = await subtensor.substrate.submit_extrinsic(
-                extrinsic, wait_for_inclusion=True, wait_for_finalization=False
-            )
-        except SubstrateRequestException as e:
-            err_msg = f"{failure_prelude} with error: {format_error_message(e)}"
+        if not success_:
+            err_msg = f"{failure_prelude} with error: {err_msg}"
             err_out("\n" + err_msg)
             return False, err_msg, None
         else:
-            if not await response.is_success:
-                err_msg = f"{failure_prelude} with error: {format_error_message(await response.error_message)}"
-                err_out("\n" + err_msg)
-                return False, err_msg, None
-            else:
-                if json_output:
-                    # the rest of this is not necessary if using json_output
-                    return True, "", response
-                await print_extrinsic_id(response)
-                new_block_hash = await subtensor.substrate.get_chain_head()
-                new_balance, new_stake = await asyncio.gather(
-                    subtensor.get_balance(
-                        wallet.coldkeypub.ss58_address, block_hash=new_block_hash
-                    ),
-                    subtensor.get_stake(
-                        hotkey_ss58=staking_address_ss58,
-                        coldkey_ss58=wallet.coldkeypub.ss58_address,
-                        netuid=netuid_i,
-                        block_hash=new_block_hash,
-                    ),
-                )
-                console.print(
-                    f":white_heavy_check_mark: "
-                    f"[dark_sea_green3]Finalized. Stake added to netuid: {netuid_i}[/dark_sea_green3]"
-                )
-                console.print(
-                    f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: "
-                    f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
-                )
-                console.print(
-                    f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
-                    f"{netuid_i}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] "
-                    f"Stake:\n"
-                    f"  [blue]{current}[/blue] "
-                    f":arrow_right: "
-                    f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}\n"
-                )
+            if json_output:
+                # the rest of this is not necessary if using json_output
                 return True, "", response
+            await print_extrinsic_id(response)
+            new_block_hash = await subtensor.substrate.get_chain_head()
+            new_balance, new_stake = await asyncio.gather(
+                subtensor.get_balance(
+                    wallet.coldkeypub.ss58_address, block_hash=new_block_hash
+                ),
+                subtensor.get_stake(
+                    hotkey_ss58=staking_address_ss58,
+                    coldkey_ss58=wallet.coldkeypub.ss58_address,
+                    netuid=netuid_i,
+                    block_hash=new_block_hash,
+                ),
+            )
+            console.print(
+                f":white_heavy_check_mark: "
+                f"[dark_sea_green3]Finalized. Stake added to netuid: {netuid_i}[/dark_sea_green3]"
+            )
+            console.print(
+                f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: "
+                f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
+            )
+            console.print(
+                f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
+                f"{netuid_i}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] "
+                f"Stake:\n"
+                f"  [blue]{current}[/blue] "
+                f":arrow_right: "
+                f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}\n"
+            )
+            return True, "", response
 
     netuids = (
         netuids if netuids is not None else await subtensor.get_all_subnet_netuids()

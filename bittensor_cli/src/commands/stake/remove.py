@@ -48,6 +48,7 @@ async def unstake(
     allow_partial_stake: bool,
     json_output: bool,
     era: int,
+    proxy: Optional[str],
 ):
     """Unstake from hotkey(s)."""
 
@@ -223,6 +224,7 @@ async def unstake(
                         netuid=netuid,
                         price_limit=price_limit,
                         allow_partial_stake=allow_partial_stake,
+                        proxy=proxy,
                     )
                 else:
                     extrinsic_fee = await _get_extrinsic_fee(
@@ -232,6 +234,7 @@ async def unstake(
                         hotkey_ss58=staking_address_ss58,
                         netuid=netuid,
                         amount=amount_to_unstake_as_balance,
+                        proxy=proxy,
                     )
                 sim_swap = await subtensor.sim_swap(
                     netuid, 0, amount_to_unstake_as_balance.rao
@@ -370,6 +373,7 @@ async def unstake_all(
     era: int = 3,
     prompt: bool = True,
     json_output: bool = False,
+    proxy: Optional[str] = None,
 ) -> None:
     """Unstakes all stakes from all hotkeys in all subnets."""
     include_hotkeys = include_hotkeys or []
@@ -431,10 +435,10 @@ async def unstake_all(
         )
         table = Table(
             title=(
-                f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]{table_title}[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n"
-                f"Wallet: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.name}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}], "
-                f"Coldkey ss58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
-                f"Network: [{COLOR_PALETTE['GENERAL']['HEADER']}]{subtensor.network}[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n"
+                f"\n[{COLOR_PALETTE.G.HEADER}]{table_title}[/{COLOR_PALETTE.G.HEADER}]\n"
+                f"Wallet: [{COLOR_PALETTE.G.COLDKEY}]{wallet.name}[/{COLOR_PALETTE.G.COLDKEY}], "
+                f"Coldkey ss58: [{COLOR_PALETTE.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE.G.CK}]\n"
+                f"Network: [{COLOR_PALETTE.G.HEADER}]{subtensor.network}[/{COLOR_PALETTE.G.HEADER}]\n"
             ),
             show_footer=True,
             show_edge=False,
@@ -500,6 +504,7 @@ async def unstake_all(
                     wallet,
                     subtensor,
                     hotkey_ss58=stake.hotkey_ss58,
+                    proxy=proxy,
                 )
                 sim_swap = await subtensor.sim_swap(stake.netuid, 0, stake_amount.rao)
                 received_amount = sim_swap.tao_amount - extrinsic_fee
@@ -546,6 +551,7 @@ async def unstake_all(
                 unstake_all_alpha=unstake_all_alpha,
                 status=status,
                 era=era,
+                proxy=proxy,
             )
             ext_id = await ext_receipt.get_extrinsic_identifier() if success else None
             successes[hotkey_ss58] = {
@@ -630,11 +636,11 @@ async def _unstake_extrinsic(
 
         console.print(":white_heavy_check_mark: [green]Finalized[/green]")
         console.print(
-            f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
+            f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: [{COLOR_PALETTE.S.AMOUNT}]{new_balance}"
         )
         console.print(
-            f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
-            f" Stake:\n  [blue]{current_stake}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}"
+            f"Subnet: [{COLOR_PALETTE.G.SUBHEAD}]{netuid}[/{COLOR_PALETTE.G.SUBHEAD}]"
+            f" Stake:\n  [blue]{current_stake}[/blue] :arrow_right: [{COLOR_PALETTE.S.AMOUNT}]{new_stake}"
         )
         return True, response
 
@@ -740,21 +746,21 @@ async def _safe_unstake_extrinsic(
 
     console.print(":white_heavy_check_mark: [green]Finalized[/green]")
     console.print(
-        f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
+        f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: [{COLOR_PALETTE.S.AMOUNT}]{new_balance}"
     )
 
     amount_unstaked = current_stake - new_stake
     if allow_partial_stake and (amount_unstaked != amount):
         console.print(
             "Partial unstake transaction. Unstaked:\n"
-            f"  [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{amount_unstaked.set_unit(netuid=netuid)}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] "
+            f"  [{COLOR_PALETTE.S.AMOUNT}]{amount_unstaked.set_unit(netuid=netuid)}[/{COLOR_PALETTE.S.AMOUNT}] "
             f"instead of "
             f"[blue]{amount}[/blue]"
         )
 
     console.print(
-        f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] "
-        f"Stake:\n  [blue]{current_stake}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}"
+        f"Subnet: [{COLOR_PALETTE.G.SUBHEAD}]{netuid}[/{COLOR_PALETTE.G.SUBHEAD}] "
+        f"Stake:\n  [blue]{current_stake}[/blue] :arrow_right: [{COLOR_PALETTE.S.AMOUNT}]{new_stake}"
     )
     return True, response
 
@@ -767,6 +773,7 @@ async def _unstake_all_extrinsic(
     unstake_all_alpha: bool,
     status=None,
     era: int = 3,
+    proxy: Optional[str] = None,
 ) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """Execute an unstake all extrinsic.
 
@@ -813,21 +820,16 @@ async def _unstake_all_extrinsic(
         call_function=call_function,
         call_params={"hotkey": hotkey_ss58},
     )
-
     try:
-        response = await subtensor.substrate.submit_extrinsic(
-            extrinsic=await subtensor.substrate.create_signed_extrinsic(
-                call=call, keypair=wallet.coldkey, era={"period": era}
-            ),
-            wait_for_inclusion=True,
-            wait_for_finalization=False,
+        success_, err_msg, response = await subtensor.sign_and_send_extrinsic(
+            call=call,
+            wallet=wallet,
+            era={"period": era},
+            proxy=proxy,
         )
 
-        if not await response.is_success:
-            err_out(
-                f"{failure_prelude} with error: "
-                f"{format_error_message(await response.error_message)}"
-            )
+        if not success_:
+            err_out(f"{failure_prelude} with error: {err_msg}")
             return False, None
         else:
             await print_extrinsic_id(response)
@@ -852,21 +854,18 @@ async def _unstake_all_extrinsic(
             )
             new_root_stake = None
 
-        success_message = (
-            ":white_heavy_check_mark: [green]Finalized: Successfully unstaked all stakes[/green]"
-            if not unstake_all_alpha
-            else ":white_heavy_check_mark: [green]Finalized: Successfully unstaked all Alpha stakes[/green]"
-        )
+        msg_modifier = "Alpha " if unstake_all_alpha else ""
+        success_message = f":white_heavy_check_mark: [green]Included: Successfully unstaked all {msg_modifier}stakes[/green]"
         console.print(f"{success_message} from {hotkey_name}")
         console.print(
-            f"Balance:\n [blue]{current_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
+            f"Balance:\n [blue]{current_balance}[/blue] :arrow_right: [{COLOR_PALETTE.S.AMOUNT}]{new_balance}"
         )
 
         if unstake_all_alpha:
             console.print(
                 f"Root Stake for {hotkey_name}:\n "
                 f"[blue]{previous_root_stake}[/blue] :arrow_right: "
-                f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_root_stake}"
+                f"[{COLOR_PALETTE.S.AMOUNT}]{new_root_stake}"
             )
         return True, response
 
@@ -884,6 +883,7 @@ async def _get_extrinsic_fee(
     amount: Optional[Balance] = None,
     price_limit: Optional[Balance] = None,
     allow_partial_stake: bool = False,
+    proxy: Optional[str] = None,
 ) -> Balance:
     """
     Retrieves the extrinsic fee for a given unstaking call.
@@ -929,7 +929,7 @@ async def _get_extrinsic_fee(
         call_function=call_fn,
         call_params=call_params,
     )
-    return await subtensor.get_extrinsic_fee(call, wallet.coldkeypub)
+    return await subtensor.get_extrinsic_fee(call, wallet.coldkeypub, proxy=proxy)
 
 
 # Helpers
@@ -1066,7 +1066,8 @@ async def _unstake_selection(
                     invalid_netuids = [n for n in netuid_list if n not in netuid_stakes]
                     if invalid_netuids:
                         print_error(
-                            f"The following netuids are invalid or not available: {', '.join(map(str, invalid_netuids))}. Please try again."
+                            f"The following netuids are invalid or not available: "
+                            f"{', '.join(map(str, invalid_netuids))}. Please try again."
                         )
                     else:
                         selected_netuids = netuid_list
@@ -1259,10 +1260,10 @@ def _create_unstake_table(
         Rich Table object configured for unstake summary
     """
     title = (
-        f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Unstaking to: \n"
-        f"Wallet: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet_name}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}], "
-        f"Coldkey ss58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet_coldkey_ss58}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
-        f"Network: {network}[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n"
+        f"\n[{COLOR_PALETTE.G.HEADER}]Unstaking to: \n"
+        f"Wallet: [{COLOR_PALETTE.G.CK}]{wallet_name}[/{COLOR_PALETTE.G.CK}], "
+        f"Coldkey ss58: [{COLOR_PALETTE.G.CK}]{wallet_coldkey_ss58}[/{COLOR_PALETTE.G.CK}]\n"
+        f"Network: {network}[/{COLOR_PALETTE.G.HEADER}]\n"
     )
     table = Table(
         title=title,
