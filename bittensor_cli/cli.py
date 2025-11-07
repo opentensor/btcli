@@ -4974,6 +4974,7 @@ class CLIManager:
             False, "--stake-all", "--all", help="Stake all", prompt=False
         ),
         period: int = Options.period,
+        proxy: Optional[str] = Options.proxy,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -5012,6 +5013,7 @@ class CLIManager:
         [green]$[/green] btcli stake transfer --all --origin-netuid 1 --dest-netuid 2
         """
         self.verbosity_handler(quiet, verbose, json_output)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         if prompt:
             if not Confirm.ask(
                 "This transaction will [bold]transfer ownership[/bold] from one coldkey to another, in subnets "
@@ -5106,6 +5108,7 @@ class CLIManager:
             f"amount: {amount}\n"
             f"era: {period}\n"
             f"stake_all: {stake_all}"
+            f"proxy: {proxy}"
         )
         result, ext_id = self._run_command(
             move_stake.transfer_stake(
@@ -5120,6 +5123,7 @@ class CLIManager:
                 interactive_selection=interactive_selection,
                 stake_all=stake_all,
                 prompt=prompt,
+                proxy=proxy,
             )
         )
         if json_output:
