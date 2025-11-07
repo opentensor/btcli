@@ -8117,10 +8117,10 @@ class CLIManager:
 
         [bold]Common Examples:[/bold]
         1. Create a pure proxy account
-        [green]$[/green] btcli proxy create --proxy-type any 
+        [green]$[/green] btcli proxy create --proxy-type Any 
 
         2. Create a delayed pure proxy account
-        [green]$[/green] btcli proxy create --proxy-type any --delay 1000
+        [green]$[/green] btcli proxy create --proxy-type Any --delay 1000
 
         """
         # TODO add debug logger
@@ -8172,8 +8172,7 @@ class CLIManager:
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
-        """
-       
+        """ 
         Registers an existing account as a standard proxy for the delegator. 
 
         Grants an existing account permission to execute transactions on your behalf with 
@@ -8302,12 +8301,15 @@ class CLIManager:
         json_output: bool = Options.json_output,
     ):
         """
-
         Permanently removes a pure proxy account.
 
-        Once killed, the pure proxy account is cleared from chain storage and cannot be recovered.
+        Once killed, the pure proxy account is cleared from chain storage and cannot be recovered. 
 
-        Requires the spawner account, proxy type, and creation block details.... TBC 
+        [bold]⚠️ WARNING[/bold]: Killing a pure proxy permanently removes access to the account, and any funds remaining in it are lost. 
+
+        EXAMPLE
+
+        [green]$[/green] btcli proxy kill --height 6345834 --index 3 --proxy-type Any --spawner 5x34SPAWN... --proxy 5CCProxy...
         """
         # TODO add debug logger
         self.verbosity_handler(quiet, verbose, json_output)
