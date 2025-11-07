@@ -5208,6 +5208,7 @@ class CLIManager:
             "--all",
             help="Swap all available stake",
         ),
+        proxy: Optional[str] = Options.proxy,
         period: int = Options.period,
         prompt: bool = Options.prompt,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
@@ -5237,6 +5238,7 @@ class CLIManager:
         [green]$[/green] btcli stake swap --wallet-name default --wallet-hotkey default --origin-netuid 1 --dest-netuid 2 --amount 100
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         console.print(
             "[dim]This command moves stake from one subnet to another subnet while keeping "
             "the same coldkey-hotkey pair.[/dim]"
@@ -5272,6 +5274,7 @@ class CLIManager:
             f"amount: {amount}\n"
             f"swap_all: {swap_all}\n"
             f"era: {period}\n"
+            f"proxy: {proxy}\n"
             f"interactive_selection: {interactive_selection}\n"
             f"prompt: {prompt}\n"
             f"wait_for_inclusion: {wait_for_inclusion}\n"
@@ -5288,6 +5291,7 @@ class CLIManager:
                 era=period,
                 interactive_selection=interactive_selection,
                 prompt=prompt,
+                proxy=proxy,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
             )

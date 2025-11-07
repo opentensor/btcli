@@ -802,6 +802,7 @@ async def swap_stake(
     amount: float,
     swap_all: bool = False,
     era: int = 3,
+    proxy: Optional[str] = None,
     interactive_selection: bool = False,
     prompt: bool = True,
     wait_for_inclusion: bool = True,
@@ -810,15 +811,18 @@ async def swap_stake(
     """Swaps stake between subnets while keeping the same coldkey-hotkey pair ownership.
 
     Args:
-        wallet (Wallet): The wallet to swap stake from.
-        subtensor (SubtensorInterface): Subtensor interface instance.
-        origin_netuid (int): The netuid from which stake is removed.
-        destination_netuid (int): The netuid to which stake is added.
-        amount (float): The amount to swap.
-        interactive_selection (bool): If true, prompts for selection of origin and destination subnets.
-        prompt (bool): If true, prompts for confirmation before executing swap.
-        wait_for_inclusion (bool): If true, waits for the transaction to be included in a block.
-        wait_for_finalization (bool): If true, waits for the transaction to be finalized.
+        wallet: The wallet to swap stake from.
+        subtensor: Subtensor interface instance.
+        origin_netuid: The netuid from which stake is removed.
+        destination_netuid: The netuid to which stake is added.
+        amount: The amount to swap.
+        swap_all: Whether to swap all stakes.
+        era: The period (number of blocks) that the extrinsic is valid for
+        proxy: Optional proxy to use for this extrinsic submission
+        interactive_selection: If true, prompts for selection of origin and destination subnets.
+        prompt: If true, prompts for confirmation before executing swap.
+        wait_for_inclusion: If true, waits for the transaction to be included in a block.
+        wait_for_finalization: If true, waits for the transaction to be finalized.
 
     Returns:
         (success, extrinsic_identifier):
@@ -892,7 +896,7 @@ async def swap_stake(
             destination_netuid=destination_netuid,
             amount=amount_to_swap.rao,
         ),
-        subtensor.get_extrinsic_fee(call, wallet.coldkeypub),
+        subtensor.get_extrinsic_fee(call, wallet.coldkeypub, proxy=proxy),
     )
 
     # Display stake movement details
@@ -924,48 +928,45 @@ async def swap_stake(
         f"\n:satellite: Swapping stake from netuid [blue]{origin_netuid}[/blue] "
         f"to netuid [blue]{destination_netuid}[/blue]..."
     ):
-        extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey, era={"period": era}
-        )
-
-        response = await subtensor.substrate.submit_extrinsic(
-            extrinsic,
-            wait_for_inclusion=wait_for_inclusion,
+        success_, err_msg, response = await subtensor.sign_and_send_extrinsic(
+            call=call,
+            wallet=wallet,
+            era={"period": era},
+            proxy=proxy,
             wait_for_finalization=wait_for_finalization,
+            wait_for_inclusion=wait_for_inclusion,
         )
-    ext_id = await response.get_extrinsic_identifier()
 
-    if not prompt:
-        console.print(":white_heavy_check_mark: [green]Sent[/green]")
-        return True, ext_id
+    if success_:
+        await print_extrinsic_id(response)
+        if not prompt:
+            console.print(":white_heavy_check_mark: [green]Sent[/green]")
+            return True, await response.get_extrinsic_identifier()
+        else:
+            # Get and display new stake balances
+            new_stake, new_dest_stake = await asyncio.gather(
+                subtensor.get_stake(
+                    coldkey_ss58=wallet.coldkeypub.ss58_address,
+                    hotkey_ss58=hotkey_ss58,
+                    netuid=origin_netuid,
+                ),
+                subtensor.get_stake(
+                    coldkey_ss58=wallet.coldkeypub.ss58_address,
+                    hotkey_ss58=hotkey_ss58,
+                    netuid=destination_netuid,
+                ),
+            )
 
-    if not await response.is_success:
-        err_console.print(
-            f":cross_mark: [red]Failed[/red] with error: "
-            f"{format_error_message(await response.error_message)}"
-        )
+            console.print(
+                f"Origin Stake:\n  [blue]{current_stake}[/blue] :arrow_right: "
+                f"[{COLOR_PALETTE.S.AMOUNT}]{new_stake}"
+            )
+            console.print(
+                f"Destination Stake:\n  [blue]{current_dest_stake}[/blue] :arrow_right: "
+                f"[{COLOR_PALETTE.S.AMOUNT}]{new_dest_stake}"
+            )
+            return True, ext_id
+
+    else:
+        err_console.print(f":cross_mark: [red]Failed[/red] with error: {err_msg}")
         return False, ""
-    await print_extrinsic_id(response)
-    # Get and display new stake balances
-    new_stake, new_dest_stake = await asyncio.gather(
-        subtensor.get_stake(
-            coldkey_ss58=wallet.coldkeypub.ss58_address,
-            hotkey_ss58=hotkey_ss58,
-            netuid=origin_netuid,
-        ),
-        subtensor.get_stake(
-            coldkey_ss58=wallet.coldkeypub.ss58_address,
-            hotkey_ss58=hotkey_ss58,
-            netuid=destination_netuid,
-        ),
-    )
-
-    console.print(
-        f"Origin Stake:\n  [blue]{current_stake}[/blue] :arrow_right: "
-        f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}"
-    )
-    console.print(
-        f"Destination Stake:\n  [blue]{current_dest_stake}[/blue] :arrow_right: "
-        f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_dest_stake}"
-    )
-    return True, ext_id
