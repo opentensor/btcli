@@ -311,9 +311,13 @@ async def kill_proxy(
     json_output: bool,
 ) -> None:
     if prompt:
-        if not Confirm.ask(
-            f"This will kill a Pure Proxy of type {proxy_type.value}. Do you want to proceed?",
-        ):
+        confirmation = Prompt.ask(
+            f"This will kill a Pure Proxy account of type {proxy_type.value}.\n"
+            f"[red]All access to this account will be lost. Any funds held in it will be inaccessible.[/red]"
+            f"To proceed, enter [red]KILL[/red]"
+        )
+        if confirmation != "KILL":
+            err_console.print("Invalid input. Exiting.")
             return None
     if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
         if not json_output:
