@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
-from rich.prompt import Confirm
+from rich.prompt import Confirm, Prompt
 from scalecodec import GenericCall
 
 from bittensor_cli.src.bittensor.utils import (
@@ -93,12 +93,34 @@ async def create_proxy(
     wait_for_finalization: bool,
     period: int,
     json_output: bool,
-) -> None:
+) -> tuple[bool, str, str, str]:
+    """
+
+    Args:
+        subtensor:
+        wallet:
+        proxy_type:
+        delay:
+        idx:
+        prompt:
+        wait_for_inclusion:
+        wait_for_finalization:
+        period:
+        json_output:
+
+    Returns:
+        tuple containing the following:
+            should_update: True if the address book should be updated, False otherwise
+            name: name of the new pure proxy for the address book
+            address: SS58 address of the new pure proxy
+            proxy_type: proxy type of the new pure proxy
+
+    """
     if prompt:
         if not Confirm.ask(
             f"This will create a Pure Proxy of type {proxy_type.value}. Do you want to proceed?",
         ):
-            return None
+            return False, "", "", ""
     if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
         if not json_output:
             err_console.print(ulw.message)
@@ -110,7 +132,7 @@ async def create_proxy(
                     "extrinsic_id": None,
                 }
             )
-        return None
+        return False, "", "", ""
     call = await subtensor.substrate.compose_call(
         call_module="Proxy",
         call_function="create_pure",
@@ -136,14 +158,20 @@ async def create_proxy(
                 created_proxy_type = attrs["proxy_type"]
         arg_start = "`" if json_output else "[blue]"
         arg_end = "`" if json_output else "[/blue]"
-        msg = (
-            f"Created pure '{created_pure}' from spawner '{created_spawner}' with proxy type '{created_proxy_type}'."
-            f" You can add this to your config with {arg_start}"
-            f"btcli config add-proxy "
-            f"--name <PROXY_NAME> --address {created_pure} --proxy-type {created_proxy_type}"
-            f"{arg_end}"
-        )
-        # TODO add to wallets somehow?
+        msg = f"Created pure '{created_pure}' from spawner '{created_spawner}' with proxy type '{created_proxy_type}'."
+        console.print(msg)
+        if not prompt:
+            console.print(
+                f" You can add this to your config with {arg_start}"
+                f"btcli config add-proxy "  # TODO change after changing to proxy app
+                f"--name <PROXY_NAME> --address {created_pure} --proxy-type {created_proxy_type}"
+                f"{arg_end}"
+            )
+        else:
+            if Confirm.ask("Would you like to add this to your address book?"):
+                proxy_name = Prompt.ask("Name this proxy:")
+                return True, proxy_name, created_pure, created_proxy_type
+
         if json_output:
             json_console.print_json(
                 data={
@@ -152,8 +180,6 @@ async def create_proxy(
                     "extrinsic_id": await receipt.get_extrinsic_identifier(),
                 }
             )
-        else:
-            console.print(f"Success! {msg}")  # TODO add more shit here
 
     else:
         if json_output:
@@ -166,6 +192,7 @@ async def create_proxy(
             )
         else:
             err_console.print(f"Failure: {msg}")  # TODO add more shit here
+    return False, "", "", ""
 
 
 async def remove_proxy(

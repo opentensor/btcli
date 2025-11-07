@@ -8297,7 +8297,7 @@ class CLIManager:
             f"prompt: {prompt}\n"
         )
 
-        return self._run_command(
+        should_update, proxy_name, created_pure, created_type = self._run_command(
             proxy_commands.create_proxy(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
@@ -8311,6 +8311,8 @@ class CLIManager:
                 period=period,
             )
         )
+        if should_update:
+            self.config_add_proxy(proxy_name, created_pure, created_type)
 
     def proxy_add(
         self,
