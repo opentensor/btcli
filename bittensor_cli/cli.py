@@ -5307,8 +5307,7 @@ class CLIManager:
         claim_type: Annotated[
             Optional[claim_stake.ClaimType],
             typer.Argument(
-                None,
-                help="Claim type: 'keep' or 'swap'. If omitted, user will be prompted.",
+                help="Claim type: 'Keep' or 'Swap'. If omitted, user will be prompted.",
             ),
         ] = None,
         wallet_name: Optional[str] = Options.wallet_name,

@@ -23,9 +23,9 @@ if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 
 
-class ClaimType(str, Enum):
-    keep = "Keep"
-    swap = "Swap"
+class ClaimType(Enum):
+    Keep = "Keep"
+    Swap = "Swap"
 
 
 async def set_claim_type(
