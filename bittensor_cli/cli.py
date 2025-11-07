@@ -1832,7 +1832,7 @@ class CLIManager:
             box=box.SIMPLE_HEAD,
             title=f"[{COLORS.G.HEADER}]BTCLI Config[/{COLORS.G.HEADER}]: {arg__(self.config_path)}",
         )
-
+        value: Optional[str]
         for key, value in self.config.items():
             if key == "network":
                 if value is None:
