@@ -1862,6 +1862,9 @@ class CLIManager:
             ),
         ],
     ):
+        """
+        Adds a new proxy to the address book.
+        """
         proxies = self.config.get("proxies", {})
         proxies[name] = {"proxy_type": proxy_type.value, "address": address}
         self.config["proxies"] = proxies
@@ -1870,6 +1873,9 @@ class CLIManager:
         self.config_get_proxies()
 
     def config_get_proxies(self):
+        """
+        Displays the current proxies address book
+        """
         proxies = self.config.get("proxies", {})
         table = Table(
             Column("[bold white]Name", style=f"{COLORS.G.ARG}"),
