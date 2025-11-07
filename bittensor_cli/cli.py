@@ -4430,6 +4430,7 @@ class CLIManager:
             help="When set, this command unstakes from all the hotkeys associated with the wallet. Do not use if specifying "
             "hotkeys in `--include-hotkeys`.",
         ),
+        proxy: Optional[str] = Options.proxy,
         rate_tolerance: Optional[float] = Options.rate_tolerance,
         safe_staking: Optional[bool] = Options.safe_staking,
         allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
@@ -4476,6 +4477,7 @@ class CLIManager:
         • [blue]--partial[/blue]: Complete partial unstake if rates exceed tolerance
         """
         self.verbosity_handler(quiet, verbose, json_output)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         if not unstake_all and not unstake_all_alpha:
             safe_staking = self.ask_safe_staking(safe_staking)
             if safe_staking:
@@ -4656,6 +4658,7 @@ class CLIManager:
                     prompt=prompt,
                     json_output=json_output,
                     era=period,
+                    proxy=proxy,
                 )
             )
         elif (
@@ -4728,6 +4731,7 @@ class CLIManager:
                 allow_partial_stake=allow_partial_stake,
                 json_output=json_output,
                 era=period,
+                proxy=proxy,
             )
         )
 
