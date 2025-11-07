@@ -1151,6 +1151,7 @@ class SubtensorInterface:
         wait_for_finalization: bool = False,
         era: Optional[dict[str, int]] = None,
         proxy: Optional[str] = None,
+        nonce: Optional[str] = None,
     ) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
         """
         Helper method to sign and submit an extrinsic call to chain.
@@ -1161,6 +1162,7 @@ class SubtensorInterface:
         :param wait_for_finalization: whether to wait until the extrinsic call is finalized on the chain
         :param era: The length (in blocks) for which a transaction should be valid.
         :param proxy: The real account used to create the proxy. None if not using a proxy for this call.
+        :param nonce: The nonce used to submit this extrinsic call.
 
         :return: (success, error message, extrinsic receipt | None)
         """
@@ -1170,9 +1172,10 @@ class SubtensorInterface:
                 "proxy",
                 {"real": proxy, "call": call, "force_proxy_type": None},
             )
-        call_args: dict[str, Union[GenericCall, Keypair, dict[str, int]]] = {
+        call_args: dict[str, Union[GenericCall, Keypair, dict[str, int], int]] = {
             "call": call,
             "keypair": wallet.coldkey,
+            "nonce": nonce,
         }
         if era is not None:
             call_args["era"] = era
@@ -1600,16 +1603,25 @@ class SubtensorInterface:
 
         return [decode_account_id(hotkey[0]) for hotkey in owned_hotkeys or []]
 
-    async def get_extrinsic_fee(self, call: GenericCall, keypair: Keypair) -> Balance:
+    async def get_extrinsic_fee(
+        self, call: GenericCall, keypair: Keypair, proxy: Optional[str] = None
+    ) -> Balance:
         """
         Determines the fee for the extrinsic call.
         Args:
             call: Created extrinsic call
             keypair: The keypair that would sign the extrinsic (usually you would just want to use the *pub for this)
+            proxy: Optional proxy for the extrinsic call
 
         Returns:
             Balance object representing the fee for this extrinsic.
         """
+        if proxy is not None:
+            call = await self.substrate.compose_call(
+                "Proxy",
+                "proxy",
+                {"real": proxy, "call": call, "force_proxy_type": None},
+            )
         fee_dict = await self.substrate.get_payment_info(call, keypair)
         return Balance.from_rao(fee_dict["partial_fee"])
 

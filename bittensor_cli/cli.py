@@ -391,7 +391,8 @@ class Options:
     proxy: Optional[str] = typer.Option(
         None,
         "--proxy",
-        help="Optional proxy to use for the transaction.",
+        help="Optional proxy to use for the transaction: either the SS58 or the name of the proxy if you "
+        f"have added it with {arg__('btcli config add-proxy')}.",
     )
 
 
@@ -3035,6 +3036,7 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey_ss58,
         network: Optional[list[str]] = Options.network,
+        proxy: Optional[str] = Options.proxy,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3052,6 +3054,7 @@ class CLIManager:
         [green]$[/green] btcli wallet associate-hotkey --hotkey-ss58 5DkQ4...
         """
         self.verbosity_handler(quiet, verbose)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         if not wallet_name:
             wallet_name = Prompt.ask(
                 "Enter the [blue]wallet name[/blue] [dim](which you want to associate with the hotkey)[/dim]",
@@ -3103,6 +3106,7 @@ class CLIManager:
                 hotkey_ss58,
                 hotkey_display,
                 prompt,
+                proxy=proxy,
             )
         )
 
@@ -3527,6 +3531,7 @@ class CLIManager:
             "--github",
             help="The GitHub repository for the identity.",
         ),
+        proxy: Optional[str] = Options.proxy,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         prompt: bool = Options.prompt,
@@ -3550,6 +3555,7 @@ class CLIManager:
         [bold]Note[/bold]: This command should only be used if the user is willing to incur the a recycle fee associated with setting an identity on the blockchain. It is a high-level command that makes changes to the blockchain state and should not be used programmatically as part of other scripts or applications.
         """
         self.verbosity_handler(quiet, verbose, json_output)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -3589,17 +3595,17 @@ class CLIManager:
 
         return self._run_command(
             wallets.set_id(
-                wallet,
-                self.initialize_chain(network),
-                identity["name"],
-                identity["url"],
-                identity["image"],
-                identity["discord"],
-                identity["description"],
-                identity["additional"],
-                identity["github_repo"],
-                prompt,
-                json_output,
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                name=identity["name"],
+                web_url=identity["url"],
+                image_url=identity["image"],
+                discord=identity["discord"],
+                description=identity["description"],
+                additional=identity["additional"],
+                github_repo=identity["github_repo"],
+                json_output=json_output,
+                proxy=proxy,
             )
         )
 
@@ -3666,7 +3672,11 @@ class CLIManager:
             coldkey_ss58 = wallet.coldkeypub.ss58_address
 
         return self._run_command(
-            wallets.get_id(self.initialize_chain(network), coldkey_ss58, json_output)
+            wallets.get_id(
+                subtensor=self.initialize_chain(network),
+                ss58_address=coldkey_ss58,
+                json_output=json_output,
+            )
         )
 
     def wallet_sign(
@@ -3786,6 +3796,7 @@ class CLIManager:
             help="SS58 address of the new coldkey that will replace the current one.",
         ),
         network: Optional[list[str]] = Options.network,
+        proxy: Optional[str] = Options.proxy,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         force_swap: bool = typer.Option(
@@ -3808,6 +3819,7 @@ class CLIManager:
         [green]$[/green] btcli wallet schedule-coldkey-swap --new-coldkey-ss58 5Dk...X3q
         """
         self.verbosity_handler(quiet, verbose)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
 
         if not wallet_name:
             wallet_name = Prompt.ask(
@@ -3859,6 +3871,7 @@ class CLIManager:
                 subtensor=self.initialize_chain(network),
                 new_coldkey_ss58=new_wallet_coldkey_ss58,
                 force_swap=force_swap,
+                proxy=proxy,
             )
         )
 
@@ -3923,6 +3936,7 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         netuid: Optional[int] = Options.netuid_not_req,
+        proxy: Optional[str] = Options.proxy,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         prompt: bool = Options.prompt,
@@ -3933,6 +3947,7 @@ class CLIManager:
         """Set the auto-stake destination hotkey for a coldkey."""
 
         self.verbosity_handler(quiet, verbose, json_output)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
 
         wallet = self.wallet_ask(
             wallet_name,
@@ -3985,6 +4000,7 @@ class CLIManager:
                 self.initialize_chain(network),
                 netuid,
                 hotkey_ss58,
+                proxy=proxy,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 prompt_user=prompt,
@@ -4113,6 +4129,7 @@ class CLIManager:
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
+        proxy: Optional[str] = Options.proxy,
         network: Optional[list[str]] = Options.network,
         rate_tolerance: Optional[float] = Options.rate_tolerance,
         safe_staking: Optional[bool] = Options.safe_staking,
@@ -4159,6 +4176,7 @@ class CLIManager:
         """
         netuids = netuids or []
         self.verbosity_handler(quiet, verbose, json_output)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         safe_staking = self.ask_safe_staking(safe_staking)
         if safe_staking:
             rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
@@ -4349,20 +4367,21 @@ class CLIManager:
         )
         return self._run_command(
             add_stake.stake_add(
-                wallet,
-                self.initialize_chain(network),
-                netuids,
-                stake_all,
-                amount,
-                prompt,
-                all_hotkeys,
-                include_hotkeys,
-                exclude_hotkeys,
-                safe_staking,
-                rate_tolerance,
-                allow_partial_stake,
-                json_output,
-                period,
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                netuids=netuids,
+                stake_all=stake_all,
+                amount=amount,
+                prompt=prompt,
+                all_hotkeys=all_hotkeys,
+                include_hotkeys=include_hotkeys,
+                exclude_hotkeys=exclude_hotkeys,
+                safe_staking=safe_staking,
+                rate_tolerance=rate_tolerance,
+                allow_partial_stake=allow_partial_stake,
+                json_output=json_output,
+                era=period,
+                proxy=proxy,
             )
         )
 
