@@ -53,6 +53,7 @@ async def register_subnetwork_extrinsic(
     subtensor: "SubtensorInterface",
     wallet: Wallet,
     subnet_identity: dict,
+    proxy: Optional[str],
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = True,
     prompt: bool = False,
@@ -75,6 +76,7 @@ async def register_subnetwork_extrinsic(
         extrinsic_identifier: Optional extrinsic identifier, if the extrinsic was included.
     """
 
+    # TODO why doesn't this have an era?
     async def _find_event_attributes_in_extrinsic_receipt(
         response_, event_name: str
     ) -> list:
@@ -102,9 +104,9 @@ async def register_subnetwork_extrinsic(
     sn_burn_cost = await burn_cost(subtensor)
     if sn_burn_cost > your_balance:
         err_console.print(
-            f"Your balance of: [{COLOR_PALETTE['POOLS']['TAO']}]{your_balance}[{COLOR_PALETTE['POOLS']['TAO']}]"
+            f"Your balance of: [{COLOR_PALETTE.POOLS.TAO}]{your_balance}[{COLOR_PALETTE.POOLS.TAO}]"
             f" is not enough to burn "
-            f"[{COLOR_PALETTE['POOLS']['TAO']}]{sn_burn_cost}[{COLOR_PALETTE['POOLS']['TAO']}] "
+            f"[{COLOR_PALETTE.POOLS.TAO}]{sn_burn_cost}[{COLOR_PALETTE.POOLS.TAO}] "
             f"to register a subnet."
         )
         return False, None, None
@@ -174,24 +176,20 @@ async def register_subnetwork_extrinsic(
             call_function=call_function,
             call_params=call_params,
         )
-        extrinsic = await substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey
-        )
-        response = await substrate.submit_extrinsic(
-            extrinsic,
+        success, err_msg, response = await subtensor.sign_and_send_extrinsic(
+            call=call,
+            wallet=wallet,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
+            proxy=proxy,
         )
 
         # We only wait here if we expect finalization.
         if not wait_for_finalization and not wait_for_inclusion:
             return True, None, None
 
-        if not await response.is_success:
-            err_console.print(
-                f":cross_mark: [red]Failed[/red]: {format_error_message(await response.error_message)}"
-            )
-            await asyncio.sleep(0.5)
+        if not success:
+            err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
             return False, None, None
 
         # Successful registration, final check for membership
@@ -1620,6 +1618,7 @@ async def create(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
     subnet_identity: dict,
+    proxy: Optional[str],
     json_output: bool,
     prompt: bool,
 ):
@@ -1627,7 +1626,11 @@ async def create(
 
     # Call register command.
     success, netuid, ext_id = await register_subnetwork_extrinsic(
-        subtensor, wallet, subnet_identity, prompt=prompt
+        subtensor=subtensor,
+        wallet=wallet,
+        subnet_identity=subnet_identity,
+        prompt=prompt,
+        proxy=proxy,
     )
     if json_output:
         # technically, netuid can be `None`, but only if not wait for finalization/inclusion. However, as of present
@@ -1668,16 +1671,16 @@ async def create(
             )
 
             await set_id(
-                wallet,
-                subtensor,
-                identity["name"],
-                identity["url"],
-                identity["image"],
-                identity["discord"],
-                identity["description"],
-                identity["additional"],
-                identity["github_repo"],
-                prompt,
+                wallet=wallet,
+                subtensor=subtensor,
+                name=identity["name"],
+                web_url=identity["url"],
+                image_url=identity["image"],
+                discord=identity["discord"],
+                description=identity["description"],
+                additional=identity["additional"],
+                github_repo=identity["github_repo"],
+                proxy=proxy,
             )
 
 
@@ -2362,6 +2365,7 @@ async def set_identity(
     netuid: int,
     subnet_identity: dict,
     prompt: bool = False,
+    proxy: Optional[str] = None,
 ) -> tuple[bool, Optional[str]]:
     """Set identity information for a subnet"""
 
@@ -2422,7 +2426,7 @@ async def set_identity(
         spinner="earth",
     ):
         success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
-            call, wallet
+            call, wallet, proxy=proxy
         )
 
         if not success:
@@ -2565,6 +2569,7 @@ async def start_subnet(
     wallet: "Wallet",
     subtensor: "SubtensorInterface",
     netuid: int,
+    proxy: Optional[str],
     prompt: bool = False,
 ) -> bool:
     """Start a subnet's emission schedule"""
@@ -2578,6 +2583,7 @@ async def start_subnet(
         storage_function="SubnetOwner",
         params=[netuid],
     )
+    # TODO should this check against proxy as well?
     if subnet_owner != wallet.coldkeypub.ss58_address:
         print_error(":cross_mark: This wallet doesn't own the specified subnet.")
         return False
@@ -2599,26 +2605,21 @@ async def start_subnet(
             call_function="start_call",
             call_params={"netuid": netuid},
         )
-
-        signed_ext = await subtensor.substrate.create_signed_extrinsic(
+        success, error_msg, response = await subtensor.sign_and_send_extrinsic(
             call=start_call,
-            keypair=wallet.coldkey,
-        )
-
-        response = await subtensor.substrate.submit_extrinsic(
-            extrinsic=signed_ext,
+            wallet=wallet,
             wait_for_inclusion=True,
             wait_for_finalization=True,
+            proxy=proxy,
         )
 
-        if await response.is_success:
+        if success:
             await print_extrinsic_id(response)
             console.print(
                 f":white_heavy_check_mark: [green]Successfully started subnet {netuid}'s emission schedule.[/green]"
             )
             return True
         else:
-            error_msg = format_error_message(await response.error_message)
             if "FirstEmissionBlockNumberAlreadySet" in error_msg:
                 console.print(
                     f"[dark_sea_green3]Subnet {netuid} already has an emission schedule.[/dark_sea_green3]"

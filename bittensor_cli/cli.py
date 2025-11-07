@@ -5647,6 +5647,7 @@ class CLIManager:
             "--mech-count",
             help="Number of mechanisms to set for the subnet.",
         ),
+        proxy: Optional[str] = Options.proxy,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
         prompt: bool = Options.prompt,
@@ -5668,7 +5669,7 @@ class CLIManager:
         [green]$[/green] btcli subnet mech set --netuid 12 --count 2 --wallet.name my_wallet --wallet.hotkey admin
 
         """
-
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         self.verbosity_handler(quiet, verbose, json_output, prompt)
         subtensor = self.initialize_chain(network)
 
@@ -5729,6 +5730,7 @@ class CLIManager:
             f"network: {network}\n"
             f"netuid: {netuid}\n"
             f"mechanism_count: {mechanism_count}\n"
+            f"proxy: {proxy}\n"
         )
 
         result, err_msg, ext_id = self._run_command(
@@ -5737,6 +5739,7 @@ class CLIManager:
                 subtensor=subtensor,
                 netuid=netuid,
                 mechanism_count=mechanism_count,
+                proxy=proxy,
                 previous_count=current_count or 0,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
@@ -5794,6 +5797,7 @@ class CLIManager:
             "--split",
             help="Comma-separated relative weights for each mechanism (normalised automatically).",
         ),
+        proxy: Optional[str] = Options.proxy,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
         prompt: bool = Options.prompt,
@@ -5816,7 +5820,7 @@ class CLIManager:
         2. Apply a 70/30 distribution in one command:
         [green]$[/green] btcli subnet mech emissions-split --netuid 12 --split 70,30 --wallet.name my_wallet --wallet.hotkey admin
         """
-
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         self.verbosity_handler(quiet, verbose, json_output, prompt)
         subtensor = self.initialize_chain(network)
         wallet = self.wallet_ask(
@@ -5831,6 +5835,7 @@ class CLIManager:
                 subtensor=subtensor,
                 wallet=wallet,
                 netuid=netuid,
+                proxy=proxy,
                 new_emission_split=split,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
@@ -5879,6 +5884,7 @@ class CLIManager:
         param_value: Optional[str] = typer.Option(
             "", "--value", help="Value to set the hyperparameter to."
         ),
+        proxy: Optional[str] = Options.proxy,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -5894,6 +5900,7 @@ class CLIManager:
         [green]$[/green] btcli sudo set --netuid 1 --param tempo --value 400
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
 
         if not param_name or not param_value:
             hyperparams = self._run_command(
@@ -5901,6 +5908,7 @@ class CLIManager:
                 exit_early=False,
             )
             if not hyperparams:
+                # TODO this will cause a hanging connection, subtensor needs to be gracefully exited
                 raise typer.Exit()
 
         if not param_name:
@@ -5982,18 +5990,20 @@ class CLIManager:
             "args:\n"
             f"network: {network}\n"
             f"netuid: {netuid}\n"
+            f"proxy: {proxy}\n"
             f"param_name: {param_name}\n"
             f"param_value: {param_value}"
         )
         result, err_msg, ext_id = self._run_command(
             sudo.sudo_set_hyperparameter(
-                wallet,
-                self.initialize_chain(network),
-                netuid,
-                param_name,
-                param_value,
-                prompt,
-                json_output,
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                netuid=netuid,
+                proxy=proxy,
+                param_name=param_name,
+                param_value=param_value,
+                prompt=prompt,
+                json_output=json_output,
             )
         )
         if json_output:
@@ -6083,6 +6093,7 @@ class CLIManager:
             prompt="Enter the proposal hash",
             help="The hash of the proposal to vote on.",
         ),
+        proxy: Optional[str] = Options.proxy,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -6105,6 +6116,7 @@ class CLIManager:
         [green]$[/green] btcli sudo senate_vote --proposal <proposal_hash>
         """
         # TODO discuss whether this should receive json_output. I don't think it should.
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         self.verbosity_handler(quiet, verbose, json_output=False, prompt=False)
         wallet = self.wallet_ask(
             wallet_name,
@@ -6116,7 +6128,12 @@ class CLIManager:
         logger.debug(f"args:\nnetwork: {network}\nproposal: {proposal}\nvote: {vote}\n")
         return self._run_command(
             sudo.senate_vote(
-                wallet, self.initialize_chain(network), proposal, vote, prompt
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                proxy=proxy,
+                proposal_hash=proposal,
+                vote=vote,
+                prompt=prompt,
             )
         )
 
@@ -6126,6 +6143,7 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        proxy: Optional[str] = Options.proxy,
         take: float = typer.Option(None, help="The new take value."),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -6143,6 +6161,7 @@ class CLIManager:
         max_value = 0.18
         min_value = 0.00
         self.verbosity_handler(quiet, verbose, json_output, prompt=False)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
 
         wallet = self.wallet_ask(
             wallet_name,
@@ -6153,6 +6172,7 @@ class CLIManager:
         )
 
         self._run_command(
+            # TODO does this need to take the proxy account?
             sudo.display_current_take(self.initialize_chain(network), wallet),
             exit_early=False,
         )
@@ -6168,7 +6188,12 @@ class CLIManager:
             raise typer.Exit()
         logger.debug(f"args:\nnetwork: {network}\ntake: {take}")
         result, ext_id = self._run_command(
-            sudo.set_take(wallet, self.initialize_chain(network), take)
+            sudo.set_take(
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                take=take,
+                proxy=proxy,
+            )
         )
         if json_output:
             json_console.print(
@@ -6220,6 +6245,7 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         netuid: int = Options.netuid,
+        proxy: Optional[str] = Options.proxy,
         max_uids: int = typer.Option(
             None,
             "--max",
@@ -6240,6 +6266,7 @@ class CLIManager:
         [green]$[/green] btcli sudo trim --netuid 95 --wallet-name my_wallet --wallet-hotkey my_hotkey --max 64
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
 
         wallet = self.wallet_ask(
             wallet_name,
@@ -6255,6 +6282,7 @@ class CLIManager:
                 netuid=netuid,
                 max_n=max_uids,
                 period=period,
+                proxy=proxy,
                 json_output=json_output,
                 prompt=prompt,
             )
@@ -6516,6 +6544,7 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
+        proxy: Optional[str] = Options.proxy,
         subnet_name: Optional[str] = typer.Option(
             None, "--subnet-name", help="Name of the subnet"
         ),
@@ -6562,6 +6591,7 @@ class CLIManager:
         [green]$[/green] btcli subnets create --subnet-name MySubnet --github-repo https://github.com/myorg/mysubnet --subnet-contact team@mysubnet.net
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -6584,10 +6614,17 @@ class CLIManager:
             logo_url=logo_url,
             additional=additional_info,
         )
-        logger.debug(f"args:\nnetwork: {network}\nidentity: {identity}\n")
+        logger.debug(
+            f"args:\nnetwork: {network}\nidentity: {identity}\nproxy: {proxy}\n"
+        )
         self._run_command(
             subnets.create(
-                wallet, self.initialize_chain(network), identity, json_output, prompt
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                subnet_identity=identity,
+                proxy=proxy,
+                json_output=json_output,
+                prompt=prompt,
             )
         )
 
@@ -6617,6 +6654,7 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
+        proxy: Optional[str] = Options.proxy,
         netuid: int = Options.netuid,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
@@ -6632,6 +6670,7 @@ class CLIManager:
         [green]$[/green] btcli subnets start --netuid 1 --wallet-name alice
         """
         self.verbosity_handler(quiet, verbose, json_output=False, prompt=prompt)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         if not wallet_name:
             wallet_name = Prompt.ask(
                 "Enter the [blue]wallet name[/blue] [dim](which you used to create the subnet)[/dim]",
@@ -6646,13 +6685,14 @@ class CLIManager:
             ],
             validate=WV.WALLET,
         )
-        logger.debug(f"args:\nnetwork: {network}\nnetuid: {netuid}\n")
+        logger.debug(f"args:\nnetwork: {network}\nnetuid: {netuid}\nproxy: {proxy}\n")
         return self._run_command(
             subnets.start_subnet(
-                wallet,
-                self.initialize_chain(network),
-                netuid,
-                prompt,
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                netuid=netuid,
+                proxy=proxy,
+                prompt=prompt,
             )
         )
 
@@ -6685,6 +6725,7 @@ class CLIManager:
         wallet_hotkey: str = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
         netuid: int = Options.netuid,
+        proxy: Optional[str] = Options.proxy,
         subnet_name: Optional[str] = typer.Option(
             None, "--subnet-name", "--sn-name", help="Name of the subnet"
         ),
@@ -6730,6 +6771,7 @@ class CLIManager:
         [green]$[/green] btcli subnets set-identity --netuid 1 --subnet-name MySubnet --github-repo https://github.com/myorg/mysubnet --subnet-contact team@mysubnet.net
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -6763,11 +6805,16 @@ class CLIManager:
             additional=additional_info,
         )
         logger.debug(
-            f"args:\nnetwork: {network}\nnetuid: {netuid}\nidentity: {identity}"
+            f"args:\nnetwork: {network}\nnetuid: {netuid}\nidentity: {identity}\nproxy: {proxy}\n"
         )
         success, ext_id = self._run_command(
             subnets.set_identity(
-                wallet, self.initialize_chain(network), netuid, identity, prompt
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                netuid=netuid,
+                subnet_identity=identity,
+                prompt=prompt,
+                proxy=proxy,
             )
         )
         if json_output:
