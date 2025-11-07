@@ -8180,10 +8180,10 @@ class CLIManager:
 
         [bold]Common Examples:[/bold]
         1. Create a standard proxy account
-        [green]$[/green] btcli proxy add --delegate 5GDeleg... --proxy-type small-transfer 
+        [green]$[/green] btcli proxy add --delegate 5GDeleg... --proxy-type SmallTransfer
 
         2. Create a delayed standard proxy account
-        [green]$[/green] btcli proxy add --delegate 5GDeleg... --proxy-type transfer --delay 500
+        [green]$[/green] btcli proxy add --delegate 5GDeleg... --proxy-type Transfer --delay 500
 
         """
         # TODO add debug logger
@@ -8244,7 +8244,7 @@ class CLIManager:
 
         [bold]Common Examples:[/bold]
         1. Revoke proxy permissions from a single proxy account 
-        [green]$[/green] btcli proxy remove --delegate 5GDel... --proxy-type transfer
+        [green]$[/green] btcli proxy remove --delegate 5GDel... --proxy-type Transfer
 
         2. Remove all proxies linked to an account
         [green]$[/green] btcli proxy remove --all
