@@ -8257,7 +8257,17 @@ class CLIManager:
 
         Creates a pure proxy
         """
-        # TODO add debug logger
+        logger.debug(
+            "args:\n"
+            f"network: {network}\n"
+            f"proxy_type: {proxy_type}\n"
+            f"delay: {delay}\n"
+            f"idx: {idx}\n"
+            f"wait_for_inclusion: {wait_for_inclusion}\n"
+            f"wait_for_finalization: {wait_for_finalization}\n"
+            f"era: {period}\n"
+            f"prompt: {prompt}\n"
+        )
         self.verbosity_handler(quiet, verbose, json_output)
         wallet = self.wallet_ask(
             wallet_name=wallet_name,
@@ -8310,7 +8320,17 @@ class CLIManager:
         Adds a proxy
 
         """
-        # TODO add debug logger
+        logger.debug(
+            "args:\n"
+            f"network: {network}\n"
+            f"delegate: {delegate}\n"
+            f"proxy_type: {proxy_type}\n"
+            f"delay: {delay}\n"
+            f"prompt: {prompt}\n"
+            f"wait_for_finalization: {wait_for_finalization}\n"
+            f"wait_for_inclusion: {wait_for_inclusion}\n"
+            f"era: {period}\n"
+        )
         self.verbosity_handler(quiet, verbose, json_output)
         wallet = self.wallet_ask(
             wallet_name=wallet_name,
@@ -8362,7 +8382,16 @@ class CLIManager:
         Removes a proxy
         """
         # TODO should add a --all flag to call Proxy.remove_proxies ?
-        # TODO add debug logger
+        logger.debug(
+            "args:\n"
+            f"delegate: {delegate}\n"
+            f"network: {network}\n"
+            f"proxy_type: {proxy_type}\n"
+            f"delay: {delay}\n"
+            f"wait_for_finalization: {wait_for_finalization}\n"
+            f"wait_for_inclusion: {wait_for_inclusion}\n"
+            f"era: {period}\n"
+        )
         self.verbosity_handler(quiet, verbose, json_output)
         wallet = self.wallet_ask(
             wallet_name=wallet_name,
@@ -8423,7 +8452,19 @@ class CLIManager:
 
         Kills a pure proxy
         """
-        # TODO add debug logger
+        logger.debug(
+            "args:\n"
+            f"height: {height}\n"
+            f"ext_index: {ext_index}\n"
+            f"proxy_type: {proxy_type}\n"
+            f"spawner: {spawner}\n"
+            f"proxy: {proxy}\n"
+            f"network: {network}\n"
+            f"idx: {idx}\n"
+            f"wait_for_inclusion: {wait_for_inclusion}\n"
+            f"wait_for_finalization: {wait_for_finalization}\n"
+            f"era: {period}\n"
+        )
         self.verbosity_handler(quiet, verbose, json_output)
         proxy = self.is_valid_proxy_name_or_ss58(proxy)
         wallet = self.wallet_ask(
