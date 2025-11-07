@@ -1,7 +1,7 @@
 import asyncio
 import os
 import time
-from typing import Optional, Any, Union, TypedDict, Iterable
+from typing import Optional, Any, Union, TypedDict, Iterable, Literal
 
 from async_substrate_interface import AsyncExtrinsicReceipt
 from async_substrate_interface.async_substrate import (
@@ -1152,6 +1152,7 @@ class SubtensorInterface:
         era: Optional[dict[str, int]] = None,
         proxy: Optional[str] = None,
         nonce: Optional[str] = None,
+        sign_with: Literal["coldkey", "hotkey", "coldkeypub"] = "coldkey",
     ) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
         """
         Helper method to sign and submit an extrinsic call to chain.
@@ -1163,6 +1164,7 @@ class SubtensorInterface:
         :param era: The length (in blocks) for which a transaction should be valid.
         :param proxy: The real account used to create the proxy. None if not using a proxy for this call.
         :param nonce: The nonce used to submit this extrinsic call.
+        :param sign_with: Determine which of the wallet's keypairs to use to sign the extrinsic call.
 
         :return: (success, error message, extrinsic receipt | None)
         """
@@ -1174,7 +1176,7 @@ class SubtensorInterface:
             )
         call_args: dict[str, Union[GenericCall, Keypair, dict[str, int], int]] = {
             "call": call,
-            "keypair": wallet.coldkey,
+            "keypair": getattr(wallet, sign_with),
             "nonce": nonce,
         }
         if era is not None:

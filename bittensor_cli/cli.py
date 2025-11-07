@@ -6953,7 +6953,9 @@ class CLIManager:
             ask_for=[WO.NAME, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
-        logger.debug(f"args:\nnetwork: {network}\nnetuid: {netuid}\nperiod: {period}\n")
+        logger.debug(
+            f"args:\nnetwork: {network}\nnetuid: {netuid}\nperiod: {period}\nproxy: {proxy}\n"
+        )
         return self._run_command(
             subnets.register(
                 wallet=wallet,
@@ -7074,6 +7076,8 @@ class CLIManager:
         wallet_hotkey: str = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
         netuid: int = Options.netuid,
+        proxy: Optional[str] = Options.proxy,
+        period: int = Options.period,
         json_output: bool = Options.json_output,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
@@ -7095,6 +7099,7 @@ class CLIManager:
         [#AFEFFF]{success: [dark_orange]bool[/dark_orange], message: [dark_orange]str[/dark_orange]}[/#AFEFFF]
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         if len(symbol) > 1:
             err_console.print("Your symbol must be a single character.")
             return False
@@ -7105,12 +7110,21 @@ class CLIManager:
             ask_for=[WO.NAME, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
+        logger.debug(
+            "args:\n"
+            f"network: {network}\n"
+            f"netuid: {netuid}\n"
+            f"proxy: {proxy}\n"
+            f"symbol: {symbol}\n"
+        )
         return self._run_command(
             subnets.set_symbol(
                 wallet=wallet,
                 subtensor=self.initialize_chain(network),
                 netuid=netuid,
                 symbol=symbol,
+                proxy=proxy,
+                period=period,
                 prompt=prompt,
                 json_output=json_output,
             )
@@ -7123,6 +7137,7 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         netuid: int = Options.netuid,
+        proxy: Optional[str] = Options.proxy,
         uids: str = typer.Option(
             None,
             "--uids",
@@ -7151,11 +7166,7 @@ class CLIManager:
         [green]$[/green] btcli wt reveal --netuid 1 --uids 1,2,3,4 --weights 0.1,0.2,0.3,0.4 --salt 163,241,217,11,161,142,147,189
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
-        # TODO think we need to ','.split uids and weights ?
-        uids = list_prompt(uids, int, "UIDs of interest for the specified netuid")
-        weights = list_prompt(
-            weights, float, "Corresponding weights for the specified UIDs"
-        )
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         if uids:
             uids = parse_to_list(
                 uids,
@@ -7164,7 +7175,7 @@ class CLIManager:
             )
         else:
             uids = list_prompt(
-                uids, int, "Corresponding UIDs for the specified netuid (eg: 1,2,3)"
+                [], int, "Corresponding UIDs for the specified netuid (eg: 1,2,3)"
             )
 
         if weights:
@@ -7175,7 +7186,7 @@ class CLIManager:
             )
         else:
             weights = list_prompt(
-                weights,
+                [],
                 float,
                 "Corresponding weights for the specified UIDs (eg: 0.2,0.3,0.4)",
             )
@@ -7193,7 +7204,7 @@ class CLIManager:
                 "Salt must be a comma-separated list of ints, e.g., `--weights 123,163,194`.",
             )
         else:
-            salt = list_prompt(salt, int, "Corresponding salt for the hash function")
+            salt = list_prompt([], int, "Corresponding salt for the hash function")
 
         wallet = self.wallet_ask(
             wallet_name,
@@ -7204,13 +7215,14 @@ class CLIManager:
         )
         return self._run_command(
             weights_cmds.reveal_weights(
-                self.initialize_chain(network),
-                wallet,
-                netuid,
-                uids,
-                weights,
-                salt,
-                __version_as_int__,
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                netuid=netuid,
+                proxy=proxy,
+                uids=uids,
+                weights=weights,
+                salt=salt,
+                version=__version_as_int__,
                 prompt=prompt,
                 json_output=json_output,
             )
@@ -7223,6 +7235,7 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         netuid: int = Options.netuid,
+        proxy: Optional[str] = Options.proxy,
         uids: str = typer.Option(
             None,
             "--uids",
@@ -7255,7 +7268,7 @@ class CLIManager:
         permissions.
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
-
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         if uids:
             uids = parse_to_list(
                 uids,
@@ -7264,7 +7277,7 @@ class CLIManager:
             )
         else:
             uids = list_prompt(
-                uids, int, "UIDs of interest for the specified netuid (eg: 1,2,3)"
+                [], int, "UIDs of interest for the specified netuid (eg: 1,2,3)"
             )
 
         if weights:
@@ -7275,7 +7288,7 @@ class CLIManager:
             )
         else:
             weights = list_prompt(
-                weights,
+                [],
                 float,
                 "Corresponding weights for the specified UIDs (eg: 0.2,0.3,0.4)",
             )
@@ -7292,7 +7305,7 @@ class CLIManager:
                 "Salt must be a comma-separated list of ints, e.g., `--weights 123,163,194`.",
             )
         else:
-            salt = list_prompt(salt, int, "Corresponding salt for the hash function")
+            salt = list_prompt([], int, "Corresponding salt for the hash function")
 
         wallet = self.wallet_ask(
             wallet_name,
@@ -7303,13 +7316,14 @@ class CLIManager:
         )
         return self._run_command(
             weights_cmds.commit_weights(
-                self.initialize_chain(network),
-                wallet,
-                netuid,
-                uids,
-                weights,
-                salt,
-                __version_as_int__,
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                netuid=netuid,
+                uids=uids,
+                proxy=proxy,
+                weights=weights,
+                salt=salt,
+                version=__version_as_int__,
                 json_output=json_output,
                 prompt=prompt,
             )

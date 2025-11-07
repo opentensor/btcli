@@ -2636,6 +2636,8 @@ async def set_symbol(
     subtensor: "SubtensorInterface",
     netuid: int,
     symbol: str,
+    proxy: Optional[str],
+    period: int,
     prompt: bool = False,
     json_output: bool = False,
 ) -> bool:
@@ -2676,16 +2678,11 @@ async def set_symbol(
         call_params={"netuid": netuid, "symbol": symbol.encode("utf-8")},
     )
 
-    signed_ext = await subtensor.substrate.create_signed_extrinsic(
-        call=start_call,
-        keypair=wallet.coldkey,
+    success, err_msg, response = await subtensor.sign_and_send_extrinsic(
+        call=start_call, wallet=wallet, proxy=proxy, era={"period": period}
     )
 
-    response = await subtensor.substrate.submit_extrinsic(
-        extrinsic=signed_ext,
-        wait_for_inclusion=True,
-    )
-    if await response.is_success:
+    if success:
         ext_id = await response.get_extrinsic_identifier()
         await print_extrinsic_id(response)
         message = f"Successfully updated SN{netuid}'s symbol to {symbol}."
@@ -2701,11 +2698,14 @@ async def set_symbol(
             console.print(f":white_heavy_check_mark:[dark_sea_green3] {message}\n")
         return True
     else:
-        err = format_error_message(await response.error_message)
         if json_output:
             json_console.print_json(
-                data={"success": False, "message": err, "extrinsic_identifier": None}
+                data={
+                    "success": False,
+                    "message": err_msg,
+                    "extrinsic_identifier": None,
+                }
             )
         else:
-            err_console.print(f":cross_mark: [red]Failed[/red]: {err}")
+            err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
         return False
