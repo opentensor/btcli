@@ -923,6 +923,7 @@ class CLIManager:
         self.config_app.command("clear")(self.del_config)
         self.config_app.command("add-proxy")(self.config_add_proxy)
         self.config_app.command("proxies")(self.config_get_proxies)
+        self.config_app.command("remove-proxy")(self.config_remove_proxy)
         # self.config_app.command("metagraph", hidden=True)(self.metagraph_config)
 
         # wallet commands
@@ -1880,11 +1881,35 @@ class CLIManager:
         ],
     ):
         """
-        Adds a new proxy to the address book.
+        Adds a new pure proxy to the address book.
         """
         self.proxies[name] = {"proxy_type": proxy_type.value, "address": address}
-        with open(self.config_path, "w") as f:
-            safe_dump(self.config, f)
+        with open(self.proxies_path, "w+") as f:
+            safe_dump(self.proxies, f)
+        self.config_get_proxies()
+
+    def config_remove_proxy(
+        self,
+        name: Annotated[
+            str,
+            typer.Option(
+                help="Name of the proxy to be removed",
+                prompt="Enter the name of the proxy to be removed",
+            ),
+        ],
+    ):
+        """
+        Removes a pure proxy from the address book.
+
+        Note: Does not remove the proxy on chain. Only removes it from the address book.
+        """
+        if name in self.proxies:
+            del self.proxies[name]
+            console.print(f"Removed {name} from the address book.")
+            with open(self.proxies_path, "w+") as f:
+                safe_dump(self.proxies, f)
+        else:
+            err_console.print(f"Proxy {name} not found in address book.")
         self.config_get_proxies()
 
     def config_get_proxies(self):
