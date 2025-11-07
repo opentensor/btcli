@@ -743,7 +743,6 @@ class CLIManager:
             "safe_staking": True,
             "allow_partial_stake": False,
             "dashboard_path": None,
-            "proxies": {},
             # Commenting this out as this needs to get updated
             # "metagraph_cols": {
             #     "UID": True,
@@ -765,6 +764,7 @@ class CLIManager:
             #     "COLDKEY": True,
             # },
         }
+        self.proxies = {}
         self.subtensor = None
 
         if sys.version_info < (3, 10):
@@ -783,6 +783,9 @@ class CLIManager:
         )
         self.debug_file_path = os.getenv("BTCLI_DEBUG_FILE") or os.path.expanduser(
             defaults.config.debug_file_path
+        )
+        self.proxies_path = os.getenv("BTCLI_PROXIES_PATH") or os.path.expanduser(
+            defaults.proxies.path
         )
 
         self.app = typer.Typer(
@@ -1509,6 +1512,16 @@ class CLIManager:
             asi_logger.addHandler(handler)
             logger.addHandler(handler)
 
+        # load proxies address book
+        if os.path.exists(self.proxies_path):
+            with open(self.proxies_path, "r") as f:
+                proxies = safe_load(f) or {}
+        else:
+            proxies = {}
+            with open(self.proxies_path, "w+") as f:
+                safe_dump(proxies, f)
+        self.proxies = proxies
+
     def verbosity_handler(
         self, quiet: bool, verbose: bool, json_output: bool = False, prompt: bool = True
     ) -> None:
@@ -1869,9 +1882,7 @@ class CLIManager:
         """
         Adds a new proxy to the address book.
         """
-        proxies = self.config.get("proxies", {})
-        proxies[name] = {"proxy_type": proxy_type.value, "address": address}
-        self.config["proxies"] = proxies
+        self.proxies[name] = {"proxy_type": proxy_type.value, "address": address}
         with open(self.config_path, "w") as f:
             safe_dump(self.config, f)
         self.config_get_proxies()
@@ -1880,15 +1891,14 @@ class CLIManager:
         """
         Displays the current proxies address book
         """
-        proxies = self.config.get("proxies", {})
         table = Table(
             Column("[bold white]Name", style=f"{COLORS.G.ARG}"),
             Column("[bold white]Address", style="gold1"),
             Column("Proxy Type", style="medium_purple"),
             box=box.SIMPLE_HEAD,
-            title=f"[{COLORS.G.HEADER}]BTCLI Config Proxies[/{COLORS.G.HEADER}]: {arg__(self.config_path)}",
+            title=f"[{COLORS.G.HEADER}]BTCLI Proxies Address Book[/{COLORS.G.HEADER}]: {arg__(self.proxies_path)}",
         )
-        for name, keys in proxies.items():
+        for name, keys in self.proxies.items():
             address = keys.get("address")
             proxy_type = keys.get("proxy_type")
             table.add_row(name, address, proxy_type)
@@ -1910,8 +1920,7 @@ class CLIManager:
         """
         if address is None:
             return None
-        config_proxies = self.config.get("proxies", {})
-        outer_proxy_from_config = config_proxies.get(address, {})
+        outer_proxy_from_config = self.proxies.get(address, {})
         proxy_from_config = outer_proxy_from_config.get("address")
         if proxy_from_config is not None:
             if not btwallet_is_valid_ss58_address(proxy_from_config):

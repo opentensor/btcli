@@ -116,8 +116,12 @@ class Defaults:
                 "HOTKEY": True,
                 "COLDKEY": True,
             },
-            "proxies": {},
         }
+
+    class proxies:
+        base_path = "~/.bittensor"
+        path = "~/.bittensor/proxy-address-book.yml"
+        dictionary = {}
 
     class subtensor:
         network = "finney"
