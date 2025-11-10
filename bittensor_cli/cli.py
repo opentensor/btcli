@@ -8382,13 +8382,13 @@ class CLIManager:
         """
         Creates a new pure proxy account. The pure proxy account is a keyless account controlled by your wallet.
 
-        [bold]Note[/bold]: The proxy account has no private key and cannot sign transactions independently. 
+        [bold]Note[/bold]: The proxy account has no private key and cannot sign transactions independently.
         All operations must be initiated and signed by the delegator.
 
 
         [bold]Common Examples:[/bold]
         1. Create a pure proxy account
-        [green]$[/green] btcli proxy create --proxy-type Any 
+        [green]$[/green] btcli proxy create --proxy-type Any
 
         2. Create a delayed pure proxy account
         [green]$[/green] btcli proxy create --proxy-type Any --delay 1000
@@ -8455,11 +8455,11 @@ class CLIManager:
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
-        """ 
-        Registers an existing account as a standard proxy for the delegator. 
+        """
+        Registers an existing account as a standard proxy for the delegator.
 
-        Grants an existing account permission to execute transactions on your behalf with 
-        specified restrictions. 
+        Grants an existing account permission to execute transactions on your behalf with
+        specified restrictions.
 
         [bold]Common Examples:[/bold]
         1. Create a standard proxy account
@@ -8536,7 +8536,7 @@ class CLIManager:
 
 
         [bold]Common Examples:[/bold]
-        1. Revoke proxy permissions from a single proxy account 
+        1. Revoke proxy permissions from a single proxy account
         [green]$[/green] btcli proxy remove --delegate 5GDel... --proxy-type Transfer
 
         2. Remove all proxies linked to an account
@@ -8613,9 +8613,9 @@ class CLIManager:
         """
         Permanently removes a pure proxy account.
 
-        Once killed, the pure proxy account is cleared from chain storage and cannot be recovered. 
+        Once killed, the pure proxy account is cleared from chain storage and cannot be recovered.
 
-        [bold]⚠️ WARNING[/bold]: Killing a pure proxy permanently removes access to the account, and any funds remaining in it are lost. 
+        [bold]⚠️ WARNING[/bold]: Killing a pure proxy permanently removes access to the account, and any funds remaining in it are lost.
 
         EXAMPLE
 
