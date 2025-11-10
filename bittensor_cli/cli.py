@@ -6528,7 +6528,7 @@ class CLIManager:
         )
 
         subtensor = self.initialize_chain(network)
-        non_archives = ["finney", "latent-lite", "subvortex"]
+        non_archives = ["finney", "latent-lite"]
         if not current_only and subtensor.network in non_archives + [
             Constants.network_map[x] for x in non_archives
         ]:

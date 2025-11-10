@@ -9,7 +9,6 @@ class Constants:
         "finney",
         "test",
         "archive",
-        "subvortex",
         "rao",
         "dev",
         "latent-lite",
@@ -17,13 +16,11 @@ class Constants:
     finney_entrypoint = "wss://entrypoint-finney.opentensor.ai:443"
     finney_test_entrypoint = "wss://test.finney.opentensor.ai:443"
     archive_entrypoint = "wss://archive.chain.opentensor.ai:443"
-    subvortex_entrypoint = "ws://subvortex.info:9944"
     local_entrypoint = "ws://127.0.0.1:9944"
     rao_entrypoint = "wss://rao.chain.opentensor.ai:443"
     dev_entrypoint = "wss://dev.chain.opentensor.ai:443"
-    local_entrypoint = "ws://127.0.0.1:9944"
     latent_lite_entrypoint = "wss://lite.sub.latent.to:443"
-    lite_nodes = [finney_entrypoint, subvortex_entrypoint, latent_lite_entrypoint]
+    lite_nodes = [finney_entrypoint, latent_lite_entrypoint]
     network_map = {
         "finney": finney_entrypoint,
         "test": finney_test_entrypoint,
@@ -32,7 +29,6 @@ class Constants:
         "dev": dev_entrypoint,
         "rao": rao_entrypoint,
         "latent-lite": latent_lite_entrypoint,
-        "subvortex": subvortex_entrypoint,
     }
     genesis_block_hash_map = {
         "finney": "0x2f0555cc76fc2840a25a6ea3b9637146806f1f44b090c175ffde2a7e5ab36c03",
