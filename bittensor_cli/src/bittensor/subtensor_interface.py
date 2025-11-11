@@ -1200,7 +1200,20 @@ class SubtensorInterface:
             else:
                 return False, format_error_message(await response.error_message), None
         except SubstrateRequestException as e:
-            return False, format_error_message(e), None
+            err_msg = format_error_message(e)
+            if proxy and "Invalid Transaction" in err_msg:
+                extrinsic_fee, real_balance = await asyncio.gather(
+                    self.get_extrinsic_fee(
+                        call, keypair=wallet.coldkeypub, proxy=proxy
+                    ),
+                    self.get_balance(wallet.coldkeypub.ss58_address),
+                )
+                if extrinsic_fee > real_balance:
+                    err_msg += (
+                        "\nAs this is a proxy transaction, the real account needs to pay the extrinsic fee. However, "
+                        f"the balance of the real account is {real_balance}, and the extrinsic fee is {extrinsic_fee}."
+                    )
+            return False, err_msg, None
 
     async def get_children(self, hotkey, netuid) -> tuple[bool, list, str]:
         """

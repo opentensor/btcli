@@ -11,7 +11,7 @@ from rich.progress import Progress, BarColumn, TextColumn
 from rich.table import Column, Table
 from rich import box
 
-from bittensor_cli.src import COLOR_PALETTE, Constants
+from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.extrinsics.registration import (
     register_extrinsic,
@@ -27,7 +27,6 @@ from bittensor_cli.src.bittensor.utils import (
     err_console,
     print_verbose,
     print_error,
-    format_error_message,
     get_metadata_table,
     millify_tao,
     render_table,
@@ -99,6 +98,7 @@ async def register_subnetwork_extrinsic(
         return []
 
     print_verbose("Fetching balance")
+
     your_balance = await subtensor.get_balance(proxy or wallet.coldkeypub.ss58_address)
 
     print_verbose("Fetching burn_cost")

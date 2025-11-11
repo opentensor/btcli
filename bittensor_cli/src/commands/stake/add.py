@@ -396,10 +396,13 @@ async def stake_add(
                 )
                 row_extension = []
             # TODO this should be asyncio gathered before the for loop
+            amount_minus_fee = (
+                (amount_to_stake - extrinsic_fee) if not proxy else amount_to_stake
+            )
             sim_swap = await subtensor.sim_swap(
                 origin_netuid=0,
                 destination_netuid=netuid,
-                amount=(amount_to_stake - extrinsic_fee).rao,
+                amount=amount_minus_fee.rao,
             )
             received_amount = sim_swap.alpha_amount
             # Add rows for the table

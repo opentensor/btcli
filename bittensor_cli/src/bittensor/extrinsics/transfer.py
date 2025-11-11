@@ -7,7 +7,10 @@ from rich.prompt import Confirm
 from async_substrate_interface.errors import SubstrateRequestException
 
 from bittensor_cli.src.bittensor.balances import Balance
-from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface, GENESIS_ADDRESS
+from bittensor_cli.src.bittensor.subtensor_interface import (
+    SubtensorInterface,
+    GENESIS_ADDRESS,
+)
 from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
@@ -63,20 +66,11 @@ async def transfer_extrinsic(
             call_function=call_function,
             call_params=call_params,
         )
-
-        try:
-            payment_info = await subtensor.substrate.get_payment_info(
-                call=call, keypair=wallet.coldkeypub
-            )
-        except SubstrateRequestException as e:
-            payment_info = {"partial_fee": int(2e7)}  # assume  0.02 Tao
-            err_console.print(
-                f":cross_mark: [red]Failed to get payment info[/red]:[bold white]\n"
-                f"  {format_error_message(e)}[/bold white]\n"
-                f"  Defaulting to default transfer fee: {payment_info['partialFee']}"
-            )
-
-        return Balance.from_rao(payment_info["partial_fee"])
+        return await subtensor.get_extrinsic_fee(
+            call=call,
+            keypair=wallet.coldkeypub,
+            proxy=proxy
+        )
 
     async def do_transfer() -> tuple[bool, str, str, Optional[AsyncExtrinsicReceipt]]:
         """

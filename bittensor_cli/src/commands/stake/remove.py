@@ -237,7 +237,9 @@ async def unstake(
                 sim_swap = await subtensor.sim_swap(
                     netuid, 0, amount_to_unstake_as_balance.rao
                 )
-                received_amount = sim_swap.tao_amount - extrinsic_fee
+                received_amount = sim_swap.tao_amount
+                if not proxy:
+                    received_amount -= extrinsic_fee
             except ValueError:
                 continue
             total_received_amount += received_amount
@@ -507,7 +509,9 @@ async def unstake_all(
                     proxy=proxy,
                 )
                 sim_swap = await subtensor.sim_swap(stake.netuid, 0, stake_amount.rao)
-                received_amount = sim_swap.tao_amount - extrinsic_fee
+                received_amount = sim_swap.tao_amount
+                if not proxy:
+                    received_amount -= extrinsic_fee
 
                 if received_amount < Balance.from_tao(0):
                     print_error("Not enough Alpha to pay the transaction fee.")

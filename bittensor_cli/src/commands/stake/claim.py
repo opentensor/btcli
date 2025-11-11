@@ -317,7 +317,10 @@ async def process_pending_claims(
     extrinsic_fee = await subtensor.get_extrinsic_fee(
         call, wallet.coldkeypub, proxy=proxy
     )
-    console.print(f"\n[dim]Estimated extrinsic fee: {extrinsic_fee.tao:.9f} τ[/dim]")
+    console.print(
+        f"\n[dim]Estimated extrinsic fee: {extrinsic_fee.tao:.9f} τ"
+        + (" (paid by real account)" if proxy else "")
+    )
 
     if prompt:
         if not Confirm.ask("Do you want to proceed?"):

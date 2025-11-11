@@ -165,7 +165,10 @@ async def contribute_to_crowdloan(
     extrinsic_fee = await subtensor.get_extrinsic_fee(
         call, wallet.coldkeypub, proxy=proxy
     )
-    updated_balance = user_balance - actual_contribution - extrinsic_fee
+    if proxy:
+        updated_balance = user_balance - actual_contribution
+    else:
+        updated_balance = user_balance - actual_contribution - extrinsic_fee
 
     table = Table(
         Column("[bold white]Field", style=COLORS.G.SUBHEAD),
@@ -452,7 +455,10 @@ async def withdraw_from_crowdloan(
     )
 
     if prompt:
-        new_balance = user_balance + withdrawable - extrinsic_fee
+        if proxy:
+            new_balance = user_balance + withdrawable
+        else:
+            new_balance = user_balance + withdrawable - extrinsic_fee
         new_raised = crowdloan.raised - withdrawable
         table = Table(
             Column("[bold white]Field", style=COLORS.G.SUBHEAD),

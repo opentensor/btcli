@@ -1883,7 +1883,7 @@ class CLIManager:
         """
         Adds a new pure proxy to the address book.
         """
-        self.proxies[name] = {"proxy_type": proxy_type, "address": address}
+        self.proxies[name] = {"proxy_type": proxy_type.value, "address": address}
         with open(self.proxies_path, "w+") as f:
             safe_dump(self.proxies, f)
         self.config_get_proxies()
@@ -6726,7 +6726,7 @@ class CLIManager:
                 WO.HOTKEY,
                 WO.PATH,
             ],
-            validate=WV.WALLET_AND_HOTKEY,
+            validate=WV.WALLET,
         )
         identity = prompt_for_subnet_identity(
             current_identity={},
@@ -8515,7 +8515,7 @@ class CLIManager:
             validate=WV.WALLET,
         )
         return self._run_command(
-            proxy_commands.remove_proxy(
+            proxy_commands.add_proxy(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
                 delegate=delegate,

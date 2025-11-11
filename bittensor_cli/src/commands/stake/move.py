@@ -36,14 +36,15 @@ async def display_stake_movement_cross_subnets(
     amount_to_move: Balance,
     stake_fee: Balance,
     extrinsic_fee: Balance,
+    proxy: Optional[str] = None,
 ) -> tuple[Balance, str]:
     """Calculate and display stake movement information"""
 
     if origin_netuid == destination_netuid:
         subnet = await subtensor.subnet(origin_netuid)
-        received_amount_tao = (
-            subnet.alpha_to_tao(amount_to_move - stake_fee) - extrinsic_fee
-        )
+        received_amount_tao = subnet.alpha_to_tao(amount_to_move - stake_fee)
+        if not proxy:
+            received_amount_tao -= extrinsic_fee
         received_amount = subnet.tao_to_alpha(received_amount_tao)
 
         if received_amount < Balance.from_tao(0).set_unit(destination_netuid):
@@ -546,6 +547,7 @@ async def move_stake(
                 if origin_netuid != 0
                 else sim_swap.tao_fee,
                 extrinsic_fee=extrinsic_fee,
+                proxy=proxy,
             )
         except ValueError:
             return False, ""
@@ -739,6 +741,7 @@ async def transfer_stake(
                 if origin_netuid != 0
                 else sim_swap.tao_fee,
                 extrinsic_fee=extrinsic_fee,
+                proxy=proxy,
             )
         except ValueError:
             return False, ""
@@ -913,6 +916,7 @@ async def swap_stake(
                 if origin_netuid != 0
                 else sim_swap.tao_fee,
                 extrinsic_fee=extrinsic_fee,
+                proxy=proxy,
             )
         except ValueError:
             return False, ""

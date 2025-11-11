@@ -155,16 +155,16 @@ async def create_proxy(
                 attrs = event["attributes"]
                 created_pure = attrs["pure"]
                 created_spawner = attrs["who"]
-                created_proxy_type = attrs["proxy_type"]
+                created_proxy_type = getattr(ProxyType, attrs["proxy_type"])
         arg_start = "`" if json_output else "[blue]"
         arg_end = "`" if json_output else "[/blue]"
-        msg = f"Created pure '{created_pure}' from spawner '{created_spawner}' with proxy type '{created_proxy_type}'."
+        msg = f"Created pure '{created_pure}' from spawner '{created_spawner}' with proxy type '{created_proxy_type.value}'."
         console.print(msg)
         if not prompt:
             console.print(
                 f" You can add this to your config with {arg_start}"
                 f"btcli config add-proxy "
-                f"--name <PROXY_NAME> --address {created_pure} --proxy-type {created_proxy_type}"
+                f"--name <PROXY_NAME> --address {created_pure} --proxy-type {created_proxy_type.value}"
                 f"{arg_end}"
             )
         else:

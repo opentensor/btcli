@@ -340,7 +340,9 @@ async def create_crowdloan(
         table.add_row("Duration", f"[bold]{duration}[/bold] blocks (~{duration_text})")
         table.add_row("Ends at block", f"[bold]{end_block}[/bold]")
         table.add_row(
-            "Estimated fee", f"[{COLORS.P.TAO}]{extrinsic_fee}[/{COLORS.P.TAO}]"
+            "Estimated fee",
+            f"[{COLORS.P.TAO}]{extrinsic_fee}[/{COLORS.P.TAO}]"
+            + (" (paid by real account)" if proxy else ""),
         )
         console.print(table)
 
@@ -570,7 +572,11 @@ async def finalize_crowdloan(
         else:
             table.add_row("Call to Execute", "[dim]None[/dim]")
 
-        table.add_row("Transaction Fee", str(extrinsic_fee))
+        table.add_row(
+            "Transaction Fee",
+            f"[{COLORS.S.TAO}]{extrinsic_fee.tao}[/{COLORS.S.TAO}]"
+            + (" (paid by real account)" if proxy else ""),
+        )
 
         table.add_section()
         table.add_row(
