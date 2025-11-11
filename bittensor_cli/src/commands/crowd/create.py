@@ -291,7 +291,9 @@ async def create_crowdloan(
         },
     )
 
-    extrinsic_fee = await subtensor.get_extrinsic_fee(call, wallet.coldkeypub)
+    extrinsic_fee = await subtensor.get_extrinsic_fee(
+        call, wallet.coldkeypub, proxy=proxy
+    )
 
     if prompt:
         duration_text = blocks_to_duration(duration)
