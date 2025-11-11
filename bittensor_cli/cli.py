@@ -1883,7 +1883,7 @@ class CLIManager:
         """
         Adds a new pure proxy to the address book.
         """
-        self.proxies[name] = {"proxy_type": proxy_type.value, "address": address}
+        self.proxies[name] = {"proxy_type": proxy_type, "address": address}
         with open(self.proxies_path, "w+") as f:
             safe_dump(self.proxies, f)
         self.config_get_proxies()

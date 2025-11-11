@@ -131,7 +131,7 @@ async def transfer_extrinsic(
         block_hash = await subtensor.substrate.get_chain_head()
         account_balance, existential_deposit = await asyncio.gather(
             subtensor.get_balance(
-                wallet.coldkeypub.ss58_address, block_hash=block_hash
+                proxy or wallet.coldkeypub.ss58_address, block_hash=block_hash
             ),
             subtensor.get_existential_deposit(block_hash=block_hash),
         )
@@ -200,7 +200,7 @@ async def transfer_extrinsic(
     if success:
         with console.status(":satellite: Checking Balance...", spinner="aesthetic"):
             new_balance = await subtensor.get_balance(
-                wallet.coldkeypub.ss58_address, reuse_block=False
+                proxy or wallet.coldkeypub.ss58_address, reuse_block=False
             )
             console.print(
                 f"Balance:\n"

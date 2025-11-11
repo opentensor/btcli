@@ -3,6 +3,7 @@ import json
 import sqlite3
 from typing import TYPE_CHECKING, Optional, cast
 
+from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm, Prompt
 from rich.console import Group
@@ -78,7 +79,7 @@ async def register_subnetwork_extrinsic(
 
     # TODO why doesn't this have an era?
     async def _find_event_attributes_in_extrinsic_receipt(
-        response_, event_name: str
+        response_: AsyncExtrinsicReceipt, event_name: str
     ) -> list:
         """
         Searches for the attributes of a specified event within an extrinsic receipt.
@@ -95,10 +96,10 @@ async def register_subnetwork_extrinsic(
             if event_details["event_id"] == event_name:
                 # Once found, you can access the attributes of the event_name
                 return event_details["attributes"]
-        return [-1]
+        return []
 
     print_verbose("Fetching balance")
-    your_balance = await subtensor.get_balance(wallet.coldkeypub.ss58_address)
+    your_balance = await subtensor.get_balance(proxy or wallet.coldkeypub.ss58_address)
 
     print_verbose("Fetching burn_cost")
     sn_burn_cost = await burn_cost(subtensor)
@@ -199,9 +200,16 @@ async def register_subnetwork_extrinsic(
             )
             await print_extrinsic_id(response)
             ext_id = await response.get_extrinsic_identifier()
-            console.print(
-                f":white_heavy_check_mark: [dark_sea_green3]Registered subnetwork with netuid: {attributes[0]}"
-            )
+            if not attributes:
+                console.print(
+                    ":exclamation: [yellow]A possible error has occurred[/yellow]. The extrinsic reports success, but "
+                    "we are unable to locate the 'NetworkAdded' event inside the extrinsic's events."
+                    ""
+                )
+            else:
+                console.print(
+                    f":white_heavy_check_mark: [dark_sea_green3]Registered subnetwork with netuid: {attributes[0]}"
+                )
             return True, int(attributes[0]), ext_id
 
 
@@ -1746,7 +1754,9 @@ async def register(
         subtensor.get_hyperparameter(
             param_name="Burn", netuid=netuid, block_hash=block_hash
         ),
-        subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash=block_hash),
+        subtensor.get_balance(
+            proxy or wallet.coldkeypub.ss58_address, block_hash=block_hash
+        ),
     )
     current_recycle = (
         Balance.from_rao(int(current_recycle_)) if current_recycle_ else Balance(0)

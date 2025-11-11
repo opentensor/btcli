@@ -122,8 +122,8 @@ async def stake_add(
             f":cross_mark: [red]Failed[/red] to stake {amount_} on Netuid {netuid_}"
         )
         current_balance, next_nonce, call = await asyncio.gather(
-            subtensor.get_balance(wallet.coldkeypub.ss58_address),
-            subtensor.substrate.get_account_next_index(wallet.coldkeypub.ss58_address),
+            subtensor.get_balance(coldkey_ss58),
+            subtensor.substrate.get_account_next_index(coldkey_ss58),
             subtensor.substrate.compose_call(
                 call_module="SubtensorModule",
                 call_function="add_stake_limit",
@@ -162,10 +162,10 @@ async def stake_add(
             await print_extrinsic_id(response)
             block_hash = await subtensor.substrate.get_chain_head()
             new_balance, new_stake = await asyncio.gather(
-                subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash),
+                subtensor.get_balance(coldkey_ss58, block_hash),
                 subtensor.get_stake(
                     hotkey_ss58=hotkey_ss58_,
-                    coldkey_ss58=wallet.coldkeypub.ss58_address,
+                    coldkey_ss58=coldkey_ss58,
                     netuid=netuid_,
                     block_hash=block_hash,
                 ),
@@ -205,10 +205,8 @@ async def stake_add(
         err_out = partial(print_error, status=status)
         block_hash = await subtensor.substrate.get_chain_head()
         current_balance, next_nonce, call = await asyncio.gather(
-            subtensor.get_balance(
-                wallet.coldkeypub.ss58_address, block_hash=block_hash
-            ),
-            subtensor.substrate.get_account_next_index(wallet.coldkeypub.ss58_address),
+            subtensor.get_balance(coldkey_ss58, block_hash=block_hash),
+            subtensor.substrate.get_account_next_index(coldkey_ss58),
             subtensor.substrate.compose_call(
                 call_module="SubtensorModule",
                 call_function="add_stake",
@@ -272,6 +270,7 @@ async def stake_add(
     netuids = (
         netuids if netuids is not None else await subtensor.get_all_subnet_netuids()
     )
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
 
     hotkeys_to_stake_to = _get_hotkeys_to_stake_to(
         wallet=wallet,
@@ -285,10 +284,10 @@ async def stake_add(
     _all_subnets, _stake_info, current_wallet_balance = await asyncio.gather(
         subtensor.all_subnets(block_hash=chain_head),
         subtensor.get_stake_for_coldkey(
-            coldkey_ss58=wallet.coldkeypub.ss58_address,
+            coldkey_ss58=coldkey_ss58,
             block_hash=chain_head,
         ),
-        subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash=chain_head),
+        subtensor.get_balance(coldkey_ss58, block_hash=chain_head),
     )
     all_subnets = {di.netuid: di for di in _all_subnets}
 

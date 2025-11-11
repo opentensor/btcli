@@ -268,7 +268,9 @@ async def create_crowdloan(
 
         call_to_attach = None
 
-    creator_balance = await subtensor.get_balance(wallet.coldkeypub.ss58_address)
+    creator_balance = await subtensor.get_balance(
+        proxy or wallet.coldkeypub.ss58_address
+    )
     if deposit > creator_balance:
         print_error(
             f"[red]Insufficient balance to cover the deposit. "

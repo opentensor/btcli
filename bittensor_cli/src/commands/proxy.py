@@ -169,7 +169,7 @@ async def create_proxy(
             )
         else:
             if Confirm.ask("Would you like to add this to your address book?"):
-                proxy_name = Prompt.ask("Name this proxy:")
+                proxy_name = Prompt.ask("Name this proxy")
                 return True, proxy_name, created_pure, created_proxy_type
 
         if json_output:

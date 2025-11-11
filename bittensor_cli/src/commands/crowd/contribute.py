@@ -99,7 +99,7 @@ async def contribute_to_crowdloan(
             print_error(f"[red]{error_message}[/red]")
         return False, error_message
 
-    contributor_address = wallet.coldkeypub.ss58_address
+    contributor_address = proxy or wallet.coldkeypub.ss58_address
     current_contribution, user_balance, _ = await asyncio.gather(
         subtensor.get_crowdloan_contribution(crowdloan_id, contributor_address),
         subtensor.get_balance(contributor_address),
@@ -399,11 +399,12 @@ async def withdraw_from_crowdloan(
             print_error(f"[red]{error_msg}[/red]")
         return False, "Cannot withdraw from finalized crowdloan."
 
+    contributor_address = proxy or wallet.coldkeypub.ss58_address
     user_contribution, user_balance = await asyncio.gather(
         subtensor.get_crowdloan_contribution(
-            crowdloan_id, wallet.coldkeypub.ss58_address
+            crowdloan_id,
         ),
-        subtensor.get_balance(wallet.coldkeypub.ss58_address),
+        subtensor.get_balance(contributor_address),
     )
 
     if user_contribution == Balance.from_tao(0):
@@ -551,10 +552,8 @@ async def withdraw_from_crowdloan(
         return False, error_message or "Failed to withdraw from crowdloan."
 
     new_balance, updated_contribution, updated_crowdloan = await asyncio.gather(
-        subtensor.get_balance(wallet.coldkeypub.ss58_address),
-        subtensor.get_crowdloan_contribution(
-            crowdloan_id, wallet.coldkeypub.ss58_address
-        ),
+        subtensor.get_balance(contributor_address),
+        subtensor.get_crowdloan_contribution(crowdloan_id, contributor_address),
         subtensor.get_single_crowdloan(crowdloan_id),
     )
 
