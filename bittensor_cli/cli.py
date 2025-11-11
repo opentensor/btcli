@@ -6248,7 +6248,9 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
-        logger.debug(f"args:\nnetwork: {network}\nproposal: {proposal}\nvote: {vote}\n")
+        logger.debug(
+            f"args:\nnetwork: {network}\nproposal: {proposal}\nvote: {vote}\nproxy: {proxy}"
+        )
         return self._run_command(
             sudo.senate_vote(
                 wallet=wallet,
@@ -6309,7 +6311,7 @@ class CLIManager:
                 f"Take value must be between {min_value} and {max_value}. Provided value: {take}"
             )
             raise typer.Exit()
-        logger.debug(f"args:\nnetwork: {network}\ntake: {take}")
+        logger.debug(f"args:\nnetwork: {network}\ntake: {take}\nproxy: {proxy}\n")
         result, ext_id = self._run_command(
             sudo.set_take(
                 wallet=wallet,
@@ -7519,6 +7521,7 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         netuid: Optional[int] = Options.netuid,
+        proxy: Optional[str] = Options.proxy,
         liquidity_: Optional[float] = typer.Option(
             None,
             "--liquidity",
@@ -7547,6 +7550,7 @@ class CLIManager:
     ):
         """Add liquidity to the swap (as a combination of TAO + Alpha)."""
         self.verbosity_handler(quiet, verbose, json_output, prompt)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         if not netuid:
             netuid = Prompt.ask(
                 f"Enter the [{COLORS.G.SUBHEAD_MAIN}]netuid[/{COLORS.G.SUBHEAD_MAIN}] to use",
@@ -7591,6 +7595,7 @@ class CLIManager:
             f"liquidity: {liquidity_}\n"
             f"price_low: {price_low}\n"
             f"price_high: {price_high}\n"
+            f"proxy: {proxy}\n"
         )
         return self._run_command(
             liquidity.add_liquidity(
@@ -7598,6 +7603,7 @@ class CLIManager:
                 wallet=wallet,
                 hotkey_ss58=hotkey,
                 netuid=netuid,
+                proxy=proxy,
                 liquidity=liquidity_,
                 price_low=price_low,
                 price_high=price_high,
@@ -7649,6 +7655,7 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         netuid: Optional[int] = Options.netuid,
+        proxy: Optional[str] = Options.proxy,
         position_id: Optional[int] = typer.Option(
             None,
             "--position-id",
@@ -7669,7 +7676,7 @@ class CLIManager:
         """Remove liquidity from the swap (as a combination of TAO + Alpha)."""
 
         self.verbosity_handler(quiet, verbose, json_output, prompt)
-
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         if all_liquidity_ids and position_id:
             print_error("Cannot specify both --all and --position-id.")
             return
@@ -7706,6 +7713,7 @@ class CLIManager:
                 wallet=wallet,
                 hotkey_ss58=hotkey,
                 netuid=netuid,
+                proxy=proxy,
                 position_id=position_id,
                 prompt=prompt,
                 all_liquidity_ids=all_liquidity_ids,
@@ -7720,6 +7728,7 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         netuid: Optional[int] = Options.netuid,
+        proxy: Optional[str] = Options.proxy,
         position_id: Optional[int] = typer.Option(
             None,
             "--position-id",
@@ -7739,6 +7748,7 @@ class CLIManager:
     ):
         """Modifies the liquidity position for the given subnet."""
         self.verbosity_handler(quiet, verbose, json_output, prompt)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         if not netuid:
             netuid = IntPrompt.ask(
                 f"Enter the [{COLORS.G.SUBHEAD_MAIN}]netuid[/{COLORS.G.SUBHEAD_MAIN}] to use",
@@ -7770,7 +7780,8 @@ class CLIManager:
             f"hotkey: {hotkey}\n"
             f"netuid: {netuid}\n"
             f"position_id: {position_id}\n"
-            f"liquidity_delta: {liquidity_delta}"
+            f"liquidity_delta: {liquidity_delta}\n"
+            f"proxy: {proxy}\n"
         )
 
         return self._run_command(
@@ -7779,6 +7790,7 @@ class CLIManager:
                 wallet=wallet,
                 hotkey_ss58=hotkey,
                 netuid=netuid,
+                proxy=proxy,
                 position_id=position_id,
                 liquidity_delta=liquidity_delta,
                 prompt=prompt,
@@ -7880,6 +7892,7 @@ class CLIManager:
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
+        proxy: Optional[str] = Options.proxy,
         deposit: Optional[float] = typer.Option(
             None,
             "--deposit",
@@ -7956,7 +7969,7 @@ class CLIManager:
         [green]$[/green] btcli crowd create --subnet-lease --emissions-share 25 --lease-end-block 500000
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
-
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         wallet = self.wallet_ask(
             wallet_name=wallet_name,
             wallet_path=wallet_path,
@@ -7969,6 +7982,7 @@ class CLIManager:
             create_crowdloan.create_crowdloan(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
+                proxy=proxy,
                 deposit_tao=deposit,
                 min_contribution_tao=min_contribution,
                 cap_tao=cap,
@@ -8004,6 +8018,7 @@ class CLIManager:
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
+        proxy: Optional[str] = Options.proxy,
         prompt: bool = Options.prompt,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
@@ -8023,7 +8038,7 @@ class CLIManager:
         [green]$[/green] btcli crowd contribute --id 1
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
-
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         if crowdloan_id is None:
             crowdloan_id = IntPrompt.ask(
                 f"Enter the [{COLORS.G.SUBHEAD_MAIN}]crowdloan id[/{COLORS.G.SUBHEAD_MAIN}]",
@@ -8043,6 +8058,7 @@ class CLIManager:
             crowd_contribute.contribute_to_crowdloan(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
+                proxy=proxy,
                 crowdloan_id=crowdloan_id,
                 amount=amount,
                 prompt=prompt,
@@ -8065,6 +8081,7 @@ class CLIManager:
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
+        proxy: Optional[str] = Options.proxy,
         prompt: bool = Options.prompt,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
@@ -8079,7 +8096,7 @@ class CLIManager:
         Creators can only withdraw amounts above their initial deposit.
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
-
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         if crowdloan_id is None:
             crowdloan_id = IntPrompt.ask(
                 f"Enter the [{COLORS.G.SUBHEAD_MAIN}]crowdloan id[/{COLORS.G.SUBHEAD_MAIN}]",
@@ -8099,6 +8116,7 @@ class CLIManager:
             crowd_contribute.withdraw_from_crowdloan(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
+                proxy=proxy,
                 crowdloan_id=crowdloan_id,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
@@ -8120,6 +8138,7 @@ class CLIManager:
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
+        proxy: Optional[str] = Options.proxy,
         prompt: bool = Options.prompt,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
@@ -8134,7 +8153,7 @@ class CLIManager:
         address (if specified) and execute any attached call (e.g., subnet creation).
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
-
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         if crowdloan_id is None:
             crowdloan_id = IntPrompt.ask(
                 f"Enter the [{COLORS.G.SUBHEAD_MAIN}]crowdloan id[/{COLORS.G.SUBHEAD_MAIN}]",
@@ -8155,6 +8174,7 @@ class CLIManager:
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
                 crowdloan_id=crowdloan_id,
+                proxy=proxy,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 prompt=prompt,
@@ -8192,6 +8212,7 @@ class CLIManager:
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
+        proxy: Optional[str] = Options.proxy,
         prompt: bool = Options.prompt,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
@@ -8209,7 +8230,7 @@ class CLIManager:
         bounds, etc.).
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
-
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         if crowdloan_id is None:
             crowdloan_id = IntPrompt.ask(
                 f"Enter the [{COLORS.G.SUBHEAD_MAIN}]crowdloan id[/{COLORS.G.SUBHEAD_MAIN}]",
@@ -8234,6 +8255,7 @@ class CLIManager:
             crowd_update.update_crowdloan(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
+                proxy=proxy,
                 crowdloan_id=crowdloan_id,
                 min_contribution=min_contribution_balance,
                 end=end,
@@ -8254,6 +8276,7 @@ class CLIManager:
             "--id",
             help="The ID of the crowdloan to refund",
         ),
+        proxy: Optional[str] = Options.proxy,
         network: Optional[list[str]] = Options.network,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
@@ -8274,7 +8297,7 @@ class CLIManager:
         Contributors can call `btcli crowdloan withdraw` at will.
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
-
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         if crowdloan_id is None:
             crowdloan_id = IntPrompt.ask(
                 f"Enter the [{COLORS.G.SUBHEAD_MAIN}]crowdloan id[/{COLORS.G.SUBHEAD_MAIN}]",
@@ -8294,6 +8317,7 @@ class CLIManager:
             crowd_refund.refund_crowdloan(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
+                proxy=proxy,
                 crowdloan_id=crowdloan_id,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
@@ -8315,6 +8339,7 @@ class CLIManager:
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
+        proxy: Optional[str] = Options.proxy,
         prompt: bool = Options.prompt,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
@@ -8334,7 +8359,7 @@ class CLIManager:
         you can run `btcli crowd refund` to refund the remaining contributors.
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
-
+        proxy = self.is_valid_proxy_name_or_ss58(proxy)
         if crowdloan_id is None:
             crowdloan_id = IntPrompt.ask(
                 f"Enter the [{COLORS.G.SUBHEAD_MAIN}]crowdloan id[/{COLORS.G.SUBHEAD_MAIN}]",
@@ -8354,6 +8379,7 @@ class CLIManager:
             crowd_dissolve.dissolve_crowdloan(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
+                proxy=proxy,
                 crowdloan_id=crowdloan_id,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,

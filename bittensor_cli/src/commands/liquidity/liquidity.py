@@ -33,6 +33,7 @@ async def add_liquidity_extrinsic(
     wallet: "Wallet",
     hotkey_ss58: str,
     netuid: int,
+    proxy: Optional[str],
     liquidity: Balance,
     price_low: Balance,
     price_high: Balance,
@@ -47,6 +48,7 @@ async def add_liquidity_extrinsic(
         wallet: The wallet used to sign the extrinsic (must be unlocked).
         hotkey_ss58: the SS58 of the hotkey to use for this transaction.
         netuid: The UID of the target subnet for which the call is being initiated.
+        proxy: Optional proxy to use for this extrinsic submission.
         liquidity: The amount of liquidity to be added.
         price_low: The lower bound of the price tick range.
         price_high: The upper bound of the price tick range.
@@ -54,9 +56,10 @@ async def add_liquidity_extrinsic(
         wait_for_finalization: Whether to wait for finalization of the extrinsic. Defaults to False.
 
     Returns:
-        Tuple[bool, str]:
-            - True and a success message if the extrinsic is successfully submitted or processed.
-            - False and an error message if the submission fails or the wallet cannot be unlocked.
+        tuple:
+            bool: True if successful, False otherwise.
+            str: success message if successful, error message otherwise.
+            AsyncExtrinsicReceipt: extrinsic receipt if successful, None otherwise.
 
     Note: Adding is allowed even when user liquidity is enabled in specified subnet. Call
         `toggle_user_liquidity_extrinsic` to enable/disable user liquidity.
@@ -82,6 +85,7 @@ async def add_liquidity_extrinsic(
     return await subtensor.sign_and_send_extrinsic(
         call=call,
         wallet=wallet,
+        proxy=proxy,
         wait_for_inclusion=wait_for_inclusion,
         wait_for_finalization=wait_for_finalization,
     )
@@ -92,6 +96,7 @@ async def modify_liquidity_extrinsic(
     wallet: "Wallet",
     hotkey_ss58: str,
     netuid: int,
+    proxy: Optional[str],
     position_id: int,
     liquidity_delta: Balance,
     wait_for_inclusion: bool = True,
@@ -104,15 +109,17 @@ async def modify_liquidity_extrinsic(
         wallet: The wallet used to sign the extrinsic (must be unlocked).
         hotkey_ss58: the SS58 of the hotkey to use for this transaction.
         netuid: The UID of the target subnet for which the call is being initiated.
+        proxy: Optional proxy to use for this extrinsic submission.
         position_id: The id of the position record in the pool.
         liquidity_delta: The amount of liquidity to be added or removed (add if positive or remove if negative).
         wait_for_inclusion: Whether to wait for the extrinsic to be included in a block. Defaults to True.
         wait_for_finalization: Whether to wait for finalization of the extrinsic. Defaults to False.
 
     Returns:
-        Tuple[bool, str]:
-            - True and a success message if the extrinsic is successfully submitted or processed.
-            - False and an error message if the submission fails or the wallet cannot be unlocked.
+        tuple:
+            bool: True if successful, False otherwise.
+            str: success message if successful, error message otherwise.
+            AsyncExtrinsicReceipt: extrinsic receipt if successful, None otherwise.
 
     Note: Modifying is allowed even when user liquidity is enabled in specified subnet.
         Call `toggle_user_liquidity_extrinsic` to enable/disable user liquidity.
@@ -134,6 +141,7 @@ async def modify_liquidity_extrinsic(
     return await subtensor.sign_and_send_extrinsic(
         call=call,
         wallet=wallet,
+        proxy=proxy,
         wait_for_inclusion=wait_for_inclusion,
         wait_for_finalization=wait_for_finalization,
     )
@@ -143,6 +151,7 @@ async def remove_liquidity_extrinsic(
     subtensor: "SubtensorInterface",
     wallet: "Wallet",
     hotkey_ss58: str,
+    proxy: Optional[str],
     netuid: int,
     position_id: int,
     wait_for_inclusion: bool = True,
@@ -154,15 +163,17 @@ async def remove_liquidity_extrinsic(
         subtensor: The Subtensor client instance used for blockchain interaction.
         wallet: The wallet used to sign the extrinsic (must be unlocked).
         hotkey_ss58: the SS58 of the hotkey to use for this transaction.
+        proxy: Optional proxy to use for this extrinsic submission.
         netuid: The UID of the target subnet for which the call is being initiated.
         position_id: The id of the position record in the pool.
         wait_for_inclusion: Whether to wait for the extrinsic to be included in a block. Defaults to True.
         wait_for_finalization: Whether to wait for finalization of the extrinsic. Defaults to False.
 
     Returns:
-        Tuple[bool, str]:
-            - True and a success message if the extrinsic is successfully submitted or processed.
-            - False and an error message if the submission fails or the wallet cannot be unlocked.
+        tuple:
+            bool: True if successful, False otherwise.
+            str: success message if successful, error message otherwise.
+            AsyncExtrinsicReceipt: extrinsic receipt if successful, None otherwise.
 
     Note: Adding is allowed even when user liquidity is enabled in specified subnet.
         Call `toggle_user_liquidity_extrinsic` to enable/disable user liquidity.
@@ -183,6 +194,7 @@ async def remove_liquidity_extrinsic(
     return await subtensor.sign_and_send_extrinsic(
         call=call,
         wallet=wallet,
+        proxy=proxy,
         wait_for_inclusion=wait_for_inclusion,
         wait_for_finalization=wait_for_finalization,
     )
@@ -234,6 +246,7 @@ async def add_liquidity(
     wallet: "Wallet",
     hotkey_ss58: str,
     netuid: Optional[int],
+    proxy: Optional[str],
     liquidity: Balance,
     price_low: Balance,
     price_high: Balance,
@@ -267,6 +280,7 @@ async def add_liquidity(
         wallet=wallet,
         hotkey_ss58=hotkey_ss58,
         netuid=netuid,
+        proxy=proxy,
         liquidity=liquidity,
         price_low=price_low,
         price_high=price_high,
@@ -545,6 +559,7 @@ async def remove_liquidity(
     wallet: "Wallet",
     hotkey_ss58: str,
     netuid: int,
+    proxy: Optional[str],
     position_id: Optional[int] = None,
     prompt: Optional[bool] = None,
     all_liquidity_ids: Optional[bool] = None,
@@ -579,12 +594,14 @@ async def remove_liquidity(
         if not Confirm.ask("Would you like to continue?"):
             return None
 
+    # TODO does this never break because of the nonce?
     results = await asyncio.gather(
         *[
             remove_liquidity_extrinsic(
                 subtensor=subtensor,
                 wallet=wallet,
                 hotkey_ss58=hotkey_ss58,
+                proxy=proxy,
                 netuid=netuid,
                 position_id=pos_id,
             )
@@ -615,6 +632,7 @@ async def modify_liquidity(
     wallet: "Wallet",
     hotkey_ss58: str,
     netuid: int,
+    proxy: Optional[str],
     position_id: int,
     liquidity_delta: Balance,
     prompt: Optional[bool] = None,
@@ -646,6 +664,7 @@ async def modify_liquidity(
         wallet=wallet,
         hotkey_ss58=hotkey_ss58,
         netuid=netuid,
+        proxy=proxy,
         position_id=position_id,
         liquidity_delta=liquidity_delta,
     )

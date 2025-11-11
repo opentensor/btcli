@@ -53,6 +53,7 @@ def validate_for_contribution(
 async def contribute_to_crowdloan(
     subtensor: SubtensorInterface,
     wallet: Wallet,
+    proxy: Optional[str],
     crowdloan_id: int,
     amount: Optional[float],
     prompt: bool,
@@ -65,11 +66,13 @@ async def contribute_to_crowdloan(
     Args:
         subtensor: SubtensorInterface object for chain interaction
         wallet: Wallet object containing coldkey for contribution
+        proxy: Optional proxy to use for this extrinsic
         crowdloan_id: ID of the crowdloan to contribute to
         amount: Amount to contribute in TAO (None to prompt)
         prompt: Whether to prompt for confirmation
         wait_for_inclusion: Wait for transaction inclusion
         wait_for_finalization: Wait for transaction finalization
+        json_output: Whether to output JSON output or human-readable text
 
     Returns:
         tuple[bool, str]: Success status and message
@@ -159,7 +162,9 @@ async def contribute_to_crowdloan(
             "amount": contribution_amount.rao,
         },
     )
-    extrinsic_fee = await subtensor.get_extrinsic_fee(call, wallet.coldkeypub)
+    extrinsic_fee = await subtensor.get_extrinsic_fee(
+        call, wallet.coldkeypub, proxy=proxy
+    )
     updated_balance = user_balance - actual_contribution - extrinsic_fee
 
     table = Table(
@@ -243,6 +248,7 @@ async def contribute_to_crowdloan(
         ) = await subtensor.sign_and_send_extrinsic(
             call=call,
             wallet=wallet,
+            proxy=proxy,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
         )
@@ -345,6 +351,7 @@ async def contribute_to_crowdloan(
 async def withdraw_from_crowdloan(
     subtensor: SubtensorInterface,
     wallet: Wallet,
+    proxy: Optional[str],
     crowdloan_id: int,
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
@@ -360,10 +367,12 @@ async def withdraw_from_crowdloan(
     Args:
         subtensor: SubtensorInterface instance for blockchain interaction
         wallet: Wallet instance containing the user's keys
+        proxy: Optional proxy to use with this extrinsic submission.
         crowdloan_id: The ID of the crowdloan to withdraw from
         wait_for_inclusion: Whether to wait for transaction inclusion
         wait_for_finalization: Whether to wait for transaction finalization
         prompt: Whether to prompt for user confirmation
+        json_output: Whether to output the results as JSON or human-readable
 
     Returns:
         Tuple of (success, message) indicating the result
@@ -429,7 +438,9 @@ async def withdraw_from_crowdloan(
             "crowdloan_id": crowdloan_id,
         },
     )
-    extrinsic_fee = await subtensor.get_extrinsic_fee(call, wallet.coldkeypub)
+    extrinsic_fee = await subtensor.get_extrinsic_fee(
+        call, wallet.coldkeypub, proxy=proxy
+    )
     await show_crowdloan_details(
         subtensor=subtensor,
         crowdloan_id=crowdloan_id,
@@ -518,6 +529,7 @@ async def withdraw_from_crowdloan(
         ) = await subtensor.sign_and_send_extrinsic(
             call=call,
             wallet=wallet,
+            proxy=proxy,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
         )
