@@ -67,9 +67,7 @@ async def transfer_extrinsic(
             call_params=call_params,
         )
         return await subtensor.get_extrinsic_fee(
-            call=call,
-            keypair=wallet.coldkeypub,
-            proxy=proxy
+            call=call, keypair=wallet.coldkeypub, proxy=proxy
         )
 
     async def do_transfer() -> tuple[bool, str, str, Optional[AsyncExtrinsicReceipt]]:
