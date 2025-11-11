@@ -1631,7 +1631,7 @@ async def create(
     prompt: bool,
 ):
     """Register a subnetwork"""
-
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
     # Call register command.
     success, netuid, ext_id = await register_subnetwork_extrinsic(
         subtensor=subtensor,
@@ -1657,7 +1657,7 @@ async def create(
 
         if do_set_identity:
             current_identity = await get_id(
-                subtensor, wallet.coldkeypub.ss58_address, "Current on-chain identity"
+                subtensor, coldkey_ss58, "Current on-chain identity"
             )
             if prompt:
                 if not Confirm.ask(
@@ -1732,7 +1732,7 @@ async def register(
     proxy: Optional[str] = None,
 ):
     """Register neuron by recycling some TAO."""
-
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
     # Verify subnet exists
     print_verbose("Checking subnet status")
     block_hash = await subtensor.substrate.get_chain_head()
@@ -1754,9 +1754,7 @@ async def register(
         subtensor.get_hyperparameter(
             param_name="Burn", netuid=netuid, block_hash=block_hash
         ),
-        subtensor.get_balance(
-            proxy or wallet.coldkeypub.ss58_address, block_hash=block_hash
-        ),
+        subtensor.get_balance(coldkey_ss58, block_hash=block_hash),
     )
     current_recycle = (
         Balance.from_rao(int(current_recycle_)) if current_recycle_ else Balance(0)
@@ -1819,7 +1817,7 @@ async def register(
             f"{Balance.get_unit(netuid)}",
             f"τ {current_recycle.tao:.4f}",
             f"{get_hotkey_pub_ss58(wallet)}",
-            f"{wallet.coldkeypub.ss58_address}",
+            f"{coldkey_ss58}",
         )
         console.print(table)
         if not (
@@ -2583,7 +2581,7 @@ async def start_subnet(
     prompt: bool = False,
 ) -> bool:
     """Start a subnet's emission schedule"""
-
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
     if not await subtensor.subnet_exists(netuid):
         print_error(f"Subnet {netuid} does not exist.")
         return False
@@ -2594,7 +2592,7 @@ async def start_subnet(
         params=[netuid],
     )
     # TODO should this check against proxy as well?
-    if subnet_owner != wallet.coldkeypub.ss58_address:
+    if subnet_owner != coldkey_ss58:
         print_error(":cross_mark: This wallet doesn't own the specified subnet.")
         return False
 
