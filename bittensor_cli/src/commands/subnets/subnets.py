@@ -1774,8 +1774,11 @@ async def register(
         # TODO make this a reusable function, also used in subnets list
         # Show creation table.
         table = Table(
-            title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Register to [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]netuid: {netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
-            f"\nNetwork: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{subtensor.network}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]\n",
+            title=(
+                f"\n[{COLOR_PALETTE.G.HEADER}]"
+                f"Register to [{COLOR_PALETTE.G.SUBHEAD}]netuid: {netuid}[/{COLOR_PALETTE.G.SUBHEAD}]"
+                f"\nNetwork: [{COLOR_PALETTE.G.SUBHEAD}]{subtensor.network}[/{COLOR_PALETTE.G.SUBHEAD}]\n"
+            ),
             show_footer=True,
             show_edge=False,
             header_style="bold white",
