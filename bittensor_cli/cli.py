@@ -1883,6 +1883,8 @@ class CLIManager:
         """
         Adds a new pure proxy to the address book.
         """
+        # TODO check if name already exists, Confirmation
+        # TODO add spawner
         self.proxies[name] = {"proxy_type": proxy_type.value, "address": address}
         with open(self.proxies_path, "w+") as f:
             safe_dump(self.proxies, f)

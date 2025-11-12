@@ -266,6 +266,7 @@ async def add_proxy(
     period: int,
     json_output: bool,
 ):
+    # TODO add to address book
     if prompt:
         if not Confirm.ask(
             f"This will add a proxy of type {proxy_type.value} for delegate {delegate}."
