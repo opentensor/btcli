@@ -1,5 +1,5 @@
-from enum import Enum
 from typing import TYPE_CHECKING, Optional
+import sys
 
 from rich.prompt import Confirm, Prompt
 from scalecodec import GenericCall
@@ -17,7 +17,16 @@ if TYPE_CHECKING:
     from bittensor_wallet.bittensor_wallet import Wallet
 
 
-class ProxyType(str, Enum):
+# TODO when 3.10 support is dropped in Oct 2026, remove this
+if sys.version_info >= (3, 11):
+    from enum import StrEnum
+else:
+    from enum import Enum
+    class StrEnum(str, Enum):
+        pass
+
+
+class ProxyType(StrEnum):
     Any = "Any"
     Owner = "Owner"
     NonCritical = "NonCritical"
