@@ -2225,6 +2225,8 @@ class CLIManager:
         else:
             return wallet
 
+    # Wallet
+
     def wallet_list(
         self,
         wallet_name: Optional[str] = Options.wallet_name,
@@ -3920,6 +3922,8 @@ class CLIManager:
                 proxy=proxy,
             )
         )
+
+    # Stake
 
     def get_auto_stake(
         self,
@@ -5759,6 +5763,8 @@ class CLIManager:
             json_console.print(json.dumps(output))
         return results
 
+    # Mechanism
+
     def mechanism_count_set(
         self,
         network: Optional[list[str]] = Options.network,
@@ -5995,6 +6001,8 @@ class CLIManager:
                 json_output=json_output,
             )
         )
+
+    # Sudo
 
     def sudo_set(
         self,
@@ -6414,6 +6422,8 @@ class CLIManager:
                 prompt=prompt,
             )
         )
+
+    # Subnets
 
     def subnets_list(
         self,
@@ -7257,6 +7267,8 @@ class CLIManager:
             )
         )
 
+    # Weights
+
     def weights_reveal(
         self,
         network: Optional[list[str]] = Options.network,
@@ -7456,6 +7468,8 @@ class CLIManager:
             )
         )
 
+    # View
+
     def view_dashboard(
         self,
         network: Optional[list[str]] = Options.network,
@@ -7515,6 +7529,8 @@ class CLIManager:
                 coldkey_ss58=coldkey_ss58,
             )
         )
+
+    # Liquidity
 
     def liquidity_add(
         self,
@@ -7799,6 +7815,8 @@ class CLIManager:
                 json_output=json_output,
             )
         )
+
+    # Crowd
 
     def crowd_list(
         self,
@@ -8389,6 +8407,9 @@ class CLIManager:
                 json_output=json_output,
             )
         )
+
+    # Proxy
+    # TODO check announcements: how do they work?
 
     def proxy_create(
         self,
