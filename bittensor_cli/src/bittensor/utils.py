@@ -5,7 +5,7 @@ import os
 import sqlite3
 import webbrowser
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable
+from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable, Generator
 from urllib.parse import urlparse
 from functools import partial
 import re
@@ -807,8 +807,20 @@ def normalize_hyperparameters(
 
 
 class TableDefinition:
+    """
+    Base class for address book table definitions/functions
+    """
+
     name: str
     cols: tuple[tuple[str, str], ...]
+
+    @staticmethod
+    def get_db() -> Generator[tuple[sqlite3.Connection, sqlite3.Cursor], None]:
+        """
+        Helper function to get a DB connection
+        """
+        with DB() as (conn, cursor):
+            yield conn, cursor
 
     @classmethod
     def create_if_not_exists(cls, conn: sqlite3.Connection, _: sqlite3.Cursor) -> None:
@@ -852,14 +864,23 @@ class TableDefinition:
 
     @classmethod
     def update_entry(cls, *args, **kwargs):
+        """
+        Updates an existing entry in the table.
+        """
         raise NotImplementedError()
 
     @classmethod
     def add_entry(cls, *args, **kwargs):
+        """
+        Adds an entry to the table.
+        """
         raise NotImplementedError()
 
     @classmethod
     def delete_entry(cls, *args, **kwargs):
+        """
+        Deletes an entry from the table.
+        """
         raise NotImplementedError()
 
 
@@ -1260,7 +1281,14 @@ def render_tree(
 
 
 def ensure_address_book_tables_exist():
-    tables = [("address_book", (""))]
+    """
+    Creates address book tables if they don't exist.
+
+    Should be run at startup to ensure that the address book tables exist.
+    """
+    with DB() as (conn, cursor):
+        for table in (AddressBook, ProxyAddressBook, ProxyAnnouncements):
+            table.create_if_not_exists(conn, cursor)
 
 
 def group_subnets(registrations):

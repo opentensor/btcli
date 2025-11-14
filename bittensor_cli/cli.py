@@ -67,6 +67,8 @@ from bittensor_cli.src.bittensor.utils import (
     prompt_for_subnet_identity,
     validate_rate_tolerance,
     get_hotkey_pub_ss58,
+    ensure_address_book_tables_exist,
+    ProxyAddressBook,
 )
 from bittensor_cli.src.commands import sudo, wallets, view
 from bittensor_cli.src.commands import weights as weights_cmds
@@ -1518,14 +1520,17 @@ class CLIManager:
             asi_logger.addHandler(handler)
             logger.addHandler(handler)
 
+        ensure_address_book_tables_exist()
         # load proxies address book
-        if os.path.exists(self.proxies_path):
-            with open(self.proxies_path, "r") as f:
-                proxies = safe_load(f) or {}
-        else:
-            proxies = {}
-            with open(self.proxies_path, "w+") as f:
-                safe_dump(proxies, f)
+        with ProxyAddressBook.get_db() as (conn, cursor):
+            rows = ProxyAddressBook.read_rows(conn, cursor, include_header=False)
+        proxies = {}
+        for name, ss58_address, spawner, proxy_type, _ in rows:
+            proxies[name] = {
+                "address": ss58_address,
+                "spawner": spawner,
+                "proxy_type": proxy_type,
+            }
         self.proxies = proxies
 
     def verbosity_handler(
@@ -1884,15 +1889,46 @@ class CLIManager:
                 prompt="Enter the type of this pure proxy",
             ),
         ],
+        spawner: Annotated[
+            str,
+            typer.Option(
+                callback=is_valid_ss58_address_param,
+                help="The SS58 address of the spawner",
+                prompt="Enter the SS58 address of the spawner",
+            ),
+        ],
+        note: str = typer.Option("", help="Any notes about this entry"),
     ):
         """
         Adds a new pure proxy to the address book.
         """
-        # TODO check if name already exists, Confirmation
-        # TODO add spawner
-        self.proxies[name] = {"proxy_type": proxy_type.value, "address": address}
-        with open(self.proxies_path, "w+") as f:
-            safe_dump(self.proxies, f)
+        if self.proxies.get(name) is not None:
+            err_console.print(
+                f"Proxy {name} already exists. Use `btcli config update-proxy` to update it."
+            )
+            raise typer.Exit()
+        proxy_type_val: str
+        if isinstance(proxy_type, ProxyType):
+            proxy_type_val = proxy_type.value
+        else:
+            proxy_type_val = proxy_type
+
+        self.proxies[name] = {
+            "proxy_type": proxy_type_val,
+            "address": address,
+            "spawner": spawner,
+            "note": note,
+        }
+        with ProxyAddressBook.get_db() as (conn, cursor):
+            ProxyAddressBook.add_entry(
+                conn,
+                cursor,
+                name=name,
+                ss58_address=address,
+                spawner=spawner,
+                proxy_type=proxy_type_val,
+                note=note,
+            )
         self.config_get_proxies()
 
     def config_remove_proxy(
@@ -1912,9 +1948,9 @@ class CLIManager:
         """
         if name in self.proxies:
             del self.proxies[name]
+            with ProxyAddressBook.get_db() as (conn, cursor):
+                ProxyAddressBook.delete_entry(conn, cursor, name=name)
             console.print(f"Removed {name} from the address book.")
-            with open(self.proxies_path, "w+") as f:
-                safe_dump(self.proxies, f)
         else:
             err_console.print(f"Proxy {name} not found in address book.")
         self.config_get_proxies()
@@ -1926,15 +1962,68 @@ class CLIManager:
         table = Table(
             Column("[bold white]Name", style=f"{COLORS.G.ARG}"),
             Column("[bold white]Address", style="gold1"),
+            Column("Spawner", style="medium_purple"),
             Column("Proxy Type", style="medium_purple"),
+            Column("Proxy Address", style="dim"),
             box=box.SIMPLE_HEAD,
             title=f"[{COLORS.G.HEADER}]BTCLI Proxies Address Book[/{COLORS.G.HEADER}]: {arg__(self.proxies_path)}",
         )
-        for name, keys in self.proxies.items():
-            address = keys.get("address")
-            proxy_type = keys.get("proxy_type")
-            table.add_row(name, address, proxy_type)
+        with ProxyAddressBook.get_db() as (conn, cursor):
+            rows = ProxyAddressBook.read_rows(conn, cursor, include_header=False)
+        for name, ss58_address, spawner, proxy_type, note in rows:
+            table.add_row(name, ss58_address, spawner, proxy_type, note)
         console.print(table)
+
+    def config_update_proxy(
+        self,
+        name: Annotated[
+            str,
+            typer.Option(
+                help="Name of the proxy", prompt="Enter a name for this proxy"
+            ),
+        ],
+        address: Annotated[
+            Optional[str],
+            typer.Option(
+                callback=is_valid_ss58_address_param,
+                help="The SS58 address of the pure proxy",
+            ),
+        ] = None,
+        proxy_type: Annotated[
+            Optional[ProxyType],
+            typer.Option(
+                help="The type of this pure proxy",
+            ),
+        ] = None,
+        spawner: Annotated[
+            str,
+            typer.Option(
+                callback=is_valid_ss58_address_param,
+                help="The SS58 address of the spawner",
+            ),
+        ] = None,
+        note: Optional[str] = typer.Option(None, help="Any notes about this entry"),
+    ):
+        if name not in self.proxies:
+            err_console.print(f"Proxy {name} not found in address book.")
+            return
+        else:
+            if isinstance(proxy_type, ProxyType):
+                proxy_type_val = proxy_type.value
+            else:
+                proxy_type_val = proxy_type
+            with ProxyAddressBook.get_db() as (conn, cursor):
+                ProxyAddressBook.update_entry(
+                    conn,
+                    cursor,
+                    name=name,
+                    ss58_address=address,
+                    proxy_type=proxy_type_val,
+                    spawner=spawner,
+                    note=note,
+                )
+            console.print("Proxy updated")
+            self.config_get_proxies()
 
     def is_valid_proxy_name_or_ss58(
         self, address: Optional[str], announce_only: bool
