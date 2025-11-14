@@ -23,7 +23,7 @@ from bittensor_cli.src.bittensor.minigraph import MiniGraph
 from bittensor_cli.src.commands.wallets import set_id, get_id
 from bittensor_cli.src.bittensor.utils import (
     console,
-    create_table,
+    create_and_populate_table,
     err_console,
     print_verbose,
     print_error,
@@ -2000,7 +2000,7 @@ async def metagraph_cmd(
         }
         if not no_cache:
             update_metadata_table("metagraph", metadata_info)
-            create_table(
+            create_and_populate_table(
                 "metagraph",
                 columns=[
                     ("UID", "INTEGER"),
