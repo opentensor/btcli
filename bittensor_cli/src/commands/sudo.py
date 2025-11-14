@@ -286,18 +286,12 @@ async def set_hyperparameter_extrinsic(
              extrinsic_identifier: optional extrinsic identifier if the extrinsic was included
     """
     print_verbose("Confirming subnet owner")
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
     subnet_owner = await subtensor.query(
         module="SubtensorModule",
         storage_function="SubnetOwner",
         params=[netuid],
     )
-    # TODO does this need to check proxy?
-    if subnet_owner != wallet.coldkeypub.ss58_address:
-        err_msg = (
-            ":cross_mark: [red]This wallet doesn't own the specified subnet.[/red]"
-        )
-        err_console.print(err_msg)
-        return False, err_msg, None
 
     if not (ulw := unlock_key(wallet)).success:
         return False, ulw.message, None
@@ -381,8 +375,20 @@ async def set_hyperparameter_extrinsic(
                 call_params={"call": call_},
             )
         else:
+            if subnet_owner != coldkey_ss58:
+                err_msg = (
+                    ":cross_mark: [red]This wallet doesn't own the specified subnet.[/red]"
+                )
+                err_console.print(err_msg)
+                return False, err_msg, None
             call = call_
     else:
+        if subnet_owner != coldkey_ss58:
+            err_msg = (
+                ":cross_mark: [red]This wallet doesn't own the specified subnet.[/red]"
+            )
+            err_console.print(err_msg)
+            return False, err_msg, None
         call = call_
     with console.status(
         f":satellite: Setting hyperparameter [{COLOR_PALETTE.G.SUBHEAD}]{parameter}[/{COLOR_PALETTE.G.SUBHEAD}]"
