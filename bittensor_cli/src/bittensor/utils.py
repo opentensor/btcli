@@ -4,6 +4,7 @@ import math
 import os
 import sqlite3
 import webbrowser
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable, Generator
 from urllib.parse import urlparse
@@ -815,6 +816,7 @@ class TableDefinition:
     cols: tuple[tuple[str, str], ...]
 
     @staticmethod
+    @contextmanager
     def get_db() -> Generator[tuple[sqlite3.Connection, sqlite3.Cursor], None]:
         """
         Helper function to get a DB connection
