@@ -931,6 +931,7 @@ class CLIManager:
         self.config_app.command("add-proxy")(self.config_add_proxy)
         self.config_app.command("proxies")(self.config_get_proxies)
         self.config_app.command("remove-proxy")(self.config_remove_proxy)
+        self.config_app.command("update-proxy")(self.config_update_proxy)
         # self.config_app.command("metagraph", hidden=True)(self.metagraph_config)
 
         # wallet commands
