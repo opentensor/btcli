@@ -5,6 +5,7 @@ from typing import Optional
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm, IntPrompt, Prompt, FloatPrompt
 from rich.table import Table, Column, box
+from scalecodec import GenericCall
 
 from bittensor_cli.src import COLORS
 from bittensor_cli.src.commands.crowd.view import show_crowdloan_details
@@ -25,6 +26,7 @@ from bittensor_cli.src.bittensor.utils import (
 async def create_crowdloan(
     subtensor: SubtensorInterface,
     wallet: Wallet,
+    proxy: Optional[str],
     deposit_tao: Optional[int],
     min_contribution_tao: Optional[int],
     cap_tao: Optional[int],
@@ -53,7 +55,7 @@ async def create_crowdloan(
             print_error(f"[red]{unlock_status.message}[/red]")
         return False, unlock_status.message
 
-    crowdloan_type = None
+    crowdloan_type: str
     if subnet_lease is not None:
         crowdloan_type = "subnet" if subnet_lease else "fundraising"
     elif prompt:
@@ -125,7 +127,7 @@ async def create_crowdloan(
             else:
                 print_error(f"[red]{error_msg}[/red]")
             return False, "Missing required options when prompts are disabled."
-
+    duration = 0
     deposit_value = deposit_tao
     while True:
         if deposit_value is None:
@@ -210,8 +212,8 @@ async def create_crowdloan(
         break
 
     current_block = await subtensor.substrate.get_block_number(None)
-    call_to_attach = None
-
+    call_to_attach: Optional[GenericCall]
+    lease_perpetual = None
     if crowdloan_type == "subnet":
         target_address = None
 
@@ -266,7 +268,9 @@ async def create_crowdloan(
 
         call_to_attach = None
 
-    creator_balance = await subtensor.get_balance(wallet.coldkeypub.ss58_address)
+    creator_balance = await subtensor.get_balance(
+        proxy or wallet.coldkeypub.ss58_address
+    )
     if deposit > creator_balance:
         print_error(
             f"[red]Insufficient balance to cover the deposit. "
@@ -289,7 +293,9 @@ async def create_crowdloan(
         },
     )
 
-    extrinsic_fee = await subtensor.get_extrinsic_fee(call, wallet.coldkeypub)
+    extrinsic_fee = await subtensor.get_extrinsic_fee(
+        call, wallet.coldkeypub, proxy=proxy
+    )
 
     if prompt:
         duration_text = blocks_to_duration(duration)
@@ -334,7 +340,9 @@ async def create_crowdloan(
         table.add_row("Duration", f"[bold]{duration}[/bold] blocks (~{duration_text})")
         table.add_row("Ends at block", f"[bold]{end_block}[/bold]")
         table.add_row(
-            "Estimated fee", f"[{COLORS.P.TAO}]{extrinsic_fee}[/{COLORS.P.TAO}]"
+            "Estimated fee",
+            f"[{COLORS.P.TAO}]{extrinsic_fee}[/{COLORS.P.TAO}]"
+            + (" (paid by real account)" if proxy else ""),
         )
         console.print(table)
 
@@ -352,6 +360,7 @@ async def create_crowdloan(
     success, error_message, extrinsic_receipt = await subtensor.sign_and_send_extrinsic(
         call=call,
         wallet=wallet,
+        proxy=proxy,
         wait_for_inclusion=wait_for_inclusion,
         wait_for_finalization=wait_for_finalization,
     )
@@ -432,6 +441,7 @@ async def create_crowdloan(
 async def finalize_crowdloan(
     subtensor: SubtensorInterface,
     wallet: Wallet,
+    proxy: Optional[str],
     crowdloan_id: int,
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
@@ -449,10 +459,12 @@ async def finalize_crowdloan(
     Args:
         subtensor: SubtensorInterface instance for blockchain interaction
         wallet: Wallet instance containing the user's keys
+        proxy: Optional proxy to use for this extrinsic submission
         crowdloan_id: The ID of the crowdloan to finalize
         wait_for_inclusion: Whether to wait for transaction inclusion
         wait_for_finalization: Whether to wait for transaction finalization
         prompt: Whether to prompt for user confirmation
+        json_output: Whether to output the crowdloan info as JSON or human-readable
 
     Returns:
         Tuple of (success, message) indicating the result
@@ -512,7 +524,9 @@ async def finalize_crowdloan(
             "crowdloan_id": crowdloan_id,
         },
     )
-    extrinsic_fee = await subtensor.get_extrinsic_fee(call, wallet.coldkeypub)
+    extrinsic_fee = await subtensor.get_extrinsic_fee(
+        call, wallet.coldkeypub, proxy=proxy
+    )
 
     await show_crowdloan_details(
         subtensor=subtensor,
@@ -558,7 +572,11 @@ async def finalize_crowdloan(
         else:
             table.add_row("Call to Execute", "[dim]None[/dim]")
 
-        table.add_row("Transaction Fee", str(extrinsic_fee))
+        table.add_row(
+            "Transaction Fee",
+            f"[{COLORS.S.TAO}]{extrinsic_fee.tao}[/{COLORS.S.TAO}]"
+            + (" (paid by real account)" if proxy else ""),
+        )
 
         table.add_section()
         table.add_row(
@@ -601,6 +619,7 @@ async def finalize_crowdloan(
         wallet=wallet,
         wait_for_inclusion=wait_for_inclusion,
         wait_for_finalization=wait_for_finalization,
+        proxy=proxy,
     )
 
     if not success:
