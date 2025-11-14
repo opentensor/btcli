@@ -116,7 +116,7 @@ class Defaults:
 
     class proxies:
         base_path = "~/.bittensor"
-        path = "~/.bittensor/proxy-address-book.yml"
+        path = "~/.bittensor/bittensor.db"
         dictionary = {}
 
     class subtensor:
