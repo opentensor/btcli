@@ -50,6 +50,7 @@ class ProxyType(StrEnum):
 
 # TODO add announce with also --reject and --remove
 
+
 async def submit_proxy(
     subtensor: "SubtensorInterface",
     wallet: "Wallet",

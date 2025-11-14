@@ -394,6 +394,11 @@ class Options:
         help="Optional proxy to use for the transaction: either the SS58 or the name of the proxy if you "
         f"have added it with {arg__('btcli config add-proxy')}.",
     )
+    announce_only: bool = typer.Option(
+        False,
+        help=f"If set along with [{COLORS.G.ARG}]--proxy[/{COLORS.G.ARG}], will not actually make the extrinsic call, "
+        f"but rather just announce it to be made later.",
+    )
 
 
 def list_prompt(init_var: list, list_type: type, help_text: str) -> list:
@@ -2401,6 +2406,7 @@ class CLIManager:
         ),
         period: int = Options.period,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -2489,6 +2495,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
         json_output: bool = Options.json_output,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
     ):
         """
         Swap hotkeys of a given wallet on the blockchain. For a registered key pair, for example, a (coldkeyA, hotkeyA) pair, this command swaps the hotkeyA with a new, unregistered, hotkeyB to move the original registration to the (coldkeyA, hotkeyB) pair.
@@ -3085,6 +3092,7 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey_ss58,
         network: Optional[list[str]] = Options.network,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3580,6 +3588,7 @@ class CLIManager:
             help="The GitHub repository for the identity.",
         ),
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         prompt: bool = Options.prompt,
@@ -3845,6 +3854,7 @@ class CLIManager:
         ),
         network: Optional[list[str]] = Options.network,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         force_swap: bool = typer.Option(
@@ -3987,6 +3997,7 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         netuid: Optional[int] = Options.netuid_not_req,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         prompt: bool = Options.prompt,
@@ -4180,6 +4191,7 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         network: Optional[list[str]] = Options.network,
         rate_tolerance: Optional[float] = Options.rate_tolerance,
         safe_staking: Optional[bool] = Options.safe_staking,
@@ -4481,6 +4493,7 @@ class CLIManager:
             "hotkeys in `--include-hotkeys`.",
         ),
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         rate_tolerance: Optional[float] = Options.rate_tolerance,
         safe_staking: Optional[bool] = Options.safe_staking,
         allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
@@ -4827,6 +4840,7 @@ class CLIManager:
             False, "--stake-all", "--all", help="Stake all", prompt=False
         ),
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         period: int = Options.period,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
@@ -5025,6 +5039,7 @@ class CLIManager:
         ),
         period: int = Options.period,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -5215,6 +5230,7 @@ class CLIManager:
             help="Swap all available stake",
         ),
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         period: int = Options.period,
         prompt: bool = Options.prompt,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
@@ -5321,6 +5337,7 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -5372,6 +5389,7 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -5511,7 +5529,8 @@ class CLIManager:
             help="Enter the stake weight proportions for the child hotkeys (sum should be less than or equal to 1)",
             prompt=False,
         ),
-        proxy: Optional[str] = None,
+        proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
         quiet: bool = Options.quiet,
@@ -5606,6 +5625,7 @@ class CLIManager:
             help="When this flag is used it sets child hotkeys on all the subnets.",
         ),
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
         quiet: bool = Options.quiet,
@@ -5694,6 +5714,7 @@ class CLIManager:
             prompt=False,
         ),
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
         prompt: bool = Options.prompt,
@@ -5779,6 +5800,7 @@ class CLIManager:
             help="Number of mechanisms to set for the subnet.",
         ),
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
         prompt: bool = Options.prompt,
@@ -5929,6 +5951,7 @@ class CLIManager:
             help="Comma-separated relative weights for each mechanism (normalised automatically).",
         ),
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
         prompt: bool = Options.prompt,
@@ -6018,6 +6041,7 @@ class CLIManager:
             "", "--value", help="Value to set the hyperparameter to."
         ),
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -6227,6 +6251,7 @@ class CLIManager:
             help="The hash of the proposal to vote on.",
         ),
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -6279,6 +6304,7 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         take: float = typer.Option(None, help="The new take value."),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -6381,6 +6407,7 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         netuid: int = Options.netuid,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         max_uids: int = typer.Option(
             None,
             "--max",
@@ -6682,6 +6709,7 @@ class CLIManager:
         wallet_hotkey: str = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         subnet_name: Optional[str] = typer.Option(
             None, "--subnet-name", help="Name of the subnet"
         ),
@@ -6792,6 +6820,7 @@ class CLIManager:
         wallet_hotkey: str = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         netuid: int = Options.netuid,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
@@ -6863,6 +6892,7 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         netuid: int = Options.netuid,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         subnet_name: Optional[str] = typer.Option(
             None, "--subnet-name", "--sn-name", help="Name of the subnet"
         ),
@@ -7065,6 +7095,7 @@ class CLIManager:
             "use an era for this transaction that you may pay a different fee to register than the one stated.",
         ),
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         json_output: bool = Options.json_output,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
@@ -7214,6 +7245,7 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         netuid: int = Options.netuid,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         period: int = Options.period,
         json_output: bool = Options.json_output,
         prompt: bool = Options.prompt,
@@ -7277,6 +7309,7 @@ class CLIManager:
         wallet_hotkey: str = Options.wallet_hotkey,
         netuid: int = Options.netuid,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         uids: str = typer.Option(
             None,
             "--uids",
@@ -7375,6 +7408,7 @@ class CLIManager:
         wallet_hotkey: str = Options.wallet_hotkey,
         netuid: int = Options.netuid,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         uids: str = typer.Option(
             None,
             "--uids",
@@ -7540,6 +7574,7 @@ class CLIManager:
         wallet_hotkey: str = Options.wallet_hotkey,
         netuid: Optional[int] = Options.netuid,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         liquidity_: Optional[float] = typer.Option(
             None,
             "--liquidity",
@@ -7674,6 +7709,7 @@ class CLIManager:
         wallet_hotkey: str = Options.wallet_hotkey,
         netuid: Optional[int] = Options.netuid,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         position_id: Optional[int] = typer.Option(
             None,
             "--position-id",
@@ -7747,6 +7783,7 @@ class CLIManager:
         wallet_hotkey: str = Options.wallet_hotkey,
         netuid: Optional[int] = Options.netuid,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         position_id: Optional[int] = typer.Option(
             None,
             "--position-id",
@@ -7913,6 +7950,7 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         deposit: Optional[float] = typer.Option(
             None,
             "--deposit",
@@ -8039,6 +8077,7 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         prompt: bool = Options.prompt,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
@@ -8102,6 +8141,7 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         prompt: bool = Options.prompt,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
@@ -8159,6 +8199,7 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         prompt: bool = Options.prompt,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
@@ -8233,6 +8274,7 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         prompt: bool = Options.prompt,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
@@ -8297,6 +8339,7 @@ class CLIManager:
             help="The ID of the crowdloan to refund",
         ),
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         network: Optional[list[str]] = Options.network,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
@@ -8360,6 +8403,7 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         prompt: bool = Options.prompt,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
@@ -8647,6 +8691,7 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         proxy_type: ProxyType = Options.proxy_type,
         proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
         idx: int = typer.Option(0, "--index", help="TODO lol"),
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
