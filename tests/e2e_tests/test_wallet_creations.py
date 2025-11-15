@@ -328,7 +328,7 @@ def test_wallet_creations(wallet_setup):
         command="wallet", sub_command="list", extra_args=["--wallet-path", wallet_path]
     )
 
-    # Verify hotkey "new_hotkey" is displyed with key
+    # Verify hotkey "new_hotkey" is displayed with key
     verify_key_pattern(result.stdout, "new_hotkey")
 
     # Physically verify "new_coldkey" and "new_hotkey" are present
