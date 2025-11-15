@@ -108,39 +108,43 @@ async def display_stake_movement_cross_subnets(
     )
 
     table.add_column(
-        "origin netuid", justify="center", style=COLOR_PALETTE["GENERAL"]["SYMBOL"]
+        "origin netuid", justify="center", style=COLOR_PALETTE["GENERAL"]["SYMBOL"], max_width=14
     )
     table.add_column(
-        "origin hotkey", justify="center", style=COLOR_PALETTE["GENERAL"]["HOTKEY"]
+        "origin hotkey", justify="center", style=COLOR_PALETTE["GENERAL"]["HOTKEY"], max_width=15
     )
     table.add_column(
-        "dest netuid", justify="center", style=COLOR_PALETTE["GENERAL"]["SYMBOL"]
+        "dest netuid", justify="center", style=COLOR_PALETTE["GENERAL"]["SYMBOL"], max_width=12
     )
     table.add_column(
-        "dest hotkey", justify="center", style=COLOR_PALETTE["GENERAL"]["HOTKEY"]
+        "dest hotkey", justify="center", style=COLOR_PALETTE["GENERAL"]["HOTKEY"], max_width=15
     )
     table.add_column(
         f"amount ({Balance.get_unit(origin_netuid)})",
         justify="center",
         style=COLOR_PALETTE["STAKE"]["TAO"],
+        max_width=18,
     )
     table.add_column(
         f"rate ({Balance.get_unit(destination_netuid)}/{Balance.get_unit(origin_netuid)})",
         justify="center",
         style=COLOR_PALETTE["POOLS"]["RATE"],
+        max_width=20,
     )
     table.add_column(
         f"received ({Balance.get_unit(destination_netuid)})",
         justify="center",
         style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
+        max_width=18,
     )
     table.add_column(
         f"Fee ({Balance.get_unit(origin_netuid)})",
         justify="center",
         style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
+        max_width=15,
     )
     table.add_column(
-        "Extrinsic Fee (τ)", justify="center", style=COLOR_PALETTE.STAKE.TAO
+        "Extrinsic Fee (τ)", justify="center", style=COLOR_PALETTE.STAKE.TAO, max_width=18
     )
 
     table.add_row(
