@@ -1,5 +1,25 @@
 # Changelog
 
+## 9.15.3 /2025-11-17
+
+## What's Changed
+* fix missing classifiers, migrate to flit by @branchvincent in https://github.com/opentensor/btcli/pull/698
+* Removes subvortex as the project is gone. by @thewhaleking in https://github.com/opentensor/btcli/pull/708
+* Small Bug Fixes by @thewhaleking in https://github.com/opentensor/btcli/pull/712:
+  * Ensures that net_claimable is always a Balance object in get_claimable_stakes_for_coldkey
+  * Checks that the HK owner isn't the genesis address
+  * Clearly show the totals in st list as representing staked vs total incl free
+  * Prevents a race condition which could freeze the console for extrinsic submission
+* docs: fix typos in some files by @Edge-Seven in https://github.com/opentensor/btcli/pull/711
+* Fix table width visual bug in stake move command by @BANADDA in https://github.com/opentensor/btcli/pull/709
+
+## New Contributors
+* @branchvincent made their first contribution in https://github.com/opentensor/btcli/pull/698
+* @Edge-Seven made their first contribution in https://github.com/opentensor/btcli/pull/711
+* @BANADDA made their first contribution in https://github.com/opentensor/btcli/pull/709
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.15.2...v9.15.3
+
 ## 9.15.2 /2025-11-05
 
 ## What's Changed
