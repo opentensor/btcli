@@ -45,6 +45,8 @@ from bittensor_cli.src.bittensor.utils import (
     get_hotkey_pub_ss58,
 )
 
+GENESIS_ADDRESS = "5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM"
+
 
 class ParamWithTypes(TypedDict):
     name: str  # Name of the parameter.
@@ -1116,7 +1118,7 @@ class SubtensorInterface:
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
-        return_val = result != "5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM"
+        return_val = result != GENESIS_ADDRESS
         return return_val
 
     async def get_hotkey_owner(

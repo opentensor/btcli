@@ -30,7 +30,7 @@ from bittensor_cli.src.bittensor.extrinsics.registration import (
 )
 from bittensor_cli.src.bittensor.extrinsics.transfer import transfer_extrinsic
 from bittensor_cli.src.bittensor.networking import int_to_ip
-from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
+from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface, GENESIS_ADDRESS
 from bittensor_cli.src.bittensor.utils import (
     RAO_PER_TAO,
     console,
@@ -2263,7 +2263,7 @@ async def check_swap_status(
     )
     if (
         chain_reported_completion_block != 0
-        and destination_address != "5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM"
+        and destination_address != GENESIS_ADDRESS
     ):
         is_pending = True
     else:
