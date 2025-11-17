@@ -6135,7 +6135,7 @@ class CLIManager:
         self.verbosity_handler(quiet=quiet, verbose=verbose, json_output=json_output)
 
         subtensor = self.initialize_chain(network)
-        non_archives = ["finney", "latent-lite", "subvortex"]
+        non_archives = ["finney", "latent-lite"]
         if not current_only and subtensor.network in non_archives + [
             Constants.network_map[x] for x in non_archives
         ]:
