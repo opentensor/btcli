@@ -153,7 +153,7 @@ async def stake_list(
 
     def create_table(
         hotkey_: str,
-        substakes: list[StakeInfo],
+        substakes_: list[StakeInfo],
         claimable_amounts_: dict[str, dict[int, Balance]],
     ):
         name_ = (
@@ -164,9 +164,9 @@ async def stake_list(
         rows = []
         total_tao_value_ = Balance(0)
         total_swapped_tao_value_ = Balance(0)
-        root_stakes = [s for s in substakes if s.netuid == 0]
+        root_stakes = [s for s in substakes_ if s.netuid == 0]
         other_stakes = sorted(
-            [s for s in substakes if s.netuid != 0],
+            [s for s in substakes_ if s.netuid != 0],
             key=lambda x: dynamic_info[x.netuid]
             .alpha_to_tao(Balance.from_rao(int(x.stake.rao)).set_unit(x.netuid))
             .tao,
@@ -626,7 +626,7 @@ async def stake_list(
                 input()
 
         total_tao_value = (
-            f"τ {millify_tao(all_hks_tao_value.tao)}"
+            f"τ {millify_tao(all_hks_tao_value.tao + balance.tao)}"
             if not verbose
             else all_hks_tao_value
         )
@@ -638,10 +638,14 @@ async def stake_list(
         console.print("\n\n")
         console.print(
             f"Wallet:\n"
-            f"  Coldkey SS58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{coldkey_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
-            f"  Free Balance: [{COLOR_PALETTE['GENERAL']['BALANCE']}]{balance}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]\n"
-            f"  Total TAO Value ({Balance.unit}): [{COLOR_PALETTE['GENERAL']['BALANCE']}]{total_tao_value}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]"
-            # f"\n  Total TAO Swapped Value ({Balance.unit}): [{COLOR_PALETTE['GENERAL']['BALANCE']}]{total_swapped_tao_value}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]"
+            f"  Coldkey SS58: "
+            f"[{COLOR_PALETTE.G.CK}]{coldkey_address}[/{COLOR_PALETTE.G.CK}]\n"
+            f"  Free Balance: "
+            f"[{COLOR_PALETTE.G.BALANCE}]{balance}[/{COLOR_PALETTE.G.BALANCE}]\n"
+            f"  Total TAO Swapped Value ({Balance.unit}): "
+            f"[{COLOR_PALETTE.G.BALANCE}]{total_swapped_tao_value}[/{COLOR_PALETTE.G.BALANCE}]\n"
+            f"  Total TAO Value (including free balance) ({Balance.unit}): "
+            f"[{COLOR_PALETTE.G.BALANCE}]{total_tao_value}[/{COLOR_PALETTE.G.BALANCE}]\n"
         )
         dict_output["free_balance"] = balance.tao
         dict_output["total_tao_value"] = all_hks_tao_value.tao

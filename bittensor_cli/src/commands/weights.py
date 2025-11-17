@@ -226,13 +226,13 @@ class SetWeightsExtrinsic:
 
             return (
                 True,
-                "Successfully revealed previously commited weights hash.",
+                "Successfully revealed previously committed weights hash.",
                 ext_id,
             )
         else:
             # bittensor.logging.error(
             #     msg=msg,
-            #     prefix=f"Failed to reveal previously commited weights hash for salt: {salt}",
+            #     prefix=f"Failed to reveal previously committed weights hash for salt: {salt}",
             #     suffix="<red>Failed: </red>",
             # )
             return False, "Failed to reveal weights.", None

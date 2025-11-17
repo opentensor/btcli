@@ -7,7 +7,10 @@ from rich.prompt import Confirm
 from async_substrate_interface.errors import SubstrateRequestException
 
 from bittensor_cli.src.bittensor.balances import Balance
-from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
+from bittensor_cli.src.bittensor.subtensor_interface import (
+    SubtensorInterface,
+    GENESIS_ADDRESS,
+)
 from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
@@ -173,7 +176,7 @@ async def transfer_extrinsic(
     # Ask before moving on.
     if prompt:
         hk_owner = await subtensor.get_hotkey_owner(destination, check_exists=False)
-        if hk_owner and hk_owner != destination:
+        if hk_owner and hk_owner not in (destination, GENESIS_ADDRESS):
             if not Confirm.ask(
                 f"The destination appears to be a hotkey, owned by [bright_magenta]{hk_owner}[/bright_magenta]. "
                 f"Only proceed if you are absolutely sure that [bright_magenta]{destination}[/bright_magenta] is the "
