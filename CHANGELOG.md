@@ -12,6 +12,7 @@
   * Prevents a race condition which could freeze the console for extrinsic submission
 * docs: fix typos in some files by @Edge-Seven in https://github.com/opentensor/btcli/pull/711
 * Fix table width visual bug in stake move command by @BANADDA in https://github.com/opentensor/btcli/pull/709
+* Fix: Decode account id in `btcli swap-check` by @ibraheem-abe in https://github.com/opentensor/btcli/pull/714
 
 ## New Contributors
 * @branchvincent made their first contribution in https://github.com/opentensor/btcli/pull/698
