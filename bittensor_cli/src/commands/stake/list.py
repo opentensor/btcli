@@ -153,7 +153,7 @@ async def stake_list(
 
     def create_table(
         hotkey_: str,
-        substakes: list[StakeInfo],
+        substakes_: list[StakeInfo],
         claimable_amounts_: dict[str, dict[int, Balance]],
     ):
         name_ = (
@@ -164,9 +164,9 @@ async def stake_list(
         rows = []
         total_tao_value_ = Balance(0)
         total_swapped_tao_value_ = Balance(0)
-        root_stakes = [s for s in substakes if s.netuid == 0]
+        root_stakes = [s for s in substakes_ if s.netuid == 0]
         other_stakes = sorted(
-            [s for s in substakes if s.netuid != 0],
+            [s for s in substakes_ if s.netuid != 0],
             key=lambda x: dynamic_info[x.netuid]
             .alpha_to_tao(Balance.from_rao(int(x.stake.rao)).set_unit(x.netuid))
             .tao,
