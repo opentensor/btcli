@@ -7,7 +7,10 @@ from rich.prompt import Confirm
 from async_substrate_interface.errors import SubstrateRequestException
 
 from bittensor_cli.src.bittensor.balances import Balance
-from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface, GENESIS_ADDRESS
+from bittensor_cli.src.bittensor.subtensor_interface import (
+    SubtensorInterface,
+    GENESIS_ADDRESS,
+)
 from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
