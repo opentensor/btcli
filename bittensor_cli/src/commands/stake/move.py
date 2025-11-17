@@ -108,16 +108,28 @@ async def display_stake_movement_cross_subnets(
     )
 
     table.add_column(
-        "origin netuid", justify="center", style=COLOR_PALETTE["GENERAL"]["SYMBOL"], max_width=14
+        "origin netuid",
+        justify="center",
+        style=COLOR_PALETTE["GENERAL"]["SYMBOL"],
+        max_width=14,
     )
     table.add_column(
-        "origin hotkey", justify="center", style=COLOR_PALETTE["GENERAL"]["HOTKEY"], max_width=15
+        "origin hotkey",
+        justify="center",
+        style=COLOR_PALETTE["GENERAL"]["HOTKEY"],
+        max_width=15,
     )
     table.add_column(
-        "dest netuid", justify="center", style=COLOR_PALETTE["GENERAL"]["SYMBOL"], max_width=12
+        "dest netuid",
+        justify="center",
+        style=COLOR_PALETTE["GENERAL"]["SYMBOL"],
+        max_width=12,
     )
     table.add_column(
-        "dest hotkey", justify="center", style=COLOR_PALETTE["GENERAL"]["HOTKEY"], max_width=15
+        "dest hotkey",
+        justify="center",
+        style=COLOR_PALETTE["GENERAL"]["HOTKEY"],
+        max_width=15,
     )
     table.add_column(
         f"amount ({Balance.get_unit(origin_netuid)})",
@@ -144,7 +156,10 @@ async def display_stake_movement_cross_subnets(
         max_width=15,
     )
     table.add_column(
-        "Extrinsic Fee (τ)", justify="center", style=COLOR_PALETTE.STAKE.TAO, max_width=18
+        "Extrinsic Fee (τ)",
+        justify="center",
+        style=COLOR_PALETTE.STAKE.TAO,
+        max_width=18,
     )
 
     table.add_row(
