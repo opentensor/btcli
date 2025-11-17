@@ -120,6 +120,7 @@ class SubtensorInterface:
             ss58_format=SS58_FORMAT,
             type_registry=TYPE_REGISTRY,
             chain_name="Bittensor",
+            ws_shutdown_timer=None,
         )
 
     def __str__(self):
