@@ -9,7 +9,7 @@
 
 ## Internet-scale Neural Networks <!-- omit in toc -->
 
-[SDK](https://github.com/opentensor/bittensor/tree/master) • [Wallet](https://github.com/opentensor/btwallet) • [Research](https://bittensor.com/whitepaper)
+[SDK](https://github.com/opentensor/bittensor/tree/main) • [Wallet](https://github.com/opentensor/btwallet) • [Research](https://bittensor.com/whitepaper)
 
 </div>
 
