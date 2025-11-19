@@ -554,7 +554,7 @@ async def execute_announced(
                         value = False
                 else:
                     err_console.print(
-                        f":cross_mark:[red]Unrecogized type name {type_name}. {failure_}"
+                        f":cross_mark:[red]Unrecognized type name {type_name}. {failure_}"
                     )
                     return None
                 call_args[arg] = value
@@ -567,7 +567,7 @@ async def execute_announced(
     else:
         runtime = await subtensor.substrate.init_runtime(block_id=created_block)
         inner_call = GenericCall(
-            data=ScaleBytes(data=bytes.fromhex(call_hex)), metadata=runtime.metadata
+            data=ScaleBytes(data=bytearray.fromhex(call_hex)), metadata=runtime.metadata
         )
         inner_call.process()
 
