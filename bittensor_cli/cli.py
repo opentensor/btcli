@@ -8911,43 +8911,48 @@ class CLIManager:
             else:
                 proxies = []
         potential_matches = []
-        for row in proxies:
-            p_name, ss58_address, delay_, spawner, proxy_type, note = row
-            if proxy == ss58_address:
-                potential_matches.append(row)
-        if len(potential_matches) == 1:
-            delay = potential_matches[0][2]
-        elif len(potential_matches) > 1:
-            if not prompt:
-                err_console.print(
-                    f":cross_mark:[red]Error: The proxy ss58 you provided: {proxy} matched the address book"
-                    f" ambiguously (more than one match). To use this (rather than the address book name), you will "
-                    f"have to use without {arg__('--no-prompt')}"
-                )
-                return
-            else:
-                console.print(
-                    f"The proxy ss58 you provided matches the address book ambiguously. The results will be"
-                    f"iterated, for you to select your intended proxy."
-                )
-                for row in potential_matches:
-                    p_name, ss58_address, delay_, spawner, proxy_type, note = row
-                    console.print(
-                        f"Name: {p_name}\n"
-                        f"Delay: {delay_}\n"
-                        f"Spawner/Delegator: {spawner}\n"
-                        f"Proxy Type: {proxy_type}\n"
-                        f"Note: {note}\n"
+        if not got_delay_from_config:
+            for row in proxies:
+                p_name, ss58_address, delay_, spawner, proxy_type, note = row
+                if proxy == ss58_address:
+                    potential_matches.append(row)
+            if len(potential_matches) == 1:
+                delay = potential_matches[0][2]
+                got_delay_from_config = True
+            elif len(potential_matches) > 1:
+                if not prompt:
+                    err_console.print(
+                        f":cross_mark:[red]Error: The proxy ss58 you provided: {proxy} matched the address book"
+                        f" ambiguously (more than one match). To use this (rather than the address book name), you will "
+                        f"have to use without {arg__('--no-prompt')}"
                     )
-                    if Confirm.ask("Is this the intended proxy?"):
-                        delay = delay_
-                        got_delay_from_config = True
+                    return
+                else:
+                    console.print(
+                        f"The proxy ss58 you provided matches the address book ambiguously. The results will be"
+                        f"iterated, for you to select your intended proxy."
+                    )
+                    for row in potential_matches:
+                        p_name, ss58_address, delay_, spawner, proxy_type, note = row
+                        console.print(
+                            f"Name: {p_name}\n"
+                            f"Delay: {delay_}\n"
+                            f"Spawner/Delegator: {spawner}\n"
+                            f"Proxy Type: {proxy_type}\n"
+                            f"Note: {note}\n"
+                        )
+                        if Confirm.ask("Is this the intended proxy?"):
+                            delay = delay_
+                            got_delay_from_config = True
+                            break
+
         if not got_delay_from_config:
             verbose_console.print(
                 f"Unable to retrieve proxy from address book: {proxy}"
             )
         call_hex = None
         block = None
+        got_call_from_db = False
         potential_call_matches = []
         for row in announcements:
             (
@@ -8963,6 +8968,7 @@ class CLIManager:
         if len(potential_call_matches) == 1:
             block = potential_call_matches[0][2]
             call_hex = potential_call_matches[0][4]
+            got_call_from_db = True
         elif len(potential_call_matches) > 1:
             if not prompt:
                 err_console.print(
@@ -8993,6 +8999,10 @@ class CLIManager:
                     if Confirm.ask("Is this the intended call?"):
                         call_hex = call_hex_
                         block = block_
+                        got_call_from_db = True
+                        break
+        if not got_call_from_db:
+            console.print("Unable to retrieve call from DB. Proceeding without.")
 
         return self._run_command(
             proxy_commands.execute_announced(
