@@ -136,6 +136,12 @@ async def create_proxy(
             f"This will create a Pure Proxy of type {proxy_type.value}. Do you want to proceed?",
         ):
             return False, "", "", ""
+        if delay > 0:
+            if not Confirm.ask(
+                f"By adding a non-zero delay ({delay}), all proxy calls must be announced "
+                f"{delay} blocks before they will be able to be made. Continue?"
+            ):
+                return False, "", "", ""
     if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
         if not json_output:
             err_console.print(ulw.message)
@@ -301,6 +307,12 @@ async def add_proxy(
             f"Do you want to proceed?"
         ):
             return None
+        if delay > 0:
+            if not Confirm.ask(
+                f"By adding a non-zero delay ({delay}), all proxy calls must be announced "
+                f"{delay} blocks before they will be able to be made. Continue?"
+            ):
+                return False, "", "", ""
     if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
         if not json_output:
             err_console.print(ulw.message)
