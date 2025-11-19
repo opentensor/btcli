@@ -1893,6 +1893,8 @@ class CLIManager:
         spawner: Annotated[
             str,
             typer.Option(
+                "--spawner",
+                "--delegator",
                 callback=is_valid_ss58_address_param,
                 help="The SS58 address of the spawner (pure proxy)/delegator (regular proxy)",
                 prompt="Enter the SS58 address of the spawner (pure proxy)/delegator (regular proxy)",

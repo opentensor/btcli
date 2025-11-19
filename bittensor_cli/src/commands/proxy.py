@@ -352,8 +352,8 @@ async def add_proxy(
             console.print(
                 f" You can add this to your config with {arg_start}"
                 f"btcli config add-proxy "
-                # TODO adjust for new address book style
-                f"--name <PROXY_NAME> --address {delegatee} --proxy-type {created_proxy_type.value}"
+                f"--name <PROXY_NAME> --address {delegatee} --proxy-type {created_proxy_type.value} --delegator "
+                f"{delegator} --delay {delay}"
                 f"{arg_end}"
             )
         else:
