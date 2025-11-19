@@ -292,6 +292,7 @@ async def root_register_extrinsic(
     wallet: Wallet,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
+    proxy: Optional[str] = None,
 ) -> tuple[bool, str, Optional[str]]:
     r"""Registers the wallet to root network.
 
@@ -301,7 +302,7 @@ async def root_register_extrinsic(
                                `False` if the extrinsic fails to enter the block within the timeout.
     :param wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `True`,
                                   or returns `False` if the extrinsic fails to be finalized within the timeout.
-    :param prompt: If `True`, the call waits for confirmation from the user before proceeding.
+    :param proxy: Optional proxy to use for making the call.
 
     :return: (success, msg), with success being `True` if extrinsic was finalized or included in the block. If we did
         not wait for finalization/inclusion, the response is `True`.
@@ -331,6 +332,7 @@ async def root_register_extrinsic(
             wallet=wallet,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
+            proxy=proxy,
         )
 
         if not success:

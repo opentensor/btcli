@@ -24,6 +24,7 @@ from bittensor_cli.src.commands.crowd.utils import get_constant
 async def update_crowdloan(
     subtensor: SubtensorInterface,
     wallet: Wallet,
+    proxy: Optional[str],
     crowdloan_id: int,
     min_contribution: Optional[Balance] = None,
     end: Optional[int] = None,
@@ -38,6 +39,7 @@ async def update_crowdloan(
     Args:
         subtensor: SubtensorInterface object for chain interaction
         wallet: Wallet object containing coldkey (must be creator)
+        proxy: Optional proxy to use for this extrinsic submissions
         crowdloan_id: ID of the crowdloan to update
         min_contribution: New minimum contribution in TAO (None to prompt)
         end: New end block (None to prompt)
@@ -45,6 +47,7 @@ async def update_crowdloan(
         wait_for_inclusion: Wait for transaction inclusion
         wait_for_finalization: Wait for transaction finalization
         prompt: Whether to prompt for values
+        json_output: Whether to output JSON or human-readable
 
     Returns:
         tuple[bool, str]: Success status and message
@@ -368,6 +371,7 @@ async def update_crowdloan(
         ) = await subtensor.sign_and_send_extrinsic(
             call=call,
             wallet=wallet,
+            proxy=proxy,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
         )

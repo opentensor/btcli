@@ -1,5 +1,6 @@
 import asyncio
 import json
+from typing import Optional
 
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm
@@ -22,6 +23,7 @@ from bittensor_cli.src.commands.crowd.utils import get_constant
 async def refund_crowdloan(
     subtensor: SubtensorInterface,
     wallet: Wallet,
+    proxy: Optional[str],
     crowdloan_id: int,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
@@ -40,10 +42,12 @@ async def refund_crowdloan(
     Args:
         subtensor: SubtensorInterface object for chain interaction
         wallet: Wallet object containing coldkey (any wallet can call this)
+        proxy: Optional proxy to use for extrinsic submission
         crowdloan_id: ID of the crowdloan to refund
         wait_for_inclusion: Wait for transaction inclusion
         wait_for_finalization: Wait for transaction finalization
         prompt: Whether to prompt for confirmation
+        json_output: Whether to output as JSON or human-readable
 
     Returns:
         tuple[bool, str]: Success status and message
@@ -183,6 +187,7 @@ async def refund_crowdloan(
         ) = await subtensor.sign_and_send_extrinsic(
             call=call,
             wallet=wallet,
+            proxy=proxy,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
         )
