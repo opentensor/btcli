@@ -2574,6 +2574,7 @@ class CLIManager:
                 prompt=prompt,
                 json_output=json_output,
                 proxy=proxy,
+                announce_only=announce_only,
             )
         )
 

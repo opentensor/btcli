@@ -1,4 +1,5 @@
 import ast
+import json
 from collections import namedtuple
 import math
 import os
@@ -1017,6 +1018,7 @@ class ProxyAnnouncements(TableDefinition):
         ("epoch_time", "INTEGER"),
         ("block", "INTEGER"),
         ("call_hash", "TEXT"),
+        ("call_args", "TEXT"),
     )
 
     @classmethod
@@ -1029,10 +1031,12 @@ class ProxyAnnouncements(TableDefinition):
         epoch_time: int,
         block: int,
         call_hash: str,
+        call_args: dict,
     ) -> None:
+        call_args_ = json.dumps(call_args)
         conn.execute(
-            f"INSERT INTO {cls.name} (address, epoch_time, block, call_hash) VALUES (?, ?, ?, ?)",
-            (address, epoch_time, block, call_hash),
+            f"INSERT INTO {cls.name} (address, epoch_time, block, call_hash, call_args) VALUES (?, ?, ?, ?, ?)",
+            (address, epoch_time, block, call_hash, call_args_),
         )
         conn.commit()
 

@@ -43,6 +43,7 @@ from bittensor_cli.src.bittensor.utils import (
     u16_normalized_float,
     U16_MAX,
     get_hotkey_pub_ss58,
+    ProxyAnnouncements,
 )
 
 GENESIS_ADDRESS = "5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM"
@@ -1156,6 +1157,7 @@ class SubtensorInterface:
         proxy: Optional[str] = None,
         nonce: Optional[str] = None,
         sign_with: Literal["coldkey", "hotkey", "coldkeypub"] = "coldkey",
+        announce_only: bool = False,
     ) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
         """
         Helper method to sign and submit an extrinsic call to chain.
@@ -1168,25 +1170,30 @@ class SubtensorInterface:
         :param proxy: The real account used to create the proxy. None if not using a proxy for this call.
         :param nonce: The nonce used to submit this extrinsic call.
         :param sign_with: Determine which of the wallet's keypairs to use to sign the extrinsic call.
+        :param announce_only: If set, makes the call as an announcement, rather than making the call.
 
         :return: (success, error message, extrinsic receipt | None)
         """
         if proxy is not None:
-            call = await self.substrate.compose_call(
-                "Proxy",
-                "proxy",
-                {"real": proxy, "call": call, "force_proxy_type": None},
-            )
+            if announce_only:
+                call = await self.substrate.compose_call(
+                    "Proxy", "announce", {"real": proxy, "call_hash": call.call_hash}
+                )
+            else:
+                call = await self.substrate.compose_call(
+                    "Proxy",
+                    "proxy",
+                    {"real": proxy, "call": call, "force_proxy_type": None},
+                )
         call_args: dict[str, Union[GenericCall, Keypair, dict[str, int], int]] = {
             "call": call,
+            # sign with specified key
             "keypair": getattr(wallet, sign_with),
             "nonce": nonce,
         }
         if era is not None:
             call_args["era"] = era
-        extrinsic = await self.substrate.create_signed_extrinsic(
-            **call_args
-        )  # sign with coldkey
+        extrinsic = await self.substrate.create_signed_extrinsic(**call_args)
         try:
             response = await self.substrate.submit_extrinsic(
                 extrinsic,
@@ -1197,6 +1204,25 @@ class SubtensorInterface:
             if not wait_for_finalization and not wait_for_inclusion:
                 return True, "", response
             if await response.is_success:
+                if announce_only:
+                    block = await self.substrate.get_block_number(response.block_hash)
+                    with ProxyAnnouncements.get_db() as (conn, cursor):
+                        ProxyAnnouncements.add_entry(
+                            conn,
+                            cursor,
+                            address=proxy,
+                            epoch_time=int(time.time()),
+                            block=block,
+                            call_hash=call.call_hash,
+                            call_args={
+                                "module": call.call_module,
+                                "function": call.call_function,
+                                "args": call.call_args,
+                            },
+                        )
+                    console.print(
+                        f"Added entry {call.call_hash} at block {block} to your ProxyAnnouncements address book."
+                    )
                 return True, "", response
             else:
                 return False, format_error_message(await response.error_message), None

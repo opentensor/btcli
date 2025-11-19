@@ -34,6 +34,7 @@ async def transfer_extrinsic(
     wait_for_finalization: bool = False,
     prompt: bool = False,
     proxy: Optional[str] = None,
+    announce_only: bool = False,
 ) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """Transfers funds from this wallet to the destination public key address.
 
@@ -50,6 +51,7 @@ async def transfer_extrinsic(
                                    `True`, or returns `False` if the extrinsic fails to be finalized within the timeout.
     :param prompt: If `True`, the call waits for confirmation from the user before proceeding.
     :param proxy: Optional proxy to use for this call.
+    :param announce_only: If set along with proxy, will make this call as an announcement, rather than making the call
 
     :return: success: Flag is `True` if extrinsic was finalized or included in the block. If we did not wait for
                       finalization / inclusion, the response is `True`, regardless of its inclusion.
@@ -87,6 +89,7 @@ async def transfer_extrinsic(
             wait_for_inclusion=wait_for_inclusion,
             proxy=proxy,
             era={"period": era},
+            announce_only=announce_only,
         )
         block_hash_ = receipt_.block_hash if receipt_ is not None else ""
         return success_, block_hash_, error_msg_, receipt_
