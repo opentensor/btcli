@@ -16,11 +16,9 @@ from rich.panel import Panel
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.utils import (
     console,
-    err_console,
     print_error,
     is_valid_ss58_address,
     get_hotkey_pub_ss58,
-    get_subnet_name,
     group_subnets,
     get_hotkey_wallets_for_wallet,
 )
