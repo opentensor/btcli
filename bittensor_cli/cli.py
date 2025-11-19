@@ -2009,6 +2009,7 @@ class CLIManager:
                 help="The SS58 address of the spawner",
             ),
         ] = None,
+        delay: Optional[int] = typer.Option(None, help="Delay, in blocks."),
         note: Optional[str] = typer.Option(None, help="Any notes about this entry"),
     ):
         if name not in self.proxies:
@@ -2028,6 +2029,7 @@ class CLIManager:
                     proxy_type=proxy_type_val,
                     spawner=spawner,
                     note=note,
+                    delay=delay,
                 )
             console.print("Proxy updated")
             self.config_get_proxies()
