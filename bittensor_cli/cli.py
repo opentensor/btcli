@@ -88,6 +88,7 @@ from bittensor_cli.src.commands.stake import (
     add as add_stake,
     remove as remove_stake,
     claim as claim_stake,
+    wizard as stake_wizard,
 )
 from bittensor_cli.src.commands.subnets import (
     price,
@@ -971,6 +972,9 @@ class CLIManager:
         self.stake_app.command(
             "swap", rich_help_panel=HELP_PANELS["STAKE"]["MOVEMENT"]
         )(self.stake_swap)
+        self.stake_app.command(
+            "wizard", rich_help_panel=HELP_PANELS["STAKE"]["MOVEMENT"]
+        )(self.stake_wizard)
         self.stake_app.command(
             "set-claim", rich_help_panel=HELP_PANELS["STAKE"]["CLAIM"]
         )(self.stake_set_claim_type)
@@ -5073,6 +5077,139 @@ class CLIManager:
                 json.dumps({"success": result, "extrinsic_identifier": ext_id or None})
             )
         return result
+
+    def stake_wizard(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        period: int = Options.period,
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Interactive wizard that guides you through stake movement operations.
+
+        This wizard helps you understand and choose the right stake movement command:
+        - [bold]Move[/bold]: Move stake between hotkeys (same coldkey)
+        - [bold]Transfer[/bold]: Transfer stake between coldkeys (same hotkey)
+        - [bold]Swap[/bold]: Swap stake between subnets (same coldkey-hotkey pair)
+
+        The wizard will:
+        1. Explain the differences between each operation
+        2. Help you select the appropriate operation
+        3. Guide you through the selection process
+        4. Execute the operation with your choices
+
+        EXAMPLE
+
+        Start the wizard:
+        [green]$[/green] btcli stake wizard
+        """
+        self.verbosity_handler(quiet, verbose, json_output)
+        
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.WALLET,
+        )
+        
+        subtensor = self.initialize_chain(network)
+        
+        try:
+            wizard_result = self._run_command(
+                stake_wizard.stake_movement_wizard(
+                    subtensor=subtensor,
+                    wallet=wallet,
+                )
+            )
+            
+            if not wizard_result or not isinstance(wizard_result, dict):
+                return False
+            
+            operation = wizard_result.get("operation")
+            if not operation:
+                return False
+            
+            if operation == "move":
+                # Execute move operation
+                result, ext_id = self._run_command(
+                    move_stake.move_stake(
+                        subtensor=subtensor,
+                        wallet=wallet,
+                        origin_netuid=wizard_result["origin_netuid"],
+                        origin_hotkey=wizard_result["origin_hotkey"],
+                        destination_netuid=wizard_result["destination_netuid"],
+                        destination_hotkey=wizard_result["destination_hotkey"],
+                        amount=wizard_result.get("amount"),
+                        stake_all=wizard_result.get("stake_all", False),
+                        era=period,
+                        interactive_selection=False,
+                        prompt=prompt,
+                    )
+                )
+            elif operation == "transfer":
+                # Execute transfer operation
+                dest_coldkey = wizard_result.get("destination_coldkey")
+                if not is_valid_ss58_address(dest_coldkey):
+                    # Assume it's a wallet name
+                    dest_wallet = self.wallet_ask(
+                        dest_coldkey,
+                        wallet_path,
+                        None,
+                        ask_for=[WO.NAME, WO.PATH],
+                        validate=WV.WALLET,
+                    )
+                    dest_coldkey = dest_wallet.coldkeypub.ss58_address
+                
+                result, ext_id = self._run_command(
+                    move_stake.transfer_stake(
+                        wallet=wallet,
+                        subtensor=subtensor,
+                        origin_hotkey=wizard_result["origin_hotkey"],
+                        origin_netuid=wizard_result["origin_netuid"],
+                        dest_netuid=wizard_result["destination_netuid"],
+                        dest_coldkey_ss58=dest_coldkey,
+                        amount=wizard_result.get("amount"),
+                        stake_all=wizard_result.get("stake_all", False),
+                        era=period,
+                        interactive_selection=False,
+                        prompt=prompt,
+                    )
+                )
+            elif operation == "swap":
+                # Execute swap operation
+                result, ext_id = self._run_command(
+                    move_stake.swap_stake(
+                        wallet=wallet,
+                        subtensor=subtensor,
+                        origin_netuid=wizard_result["origin_netuid"],
+                        destination_netuid=wizard_result["destination_netuid"],
+                        amount=wizard_result.get("amount"),
+                        swap_all=False,
+                        era=period,
+                        interactive_selection=False,
+                        prompt=prompt,
+                    )
+                )
+            else:
+                print_error(f"Unknown operation: {operation}")
+                return False
+            
+            if json_output:
+                json_console.print(
+                    json.dumps({"success": result, "extrinsic_identifier": ext_id or None})
+                )
+            return result
+            
+        except ValueError:
+            # User cancelled or error occurred
+            return False
 
     def stake_get_children(
         self,
