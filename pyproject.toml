@@ -4,7 +4,7 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "bittensor-cli"
-version = "9.15.2"
+version = "9.15.3"
 description = "Bittensor CLI"
 readme = "README.md"
 authors = [

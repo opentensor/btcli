@@ -120,6 +120,7 @@ class SubtensorInterface:
             ss58_format=SS58_FORMAT,
             type_registry=TYPE_REGISTRY,
             chain_name="Bittensor",
+            ws_shutdown_timer=None,
         )
 
     def __str__(self):
@@ -2141,7 +2142,7 @@ class SubtensorInterface:
         if not stakes_info:
             return {}
 
-        root_stakes = {}
+        root_stakes: dict[str, Balance] = {}
         for stake_info in stakes_info:
             if stake_info.netuid == 0 and stake_info.stake.rao > 0:
                 root_stakes[stake_info.hotkey_ss58] = stake_info.stake
@@ -2187,8 +2188,8 @@ class SubtensorInterface:
             self.substrate.query_multi(batch_claimed_calls, block_hash=block_hash),
         )
 
-        claimable_rates = {}
-        claimed_amounts = {}
+        claimable_rates: dict[str, dict[int, float]] = {}
+        claimed_amounts: dict[tuple[str, int], Balance] = {}
         for idx, (_, result) in enumerate(batch_claimable):
             hotkey = unique_hotkeys[idx]
             if result:
@@ -2204,12 +2205,17 @@ class SubtensorInterface:
 
         # Calculate the claimable stake for each pair
         results = {}
+        already_claimed: Balance
+        net_claimable: Balance
+        rate: float
+        root_stake: Balance
+        claimable_stake: Balance
         for hotkey, netuid in target_pairs:
             root_stake = root_stakes[hotkey]
-            rate = claimable_rates[hotkey].get(netuid, 0)
+            rate = claimable_rates[hotkey].get(netuid, 0.0)
             claimable_stake = rate * root_stake
-            already_claimed = claimed_amounts.get((hotkey, netuid), 0)
-            net_claimable = max(claimable_stake - already_claimed, 0)
+            already_claimed = claimed_amounts.get((hotkey, netuid), Balance(0))
+            net_claimable = max(claimable_stake - already_claimed, Balance(0))
             if hotkey not in results:
                 results[hotkey] = {}
             results[hotkey][netuid] = net_claimable.set_unit(netuid)

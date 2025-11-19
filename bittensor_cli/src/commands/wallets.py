@@ -2272,6 +2272,7 @@ async def check_swap_status(
     chain_reported_completion_block, destination_address = await subtensor.query(
         "SubtensorModule", "ColdkeySwapScheduled", [origin_ss58]
     )
+    destination_address = decode_account_id(destination_address[0])
     if chain_reported_completion_block != 0 and destination_address != GENESIS_ADDRESS:
         is_pending = True
     else:

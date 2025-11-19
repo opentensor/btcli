@@ -226,7 +226,7 @@ class SetWeightsExtrinsic:
             )
             return (
                 True,
-                "Successfully revealed previously commited weights hash.",
+                "Successfully revealed previously committed weights hash.",
                 ext_id,
             )
         else:
