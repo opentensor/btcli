@@ -184,7 +184,8 @@ async def create_proxy(
             console.print(
                 f" You can add this to your config with {arg_start}"
                 f"btcli config add-proxy "
-                f"--name <PROXY_NAME> --address {created_pure} --proxy-type {created_proxy_type.value}"
+                f"--name <PROXY_NAME> --address {created_pure} --proxy-type {created_proxy_type.value} "
+                f"--delay {delay} --spawner {created_spawner}"
                 f"{arg_end}"
             )
         else:
