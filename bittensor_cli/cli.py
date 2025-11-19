@@ -9006,6 +9006,9 @@ class CLIManager:
                             break
             if not got_call_from_db:
                 console.print("Unable to retrieve call from DB. Proceeding without.")
+        else:
+            if call_hex[0:2] == "0x":
+                call_hex = call_hex[2:]
 
         return self._run_command(
             proxy_commands.execute_announced(
