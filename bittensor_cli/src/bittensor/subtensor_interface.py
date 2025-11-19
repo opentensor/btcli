@@ -1177,7 +1177,9 @@ class SubtensorInterface:
         if proxy is not None:
             if announce_only:
                 call = await self.substrate.compose_call(
-                    "Proxy", "announce", {"real": proxy, "call_hash": call.call_hash}
+                    "Proxy",
+                    "announce",
+                    {"real": proxy, "call_hash": f"0x{call.call_hash}"},
                 )
             else:
                 call = await self.substrate.compose_call(

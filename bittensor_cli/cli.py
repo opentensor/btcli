@@ -2,6 +2,7 @@
 import asyncio
 import copy
 import curses
+import datetime
 import importlib
 import json
 import logging
@@ -69,6 +70,7 @@ from bittensor_cli.src.bittensor.utils import (
     get_hotkey_pub_ss58,
     ensure_address_book_tables_exist,
     ProxyAddressBook,
+    ProxyAnnouncements,
 )
 from bittensor_cli.src.commands import sudo, wallets, view
 from bittensor_cli.src.commands import weights as weights_cmds
@@ -1526,11 +1528,12 @@ class CLIManager:
         with ProxyAddressBook.get_db() as (conn, cursor):
             rows = ProxyAddressBook.read_rows(conn, cursor, include_header=False)
         proxies = {}
-        for name, ss58_address, _, spawner, proxy_type, _ in rows:
+        for name, ss58_address, delay, spawner, proxy_type, _ in rows:
             proxies[name] = {
                 "address": ss58_address,
                 "spawner": spawner,
                 "proxy_type": proxy_type,
+                "delay": delay,
             }
         self.proxies = proxies
 
@@ -8796,7 +8799,6 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         proxy_type: ProxyType = Options.proxy_type,
         proxy: Optional[str] = Options.proxy,
-        announce_only: bool = Options.announce_only,
         idx: int = typer.Option(0, "--index", help="TODO lol"),
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
@@ -8858,6 +8860,153 @@ class CLIManager:
                 prompt=prompt,
                 json_output=json_output,
                 period=period,
+            )
+        )
+
+    def proxy_execute_announced(
+        self,
+        proxy: str = Options.proxy,
+        call_hash: Optional[str] = typer.Option(
+            None,
+            help="The hash proxy call to execute",
+        ),
+        network: Optional[list[str]] = Options.network,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        prompt: bool = Options.prompt,
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        period: int = Options.period,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        self.verbosity_handler(quiet, verbose, json_output, prompt)
+        outer_proxy_from_config = self.proxies.get(proxy, {})
+        proxy_from_config = outer_proxy_from_config.get("address")
+        delay = 0
+        got_delay_from_config = False
+        if proxy_from_config is not None:
+            proxy = proxy_from_config
+            delay = outer_proxy_from_config["delay"]
+            got_delay_from_config = True
+        else:
+            if not is_valid_ss58_address(proxy):
+                raise typer.BadParameter(
+                    f"proxy {proxy} is not a valid SS58 address or proxy address book name."
+                )
+        proxy = self.is_valid_proxy_name_or_ss58(proxy, False)
+        wallet = self.wallet_ask(
+            wallet_name=wallet_name,
+            wallet_path=wallet_path,
+            wallet_hotkey=wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.WALLET,
+        )
+        with ProxyAnnouncements.get_db() as (conn, cursor):
+            announcements = ProxyAnnouncements.read_rows(conn, cursor)
+            if not got_delay_from_config:
+                proxies = ProxyAddressBook.read_rows(conn, cursor)
+            else:
+                proxies = []
+        potential_matches = []
+        for row in proxies:
+            p_name, ss58_address, delay_, spawner, proxy_type, note = row
+            if proxy == ss58_address:
+                potential_matches.append(row)
+        if len(potential_matches) == 1:
+            delay = potential_matches[0][2]
+        elif len(potential_matches) > 1:
+            if not prompt:
+                err_console.print(
+                    f":cross_mark:[red]Error: The proxy ss58 you provided: {proxy} matched the address book"
+                    f" ambiguously (more than one match). To use this (rather than the address book name), you will "
+                    f"have to use without {arg__('--no-prompt')}"
+                )
+                return
+            else:
+                console.print(
+                    f"The proxy ss58 you provided matches the address book ambiguously. The results will be"
+                    f"iterated, for you to select your intended proxy."
+                )
+                for row in potential_matches:
+                    p_name, ss58_address, delay_, spawner, proxy_type, note = row
+                    console.print(
+                        f"Name: {p_name}\n"
+                        f"Delay: {delay_}\n"
+                        f"Spawner/Delegator: {spawner}\n"
+                        f"Proxy Type: {proxy_type}\n"
+                        f"Note: {note}\n"
+                    )
+                    if Confirm.ask("Is this the intended proxy?"):
+                        delay = delay_
+                        got_delay_from_config = True
+        if not got_delay_from_config:
+            verbose_console.print(
+                f"Unable to retrieve proxy from address book: {proxy}"
+            )
+        call_hex = None
+        block = None
+        potential_call_matches = []
+        for row in announcements:
+            (
+                address,
+                epoch_time,
+                block_,
+                call_hash_,
+                call_hex_,
+                call_serialized,
+            ) = row
+            if call_hash_ == call_hash and address == proxy:
+                potential_call_matches.append(row)
+        if len(potential_call_matches) == 1:
+            block = potential_call_matches[0][2]
+            call_hex = potential_call_matches[0][4]
+        elif len(potential_call_matches) > 1:
+            if not prompt:
+                err_console.print(
+                    f":cross_mark:[red]Error: The call hash you have provided matches {len(potential_call_matches)}"
+                    f" possible entries. In order to choose which one, you will need to run "
+                    f"without {arg__('--no-prompt')}"
+                )
+                return
+            else:
+                console.print(
+                    f"The call hash you have provided matches {len(potential_call_matches)}"
+                    f" possible entries. The results will be iterated for you to selected your intended"
+                    f"call."
+                )
+                for row in potential_call_matches:
+                    (
+                        address,
+                        epoch_time,
+                        block_,
+                        call_hash_,
+                        call_hex_,
+                        call_serialized,
+                    ) = row
+                    console.print(
+                        f"Time: {datetime.datetime.fromtimestamp(epoch_time)}\nCall:\n"
+                    )
+                    console.print_json(call_serialized)
+                    if Confirm.ask("Is this the intended call?"):
+                        call_hex = call_hex_
+                        block = block_
+
+        return self._run_command(
+            proxy_commands.execute_announced(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                delegate=proxy,
+                real=wallet.coldkeypub.ss58_address,
+                period=period,
+                call_hex=call_hex,
+                delay=delay,
+                created_block=block,
+                prompt=prompt,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
             )
         )
 

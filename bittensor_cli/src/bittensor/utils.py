@@ -1049,7 +1049,7 @@ class ProxyAnnouncements(TableDefinition):
         call: GenericCall,
     ) -> None:
         call_hex = call.data.to_hex()
-        call_serialized = call.serialize()
+        call_serialized = json.dumps(call.serialize())
         conn.execute(
             f"INSERT INTO {cls.name} (address, epoch_time, block, call_hash, call, call_serialized)"
             " VALUES (?, ?, ?, ?, ?, ?)",
