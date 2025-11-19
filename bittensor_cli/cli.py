@@ -8870,6 +8870,9 @@ class CLIManager:
             None,
             help="The hash proxy call to execute",
         ),
+        call_hex: Optional[str] = typer.Option(
+            None, help="The hex of the call to specify"
+        ),
         network: Optional[list[str]] = Options.network,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
@@ -8950,59 +8953,59 @@ class CLIManager:
             verbose_console.print(
                 f"Unable to retrieve proxy from address book: {proxy}"
             )
-        call_hex = None
         block = None
-        got_call_from_db = False
-        potential_call_matches = []
-        for row in announcements:
-            (
-                address,
-                epoch_time,
-                block_,
-                call_hash_,
-                call_hex_,
-                call_serialized,
-            ) = row
-            if call_hash_ == call_hash and address == proxy:
-                potential_call_matches.append(row)
-        if len(potential_call_matches) == 1:
-            block = potential_call_matches[0][2]
-            call_hex = potential_call_matches[0][4]
-            got_call_from_db = True
-        elif len(potential_call_matches) > 1:
-            if not prompt:
-                err_console.print(
-                    f":cross_mark:[red]Error: The call hash you have provided matches {len(potential_call_matches)}"
-                    f" possible entries. In order to choose which one, you will need to run "
-                    f"without {arg__('--no-prompt')}"
-                )
-                return
-            else:
-                console.print(
-                    f"The call hash you have provided matches {len(potential_call_matches)}"
-                    f" possible entries. The results will be iterated for you to selected your intended"
-                    f"call."
-                )
-                for row in potential_call_matches:
-                    (
-                        address,
-                        epoch_time,
-                        block_,
-                        call_hash_,
-                        call_hex_,
-                        call_serialized,
-                    ) = row
-                    console.print(
-                        f"Time: {datetime.datetime.fromtimestamp(epoch_time)}\nCall:\n"
+        if not call_hex:
+            got_call_from_db = False
+            potential_call_matches = []
+            for row in announcements:
+                (
+                    address,
+                    epoch_time,
+                    block_,
+                    call_hash_,
+                    call_hex_,
+                    call_serialized,
+                ) = row
+                if call_hash_ == call_hash and address == proxy:
+                    potential_call_matches.append(row)
+            if len(potential_call_matches) == 1:
+                block = potential_call_matches[0][2]
+                call_hex = potential_call_matches[0][4]
+                got_call_from_db = True
+            elif len(potential_call_matches) > 1:
+                if not prompt:
+                    err_console.print(
+                        f":cross_mark:[red]Error: The call hash you have provided matches {len(potential_call_matches)}"
+                        f" possible entries. In order to choose which one, you will need to run "
+                        f"without {arg__('--no-prompt')}"
                     )
-                    console.print_json(call_serialized)
-                    if Confirm.ask("Is this the intended call?"):
-                        call_hex = call_hex_
-                        block = block_
-                        got_call_from_db = True
-                        break
-        if not got_call_from_db:
-            console.print("Unable to retrieve call from DB. Proceeding without.")
+                    return
+                else:
+                    console.print(
+                        f"The call hash you have provided matches {len(potential_call_matches)}"
+                        f" possible entries. The results will be iterated for you to selected your intended"
+                        f"call."
+                    )
+                    for row in potential_call_matches:
+                        (
+                            address,
+                            epoch_time,
+                            block_,
+                            call_hash_,
+                            call_hex_,
+                            call_serialized,
+                        ) = row
+                        console.print(
+                            f"Time: {datetime.datetime.fromtimestamp(epoch_time)}\nCall:\n"
+                        )
+                        console.print_json(call_serialized)
+                        if Confirm.ask("Is this the intended call?"):
+                            call_hex = call_hex_
+                            block = block_
+                            got_call_from_db = True
+                            break
+            if not got_call_from_db:
+                console.print("Unable to retrieve call from DB. Proceeding without.")
 
         return self._run_command(
             proxy_commands.execute_announced(
