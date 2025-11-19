@@ -1526,7 +1526,7 @@ class CLIManager:
         with ProxyAddressBook.get_db() as (conn, cursor):
             rows = ProxyAddressBook.read_rows(conn, cursor, include_header=False)
         proxies = {}
-        for name, ss58_address, spawner, proxy_type, _ in rows:
+        for name, ss58_address, _, spawner, proxy_type, _ in rows:
             proxies[name] = {
                 "address": ss58_address,
                 "spawner": spawner,
@@ -1879,25 +1879,26 @@ class CLIManager:
             str,
             typer.Option(
                 callback=is_valid_ss58_address_param,
-                help="The SS58 address of the pure proxy",
-                prompt="Enter the SS58 address of the pure proxy",
+                help="The SS58 address of the pure proxy/delegatee",
+                prompt="Enter the SS58 address of the pure proxy/delegatee",
             ),
         ],
         proxy_type: Annotated[
             ProxyType,
             typer.Option(
-                help="The type of this pure proxy",
-                prompt="Enter the type of this pure proxy",
+                help="The type of this proxy",
+                prompt="Enter the type of this proxy",
             ),
         ],
         spawner: Annotated[
             str,
             typer.Option(
                 callback=is_valid_ss58_address_param,
-                help="The SS58 address of the spawner",
-                prompt="Enter the SS58 address of the spawner",
+                help="The SS58 address of the spawner (pure proxy)/delegator (regular proxy)",
+                prompt="Enter the SS58 address of the spawner (pure proxy)/delegator (regular proxy)",
             ),
         ],
+        delay: int = typer.Option(0, help="Delay, in blocks."),
         note: str = typer.Option("", help="Any notes about this entry"),
     ):
         """
@@ -1918,6 +1919,7 @@ class CLIManager:
             "proxy_type": proxy_type_val,
             "address": address,
             "spawner": spawner,
+            "delay": delay,
             "note": note,
         }
         with ProxyAddressBook.get_db() as (conn, cursor):
@@ -1928,6 +1930,7 @@ class CLIManager:
                 ss58_address=address,
                 spawner=spawner,
                 proxy_type=proxy_type_val,
+                delay=delay,
                 note=note,
             )
         self.config_get_proxies()
@@ -1962,17 +1965,18 @@ class CLIManager:
         """
         table = Table(
             Column("[bold white]Name", style=f"{COLORS.G.ARG}"),
-            Column("[bold white]Address", style="gold1"),
-            Column("Spawner", style="medium_purple"),
+            Column("Address", style="gold1"),
+            Column("Spawner/Delegator", style="medium_purple"),
             Column("Proxy Type", style="medium_purple"),
-            Column("Proxy Address", style="dim"),
+            Column("Delay", style="dim"),
+            Column("Note", style="dim"),
             box=box.SIMPLE_HEAD,
             title=f"[{COLORS.G.HEADER}]BTCLI Proxies Address Book[/{COLORS.G.HEADER}]: {arg__(self.proxies_path)}",
         )
         with ProxyAddressBook.get_db() as (conn, cursor):
             rows = ProxyAddressBook.read_rows(conn, cursor, include_header=False)
-        for name, ss58_address, spawner, proxy_type, note in rows:
-            table.add_row(name, ss58_address, spawner, proxy_type, note)
+        for name, ss58_address, delay, spawner, proxy_type, note in rows:
+            table.add_row(name, ss58_address, spawner, proxy_type, str(delay), note)
         console.print(table)
 
     def config_update_proxy(
@@ -8606,7 +8610,7 @@ class CLIManager:
             f"prompt: {prompt}\n"
         )
 
-        should_update, proxy_name, created_pure, created_type = self._run_command(
+        self._run_command(
             proxy_commands.create_proxy(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
@@ -8620,8 +8624,6 @@ class CLIManager:
                 period=period,
             )
         )
-        if should_update:
-            self.config_add_proxy(proxy_name, created_pure, created_type)
 
     def proxy_add(
         self,

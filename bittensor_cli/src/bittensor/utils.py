@@ -946,6 +946,7 @@ class ProxyAddressBook(TableDefinition):
     cols = (
         ("name", "TEXT"),
         ("ss58_address", "TEXT"),
+        ("delay", "INTEGER"),
         ("spawner", "TEXT"),
         ("proxy_type", "TEXT"),
         ("note", "TEXT"),
@@ -959,22 +960,24 @@ class ProxyAddressBook(TableDefinition):
         *,
         name: str,
         ss58_address: Optional[str] = None,
+        delay: Optional[int] = None,
         spawner: Optional[str] = None,
         proxy_type: Optional[str] = None,
         note: Optional[str] = None,
     ) -> None:
         cursor.execute(
-            f"SELECT ss58_address, spawner, proxy_type, note FROM {cls.name} WHERE name = ?",
+            f"SELECT ss58_address, spawner, proxy_type, delay, note FROM {cls.name} WHERE name = ?",
             (name,),
         )
         row = cursor.fetchone()[0]
         ss58_address_ = ss58_address or row[0]
         spawner_ = spawner or row[1]
         proxy_type_ = proxy_type or row[2]
-        note_ = note or row[3]
+        delay = delay if delay is not None else row[3]
+        note_ = note or row[4]
         conn.execute(
-            f"UPDATE {cls.name} SET ss58_address = ?, spawner = ?, proxy_type = ?, note = ? WHERE name = ?",
-            (ss58_address_, spawner_, proxy_type_, note_, name),
+            f"UPDATE {cls.name} SET ss58_address = ?, spawner = ?, proxy_type = ?, delay = ?, note = ? WHERE name = ?",
+            (ss58_address_, spawner_, proxy_type_, note_, delay, name),
         )
         conn.commit()
 
@@ -986,13 +989,14 @@ class ProxyAddressBook(TableDefinition):
         *,
         name: str,
         ss58_address: str,
+        delay: int,
         spawner: str,
         proxy_type: str,
         note: str,
     ) -> None:
         conn.execute(
-            f"INSERT INTO {cls.name} (name, ss58_address, spawner, proxy_type, note) VALUES (?, ?, ?, ?, ?)",
-            (name, ss58_address, spawner, proxy_type, note),
+            f"INSERT INTO {cls.name} (name, ss58_address, delay, spawner, proxy_type, note) VALUES (?, ?, ?, ?, ?, ?)",
+            (name, ss58_address, delay, spawner, proxy_type, note),
         )
         conn.commit()
 

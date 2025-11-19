@@ -4,12 +4,14 @@ import sys
 from rich.prompt import Confirm, Prompt
 from scalecodec import GenericCall
 
+from bittensor_cli.src import COLORS
 from bittensor_cli.src.bittensor.utils import (
     print_extrinsic_id,
     json_console,
     console,
     err_console,
     unlock_key,
+    ProxyAddressBook,
 )
 
 if TYPE_CHECKING:
@@ -171,7 +173,12 @@ async def create_proxy(
                 created_proxy_type = getattr(ProxyType, attrs["proxy_type"])
         arg_start = "`" if json_output else "[blue]"
         arg_end = "`" if json_output else "[/blue]"
-        msg = f"Created pure '{created_pure}' from spawner '{created_spawner}' with proxy type '{created_proxy_type.value}'."
+        msg = (
+            f"Created pure '{created_pure}' "
+            f"from spawner '{created_spawner}' "
+            f"with proxy type '{created_proxy_type.value}' "
+            f"with delay {delay}."
+        )
         console.print(msg)
         if not prompt:
             console.print(
@@ -183,6 +190,22 @@ async def create_proxy(
         else:
             if Confirm.ask("Would you like to add this to your address book?"):
                 proxy_name = Prompt.ask("Name this proxy")
+                note = Prompt.ask("[Optional] Add a note for this proxy", default="")
+                with ProxyAddressBook.get_db() as (conn, cursor):
+                    ProxyAddressBook.add_entry(
+                        conn,
+                        cursor,
+                        name=proxy_name,
+                        ss58_address=created_pure,
+                        delay=delay,
+                        proxy_type=created_proxy_type.value,
+                        note=note,
+                        spawner=created_spawner,
+                    )
+                console.print(
+                    f"Added to Proxy Address Book.\n"
+                    f"Show this information with [{COLORS.G.ARG}]btcli config proxies[/{COLORS.G.ARG}]"
+                )
                 return True, proxy_name, created_pure, created_proxy_type
 
         if json_output:
@@ -298,15 +321,83 @@ async def add_proxy(
             "delegate": delegate,
         },
     )
-    return await submit_proxy(
-        subtensor=subtensor,
-        wallet=wallet,
+    success, msg, receipt = await subtensor.sign_and_send_extrinsic(
         call=call,
+        wallet=wallet,
         wait_for_inclusion=wait_for_inclusion,
         wait_for_finalization=wait_for_finalization,
-        period=period,
-        json_output=json_output,
+        era={"period": period},
     )
+    if success:
+        await print_extrinsic_id(receipt)
+        delegatee = None
+        delegator = None
+        created_proxy_type = None
+        for event in await receipt.triggered_events:
+            if event["event_id"] == "PureCreated":
+                attrs = event["attributes"]
+                delegatee = attrs["delegatee"]
+                delegator = attrs["delegator"]
+                created_proxy_type = getattr(ProxyType, attrs["proxy_type"])
+        arg_start = "`" if json_output else "[blue]"
+        arg_end = "`" if json_output else "[/blue]"
+        msg = (
+            f"Added proxy delegatee '{delegatee}' "
+            f"from delegator '{delegator}' "
+            f"with proxy type '{created_proxy_type.value}' "
+            f"with delay {delay}."
+        )
+        console.print(msg)
+        if not prompt:
+            console.print(
+                f" You can add this to your config with {arg_start}"
+                f"btcli config add-proxy "
+                # TODO adjust for new address book style
+                f"--name <PROXY_NAME> --address {delegatee} --proxy-type {created_proxy_type.value}"
+                f"{arg_end}"
+            )
+        else:
+            if Confirm.ask("Would you like to add this to your address book?"):
+                proxy_name = Prompt.ask("Name this proxy")
+                note = Prompt.ask("[Optional] Add a note for this proxy", default="")
+                with ProxyAddressBook.get_db() as (conn, cursor):
+                    ProxyAddressBook.add_entry(
+                        conn,
+                        cursor,
+                        name=proxy_name,
+                        # TODO verify this is correct (it's opposite of create pure)
+                        ss58_address=delegator,
+                        delay=delay,
+                        proxy_type=created_proxy_type.value,
+                        note=note,
+                        spawner=delegatee,
+                    )
+                console.print(
+                    f"Added to Proxy Address Book.\n"
+                    f"Show this information with [{COLORS.G.ARG}]btcli config proxies[/{COLORS.G.ARG}]"
+                )
+
+        if json_output:
+            json_console.print_json(
+                data={
+                    "success": success,
+                    "message": msg,
+                    "extrinsic_id": await receipt.get_extrinsic_identifier(),
+                }
+            )
+
+    else:
+        if json_output:
+            json_console.print_json(
+                data={
+                    "success": success,
+                    "message": msg,
+                    "extrinsic_id": None,
+                }
+            )
+        else:
+            err_console.print(f"Failure: {msg}")  # TODO add more shit here
+    return None
 
 
 async def kill_proxy(
