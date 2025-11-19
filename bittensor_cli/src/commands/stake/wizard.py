@@ -20,6 +20,13 @@ from bittensor_cli.src.bittensor.utils import (
     print_error,
     is_valid_ss58_address,
     get_hotkey_pub_ss58,
+    get_subnet_name,
+    group_subnets,
+    get_hotkey_wallets_for_wallet,
+)
+from bittensor_cli.src.commands.stake.move import (
+    stake_move_transfer_selection,
+    stake_swap_selection,
 )
 
 if TYPE_CHECKING:
@@ -68,7 +75,7 @@ async def stake_movement_wizard(
     operation_choice = Prompt.ask(
         "\n[bold]What would you like to do?[/bold]",
         choices=["1", "2", "3", "move", "transfer", "swap", "q"],
-        default="1",
+        default="q",
     )
     
     if operation_choice.lower() == "q":
@@ -138,8 +145,6 @@ def _display_available_stakes(
     old_identities: dict,
 ):
     """Display a table of available stakes."""
-    from bittensor_cli.src.bittensor.utils import get_subnet_name, group_subnets
-    
     # Group stakes by hotkey
     hotkey_stakes = {}
     for stake in stakes:
@@ -192,9 +197,6 @@ async def _guide_move_operation(
     old_identities: dict,
 ) -> dict:
     """Guide user through move operation."""
-    from bittensor_cli.src.commands.stake.move import stake_move_transfer_selection
-    from bittensor_cli.src.bittensor.utils import get_hotkey_wallets_for_wallet
-    
     console.print(
         "\n[bold cyan]Move Operation[/bold cyan]\n"
         "You will move stake from one hotkey to another hotkey.\n"
@@ -264,8 +266,6 @@ async def _guide_transfer_operation(
     old_identities: dict,
 ) -> dict:
     """Guide user through transfer operation."""
-    from bittensor_cli.src.commands.stake.move import stake_move_transfer_selection
-    
     console.print(
         "\n[bold cyan]Transfer Operation[/bold cyan]\n"
         "You will transfer stake ownership from one coldkey to another coldkey.\n"
@@ -303,8 +303,6 @@ async def _guide_swap_operation(
     available_stakes: list,
 ) -> dict:
     """Guide user through swap operation."""
-    from bittensor_cli.src.commands.stake.move import stake_swap_selection
-    
     console.print(
         "\n[bold cyan]Swap Operation[/bold cyan]\n"
         "You will swap stake between subnets.\n"
