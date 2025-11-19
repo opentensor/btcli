@@ -1,10 +1,11 @@
 from typing import TYPE_CHECKING, Optional
 import sys
 
-from rich.prompt import Confirm, Prompt
-from scalecodec import GenericCall
+from rich.prompt import Confirm, Prompt, FloatPrompt, IntPrompt
+from scalecodec import GenericCall, ScaleBytes
 
 from bittensor_cli.src import COLORS
+from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.utils import (
     print_extrinsic_id,
     json_console,
@@ -12,6 +13,7 @@ from bittensor_cli.src.bittensor.utils import (
     err_console,
     unlock_key,
     ProxyAddressBook,
+    is_valid_ss58_address_prompt,
 )
 
 if TYPE_CHECKING:
@@ -471,4 +473,118 @@ async def kill_proxy(
         period=period,
         json_output=json_output,
         proxy=proxy,
+    )
+
+
+async def execute_announced(
+    subtensor: "SubtensorInterface",
+    wallet: "Wallet",
+    delegate: str,
+    real: str,
+    period: int,
+    call_hex: Optional[str],
+    delay: int = 0,
+    created_block: Optional[int] = None,
+    prompt: bool = True,
+    wait_for_inclusion: bool = False,
+    wait_for_finalization: bool = False,
+):
+    if prompt and created_block is not None:
+        current_block = await subtensor.substrate.get_block_number()
+        if current_block - delay > created_block:
+            if not Confirm.ask(
+                f"The delay for this account is set to {delay} blocks, but the call was created"
+                f" at block {created_block}. It is currently only {current_block}. The call will likely fail."
+                f" Do you want to proceed?"
+            ):
+                return None
+
+    if call_hex is None:
+        if not prompt:
+            err_console.print(
+                f":cross_mark:[red]You have not provided a call, and are using"
+                f" [{COLORS.G.ARG}]--no-prompt[/{COLORS.G.ARG}], so we are unable to request"
+                f"the information to craft this call."
+            )
+            return None
+        else:
+            call_args = {}
+            failure_ = f"Instead create the call using btcli commands with [{COLORS.G.ARG}]--announce-only[/{COLORS.G.ARG}]"
+            block_hash = await subtensor.substrate.get_chain_head()
+            fns = await subtensor.substrate.get_metadata_call_functions(
+                block_hash=block_hash
+            )
+            module = Prompt.ask(
+                "Enter the module name for the call",
+                choices=list(fns.keys()),
+                show_choices=True,
+            )
+            call_fn = Prompt.ask(
+                "Enter the call function for the call",
+                choices=list(fns[module].keys()),
+                show_choices=True,
+            )
+            for arg in fns[module][call_fn].keys():
+                type_name = fns[module][call_fn][arg]["typeName"]
+                if type_name == "AccountIdLookupOf<T>":
+                    value = is_valid_ss58_address_prompt(
+                        f"Enter the SS58 Address for {arg}"
+                    )
+                elif type_name == "T::Balance":
+                    value = FloatPrompt.ask(f"Enter the amount of Tao for {arg}")
+                    value = Balance.from_tao(value)
+                elif "RuntimeCall" in type_name:
+                    err_console.print(
+                        f":cross_mark:[red]Unable to craft a Call Type for arg {arg}. {failure_}"
+                    )
+                    return None
+                elif type_name == "NetUid":
+                    value = IntPrompt.ask(f"Enter the netuid for {arg}")
+                elif type_name in ("u16", "u64"):
+                    value = IntPrompt.ask(f"Enter the int value for {arg}")
+                elif type_name == "bool":
+                    value = Prompt.ask(
+                        f"Enter the bool value for {arg}",
+                        choices=["True", "False"],
+                        show_choices=True,
+                    )
+                    if value == "True":
+                        value = True
+                    else:
+                        value = False
+                else:
+                    err_console.print(
+                        f":cross_mark:[red]Unrecogized type name {type_name}. {failure_}"
+                    )
+                    return None
+                call_args[arg] = value
+            inner_call = await subtensor.substrate.compose_call(
+                module,
+                call_fn,
+                call_params=call_args,
+                block_hash=block_hash,
+            )
+    else:
+        runtime = await subtensor.substrate.init_runtime(block_id=created_block)
+        inner_call = GenericCall(
+            data=ScaleBytes(data=bytes.fromhex(call_hex)), metadata=runtime.metadata
+        )
+        inner_call.process()
+
+    announced_call = await subtensor.substrate.compose_call(
+        "Proxy",
+        "proxy_announced",
+        {
+            "delegate": delegate,
+            "real": real,
+            "call": inner_call,
+            "force_proxy_type": None,
+        },
+    )
+    return await subtensor.sign_and_send_extrinsic(
+        call=announced_call,
+        wallet=wallet,
+        wait_for_inclusion=wait_for_inclusion,
+        wait_for_finalization=wait_for_finalization,
+        era={"period": period},
     )

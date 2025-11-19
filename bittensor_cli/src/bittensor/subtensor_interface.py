@@ -1213,12 +1213,8 @@ class SubtensorInterface:
                             address=proxy,
                             epoch_time=int(time.time()),
                             block=block,
-                            call_hash=call.call_hash,
-                            call_args={
-                                "module": call.call_module,
-                                "function": call.call_function,
-                                "args": call.call_args,
-                            },
+                            call_hash=call.call_hash.hex(),
+                            call=call,
                         )
                     console.print(
                         f"Added entry {call.call_hash} at block {block} to your ProxyAnnouncements address book."

@@ -24,6 +24,7 @@ import numpy as np
 from numpy.typing import NDArray
 from rich.console import Console
 from rich.prompt import Prompt
+from scalecodec import GenericCall
 from scalecodec.utils.ss58 import ss58_encode, ss58_decode
 import typer
 
@@ -404,6 +405,15 @@ def is_valid_ss58_address(address: str) -> bool:
         )  # Default substrate ss58 format (legacy)
     except IndexError:
         return False
+
+
+def is_valid_ss58_address_prompt(text: str) -> str:
+    valid = False
+    address = ""
+    while not valid:
+        address = Prompt.ask(text).strip()
+        valid = is_valid_ss58_address(address)
+    return address
 
 
 def is_valid_ed25519_pubkey(public_key: Union[str, bytes]) -> bool:
@@ -1022,7 +1032,8 @@ class ProxyAnnouncements(TableDefinition):
         ("epoch_time", "INTEGER"),
         ("block", "INTEGER"),
         ("call_hash", "TEXT"),
-        ("call_args", "TEXT"),
+        ("call", "TEXT"),
+        ("call_serialized", "TEXT"),
     )
 
     @classmethod
@@ -1035,12 +1046,14 @@ class ProxyAnnouncements(TableDefinition):
         epoch_time: int,
         block: int,
         call_hash: str,
-        call_args: dict,
+        call: GenericCall,
     ) -> None:
-        call_args_ = json.dumps(call_args)
+        call_hex = call.data.to_hex()
+        call_serialized = call.serialize()
         conn.execute(
-            f"INSERT INTO {cls.name} (address, epoch_time, block, call_hash, call_args) VALUES (?, ?, ?, ?, ?)",
-            (address, epoch_time, block, call_hash, call_args_),
+            f"INSERT INTO {cls.name} (address, epoch_time, block, call_hash, call, call_serialized)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (address, epoch_time, block, call_hash, call_hex, call_serialized),
         )
         conn.commit()
 
