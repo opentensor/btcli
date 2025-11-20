@@ -150,12 +150,12 @@ def _display_available_stakes(
         hotkey_stakes[hotkey][stake.netuid] = stake.stake
 
     # Get identities
-    def get_identity(hotkey_ss58: str) -> str:
-        if hk_identity := ck_hk_identities["hotkeys"].get(hotkey_ss58):
+    def get_identity(hotkey_ss58_: str) -> str:
+        if hk_identity := ck_hk_identities["hotkeys"].get(hotkey_ss58_):
             return hk_identity.get("identity", {}).get("name", "") or hk_identity.get(
                 "display", "~"
             )
-        elif old_identity := old_identities.get(hotkey_ss58):
+        elif old_identity := old_identities.get(hotkey_ss58_):
             return old_identity.display
         return "~"
 
