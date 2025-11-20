@@ -1,5 +1,6 @@
 import json
 import requests
+import importlib.metadata
 from typing import Dict, Any, Optional
 from rich.console import Console
 from ptn_cli.src.config import PTN_API_BASE_URL_TESTNET, PTN_API_BASE_URL_MAINNET
@@ -28,6 +29,14 @@ def make_api_request(
     url = f"{base_url}{endpoint}"
 
     try:
+        # Inject PTNCLI version into payload for tracking
+        if payload is not None:
+            try:
+                ptncli_version = importlib.metadata.version("ptn-cli")
+            except importlib.metadata.PackageNotFoundError:
+                ptncli_version = "0.0.0"
+            payload["ptncli_version"] = ptncli_version
+
         if dev_mode:
             console.print(f"[cyan]Making {method} request to: {url}[/cyan]")
 

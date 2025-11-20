@@ -55,7 +55,7 @@ class PTNCLIManager(CLIManager):
         self.app.add_typer(
             self.collateral_app,
             name="collateral",
-            short_help="Collateral commands, aliasas: `collateral`",
+            short_help="Collateral commands, alias: `collateral`",
             no_args_is_help=True
         )
         self.app.add_typer(

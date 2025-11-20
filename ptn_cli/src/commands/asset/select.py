@@ -1,7 +1,9 @@
 import getpass
 import json
+import typer
 
 from rich.panel import Panel
+from rich.text import Text
 
 from bittensor_wallet import Wallet
 from bittensor_cli.src.bittensor.utils import console
@@ -18,11 +20,30 @@ async def select(
     verbose: bool = False,
     json_output: bool = False
 ):
+    # Display the main title with Rich Panel
+    title = Text("🔗 PROPRIETARY TRADING NETWORK 🔗", style="bold blue")
+    subtitle = Text("Miner Asset Class Selection", style="italic cyan")
+
+    panel = Panel.fit(
+        f"{title}\n{subtitle}",
+        style="bold blue",
+        border_style="bright_blue"
+    )
+
+    console.print(panel)
+    console.print("[blue]Selecting miner asset class on PTN[/blue]")
+
     # Load wallet and get keys
     password = getpass.getpass(prompt='Enter your password: ')
 
     coldkey = wallet.get_coldkey(password=password)
     hotkey = wallet.hotkey
+
+    if prompt:
+        confirm = typer.confirm(f"Are you sure you want to select asset class {asset} for miner {coldkey.ss58_address}?")
+        if not confirm:
+            console.print("[yellow]Asset Class Selection Cancelled[/yellow]")
+            return False
 
     # Prepare withdrawal data for signing
     asset_selection_data = {
@@ -63,6 +84,12 @@ async def select(
         if response.get("successfully_processed"):
             console.print(f"[green]✅ Asset selection successful! Selected: {asset}[/green]")
 
+            success_panel = Panel.fit(
+                f"🎉 Asset selection completed!\nSelected: {asset}",
+                style="bold green",
+                border_style="green"
+            )
+            console.print(success_panel)
             return True
         else:
             error_message = (
