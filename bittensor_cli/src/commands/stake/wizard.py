@@ -6,7 +6,7 @@ the appropriate stake movement command (move, transfer, or swap) based on their 
 """
 
 import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet
 from rich.prompt import Prompt
@@ -34,23 +34,23 @@ if TYPE_CHECKING:
 async def stake_movement_wizard(
     subtensor: "SubtensorInterface",
     wallet: Wallet,
-) -> dict:
+) -> Optional[dict]:
     """
     Interactive wizard that guides users through stake movement operations.
-    
+
     This wizard helps users understand the differences between:
     - move: Move stake between hotkeys (same coldkey)
     - transfer: Transfer stake between coldkeys (same hotkey)
     - swap: Swap stake between subnets (same coldkey-hotkey pair)
-    
+
     Args:
         subtensor: SubtensorInterface object
         wallet: Wallet object
-        
+
     Returns:
         dict: Contains the operation type and parameters needed to execute the operation
     """
-    
+
     # Display welcome message and explanation
     console.print("\n")
     console.print(
@@ -68,18 +68,18 @@ async def stake_movement_wizard(
             border_style="cyan",
         )
     )
-    
+
     # Ask user what they want to do
     operation_choice = Prompt.ask(
         "\n[bold]What would you like to do?[/bold]",
         choices=["1", "2", "3", "move", "transfer", "swap", "q"],
         default="q",
     )
-    
+
     if operation_choice.lower() == "q":
         console.print("[yellow]Wizard cancelled.[/yellow]")
-        raise ValueError("User cancelled wizard")
-    
+        return None
+
     # Normalize choice
     if operation_choice in ["1", "move"]:
         operation = "move"
@@ -95,11 +95,11 @@ async def stake_movement_wizard(
         description = "Swap stake between subnets (same coldkey-hotkey pair)"
     else:
         print_error("Invalid choice")
-        raise ValueError("Invalid operation choice")
-    
+        return None
+
     console.print(f"\n[bold green]Selected: {operation_name}[/bold green]")
     console.print(f"[dim]{description}[/dim]\n")
-    
+
     # Get stakes for the wallet
     with console.status("Retrieving stake information..."):
         stakes, ck_hk_identities, old_identities = await asyncio.gather(
@@ -109,17 +109,17 @@ async def stake_movement_wizard(
             subtensor.fetch_coldkey_hotkey_identities(),
             subtensor.get_delegate_identities(),
         )
-    
+
     # Filter stakes with actual amounts
     available_stakes = [s for s in stakes if s.stake.tao > 0]
-    
+
     if not available_stakes:
         print_error("You have no stakes available to move.")
-        raise ValueError("No stakes available")
-    
+        return None
+
     # Display available stakes
     _display_available_stakes(available_stakes, ck_hk_identities, old_identities)
-    
+
     # Guide user through the specific operation
     if operation == "move":
         return await _guide_move_operation(
@@ -130,9 +130,7 @@ async def stake_movement_wizard(
             subtensor, wallet, available_stakes, ck_hk_identities, old_identities
         )
     elif operation == "swap":
-        return await _guide_swap_operation(
-            subtensor, wallet, available_stakes
-        )
+        return await _guide_swap_operation(subtensor, wallet, available_stakes)
     else:
         raise ValueError(f"Unknown operation: {operation}")
 
@@ -150,15 +148,17 @@ def _display_available_stakes(
         if hotkey not in hotkey_stakes:
             hotkey_stakes[hotkey] = {}
         hotkey_stakes[hotkey][stake.netuid] = stake.stake
-    
+
     # Get identities
     def get_identity(hotkey_ss58: str) -> str:
         if hk_identity := ck_hk_identities["hotkeys"].get(hotkey_ss58):
-            return hk_identity.get("identity", {}).get("name", "") or hk_identity.get("display", "~")
+            return hk_identity.get("identity", {}).get("name", "") or hk_identity.get(
+                "display", "~"
+            )
         elif old_identity := old_identities.get(hotkey_ss58):
             return old_identity.display
         return "~"
-    
+
     table = Table(
         title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Your Available Stakes[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n",
         show_edge=False,
@@ -166,24 +166,26 @@ def _display_available_stakes(
         border_style="bright_black",
         title_justify="center",
     )
-    
+
     table.add_column("Hotkey Identity", style=COLOR_PALETTE["GENERAL"]["SUBHEADING"])
     table.add_column("Hotkey Address", style=COLOR_PALETTE["GENERAL"]["HOTKEY"])
     table.add_column("Netuids", style=COLOR_PALETTE["GENERAL"]["NETUID"])
     table.add_column("Total Stake", style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"])
-    
+
     for hotkey_ss58, netuid_stakes in hotkey_stakes.items():
         identity = get_identity(hotkey_ss58)
         netuids = sorted(netuid_stakes.keys())
-        total_stake = sum(netuid_stakes.values(), start=stakes[0].stake.__class__.from_tao(0))
-        
+        total_stake = sum(
+            netuid_stakes.values(), start=stakes[0].stake.__class__.from_tao(0)
+        )
+
         table.add_row(
             identity,
             f"{hotkey_ss58[:8]}...{hotkey_ss58[-8:]}",
             group_subnets(netuids),
             str(total_stake),
         )
-    
+
     console.print(table)
 
 
@@ -200,28 +202,27 @@ async def _guide_move_operation(
         "You will move stake from one hotkey to another hotkey.\n"
         "Both hotkeys must be owned by the same coldkey (your wallet).\n"
     )
-    
+
     try:
         selection = await stake_move_transfer_selection(subtensor, wallet)
-        
+
         # Get available hotkeys for destination
         all_hotkeys = get_hotkey_wallets_for_wallet(wallet=wallet)
         available_hotkeys = [
-            (hk.hotkey_str, get_hotkey_pub_ss58(hk))
-            for hk in all_hotkeys
+            (hk.hotkey_str, get_hotkey_pub_ss58(hk)) for hk in all_hotkeys
         ]
-        
+
         # Ask for destination hotkey
         console.print("\n[bold]Destination Hotkey[/bold]")
         if available_hotkeys:
             console.print("\nAvailable hotkeys in your wallet:")
             for idx, (name, ss58) in enumerate(available_hotkeys):
                 console.print(f"  {idx}: {name} ({ss58[:8]}...{ss58[-8:]})")
-            
+
             dest_choice = Prompt.ask(
                 "\nEnter the [blue]index[/blue] of the destination hotkey, or [blue]SS58 address[/blue]",
             )
-            
+
             try:
                 dest_idx = int(dest_choice)
                 if 0 <= dest_idx < len(available_hotkeys):
@@ -233,7 +234,9 @@ async def _guide_move_operation(
                 if is_valid_ss58_address(dest_choice):
                     dest_hotkey = dest_choice
                 else:
-                    print_error("Invalid hotkey selection. Please provide a valid index or SS58 address.")
+                    print_error(
+                        "Invalid hotkey selection. Please provide a valid index or SS58 address."
+                    )
                     raise ValueError("Invalid destination hotkey")
         else:
             dest_hotkey = Prompt.ask(
@@ -242,7 +245,7 @@ async def _guide_move_operation(
             if not is_valid_ss58_address(dest_hotkey):
                 print_error("Invalid SS58 address")
                 raise ValueError("Invalid destination hotkey")
-        
+
         return {
             "operation": "move",
             "origin_hotkey": selection["origin_hotkey"],
@@ -270,18 +273,18 @@ async def _guide_transfer_operation(
         "The hotkey remains the same, but ownership changes.\n"
         "[yellow]Warning:[/yellow] Make sure the destination coldkey is not a validator hotkey.\n"
     )
-    
+
     try:
         selection = await stake_move_transfer_selection(subtensor, wallet)
-        
+
         # Ask for destination coldkey
         console.print("\n[bold]Destination Coldkey[/bold]")
         dest_coldkey = Prompt.ask(
             "Enter the [blue]destination coldkey[/blue] SS58 address or wallet name"
         )
-        
+
         # Note: The CLI will handle wallet name resolution if it's not an SS58 address
-        
+
         return {
             "operation": "transfer",
             "origin_hotkey": selection["origin_hotkey"],
@@ -306,10 +309,10 @@ async def _guide_swap_operation(
         "You will swap stake between subnets.\n"
         "The same coldkey-hotkey pair is used, but stake moves between subnets.\n"
     )
-    
+
     try:
         selection = await stake_swap_selection(subtensor, wallet)
-        
+
         return {
             "operation": "swap",
             "origin_netuid": selection["origin_netuid"],
@@ -318,4 +321,3 @@ async def _guide_swap_operation(
         }
     except ValueError:
         raise
-

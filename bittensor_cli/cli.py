@@ -5110,7 +5110,7 @@ class CLIManager:
         [green]$[/green] btcli stake wizard
         """
         self.verbosity_handler(quiet, verbose, json_output)
-        
+
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -5118,98 +5118,95 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH],
             validate=WV.WALLET,
         )
-        
+
         subtensor = self.initialize_chain(network)
-        
-        try:
-            wizard_result = self._run_command(
-                stake_wizard.stake_movement_wizard(
+
+        wizard_result = self._run_command(
+            stake_wizard.stake_movement_wizard(
+                subtensor=subtensor,
+                wallet=wallet,
+            )
+        )
+
+        if not wizard_result or not isinstance(wizard_result, dict):
+            return False
+
+        operation = wizard_result.get("operation")
+        if not operation:
+            return False
+
+        if operation == "move":
+            # Execute move operation
+            result, ext_id = self._run_command(
+                move_stake.move_stake(
                     subtensor=subtensor,
                     wallet=wallet,
+                    origin_netuid=wizard_result["origin_netuid"],
+                    origin_hotkey=wizard_result["origin_hotkey"],
+                    destination_netuid=wizard_result["destination_netuid"],
+                    destination_hotkey=wizard_result["destination_hotkey"],
+                    amount=wizard_result.get("amount"),
+                    stake_all=wizard_result.get("stake_all", False),
+                    era=period,
+                    interactive_selection=False,
+                    prompt=prompt,
                 )
             )
-            
-            if not wizard_result or not isinstance(wizard_result, dict):
-                return False
-            
-            operation = wizard_result.get("operation")
-            if not operation:
-                return False
-            
-            if operation == "move":
-                # Execute move operation
-                result, ext_id = self._run_command(
-                    move_stake.move_stake(
-                        subtensor=subtensor,
-                        wallet=wallet,
-                        origin_netuid=wizard_result["origin_netuid"],
-                        origin_hotkey=wizard_result["origin_hotkey"],
-                        destination_netuid=wizard_result["destination_netuid"],
-                        destination_hotkey=wizard_result["destination_hotkey"],
-                        amount=wizard_result.get("amount"),
-                        stake_all=wizard_result.get("stake_all", False),
-                        era=period,
-                        interactive_selection=False,
-                        prompt=prompt,
-                    )
+        elif operation == "transfer":
+            # Execute transfer operation
+            dest_coldkey = wizard_result.get("destination_coldkey")
+            if not is_valid_ss58_address(dest_coldkey):
+                # Assume it's a wallet name
+                dest_wallet = self.wallet_ask(
+                    dest_coldkey,
+                    wallet_path,
+                    None,
+                    ask_for=[WO.NAME, WO.PATH],
+                    validate=WV.WALLET,
                 )
-            elif operation == "transfer":
-                # Execute transfer operation
-                dest_coldkey = wizard_result.get("destination_coldkey")
-                if not is_valid_ss58_address(dest_coldkey):
-                    # Assume it's a wallet name
-                    dest_wallet = self.wallet_ask(
-                        dest_coldkey,
-                        wallet_path,
-                        None,
-                        ask_for=[WO.NAME, WO.PATH],
-                        validate=WV.WALLET,
-                    )
-                    dest_coldkey = dest_wallet.coldkeypub.ss58_address
-                
-                result, ext_id = self._run_command(
-                    move_stake.transfer_stake(
-                        wallet=wallet,
-                        subtensor=subtensor,
-                        origin_hotkey=wizard_result["origin_hotkey"],
-                        origin_netuid=wizard_result["origin_netuid"],
-                        dest_netuid=wizard_result["destination_netuid"],
-                        dest_coldkey_ss58=dest_coldkey,
-                        amount=wizard_result.get("amount"),
-                        stake_all=wizard_result.get("stake_all", False),
-                        era=period,
-                        interactive_selection=False,
-                        prompt=prompt,
-                    )
+                dest_coldkey = dest_wallet.coldkeypub.ss58_address
+
+            result, ext_id = self._run_command(
+                move_stake.transfer_stake(
+                    wallet=wallet,
+                    subtensor=subtensor,
+                    origin_hotkey=wizard_result["origin_hotkey"],
+                    origin_netuid=wizard_result["origin_netuid"],
+                    dest_netuid=wizard_result["destination_netuid"],
+                    dest_coldkey_ss58=dest_coldkey,
+                    amount=wizard_result.get("amount"),
+                    stake_all=wizard_result.get("stake_all", False),
+                    era=period,
+                    interactive_selection=False,
+                    prompt=prompt,
                 )
-            elif operation == "swap":
-                # Execute swap operation
-                result, ext_id = self._run_command(
-                    move_stake.swap_stake(
-                        wallet=wallet,
-                        subtensor=subtensor,
-                        origin_netuid=wizard_result["origin_netuid"],
-                        destination_netuid=wizard_result["destination_netuid"],
-                        amount=wizard_result.get("amount"),
-                        swap_all=False,
-                        era=period,
-                        interactive_selection=False,
-                        prompt=prompt,
-                    )
+            )
+        elif operation == "swap":
+            # Execute swap operation
+            result, ext_id = self._run_command(
+                move_stake.swap_stake(
+                    wallet=wallet,
+                    subtensor=subtensor,
+                    origin_netuid=wizard_result["origin_netuid"],
+                    destination_netuid=wizard_result["destination_netuid"],
+                    amount=wizard_result.get("amount"),
+                    swap_all=False,
+                    era=period,
+                    interactive_selection=False,
+                    prompt=prompt,
                 )
-            else:
-                print_error(f"Unknown operation: {operation}")
-                return False
-            
-            if json_output:
-                json_console.print(
-                    json.dumps({"success": result, "extrinsic_identifier": ext_id or None})
-                )
-            return result
-            
-        except ValueError:
-            # User cancelled or error occurred
+            )
+        else:
+            print_error(f"Unknown operation: {operation}")
             return False
+
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {"success": result, "extrinsic_identifier": ext_id or None}
+                )
+            )
+        return result
 
     def stake_get_children(
         self,
