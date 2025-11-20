@@ -5088,7 +5088,6 @@ class CLIManager:
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
-        json_output: bool = Options.json_output,
     ):
         """
         Interactive wizard that guides you through stake movement operations.
@@ -5109,7 +5108,7 @@ class CLIManager:
         Start the wizard:
         [green]$[/green] btcli stake wizard
         """
-        self.verbosity_handler(quiet, verbose, json_output)
+        self.verbosity_handler(quiet, verbose)
 
         wallet = self.wallet_ask(
             wallet_name,
@@ -5199,13 +5198,6 @@ class CLIManager:
         else:
             print_error(f"Unknown operation: {operation}")
             return False
-
-        if json_output:
-            json_console.print(
-                json.dumps(
-                    {"success": result, "extrinsic_identifier": ext_id or None}
-                )
-            )
         return result
 
     def stake_get_children(
