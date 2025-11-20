@@ -9,7 +9,7 @@ import asyncio
 from typing import TYPE_CHECKING
 
 from bittensor_wallet import Wallet
-from rich.prompt import Prompt, Confirm
+from rich.prompt import Prompt
 from rich.table import Table
 from rich.panel import Panel
 
