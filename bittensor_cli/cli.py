@@ -5124,7 +5124,8 @@ class CLIManager:
             stake_wizard.stake_movement_wizard(
                 subtensor=subtensor,
                 wallet=wallet,
-            )
+            ),
+            exit_early=False,
         )
 
         if not wizard_result or not isinstance(wizard_result, dict):
