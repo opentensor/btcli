@@ -655,3 +655,39 @@ def _preview_subnet_selection(keep_subnets: list[int], all_subnets: list[int]) -
     console.print(Panel(preview_content))
 
     return Confirm.ask("\nIs this correct?", default=True)
+
+
+def _format_claim_type_display(
+    claim_info: dict, all_subnets: Optional[list[int]] = None
+) -> str:
+    """
+    Format claim type for human-readable display.
+
+    Args:
+        claim_info: Claim type information dict
+        all_subnets: Optional list of all available subnets (for showing swap info)
+    """
+
+    claim_type = claim_info["type"]
+    if claim_type == "Swap":
+        return "[yellow]Swap All[/yellow]"
+
+    elif claim_type == "Keep":
+        return "[dark_sea_green3]Keep All[/dark_sea_green3]"
+
+    elif claim_type == "KeepSubnets":
+        subnets = claim_info["subnets"]
+        subnet_display = group_subnets(subnets)
+
+        result = (
+            f"[cyan]Keep Specific[/cyan]\n[green]  ✓ Keep:[/green] {subnet_display}"
+        )
+        if all_subnets:
+            swap_subnets = [n for n in all_subnets if n not in subnets]
+            if swap_subnets:
+                swap_display = group_subnets(swap_subnets)
+                result += f"\n[yellow]  ⟳ Swap:[/yellow] {swap_display}"
+
+        return result
+    else:
+        return "[red]Unknown[/red]"
