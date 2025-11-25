@@ -2258,6 +2258,7 @@ class SubtensorInterface:
 
         :return: The current Alpha price in TAO units for the specified subnet.
         """
+        # TODO update this to use the runtime call SwapRuntimeAPI.current_alpha_price
         current_sqrt_price = await self.query(
             module="Swap",
             storage_function="AlphaSqrtPrice",
