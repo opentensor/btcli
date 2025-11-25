@@ -3,15 +3,15 @@ requires = ["setuptools>=70.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ptn-cli"
-version = "1.0.5"
-description = "Proprietary Trading Network CLI"
+name = "vanta-cli"
+version = "2.0.0"
+description = "Vanta Network CLI"
 readme = "README.md"
 authors = [
     {name = "taoshi.io" }
 ]
 license = { file = "LICENSE" }
-scripts = { ptncli = "ptn_cli.ptncli:main" }
+scripts = { vanta = "vanta_cli.vanta:main" }
 requires-python = ">=3.9,<3.14"
 dependencies = [
     "wheel",
@@ -27,7 +27,7 @@ dependencies = [
     "pycryptodome>=3.0.0,<4.0.0",
     "PyYAML~=6.0.1",
     "rich>=13.7,<15.0",
-    "scalecodec==1.2.11",
+    "scalecodec>=1.2.11",
     "typer>=0.12,<0.16",
     "bittensor-wallet>=3.0.7",
     "plotille>=5.0.0",
@@ -46,8 +46,8 @@ dev = [
 
 [project.urls]
 # more details can be found here
-homepage = "https://github.com/taoshidev/ptncli"
-Repository = "https://github.com/taoshidev/ptncli"
+homepage = "https://github.com/taoshidev/vanta-cli"
+Repository = "https://github.com/taoshidev/vanta-cli"
 
 [tool.flit.metadata]
 classifiers = [
@@ -66,5 +66,5 @@ classifiers = [
 ]
 
 [tool.setuptools]
-package-dir = { "ptn_cli" = "ptn_cli" }
+package-dir = { "vanta_cli" = "vanta_cli" }
 include-package-data = true

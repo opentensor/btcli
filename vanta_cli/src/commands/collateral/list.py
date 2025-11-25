@@ -4,8 +4,8 @@ from rich.panel import Panel
 from rich.table import Table
 from bittensor_cli.src.bittensor.utils import console
 
-from ptn_cli.src.config import PTN_API_BASE_URL_MAINNET, PTN_API_BASE_URL_TESTNET
-from ptn_cli.src.utils.api import make_api_request
+from vanta_cli.src.config import VANTA_API_BASE_URL_MAINNET, VANTA_API_BASE_URL_TESTNET
+from vanta_cli.src.utils.api import make_api_request
 
 async def collateral_list(
     wallet: Wallet,
@@ -16,7 +16,7 @@ async def collateral_list(
 ):
     if not json_output:
         # Display the main title with Rich Panel
-        title = Text("🔗 PROPRIETARY TRADING NETWORK 🔗", style="bold blue")
+        title = Text("🔗 VANTA NETWORK 🔗", style="bold blue")
         subtitle = Text("Collateral Balance", style="italic cyan")
 
         panel = Panel.fit(
@@ -29,7 +29,7 @@ async def collateral_list(
         console.print("[blue]Checking collateral balance[/blue]")
 
     # Determine the base URL based on network
-    base_url = PTN_API_BASE_URL_TESTNET if network == "test" else PTN_API_BASE_URL_MAINNET
+    base_url = VANTA_API_BASE_URL_TESTNET if network == "test" else VANTA_API_BASE_URL_MAINNET
 
     # Make the API request
     miner_address = wallet.hotkey.ss58_address

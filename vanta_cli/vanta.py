@@ -10,19 +10,19 @@ from bittensor_cli.src.bittensor.utils import (
     console,
 )
 import typer
-from ptn_cli.src.commands.collateral import (
+from vanta_cli.src.commands.collateral import (
     list as list_collateral,
     deposit as deposit_collateral,
     withdraw as withdraw_collateral
 )
-from ptn_cli.src.commands.asset import (
+from vanta_cli.src.commands.asset import (
     select as select_asset
 )
 
-_epilog = "Made with [bold red]:heart:[/bold red] by The Proprieτary Trading Neτwork"
+_epilog = "Made with [bold red]:heart:[/bold red] by The Vanτa Neτwork"
 
-class PTNOptions:
-    ptn_network = typer.Option(
+class VantaOptions:
+    vanta_network = typer.Option(
         "finney",
         "--network",
         "--subtensor.network",
@@ -41,7 +41,7 @@ class PTNOptions:
 
 
 
-class PTNCLIManager(CLIManager):
+class VantaCLIManager(CLIManager):
 
     collateral_app: typer.Typer
     asset_app: typer.Typer
@@ -84,7 +84,7 @@ class PTNCLIManager(CLIManager):
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey_ss58,
-        network: str = PTNOptions.ptn_network,
+        network: str = VantaOptions.vanta_network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -118,14 +118,14 @@ class PTNCLIManager(CLIManager):
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey_ss58,
-        network: str = PTNOptions.ptn_network,
-        amount: Optional[float] = PTNOptions.amount,
+        network: str = VantaOptions.vanta_network,
+        amount: Optional[float] = VantaOptions.amount,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
         """
-        Deposit collateral from the Proprieτary Trading Neτwork
+        Deposit collateral from the Vanτa Neτwork
         """
 
         self.verbosity_handler(quiet, verbose, json_output)
@@ -158,15 +158,15 @@ class PTNCLIManager(CLIManager):
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey_ss58,
-        network: str = PTNOptions.ptn_network,
-        amount: Optional[float] = PTNOptions.amount,
-        prompt: bool = PTNOptions.prompt,
+        network: str = VantaOptions.vanta_network,
+        amount: Optional[float] = VantaOptions.amount,
+        prompt: bool = VantaOptions.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
         """
-        Withdraw collateral from the Proprieτary Trading Neτwork
+        Withdraw collateral from the Vanτa Neτwork
         """
         self.verbosity_handler(quiet, verbose, json_output)
 
@@ -199,8 +199,8 @@ class PTNCLIManager(CLIManager):
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey_ss58,
-        network: str = PTNOptions.ptn_network,
-        prompt: bool = PTNOptions.prompt,
+        network: str = VantaOptions.vanta_network,
+        prompt: bool = VantaOptions.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -242,7 +242,7 @@ class PTNCLIManager(CLIManager):
 
 
 def main():
-    manager = PTNCLIManager()
+    manager = VantaCLIManager()
     manager.run()
 
 if __name__ == "__main__":

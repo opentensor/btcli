@@ -9,8 +9,8 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from bittensor_wallet import Wallet
 from bittensor_cli.src.bittensor.utils import console
 
-from ptn_cli.src.config import COLLATERAL_DEST_ADDRESS_MAINNET, COLLATERAL_DEST_ADDRESS_TESTNET, PTN_API_BASE_URL_MAINNET, PTN_API_BASE_URL_TESTNET
-from ptn_cli.src.utils.api import make_api_request
+from vanta_cli.src.config import COLLATERAL_DEST_ADDRESS_MAINNET, COLLATERAL_DEST_ADDRESS_TESTNET, VANTA_API_BASE_URL_MAINNET, VANTA_API_BASE_URL_TESTNET
+from vanta_cli.src.utils.api import make_api_request
 
 async def deposit(
     wallet: Wallet,
@@ -21,7 +21,7 @@ async def deposit(
     json_output: bool = False
 ):
     from collateral_sdk import CollateralManager, Network # importing on compile time causes help menu to break
-    console.print("[blue]Adding collateral to Proprietary Trading Network[/blue]")
+    console.print("[blue]Adding collateral to Vanta Network[/blue]")
 
     manager = CollateralManager(Network.TESTNET if network == 'test' else Network.MAINNET)
 
@@ -186,7 +186,7 @@ async def deposit(
             }
 
             # Determine the base URL based on network
-            base_url = PTN_API_BASE_URL_TESTNET if network == "test" else PTN_API_BASE_URL_MAINNET
+            base_url = VANTA_API_BASE_URL_TESTNET if network == "test" else VANTA_API_BASE_URL_MAINNET
 
             # Use the new API utility
             response = make_api_request("/collateral/deposit", payload, base_url=base_url)

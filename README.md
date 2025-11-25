@@ -6,26 +6,26 @@
 
 </div>
 
-**PTNCLI** is a command-line tool that is a fork of bittensor-cli tool for Proprietary Trading Network (PTN) operations. It provides collateral management functionality and extends all standard bittensor-cli opeartions. Help information can be invoked for every command and option with `--help` option.
+**Vanta CLI** is a command-line tool that is a fork of bittensor-cli tool for Vanta Network operations. It provides collateral management functionality and extends all standard bittensor-cli operations. Help information can be invoked for every command and option with `--help` option.
 
 ## Note
 
-PTNCLI is in beta and is still under active development. Please report any issues or feedback on the [PTNCLI GitHub repository](https://github.com/proprietary-trading-network/ptncli).
+Vanta CLI is under active development. Please report any issues or feedback on the [Vanta CLI GitHub repository](https://github.com/taoshidev/vanta-cli).
 
 ### Process Flow
-From a high level, here is what happens to register with collateral on PTN.
+From a high level, here is what happens to register with collateral on Vanta Network.
 
-1. Register your hotkey with PTN: `ptncli subnets register`
-2. Stake TAO into theta using your own hotkey: `ptncli stake add`
-3. Collateral deposit, which under the hood signs an extensic and sends the command off to the super validator. The super validator will then transfer the amount specified into our smart contract: `ptncli collateral deposit`
-4. (Optional) View collateral amount tracked in the contract: `ptncli collateral list`
+1. Register your hotkey with Vanta Network: `vanta subnets register`
+2. Stake TAO into theta using your own hotkey: `vanta stake add`
+3. Collateral deposit, which signs an extrinsic and sends the command off to the super validator. The super validator will then transfer the amount specified into the smart contract: `vanta collateral deposit`
+4. (Optional) View collateral amount tracked in the contract: `vanta collateral list`
 
 ## Installation
 
 ### From Source
 ```bash
 git clone <repository-url>
-cd ptncli
+cd vanta-cli
 pip install .
 ```
 ### Homebrew (macOS/Linux)
@@ -36,15 +36,15 @@ Coming soon
 
 ## Commands
 
-All commands are prefixed with `ptncli`. For example: `ptncli wallet list`
+All commands are prefixed with `vanta`. For example: `vanta wallet list`
 
 ### Collateral Operations
 
 #### Deposit Collateral
 ```bash
-ptncli collateral deposit [OPTIONS]
+vanta collateral deposit [OPTIONS]
 ```
-Deposit collateral to the Proprietary Trading Network.
+Deposit collateral to the Vanta Network.
 
 **Options:**
 - `--wallet-name, --name` - Name of the wallet to use for collateral (required)
@@ -56,7 +56,7 @@ Deposit collateral to the Proprietary Trading Network.
 
 #### List Collateral Balance
 ```bash
-ptncli collateral list [OPTIONS]
+vanta collateral list [OPTIONS]
 ```
 Check collateral balance for a miner address.
 
@@ -68,9 +68,9 @@ Check collateral balance for a miner address.
 
 #### Withdraw Collateral
 ```bash
-ptncli collateral withdraw [OPTIONS]
+vanta collateral withdraw [OPTIONS]
 ```
-Withdraw collateral from the Proprietary Trading Network.
+Withdraw collateral from the Vanta Network.
 
 **Options:**
 - `--wallet-name, --name` - Name of the wallet (for display purposes)

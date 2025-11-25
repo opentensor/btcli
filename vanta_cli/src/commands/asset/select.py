@@ -8,8 +8,8 @@ from rich.text import Text
 from bittensor_wallet import Wallet
 from bittensor_cli.src.bittensor.utils import console
 
-from ptn_cli.src.config import PTN_API_BASE_URL_MAINNET, PTN_API_BASE_URL_TESTNET
-from ptn_cli.src.utils.api import make_api_request
+from vanta_cli.src.config import VANTA_API_BASE_URL_MAINNET, VANTA_API_BASE_URL_TESTNET
+from vanta_cli.src.utils.api import make_api_request
 
 async def select(
     wallet: Wallet,
@@ -21,7 +21,7 @@ async def select(
     json_output: bool = False
 ):
     # Display the main title with Rich Panel
-    title = Text("🔗 PROPRIETARY TRADING NETWORK 🔗", style="bold blue")
+    title = Text("🔗 VANTA NETWORK 🔗", style="bold blue")
     subtitle = Text("Miner Asset Class Selection", style="italic cyan")
 
     panel = Panel.fit(
@@ -31,7 +31,7 @@ async def select(
     )
 
     console.print(panel)
-    console.print("[blue]Selecting miner asset class on PTN[/blue]")
+    console.print("[blue]Selecting miner asset class on Vanta Network[/blue]")
 
     # Load wallet and get keys
     password = getpass.getpass(prompt='Enter your password: ')
@@ -67,7 +67,7 @@ async def select(
     }
 
     # Determine which API base URL to use based on network
-    base_url = PTN_API_BASE_URL_TESTNET if network == "test" else PTN_API_BASE_URL_MAINNET
+    base_url = VANTA_API_BASE_URL_TESTNET if network == "test" else VANTA_API_BASE_URL_MAINNET
 
     # Make the API request
     console.print("\n[cyan]Sending asset selection request...[/cyan]")

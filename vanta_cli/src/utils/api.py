@@ -3,7 +3,7 @@ import requests
 import importlib.metadata
 from typing import Dict, Any, Optional
 from rich.console import Console
-from ptn_cli.src.config import PTN_API_BASE_URL_TESTNET, PTN_API_BASE_URL_MAINNET
+from vanta_cli.src.config import VANTA_API_BASE_URL_TESTNET, VANTA_API_BASE_URL_MAINNET
 
 console = Console()
 
@@ -11,11 +11,11 @@ def make_api_request(
     endpoint: str,
     payload: Optional[Dict[str, Any]] = None,
     method: str = "POST",
-    base_url: str = PTN_API_BASE_URL_MAINNET,
+    base_url: str = VANTA_API_BASE_URL_MAINNET,
     dev_mode: bool = False
 ) -> Optional[Dict[str, Any]]:
     """
-    Make an API request to the PTN backend.
+    Make an API request to the Vanta backend.
 
     Args:
         endpoint: API endpoint (e.g., '/collateral/deposit', '/collateral/withdraw')
@@ -29,13 +29,13 @@ def make_api_request(
     url = f"{base_url}{endpoint}"
 
     try:
-        # Inject PTNCLI version into payload for tracking
+        # Inject Vanta CLI version into payload for tracking
         if payload is not None:
             try:
-                ptncli_version = importlib.metadata.version("ptn-cli")
+                vanta_cli_version = importlib.metadata.version("vanta-cli")
             except importlib.metadata.PackageNotFoundError:
-                ptncli_version = "0.0.0"
-            payload["ptncli_version"] = ptncli_version
+                vanta_cli_version = "0.0.0"
+            payload["version"] = vanta_cli_version
 
         if dev_mode:
             console.print(f"[cyan]Making {method} request to: {url}[/cyan]")

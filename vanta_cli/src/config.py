@@ -1,8 +1,8 @@
 """Configuration module with project constants."""
 
-# PTN API configuration
-PTN_API_BASE_URL_TESTNET = "http://34.187.154.219:48888"
-PTN_API_BASE_URL_MAINNET = "http://34.65.245.134:48888"
+# Vanta API configuration
+VANTA_API_BASE_URL_TESTNET = "http://34.187.154.219:48888"
+VANTA_API_BASE_URL_MAINNET = "http://34.65.245.134:48888"
 
 # Collateral configuration
 COLLATERAL_DEST_ADDRESS_TESTNET = '5F4xUo5pBJmzzFjqxmXNXL1NKPF3ugcAfYUvAc2LGERgrxNJ'
