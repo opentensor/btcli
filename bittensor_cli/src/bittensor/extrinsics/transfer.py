@@ -182,6 +182,8 @@ async def transfer_extrinsic(
                 f"  for fee: [bright_red]{fee}[/bright_red]"
             )
             return False, None
+    if proxy:
+        account_balance = proxy_balance
 
     # Ask before moving on.
     if prompt:
