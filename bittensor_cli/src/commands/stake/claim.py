@@ -626,3 +626,32 @@ async def _prompt_claim_netuids(
             err_console.print(
                 f"Invalid subnet selection: {e}\n[yellow]Please try again."
             )
+
+
+def _preview_subnet_selection(keep_subnets: list[int], all_subnets: list[int]) -> bool:
+    """Show preview and ask for confirmation."""
+
+    swap_subnets = [n for n in all_subnets if n not in keep_subnets]
+    preview_content = (
+        f"[{COLORS.GENERAL.HEADER}]Preview Your Selection[/{COLORS.GENERAL.HEADER}]\n\n"
+    )
+
+    if keep_subnets:
+        preview_content += (
+            f"[green]✓ Keep as Alpha:[/green] {group_subnets(keep_subnets)}\n"
+            f"[dim]  ({len(keep_subnets)} subnet{'s' if len(keep_subnets) != 1 else ''})[/dim]"
+        )
+    else:
+        preview_content += "[dim]No subnets kept as Alpha[/dim]"
+
+    if swap_subnets:
+        preview_content += (
+            f"\n\n[yellow]⟳ Swap to TAO:[/yellow] {group_subnets(swap_subnets)}\n"
+            f"[dim]  ({len(swap_subnets)} subnet{'s' if len(swap_subnets) != 1 else ''})[/dim]"
+        )
+    else:
+        preview_content += "\n\n[dim]No subnets swapped to TAO[/dim]"
+
+    console.print(Panel(preview_content))
+
+    return Confirm.ask("\nIs this correct?", default=True)
