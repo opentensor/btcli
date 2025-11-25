@@ -543,3 +543,86 @@ async def _ask_for_claim_types(
     return await _prompt_claim_netuids(
         wallet, subtensor, all_subnets, mode=primary_choice
     )
+
+
+async def _prompt_claim_netuids(
+    wallet: Wallet,
+    subtensor: "SubtensorInterface",
+    all_subnets: list,
+    mode: str = "keep",
+) -> Optional[dict]:
+    """
+    Interactive subnet selection.
+
+    Args:
+        mode: "keep" to select subnets to keep as Alpha, "swap" to select subnets to swap to TAO
+
+    Returns:
+        dict: KeepSubnets claim type or None if cancelled
+    """
+
+    if not all_subnets:
+        console.print("[yellow]No subnets available.[/yellow]")
+        return {"type": "Swap"}
+
+    if mode == "keep":
+        action = "KEEP as Alpha"
+    else:
+        action = "SWAP to TAO"
+
+    console.print(
+        Panel(
+            f"[{COLORS.GENERAL.HEADER}]Subnet Selection[/{COLORS.GENERAL.HEADER}]\n\n"
+            f"[bold]Available subnets:[/bold] {group_subnets(sorted(all_subnets))}\n"
+            f"[dim]Total: {len(all_subnets)} subnets[/dim]\n\n"
+            "[yellow]Input examples:[/yellow]\n"
+            "  • [cyan]1-10[/cyan] - Range from 1 to 10\n"
+            "  • [cyan]1, 5, 10[/cyan] - Specific subnets\n"
+            "  • [cyan]1-10, 20-30, 50[/cyan] - Mixed"
+        )
+    )
+
+    while True:
+        subnet_input = Prompt.ask(
+            f"\nEnter subnets to {action} [dim]{group_subnets(sorted(all_subnets))}",
+            default="",
+        )
+
+        if not subnet_input.strip():
+            err_console.print("[red]No subnets entered. Please try again.[/red]")
+            continue
+
+        try:
+            selected = parse_subnet_range(subnet_input)
+            invalid = [s for s in selected if s not in all_subnets]
+            if invalid:
+                err_console.print(
+                    f"[red]Invalid subnets (not available): {group_subnets(invalid)}[/red]"
+                )
+                err_console.print("[yellow]Please try again.[/yellow]")
+                continue
+
+            if mode == "keep":
+                keep_subnets = selected
+            else:
+                keep_subnets = [n for n in all_subnets if n not in selected]
+
+            if _preview_subnet_selection(keep_subnets, all_subnets):
+                if not keep_subnets:
+                    return {"type": "Swap"}
+                elif set(keep_subnets) == set(all_subnets):
+                    return {"type": "Keep"}
+                else:
+                    return {"type": "KeepSubnets", "subnets": keep_subnets}
+            else:
+                console.print(
+                    "[yellow]Selection cancelled. Starting over...[/yellow]\n"
+                )
+                return await _prompt_claim_netuids(
+                    wallet, subtensor, all_subnets, mode=mode
+                )
+
+        except ValueError as e:
+            err_console.print(
+                f"Invalid subnet selection: {e}\n[yellow]Please try again."
+            )
