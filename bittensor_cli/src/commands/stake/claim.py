@@ -691,3 +691,17 @@ def _format_claim_type_display(
         return result
     else:
         return "[red]Unknown[/red]"
+
+
+def _claim_types_equal(claim1: dict, claim2: dict) -> bool:
+    """Check if two claim type configs are equivalent."""
+
+    if claim1["type"] != claim2["type"]:
+        return False
+
+    if claim1["type"] == "KeepSubnets":
+        subnets1 = sorted(claim1.get("subnets", []))
+        subnets2 = sorted(claim2.get("subnets", []))
+        return subnets1 == subnets2
+
+    return True
