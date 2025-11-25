@@ -64,6 +64,7 @@ from bittensor_cli.src.bittensor.utils import (
     prompt_for_subnet_identity,
     validate_rate_tolerance,
     get_hotkey_pub_ss58,
+    parse_subnet_range,
 )
 from bittensor_cli.src.commands import sudo, wallets, view
 from bittensor_cli.src.commands import weights as weights_cmds
@@ -7216,6 +7217,12 @@ class CLIManager:
             None,
             help="Claim type: 'keep' or 'swap'. If not provided, you'll be prompted to choose.",
         ),
+        netuids: Optional[str] = typer.Option(
+            None,
+            "--netuids",
+            "-n",
+            help="Netuids to select. Supports ranges and comma-separated values, e.g., '1-5,10,20-30'.",
+        ),
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
@@ -7233,18 +7240,29 @@ class CLIManager:
         [bold]Claim Types:[/bold]
         • [green]Swap[/green]: Future Root Alpha Emissions are swapped to TAO and added to root stake (default)
         • [yellow]Keep[/yellow]: Future Root Alpha Emissions are kept as Alpha tokens
+        • [cyan]Keep Specific[/cyan]: Keep specific subnets as Alpha, swap others to TAO
 
         USAGE:
 
         [green]$[/green] btcli stake claim
         [green]$[/green] btcli stake claim keep
         [green]$[/green] btcli stake claim swap
+        [green]$[/green] btcli stake claim keep --netuids 1-5,10,20-30
+        [green]$[/green] btcli stake claim swap --netuids 1-30
 
         With specific wallet:
 
         [green]$[/green] btcli stake claim swap --wallet-name my_wallet
         """
         self.verbosity_handler(quiet, verbose, json_output)
+
+        parsed_netuids = None
+        if netuids is not None:
+            try:
+                parsed_netuids = parse_subnet_range(netuids)
+            except ValueError as e:
+                err_console.print(f":cross_mark: [red]Invalid netuid format: {e}[/red]")
+                raise typer.Exit()
 
         if claim_type is not None:
             claim_type_normalized = claim_type.capitalize()
@@ -7267,6 +7285,7 @@ class CLIManager:
                 wallet=wallet,
                 subtensor=self.initialize_chain(network),
                 claim_type=claim_type_normalized,
+                netuids=parsed_netuids,
                 prompt=prompt,
                 json_output=json_output,
             )
