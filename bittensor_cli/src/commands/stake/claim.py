@@ -705,3 +705,18 @@ def _claim_types_equal(claim1: dict, claim2: dict) -> bool:
         return subnets1 == subnets2
 
     return True
+
+
+def _prepare_claim_type_args(claim_info: dict) -> dict:
+    """Convert claim type arguments for chain call"""
+
+    claim_type = claim_info["type"]
+    if claim_type == "Swap":
+        return {"Swap": None}
+    elif claim_type == "Keep":
+        return {"Keep": None}
+    elif claim_type == "KeepSubnets":
+        subnets = claim_info["subnets"]
+        return {"KeepSubnets": {"subnets": subnets}}
+    else:
+        raise ValueError(f"Unknown claim type: {claim_type}")
