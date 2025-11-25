@@ -486,3 +486,60 @@ def _print_claimable_table(
             first_row = False
 
     console.print(table)
+
+
+async def _ask_for_claim_types(
+    wallet: Wallet,
+    subtensor: "SubtensorInterface",
+    all_subnets: list,
+) -> Optional[dict]:
+    """
+    Interactive prompts for claim type selection.
+
+    Flow:
+    1. Ask "Keep or Swap?"
+    2. Ask "All subnets?"
+       - If yes → return simple type (Keep or Swap)
+       - If no → enter subnet selection
+
+    Returns:
+        dict: Selected claim type, or None if cancelled
+    """
+
+    console.print("\n")
+    console.print(
+        Panel(
+            f"[{COLORS.GENERAL.HEADER}]Root Claim Type Selection[/{COLORS.GENERAL.HEADER}]\n\n"
+            "Configure how your root network emissions are claimed.\n\n"
+            "[yellow]Options:[/yellow]\n"
+            "  • [green]Swap[/green] - Convert emissions to TAO\n"
+            "  • [green]Keep[/green] - Keep emissions as Alpha\n"
+            "  • [green]Keep Specific[/green] - Keep selected subnets, swap others\n",
+        )
+    )
+
+    primary_choice = Prompt.ask(
+        "\nSelect new root claim type",
+        choices=["keep", "swap", "cancel"],
+        default="cancel",
+    )
+    if primary_choice == "cancel":
+        return None
+
+    apply_to_all = Confirm.ask("\nApply to ALL subnets?", default=True)
+
+    if apply_to_all:
+        return {"type": primary_choice.capitalize()}
+
+    if primary_choice == "keep":
+        console.print(
+            "\nYou can select which subnets to KEEP as Alpha (others will be swapped to TAO).\n"
+        )
+    else:
+        console.print(
+            "\nYou can select which subnets to SWAP to TAO (others will be kept as Alpha).\n"
+        )
+
+    return await _prompt_claim_netuids(
+        wallet, subtensor, all_subnets, mode=primary_choice
+    )
