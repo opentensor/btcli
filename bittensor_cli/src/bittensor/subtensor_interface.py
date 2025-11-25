@@ -1876,7 +1876,7 @@ class SubtensorInterface:
         self,
         block_hash: Optional[str] = None,
         reuse_block: bool = False,
-    ) -> dict[str, str]:
+    ) -> dict[str, dict]:
         """
         Retrieves all root claim types for all coldkeys in the network.
 
@@ -1885,7 +1885,7 @@ class SubtensorInterface:
             reuse_block: Whether to reuse the last-used blockchain block hash.
 
         Returns:
-            dict[str, str]: A dictionary mapping coldkey SS58 addresses to their root claim type ("Keep" or "Swap").
+            dict[str, dict]: Mapping of coldkey SS58 addresses to claim type dicts
         """
         result = await self.substrate.query_map(
             module="SubtensorModule",
@@ -1896,10 +1896,20 @@ class SubtensorInterface:
         )
 
         root_claim_types = {}
-        async for coldkey, claim_type in result:
+        async for coldkey, claim_type_data in result:
             coldkey_ss58 = decode_account_id(coldkey[0])
-            claim_type = next(iter(claim_type.value.keys()))
-            root_claim_types[coldkey_ss58] = claim_type
+
+            claim_type_key = next(iter(claim_type_data.value.keys()))
+
+            if claim_type_key == "KeepSubnets":
+                subnets_data = claim_type_data.value["KeepSubnets"]["subnets"]
+                subnet_list = sorted([subnet for subnet in subnets_data[0]])
+                root_claim_types[coldkey_ss58] = {
+                    "type": "KeepSubnets",
+                    "subnets": subnet_list,
+                }
+            else:
+                root_claim_types[coldkey_ss58] = {"type": claim_type_key}
 
         return root_claim_types
 
