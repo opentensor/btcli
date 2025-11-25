@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm, Prompt
+from rich.panel import Panel
 from rich.table import Table, Column
 from rich import box
 
@@ -16,6 +17,8 @@ from bittensor_cli.src.bittensor.utils import (
     print_extrinsic_id,
     json_console,
     millify_tao,
+    group_subnets,
+    parse_subnet_range,
 )
 
 if TYPE_CHECKING:
@@ -26,6 +29,7 @@ async def set_claim_type(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
     claim_type: Optional[str] = None,
+    netuids: Optional[list[int]] = None,
     prompt: bool = True,
     json_output: bool = False,
 ) -> tuple[bool, str, Optional[str]]:
@@ -35,11 +39,13 @@ async def set_claim_type(
     Root claim types control how staking emissions are handled on the ROOT network (subnet 0):
         - "Swap": Future Root Alpha Emissions are swapped to TAO at claim time and added to root stake
         - "Keep": Future Root Alpha Emissions are kept as Alpha tokens
+        - "KeepSubnets": Specific subnets kept as Alpha, rest swapped to TAO
 
     Args:
         wallet: Bittensor wallet object
         subtensor: SubtensorInterface object
         claim_type: Optional claim type ("Keep" or "Swap"). If None, user will be prompted.
+        netuids: Optional list of subnet IDs to keep (only valid with "Keep" type)
         prompt: Whether to prompt for user confirmation
         json_output: Whether to output JSON
 
@@ -50,74 +56,32 @@ async def set_claim_type(
             - Optional[str]: Extrinsic identifier if successful
     """
 
-    current_type = await subtensor.get_coldkey_claim_type(
-        coldkey_ss58=wallet.coldkeypub.ss58_address
+    current_claim_info, all_netuids = await asyncio.gather(
+        subtensor.get_coldkey_claim_type(coldkey_ss58=wallet.coldkeypub.ss58_address),
+        subtensor.get_all_subnet_netuids(),
     )
+    all_subnets = sorted([n for n in all_netuids if n != 0])
 
     claim_table = Table(
+        Column("[bold white]Coldkey", style=COLORS.GENERAL.COLDKEY, justify="left"),
         Column(
-            "[bold white]Coldkey",
-            style=COLORS.GENERAL.COLDKEY,
-            justify="left",
-        ),
-        Column(
-            "[bold white]Root Claim Type",
-            style=COLORS.GENERAL.SUBHEADING,
-            justify="center",
+            "[bold white]Current Type", style=COLORS.GENERAL.SUBHEADING, justify="left"
         ),
         show_header=True,
-        show_footer=False,
-        show_edge=True,
         border_style="bright_black",
         box=box.SIMPLE,
-        pad_edge=False,
-        width=None,
-        title=f"\n[{COLORS.GENERAL.HEADER}]Current root claim type:[/{COLORS.GENERAL.HEADER}]",
+        title=f"\n[{COLORS.GENERAL.HEADER}]Current Root Claim Type[/{COLORS.GENERAL.HEADER}]",
     )
     claim_table.add_row(
-        wallet.coldkeypub.ss58_address, f"[yellow]{current_type}[/yellow]"
+        wallet.coldkeypub.ss58_address,
+        _format_claim_type_display(current_claim_info, all_subnets),
     )
     console.print(claim_table)
 
-    new_type = (
-        claim_type
-        if claim_type
-        else Prompt.ask(
-            "Select new root claim type", choices=["Swap", "Keep"], default=current_type
-        )
-    )
-    if new_type == current_type:
-        msg = f"Root claim type is already set to '{current_type}'. No change needed."
-        console.print(f"[yellow]{msg}[/yellow]")
-        if json_output:
-            json_console.print(
-                json.dumps(
-                    {
-                        "success": True,
-                        "message": msg,
-                        "extrinsic_identifier": None,
-                        "old_type": current_type,
-                        "new_type": current_type,
-                    }
-                )
-            )
-        return True, msg, None
-
-    if prompt:
-        console.print(
-            f"\n[bold]Changing root claim type from '{current_type}' -> '{new_type}'[/bold]\n"
-        )
-
-        if new_type == "Swap":
-            console.print(
-                "[yellow]Note:[/yellow] With 'Swap', future root alpha emissions will be swapped to TAO and added to root stake."
-            )
-        else:
-            console.print(
-                "[yellow]Note:[/yellow] With 'Keep', future root alpha emissions will be kept as Alpha tokens."
-            )
-
-        if not Confirm.ask("\nDo you want to proceed?"):
+    # Full wizard
+    if claim_type is None and netuids is None:
+        new_claim_info = await _ask_for_claim_types(wallet, subtensor, all_subnets)
+        if new_claim_info is None:
             msg = "Operation cancelled."
             console.print(f"[yellow]{msg}[/yellow]")
             if json_output:
@@ -127,37 +91,93 @@ async def set_claim_type(
                             "success": False,
                             "message": msg,
                             "extrinsic_identifier": None,
-                            "old_type": current_type,
-                            "new_type": new_type,
                         }
                     )
                 )
+            return False, msg, None
+
+    # Keep netuids passed thru the cli and assume Keep type
+    elif claim_type is None and netuids is not None:
+        new_claim_info = {"type": "KeepSubnets", "subnets": netuids}
+
+    else:
+        # Keep or Swap all subnets
+        claim_type_upper = claim_type.capitalize()
+        if claim_type_upper not in ["Swap", "Keep"]:
+            msg = f"Invalid claim type: {claim_type}. Use 'Swap' or 'Keep', or omit for interactive mode."
+            err_console.print(msg)
+            if json_output:
+                json_console.print(json.dumps({"success": False, "message": msg}))
+            return False, msg, None
+
+        # Netuids passed with Keep type
+        if netuids is not None and claim_type_upper == "Keep":
+            new_claim_info = {"type": "KeepSubnets", "subnets": netuids}
+
+        # Netuids passed with Swap type
+        elif netuids is not None and claim_type_upper == "Swap":
+            keep_subnets = [n for n in all_subnets if n not in netuids]
+            invalid = [n for n in netuids if n not in all_subnets]
+            if invalid:
+                msg = f"Invalid subnets (not available): {group_subnets(invalid)}"
+                err_console.print(msg)
+                if json_output:
+                    json_console.print(json.dumps({"success": False, "message": msg}))
+                return False, msg, None
+
+            if not keep_subnets:
+                new_claim_info = {"type": "Swap"}
+            elif set(keep_subnets) == set(all_subnets):
+                new_claim_info = {"type": "Keep"}
+            else:
+                new_claim_info = {"type": "KeepSubnets", "subnets": keep_subnets}
+        else:
+            new_claim_info = {"type": claim_type_upper}
+
+    if _claim_types_equal(current_claim_info, new_claim_info):
+        msg = f"Claim type already set to {_format_claim_type_display(new_claim_info)}. No change needed."
+        console.print(f"[yellow]{msg}[/yellow]")
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": True,
+                        "message": msg,
+                        "extrinsic_identifier": None,
+                    }
+                )
+            )
+        return True, msg, None
+
+    if prompt:
+        console.print(
+            Panel(
+                f"[{COLORS.GENERAL.HEADER}]Confirm Claim Type Change[/{COLORS.GENERAL.HEADER}]\n\n"
+                f"[yellow]FROM:[/yellow] {_format_claim_type_display(current_claim_info, all_subnets)}\n\n"
+                f"[yellow]TO:[/yellow]   {_format_claim_type_display(new_claim_info, all_subnets)}"
+            )
+        )
+
+        if not Confirm.ask("\nProceed with this change?"):
+            msg = "Operation cancelled."
+            console.print(f"[yellow]{msg}[/yellow]")
+            if json_output:
+                json_console.print(json.dumps({"success": False, "message": msg}))
             return False, msg, None
 
     if not (unlock := unlock_key(wallet)).success:
         msg = f"Failed to unlock wallet: {unlock.message}"
         err_console.print(f":cross_mark: [red]{msg}[/red]")
         if json_output:
-            json_console.print(
-                json.dumps(
-                    {
-                        "success": False,
-                        "message": msg,
-                        "extrinsic_identifier": None,
-                        "old_type": current_type,
-                        "new_type": new_type,
-                    }
-                )
-            )
+            json_console.print(json.dumps({"success": False, "message": msg}))
         return False, msg, None
 
-    with console.status(
-        f":satellite: Setting root claim type to '{new_type}'...", spinner="earth"
-    ):
+    with console.status(":satellite: Setting root claim type...", spinner="earth"):
+        claim_type_param = _prepare_claim_type_args(new_claim_info)
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function="set_root_claim_type",
-            call_params={"new_root_claim_type": new_type},
+            call_params={"new_root_claim_type": claim_type_param},
         )
         success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
             call, wallet
@@ -165,7 +185,7 @@ async def set_claim_type(
 
     if success:
         ext_id = await ext_receipt.get_extrinsic_identifier()
-        msg = f"Successfully set root claim type to '{new_type}'"
+        msg = f"Successfully set claim type to {_format_claim_type_display(new_claim_info)}"
         console.print(f":white_heavy_check_mark: [green]{msg}[/green]")
         await print_extrinsic_id(ext_receipt)
         if json_output:
@@ -175,28 +195,15 @@ async def set_claim_type(
                         "success": True,
                         "message": msg,
                         "extrinsic_identifier": ext_id,
-                        "old_type": current_type,
-                        "new_type": new_type,
                     }
                 )
             )
         return True, msg, ext_id
-
     else:
-        msg = f"Failed to set root claim type: {err_msg}"
+        msg = f"Failed to set claim type: {err_msg}"
         err_console.print(f":cross_mark: [red]{msg}[/red]")
         if json_output:
-            json_console.print(
-                json.dumps(
-                    {
-                        "success": False,
-                        "message": msg,
-                        "extrinsic_identifier": None,
-                        "old_type": current_type,
-                        "new_type": new_type,
-                    }
-                )
-            )
+            json_console.print(json.dumps({"success": False, "message": msg}))
         return False, msg, None
 
 
