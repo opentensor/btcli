@@ -628,7 +628,7 @@ async def stake_list(
         total_tao_value = (
             f"τ {millify_tao(all_hks_tao_value.tao + balance.tao)}"
             if not verbose
-            else all_hks_tao_value
+            else all_hks_tao_value + balance
         )
         total_swapped_tao_value = (
             f"τ {millify_tao(all_hks_swapped_tao_value.tao)}"
@@ -648,8 +648,8 @@ async def stake_list(
             f"[{COLOR_PALETTE.G.BALANCE}]{total_tao_value}[/{COLOR_PALETTE.G.BALANCE}]\n"
         )
         dict_output["free_balance"] = balance.tao
-        dict_output["total_tao_value"] = all_hks_tao_value.tao
-        # dict_output["total_swapped_tao_value"] = all_hks_swapped_tao_value.tao
+        dict_output["total_tao_value"] = all_hks_tao_value.tao + balance.tao
+        dict_output["total_swapped_tao_value"] = all_hks_swapped_tao_value.tao
         if json_output:
             json_console.print(json.dumps(dict_output))
         if not sub_stakes:
