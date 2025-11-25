@@ -652,6 +652,26 @@ class SubtensorInterface:
         )
         return result
 
+    async def total_networks(
+        self, block_hash: Optional[str] = None, reuse_block: bool = False
+    ) -> int:
+        """
+        Returns the total number of subnets in the Bittensor network.
+
+        :param block_hash: The hash of the blockchain block number at which to check the subnet existence.
+        :param reuse_block: Whether to reuse the last-used block hash.
+
+        :return: The total number of subnets in the network.
+        """
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="TotalNetworks",
+            params=[],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+        return result
+
     async def get_subnet_state(
         self, netuid: int, block_hash: Optional[str] = None
     ) -> Optional["SubnetState"]:
