@@ -8995,7 +8995,7 @@ class CLIManager:
         proxy: str = Options.proxy,
         real: Optional[str] = Options.edit_help(
             "proxy",
-            "The real account making this call. If omitted, the wallet's coldkeypub ss58 is used."
+            "The real account making this call. If omitted, the wallet's coldkeypub ss58 is used.",
         ),
         call_hash: Optional[str] = typer.Option(
             None,
@@ -9038,7 +9038,10 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH],
             validate=WV.WALLET,
         )
-        real = self.is_valid_proxy_name_or_ss58(real, False) or wallet.coldkeypub.ss58_address
+        real = (
+            self.is_valid_proxy_name_or_ss58(real, False)
+            or wallet.coldkeypub.ss58_address
+        )
         with ProxyAnnouncements.get_db() as (conn, cursor):
             announcements = ProxyAnnouncements.read_rows(conn, cursor)
             if not got_delay_from_config:

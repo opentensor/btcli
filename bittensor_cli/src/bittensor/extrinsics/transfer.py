@@ -124,36 +124,64 @@ async def transfer_extrinsic(
         # check existential deposit and fee
         print_verbose("Fetching existential and fee", status)
         block_hash = await subtensor.substrate.get_chain_head()
-        account_balance, existential_deposit = await asyncio.gather(
+        if proxy:
+            proxy_balance = await subtensor.get_balance(proxy, block_hash=block_hash)
+        account_balance, existential_deposit, fee = await asyncio.gather(
             subtensor.get_balance(
-                proxy or wallet.coldkeypub.ss58_address, block_hash=block_hash
+                wallet.coldkeypub.ss58_address, block_hash=block_hash
             ),
             subtensor.get_existential_deposit(block_hash=block_hash),
+            get_transfer_fee(),
         )
-        fee = await get_transfer_fee()
 
     if allow_death:
         # Check if the transfer should keep alive the account
         existential_deposit = Balance(0)
 
-    if account_balance < (amount + fee + existential_deposit) and not allow_death:
-        err_console.print(
-            ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
-            f"  balance: [bright_cyan]{account_balance}[/bright_cyan]\n"
-            f"  amount: [bright_cyan]{amount}[/bright_cyan]\n"
-            f"  for fee: [bright_cyan]{fee}[/bright_cyan]\n"
-            f"   would bring you under the existential deposit: [bright_cyan]{existential_deposit}[/bright_cyan].\n"
-            f"You can try again with `--allow-death`."
-        )
-        return False, None
-    elif account_balance < (amount + fee) and allow_death:
-        print_error(
-            ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
-            f"  balance: [bright_red]{account_balance}[/bright_red]\n"
-            f"  amount: [bright_red]{amount}[/bright_red]\n"
-            f"  for fee: [bright_red]{fee}[/bright_red]"
-        )
-        return False, None
+    if proxy:
+        if proxy_balance < (amount + existential_deposit) and not allow_death:
+            err_console.print(
+                ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
+                f"  balance: [bright_cyan]{proxy_balance}[/bright_cyan]\n"
+                f"  amount: [bright_cyan]{amount}[/bright_cyan]\n"
+                f"   would bring you under the existential deposit: [bright_cyan]{existential_deposit}[/bright_cyan].\n"
+                f"You can try again with `--allow-death`."
+            )
+            return False, None
+        if account_balance < fee:
+            err_console.print(
+                ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
+                f"  balance: [bright_cyan]{account_balance}[/bright_cyan]\n"
+                f"  fee: [bright_cyan]{fee}[/bright_cyan]\n"
+                f"   would bring you under the existential deposit: [bright_cyan]{existential_deposit}[/bright_cyan].\n"
+            )
+            return False, None
+        if account_balance < amount and allow_death:
+            print_error(
+                ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
+                f"  balance: [bright_red]{account_balance}[/bright_red]\n"
+                f"  amount: [bright_red]{amount}[/bright_red]\n"
+            )
+            return False, None
+    else:
+        if account_balance < (amount + fee + existential_deposit) and not allow_death:
+            err_console.print(
+                ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
+                f"  balance: [bright_cyan]{account_balance}[/bright_cyan]\n"
+                f"  amount: [bright_cyan]{amount}[/bright_cyan]\n"
+                f"  for fee: [bright_cyan]{fee}[/bright_cyan]\n"
+                f"   would bring you under the existential deposit: [bright_cyan]{existential_deposit}[/bright_cyan].\n"
+                f"You can try again with `--allow-death`."
+            )
+            return False, None
+        elif account_balance < (amount + fee) and allow_death:
+            print_error(
+                ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
+                f"  balance: [bright_red]{account_balance}[/bright_red]\n"
+                f"  amount: [bright_red]{amount}[/bright_red]\n"
+                f"  for fee: [bright_red]{fee}[/bright_red]"
+            )
+            return False, None
 
     # Ask before moving on.
     if prompt:
