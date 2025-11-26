@@ -1051,13 +1051,14 @@ def group_subnets(registrations):
     return ", ".join(ranges)
 
 
-def parse_subnet_range(input_str: str) -> list[int]:
+def parse_subnet_range(input_str: str, total_subnets: int) -> list[int]:
     """
     Parse subnet range input like "1-24, 30-40, 5".
 
     Args:
         input_str: Comma-separated list of subnets and ranges
                   Examples: "1-5", "1,2,3", "1-5, 10, 20-25"
+        total_subnets: Total number of subnets available
 
     Returns:
         Sorted list of unique subnet IDs
@@ -1083,8 +1084,10 @@ def parse_subnet_range(input_str: str) -> list[int]:
                 if start_num > end_num:
                     raise ValueError(f"Invalid range '{part}': start must be ≤ end")
 
-                if end_num - start_num > 128:
-                    raise ValueError(f"Range '{part}' is too large (max 128 subnets)")
+                if end_num - start_num > total_subnets:
+                    raise ValueError(
+                        f"Range '{part}' is not valid (total of {total_subnets} subnets)"
+                    )
 
                 subnets.update(range(start_num, end_num + 1))
             except ValueError as e:
