@@ -64,7 +64,6 @@ from bittensor_cli.src.bittensor.utils import (
     prompt_for_subnet_identity,
     validate_rate_tolerance,
     get_hotkey_pub_ss58,
-    parse_subnet_range,
 )
 from bittensor_cli.src.commands import sudo, wallets, view
 from bittensor_cli.src.commands import weights as weights_cmds
@@ -7256,24 +7255,6 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose, json_output)
 
-        parsed_netuids = None
-        if netuids is not None:
-            try:
-                parsed_netuids = parse_subnet_range(netuids)
-            except ValueError as e:
-                err_console.print(f":cross_mark: [red]Invalid netuid format: {e}[/red]")
-                raise typer.Exit()
-
-        if claim_type is not None:
-            claim_type_normalized = claim_type.capitalize()
-            if claim_type_normalized not in ["Keep", "Swap"]:
-                err_console.print(
-                    f":cross_mark: [red]Invalid claim type '{claim_type}'. Must be 'keep' or 'swap'.[/red]"
-                )
-                raise typer.Exit()
-        else:
-            claim_type_normalized = None
-
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -7284,8 +7265,8 @@ class CLIManager:
             claim_stake.set_claim_type(
                 wallet=wallet,
                 subtensor=self.initialize_chain(network),
-                claim_type=claim_type_normalized,
-                netuids=parsed_netuids,
+                claim_type=claim_type,
+                netuids=netuids,
                 prompt=prompt,
                 json_output=json_output,
             )
