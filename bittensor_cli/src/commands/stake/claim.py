@@ -29,7 +29,7 @@ async def set_claim_type(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
     claim_type: Optional[str] = None,
-    netuids: Optional[list[int]] = None,
+    netuids: Optional[str] = None,
     prompt: bool = True,
     json_output: bool = False,
 ) -> tuple[bool, str, Optional[str]]:
@@ -45,7 +45,7 @@ async def set_claim_type(
         wallet: Bittensor wallet object
         subtensor: SubtensorInterface object
         claim_type: Optional claim type ("Keep" or "Swap"). If None, user will be prompted.
-        netuids: Optional list of subnet IDs to keep (only valid with "Keep" type)
+        netuids: Optional string of subnet IDs (e.g., "1-5,10,20-30"). Will be parsed internally.
         prompt: Whether to prompt for user confirmation
         json_output: Whether to output JSON
 
@@ -56,11 +56,33 @@ async def set_claim_type(
             - Optional[str]: Extrinsic identifier if successful
     """
 
+    if claim_type is not None:
+        claim_type = claim_type.capitalize()
+        if claim_type not in ["Keep", "Swap"]:
+            msg = f"Invalid claim type: {claim_type}. Use 'Keep' or 'Swap', or omit for interactive mode."
+            err_console.print(f"[red]{msg}[/red]")
+            if json_output:
+                json_console.print(json.dumps({"success": False, "message": msg}))
+            return False, msg, None
+
     current_claim_info, all_netuids = await asyncio.gather(
         subtensor.get_coldkey_claim_type(coldkey_ss58=wallet.coldkeypub.ss58_address),
         subtensor.get_all_subnet_netuids(),
     )
     all_subnets = sorted([n for n in all_netuids if n != 0])
+
+    selected_netuids = None
+    if netuids is not None:
+        try:
+            selected_netuids = parse_subnet_range(
+                netuids, total_subnets=len(all_subnets)
+            )
+        except ValueError as e:
+            msg = f"Invalid netuid format: {e}"
+            err_console.print(f"[red]{msg}[/red]")
+            if json_output:
+                json_console.print(json.dumps({"success": False, "message": msg}))
+            return False, msg, None
 
     claim_table = Table(
         Column("[bold white]Coldkey", style=COLORS.GENERAL.COLDKEY, justify="left"),
@@ -79,7 +101,7 @@ async def set_claim_type(
     console.print(claim_table)
 
     # Full wizard
-    if claim_type is None and netuids is None:
+    if claim_type is None and selected_netuids is None:
         new_claim_info = await _ask_for_claim_types(wallet, subtensor, all_subnets)
         if new_claim_info is None:
             msg = "Operation cancelled."
@@ -97,27 +119,18 @@ async def set_claim_type(
             return False, msg, None
 
     # Keep netuids passed thru the cli and assume Keep type
-    elif claim_type is None and netuids is not None:
-        new_claim_info = {"type": "KeepSubnets", "subnets": netuids}
+    elif claim_type is None and selected_netuids is not None:
+        new_claim_info = {"type": "KeepSubnets", "subnets": selected_netuids}
 
     else:
-        # Keep or Swap all subnets
-        claim_type_upper = claim_type.capitalize()
-        if claim_type_upper not in ["Swap", "Keep"]:
-            msg = f"Invalid claim type: {claim_type}. Use 'Swap' or 'Keep', or omit for interactive mode."
-            err_console.print(msg)
-            if json_output:
-                json_console.print(json.dumps({"success": False, "message": msg}))
-            return False, msg, None
-
         # Netuids passed with Keep type
-        if netuids is not None and claim_type_upper == "Keep":
-            new_claim_info = {"type": "KeepSubnets", "subnets": netuids}
+        if selected_netuids is not None and claim_type == "Keep":
+            new_claim_info = {"type": "KeepSubnets", "subnets": selected_netuids}
 
         # Netuids passed with Swap type
-        elif netuids is not None and claim_type_upper == "Swap":
-            keep_subnets = [n for n in all_subnets if n not in netuids]
-            invalid = [n for n in netuids if n not in all_subnets]
+        elif selected_netuids is not None and claim_type == "Swap":
+            keep_subnets = [n for n in all_subnets if n not in selected_netuids]
+            invalid = [n for n in selected_netuids if n not in all_subnets]
             if invalid:
                 msg = f"Invalid subnets (not available): {group_subnets(invalid)}"
                 err_console.print(msg)
@@ -132,11 +145,12 @@ async def set_claim_type(
             else:
                 new_claim_info = {"type": "KeepSubnets", "subnets": keep_subnets}
         else:
-            new_claim_info = {"type": claim_type_upper}
+            new_claim_info = {"type": claim_type}
 
     if _claim_types_equal(current_claim_info, new_claim_info):
-        msg = f"Claim type already set to {_format_claim_type_display(new_claim_info)}. No change needed."
-        console.print(f"[yellow]{msg}[/yellow]")
+        console.print(
+            f"Claim type already set to {_format_claim_type_display(new_claim_info)}. No change needed."
+        )
         if json_output:
             json_console.print(
                 json.dumps(
