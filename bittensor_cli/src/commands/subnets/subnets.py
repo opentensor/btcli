@@ -1386,10 +1386,12 @@ async def show(
 
             # Get claim type for this coldkey if applicable TAO stake
             coldkey_ss58 = metagraph_info.coldkeys[idx]
+            claim_type_info = {"type": "Swap"}  # Default
+            claim_type = "-"
+
             if tao_stake.tao > 0:
-                claim_type = root_claim_types.get(coldkey_ss58, "Swap")
-            else:
-                claim_type = "-"
+                claim_type_info = root_claim_types.get(coldkey_ss58, {"type": "Swap"})
+                claim_type = format_claim_type_for_subnet(claim_type_info, netuid_)
 
             rows.append(
                 (
@@ -1430,7 +1432,12 @@ async def show(
                     "hotkey": metagraph_info.hotkeys[idx],
                     "coldkey": metagraph_info.coldkeys[idx],
                     "identity": uid_identity,
-                    "claim_type": claim_type,
+                    "claim_type": claim_type_info.get("type")
+                    if tao_stake.tao > 0
+                    else None,
+                    "claim_type_subnets": claim_type_info.get("subnets")
+                    if claim_type_info.get("type") == "KeepSubnets"
+                    else None,
                 }
             )
 
