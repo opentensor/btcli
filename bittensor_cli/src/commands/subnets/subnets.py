@@ -49,6 +49,35 @@ TAO_WEIGHT = 0.18
 # helpers and extrinsics
 
 
+def format_claim_type_for_root(claim_info: dict, total_subnets: int) -> str:
+    """
+    Format claim type for root network metagraph.
+
+    Args:
+        claim_info: Claim type dict {"type": "...", "subnets": [...]}
+        total_subnets: Total number of subnets in network (excluding netuid 0)
+
+    Returns:
+        Formatted string showing keep/swap counts
+
+    Examples:
+        {"type": "Keep"} → "Keep all"
+        {"type": "Swap"} → "Swap all"
+        {"type": "KeepSubnets", "subnets": [1,2,3]} → "Keep (3), Swap (54)"
+    """
+    claim_type = claim_info.get("type", "Swap")
+
+    if claim_type == "Keep":
+        return "Keep all"
+    elif claim_type == "Swap":
+        return "Swap all"
+    else:
+        keep_subnets = claim_info.get("subnets", [])
+        keep_count = len(keep_subnets)
+        swap_count = total_subnets - keep_count
+        return f"Keep ({keep_count}), Swap ({swap_count})"
+
+
 async def register_subnetwork_extrinsic(
     subtensor: "SubtensorInterface",
     wallet: Wallet,
