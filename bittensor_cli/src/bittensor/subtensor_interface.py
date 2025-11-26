@@ -1155,7 +1155,7 @@ class SubtensorInterface:
         wait_for_finalization: bool = False,
         era: Optional[dict[str, int]] = None,
         proxy: Optional[str] = None,
-        nonce: Optional[str] = None,
+        nonce: Optional[int] = None,
         sign_with: Literal["coldkey", "hotkey", "coldkeypub"] = "coldkey",
         announce_only: bool = False,
     ) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
@@ -1176,10 +1176,11 @@ class SubtensorInterface:
         """
         if proxy is not None:
             if announce_only:
+
                 call = await self.substrate.compose_call(
                     "Proxy",
                     "announce",
-                    {"real": proxy, "call_hash": f"0x{call.call_hash}"},
+                    {"real": proxy, "call_hash": f"0x{call.call_hash.hex()}"},
                 )
             else:
                 call = await self.substrate.compose_call(
@@ -1187,14 +1188,18 @@ class SubtensorInterface:
                     "proxy",
                     {"real": proxy, "call": call, "force_proxy_type": None},
                 )
+        keypair = getattr(wallet, sign_with)
         call_args: dict[str, Union[GenericCall, Keypair, dict[str, int], int]] = {
             "call": call,
             # sign with specified key
-            "keypair": getattr(wallet, sign_with),
-            "nonce": nonce,
+            "keypair": keypair,
         }
         if era is not None:
             call_args["era"] = era
+        if nonce is not None:
+            call_args["nonce"] = nonce
+        else:
+            call_args["nonce"] = await self.substrate.get_account_next_index(keypair.ss58_address)
         extrinsic = await self.substrate.create_signed_extrinsic(**call_args)
         try:
             response = await self.substrate.submit_extrinsic(

@@ -17,7 +17,7 @@ from async_substrate_interface.async_substrate import AsyncSubstrateInterface
 
 from .utils import setup_wallet, ExecCommand
 
-LOCALNET_IMAGE_NAME = "ghcr.io/opentensor/subtensor-localnet:devnet-ready"
+LOCALNET_IMAGE_NAME = "ghcr.io/opentensor/subtensor-localnet:main"
 
 
 def wait_for_node_start(process, pattern, timestamp: int = None):

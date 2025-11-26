@@ -167,6 +167,7 @@ async def create_proxy(
         wait_for_inclusion=wait_for_inclusion,
         wait_for_finalization=wait_for_finalization,
         era={"period": period},
+        nonce=await subtensor.substrate.get_account_next_index(wallet.coldkeypub.ss58_address)
     )
     if success:
         await print_extrinsic_id(receipt)
@@ -222,6 +223,12 @@ async def create_proxy(
                 data={
                     "success": success,
                     "message": msg,
+                    "data": {
+                        "pure": created_pure,
+                        "spawner": created_spawner,
+                        "proxy_type": created_proxy_type.value,
+                        "delay": delay,
+                    },
                     "extrinsic_id": await receipt.get_extrinsic_identifier(),
                 }
             )
@@ -232,6 +239,7 @@ async def create_proxy(
                 data={
                     "success": success,
                     "message": msg,
+                    "data": None,
                     "extrinsic_id": None,
                 }
             )
@@ -302,7 +310,6 @@ async def add_proxy(
     period: int,
     json_output: bool,
 ):
-    # TODO add to address book
     if prompt:
         if not Confirm.ask(
             f"This will add a proxy of type {proxy_type.value} for delegate {delegate}."
@@ -488,7 +495,10 @@ async def execute_announced(
     prompt: bool = True,
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = False,
-):
+    json_output: bool = False,
+) -> None:
+    # TODO should this remove from the ProxyAnnouncements after successful completion, or should it mark it as completed
+    #  in the DB?
     if prompt and created_block is not None:
         current_block = await subtensor.substrate.get_block_number()
         if current_block - delay > created_block:
@@ -581,10 +591,31 @@ async def execute_announced(
             "force_proxy_type": None,
         },
     )
-    return await subtensor.sign_and_send_extrinsic(
+    success, msg, receipt = await subtensor.sign_and_send_extrinsic(
         call=announced_call,
         wallet=wallet,
         wait_for_inclusion=wait_for_inclusion,
         wait_for_finalization=wait_for_finalization,
         era={"period": period},
     )
+    if success is True:
+        if json_output:
+            json_console.print_json(data={
+                "success": True,
+                "message": msg,
+                "extrinsic_identifier": await receipt.get_extrinsic_identifier()
+            })
+        else:
+            console.print(":white_check_mark:[green]Success![/green]")
+            await print_extrinsic_id(receipt)
+    else:
+        if json_output:
+            json_console.print_json(data={
+                "success": False,
+                "message": msg,
+                "extrinsic_identifier": None
+            })
+        else:
+            err_console.print(
+                f":cross_mark:[red]Failed[/red]. {msg} "
+            )

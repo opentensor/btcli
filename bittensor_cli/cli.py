@@ -399,6 +399,11 @@ class Options:
         help="Optional proxy to use for the transaction: either the SS58 or the name of the proxy if you "
         f"have added it with {arg__('btcli config add-proxy')}.",
     )
+    real_proxy: Optional[str] = typer.Option(
+        None,
+        "--real",
+        help="The real account making this call. If omitted, the wallet's coldkeypub ss58 is used.",
+    )
     announce_only: bool = typer.Option(
         False,
         help=f"If set along with [{COLORS.G.ARG}]--proxy[/{COLORS.G.ARG}], will not actually make the extrinsic call, "
@@ -1172,6 +1177,10 @@ class CLIManager:
         self.proxy_app.command("kill", rich_help_panel=HELP_PANELS["PROXY"]["MGMT"])(
             self.proxy_kill
         )
+        self.proxy_app.command(
+            "execute",
+            rich_help_panel=HELP_PANELS["PROXY"]["MGMT"],
+        )(self.proxy_execute_announced)
 
         # Sub command aliases
         # Wallet
@@ -8697,7 +8706,12 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         proxy_type: ProxyType = Options.proxy_type,
         delay: int = typer.Option(0, help="Delay, in number of blocks"),
-        idx: int = typer.Option(0, "--index", help="TODO lol"),
+        idx: int = typer.Option(
+            0,
+            "--index",
+            help="A disambiguation index, in case this is called multiple times in the same transaction"
+                 " (e.g. with utility::batch). Unless you're using batch you probably just want to use 0."
+        ),
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -8993,10 +9007,7 @@ class CLIManager:
     def proxy_execute_announced(
         self,
         proxy: str = Options.proxy,
-        real: Optional[str] = Options.edit_help(
-            "proxy",
-            "The real account making this call. If omitted, the wallet's coldkeypub ss58 is used.",
-        ),
+        real: Optional[str] = Options.real_proxy,
         call_hash: Optional[str] = typer.Option(
             None,
             help="The hash proxy call to execute",
@@ -9158,6 +9169,7 @@ class CLIManager:
                 prompt=prompt,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
+                json_output=json_output
             )
         )
 
