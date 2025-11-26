@@ -148,9 +148,8 @@ async def set_claim_type(
             new_claim_info = {"type": claim_type}
 
     if _claim_types_equal(current_claim_info, new_claim_info):
-        console.print(
-            f"Claim type already set to {_format_claim_type_display(new_claim_info)}. No change needed."
-        )
+        msg = f"Claim type already set to {_format_claim_type_display(new_claim_info)}. \nNo change needed."
+        console.print(msg)
         if json_output:
             json_console.print(
                 json.dumps(
@@ -540,7 +539,9 @@ async def _ask_for_claim_types(
     if primary_choice == "cancel":
         return None
 
-    apply_to_all = Confirm.ask("\nApply to ALL subnets?", default=True)
+    apply_to_all = Confirm.ask(
+        f"\nSet {primary_choice.capitalize()} to ALL subnets?", default=True
+    )
 
     if apply_to_all:
         return {"type": primary_choice.capitalize()}

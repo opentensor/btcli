@@ -7239,15 +7239,15 @@ class CLIManager:
         [bold]Claim Types:[/bold]
         • [green]Swap[/green]: Future Root Alpha Emissions are swapped to TAO and added to root stake (default)
         • [yellow]Keep[/yellow]: Future Root Alpha Emissions are kept as Alpha tokens
-        • [cyan]Keep Specific[/cyan]: Keep specific subnets as Alpha, swap others to TAO
+        • [cyan]Keep Specific[/cyan]: Keep specific subnets as Alpha, swap others to TAO. You can use this type by selecting the netuids.
 
         USAGE:
 
-        [green]$[/green] btcli stake claim
-        [green]$[/green] btcli stake claim keep
-        [green]$[/green] btcli stake claim swap
-        [green]$[/green] btcli stake claim keep --netuids 1-5,10,20-30
-        [green]$[/green] btcli stake claim swap --netuids 1-30
+        [green]$[/green] btcli stake claim [cyan](Full wizard)[/cyan]
+        [green]$[/green] btcli stake claim keep [cyan](Keep all subnets)[/cyan]
+        [green]$[/green] btcli stake claim swap [cyan](Swap all subnets)[/cyan]
+        [green]$[/green] btcli stake claim keep --netuids 1-5,10,20-30 [cyan](Keep specific subnets)[/cyan]
+        [green]$[/green] btcli stake claim swap --netuids 1-30 [cyan](Swap specific subnets)[/cyan]
 
         With specific wallet:
 
