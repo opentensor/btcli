@@ -6074,7 +6074,7 @@ class CLIManager:
         json_output: bool = Options.json_output,
     ):
         """
-        Allows users to check their delegate take percentage.
+        Allows users to check their delegate take percentage on the network.
 
         This command can be used to fetch the delegate take of your hotkey.
 
