@@ -78,6 +78,35 @@ def format_claim_type_for_root(claim_info: dict, total_subnets: int) -> str:
         return f"Keep ({keep_count}), Swap ({swap_count})"
 
 
+def format_claim_type_for_subnet(claim_info: dict, current_netuid: int) -> str:
+    """
+    Format claim type for specific subnet metagraph.
+    Shows whether THIS subnet's emissions are kept or swapped.
+
+    Args:
+        claim_info: Claim type dict {"type": "...", "subnets": [...]}
+        current_netuid: The netuid being viewed
+
+    Returns:
+        "Keep" if this subnet is kept, "Swap" if swapped
+
+    Examples:
+        {"type": "Keep"}, netuid=5 → "Keep"
+        {"type": "Swap"}, netuid=5 → "Swap"
+        {"type": "KeepSubnets", "subnets": [1,5,10]}, netuid=5 → "Keep"
+        {"type": "KeepSubnets", "subnets": [1,5,10]}, netuid=3 → "Swap"
+    """
+    claim_type = claim_info.get("type", "Swap")
+
+    if claim_type == "Keep":
+        return "Keep"
+    elif claim_type == "Swap":
+        return "Swap"
+    else:
+        keep_subnets = claim_info.get("subnets", [])
+        return "Keep" if current_netuid in keep_subnets else "Swap"
+
+
 async def register_subnetwork_extrinsic(
     subtensor: "SubtensorInterface",
     wallet: Wallet,
