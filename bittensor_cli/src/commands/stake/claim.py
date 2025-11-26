@@ -167,8 +167,8 @@ async def set_claim_type(
         console.print(
             Panel(
                 f"[{COLORS.GENERAL.HEADER}]Confirm Claim Type Change[/{COLORS.GENERAL.HEADER}]\n\n"
-                f"[yellow]FROM:[/yellow] {_format_claim_type_display(current_claim_info, all_subnets)}\n\n"
-                f"[yellow]TO:[/yellow]   {_format_claim_type_display(new_claim_info, all_subnets)}"
+                f"FROM: {_format_claim_type_display(current_claim_info, all_subnets)}\n\n"
+                f"TO:   {_format_claim_type_display(new_claim_info, all_subnets)}"
             )
         )
 
@@ -607,7 +607,7 @@ async def _prompt_claim_netuids(
             continue
 
         try:
-            selected = parse_subnet_range(subnet_input)
+            selected = parse_subnet_range(subnet_input, total_subnets=len(all_subnets))
             invalid = [s for s in selected if s not in all_subnets]
             if invalid:
                 err_console.print(

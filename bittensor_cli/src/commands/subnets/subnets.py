@@ -1211,7 +1211,8 @@ async def show(
             - Emission: The emission accrued to this hotkey across all subnets every block measured in TAO.
             - Hotkey: The hotkey ss58 address.
             - Coldkey: The coldkey ss58 address.
-            - Root Claim: The root claim type for this coldkey. 'Swap' converts Alpha to TAO every epoch. 'Keep' keeps Alpha emissions.
+            - Root Claim: The root claim type for this coldkey. 'Swap' converts Alpha to TAO every epoch. 'Keep' keeps Alpha emissions. 
+                        'Keep (count)' indicates how many subnets this coldkey is keeping Alpha emissions for.
     """
             )
         if delegate_selection:
