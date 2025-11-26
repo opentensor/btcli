@@ -185,7 +185,7 @@ async def set_claim_type(
 
     if success:
         ext_id = await ext_receipt.get_extrinsic_identifier()
-        msg = f"Successfully set claim type to {_format_claim_type_display(new_claim_info)}"
+        msg = "Successfully changed claim type"
         console.print(f":white_heavy_check_mark: [green]{msg}[/green]")
         await print_extrinsic_id(ext_receipt)
         if json_output:
