@@ -11,6 +11,11 @@ from rich.table import Table
 
 from async_substrate_interface.errors import SubstrateRequestException
 from bittensor_cli.src import COLOR_PALETTE
+from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
+    encrypt_call,
+    extract_mev_shield_id,
+    wait_for_mev_execution,
+)
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.utils import (
     console,
@@ -601,6 +606,8 @@ async def _unstake_extrinsic(
             },
         ),
     )
+
+    call = await encrypt_call(subtensor, wallet, call)
     extrinsic = await subtensor.substrate.create_signed_extrinsic(
         call=call, keypair=wallet.coldkey, era={"period": era}
     )
@@ -615,6 +622,17 @@ async def _unstake_extrinsic(
                 f"{format_error_message(await response.error_message)}"
             )
             return False, None
+
+        mev_shield_id = await extract_mev_shield_id(response)
+        if mev_shield_id:
+            mev_success, mev_error = await wait_for_mev_execution(
+                subtensor, mev_shield_id, status=status
+            )
+            if not mev_success:
+                err_msg = f"{failure_prelude}: {mev_error}"
+                err_out("\n" + err_msg)
+                return False, None
+
         # Fetch latest balance and stake
         await print_extrinsic_id(response)
         block_hash = await subtensor.substrate.get_chain_head()
@@ -680,7 +698,6 @@ async def _safe_unstake_extrinsic(
 
     current_balance, next_nonce, current_stake, call = await asyncio.gather(
         subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash),
-        subtensor.substrate.get_account_next_index(wallet.coldkeypub.ss58_address),
         subtensor.get_stake(
             hotkey_ss58=hotkey_ss58,
             coldkey_ss58=wallet.coldkeypub.ss58_address,
@@ -701,8 +718,9 @@ async def _safe_unstake_extrinsic(
         ),
     )
 
+    call = await encrypt_call(subtensor, wallet, call)
     extrinsic = await subtensor.substrate.create_signed_extrinsic(
-        call=call, keypair=wallet.coldkey, nonce=next_nonce, era={"period": era}
+        call=call, keypair=wallet.coldkey, era={"period": era}
     )
 
     try:
@@ -726,6 +744,17 @@ async def _safe_unstake_extrinsic(
             f"\n{failure_prelude} with error: {format_error_message(await response.error_message)}"
         )
         return False, None
+
+    mev_shield_id = await extract_mev_shield_id(response)
+    if mev_shield_id:
+        mev_success, mev_error = await wait_for_mev_execution(
+            subtensor, mev_shield_id, status=status
+        )
+        if not mev_success:
+            err_msg = f"{failure_prelude}: {mev_error}"
+            err_out("\n" + err_msg)
+            return False, None
+
     await print_extrinsic_id(response)
     block_hash = await subtensor.substrate.get_chain_head()
     new_balance, new_stake = await asyncio.gather(
