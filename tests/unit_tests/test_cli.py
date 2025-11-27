@@ -553,7 +553,9 @@ def test_wallet_swap_coldkey_calls_proxy_validation():
     ):
         mock_wallet = Mock()
         mock_wallet.coldkeypub = Mock()
-        mock_wallet.coldkeypub.ss58_address = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+        mock_wallet.coldkeypub.ss58_address = (
+            "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+        )
         mock_wallet_ask.return_value = mock_wallet
 
         cli_manager.wallet_swap_coldkey(

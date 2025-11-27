@@ -1028,12 +1028,14 @@ class ProxyAddressBook(TableDefinition):
 class ProxyAnnouncements(TableDefinition):
     name = "proxy_announcements"
     cols = (
+        ("id", "INTEGER PRIMARY KEY"),
         ("address", "TEXT"),
         ("epoch_time", "INTEGER"),
         ("block", "INTEGER"),
         ("call_hash", "TEXT"),
         ("call", "TEXT"),
         ("call_serialized", "TEXT"),
+        ("executed", "INTEGER"),
     )
 
     @classmethod
@@ -1047,13 +1049,23 @@ class ProxyAnnouncements(TableDefinition):
         block: int,
         call_hash: str,
         call: GenericCall,
+        executed: bool = False,
     ) -> None:
         call_hex = call.data.to_hex()
         call_serialized = json.dumps(call.serialize())
+        executed_int = int(executed)
         conn.execute(
-            f"INSERT INTO {cls.name} (address, epoch_time, block, call_hash, call, call_serialized)"
-            " VALUES (?, ?, ?, ?, ?, ?)",
-            (address, epoch_time, block, call_hash, call_hex, call_serialized),
+            f"INSERT INTO {cls.name} (address, epoch_time, block, call_hash, call, call_serialized, executed)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                address,
+                epoch_time,
+                block,
+                call_hash,
+                call_hex,
+                call_serialized,
+                executed_int,
+            ),
         )
         conn.commit()
 
@@ -1073,6 +1085,13 @@ class ProxyAnnouncements(TableDefinition):
             (call_hash, address, epoch_time, block),
         )
         conn.commit()
+
+    @classmethod
+    def mark_as_executed(cls, conn: sqlite3.Connection, _: sqlite3.Cursor, idx: int):
+        conn.execute(
+            f"UPDATE {cls.name} SET executed = ? WHERE id = ?",
+            (True, idx),
+        )
 
 
 class DB:

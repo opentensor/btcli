@@ -167,7 +167,9 @@ async def create_proxy(
         wait_for_inclusion=wait_for_inclusion,
         wait_for_finalization=wait_for_finalization,
         era={"period": period},
-        nonce=await subtensor.substrate.get_account_next_index(wallet.coldkeypub.ss58_address)
+        nonce=await subtensor.substrate.get_account_next_index(
+            wallet.coldkeypub.ss58_address
+        ),
     )
     if success:
         await print_extrinsic_id(receipt)
@@ -496,7 +498,7 @@ async def execute_announced(
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = False,
     json_output: bool = False,
-) -> None:
+) -> bool:
     # TODO should this remove from the ProxyAnnouncements after successful completion, or should it mark it as completed
     #  in the DB?
     if prompt and created_block is not None:
@@ -507,7 +509,7 @@ async def execute_announced(
                 f" at block {created_block}. It is currently only {current_block}. The call will likely fail."
                 f" Do you want to proceed?"
             ):
-                return None
+                return False
 
     if call_hex is None:
         if not prompt:
@@ -516,7 +518,7 @@ async def execute_announced(
                 f" [{COLORS.G.ARG}]--no-prompt[/{COLORS.G.ARG}], so we are unable to request"
                 f"the information to craft this call."
             )
-            return None
+            return False
         else:
             call_args = {}
             failure_ = f"Instead create the call using btcli commands with [{COLORS.G.ARG}]--announce-only[/{COLORS.G.ARG}]"
@@ -547,7 +549,7 @@ async def execute_announced(
                     err_console.print(
                         f":cross_mark:[red]Unable to craft a Call Type for arg {arg}. {failure_}"
                     )
-                    return None
+                    return False
                 elif type_name == "NetUid":
                     value = IntPrompt.ask(f"Enter the netuid for {arg}")
                 elif type_name in ("u16", "u64"):
@@ -566,7 +568,7 @@ async def execute_announced(
                     err_console.print(
                         f":cross_mark:[red]Unrecognized type name {type_name}. {failure_}"
                     )
-                    return None
+                    return False
                 call_args[arg] = value
             inner_call = await subtensor.substrate.compose_call(
                 module,
@@ -600,22 +602,21 @@ async def execute_announced(
     )
     if success is True:
         if json_output:
-            json_console.print_json(data={
-                "success": True,
-                "message": msg,
-                "extrinsic_identifier": await receipt.get_extrinsic_identifier()
-            })
+            json_console.print_json(
+                data={
+                    "success": True,
+                    "message": msg,
+                    "extrinsic_identifier": await receipt.get_extrinsic_identifier(),
+                }
+            )
         else:
             console.print(":white_check_mark:[green]Success![/green]")
             await print_extrinsic_id(receipt)
     else:
         if json_output:
-            json_console.print_json(data={
-                "success": False,
-                "message": msg,
-                "extrinsic_identifier": None
-            })
-        else:
-            err_console.print(
-                f":cross_mark:[red]Failed[/red]. {msg} "
+            json_console.print_json(
+                data={"success": False, "message": msg, "extrinsic_identifier": None}
             )
+        else:
+            err_console.print(f":cross_mark:[red]Failed[/red]. {msg} ")
+    return success

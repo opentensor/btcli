@@ -57,8 +57,8 @@ def test_proxy_create(local_chain, wallet_setup):
             "--period",
             "128",
             "--no-prompt",
-            "--json-output"
-        ]
+            "--json-output",
+        ],
     )
     create_result_output = json.loads(create_result.stdout)
     assert create_result_output["success"] is True
@@ -91,8 +91,8 @@ def test_proxy_create(local_chain, wallet_setup):
             "--amount",
             str(amount_to_transfer),
             "--no-prompt",
-            "--json-output"
-        ]
+            "--json-output",
+        ],
     )
     transfer_result_output = json.loads(transfer_result.stdout)
     assert transfer_result_output["success"] is True
@@ -110,12 +110,17 @@ def test_proxy_create(local_chain, wallet_setup):
             "default",
             "--ss58",
             created_pure,
-            "--json-output"
-        ]
+            "--json-output",
+        ],
     )
     balance_result_output = json.loads(balance_result.stdout)
-    assert balance_result_output["balances"]["Provided Address 1"]["coldkey"] == created_pure
-    assert balance_result_output["balances"]["Provided Address 1"]["free"] == float(amount_to_transfer)
+    assert (
+        balance_result_output["balances"]["Provided Address 1"]["coldkey"]
+        == created_pure
+    )
+    assert balance_result_output["balances"]["Provided Address 1"]["free"] == float(
+        amount_to_transfer
+    )
 
     # transfer some of the pure proxy's funds to bob, but don't announce it
     amount_to_transfer_proxy = 100
@@ -136,8 +141,8 @@ def test_proxy_create(local_chain, wallet_setup):
             "--amount",
             str(amount_to_transfer_proxy),
             "--no-prompt",
-            "--json-output"
-        ]
+            "--json-output",
+        ],
     )
     transfer_result_proxy_output = json.loads(transfer_result_proxy.stdout)
     # should fail, because it wasn't announced
@@ -163,20 +168,27 @@ def test_proxy_create(local_chain, wallet_setup):
             "--no-prompt",
             "--json-output",
             "--announce-only",
-        ]
+        ],
     )
+    print(transfer_result_proxy.stdout, transfer_result_proxy.stderr)
     transfer_result_proxy_output = json.loads(transfer_result_proxy.stdout)
     assert transfer_result_proxy_output["success"] is True
     with ProxyAnnouncements.get_db() as (conn, cursor):
         rows = ProxyAnnouncements.read_rows(conn, cursor, include_header=False)
-    latest_announcement = next(iter(sorted(rows, key=lambda row: row[1], reverse=True)))  # sort by epoch time
-    address, epoch_time, block, call_hash, call, call_serialized = latest_announcement
+    latest_announcement = next(
+        iter(sorted(rows, key=lambda row: row[2], reverse=True))
+    )  # sort by epoch time
+    idx, address, epoch_time, block, call_hash, call, call_serialized, executed_int = (
+        latest_announcement
+    )
     assert address == created_pure
+    assert executed_int == 0
+
     async def _handler(_):
         return True
 
     # wait for delay (probably already happened if fastblocks is on)
-    asyncio.run(local_chain.wait_for_block(block+delay, _handler, False))
+    asyncio.run(local_chain.wait_for_block(block + delay, _handler, False))
 
     announce_execution_result = exec_command_alice(
         command="proxy",
@@ -193,15 +205,14 @@ def test_proxy_create(local_chain, wallet_setup):
             "--call-hash",
             call_hash,
             "--no-prompt",
-            "--verbose"
+            "--verbose",
             # "--json-output"
-        ]
+        ],
     )
     print(announce_execution_result.stdout, announce_execution_result.stderr)
     announce_execution_result_output = json.loads(announce_execution_result.stdout)
     assert announce_execution_result_output["success"] is True
     assert announce_execution_result_output["message"] == ""
-
 
     # ensure bob has the transferred funds
     balance_result = exec_command_bob(
@@ -213,11 +224,10 @@ def test_proxy_create(local_chain, wallet_setup):
             "--chain",
             "ws://127.0.0.1:9945",
             "--wallet-name",
-            "--json-output"
-        ]
+            "--json-output",
+        ],
     )
     balance_result_output = json.loads(balance_result.stdout)
     print(balance_result_output)
     # assert balance_result_output["balances"]["Provided Address 1"]["coldkey"] == created_pure
     # assert balance_result_output["balances"]["Provided Address 1"]["free"] == float(amount_to_transfer)
-

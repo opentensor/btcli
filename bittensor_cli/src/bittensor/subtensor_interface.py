@@ -1176,7 +1176,6 @@ class SubtensorInterface:
         """
         if proxy is not None:
             if announce_only:
-
                 call = await self.substrate.compose_call(
                     "Proxy",
                     "announce",
@@ -1199,7 +1198,9 @@ class SubtensorInterface:
         if nonce is not None:
             call_args["nonce"] = nonce
         else:
-            call_args["nonce"] = await self.substrate.get_account_next_index(keypair.ss58_address)
+            call_args["nonce"] = await self.substrate.get_account_next_index(
+                keypair.ss58_address
+            )
         extrinsic = await self.substrate.create_signed_extrinsic(**call_args)
         try:
             response = await self.substrate.submit_extrinsic(

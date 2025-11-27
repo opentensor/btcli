@@ -8710,7 +8710,7 @@ class CLIManager:
             0,
             "--index",
             help="A disambiguation index, in case this is called multiple times in the same transaction"
-                 " (e.g. with utility::batch). Unless you're using batch you probably just want to use 0."
+            " (e.g. with utility::batch). Unless you're using batch you probably just want to use 0.",
         ),
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
@@ -9100,24 +9100,28 @@ class CLIManager:
                 f"Unable to retrieve proxy from address book: {proxy}"
             )
         block = None
+        # index of the call if retrieved from DB
+        got_call_from_db: Optional[int] = None
         if not call_hex:
-            got_call_from_db = False
             potential_call_matches = []
             for row in announcements:
                 (
+                    id_,
                     address,
                     epoch_time,
                     block_,
                     call_hash_,
                     call_hex_,
                     call_serialized,
+                    executed_int,
                 ) = row
-                if call_hash_ == call_hash and address == proxy:
+                executed = bool(executed_int)
+                if call_hash_ == call_hash and address == proxy and executed is False:
                     potential_call_matches.append(row)
             if len(potential_call_matches) == 1:
-                block = potential_call_matches[0][2]
-                call_hex = potential_call_matches[0][4]
-                got_call_from_db = True
+                block = potential_call_matches[0][3]
+                call_hex = potential_call_matches[0][5]
+                got_call_from_db = potential_call_matches[0][0]
             elif len(potential_call_matches) > 1:
                 if not prompt:
                     err_console.print(
@@ -9134,12 +9138,14 @@ class CLIManager:
                     )
                     for row in potential_call_matches:
                         (
+                            id_,
                             address,
                             epoch_time,
                             block_,
                             call_hash_,
                             call_hex_,
                             call_serialized,
+                            executed_int,
                         ) = row
                         console.print(
                             f"Time: {datetime.datetime.fromtimestamp(epoch_time)}\nCall:\n"
@@ -9148,15 +9154,14 @@ class CLIManager:
                         if Confirm.ask("Is this the intended call?"):
                             call_hex = call_hex_
                             block = block_
-                            got_call_from_db = True
+                            got_call_from_db = row
                             break
-            if not got_call_from_db:
+            if got_call_from_db is None:
                 console.print("Unable to retrieve call from DB. Proceeding without.")
-        else:
-            if call_hex[0:2] == "0x":
-                call_hex = call_hex[2:]
+        if isinstance(call_hex, str) and call_hex[0:2] == "0x":
+            call_hex = call_hex[2:]
 
-        return self._run_command(
+        success = self._run_command(
             proxy_commands.execute_announced(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
@@ -9169,9 +9174,12 @@ class CLIManager:
                 prompt=prompt,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
-                json_output=json_output
+                json_output=json_output,
             )
         )
+        if success and got_call_from_db is not None:
+            with ProxyAnnouncements.get_db() as (conn, cursor):
+                ProxyAnnouncements.mark_as_executed(conn, cursor, got_call_from_db)
 
     @staticmethod
     def convert(
