@@ -105,3 +105,65 @@ async def extract_mev_shield_id(response: "AsyncExtrinsicReceipt") -> Optional[s
         if event["event_id"] == "EncryptedSubmitted":
             return event["attributes"]["id"]
     return None
+
+
+async def wait_for_mev_execution(
+    subtensor: "SubtensorInterface",
+    wrapper_id: str,
+    timeout_blocks: int = 4,
+    status=None,
+) -> tuple[bool, Optional[str]]:
+    """
+    Wait for MEV Shield inner call execution.
+
+    After submit_encrypted succeeds, the block author will decrypt and execute
+    the inner call via execute_revealed. This function polls for the
+    DecryptedExecuted or DecryptedRejected event.
+
+    Args:
+        subtensor: SubtensorInterface instance.
+        wrapper_id: The ID from EncryptedSubmitted event.
+        timeout_blocks: Max blocks to wait (default 4).
+        status: Optional rich.Status object for progress updates.
+
+    Returns:
+        Tuple of (success: bool, error: Optional[str]).
+        - (True, None) if DecryptedExecuted was found.
+        - (False, error_message) if DecryptedRejected or timeout.
+    """
+
+    start_block = await subtensor.substrate.get_block_number()
+    current_block = start_block
+
+    while current_block - start_block <= timeout_blocks:
+        if status:
+            status.update(
+                f":hourglass: Waiting for MEV Shield execution "
+                f"(block {current_block - start_block + 1}/{timeout_blocks})..."
+            )
+
+        block_hash = await subtensor.substrate.get_block_hash(current_block)
+        events = await subtensor.substrate.get_events(block_hash)
+
+        for event in events:
+            event_id = event.get("event_id", "")
+            if event_id == "DecryptedExecuted":
+                if event.get("attributes", {}).get("id") == wrapper_id:
+                    return True, None
+            elif event_id == "DecryptedRejected":
+                if event.get("attributes", {}).get("id") == wrapper_id:
+                    error = event.get("attributes", {}).get("error", "Unknown error")
+                    return False, f"MEV Shield execution failed: {error}"
+
+        current_block += 1
+
+        async def _noop(_):
+            return True
+
+        await subtensor.substrate.wait_for_block(
+            current_block,
+            result_handler=_noop,
+            task_return=False,
+        )
+
+    return False, "Timeout waiting for MEV Shield execution"
