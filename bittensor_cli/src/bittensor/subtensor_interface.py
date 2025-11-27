@@ -41,7 +41,7 @@ from bittensor_cli.src.bittensor.utils import (
     decode_hex_identity_dict,
     validate_chain_endpoint,
     u16_normalized_float,
-    U16_MAX,
+    MEV_SHIELD_PUBLIC_KEY_SIZE,
     get_hotkey_pub_ss58,
 )
 
@@ -2298,6 +2298,34 @@ class SubtensorInterface:
         _, raw_ema_value = value
         ema_value = fixed_to_float(raw_ema_value)
         return Balance.from_rao(ema_value)
+
+    async def get_mev_shield_next_key(
+        self,
+        block_hash: Optional[str] = None,
+    ) -> Optional[tuple[bytes, int]]:
+        """
+        Get the next MEV Shield public key and epoch from chain storage.
+
+        Args:
+            block_hash: Optional block hash to query at.
+
+        Returns:
+            Tuple of (public_key_bytes, epoch) or None if not available.
+        """
+        result = await self.query(
+            module="MevShield",
+            storage_function="NextKey",
+            block_hash=block_hash,
+        )
+        public_key_bytes = bytes(next(iter(result)))
+
+        if len(public_key_bytes) != MEV_SHIELD_PUBLIC_KEY_SIZE:
+            raise ValueError(
+                f"Invalid ML-KEM-768 public key size: {len(public_key_bytes)} bytes. "
+                f"Expected exactly {MEV_SHIELD_PUBLIC_KEY_SIZE} bytes."
+            )
+
+        return public_key_bytes
 
 
 async def best_connection(networks: list[str]):
