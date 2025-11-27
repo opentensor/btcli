@@ -43,7 +43,7 @@ async def encrypt_call(
     if next_key_result is None:
         raise ValueError("MEV Shield NextKey not available on chain")
 
-    nonce = nonce + 1 # TODO: Update once chain is updated
+    nonce = nonce + 1  # TODO: Update once chain is updated
     ml_kem_768_public_key = next_key_result
 
     # Create payload_core: signer (32B) + nonce (u32 LE) + SCALE(call)
@@ -129,13 +129,13 @@ async def wait_for_mev_execution(
     Returns:
         Tuple of (success: bool, error: Optional[str]).
         - (True, None) if DecryptedExecuted was found.
-        - (False, error_message) if DecryptedRejected or timeout.
+        - (False, error_message) if the call failed or timeout.
     """
 
     start_block = await subtensor.substrate.get_block_number()
     current_block = start_block
 
-    while current_block - start_block <= timeout_blocks:
+    while current_block - start_block < timeout_blocks:
         if status:
             status.update(
                 f":hourglass: Waiting for MEV Shield execution "
@@ -143,17 +143,45 @@ async def wait_for_mev_execution(
             )
 
         block_hash = await subtensor.substrate.get_block_hash(current_block)
-        events = await subtensor.substrate.get_events(block_hash)
+        events, extrinsics = await asyncio.gather(
+            subtensor.substrate.get_events(block_hash),
+            subtensor.substrate.get_extrinsics(block_hash),
+        )
 
-        for event in events:
-            event_id = event.get("event_id", "")
-            if event_id == "DecryptedExecuted":
-                if event.get("attributes", {}).get("id") == wrapper_id:
-                    return True, None
-            elif event_id == "DecryptedRejected":
-                if event.get("attributes", {}).get("id") == wrapper_id:
-                    error = event.get("attributes", {}).get("error", "Unknown error")
-                    return False, f"MEV Shield execution failed: {error}"
+        # Look for execute_revealed extrinsic
+        execute_revealed_index = None
+        for idx, extrinsic in enumerate(extrinsics):
+            call = extrinsic.get("call", {})
+            call_module = call.get("call_module")
+            call_function = call.get("call_function")
+
+            if call_module == "MevShield" and call_function == "execute_revealed":
+                call_args = call.get("call_args", [])
+                for arg in call_args:
+                    if arg.get("name") == "id":
+                        extrinsic_wrapper_id = arg.get("value")
+                        if extrinsic_wrapper_id == wrapper_id:
+                            execute_revealed_index = idx
+                            break
+
+                if execute_revealed_index is not None:
+                    break
+
+        # Check for success or failure events in the extrinsic
+        if execute_revealed_index is not None:
+            for event in events:
+                event_id = event.get("event_id", "")
+                event_extrinsic_idx = event.get("extrinsic_idx")
+
+                if event_extrinsic_idx == execute_revealed_index:
+                    if event_id == "ExtrinsicSuccess":
+                        return True, None
+                    elif event_id == "ExtrinsicFailed":
+                        dispatch_error = event.get("attributes", {}).get(
+                            "dispatch_error", {}
+                        )
+                        error_msg = f"{dispatch_error}"
+                        return False, error_msg
 
         current_block += 1
 
