@@ -86,3 +86,22 @@ async def encrypt_call(
     )
 
     return encrypted_call
+
+
+async def extract_mev_shield_id(response: "AsyncExtrinsicReceipt") -> Optional[str]:
+    """
+    Extract the MEV Shield wrapper ID from an extrinsic response.
+
+    After submitting a MEV Shield encrypted call, the EncryptedSubmitted event
+    contains the wrapper ID needed to track execution.
+
+    Args:
+        response: The extrinsic receipt from submit_extrinsic.
+
+    Returns:
+        The wrapper ID (hex string) or None if not found.
+    """
+    for event in await response.triggered_events:
+        if event["event_id"] == "EncryptedSubmitted":
+            return event["attributes"]["id"]
+    return None
