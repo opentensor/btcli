@@ -1176,10 +1176,14 @@ class SubtensorInterface:
         """
         if proxy is not None:
             if announce_only:
+                call_to_announce = call
                 call = await self.substrate.compose_call(
                     "Proxy",
                     "announce",
-                    {"real": proxy, "call_hash": f"0x{call.call_hash.hex()}"},
+                    {
+                        "real": proxy,
+                        "call_hash": f"0x{call_to_announce.call_hash.hex()}",
+                    },
                 )
             else:
                 call = await self.substrate.compose_call(
@@ -1221,11 +1225,11 @@ class SubtensorInterface:
                             address=proxy,
                             epoch_time=int(time.time()),
                             block=block,
-                            call_hash=call.call_hash.hex(),
-                            call=call,
+                            call_hash=call_to_announce.call_hash.hex(),
+                            call=call_to_announce,
                         )
                     console.print(
-                        f"Added entry {call.call_hash} at block {block} to your ProxyAnnouncements address book."
+                        f"Added entry {call_to_announce.call_hash} at block {block} to your ProxyAnnouncements address book."
                     )
                 return True, "", response
             else:

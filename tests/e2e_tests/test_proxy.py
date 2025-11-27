@@ -3,13 +3,16 @@ import json
 from time import sleep
 
 from bittensor_cli.src.bittensor.balances import Balance
-from bittensor_cli.src.bittensor.utils import ProxyAnnouncements
+from bittensor_cli.src.bittensor.utils import ProxyAnnouncements, decode_account_id
 from .utils import (
     extract_coldkey_balance,
     validate_wallet_inspect,
     validate_wallet_overview,
     verify_subnet_entry,
 )
+
+# temporary
+from async_substrate_interface.sync_substrate import SubstrateInterface
 
 """
 Verify commands:
@@ -37,7 +40,7 @@ def test_proxy_create(local_chain, wallet_setup):
         wallet_path_bob
     )
     proxy_type = "Any"
-    delay = 12
+    delay = 1
 
     # create a pure proxy
     create_result = exec_command_alice(
@@ -190,6 +193,27 @@ def test_proxy_create(local_chain, wallet_setup):
     # wait for delay (probably already happened if fastblocks is on)
     asyncio.run(local_chain.wait_for_block(block + delay, _handler, False))
 
+    # get Bob's initial balance
+    balance_result = exec_command_bob(
+        command="wallet",
+        sub_command="balance",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_bob,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            "default",
+            "--json-output",
+        ],
+    )
+    balance_result_output = json.loads(balance_result.stdout)
+    assert (
+        balance_result_output["balances"]["default"]["coldkey"]
+        == wallet_bob.coldkeypub.ss58_address
+    )
+    bob_init_balance = balance_result_output["balances"]["default"]["free"]
+
     announce_execution_result = exec_command_alice(
         command="proxy",
         sub_command="execute",
@@ -205,8 +229,7 @@ def test_proxy_create(local_chain, wallet_setup):
             "--call-hash",
             call_hash,
             "--no-prompt",
-            "--verbose",
-            # "--json-output"
+            "--json-output",
         ],
     )
     print(announce_execution_result.stdout, announce_execution_result.stderr)
@@ -224,10 +247,16 @@ def test_proxy_create(local_chain, wallet_setup):
             "--chain",
             "ws://127.0.0.1:9945",
             "--wallet-name",
+            "default",
             "--json-output",
         ],
     )
     balance_result_output = json.loads(balance_result.stdout)
-    print(balance_result_output)
-    # assert balance_result_output["balances"]["Provided Address 1"]["coldkey"] == created_pure
-    # assert balance_result_output["balances"]["Provided Address 1"]["free"] == float(amount_to_transfer)
+    assert (
+        balance_result_output["balances"]["default"]["coldkey"]
+        == wallet_bob.coldkeypub.ss58_address
+    )
+    assert (
+        balance_result_output["balances"]["default"]["free"]
+        == float(amount_to_transfer_proxy) + bob_init_balance
+    )

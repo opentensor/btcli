@@ -1090,8 +1090,9 @@ class ProxyAnnouncements(TableDefinition):
     def mark_as_executed(cls, conn: sqlite3.Connection, _: sqlite3.Cursor, idx: int):
         conn.execute(
             f"UPDATE {cls.name} SET executed = ? WHERE id = ?",
-            (True, idx),
+            (1, idx),
         )
+        conn.commit()
 
 
 class DB:

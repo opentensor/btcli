@@ -402,7 +402,7 @@ class Options:
     real_proxy: Optional[str] = typer.Option(
         None,
         "--real",
-        help="The real account making this call. If omitted, the wallet's coldkeypub ss58 is used.",
+        help="The real account making this call. If omitted, the proxy's ss58 is used.",
     )
     announce_only: bool = typer.Option(
         False,
@@ -9008,6 +9008,11 @@ class CLIManager:
         self,
         proxy: str = Options.proxy,
         real: Optional[str] = Options.real_proxy,
+        delegate: Optional[str] = typer.Option(
+            None,
+            "--delegate",
+            help="The delegate of the call. If omitted, the wallet's coldkey ss58 is used.",
+        ),
         call_hash: Optional[str] = typer.Option(
             None,
             help="The hash proxy call to execute",
@@ -9049,10 +9054,8 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH],
             validate=WV.WALLET,
         )
-        real = (
-            self.is_valid_proxy_name_or_ss58(real, False)
-            or wallet.coldkeypub.ss58_address
-        )
+        real = self.is_valid_proxy_name_or_ss58(real, False) or proxy
+        delegate = delegate or wallet.coldkeypub.ss58_address
         with ProxyAnnouncements.get_db() as (conn, cursor):
             announcements = ProxyAnnouncements.read_rows(conn, cursor)
             if not got_delay_from_config:
@@ -9165,7 +9168,8 @@ class CLIManager:
             proxy_commands.execute_announced(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
-                delegate=proxy,
+                # TODO this might be backwards with pure vs non-pure proxies
+                delegate=delegate,
                 real=real,
                 period=period,
                 call_hex=call_hex,
