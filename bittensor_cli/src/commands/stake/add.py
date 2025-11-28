@@ -173,6 +173,7 @@ async def stake_add(
                 subtensor, mev_shield_id, status=status
             )
             if not mev_success:
+                status.stop()
                 err_msg = f"{failure_prelude}: {mev_error}"
                 err_out("\n" + err_msg)
                 return False, err_msg, None
@@ -263,6 +264,7 @@ async def stake_add(
                 subtensor, mev_shield_id, status=status
             )
             if not mev_success:
+                status.stop()
                 err_msg = f"{failure_prelude}: {mev_error}"
                 err_out("\n" + err_msg)
                 return False, err_msg, None

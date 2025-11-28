@@ -629,6 +629,7 @@ async def _unstake_extrinsic(
                 subtensor, mev_shield_id, status=status
             )
             if not mev_success:
+                status.stop()
                 err_msg = f"{failure_prelude}: {mev_error}"
                 err_out("\n" + err_msg)
                 return False, None
@@ -751,6 +752,7 @@ async def _safe_unstake_extrinsic(
             subtensor, mev_shield_id, status=status
         )
         if not mev_success:
+            status.stop()
             err_msg = f"{failure_prelude}: {mev_error}"
             err_out("\n" + err_msg)
             return False, None

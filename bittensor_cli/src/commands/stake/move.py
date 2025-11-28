@@ -598,6 +598,7 @@ async def move_stake(
                 subtensor, mev_shield_id, status=status
             )
             if not mev_success:
+                status.stop()
                 err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
                 return False, ""
 
@@ -797,6 +798,7 @@ async def transfer_stake(
                 subtensor, mev_shield_id, status=status
             )
             if not mev_success:
+                status.stop()
                 err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
                 return False, ""
 
@@ -985,6 +987,7 @@ async def swap_stake(
                 subtensor, mev_shield_id, status=status
             )
             if not mev_success:
+                status.stop()
                 err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
                 return False, ""
 
