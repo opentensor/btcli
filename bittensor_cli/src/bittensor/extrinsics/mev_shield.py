@@ -2,13 +2,13 @@ import asyncio
 import hashlib
 from typing import TYPE_CHECKING, Optional
 
+from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_drand import encrypt_mlkem768, mlkem_kdf_id
-from bittensor_cli.src.bittensor.utils import encode_account_id
+from bittensor_cli.src.bittensor.utils import encode_account_id, format_error_message
 
 if TYPE_CHECKING:
     from bittensor_wallet import Wallet
     from scalecodec import GenericCall
-    from async_substrate_interface import AsyncExtrinsicReceipt
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 
 
@@ -112,7 +112,7 @@ async def wait_for_mev_execution(
     wrapper_id: str,
     timeout_blocks: int = 4,
     status=None,
-) -> tuple[bool, Optional[str]]:
+) -> tuple[bool, Optional[str], Optional[AsyncExtrinsicReceipt]]:
     """
     Wait for MEV Shield inner call execution.
 
@@ -127,10 +127,13 @@ async def wait_for_mev_execution(
         status: Optional rich.Status object for progress updates.
 
     Returns:
-        Tuple of (success: bool, error: Optional[str]).
-        - (True, None) if DecryptedExecuted was found.
-        - (False, error_message) if the call failed or timeout.
+        Tuple of (success: bool, error: Optional[str], receipt: Optional[AsyncExtrinsicReceipt]).
+        - (True, None, receipt) if DecryptedExecuted was found.
+        - (False, error_message, None) if the call failed or timeout.
     """
+
+    async def _noop(_):
+        return True
 
     start_block = await subtensor.substrate.get_block_number()
     current_block = start_block
@@ -143,15 +146,12 @@ async def wait_for_mev_execution(
             )
 
         block_hash = await subtensor.substrate.get_block_hash(current_block)
-        events, extrinsics = await asyncio.gather(
-            subtensor.substrate.get_events(block_hash),
-            subtensor.substrate.get_extrinsics(block_hash),
-        )
+        extrinsics = await subtensor.substrate.get_extrinsics(block_hash)
 
-        # Look for execute_revealed extrinsic
+        # Find executeRevealed extrinsic & match ids
         execute_revealed_index = None
         for idx, extrinsic in enumerate(extrinsics):
-            call = extrinsic.get("call", {})
+            call = extrinsic.value.get("call", {})
             call_module = call.get("call_module")
             call_function = call.get("call_function")
 
@@ -167,31 +167,96 @@ async def wait_for_mev_execution(
                 if execute_revealed_index is not None:
                     break
 
-        # Check for success or failure events in the extrinsic
-        if execute_revealed_index is not None:
-            for event in events:
-                event_id = event.get("event_id", "")
-                event_extrinsic_idx = event.get("extrinsic_idx")
+        if execute_revealed_index is None:
+            current_block += 1
+            await subtensor.substrate.wait_for_block(
+                current_block,
+                result_handler=_noop,
+                task_return=False,
+            )
+            continue
 
-                if event_extrinsic_idx == execute_revealed_index:
-                    if event_id == "ExtrinsicSuccess":
-                        return True, None
-                    elif event_id == "ExtrinsicFailed":
-                        dispatch_error = event.get("attributes", {}).get(
-                            "dispatch_error", {}
-                        )
-                        error_msg = f"{dispatch_error}"
-                        return False, error_msg
-
-        current_block += 1
-
-        async def _noop(_):
-            return True
-
-        await subtensor.substrate.wait_for_block(
-            current_block,
-            result_handler=_noop,
-            task_return=False,
+        receipt = AsyncExtrinsicReceipt(
+            substrate=subtensor.substrate,
+            block_hash=block_hash,
+            extrinsic_idx=execute_revealed_index,
         )
 
-    return False, "Timeout waiting for MEV Shield execution"
+        # TODO: Activate this when we update up-stream
+        # if not await receipt.is_success:
+        #     error_msg = format_error_message(await receipt.error_message)
+        #     return False, error_msg, None
+
+        error = await check_mev_shield_error(receipt, subtensor, wrapper_id)
+        if error:
+            error_msg = format_error_message(error)
+            return False, error_msg, None
+
+        return True, None, receipt
+
+    return False, "Timeout waiting for MEV Shield execution", None
+
+
+async def check_mev_shield_error(
+    receipt: AsyncExtrinsicReceipt,
+    subtensor: "SubtensorInterface",
+    wrapper_id: str,
+) -> Optional[dict]:
+    """
+    Handles & extracts error messages in the MEV Shield extrinsics.
+    This is a temporary implementation until we update up-stream code.
+
+    Args:
+        receipt: AsyncExtrinsicReceipt for the execute_revealed extrinsic.
+        subtensor: SubtensorInterface instance.
+        wrapper_id: The wrapper ID to verify we're checking the correct event.
+
+    Returns:
+        Error dict to be used with format_error_message(), or None if no error.
+    """
+    if not await receipt.is_success:
+        return await receipt.error_message
+
+    for event in await receipt.triggered_events:
+        event_details = event.get("event", {})
+
+        if (
+            event_details.get("module_id") == "MevShield"
+            and event_details.get("event_id") == "DecryptedRejected"
+        ):
+            attributes = event_details.get("attributes", {})
+            event_wrapper_id = attributes.get("id")
+
+            if event_wrapper_id != wrapper_id:
+                continue
+
+            reason = attributes.get("reason", {})
+            dispatch_error = reason.get("error", {})
+
+            try:
+                if "Module" in dispatch_error:
+                    module_index = dispatch_error["Module"]["index"]
+                    error_index = dispatch_error["Module"]["error"]
+
+                    if isinstance(error_index, str) and error_index.startswith("0x"):
+                        error_index = int(error_index[2:4], 16)
+
+                    runtime = await subtensor.substrate.init_runtime(
+                        block_hash=receipt.block_hash
+                    )
+                    module_error = runtime.metadata.get_module_error(
+                        module_index=module_index,
+                        error_index=error_index,
+                    )
+
+                    return {
+                        "type": "Module",
+                        "name": module_error.name,
+                        "docs": module_error.docs,
+                    }
+            except Exception:
+                return dispatch_error
+
+            return dispatch_error
+
+    return None
