@@ -625,7 +625,7 @@ async def _unstake_extrinsic(
 
         mev_shield_id = await extract_mev_shield_id(response)
         if mev_shield_id:
-            mev_success, mev_error = await wait_for_mev_execution(
+            mev_success, mev_error, response = await wait_for_mev_execution(
                 subtensor, mev_shield_id, status=status
             )
             if not mev_success:
@@ -747,7 +747,7 @@ async def _safe_unstake_extrinsic(
 
     mev_shield_id = await extract_mev_shield_id(response)
     if mev_shield_id:
-        mev_success, mev_error = await wait_for_mev_execution(
+        mev_success, mev_error, response = await wait_for_mev_execution(
             subtensor, mev_shield_id, status=status
         )
         if not mev_success:
