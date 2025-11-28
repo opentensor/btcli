@@ -64,6 +64,7 @@ async def submit_proxy(
     period: int,
     json_output: bool,
     proxy: Optional[str] = None,
+    announce_only: bool = False,
 ) -> None:
     success, msg, receipt = await subtensor.sign_and_send_extrinsic(
         call=call,
@@ -72,6 +73,7 @@ async def submit_proxy(
         wait_for_finalization=wait_for_finalization,
         era={"period": period},
         proxy=proxy,
+        announce_only=announce_only,
     )
     if success:
         await print_extrinsic_id(receipt)
@@ -80,7 +82,7 @@ async def submit_proxy(
                 data={
                     "success": success,
                     "message": msg,
-                    "extrinsic_id": await receipt.get_extrinsic_identifier(),
+                    "extrinsic_identifier": await receipt.get_extrinsic_identifier(),
                 }
             )
         else:
@@ -92,7 +94,7 @@ async def submit_proxy(
                 data={
                     "success": success,
                     "message": msg,
-                    "extrinsic_id": None,
+                    "extrinsic_identifier": None,
                 }
             )
         else:
@@ -152,7 +154,7 @@ async def create_proxy(
                 data={
                     "success": ulw.success,
                     "message": ulw.message,
-                    "extrinsic_id": None,
+                    "extrinsic_identifier": None,
                 }
             )
         return False, "", "", ""
@@ -231,7 +233,7 @@ async def create_proxy(
                         "proxy_type": created_proxy_type.value,
                         "delay": delay,
                     },
-                    "extrinsic_id": await receipt.get_extrinsic_identifier(),
+                    "extrinsic_identifier": await receipt.get_extrinsic_identifier(),
                 }
             )
 
@@ -242,7 +244,7 @@ async def create_proxy(
                     "success": success,
                     "message": msg,
                     "data": None,
-                    "extrinsic_id": None,
+                    "extrinsic_identifier": None,
                 }
             )
         else:
@@ -276,7 +278,7 @@ async def remove_proxy(
                 data={
                     "success": ulw.success,
                     "message": ulw.message,
-                    "extrinsic_id": None,
+                    "extrinsic_identifier": None,
                 }
             )
         return None
@@ -332,7 +334,7 @@ async def add_proxy(
                 data={
                     "success": ulw.success,
                     "message": ulw.message,
-                    "extrinsic_id": None,
+                    "extrinsic_identifier": None,
                 }
             )
         return None
@@ -406,7 +408,7 @@ async def add_proxy(
                 data={
                     "success": success,
                     "message": msg,
-                    "extrinsic_id": await receipt.get_extrinsic_identifier(),
+                    "extrinsic_identifier": await receipt.get_extrinsic_identifier(),
                 }
             )
 
@@ -416,7 +418,7 @@ async def add_proxy(
                 data={
                     "success": success,
                     "message": msg,
-                    "extrinsic_id": None,
+                    "extrinsic_identifier": None,
                 }
             )
         else:
@@ -433,6 +435,7 @@ async def kill_proxy(
     spawner: Optional[str],
     idx: int,
     proxy: Optional[str],
+    announce_only: bool,
     prompt: bool,
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
@@ -456,7 +459,7 @@ async def kill_proxy(
                 data={
                     "success": ulw.success,
                     "message": ulw.message,
-                    "extrinsic_id": None,
+                    "extrinsic_identifier": None,
                 }
             )
         return None
@@ -472,7 +475,6 @@ async def kill_proxy(
             "spawner": spawner,
         },
     )
-
     return await submit_proxy(
         subtensor=subtensor,
         wallet=wallet,
@@ -482,6 +484,7 @@ async def kill_proxy(
         period=period,
         json_output=json_output,
         proxy=proxy,
+        announce_only=announce_only,
     )
 
 

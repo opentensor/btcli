@@ -1104,11 +1104,16 @@ class DB:
 
     def __init__(
         self,
-        db_path: str = os.path.join(
-            os.path.expanduser(defaults.config.base_path), "bittensor.db"
-        ),
+        db_path: Optional[str] = None,
         row_factory=None,
     ):
+        if db_path is None:
+            if path_from_env := os.getenv("BTCLI_PROXIES_PATH"):
+                db_path = path_from_env
+            else:
+                db_path = os.path.join(
+                    os.path.expanduser(defaults.config.base_path), "bittensor.db"
+                )
         self.db_path = db_path
         self.conn: Optional[sqlite3.Connection] = None
         self.row_factory = row_factory
