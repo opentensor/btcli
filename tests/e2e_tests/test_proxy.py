@@ -1,20 +1,8 @@
-import asyncio
 import json
 import os
 import time
-from time import sleep
 
-from bittensor_cli.src.bittensor.balances import Balance
-from bittensor_cli.src.bittensor.utils import ProxyAnnouncements, decode_account_id
-from .utils import (
-    extract_coldkey_balance,
-    validate_wallet_inspect,
-    validate_wallet_overview,
-    verify_subnet_entry,
-)
-
-# temporary
-from async_substrate_interface.sync_substrate import SubstrateInterface
+from bittensor_cli.src.bittensor.utils import ProxyAnnouncements
 
 """
 Verify commands:
