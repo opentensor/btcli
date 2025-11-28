@@ -360,11 +360,12 @@ async def add_proxy(
         delegator = None
         created_proxy_type = None
         for event in await receipt.triggered_events:
-            if event["event_id"] == "PureCreated":
+            if event["event_id"] == "ProxyAdded":
                 attrs = event["attributes"]
                 delegatee = attrs["delegatee"]
                 delegator = attrs["delegator"]
                 created_proxy_type = getattr(ProxyType, attrs["proxy_type"])
+                break
         arg_start = "`" if json_output else "[blue]"
         arg_end = "`" if json_output else "[/blue]"
         msg = (
@@ -408,6 +409,12 @@ async def add_proxy(
                 data={
                     "success": success,
                     "message": msg,
+                    "data": {
+                        "delegatee": delegatee,
+                        "delegator": delegator,
+                        "proxy_type": created_proxy_type.value,
+                        "delay": delay,
+                    },
                     "extrinsic_identifier": await receipt.get_extrinsic_identifier(),
                 }
             )
@@ -418,6 +425,7 @@ async def add_proxy(
                 data={
                     "success": success,
                     "message": msg,
+                    "data": None,
                     "extrinsic_identifier": None,
                 }
             )
