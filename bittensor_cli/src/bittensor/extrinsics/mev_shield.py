@@ -136,14 +136,20 @@ async def wait_for_mev_execution(
         return True
 
     start_block = await subtensor.substrate.get_block_number()
-    current_block = start_block
+    current_block = start_block + 1
 
-    while current_block - start_block < timeout_blocks:
+    while current_block - start_block <= timeout_blocks:
         if status:
             status.update(
-                f":hourglass: Waiting for MEV Shield execution "
-                f"(block {current_block - start_block + 1}/{timeout_blocks})..."
+                f"Waiting for :shield: MEV Protection "
+                f"(checking block {current_block - start_block} of {timeout_blocks})..."
             )
+
+        await subtensor.substrate.wait_for_block(
+            current_block,
+            result_handler=_noop,
+            task_return=False,
+        )
 
         block_hash = await subtensor.substrate.get_block_hash(current_block)
         extrinsics = await subtensor.substrate.get_extrinsics(block_hash)
@@ -169,11 +175,6 @@ async def wait_for_mev_execution(
 
         if execute_revealed_index is None:
             current_block += 1
-            await subtensor.substrate.wait_for_block(
-                current_block,
-                result_handler=_noop,
-                task_return=False,
-            )
             continue
 
         receipt = AsyncExtrinsicReceipt(
