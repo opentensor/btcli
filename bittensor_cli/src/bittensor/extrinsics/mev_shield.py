@@ -183,14 +183,8 @@ async def wait_for_mev_execution(
             extrinsic_idx=execute_revealed_index,
         )
 
-        # TODO: Activate this when we update up-stream
-        # if not await receipt.is_success:
-        #     error_msg = format_error_message(await receipt.error_message)
-        #     return False, error_msg, None
-
-        error = await check_mev_shield_error(receipt, subtensor, wrapper_id)
-        if error:
-            error_msg = format_error_message(error)
+        if not await receipt.is_success:
+            error_msg = format_error_message(await receipt.error_message)
             return False, error_msg, None
 
         return True, None, receipt
