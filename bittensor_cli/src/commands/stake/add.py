@@ -170,7 +170,7 @@ async def stake_add(
         mev_shield_id = await extract_mev_shield_id(response)
         if mev_shield_id:
             mev_success, mev_error, response = await wait_for_mev_execution(
-                subtensor, mev_shield_id, status=status
+                subtensor, mev_shield_id, response.block_hash, status=status
             )
             if not mev_success:
                 status.stop()
@@ -261,7 +261,7 @@ async def stake_add(
         mev_shield_id = await extract_mev_shield_id(response)
         if mev_shield_id:
             mev_success, mev_error, response = await wait_for_mev_execution(
-                subtensor, mev_shield_id, status=status
+                subtensor, mev_shield_id, response.block_hash, status=status
             )
             if not mev_success:
                 status.stop()

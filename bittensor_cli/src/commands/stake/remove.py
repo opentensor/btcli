@@ -626,7 +626,7 @@ async def _unstake_extrinsic(
         mev_shield_id = await extract_mev_shield_id(response)
         if mev_shield_id:
             mev_success, mev_error, response = await wait_for_mev_execution(
-                subtensor, mev_shield_id, status=status
+                subtensor, mev_shield_id, response.block_hash, status=status
             )
             if not mev_success:
                 status.stop()
@@ -697,7 +697,7 @@ async def _safe_unstake_extrinsic(
 
     block_hash = await subtensor.substrate.get_chain_head()
 
-    current_balance, next_nonce, current_stake, call = await asyncio.gather(
+    current_balance, current_stake, call = await asyncio.gather(
         subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash),
         subtensor.get_stake(
             hotkey_ss58=hotkey_ss58,
@@ -749,7 +749,7 @@ async def _safe_unstake_extrinsic(
     mev_shield_id = await extract_mev_shield_id(response)
     if mev_shield_id:
         mev_success, mev_error, response = await wait_for_mev_execution(
-            subtensor, mev_shield_id, status=status
+            subtensor, mev_shield_id, response.block_hash, status=status
         )
         if not mev_success:
             status.stop()
