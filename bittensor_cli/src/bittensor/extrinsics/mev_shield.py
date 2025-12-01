@@ -110,6 +110,7 @@ async def extract_mev_shield_id(response: "AsyncExtrinsicReceipt") -> Optional[s
 async def wait_for_mev_execution(
     subtensor: "SubtensorInterface",
     wrapper_id: str,
+    submit_block_hash: str,
     timeout_blocks: int = 4,
     status=None,
 ) -> tuple[bool, Optional[str], Optional[AsyncExtrinsicReceipt]]:
@@ -123,6 +124,7 @@ async def wait_for_mev_execution(
     Args:
         subtensor: SubtensorInterface instance.
         wrapper_id: The ID from EncryptedSubmitted event.
+        submit_block_number: Block number where submit_encrypted was included.
         timeout_blocks: Max blocks to wait (default 4).
         status: Optional rich.Status object for progress updates.
 
@@ -135,14 +137,14 @@ async def wait_for_mev_execution(
     async def _noop(_):
         return True
 
-    start_block = await subtensor.substrate.get_block_number()
-    current_block = start_block + 1
+    starting_block = await subtensor.substrate.get_block_number(submit_block_hash)
+    current_block = starting_block + 1
 
-    while current_block - start_block <= timeout_blocks:
+    while current_block - starting_block <= timeout_blocks:
         if status:
             status.update(
                 f"Waiting for :shield: MEV Protection "
-                f"(checking block {current_block - start_block} of {timeout_blocks})..."
+                f"(checking block {current_block - starting_block} of {timeout_blocks})..."
             )
 
         await subtensor.substrate.wait_for_block(
