@@ -2175,8 +2175,8 @@ class SubtensorInterface:
         root_stake: Balance
         claimable_stake: Balance
         for hotkey, netuid in target_pairs:
-            root_stake = root_stakes[hotkey]
-            rate = claimable_rates[hotkey].get(netuid, 0.0)
+            root_stake = root_stakes.get(hotkey, Balance(0))
+            rate = claimable_rates.get(hotkey, {}).get(netuid, 0.0)
             claimable_stake = rate * root_stake
             already_claimed = claimed_amounts.get((hotkey, netuid), Balance(0))
             net_claimable = max(claimable_stake - already_claimed, Balance(0))
