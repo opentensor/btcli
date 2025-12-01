@@ -35,23 +35,21 @@ async def encrypt_call(
         ValueError: If MEV Shield NextKey is not available on chain.
     """
 
-    next_key_result, genesis_hash, nonce = await asyncio.gather(
+    next_key_result, genesis_hash = await asyncio.gather(
         subtensor.get_mev_shield_next_key(),
         subtensor.substrate.get_block_hash(0),
-        subtensor.substrate.get_account_nonce(wallet.coldkey.ss58_address),
     )
     if next_key_result is None:
         raise ValueError("MEV Shield NextKey not available on chain")
 
-    nonce = nonce + 1  # TODO: Update once chain is updated
     ml_kem_768_public_key = next_key_result
 
-    # Create payload_core: signer (32B) + nonce (u32 LE) + SCALE(call)
+    # Create payload_core: signer (32B) + next_key (32B) + SCALE(call)
     signer_bytes = encode_account_id(wallet.coldkey.ss58_address)
-    nonce_bytes = (nonce & 0xFFFFFFFF).to_bytes(4, byteorder="little")
     scale_call_bytes = bytes(call.data.data)
+    next_key = hashlib.blake2b(next_key_result, digest_size=32).digest()
 
-    payload_core = signer_bytes + nonce_bytes + scale_call_bytes
+    payload_core = signer_bytes + next_key + scale_call_bytes
 
     mev_shield_version = mlkem_kdf_id()
     genesis_hash_clean = (
