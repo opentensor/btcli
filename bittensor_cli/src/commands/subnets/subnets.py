@@ -10,13 +10,18 @@ from rich.progress import Progress, BarColumn, TextColumn
 from rich.table import Column, Table
 from rich import box
 
-from bittensor_cli.src import COLOR_PALETTE, Constants
+from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.extrinsics.registration import (
     register_extrinsic,
     burned_register_extrinsic,
 )
 from bittensor_cli.src.bittensor.extrinsics.root import root_register_extrinsic
+from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
+    encrypt_call,
+    extract_mev_shield_id,
+    wait_for_mev_execution,
+)
 from rich.live import Live
 from bittensor_cli.src.bittensor.minigraph import MiniGraph
 from bittensor_cli.src.commands.wallets import set_id, get_id
@@ -174,6 +179,7 @@ async def register_subnetwork_extrinsic(
             call_function=call_function,
             call_params=call_params,
         )
+        call = await encrypt_call(subtensor, wallet, call)
         extrinsic = await substrate.create_signed_extrinsic(
             call=call, keypair=wallet.coldkey
         )
@@ -194,17 +200,28 @@ async def register_subnetwork_extrinsic(
             await asyncio.sleep(0.5)
             return False, None, None
 
+        # Check for MEV shield execution
+        mev_shield_id = await extract_mev_shield_id(response)
+        if mev_shield_id:
+            mev_success, mev_error, response = await wait_for_mev_execution(
+                subtensor, mev_shield_id, response.block_hash
+            )
+            if not mev_success:
+                err_console.print(
+                    f":cross_mark: [red]Failed[/red]: MEV execution failed: {mev_error}"
+                )
+                return False, None, None
+
         # Successful registration, final check for membership
-        else:
-            attributes = await _find_event_attributes_in_extrinsic_receipt(
-                response, "NetworkAdded"
-            )
-            await print_extrinsic_id(response)
-            ext_id = await response.get_extrinsic_identifier()
-            console.print(
-                f":white_heavy_check_mark: [dark_sea_green3]Registered subnetwork with netuid: {attributes[0]}"
-            )
-            return True, int(attributes[0]), ext_id
+        attributes = await _find_event_attributes_in_extrinsic_receipt(
+            response, "NetworkAdded"
+        )
+        await print_extrinsic_id(response)
+        ext_id = await response.get_extrinsic_identifier()
+        console.print(
+            f":white_heavy_check_mark: [dark_sea_green3]Registered subnetwork with netuid: {attributes[0]}"
+        )
+        return True, int(attributes[0]), ext_id
 
 
 # commands
