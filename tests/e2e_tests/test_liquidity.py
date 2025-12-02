@@ -92,6 +92,7 @@ def test_liquidity(local_chain, wallet_setup):
     assert result_output["success"] is False
     assert f"Subnet with netuid: {netuid} is not active" in result_output["err_msg"]
     assert result_output["positions"] == []
+    time.sleep(20)
 
     # start emissions schedule
     start_subnet_emissions = exec_command_alice(
