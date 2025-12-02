@@ -171,7 +171,7 @@ async def register_subnetwork_extrinsic(
     if not unlock_key(wallet).success:
         return False, None, None
 
-    with console.status(":satellite: Registering subnet...", spinner="earth"):
+    with console.status(":satellite: Registering subnet...", spinner="earth") as status:
         substrate = subtensor.substrate
         # create extrinsic call
         call = await substrate.compose_call(
@@ -204,9 +204,10 @@ async def register_subnetwork_extrinsic(
         mev_shield_id = await extract_mev_shield_id(response)
         if mev_shield_id:
             mev_success, mev_error, response = await wait_for_mev_execution(
-                subtensor, mev_shield_id, response.block_hash
+                subtensor, mev_shield_id, response.block_hash, status=status
             )
             if not mev_success:
+                status.stop()
                 err_console.print(
                     f":cross_mark: [red]Failed[/red]: MEV execution failed: {mev_error}"
                 )

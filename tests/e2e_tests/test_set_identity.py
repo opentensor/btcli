@@ -1,3 +1,4 @@
+import time
 import json
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
@@ -25,6 +26,7 @@ def test_set_id(local_chain, wallet_setup):
     keypair_alice, wallet_alice, wallet_path_alice, exec_command_alice = wallet_setup(
         wallet_path_alice
     )
+    time.sleep(50)
     # Register a subnet with sudo as Alice
     result = exec_command_alice(
         command="subnets",

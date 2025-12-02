@@ -30,7 +30,7 @@ def test_liquidity(local_chain, wallet_setup):
         print(
             "Skipping turning off hyperparams freeze window. This indicates the call does not exist on the chain you are testing."
         )
-    time.sleep(10)
+    time.sleep(50)
 
     # Register a subnet with sudo as Alice
     result = exec_command_alice(
