@@ -66,6 +66,13 @@ async def submit_proxy(
     proxy: Optional[str] = None,
     announce_only: bool = False,
 ) -> None:
+    """
+    Submits the prepared call to the chain
+
+    Returns:
+        None, prints out the result according to `json_output` flag.
+
+    """
     success, msg, receipt = await subtensor.sign_and_send_extrinsic(
         call=call,
         wallet=wallet,
@@ -86,7 +93,7 @@ async def submit_proxy(
                 }
             )
         else:
-            console.print("Success!")  # TODO add more shit here
+            console.print(":white_check_mark:[green]Success![/green]")
 
     else:
         if json_output:
@@ -98,7 +105,7 @@ async def submit_proxy(
                 }
             )
         else:
-            err_console.print(f"Failure: {msg}")  # TODO add more shit here
+            console.print(":white_check_mark:[green]Success![/green]")
 
 
 async def create_proxy(
@@ -112,40 +119,21 @@ async def create_proxy(
     wait_for_finalization: bool,
     period: int,
     json_output: bool,
-) -> tuple[bool, str, str, str]:
+) -> None:
     """
-
-    Args:
-        subtensor:
-        wallet:
-        proxy_type:
-        delay:
-        idx:
-        prompt:
-        wait_for_inclusion:
-        wait_for_finalization:
-        period:
-        json_output:
-
-    Returns:
-        tuple containing the following:
-            should_update: True if the address book should be updated, False otherwise
-            name: name of the new pure proxy for the address book
-            address: SS58 address of the new pure proxy
-            proxy_type: proxy type of the new pure proxy
-
+    Executes the create pure proxy call on the chain
     """
     if prompt:
         if not Confirm.ask(
             f"This will create a Pure Proxy of type {proxy_type.value}. Do you want to proceed?",
         ):
-            return False, "", "", ""
+            return None
         if delay > 0:
             if not Confirm.ask(
                 f"By adding a non-zero delay ({delay}), all proxy calls must be announced "
                 f"{delay} blocks before they will be able to be made. Continue?"
             ):
-                return False, "", "", ""
+                return None
     if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
         if not json_output:
             err_console.print(ulw.message)
@@ -157,7 +145,7 @@ async def create_proxy(
                     "extrinsic_identifier": None,
                 }
             )
-        return False, "", "", ""
+        return None
     call = await subtensor.substrate.compose_call(
         call_module="Proxy",
         call_function="create_pure",
@@ -220,7 +208,7 @@ async def create_proxy(
                     f"Added to Proxy Address Book.\n"
                     f"Show this information with [{COLORS.G.ARG}]btcli config proxies[/{COLORS.G.ARG}]"
                 )
-                return True, proxy_name, created_pure, created_proxy_type
+                return None
 
         if json_output:
             json_console.print_json(
@@ -248,8 +236,8 @@ async def create_proxy(
                 }
             )
         else:
-            err_console.print(f"Failure: {msg}")  # TODO add more shit here
-    return False, "", "", ""
+            err_console.print(f":cross_mark:[red]Failed to create pure proxy: {msg}")
+    return None
 
 
 async def remove_proxy(
@@ -264,6 +252,9 @@ async def remove_proxy(
     period: int,
     json_output: bool,
 ) -> None:
+    """
+    Executes the remove proxy call on the chain
+    """
     if prompt:
         if not Confirm.ask(
             f"This will remove a proxy of type {proxy_type.value} for delegate {delegate}."
@@ -314,6 +305,9 @@ async def add_proxy(
     period: int,
     json_output: bool,
 ):
+    """
+    Executes the add proxy call on the chain
+    """
     if prompt:
         if not Confirm.ask(
             f"This will add a proxy of type {proxy_type.value} for delegate {delegate}."
@@ -325,7 +319,7 @@ async def add_proxy(
                 f"By adding a non-zero delay ({delay}), all proxy calls must be announced "
                 f"{delay} blocks before they will be able to be made. Continue?"
             ):
-                return False, "", "", ""
+                return None
     if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
         if not json_output:
             err_console.print(ulw.message)
@@ -392,7 +386,6 @@ async def add_proxy(
                         conn,
                         cursor,
                         name=proxy_name,
-                        # TODO verify this is correct (it's opposite of create pure)
                         ss58_address=delegator,
                         delay=delay,
                         proxy_type=created_proxy_type.value,
@@ -430,7 +423,7 @@ async def add_proxy(
                 }
             )
         else:
-            err_console.print(f"Failure: {msg}")  # TODO add more shit here
+            err_console.print(f":cross_mark:[red]Failed to add proxy: {msg}")
     return None
 
 
@@ -450,6 +443,9 @@ async def kill_proxy(
     period: int,
     json_output: bool,
 ) -> None:
+    """
+    Executes the pure proxy kill call on the chain
+    """
     if prompt:
         confirmation = Prompt.ask(
             f"This will kill a Pure Proxy account of type {proxy_type.value}.\n"
@@ -510,8 +506,13 @@ async def execute_announced(
     wait_for_finalization: bool = False,
     json_output: bool = False,
 ) -> bool:
-    # TODO should this remove from the ProxyAnnouncements after successful completion, or should it mark it as completed
-    #  in the DB?
+    """
+    Executes the previously-announced call on the chain.
+
+    Returns:
+        True if the submission was successful, False otherwise.
+
+    """
     if prompt and created_block is not None:
         current_block = await subtensor.substrate.get_block_number()
         if current_block - delay > created_block:
