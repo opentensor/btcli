@@ -463,6 +463,7 @@ async def move_stake(
     era: int,
     interactive_selection: bool = False,
     prompt: bool = True,
+    mev_protection: bool = True,
 ) -> tuple[bool, str]:
     if interactive_selection:
         try:
@@ -584,7 +585,8 @@ async def move_stake(
         f"[blue]{origin_netuid}[/blue] \nto "
         f"[blue]{destination_hotkey}[/blue] on netuid: [blue]{destination_netuid}[/blue] ..."
     ) as status:
-        call = await encrypt_call(subtensor, wallet, call)
+        if mev_protection:
+            call = await encrypt_call(subtensor, wallet, call)
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
             call=call, keypair=wallet.coldkey, era={"period": era}
         )
@@ -592,15 +594,16 @@ async def move_stake(
             extrinsic, wait_for_inclusion=True, wait_for_finalization=False
         )
 
-        mev_shield_id = await extract_mev_shield_id(response)
-        if mev_shield_id:
-            mev_success, mev_error, response = await wait_for_mev_execution(
-                subtensor, mev_shield_id, response.block_hash, status=status
-            )
-            if not mev_success:
-                status.stop()
-                err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
-                return False, ""
+        if mev_protection:
+            mev_shield_id = await extract_mev_shield_id(response)
+            if mev_shield_id:
+                mev_success, mev_error, response = await wait_for_mev_execution(
+                    subtensor, mev_shield_id, response.block_hash, status=status
+                )
+                if not mev_success:
+                    status.stop()
+                    err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
+                    return False, ""
 
     ext_id = await response.get_extrinsic_identifier()
 
@@ -661,6 +664,7 @@ async def transfer_stake(
     interactive_selection: bool = False,
     stake_all: bool = False,
     prompt: bool = True,
+    mev_protection: bool = True,
 ) -> tuple[bool, str]:
     """Transfers stake from one network to another.
 
@@ -783,7 +787,8 @@ async def transfer_stake(
         return False, ""
 
     with console.status("\n:satellite: Transferring stake ...") as status:
-        call = await encrypt_call(subtensor, wallet, call)
+        if mev_protection:
+            call = await encrypt_call(subtensor, wallet, call)
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
             call=call, keypair=wallet.coldkey, era={"period": era}
         )
@@ -792,15 +797,16 @@ async def transfer_stake(
             extrinsic, wait_for_inclusion=True, wait_for_finalization=False
         )
 
-        mev_shield_id = await extract_mev_shield_id(response)
-        if mev_shield_id:
-            mev_success, mev_error, response = await wait_for_mev_execution(
-                subtensor, mev_shield_id, response.block_hash, status=status
-            )
-            if not mev_success:
-                status.stop()
-                err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
-                return False, ""
+        if mev_protection:
+            mev_shield_id = await extract_mev_shield_id(response)
+            if mev_shield_id:
+                mev_success, mev_error, response = await wait_for_mev_execution(
+                    subtensor, mev_shield_id, response.block_hash, status=status
+                )
+                if not mev_success:
+                    status.stop()
+                    err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
+                    return False, ""
 
     ext_id = await response.get_extrinsic_identifier()
 
@@ -852,6 +858,7 @@ async def swap_stake(
     prompt: bool = True,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
+    mev_protection: bool = True,
 ) -> tuple[bool, str]:
     """Swaps stake between subnets while keeping the same coldkey-hotkey pair ownership.
 
@@ -970,7 +977,8 @@ async def swap_stake(
         f"\n:satellite: Swapping stake from netuid [blue]{origin_netuid}[/blue] "
         f"to netuid [blue]{destination_netuid}[/blue]..."
     ) as status:
-        call = await encrypt_call(subtensor, wallet, call)
+        if mev_protection:
+            call = await encrypt_call(subtensor, wallet, call)
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
             call=call, keypair=wallet.coldkey, era={"period": era}
         )
@@ -981,15 +989,16 @@ async def swap_stake(
             wait_for_finalization=wait_for_finalization,
         )
 
-        mev_shield_id = await extract_mev_shield_id(response)
-        if mev_shield_id:
-            mev_success, mev_error, response = await wait_for_mev_execution(
-                subtensor, mev_shield_id, response.block_hash, status=status
-            )
-            if not mev_success:
-                status.stop()
-                err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
-                return False, ""
+        if mev_protection:
+            mev_shield_id = await extract_mev_shield_id(response)
+            if mev_shield_id:
+                mev_success, mev_error, response = await wait_for_mev_execution(
+                    subtensor, mev_shield_id, response.block_hash, status=status
+                )
+                if not mev_success:
+                    status.stop()
+                    err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
+                    return False, ""
 
     ext_id = await response.get_extrinsic_identifier()
 
