@@ -61,6 +61,7 @@ async def register_subnetwork_extrinsic(
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = True,
     prompt: bool = False,
+    mev_protection: bool = True,
 ) -> tuple[bool, Optional[int], Optional[str]]:
     """Registers a new subnetwork.
 
@@ -179,7 +180,8 @@ async def register_subnetwork_extrinsic(
             call_function=call_function,
             call_params=call_params,
         )
-        call = await encrypt_call(subtensor, wallet, call)
+        if mev_protection:
+            call = await encrypt_call(subtensor, wallet, call)
         extrinsic = await substrate.create_signed_extrinsic(
             call=call, keypair=wallet.coldkey
         )
@@ -201,17 +203,18 @@ async def register_subnetwork_extrinsic(
             return False, None, None
 
         # Check for MEV shield execution
-        mev_shield_id = await extract_mev_shield_id(response)
-        if mev_shield_id:
-            mev_success, mev_error, response = await wait_for_mev_execution(
-                subtensor, mev_shield_id, response.block_hash, status=status
-            )
-            if not mev_success:
-                status.stop()
-                err_console.print(
-                    f":cross_mark: [red]Failed[/red]: MEV execution failed: {mev_error}"
+        if mev_protection:
+            mev_shield_id = await extract_mev_shield_id(response)
+            if mev_shield_id:
+                mev_success, mev_error, response = await wait_for_mev_execution(
+                    subtensor, mev_shield_id, response.block_hash, status=status
                 )
-                return False, None, None
+                if not mev_success:
+                    status.stop()
+                    err_console.print(
+                        f":cross_mark: [red]Failed[/red]: MEV execution failed: {mev_error}"
+                    )
+                    return False, None, None
 
         # Successful registration, final check for membership
         attributes = await _find_event_attributes_in_extrinsic_receipt(
@@ -1640,12 +1643,13 @@ async def create(
     subnet_identity: dict,
     json_output: bool,
     prompt: bool,
+    mev_protection: bool = True,
 ):
     """Register a subnetwork"""
 
     # Call register command.
     success, netuid, ext_id = await register_subnetwork_extrinsic(
-        subtensor, wallet, subnet_identity, prompt=prompt
+        subtensor, wallet, subnet_identity, prompt=prompt, mev_protection=mev_protection
     )
     if json_output:
         # technically, netuid can be `None`, but only if not wait for finalization/inclusion. However, as of present
