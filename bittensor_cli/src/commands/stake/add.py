@@ -51,6 +51,7 @@ async def stake_add(
     allow_partial_stake: bool,
     json_output: bool,
     era: int,
+    mev_protection: bool,
 ):
     """
     Args:
@@ -139,7 +140,8 @@ async def stake_add(
                 },
             ),
         )
-        call = await encrypt_call(subtensor, wallet, call)
+        if mev_protection:
+            call = await encrypt_call(subtensor, wallet, call)
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
             call=call,
             keypair=wallet.coldkey,
@@ -167,16 +169,17 @@ async def stake_add(
             err_out("\n" + err_msg)
             return False, err_msg, None
 
-        mev_shield_id = await extract_mev_shield_id(response)
-        if mev_shield_id:
-            mev_success, mev_error, response = await wait_for_mev_execution(
-                subtensor, mev_shield_id, response.block_hash, status=status
-            )
-            if not mev_success:
-                status.stop()
-                err_msg = f"{failure_prelude}: {mev_error}"
-                err_out("\n" + err_msg)
-                return False, err_msg, None
+        if mev_protection:
+            mev_shield_id = await extract_mev_shield_id(response)
+            if mev_shield_id:
+                mev_success, mev_error, response = await wait_for_mev_execution(
+                    subtensor, mev_shield_id, response.block_hash, status=status
+                )
+                if not mev_success:
+                    status.stop()
+                    err_msg = f"{failure_prelude}: {mev_error}"
+                    err_out("\n" + err_msg)
+                    return False, err_msg, None
 
         if json_output:
             # the rest of this checking is not necessary if using json_output
@@ -241,7 +244,8 @@ async def stake_add(
         failure_prelude = (
             f":cross_mark: [red]Failed[/red] to stake {amount} on Netuid {netuid_i}"
         )
-        call = await encrypt_call(subtensor, wallet, call)
+        if mev_protection:
+            call = await encrypt_call(subtensor, wallet, call)
         extrinsic = await subtensor.substrate.create_signed_extrinsic(
             call=call, keypair=wallet.coldkey, nonce=next_nonce, era={"period": era}
         )
@@ -258,16 +262,17 @@ async def stake_add(
             err_out("\n" + err_msg)
             return False, err_msg, None
 
-        mev_shield_id = await extract_mev_shield_id(response)
-        if mev_shield_id:
-            mev_success, mev_error, response = await wait_for_mev_execution(
-                subtensor, mev_shield_id, response.block_hash, status=status
-            )
-            if not mev_success:
-                status.stop()
-                err_msg = f"{failure_prelude}: {mev_error}"
-                err_out("\n" + err_msg)
-                return False, err_msg, None
+        if mev_protection:
+            mev_shield_id = await extract_mev_shield_id(response)
+            if mev_shield_id:
+                mev_success, mev_error, response = await wait_for_mev_execution(
+                    subtensor, mev_shield_id, response.block_hash, status=status
+                )
+                if not mev_success:
+                    status.stop()
+                    err_msg = f"{failure_prelude}: {mev_error}"
+                    err_out("\n" + err_msg)
+                    return False, err_msg, None
 
         if json_output:
             # the rest of this is not necessary if using json_output
