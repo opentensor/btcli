@@ -45,7 +45,7 @@ def test_wallet_overview_inspect(local_chain, wallet_setup):
 
     # Create wallet for Alice
     keypair, wallet, wallet_path, exec_command = wallet_setup(wallet_path_name)
-    sleep(50)
+    sleep(70)
 
     # Register a subnet with sudo as Alice
     result = exec_command(
