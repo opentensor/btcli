@@ -14,6 +14,7 @@ Verify commands:
 * btcli liquidity remove
 """
 
+
 @pytest.mark.parametrize("local_chain", [False], indirect=True)
 def test_liquidity(local_chain, wallet_setup):
     wallet_path_alice = "//Alice"
