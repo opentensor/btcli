@@ -828,7 +828,7 @@ class TableDefinition:
 
     @staticmethod
     @contextmanager
-    def get_db() -> Generator[tuple[sqlite3.Connection, sqlite3.Cursor], None]:
+    def get_db() -> Generator[tuple[sqlite3.Connection, sqlite3.Cursor], None, None]:
         """
         Helper function to get a DB connection
         """
