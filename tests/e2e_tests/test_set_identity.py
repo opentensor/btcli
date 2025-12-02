@@ -1,4 +1,5 @@
 import json
+import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 
 
@@ -10,6 +11,7 @@ Verify commands:
 """
 
 
+@pytest.mark.parametrize("local_chain", [False], indirect=True)
 def test_set_id(local_chain, wallet_setup):
     """
     Tests that the user is prompted to confirm that the incorrect text/html URL is
