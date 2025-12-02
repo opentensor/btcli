@@ -1,9 +1,8 @@
+import pytest
 import asyncio
 import json
-import re
 import time
 
-from bittensor_cli.src.bittensor.balances import Balance
 from .utils import turn_off_hyperparam_freeze_window
 
 """
@@ -15,7 +14,7 @@ Verify commands:
 * btcli liquidity remove
 """
 
-
+@pytest.mark.parametrize("local_chain", [False], indirect=True)
 def test_liquidity(local_chain, wallet_setup):
     wallet_path_alice = "//Alice"
     netuid = 2
