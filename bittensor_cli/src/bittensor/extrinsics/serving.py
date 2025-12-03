@@ -160,21 +160,21 @@ async def set_axon_extrinsic(
         wait_for_finalization: Whether to wait for the extrinsic to be finalized
         
     Returns:
-        Tuple of (success: bool, message: str)
+        Tuple of (success: bool, message: str, extrinsic_id: Optional[str])
     """
     # Validate port
     if not (0 <= port <= 65535):
-        return False, f"Invalid port number: {port}. Must be between 0 and 65535."
+        return False, f"Invalid port number: {port}. Must be between 0 and 65535.", None
     
     # Validate IP address
     try:
         ip_int = ip_to_int(ip)
     except Exception as e:
-        return False, f"Invalid IP address: {ip}. Error: {str(e)}"
+        return False, f"Invalid IP address: {ip}. Error: {str(e)}", None
     
     # Unlock the hotkey
     if not (unlock_status := unlock_key(wallet, unlock_type="hot", print_out=False)).success:
-        return False, unlock_status.message
+        return False, unlock_status.message, None
     
     # Prompt for confirmation if requested
     if prompt:

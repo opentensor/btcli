@@ -20,7 +20,7 @@ def test_axon_reset_and_set(local_chain, wallet_setup):
     3. Sets the axon information
     4. Verifies the axon is set correctly
     5. Resets the axon
-    6. Verifies the axon is reset (0.0.0.0:0)
+    6. Verifies the axon is reset (0.0.0.0:1 - not serving)
     """
     wallet_path_alice = "//Alice"
     netuid = 1
