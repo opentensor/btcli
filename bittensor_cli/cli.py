@@ -96,6 +96,7 @@ from bittensor_cli.src.commands.subnets import (
     mechanisms as subnet_mechanisms,
 )
 from bittensor_cli.src.commands.wallets import SortByBalance
+from bittensor_cli.src.bittensor.extrinsics import serving
 from bittensor_cli.version import __version__, __version_as_int__
 
 try:
@@ -770,6 +771,7 @@ class CLIManager:
         self.liquidity_app = typer.Typer(epilog=_epilog)
         self.crowd_app = typer.Typer(epilog=_epilog)
         self.utils_app = typer.Typer(epilog=_epilog)
+        self.axon_app = typer.Typer(epilog=_epilog)
 
         # config alias
         self.app.add_typer(
@@ -868,6 +870,14 @@ class CLIManager:
             no_args_is_help=True,
         )
 
+        # axon app
+        self.app.add_typer(
+            self.axon_app,
+            name="axon",
+            short_help="Axon serving commands",
+            no_args_is_help=True,
+        )
+
         # config commands
         self.config_app.command("set")(self.set_config)
         self.config_app.command("get")(self.get_config)
@@ -946,6 +956,10 @@ class CLIManager:
         self.wallet_app.command(
             "verify", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"]
         )(self.wallet_verify)
+
+        # axon commands
+        self.axon_app.command("reset")(self.axon_reset)
+        self.axon_app.command("set")(self.axon_set)
 
         # stake commands
         self.stake_app.command(
@@ -3714,6 +3728,160 @@ class CLIManager:
                 subtensor=self.initialize_chain(network),
                 new_coldkey_ss58=new_wallet_coldkey_ss58,
                 force_swap=force_swap,
+            )
+        )
+
+    def axon_reset(
+        self,
+        netuid: int = Options.netuid,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        network: Optional[list[str]] = Options.network,
+        prompt: bool = Options.prompt,
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Reset the axon information for a neuron on the network.
+        
+        This command removes the serving endpoint by setting the IP to 0.0.0.0 and port to 0,
+        indicating the neuron is no longer serving.
+        
+        USAGE
+        
+        The command requires you to specify the netuid where the neuron is registered.
+        It will reset the axon information for the hotkey associated with the wallet.
+        
+        EXAMPLE
+        
+        [green]$[/green] btcli axon reset --netuid 1 --wallet-name my_wallet --wallet-hotkey my_hotkey
+        
+        [bold]NOTE[/bold]: This command is used to stop serving on a specific subnet. The neuron will
+        remain registered but will not be reachable by other neurons until a new axon is set.
+        """
+        self.verbosity_handler(quiet, verbose, False)
+        
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
+        
+        subtensor = self.initialize_chain(network)
+        
+        logger.debug(
+            "args:\n"
+            f"netuid: {netuid}\n"
+            f"wallet: {wallet}\n"
+            f"prompt: {prompt}\n"
+            f"wait_for_inclusion: {wait_for_inclusion}\n"
+            f"wait_for_finalization: {wait_for_finalization}\n"
+        )
+        
+        return self._run_command(
+            serving.reset_axon_extrinsic(
+                subtensor=subtensor,
+                wallet=wallet,
+                netuid=netuid,
+                prompt=prompt,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+            )
+        )
+
+    def axon_set(
+        self,
+        netuid: int = Options.netuid,
+        ip: str = typer.Option(
+            ...,
+            "--ip",
+            help="IP address to set for the axon (e.g., '192.168.1.1')",
+        ),
+        port: int = typer.Option(
+            ...,
+            "--port",
+            help="Port number to set for the axon (0-65535)",
+        ),
+        ip_type: int = typer.Option(
+            4,
+            "--ip-type",
+            help="IP type (4 for IPv4, 6 for IPv6)",
+        ),
+        protocol: int = typer.Option(
+            4,
+            "--protocol",
+            help="Protocol version",
+        ),
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        network: Optional[list[str]] = Options.network,
+        prompt: bool = Options.prompt,
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Set the axon information for a neuron on the network.
+        
+        This command configures the serving endpoint for a neuron by specifying its IP address
+        and port, allowing other neurons to connect to it.
+        
+        USAGE
+        
+        The command requires you to specify the netuid, IP address, and port number.
+        It will set the axon information for the hotkey associated with the wallet.
+        
+        EXAMPLE
+        
+        [green]$[/green] btcli axon set --netuid 1 --ip 192.168.1.100 --port 8091 --wallet-name my_wallet --wallet-hotkey my_hotkey
+        
+        [bold]NOTE[/bold]: This command is used to advertise your serving endpoint on the network.
+        Make sure the IP and port are accessible from the internet if you want other neurons to connect.
+        """
+        self.verbosity_handler(quiet, verbose, False)
+        
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
+        
+        subtensor = self.initialize_chain(network)
+        
+        logger.debug(
+            "args:\n"
+            f"netuid: {netuid}\n"
+            f"ip: {ip}\n"
+            f"port: {port}\n"
+            f"ip_type: {ip_type}\n"
+            f"protocol: {protocol}\n"
+            f"wallet: {wallet}\n"
+            f"prompt: {prompt}\n"
+            f"wait_for_inclusion: {wait_for_inclusion}\n"
+            f"wait_for_finalization: {wait_for_finalization}\n"
+        )
+        
+        return self._run_command(
+            serving.set_axon_extrinsic(
+                subtensor=subtensor,
+                wallet=wallet,
+                netuid=netuid,
+                ip=ip,
+                port=port,
+                ip_type=ip_type,
+                protocol=protocol,
+                prompt=prompt,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
             )
         )
 
