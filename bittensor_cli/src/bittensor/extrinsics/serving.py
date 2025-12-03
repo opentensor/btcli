@@ -41,7 +41,7 @@ async def reset_axon_extrinsic(
     prompt: bool = False,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
-) -> tuple[bool, str]:
+) -> tuple[bool, str, Optional[str]]:
     """
     Resets the axon information for a neuron on the network.
     
@@ -57,11 +57,11 @@ async def reset_axon_extrinsic(
         wait_for_finalization: Whether to wait for the extrinsic to be finalized
         
     Returns:
-        Tuple of (success: bool, message: str)
+        Tuple of (success: bool, message: str, extrinsic_id: Optional[str])
     """
     # Unlock the hotkey
-    if not unlock_key(wallet, hotkey=True).success:
-        return False, "Failed to unlock hotkey"
+    if not (unlock_status := unlock_key(wallet, unlock_type="hot", print_out=False)).success:
+        return False, unlock_status.message, None
     
     # Prompt for confirmation if requested
     if prompt:
@@ -69,13 +69,14 @@ async def reset_axon_extrinsic(
             f"Do you want to reset the axon for hotkey [bold]{wallet.hotkey.ss58_address}[/bold] "
             f"on netuid [bold]{netuid}[/bold]?"
         ):
-            return False, "User cancelled the operation"
+            return False, "User cancelled the operation", None
     
     with console.status(
         f":satellite: Resetting axon on [white]netuid {netuid}[/white]..."
     ):
         try:
-            # Compose the serve_axon call with reset values (IP: 0.0.0.0, port: 0)
+            # Compose the serve_axon call with reset values (IP: 0.0.0.0, port: 1)
+            # Note: Port must be >= 1 as chain rejects port 0 as invalid
             call = await subtensor.substrate.compose_call(
                 call_module="SubtensorModule",
                 call_function="serve_axon",
@@ -83,7 +84,7 @@ async def reset_axon_extrinsic(
                     "netuid": netuid,
                     "version": 0,
                     "ip": ip_to_int("0.0.0.0"),
-                    "port": 0,
+                    "port": 1,
                     "ip_type": 4,  # IPv4
                     "protocol": 4,
                     "placeholder1": 0,
@@ -91,27 +92,41 @@ async def reset_axon_extrinsic(
                 },
             )
             
-            # Sign and submit the extrinsic
-            success, error_msg, response = await subtensor.sign_and_send_extrinsic(
+            # Sign with hotkey and submit the extrinsic
+            extrinsic = await subtensor.substrate.create_signed_extrinsic(
                 call=call,
-                wallet=wallet,
+                keypair=wallet.hotkey,
+            )
+            response = await subtensor.substrate.submit_extrinsic(
+                extrinsic,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
             )
             
-            if success:
-                if wait_for_inclusion or wait_for_finalization:
-                    await print_extrinsic_id(response)
-                console.print(":white_heavy_check_mark: [green]Axon reset successfully[/green]")
-                return True, "Axon reset successfully"
+            # We only wait here if we expect finalization.
+            if not wait_for_finalization and not wait_for_inclusion:
+                console.print(
+                    ":white_heavy_check_mark: [dark_sea_green3]Axon reset successfully[/dark_sea_green3]"
+                )
+                return True, "Not waiting for finalization or inclusion.", None
+            
+            success = await response.is_success
+            if not success:
+                error_msg = format_error_message(await response.error_message)
+                err_console.print(f":cross_mark: [red]Failed[/red]: {error_msg}")
+                return False, error_msg, None
             else:
-                err_console.print(f":cross_mark: [red]Failed to reset axon: {error_msg}[/red]")
-                return False, error_msg
+                ext_id = await response.get_extrinsic_identifier()
+                await print_extrinsic_id(response)
+                console.print(
+                    ":white_heavy_check_mark: [dark_sea_green3]Axon reset successfully[/dark_sea_green3]"
+                )
+                return True, "Axon reset successfully", ext_id
                 
         except Exception as e:
             error_message = format_error_message(e)
             err_console.print(f":cross_mark: [red]Failed to reset axon: {error_message}[/red]")
-            return False, error_message
+            return False, error_message, None
 
 
 async def set_axon_extrinsic(
@@ -125,7 +140,7 @@ async def set_axon_extrinsic(
     prompt: bool = False,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
-) -> tuple[bool, str]:
+) -> tuple[bool, str, Optional[str]]:
     """
     Sets the axon information for a neuron on the network.
     
@@ -158,8 +173,8 @@ async def set_axon_extrinsic(
         return False, f"Invalid IP address: {ip}. Error: {str(e)}"
     
     # Unlock the hotkey
-    if not unlock_key(wallet, hotkey=True).success:
-        return False, "Failed to unlock hotkey"
+    if not (unlock_status := unlock_key(wallet, unlock_type="hot", print_out=False)).success:
+        return False, unlock_status.message
     
     # Prompt for confirmation if requested
     if prompt:
@@ -167,7 +182,7 @@ async def set_axon_extrinsic(
             f"Do you want to set the axon for hotkey [bold]{wallet.hotkey.ss58_address}[/bold] "
             f"on netuid [bold]{netuid}[/bold] to [bold]{ip}:{port}[/bold]?"
         ):
-            return False, "User cancelled the operation"
+            return False, "User cancelled the operation", None
     
     with console.status(
         f":satellite: Setting axon on [white]netuid {netuid}[/white] to [white]{ip}:{port}[/white]..."
@@ -189,26 +204,38 @@ async def set_axon_extrinsic(
                 },
             )
             
-            # Sign and submit the extrinsic
-            success, error_msg, response = await subtensor.sign_and_send_extrinsic(
+            # Sign with hotkey and submit the extrinsic
+            extrinsic = await subtensor.substrate.create_signed_extrinsic(
                 call=call,
-                wallet=wallet,
+                keypair=wallet.hotkey,
+            )
+            response = await subtensor.substrate.submit_extrinsic(
+                extrinsic,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
             )
             
-            if success:
-                if wait_for_inclusion or wait_for_finalization:
-                    await print_extrinsic_id(response)
+            # We only wait here if we expect finalization.
+            if not wait_for_finalization and not wait_for_inclusion:
                 console.print(
-                    f":white_heavy_check_mark: [green]Axon set successfully to {ip}:{port}[/green]"
+                    f":white_heavy_check_mark: [dark_sea_green3]Axon set successfully to {ip}:{port}[/dark_sea_green3]"
                 )
-                return True, f"Axon set successfully to {ip}:{port}"
+                return True, "Not waiting for finalization or inclusion.", None
+            
+            success = await response.is_success
+            if not success:
+                error_msg = format_error_message(await response.error_message)
+                err_console.print(f":cross_mark: [red]Failed[/red]: {error_msg}")
+                return False, error_msg, None
             else:
-                err_console.print(f":cross_mark: [red]Failed to set axon: {error_msg}[/red]")
-                return False, error_msg
+                ext_id = await response.get_extrinsic_identifier()
+                await print_extrinsic_id(response)
+                console.print(
+                    f":white_heavy_check_mark: [dark_sea_green3]Axon set successfully to {ip}:{port}[/dark_sea_green3]"
+                )
+                return True, f"Axon set successfully to {ip}:{port}", ext_id
                 
         except Exception as e:
             error_message = format_error_message(e)
             err_console.print(f":cross_mark: [red]Failed to set axon: {error_message}[/red]")
-            return False, error_message
+            return False, error_message, None

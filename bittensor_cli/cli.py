@@ -95,8 +95,8 @@ from bittensor_cli.src.commands.subnets import (
     subnets,
     mechanisms as subnet_mechanisms,
 )
+from bittensor_cli.src.commands.axon import axon
 from bittensor_cli.src.commands.wallets import SortByBalance
-from bittensor_cli.src.bittensor.extrinsics import serving
 from bittensor_cli.version import __version__, __version_as_int__
 
 try:
@@ -3743,11 +3743,12 @@ class CLIManager:
         wait_for_finalization: bool = Options.wait_for_finalization,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Reset the axon information for a neuron on the network.
         
-        This command removes the serving endpoint by setting the IP to 0.0.0.0 and port to 0,
+        This command removes the serving endpoint by setting the IP to 0.0.0.0 and port to 1,
         indicating the neuron is no longer serving.
         
         USAGE
@@ -3762,7 +3763,7 @@ class CLIManager:
         [bold]NOTE[/bold]: This command is used to stop serving on a specific subnet. The neuron will
         remain registered but will not be reachable by other neurons until a new axon is set.
         """
-        self.verbosity_handler(quiet, verbose, False)
+        self.verbosity_handler(quiet, verbose, json_output)
         
         wallet = self.wallet_ask(
             wallet_name,
@@ -3784,13 +3785,14 @@ class CLIManager:
         )
         
         return self._run_command(
-            serving.reset_axon_extrinsic(
-                subtensor=subtensor,
+            axon.reset(
                 wallet=wallet,
+                subtensor=subtensor,
                 netuid=netuid,
                 prompt=prompt,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
+                json_output=json_output,
             )
         )
 
@@ -3801,11 +3803,13 @@ class CLIManager:
             ...,
             "--ip",
             help="IP address to set for the axon (e.g., '192.168.1.1')",
+            prompt="Enter the IP address for the axon (e.g., '192.168.1.1' or '2001:db8::1')",
         ),
         port: int = typer.Option(
             ...,
             "--port",
             help="Port number to set for the axon (0-65535)",
+            prompt="Enter the port number for the axon (0-65535)",
         ),
         ip_type: int = typer.Option(
             4,
@@ -3826,6 +3830,7 @@ class CLIManager:
         wait_for_finalization: bool = Options.wait_for_finalization,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Set the axon information for a neuron on the network.
@@ -3845,7 +3850,7 @@ class CLIManager:
         [bold]NOTE[/bold]: This command is used to advertise your serving endpoint on the network.
         Make sure the IP and port are accessible from the internet if you want other neurons to connect.
         """
-        self.verbosity_handler(quiet, verbose, False)
+        self.verbosity_handler(quiet, verbose, json_output)
         
         wallet = self.wallet_ask(
             wallet_name,
@@ -3871,9 +3876,9 @@ class CLIManager:
         )
         
         return self._run_command(
-            serving.set_axon_extrinsic(
-                subtensor=subtensor,
+            axon.set_axon(
                 wallet=wallet,
+                subtensor=subtensor,
                 netuid=netuid,
                 ip=ip,
                 port=port,
@@ -3882,6 +3887,7 @@ class CLIManager:
                 prompt=prompt,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
+                json_output=json_output,
             )
         )
 
