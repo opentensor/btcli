@@ -7365,6 +7365,18 @@ class CLIManager:
             "--liquidity_price_high",
             help="High price for the adding liquidity position.",
         ),
+        tao_amount: Optional[float] = typer.Option(
+            None,
+            "--tao-amount",
+            "--tao_amount",
+            help="Amount of TAO to provide (for mixed range positions).",
+        ),
+        alpha_amount: Optional[float] = typer.Option(
+            None,
+            "--alpha-amount",
+            "--alpha_amount",
+            help="Amount of Alpha to provide (for mixed range positions).",
+        ),
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -7372,6 +7384,8 @@ class CLIManager:
     ):
         """Add liquidity to the swap (as a combination of TAO + Alpha)."""
         self.verbosity_handler(quiet, verbose, json_output)
+        
+        # Step 1: Ask for netuid
         if not netuid:
             netuid = Prompt.ask(
                 f"Enter the [{COLORS.G.SUBHEAD_MAIN}]netuid[/{COLORS.G.SUBHEAD_MAIN}] to use",
@@ -7379,53 +7393,18 @@ class CLIManager:
                 show_default=False,
             )
 
-        wallet, hotkey = self.wallet_ask(
-            wallet_name=wallet_name,
-            wallet_path=wallet_path,
-            wallet_hotkey=wallet_hotkey,
-            ask_for=[WO.NAME, WO.HOTKEY, WO.PATH],
-            validate=WV.WALLET,
-            return_wallet_and_hotkey=True,
-        )
-        # Determine the liquidity amount.
-        if liquidity_:
-            liquidity_ = Balance.from_tao(liquidity_)
-        else:
-            liquidity_ = prompt_liquidity("Enter the amount of liquidity")
-
-        # Determine price range
-        if price_low:
-            price_low = Balance.from_tao(price_low)
-        else:
-            price_low = prompt_liquidity("Enter liquidity position low price")
-
-        if price_high:
-            price_high = Balance.from_tao(price_high)
-        else:
-            price_high = prompt_liquidity(
-                "Enter liquidity position high price (must be greater than low price)"
-            )
-
-        if price_low >= price_high:
-            err_console.print("The low price must be lower than the high price.")
-            return False
-        logger.debug(
-            f"args:\n"
-            f"hotkey: {hotkey}\n"
-            f"netuid: {netuid}\n"
-            f"liquidity: {liquidity_}\n"
-            f"price_low: {price_low}\n"
-            f"price_high: {price_high}\n"
-        )
         return self._run_command(
-            liquidity.add_liquidity(
+            liquidity.add_liquidity_interactive(
                 subtensor=self.initialize_chain(network),
-                wallet=wallet,
-                hotkey_ss58=hotkey,
+                wallet_name=wallet_name,
+                wallet_path=wallet_path,
+                wallet_hotkey=wallet_hotkey,
                 netuid=netuid,
-                liquidity=liquidity_,
+                liquidity_=liquidity_,
                 price_low=price_low,
                 price_high=price_high,
+                tao_amount=tao_amount,
+                alpha_amount=alpha_amount,
                 prompt=prompt,
                 json_output=json_output,
             )
