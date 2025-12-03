@@ -398,3 +398,112 @@ def test_stake_movement(local_chain, wallet_setup):
         for stake in stakes:
             if stake["netuid"] == 0:
                 pytest.fail("Stake found in root netuid after transfer")
+
+    ################################
+    # TEST 3: Swap stake command
+    # Swap stake between subnets while keeping the same coldkey-hotkey pair
+    ################################
+
+    swap_seed_stake_result = exec_command_alice(
+        command="stake",
+        sub_command="add",
+        extra_args=[
+            "--netuid",
+            "4",
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--hotkey",
+            wallet_alice.hotkey_str,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--amount",
+            "25",
+            "--no-prompt",
+            "--era",
+            "144",
+            "--unsafe",
+            "--no-mev-protection",
+        ],
+    )
+    assert "✅ Finalized" in swap_seed_stake_result.stdout, (
+        swap_seed_stake_result.stderr
+    )
+
+    # Ensure stake was added to Alice's hotkey on netuid 4
+    alice_stake_list_before_swap_cmd = exec_command_alice(
+        command="stake",
+        sub_command="list",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--no-prompt",
+            "--verbose",
+            "--json-output",
+        ],
+    )
+
+    alice_stake_list_before_swap = json.loads(alice_stake_list_before_swap_cmd.stdout)
+    alice_stakes_before_swap = alice_stake_list_before_swap.get("stake_info", {})
+    found_stake_in_netuid_4 = False
+    for hotkey_ss58, stakes in alice_stakes_before_swap.items():
+        for stake in stakes:
+            if stake["netuid"] == 4:
+                found_stake_in_netuid_4 = True
+                break
+    if not found_stake_in_netuid_4:
+        pytest.fail("Stake not found in netuid 4 before swap")
+
+    # Swap stake from Alice's hotkey on netuid 4 -> Bob's hotkey on netuid 0
+    swap_result = exec_command_alice(
+        command="stake",
+        sub_command="swap",
+        extra_args=[
+            "--origin-netuid",
+            "4",
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--dest-netuid",
+            "0",
+            "--all",
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--no-prompt",
+        ],
+    )
+    assert "✅ Sent" in swap_result.stdout, swap_result.stderr
+
+    # Check Alice's stakes after swap
+    alice_stake_list_after_swap_cmd = exec_command_alice(
+        command="stake",
+        sub_command="list",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--no-prompt",
+            "--verbose",
+            "--json-output",
+        ],
+    )
+
+    alice_stake_list_after_swap = json.loads(alice_stake_list_after_swap_cmd.stdout)
+    alice_stakes_after_swap = alice_stake_list_after_swap.get("stake_info", {})
+    for hotkey_ss58, stakes in alice_stakes_after_swap.items():
+        for stake in stakes:
+            if stake["netuid"] == 4:
+                pytest.fail("Stake found in netuid 4 after swap")
+
+    print("Passed stake movement commands")
