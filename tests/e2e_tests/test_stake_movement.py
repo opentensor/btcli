@@ -275,3 +275,126 @@ def test_stake_movement(local_chain, wallet_setup):
             for stake in stakes:
                 if stake["netuid"] == 3:
                     assert stake["stake_value"] >= int(move_amount)
+
+    ################################
+    # TEST 2: Transfer stake command
+    # Transfer stake between coldkeys while keeping the same hotkey
+    ################################
+
+    transfer_amount = 20
+    transfer_fund_root_result = exec_command_alice(
+        command="stake",
+        sub_command="add",
+        extra_args=[
+            "--netuid",
+            "0",
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--hotkey",
+            wallet_alice.hotkey_str,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--amount",
+            transfer_amount,
+            "--no-prompt",
+            "--era",
+            "144",
+            "--unsafe",
+            "--no-mev-protection",
+        ],
+    )
+    assert "✅ Finalized" in transfer_fund_root_result.stdout, (
+        transfer_fund_root_result.stderr
+    )
+
+    # Ensure Bob doesn't have any stake in root netuid before transfer
+    bob_stake_list_before_transfer = exec_command_bob(
+        command="stake",
+        sub_command="list",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_bob,
+            "--wallet-name",
+            wallet_bob.name,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--no-prompt",
+            "--verbose",
+            "--json-output",
+        ],
+    )
+    assert bob_stake_list_before_transfer.stdout == ""
+
+    # Transfer stake from Alice's coldkey on netuid 0 -> Bob's coldkey on netuid 0
+    transfer_result = exec_command_alice(
+        command="stake",
+        sub_command="transfer",
+        extra_args=[
+            "--origin-netuid",
+            "0",
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--dest-netuid",
+            "0",
+            "--dest",
+            wallet_bob.coldkeypub.ss58_address,
+            "--all",
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--no-prompt",
+        ],
+    )
+    assert "✅ Sent" in transfer_result.stdout
+
+    # Check Bob's stakes after transfer
+    bob_stake_list_after_transfer = exec_command_bob(
+        command="stake",
+        sub_command="list",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_bob,
+            "--wallet-name",
+            wallet_bob.name,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--no-prompt",
+            "--verbose",
+            "--json-output",
+        ],
+    )
+    bob_stake_list_after_transfer = json.loads(bob_stake_list_after_transfer.stdout)
+    bob_stakes_after_transfer = bob_stake_list_after_transfer.get("stake_info", {})
+    for hotkey_ss58, stakes in bob_stakes_after_transfer.items():
+        for stake in stakes:
+            if stake["netuid"] == 0:
+                assert stake["stake_value"] >= int(transfer_amount)
+
+    # Check Alice's stakes after transfer
+    alice_stake_list_after_transfer = exec_command_alice(
+        command="stake",
+        sub_command="list",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--no-prompt",
+            "--verbose",
+            "--json-output",
+        ],
+    )
+
+    alice_stake_list_after_transfer = json.loads(alice_stake_list_after_transfer.stdout)
+    alice_stakes_after_transfer = alice_stake_list_after_transfer.get("stake_info", {})
+    for hotkey_ss58, stakes in alice_stakes_after_transfer.items():
+        for stake in stakes:
+            if stake["netuid"] == 0:
+                pytest.fail("Stake found in root netuid after transfer")
