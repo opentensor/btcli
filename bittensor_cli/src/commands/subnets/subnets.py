@@ -38,7 +38,6 @@ from bittensor_cli.src.bittensor.utils import (
     json_console,
     get_hotkey_pub_ss58,
     print_extrinsic_id,
-    check_img_mimetype,
 )
 
 if TYPE_CHECKING:
@@ -2352,132 +2351,44 @@ def create_identity_table(title: str = None):
     return table
 
 
-async def set_identity(
-    wallet: "Wallet",
-    subtensor: "SubtensorInterface",
-    netuid: int,
-    subnet_identity: dict,
-    prompt: bool = False,
-) -> tuple[bool, Optional[str]]:
-    """Set identity information for a subnet"""
-
-    if prompt and (logo_url := subnet_identity.get("logo_url")):
-        sn_exists, img_validation = await asyncio.gather(
-            subtensor.subnet_exists(netuid),
-            check_img_mimetype(subnet_identity["logo_url"]),
-        )
-        img_valid, content_type, err_msg = img_validation
-        if not img_valid:
-            confirmation_msg = f"Are you sure you want to use [blue]{logo_url}[/blue] as your image URL?"
-            if err_msg:
-                if not Confirm.ask(f"{err_msg}\n{confirmation_msg}"):
-                    return False, None
-            else:
-                if not Confirm.ask(
-                    f"The provided image's MIME type is {content_type}, which is not recognized as a valid"
-                    f" image MIME type.\n{confirmation_msg}"
-                ):
-                    return False, None
-
-    else:
-        sn_exists = await subtensor.subnet_exists(netuid)
-
-    if not sn_exists:
-        err_console.print(f"Subnet {netuid} does not exist")
-        return False, None
-
-    identity_data = {
-        "netuid": netuid,
-        "subnet_name": subnet_identity.get("subnet_name", ""),
-        "github_repo": subnet_identity.get("github_repo", ""),
-        "subnet_contact": subnet_identity.get("subnet_contact", ""),
-        "subnet_url": subnet_identity.get("subnet_url", ""),
-        "discord": subnet_identity.get("discord", ""),
-        "description": subnet_identity.get("description", ""),
-        "logo_url": subnet_identity.get("logo_url", ""),
-        "additional": subnet_identity.get("additional", ""),
-    }
-
-    if not unlock_key(wallet).success:
-        return False, None
-
-    if prompt:
-        if not Confirm.ask(
-            "Are you sure you want to set subnet's identity? This is subject to a fee."
-        ):
-            return False, None
-
-    call = await subtensor.substrate.compose_call(
-        call_module="SubtensorModule",
-        call_function="set_subnet_identity",
-        call_params=identity_data,
-    )
-
-    with console.status(
-        " :satellite: [dark_sea_green3]Setting subnet identity on-chain...",
-        spinner="earth",
-    ):
-        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
-            call, wallet
-        )
-
-        if not success:
-            err_console.print(f"[red]:cross_mark: Failed![/red] {err_msg}")
-            return False, None
-        ext_id = await ext_receipt.get_extrinsic_identifier()
-        await print_extrinsic_id(ext_receipt)
-        console.print(
-            ":white_heavy_check_mark: [dark_sea_green3]Successfully set subnet identity\n"
-        )
-
-        subnet = await subtensor.subnet(netuid)
-        identity = subnet.subnet_identity if subnet else None
-
-    if identity:
-        table = create_identity_table(title=f"New Subnet {netuid} Identity")
-        table.add_row("Netuid", str(netuid))
-        for key in [
-            "subnet_name",
-            "github_repo",
-            "subnet_contact",
-            "subnet_url",
-            "discord",
-            "description",
-            "logo_url",
-            "additional",
-        ]:
-            value = getattr(identity, key, None)
-            table.add_row(key, str(value) if value else "~")
-        console.print(table)
-
-    return True, ext_id
-
-
 async def get_identity(
     subtensor: "SubtensorInterface",
     netuid: int,
     title: str = None,
     json_output: bool = False,
 ) -> Optional[dict]:
-    """Fetch and display existing subnet identity information."""
+    """Fetch and display subnet owner's coldkey identity information."""
     if not title:
-        title = f"Current Subnet {netuid} Identity"
+        title = f"Subnet {netuid} Owner Identity"
 
     if not await subtensor.subnet_exists(netuid):
         print_error(f"Subnet {netuid} does not exist.")
         return None
 
     with console.status(
-        ":satellite: [bold green]Querying subnet identity...", spinner="earth"
+        ":satellite: [bold green]Querying subnet owner identity...", spinner="earth"
     ):
-        subnet = await subtensor.subnet(netuid)
-        identity = subnet.subnet_identity if subnet else None
+        # Get the subnet owner's coldkey address
+        subnet_owner = await subtensor.query(
+            module="SubtensorModule",
+            storage_function="SubnetOwner",
+            params=[netuid],
+        )
+        
+        if not subnet_owner:
+            err_console.print(
+                f"Could not find owner for subnet [blue]{netuid}[/blue]"
+            )
+            if json_output:
+                json_console.print("{}")
+            return {}
+        
+        # Get the owner's identity from wallets.get_id
+        identity = await get_id(subtensor, subnet_owner, title)
 
     if not identity:
         err_console.print(
-            f"Existing subnet identity not found"
-            f" for subnet [blue]{netuid}[/blue]"
-            f" on {subtensor}"
+            f"No identity found for subnet [blue]{netuid}[/blue] owner"
         )
         if json_output:
             json_console.print("{}")

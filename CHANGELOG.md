@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+## What's Changed
+* **BREAKING**: Removed `btcli subnets set-identity` command
+  * Subnet identities are now merged to the owner coldkey during migration
+  * `btcli subnets get-identity` now reads the identity from the subnet owner's coldkey
+  * Subnet creation with identity parameters (`btcli subnets create`) remains unchanged
+
 ## 9.15.3 /2025-11-17
 
 ## What's Changed

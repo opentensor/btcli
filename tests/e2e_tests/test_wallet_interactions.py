@@ -18,8 +18,8 @@ Verify commands:
 * btcli w overview
 * btcli w balance
 * btcli w transfer
-* btcli w set-identity
-* btcli w get-identity
+* btcli w set-identity (wallet coldkey identity)
+* btcli w get-identity (wallet coldkey identity)
 * btcli w sign
 """
 

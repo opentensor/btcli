@@ -11,8 +11,7 @@ Verify commands:
 
 * btcli s burn-cost
 * btcli subnets create
-* btcli subnets set-identity
-* btcli subnets get-identity
+* btcli subnets get-identity (reads from owner coldkey)
 * btcli subnets set-symbol
 * btcli subnets register
 * btcli subnets price
@@ -190,45 +189,8 @@ def test_staking(local_chain, wallet_setup):
     assert register_subnet_json_output["msg"] == "Already registered"
     assert register_subnet_json_output["extrinsic_identifier"] is None
 
-    # set identity
-    set_identity = exec_command_alice(
-        "subnets",
-        "set-identity",
-        extra_args=[
-            "--wallet-path",
-            wallet_path_alice,
-            "--wallet-name",
-            wallet_alice.name,
-            "--hotkey",
-            wallet_alice.hotkey_str,
-            "--chain",
-            "ws://127.0.0.1:9945",
-            "--netuid",
-            netuid,
-            "--subnet-name",
-            sn_name := "Test Subnet",
-            "--github-repo",
-            sn_github := "https://github.com/username/repo",
-            "--subnet-contact",
-            sn_contact := "alice@opentensor.dev",
-            "--subnet-url",
-            sn_url := "https://testsubnet.com",
-            "--discord",
-            sn_discord := "alice#1234",
-            "--description",
-            sn_description := "A test subnet for e2e testing",
-            "--logo-url",
-            sn_logo_url := "https://testsubnet.com/logo.png",
-            "--additional-info",
-            sn_add_info := "Created by Alice",
-            "--json-output",
-            "--no-prompt",
-        ],
-    )
-    set_identity_output = json.loads(set_identity.stdout)
-    assert set_identity_output["success"] is True
-    assert isinstance(set_identity_output["extrinsic_identifier"], str)
-
+    # Note: set-identity has been removed. Identities are now on owner coldkeys.
+    # get-identity will read from Alice's coldkey identity.
     get_identity = exec_command_alice(
         "subnets",
         "get-identity",
@@ -240,15 +202,10 @@ def test_staking(local_chain, wallet_setup):
             "--json-output",
         ],
     )
+    # get_identity now returns the owner's coldkey identity, not subnet-specific identity
+    # So we just verify the command runs successfully
     get_identity_output = json.loads(get_identity.stdout)
-    assert get_identity_output["subnet_name"] == sn_name
-    assert get_identity_output["github_repo"] == sn_github
-    assert get_identity_output["subnet_contact"] == sn_contact
-    assert get_identity_output["subnet_url"] == sn_url
-    assert get_identity_output["discord"] == sn_discord
-    assert get_identity_output["description"] == sn_description
-    assert get_identity_output["logo_url"] == sn_logo_url
-    assert get_identity_output["additional"] == sn_add_info
+    # The output will be the owner's coldkey identity (may be empty if not set)
 
     # set symbol
     set_symbol = exec_command_alice(
