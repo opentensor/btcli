@@ -166,3 +166,112 @@ def test_stake_movement(local_chain, wallet_setup):
         assert "✅ Finalized" in add_initial_stake_result.stdout, (
             add_initial_stake_result.stderr
         )
+
+    ############################
+    # TEST 1: Move stake command
+    # Move stake between hotkeys while keeping the same coldkey
+    ############################
+
+    # Add 25 TAO stake for move test for Alice
+    add_move_stake_result = exec_command_alice(
+        command="stake",
+        sub_command="add",
+        extra_args=[
+            "--netuid",
+            "2",
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--hotkey",
+            wallet_alice.hotkey_str,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--amount",
+            "25",
+            "--no-prompt",
+            "--era",
+            "144",
+            "--unsafe",
+            "--no-mev-protection",
+        ],
+    )
+    assert "✅ Finalized" in add_move_stake_result.stdout, add_move_stake_result.stderr
+
+    # List Alice's stakes prior to the move
+    alice_stake_before_move = exec_command_alice(
+        command="stake",
+        sub_command="list",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--no-prompt",
+            "--verbose",
+            "--json-output",
+        ],
+    )
+
+    # Check Alice's stakes before move to ensure sufficient stake on netuid 2
+    alice_stake_list_before_move = json.loads(alice_stake_before_move.stdout)
+    alice_stakes_before_move = alice_stake_list_before_move.get("stake_info", {})
+    for hotkey_ss58, stakes in alice_stakes_before_move.items():
+        if hotkey_ss58 == wallet_alice.hotkey.ss58_address:
+            for stake in stakes:
+                if stake["netuid"] == 2:
+                    assert stake["stake_value"] >= int(20)
+
+    # Move stake from Alice's hotkey on netuid 2 -> Bob's hotkey on netuid 3
+    move_amount = 20
+    move_result = exec_command_alice(
+        command="stake",
+        sub_command="move",
+        extra_args=[
+            "--origin-netuid",
+            "2",
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--dest-netuid",
+            "3",
+            "--dest",
+            wallet_bob.hotkey.ss58_address,
+            "--amount",
+            move_amount,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--no-prompt",
+        ],
+    )
+    assert "✅ Sent" in move_result.stdout
+
+    # Check Alice's stakes after move
+    alice_stake_after_move = exec_command_alice(
+        command="stake",
+        sub_command="list",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--no-prompt",
+            "--verbose",
+            "--json-output",
+        ],
+    )
+    # Assert stake was moved from Alice's hotkey on netuid 2 -> Bob's hotkey on netuid 3
+    alice_stake_list_after_move = json.loads(alice_stake_after_move.stdout)
+    alice_stakes_after_move = alice_stake_list_after_move.get("stake_info", {})
+    for hotkey_ss58, stakes in alice_stakes_after_move.items():
+        if hotkey_ss58 == wallet_bob.hotkey.ss58_address:
+            for stake in stakes:
+                if stake["netuid"] == 3:
+                    assert stake["stake_value"] >= int(move_amount)
