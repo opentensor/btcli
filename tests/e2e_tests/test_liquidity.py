@@ -1,4 +1,3 @@
-import pytest
 import asyncio
 import json
 import time
@@ -15,7 +14,6 @@ Verify commands:
 """
 
 
-@pytest.mark.parametrize("local_chain", [False], indirect=True)
 def test_liquidity(local_chain, wallet_setup):
     wallet_path_alice = "//Alice"
     netuid = 2
@@ -30,7 +28,6 @@ def test_liquidity(local_chain, wallet_setup):
         print(
             "Skipping turning off hyperparams freeze window. This indicates the call does not exist on the chain you are testing."
         )
-    time.sleep(50)
 
     # Register a subnet with sudo as Alice
     result = exec_command_alice(
@@ -63,6 +60,7 @@ def test_liquidity(local_chain, wallet_setup):
             "https://testsubnet.com/logo.png",
             "--no-prompt",
             "--json-output",
+            "--no-mev-protection",
         ],
     )
     result_output = json.loads(result.stdout)
@@ -92,7 +90,7 @@ def test_liquidity(local_chain, wallet_setup):
     assert result_output["success"] is False
     assert f"Subnet with netuid: {netuid} is not active" in result_output["err_msg"]
     assert result_output["positions"] == []
-    time.sleep(60)
+    time.sleep(40)
 
     # start emissions schedule
     start_subnet_emissions = exec_command_alice(
@@ -138,6 +136,7 @@ def test_liquidity(local_chain, wallet_setup):
             "--no-prompt",
             "--era",
             "144",
+            "--no-mev-protection",
         ],
     )
     assert "✅ Finalized" in stake_to_enable_v3.stdout, stake_to_enable_v3.stderr
