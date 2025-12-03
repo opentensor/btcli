@@ -2394,22 +2394,27 @@ async def get_identity(
             json_console.print("{}")
         return {}
     else:
+        # identity is a dict from wallet's get_id, which returns wallet identity fields
+        # Wallet identity fields are: name, url, image, discord, description, additional, github_repo
         table = create_identity_table(title=title)
         dict_out = {}
         table.add_row("Netuid", str(netuid))
+        table.add_row("Owner Address", str(subnet_owner))
+        
+        # Use wallet identity field names
         for key in [
-            "subnet_name",
-            "github_repo",
-            "subnet_contact",
-            "subnet_url",
+            "name",
+            "url",
+            "image",
             "discord",
             "description",
-            "logo_url",
             "additional",
+            "github_repo",
         ]:
-            value = getattr(identity, key, None)
+            value = identity.get(key) if isinstance(identity, dict) else getattr(identity, key, None)
             table.add_row(key, str(value) if value else "~")
             dict_out[key] = value
+        
         if json_output:
             json_console.print(json.dumps(dict_out))
         else:

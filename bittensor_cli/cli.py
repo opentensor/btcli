@@ -1140,7 +1140,6 @@ class CLIManager:
         # Subnets
         self.subnets_app.command("burn_cost", hidden=True)(self.subnets_burn_cost)
         self.subnets_app.command("pow_register", hidden=True)(self.subnets_pow_register)
-        self.subnets_app.command("set_identity", hidden=True)(self.subnets_set_identity)
         self.subnets_app.command("get_identity", hidden=True)(self.subnets_get_identity)
         self.subnets_app.command("check_start", hidden=True)(self.subnets_check_start)
         self.subnet_mechanisms_app.command("emissions-split", hidden=True)(
