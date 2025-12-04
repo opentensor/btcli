@@ -7344,11 +7344,6 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         netuid: Optional[int] = Options.netuid,
-        liquidity_: Optional[float] = typer.Option(
-            None,
-            "--liquidity",
-            help="Amount of liquidity to add to the subnet.",
-        ),
         price_low: Optional[float] = typer.Option(
             None,
             "--price-low",
@@ -7400,7 +7395,6 @@ class CLIManager:
                 wallet_path=wallet_path,
                 wallet_hotkey=wallet_hotkey,
                 netuid=netuid,
-                liquidity_=liquidity_,
                 price_low=price_low,
                 price_high=price_high,
                 tao_amount=tao_amount,

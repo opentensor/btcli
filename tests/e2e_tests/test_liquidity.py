@@ -204,7 +204,7 @@ def test_liquidity(local_chain, wallet_setup):
             wallet_alice.hotkey_str,
             "--netuid",
             netuid,
-            "--liquidity",
+            "--tao-amount",
             "1.0",
             "--price-low",
             "1.7",
