@@ -1,8 +1,12 @@
 name: E2E Subtensor Tests
 
 concurrency:
-  group: e2e-subtensor-${{ github.ref }}
+  group: e2e-subtensor-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
+permissions:
+  pull-requests: read
+  contents: read
 
 on:
   push:
@@ -10,24 +14,29 @@ on:
 
   pull_request:
     branches: [main, development, staging]
-    types: [ opened, synchronize, reopened, ready_for_review ]
+    types: [ opened, synchronize, reopened, ready_for_review, labeled, unlabeled ]
 
   workflow_dispatch:
     inputs:
-      verbose:
-        description: "Output more information when triggered manually"
+      docker_image_tag:
+        description: "Docker image tag"
         required: false
-        default: ""
+        type: choice
+        default: "devnet-ready"
+        options:
+          - main
+          - testnet
+          - devnet
+          - devnet-ready
 
 env:
   CARGO_TERM_COLOR: always
-  VERBOSE: ${{ github.event.inputs.verbose }}
 
 jobs:
 
   find-tests:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.draft == false && !startsWith(github.head_ref, 'changelog/')) }}
+    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.draft == false && (github.head_ref == '' || !startsWith(github.head_ref, 'changelog/'))) }}
     outputs:
       test-files: ${{ steps.get-tests.outputs.test-files }}
     steps:
@@ -38,21 +47,101 @@ jobs:
         id: get-tests
         run: |
           test_files=$(find tests/e2e_tests -name "test*.py" | jq -R -s -c 'split("\n") | map(select(. != ""))')
-          echo "::set-output name=test-files::$test_files"
+          echo "test-files=$test_files" >> "$GITHUB_OUTPUT"
         shell: bash
 
   pull-docker-image:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.draft == false && !startsWith(github.head_ref, 'changelog/')) }}
+    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.draft == false && (github.head_ref == '' || !startsWith(github.head_ref, 'changelog/'))) }}
+    outputs:
+      image-name: ${{ steps.set-image.outputs.image }}
     steps:
+      - name: Install GitHub CLI
+        if: github.event_name == 'pull_request'
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y --no-install-recommends -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" gh jq
+
+      - name: Set Docker image tag based on label or branch
+        id: set-image
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Event: $GITHUB_EVENT_NAME"
+          echo "Branch: $GITHUB_REF_NAME"
+
+          # Check if docker_image_tag input is provided (for workflow_dispatch)
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            docker_tag_input="${{ github.event.inputs.docker_image_tag }}"
+            if [[ -n "$docker_tag_input" ]]; then
+              image="ghcr.io/opentensor/subtensor-localnet:${docker_tag_input}"
+              echo "Using Docker image tag from workflow_dispatch input: ${docker_tag_input}"
+              echo "✅ Final selected image: $image"
+              echo "image=$image" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
+          echo "Reading labels ..."
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            # Use GitHub CLI to read labels (works for forks too)
+            labels=$(gh pr view ${{ github.event.pull_request.number }} -R ${{ github.repository }} --json labels --jq '.labels[].name' || echo "")
+            echo "Found labels: $labels"
+          else
+            labels=""
+          fi
+
+          image=""
+
+          for label in $labels; do
+            echo "Found label: $label"
+            case "$label" in
+              "subtensor-localnet:main")
+                image="ghcr.io/opentensor/subtensor-localnet:main"
+                break
+                ;;
+              "subtensor-localnet:testnet")
+                image="ghcr.io/opentensor/subtensor-localnet:testnet"
+                break
+                ;;
+              "subtensor-localnet:devnet")
+                image="ghcr.io/opentensor/subtensor-localnet:devnet"
+                break
+                ;;
+            esac
+          done
+
+          if [[ -z "$image" ]]; then
+            # fallback to default based on branch
+            if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+              # For PR, use base branch (target branch)
+              base_branch="${{ github.event.pull_request.base.ref }}"
+              if [[ "$base_branch" == "main" ]]; then
+                image="ghcr.io/opentensor/subtensor-localnet:main"
+              else
+                image="ghcr.io/opentensor/subtensor-localnet:devnet-ready"
+              fi
+            else
+              # For workflow_dispatch or push, use current branch
+              if [[ "${GITHUB_REF_NAME}" == "main" ]]; then
+                image="ghcr.io/opentensor/subtensor-localnet:main"
+              else
+                image="ghcr.io/opentensor/subtensor-localnet:devnet-ready"
+              fi
+            fi
+          fi
+
+          echo "✅ Final selected image: $image"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
       - name: Log in to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
 
       - name: Pull Docker Image
-        run: docker pull ghcr.io/opentensor/subtensor-localnet:devnet-ready
+        run: docker pull ${{ steps.set-image.outputs.image }}
 
       - name: Save Docker Image to Cache
-        run: docker save -o subtensor-localnet.tar ghcr.io/opentensor/subtensor-localnet:devnet-ready
+        run: docker save -o subtensor-localnet.tar ${{ steps.set-image.outputs.image }}
 
       - name: Upload Docker Image as Artifact
         uses: actions/upload-artifact@v4
@@ -93,5 +182,8 @@ jobs:
         run: docker load -i subtensor-localnet.tar
 
       - name: Run tests
+        env:
+          LOCALNET_IMAGE_NAME: ${{ needs.pull-docker-image.outputs.image-name }}
+          SKIP_PULL: "1"
         run: |
           uv run pytest ${{ matrix.test-file }} -s
