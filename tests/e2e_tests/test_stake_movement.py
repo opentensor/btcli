@@ -2,7 +2,7 @@ import asyncio
 import json
 import pytest
 
-from .utils import set_storage_extrinsic
+from .utils import find_stake_entries, set_storage_extrinsic
 
 
 @pytest.mark.parametrize("local_chain", [False], indirect=True)
@@ -217,12 +217,13 @@ def test_stake_movement(local_chain, wallet_setup):
 
     # Check Alice's stakes before move to ensure sufficient stake on netuid 2
     alice_stake_list_before_move = json.loads(alice_stake_before_move.stdout)
-    alice_stakes_before_move = alice_stake_list_before_move.get("stake_info", {})
-    for hotkey_ss58, stakes in alice_stakes_before_move.items():
-        if hotkey_ss58 == wallet_alice.hotkey.ss58_address:
-            for stake in stakes:
-                if stake["netuid"] == 2:
-                    assert stake["stake_value"] >= int(20)
+    alice_stakes_before_move = find_stake_entries(
+        alice_stake_list_before_move,
+        netuid=2,
+        hotkey_ss58=wallet_alice.hotkey.ss58_address,
+    )
+    for stake in alice_stakes_before_move:
+        assert stake["stake_value"] >= int(20)
 
     # Move stake from Alice's hotkey on netuid 2 -> Bob's hotkey on netuid 3
     move_amount = 20
@@ -269,12 +270,13 @@ def test_stake_movement(local_chain, wallet_setup):
     )
     # Assert stake was moved from Alice's hotkey on netuid 2 -> Bob's hotkey on netuid 3
     alice_stake_list_after_move = json.loads(alice_stake_after_move.stdout)
-    alice_stakes_after_move = alice_stake_list_after_move.get("stake_info", {})
-    for hotkey_ss58, stakes in alice_stakes_after_move.items():
-        if hotkey_ss58 == wallet_bob.hotkey.ss58_address:
-            for stake in stakes:
-                if stake["netuid"] == 3:
-                    assert stake["stake_value"] >= int(move_amount)
+    bob_stakes_after_move = find_stake_entries(
+        alice_stake_list_after_move,
+        netuid=3,
+        hotkey_ss58=wallet_bob.hotkey.ss58_address,
+    )
+    for stake in bob_stakes_after_move:
+        assert stake["stake_value"] >= move_amount
 
     ################################
     # TEST 2: Transfer stake command
@@ -369,11 +371,12 @@ def test_stake_movement(local_chain, wallet_setup):
         ],
     )
     bob_stake_list_after_transfer = json.loads(bob_stake_list_after_transfer.stdout)
-    bob_stakes_after_transfer = bob_stake_list_after_transfer.get("stake_info", {})
-    for hotkey_ss58, stakes in bob_stakes_after_transfer.items():
-        for stake in stakes:
-            if stake["netuid"] == 0:
-                assert stake["stake_value"] >= int(transfer_amount)
+    bob_stakes_after_transfer = find_stake_entries(
+        bob_stake_list_after_transfer,
+        netuid=0,
+    )
+    for stake in bob_stakes_after_transfer:
+        assert stake["stake_value"] >= transfer_amount
 
     # Check Alice's stakes after transfer
     alice_stake_list_after_transfer = exec_command_alice(
@@ -393,11 +396,12 @@ def test_stake_movement(local_chain, wallet_setup):
     )
 
     alice_stake_list_after_transfer = json.loads(alice_stake_list_after_transfer.stdout)
-    alice_stakes_after_transfer = alice_stake_list_after_transfer.get("stake_info", {})
-    for hotkey_ss58, stakes in alice_stakes_after_transfer.items():
-        for stake in stakes:
-            if stake["netuid"] == 0:
-                pytest.fail("Stake found in root netuid after transfer")
+    alice_stakes_after_transfer = find_stake_entries(
+        alice_stake_list_after_transfer,
+        netuid=0,
+    )
+    if alice_stakes_after_transfer:
+        pytest.fail("Stake found in root netuid after transfer")
 
     ################################
     # TEST 3: Swap stake command
@@ -449,14 +453,11 @@ def test_stake_movement(local_chain, wallet_setup):
     )
 
     alice_stake_list_before_swap = json.loads(alice_stake_list_before_swap_cmd.stdout)
-    alice_stakes_before_swap = alice_stake_list_before_swap.get("stake_info", {})
-    found_stake_in_netuid_4 = False
-    for hotkey_ss58, stakes in alice_stakes_before_swap.items():
-        for stake in stakes:
-            if stake["netuid"] == 4:
-                found_stake_in_netuid_4 = True
-                break
-    if not found_stake_in_netuid_4:
+    alice_stakes_before_swap = find_stake_entries(
+        alice_stake_list_before_swap,
+        netuid=4,
+    )
+    if not alice_stakes_before_swap:
         pytest.fail("Stake not found in netuid 4 before swap")
 
     # Swap stake from Alice's hotkey on netuid 4 -> Bob's hotkey on netuid 0
@@ -500,10 +501,11 @@ def test_stake_movement(local_chain, wallet_setup):
     )
 
     alice_stake_list_after_swap = json.loads(alice_stake_list_after_swap_cmd.stdout)
-    alice_stakes_after_swap = alice_stake_list_after_swap.get("stake_info", {})
-    for hotkey_ss58, stakes in alice_stakes_after_swap.items():
-        for stake in stakes:
-            if stake["netuid"] == 4:
-                pytest.fail("Stake found in netuid 4 after swap")
+    alice_stakes_after_swap = find_stake_entries(
+        alice_stake_list_after_swap,
+        netuid=4,
+    )
+    if alice_stakes_after_swap:
+        pytest.fail("Stake found in netuid 4 after swap")
 
     print("Passed stake movement commands")
