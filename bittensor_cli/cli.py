@@ -7388,12 +7388,18 @@ class CLIManager:
                 show_default=False,
             )
 
+        wallet = self.wallet_ask(
+            wallet_name=wallet_name,
+            wallet_path=wallet_path,
+            wallet_hotkey=wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY, WO.PATH],
+            validate=WV.WALLET,
+        )
+
         return self._run_command(
             liquidity.add_liquidity_interactive(
                 subtensor=self.initialize_chain(network),
-                wallet_name=wallet_name,
-                wallet_path=wallet_path,
-                wallet_hotkey=wallet_hotkey,
+                wallet=wallet,
                 netuid=netuid,
                 price_low=price_low,
                 price_high=price_high,
