@@ -652,6 +652,26 @@ class SubtensorInterface:
         )
         return result
 
+    async def total_networks(
+        self, block_hash: Optional[str] = None, reuse_block: bool = False
+    ) -> int:
+        """
+        Returns the total number of subnets in the Bittensor network.
+
+        :param block_hash: The hash of the blockchain block number at which to check the subnet existence.
+        :param reuse_block: Whether to reuse the last-used block hash.
+
+        :return: The total number of subnets in the network.
+        """
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="TotalNetworks",
+            params=[],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+        return result
+
     async def get_subnet_state(
         self, netuid: int, block_hash: Optional[str] = None
     ) -> Optional["SubnetState"]:
@@ -1832,13 +1852,14 @@ class SubtensorInterface:
         coldkey_ss58: str,
         block_hash: Optional[str] = None,
         reuse_block: bool = False,
-    ) -> str:
+    ) -> dict:
         """
         Retrieves the root claim type for a specific coldkey.
 
         Root claim types control how staking emissions are handled on the ROOT network (subnet 0):
         - "Swap": Future Root Alpha Emissions are swapped to TAO at claim time and added to your root stake
         - "Keep": Future Root Alpha Emissions are kept as Alpha
+        - "KeepSubnets": Specific subnets kept as Alpha, rest swapped to TAO
 
         Args:
             coldkey_ss58: The SS58 address of the coldkey to query.
@@ -1846,7 +1867,10 @@ class SubtensorInterface:
             reuse_block: Whether to reuse the last-used blockchain block hash.
 
         Returns:
-            str: The root claim type for the coldkey ("Swap" or "Keep").
+            dict: Claim type information in one of these formats:
+                - {"type": "Swap"}
+                - {"type": "Keep"}
+                - {"type": "KeepSubnets", "subnets": [1, 5, 10, ...]}
         """
         result = await self.query(
             module="SubtensorModule",
@@ -1857,14 +1881,22 @@ class SubtensorInterface:
         )
 
         if result is None:
-            return "Swap"
-        return next(iter(result.keys()))
+            return {"type": "Swap"}
+
+        claim_type_key = next(iter(result.keys()))
+
+        if claim_type_key == "KeepSubnets":
+            subnets_data = result["KeepSubnets"]["subnets"]
+            subnet_list = sorted([subnet for subnet in subnets_data[0]])
+            return {"type": "KeepSubnets", "subnets": subnet_list}
+        else:
+            return {"type": claim_type_key}
 
     async def get_all_coldkeys_claim_type(
         self,
         block_hash: Optional[str] = None,
         reuse_block: bool = False,
-    ) -> dict[str, str]:
+    ) -> dict[str, dict]:
         """
         Retrieves all root claim types for all coldkeys in the network.
 
@@ -1873,7 +1905,7 @@ class SubtensorInterface:
             reuse_block: Whether to reuse the last-used blockchain block hash.
 
         Returns:
-            dict[str, str]: A dictionary mapping coldkey SS58 addresses to their root claim type ("Keep" or "Swap").
+            dict[str, dict]: Mapping of coldkey SS58 addresses to claim type dicts
         """
         result = await self.substrate.query_map(
             module="SubtensorModule",
@@ -1884,10 +1916,20 @@ class SubtensorInterface:
         )
 
         root_claim_types = {}
-        async for coldkey, claim_type in result:
+        async for coldkey, claim_type_data in result:
             coldkey_ss58 = decode_account_id(coldkey[0])
-            claim_type = next(iter(claim_type.value.keys()))
-            root_claim_types[coldkey_ss58] = claim_type
+
+            claim_type_key = next(iter(claim_type_data.value.keys()))
+
+            if claim_type_key == "KeepSubnets":
+                subnets_data = claim_type_data.value["KeepSubnets"]["subnets"]
+                subnet_list = sorted([subnet for subnet in subnets_data[0]])
+                root_claim_types[coldkey_ss58] = {
+                    "type": "KeepSubnets",
+                    "subnets": subnet_list,
+                }
+            else:
+                root_claim_types[coldkey_ss58] = {"type": claim_type_key}
 
         return root_claim_types
 
