@@ -1,4 +1,3 @@
-import pytest
 from time import sleep
 
 from bittensor_cli.src.bittensor.balances import Balance
@@ -25,7 +24,6 @@ Verify commands:
 """
 
 
-@pytest.mark.parametrize("local_chain", [False], indirect=True)
 def test_wallet_overview_inspect(local_chain, wallet_setup):
     """
     Test the overview and inspect commands of the wallet by interaction with subnets
@@ -45,7 +43,6 @@ def test_wallet_overview_inspect(local_chain, wallet_setup):
 
     # Create wallet for Alice
     keypair, wallet, wallet_path, exec_command = wallet_setup(wallet_path_name)
-    sleep(70)
 
     # Register a subnet with sudo as Alice
     result = exec_command(
@@ -77,6 +74,7 @@ def test_wallet_overview_inspect(local_chain, wallet_setup):
             "--additional-info",
             "Test subnet",
             "--no-prompt",
+            "--no-mev-protection",
         ],
     )
     assert f"✅ Registered subnetwork with netuid: {netuid}" in result.stdout
