@@ -210,14 +210,14 @@ def calculate_max_liquidity_from_balances(
     price_high: Balance,
 ) -> tuple[Balance, Balance, Balance]:
     """Calculate the maximum liquidity that can be provided given TAO and Alpha balances.
-    
+
     Arguments:
         tao_balance: Available TAO balance
         alpha_balance: Available Alpha balance
         current_price: Current subnet price (Alpha/TAO)
         price_low: Lower bound of the price range
         price_high: Upper bound of the price range
-    
+
     Returns:
         tuple[Balance, Balance, Balance]:
             - Maximum liquidity that can be provided
@@ -227,17 +227,19 @@ def calculate_max_liquidity_from_balances(
     sqrt_price_low = math.sqrt(price_low.tao)
     sqrt_price_high = math.sqrt(price_high.tao)
     sqrt_current_price = math.sqrt(current_price.tao)
-    
+
     # Case 1: Current price is below the range (only Alpha needed)
     if sqrt_current_price < sqrt_price_low:
         # L = alpha / (1/sqrt_price_low - 1/sqrt_price_high)
-        max_liquidity_rao = alpha_balance.rao / (1 / sqrt_price_low - 1 / sqrt_price_high)
+        max_liquidity_rao = alpha_balance.rao / (
+            1 / sqrt_price_low - 1 / sqrt_price_high
+        )
         return (
             Balance.from_rao(int(max_liquidity_rao)),
             Balance.from_rao(0),  # No TAO needed
             alpha_balance,
         )
-    
+
     # Case 2: Current price is above the range (only TAO needed)
     elif sqrt_current_price > sqrt_price_high:
         # L = tao / (sqrt_price_high - sqrt_price_low)
@@ -247,26 +249,26 @@ def calculate_max_liquidity_from_balances(
             tao_balance,
             Balance.from_rao(0),  # No Alpha needed
         )
-    
+
     # Case 3: Current price is within the range (both TAO and Alpha needed)
     else:
         # Calculate liquidity from TAO: L = tao / (sqrt_current_price - sqrt_price_low)
         liquidity_from_tao = tao_balance.rao / (sqrt_current_price - sqrt_price_low)
-        
+
         # Calculate liquidity from Alpha: L = alpha / (1/sqrt_current_price - 1/sqrt_price_high)
         liquidity_from_alpha = alpha_balance.rao / (
             1 / sqrt_current_price - 1 / sqrt_price_high
         )
-        
+
         # Maximum liquidity is limited by the smaller of the two
         max_liquidity_rao = min(liquidity_from_tao, liquidity_from_alpha)
-        
+
         # Calculate the actual amounts needed
         tao_needed_rao = max_liquidity_rao * (sqrt_current_price - sqrt_price_low)
         alpha_needed_rao = max_liquidity_rao * (
             1 / sqrt_current_price - 1 / sqrt_price_high
         )
-        
+
         return (
             Balance.from_rao(int(max_liquidity_rao)),
             Balance.from_rao(int(tao_needed_rao)),
@@ -281,34 +283,34 @@ def calculate_alpha_from_tao(
     price_high: Balance,
 ) -> Balance:
     """Calculate the Alpha amount needed for a given TAO amount.
-    
+
     Arguments:
         tao_amount: TAO amount to provide
         current_price: Current subnet price (Alpha/TAO)
         price_low: Lower bound of the price range
         price_high: Upper bound of the price range
-    
+
     Returns:
         Balance: Alpha amount needed
     """
     sqrt_price_low = math.sqrt(price_low.tao)
     sqrt_price_high = math.sqrt(price_high.tao)
     sqrt_current_price = math.sqrt(current_price.tao)
-    
+
     # If current price is below range, no TAO should be provided
     if sqrt_current_price < sqrt_price_low:
         return Balance.from_rao(0)
-    
+
     # If current price is above range, no Alpha is needed
     if sqrt_current_price > sqrt_price_high:
         return Balance.from_rao(0)
-    
+
     # Calculate liquidity from TAO
     liquidity_rao = tao_amount.rao / (sqrt_current_price - sqrt_price_low)
-    
+
     # Calculate Alpha needed for this liquidity
     alpha_needed_rao = liquidity_rao * (1 / sqrt_current_price - 1 / sqrt_price_high)
-    
+
     return Balance.from_rao(int(alpha_needed_rao))
 
 
@@ -319,32 +321,32 @@ def calculate_tao_from_alpha(
     price_high: Balance,
 ) -> Balance:
     """Calculate the TAO amount needed for a given Alpha amount.
-    
+
     Arguments:
         alpha_amount: Alpha amount to provide
         current_price: Current subnet price (Alpha/TAO)
         price_low: Lower bound of the price range
         price_high: Upper bound of the price range
-    
+
     Returns:
         Balance: TAO amount needed
     """
     sqrt_price_low = math.sqrt(price_low.tao)
     sqrt_price_high = math.sqrt(price_high.tao)
     sqrt_current_price = math.sqrt(current_price.tao)
-    
+
     # If current price is above range, no Alpha should be provided
     if sqrt_current_price > sqrt_price_high:
         return Balance.from_rao(0)
-    
+
     # If current price is below range, no TAO is needed
     if sqrt_current_price < sqrt_price_low:
         return Balance.from_rao(0)
-    
+
     # Calculate liquidity from Alpha
     liquidity_rao = alpha_amount.rao / (1 / sqrt_current_price - 1 / sqrt_price_high)
-    
+
     # Calculate TAO needed for this liquidity
     tao_needed_rao = liquidity_rao * (sqrt_current_price - sqrt_price_low)
-    
+
     return Balance.from_rao(int(tao_needed_rao))

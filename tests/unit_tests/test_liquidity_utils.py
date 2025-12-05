@@ -1,4 +1,5 @@
 """Unit tests for liquidity utility functions."""
+
 import math
 import pytest
 from bittensor_cli.src.bittensor.balances import Balance
@@ -64,7 +65,9 @@ class TestLiquidityCalculations:
         assert max_liquidity.rao > 0, "Liquidity should be calculated"
         # Should not exceed available balances
         assert max_tao.rao <= tao_balance.rao, "TAO needed should not exceed balance"
-        assert max_alpha.rao <= alpha_balance.rao, "Alpha needed should not exceed balance"
+        assert max_alpha.rao <= alpha_balance.rao, (
+            "Alpha needed should not exceed balance"
+        )
 
     def test_calculate_alpha_from_tao_within_range(self):
         """Test calculating Alpha amount from TAO when price is within range."""
@@ -162,5 +165,6 @@ class TestLiquidityCalculations:
         )
 
         # Should be approximately equal (within rounding error)
-        assert abs(tao_back.rao - tao_amount.rao) < 1000, \
+        assert abs(tao_back.rao - tao_amount.rao) < 1000, (
             "Reciprocal calculation should yield similar result"
+        )

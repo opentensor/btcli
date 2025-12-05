@@ -7379,7 +7379,7 @@ class CLIManager:
     ):
         """Add liquidity to the swap (as a combination of TAO + Alpha)."""
         self.verbosity_handler(quiet, verbose, json_output)
-        
+
         # Step 1: Ask for netuid
         if not netuid:
             netuid = Prompt.ask(

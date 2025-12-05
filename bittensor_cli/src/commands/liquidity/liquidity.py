@@ -37,6 +37,7 @@ if TYPE_CHECKING:
     from bittensor_wallet import Wallet
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 
+
 async def add_liquidity_interactive(
     subtensor: "SubtensorInterface",
     wallet: "Wallet",
@@ -49,7 +50,7 @@ async def add_liquidity_interactive(
     json_output: bool,
 ) -> tuple[bool, str]:
     """Interactive flow for adding liquidity based on the improved logic.
-    
+
     Steps:
     1. Check if subnet exists
     2. Ask user to enter low and high position prices
@@ -63,22 +64,24 @@ async def add_liquidity_interactive(
     # Step 2: Check if the subnet exists
     if not await subtensor.subnet_exists(netuid=netuid):
         return False, f"Subnet with netuid: {netuid} does not exist in {subtensor}."
-    
+
     # Check if user liquidity is enabled for this subnet
-    with console.status(":satellite: Checking user liquidity status...", spinner="aesthetic"):
+    with console.status(
+        ":satellite: Checking user liquidity status...", spinner="aesthetic"
+    ):
         hyperparams = await subtensor.get_subnet_hyperparameters(netuid=netuid)
-    
+
     if not hyperparams:
         return False, f"Failed to get hyperparameters for subnet {netuid}."
-    
+
     if not hyperparams.user_liquidity_enabled:
         err_console.print(
             f"[red]User liquidity is disabled for subnet {netuid}.[/red]\n"
         )
         return False, f"User liquidity is disabled for subnet {netuid}."
-    
+
     console.print(f"[green]✓ User liquidity is enabled for subnet {netuid}[/green]\n")
-    
+
     # Step 3: Ask user to enter low and high position prices
     if price_low is None:
         while True:
@@ -89,7 +92,7 @@ async def add_liquidity_interactive(
                 price_low = price_low_input
                 break
             console.print("[red]Price must be greater than 0[/red]")
-    
+
     if price_high is None:
         while True:
             price_high_input = FloatPrompt.ask(
@@ -98,50 +101,60 @@ async def add_liquidity_interactive(
             if price_high_input > price_low:
                 price_high = price_high_input
                 break
-            console.print(f"[red]High price must be greater than low price ({price_low})[/red]")
-    
+            console.print(
+                f"[red]High price must be greater than low price ({price_low})[/red]"
+            )
+
     price_low_balance = Balance.from_tao(price_low)
     price_high_balance = Balance.from_tao(price_high)
-    
+
     # Step 4: Fetch current SN price
-    with console.status(":satellite: Fetching current subnet price...", spinner="aesthetic"):
+    with console.status(
+        ":satellite: Fetching current subnet price...", spinner="aesthetic"
+    ):
         current_price = await subtensor.get_subnet_price(netuid=netuid)
-    
+
     console.print(f"Current subnet price: [cyan]{current_price.tao:.6f} τ[/cyan]")
-    
+
     # Determine hotkey to use - default to wallet's hotkey
     hotkey_ss58 = get_hotkey_pub_ss58(wallet)
-    
+
     # Step 5: Determine which case we're in based on price position
     liquidity_to_add = None
     tao_to_provide = Balance.from_tao(0)
     alpha_to_provide = Balance.from_tao(0)
-    
+
     # Case 1: Low price >= current price (only Alpha needed)
     if price_low >= current_price.tao:
         console.print(
             f"\n[yellow]The low price ({price_low:.6f}) is higher than or equal to the current price ({current_price.tao:.6f}).[/yellow]"
         )
-        console.print("[yellow]Only Alpha tokens are needed for this position.[/yellow]\n")
-        
+        console.print(
+            "[yellow]Only Alpha tokens are needed for this position.[/yellow]\n"
+        )
+
         # Fetch Alpha balance
-        with console.status(":satellite: Fetching Alpha balance...", spinner="aesthetic"):
+        with console.status(
+            ":satellite: Fetching Alpha balance...", spinner="aesthetic"
+        ):
             alpha_balance_available = await subtensor.get_stake_for_coldkey_and_hotkey(
                 hotkey_ss58=hotkey_ss58,
                 coldkey_ss58=wallet.coldkeypub.ss58_address,
-                netuid=netuid
+                netuid=netuid,
             )
-        
-        console.print(f"Available Alpha: {alpha_balance_available.tao:.6f} α (for subnet {netuid})\n")
-        
+
+        console.print(
+            f"Available Alpha: {alpha_balance_available.tao:.6f} α (for subnet {netuid})\n"
+        )
+
         # Ask for Alpha amount
         if alpha_amount is None:
             alpha_amount = FloatPrompt.ask(
                 f"[{COLORS.G.SUBHEAD_MAIN}]Enter the amount of Alpha to provide[/{COLORS.G.SUBHEAD_MAIN}]"
             )
-        
+
         alpha_to_provide = Balance.from_tao(alpha_amount)
-        
+
         # Check if user has enough Alpha
         if alpha_to_provide > alpha_balance_available:
             err_console.print(
@@ -150,7 +163,7 @@ async def add_liquidity_interactive(
                 f"Available: {alpha_balance_available.tao:.6f} α (for subnet {netuid})"
             )
             return False, "Insufficient Alpha balance."
-        
+
         # Calculate liquidity from Alpha
         # L = alpha / (1/sqrt_price_low - 1/sqrt_price_high)
         sqrt_price_low = math.sqrt(price_low)
@@ -158,28 +171,32 @@ async def add_liquidity_interactive(
         liquidity_to_add = Balance.from_rao(
             int(alpha_to_provide.rao / (1 / sqrt_price_low - 1 / sqrt_price_high))
         )
-    
+
     # Case 2: High price <= current price (only TAO needed)
     elif price_high <= current_price.tao:
         console.print(
             f"\n[yellow]The high price ({price_high:.6f}) is lower than or equal to the current price ({current_price.tao:.6f}).[/yellow]"
         )
-        console.print("[yellow]Only TAO tokens are needed for this position.[/yellow]\n")
-        
+        console.print(
+            "[yellow]Only TAO tokens are needed for this position.[/yellow]\n"
+        )
+
         # Fetch TAO balance
         with console.status(":satellite: Fetching TAO balance...", spinner="aesthetic"):
-            tao_balance_available = await subtensor.get_balance(wallet.coldkeypub.ss58_address)
-        
+            tao_balance_available = await subtensor.get_balance(
+                wallet.coldkeypub.ss58_address
+            )
+
         console.print(f"Available TAO: {tao_balance_available.tao:.6f} τ\n")
-        
+
         # Ask for TAO amount
         if tao_amount is None:
             tao_amount = FloatPrompt.ask(
                 f"[{COLORS.G.SUBHEAD_MAIN}]Enter the amount of TAO to provide[/{COLORS.G.SUBHEAD_MAIN}]"
             )
-        
+
         tao_to_provide = Balance.from_tao(tao_amount)
-        
+
         # Check if user has enough TAO
         if tao_to_provide > tao_balance_available:
             err_console.print(
@@ -188,7 +205,7 @@ async def add_liquidity_interactive(
                 f"Available: {tao_balance_available.tao:.6f} τ"
             )
             return False, "Insufficient TAO balance."
-        
+
         # Calculate liquidity from TAO
         # L = tao / (sqrt_price_high - sqrt_price_low)
         sqrt_price_low = math.sqrt(price_low)
@@ -196,14 +213,16 @@ async def add_liquidity_interactive(
         liquidity_to_add = Balance.from_rao(
             int(tao_to_provide.rao / (sqrt_price_high - sqrt_price_low))
         )
-    
+
     # Case 3: Current price is within range (both TAO and Alpha needed)
     else:
         console.print(
             f"\n[green]The current price ({current_price.tao:.6f}) is within the range ({price_low:.6f} - {price_high:.6f}).[/green]"
         )
-        console.print("[green]Both TAO and Alpha tokens are needed for this position.[/green]\n")
-        
+        console.print(
+            "[green]Both TAO and Alpha tokens are needed for this position.[/green]\n"
+        )
+
         # Fetch TAO and Alpha balances
         with console.status(":satellite: Fetching balances...", spinner="aesthetic"):
             tao_balance_available, alpha_balance_available = await asyncio.gather(
@@ -211,25 +230,27 @@ async def add_liquidity_interactive(
                 subtensor.get_stake_for_coldkey_and_hotkey(
                     hotkey_ss58=hotkey_ss58,
                     coldkey_ss58=wallet.coldkeypub.ss58_address,
-                    netuid=netuid
-                )
+                    netuid=netuid,
+                ),
             )
-        
+
         # Calculate maximum liquidity
-        max_liquidity, max_tao_needed, max_alpha_needed = calculate_max_liquidity_from_balances(
-            tao_balance=tao_balance_available,
-            alpha_balance=alpha_balance_available,
-            current_price=current_price,
-            price_low=price_low_balance,
-            price_high=price_high_balance,
+        max_liquidity, max_tao_needed, max_alpha_needed = (
+            calculate_max_liquidity_from_balances(
+                tao_balance=tao_balance_available,
+                alpha_balance=alpha_balance_available,
+                current_price=current_price,
+                price_low=price_low_balance,
+                price_high=price_high_balance,
+            )
         )
-        
+
         console.print(
             f"\n[cyan]Maximum liquidity that can be provided:[/cyan]\n"
             f"  TAO:   {max_tao_needed.tao:.6f} τ\n"
             f"  Alpha: {max_alpha_needed.tao:.6f} α (for subnet {netuid})\n"
         )
-        
+
         # Determine which amount to use based on what was provided
         if tao_amount is not None and alpha_amount is not None:
             # Both provided - use TAO amount and calculate Alpha
@@ -245,16 +266,16 @@ async def add_liquidity_interactive(
             choice = Prompt.ask(
                 f"[{COLORS.G.SUBHEAD_MAIN}]Enter 'tao' to specify TAO amount or 'alpha' to specify Alpha amount[/{COLORS.G.SUBHEAD_MAIN}]",
                 choices=["tao", "alpha"],
-                default="tao"
+                default="tao",
             )
-        
+
         if choice == "tao":
             if tao_amount is None:
                 tao_amount = FloatPrompt.ask(
                     f"[{COLORS.G.SUBHEAD_MAIN}]Enter the amount of TAO to provide (max: {max_tao_needed.tao:.6f})[/{COLORS.G.SUBHEAD_MAIN}]"
                 )
             tao_to_provide = Balance.from_tao(tao_amount)
-            
+
             # Calculate corresponding Alpha
             alpha_to_provide = calculate_alpha_from_tao(
                 tao_amount=tao_to_provide,
@@ -262,11 +283,11 @@ async def add_liquidity_interactive(
                 price_low=price_low_balance,
                 price_high=price_high_balance,
             )
-            
+
             console.print(
                 f"[cyan]This will require {alpha_to_provide.tao:.6f} Alpha tokens[/cyan]"
             )
-            
+
             # Check if user has enough balance
             if tao_to_provide > tao_balance_available:
                 err_console.print(
@@ -275,7 +296,7 @@ async def add_liquidity_interactive(
                     f"Available: {tao_balance_available.tao:.6f} τ"
                 )
                 return False, "Insufficient TAO balance."
-            
+
             if alpha_to_provide > alpha_balance_available:
                 err_console.print(
                     f"[red]Insufficient Alpha balance.[/red]\n"
@@ -283,7 +304,7 @@ async def add_liquidity_interactive(
                     f"Available: {alpha_balance_available.tao:.6f} α (for subnet {netuid})"
                 )
                 return False, "Insufficient Alpha balance."
-            
+
             # Calculate liquidity
             sqrt_current_price = math.sqrt(current_price.tao)
             sqrt_price_low = math.sqrt(price_low)
@@ -296,7 +317,7 @@ async def add_liquidity_interactive(
                     f"[{COLORS.G.SUBHEAD_MAIN}]Enter the amount of Alpha to provide (max: {max_alpha_needed.tao:.6f})[/{COLORS.G.SUBHEAD_MAIN}]"
                 )
             alpha_to_provide = Balance.from_tao(alpha_amount)
-            
+
             # Calculate corresponding TAO
             tao_to_provide = calculate_tao_from_alpha(
                 alpha_amount=alpha_to_provide,
@@ -304,11 +325,11 @@ async def add_liquidity_interactive(
                 price_low=price_low_balance,
                 price_high=price_high_balance,
             )
-            
+
             console.print(
                 f"[cyan]This will require {tao_to_provide.tao:.6f} TAO tokens[/cyan]"
             )
-            
+
             # Check if user has enough balance
             if tao_to_provide > tao_balance_available:
                 err_console.print(
@@ -317,7 +338,7 @@ async def add_liquidity_interactive(
                     f"Available: {tao_balance_available.tao:.6f} τ"
                 )
                 return False, "Insufficient TAO balance."
-            
+
             if alpha_to_provide > alpha_balance_available:
                 err_console.print(
                     f"[red]Insufficient Alpha balance.[/red]\n"
@@ -325,14 +346,17 @@ async def add_liquidity_interactive(
                     f"Available: {alpha_balance_available.tao:.6f} α (for subnet {netuid})"
                 )
                 return False, "Insufficient Alpha balance."
-            
+
             # Calculate liquidity
             sqrt_current_price = math.sqrt(current_price.tao)
             sqrt_price_high = math.sqrt(price_high)
             liquidity_to_add = Balance.from_rao(
-                int(alpha_to_provide.rao / (1 / sqrt_current_price - 1 / sqrt_price_high))
+                int(
+                    alpha_to_provide.rao
+                    / (1 / sqrt_current_price - 1 / sqrt_price_high)
+                )
             )
-    
+
     # Step 6: Confirm and execute the extrinsic
     if prompt:
         console.print(
@@ -347,7 +371,7 @@ async def add_liquidity_interactive(
 
         if not Confirm.ask("Would you like to continue?"):
             return False, "User cancelled operation."
-    
+
     # Unlock wallet before executing extrinsic
     if not (ulw := unlock_key(wallet)).success:
         return False, ulw.message
@@ -361,12 +385,12 @@ async def add_liquidity_interactive(
         price_low=price_low_balance,
         price_high=price_high_balance,
     )
-    
+
     ext_id = None
     if ext_receipt:
         await print_extrinsic_id(ext_receipt)
         ext_id = await ext_receipt.get_extrinsic_identifier()
-    
+
     if json_output:
         json_console.print(
             json.dumps(
@@ -380,7 +404,7 @@ async def add_liquidity_interactive(
             )
         else:
             err_console.print(f"[red]Error: {message}[/red]")
-    
+
     return success, message
 
 
