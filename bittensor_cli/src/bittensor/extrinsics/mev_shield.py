@@ -16,18 +16,19 @@ async def encrypt_extrinsic(
     signed_extrinsic: "GenericExtrinsic",
 ) -> "GenericCall":
     """
-    Encrypts a signed extrinsic using MEV Shield.
+    Encrypt a signed extrinsic using MEV Shield.
 
-    Takes a pre-signed extrinsic and returns a `MevShield.submit_encrypted` call.
-    The inner extrinsic must be signed with `nonce = current_nonce + 1` because it
-    executes after the wrapper.
+    Takes a pre-signed extrinsic and returns a MevShield.submit_encrypted call.
 
-    :param subtensor: SubtensorInterface instance for chain queries.
-    :param signed_extrinsic: The pre-signed extrinsic to encrypt.
+    Args:
+        subtensor: The SubtensorInterface instance for chain queries.
+        signed_extrinsic: The signed extrinsic to encrypt.
 
-    :return: `MevShield.submit_encrypted` call to sign with the current nonce.
+    Returns:
+        A MevShield.submit_encrypted call to be signed with the current nonce.
 
-    :raises ValueError: If a MEV Shield `NextKey` is not available on chain.
+    Raises:
+        ValueError: If MEV Shield NextKey is not available on chain.
     """
 
     ml_kem_768_public_key = await subtensor.get_mev_shield_next_key()
@@ -64,22 +65,24 @@ async def create_mev_protected_extrinsic(
     era: Optional[int] = None,
 ) -> tuple["GenericExtrinsic", str]:
     """
-    Creates a MEV-protected extrinsic.
+    Create a MEV-protected extrinsic.
 
-    Handles MEV Shield wrapping by signing the inner call with the future nonce,
-    encrypting it, and then signing the wrapper with the current nonce.
+    This function handles MEV Shield wrapping:
+    1. Fetches a future nonce (current_nonce + 1) & signs the inner call with it
+    2. Encrypts it into a wrapper call
+    3. Signs the wrapper with the current nonce
 
-    :param subtensor: SubtensorInterface instance.
-    :param keypair: Keypair to sign both inner and wrapper extrinsics.
-    :param call: Call to protect (for example, `add_stake`).
-    :param nonce: Current account nonce; the wrapper uses this, the inner uses `nonce + 1`.
-    :param era: Optional era period for the extrinsic.
+    Args:
+        subtensor: The SubtensorInterface instance.
+        keypair: Keypair for signing.
+        call: The call to protect (e.g., add_stake).
+        nonce: The current account nonce (wrapper will use this, inner uses nonce+1).
+        era: The era period for the extrinsic.
 
-    :return: Tuple of `(signed_shield_extrinsic, inner_extrinsic_hash)`, where
-        `inner_extrinsic_hash` is used to track the actual extrinsic execution.
+    Returns:
+        Tuple of (signed_shield_extrinsic, inner_extrinsic_hash).
+        The inner_extrinsic_hash is used for tracking actual extrinsic.
     """
-
-    next_nonce = await subtensor.substrate.get_account_next_index(keypair.ss58_address)
 
     async def create_signed(call_to_sign, n):
         kwargs = {
@@ -90,6 +93,8 @@ async def create_mev_protected_extrinsic(
         if era is not None:
             kwargs["era"] = {"period": era}
         return await subtensor.substrate.create_signed_extrinsic(**kwargs)
+
+    next_nonce = await subtensor.substrate.get_account_next_index(keypair.ss58_address)
 
     # Actual call: Sign with future nonce (current_nonce + 1)
     inner_extrinsic = await create_signed(call, next_nonce)
@@ -104,14 +109,16 @@ async def create_mev_protected_extrinsic(
 
 async def extract_mev_shield_id(response: "AsyncExtrinsicReceipt") -> Optional[str]:
     """
-    Extracts the MEV Shield wrapper ID from an extrinsic response.
+    Extract the MEV Shield wrapper ID from an extrinsic response.
 
-    After submitting a MEV Shield encrypted call, the `EncryptedSubmitted` event
+    After submitting a MEV Shield encrypted call, the EncryptedSubmitted event
     contains the wrapper ID needed to track execution.
 
-    :param response: Extrinsic receipt from `submit_extrinsic`.
+    Args:
+        response: The extrinsic receipt from submit_extrinsic.
 
-    :return: Wrapper ID (hex string) or `None` if not found.
+    Returns:
+        The wrapper ID (hex string) or None if not found.
     """
     for event in await response.triggered_events:
         if event["event_id"] == "EncryptedSubmitted":
@@ -128,24 +135,28 @@ async def wait_for_extrinsic_by_hash(
     status=None,
 ) -> tuple[bool, Optional[str], Optional[AsyncExtrinsicReceipt]]:
     """
-    Waits for the result of a MEV Shield encrypted extrinsic.
+    Wait for the result of a MeV Shield encrypted extrinsic.
 
-    After `submit_encrypted` succeeds, the block author decrypts and submits the
-    inner extrinsic directly. This polls subsequent blocks for either the inner
-    extrinsic hash (success) or a `mark_decryption_failed` extrinsic for the
-    matching shield ID (failure).
+    After submit_encrypted succeeds, the block author will decrypt and submit
+    the inner extrinsic directly. This function polls subsequent blocks looking
+    for either:
+    - an extrinsic matching the provided hash (success)
+    OR
+    - a markDecryptionFailed extrinsic with matching shield ID (failure)
 
-    :param subtensor: SubtensorInterface instance.
-    :param extrinsic_hash: Hash of the inner extrinsic to find.
-    :param shield_id: Wrapper ID from the `EncryptedSubmitted` event (used to detect decryption failures).
-    :param submit_block_hash: Block hash where `submit_encrypted` was included.
-    :param timeout_blocks: Maximum blocks to wait before timing out (default 2).
-    :param status: Optional `rich.Status` object for progress updates.
+    Args:
+        subtensor: SubtensorInterface instance.
+        extrinsic_hash: The hash of the inner extrinsic to find.
+        shield_id: The wrapper ID from EncryptedSubmitted event (for detecting decryption failures).
+        submit_block_hash: Block hash where submit_encrypted was included.
+        timeout_blocks: Max blocks to wait (default 2).
+        status: Optional rich.Status object for progress updates.
 
-    :return: Tuple `(success, error_message, receipt)` where:
-        - `success` is True if the extrinsic was found and succeeded.
-        - `error_message` contains the formatted failure reason, if any.
-        - `receipt` is the AsyncExtrinsicReceipt when available.
+    Returns:
+        Tuple of (success: bool, error: Optional[str], receipt: Optional[AsyncExtrinsicReceipt]).
+        - (True, None, receipt) if extrinsic was found and succeeded.
+        - (False, error_message, receipt) if extrinsic was found but failed.
+        - (False, "Timeout...", None) if not found within timeout.
     """
 
     async def _noop(_):
