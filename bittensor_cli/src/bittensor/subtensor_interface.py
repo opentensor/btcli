@@ -2327,6 +2327,34 @@ class SubtensorInterface:
 
         return public_key_bytes
 
+    async def get_mev_shield_current_key(
+        self,
+        block_hash: Optional[str] = None,
+    ) -> Optional[tuple[bytes, int]]:
+        """
+        Get the current MEV Shield public key and epoch from chain storage.
+
+        Args:
+            block_hash: Optional block hash to query at.
+
+        Returns:
+            Tuple of (public_key_bytes, epoch) or None if not available.
+        """
+        result = await self.query(
+            module="MevShield",
+            storage_function="CurrentKey",
+            block_hash=block_hash,
+        )
+        public_key_bytes = bytes(next(iter(result)))
+
+        if len(public_key_bytes) != MEV_SHIELD_PUBLIC_KEY_SIZE:
+            raise ValueError(
+                f"Invalid ML-KEM-768 public key size: {len(public_key_bytes)} bytes. "
+                f"Expected exactly {MEV_SHIELD_PUBLIC_KEY_SIZE} bytes."
+            )
+
+        return public_key_bytes
+
 
 async def best_connection(networks: list[str]):
     """
