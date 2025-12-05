@@ -346,6 +346,12 @@ class Options:
         "--dashboard.path",
         help="Path to save the dashboard HTML file. For example: `~/.bittensor/dashboard`.",
     )
+    mev_protection = typer.Option(
+        True,
+        "--mev-protection/--no-mev-protection",
+        show_default=False,
+        help="Enable or disable MEV protection [dim](default: enabled)[/dim].",
+    )
     json_output = typer.Option(
         False,
         "--json-output",
@@ -3972,6 +3978,7 @@ class CLIManager:
         rate_tolerance: Optional[float] = Options.rate_tolerance,
         safe_staking: Optional[bool] = Options.safe_staking,
         allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
+        mev_protection: bool = Options.mev_protection,
         period: int = Options.period,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
@@ -4005,6 +4012,9 @@ class CLIManager:
 
         7. Stake the same amount to multiple subnets:
             [green]$[/green] btcli stake add --amount 100 --netuids 4,5,6
+
+        8. Stake without MEV protection:
+            [green]$[/green] btcli stake add --amount 100 --netuid 1 --no-mev-protection
 
         [bold]Safe Staking Parameters:[/bold]
         • [blue]--safe[/blue]: Enables rate tolerance checks
@@ -4201,6 +4211,7 @@ class CLIManager:
             f"rate_tolerance: {rate_tolerance}\n"
             f"allow_partial_stake: {allow_partial_stake}\n"
             f"period: {period}\n"
+            f"mev_protection: {mev_protection}\n"
         )
         return self._run_command(
             add_stake.stake_add(
@@ -4218,6 +4229,7 @@ class CLIManager:
                 allow_partial_stake,
                 json_output,
                 period,
+                mev_protection,
             )
         )
 
@@ -4270,6 +4282,7 @@ class CLIManager:
         safe_staking: Optional[bool] = Options.safe_staking,
         allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
         period: int = Options.period,
+        mev_protection: bool = Options.mev_protection,
         prompt: bool = Options.prompt,
         interactive: bool = typer.Option(
             False,
@@ -4305,6 +4318,9 @@ class CLIManager:
 
         6. Unstake all Alpha from a hotkey and stake to Root:
             [green]$[/green] btcli stake remove --all-alpha
+
+        7. Unstake without MEV protection:
+            [green]$[/green] btcli stake remove --amount 100 --netuid 1 --no-mev-protection
 
         [bold]Safe Staking Parameters:[/bold]
         • [blue]--safe[/blue]: Enables rate tolerance checks during unstaking
@@ -4478,7 +4494,8 @@ class CLIManager:
                 f"all_hotkeys: {all_hotkeys}\n"
                 f"include_hotkeys: {include_hotkeys}\n"
                 f"exclude_hotkeys: {exclude_hotkeys}\n"
-                f"era: {period}"
+                f"era: {period}\n"
+                f"mev_protection: {mev_protection}"
             )
             return self._run_command(
                 remove_stake.unstake_all(
@@ -4492,6 +4509,7 @@ class CLIManager:
                     prompt=prompt,
                     json_output=json_output,
                     era=period,
+                    mev_protection=mev_protection,
                 )
             )
         elif (
@@ -4544,7 +4562,8 @@ class CLIManager:
             f"safe_staking: {safe_staking}\n"
             f"rate_tolerance: {rate_tolerance}\n"
             f"allow_partial_stake: {allow_partial_stake}\n"
-            f"era: {period}"
+            f"era: {period}\n"
+            f"mev_protection: {mev_protection}\n"
         )
 
         return self._run_command(
@@ -4564,6 +4583,7 @@ class CLIManager:
                 allow_partial_stake=allow_partial_stake,
                 json_output=json_output,
                 era=period,
+                mev_protection=mev_protection,
             )
         )
 
@@ -4609,6 +4629,7 @@ class CLIManager:
             False, "--stake-all", "--all", help="Stake all", prompt=False
         ),
         period: int = Options.period,
+        mev_protection: bool = Options.mev_protection,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -4630,9 +4651,13 @@ class CLIManager:
 
         If no arguments are provided, an interactive selection menu will be shown.
 
-        EXAMPLE
+        EXAMPLES
 
-        [green]$[/green] btcli stake move
+        1. Interactive move (guided prompts):
+            [green]$[/green] btcli stake move
+
+        2. Move stake without MEV protection:
+            [green]$[/green] btcli stake move --no-mev-protection
         """
         self.verbosity_handler(quiet, verbose, json_output)
         if prompt:
@@ -4747,6 +4772,7 @@ class CLIManager:
             f"era: {period}\n"
             f"interactive_selection: {interactive_selection}\n"
             f"prompt: {prompt}\n"
+            f"mev_protection: {mev_protection}\n"
         )
         result, ext_id = self._run_command(
             move_stake.move_stake(
@@ -4761,6 +4787,7 @@ class CLIManager:
                 era=period,
                 interactive_selection=interactive_selection,
                 prompt=prompt,
+                mev_protection=mev_protection,
             )
         )
         if json_output:
@@ -4801,6 +4828,7 @@ class CLIManager:
         stake_all: bool = typer.Option(
             False, "--stake-all", "--all", help="Stake all", prompt=False
         ),
+        mev_protection: bool = Options.mev_protection,
         period: int = Options.period,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
@@ -4838,6 +4866,9 @@ class CLIManager:
 
         Transfer all available stake from origin hotkey:
         [green]$[/green] btcli stake transfer --all --origin-netuid 1 --dest-netuid 2
+
+        Transfer stake without MEV protection:
+        [green]$[/green] btcli stake transfer --origin-netuid 1 --dest-netuid 2 --amount 100 --no-mev-protection
         """
         self.verbosity_handler(quiet, verbose, json_output)
         if prompt:
@@ -4933,7 +4964,8 @@ class CLIManager:
             f"dest_coldkey_ss58: {dest_ss58}\n"
             f"amount: {amount}\n"
             f"era: {period}\n"
-            f"stake_all: {stake_all}"
+            f"stake_all: {stake_all}\n"
+            f"mev_protection: {mev_protection}"
         )
         result, ext_id = self._run_command(
             move_stake.transfer_stake(
@@ -4948,6 +4980,7 @@ class CLIManager:
                 interactive_selection=interactive_selection,
                 stake_all=stake_all,
                 prompt=prompt,
+                mev_protection=mev_protection,
             )
         )
         if json_output:
@@ -4992,6 +5025,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
+        mev_protection: bool = Options.mev_protection,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -5011,10 +5045,13 @@ class CLIManager:
 
         If no arguments are provided, an interactive selection menu will be shown.
 
-        EXAMPLE
+        EXAMPLES
 
-        Swap 100 TAO from subnet 1 to subnet 2:
-        [green]$[/green] btcli stake swap --wallet-name default --wallet-hotkey default --origin-netuid 1 --dest-netuid 2 --amount 100
+        1. Swap 100 TAO from subnet 1 to subnet 2:
+            [green]$[/green] btcli stake swap --wallet-name default --wallet-hotkey default --origin-netuid 1 --dest-netuid 2 --amount 100
+
+        2. Swap stake without MEV protection:
+            [green]$[/green] btcli stake swap --origin-netuid 1 --dest-netuid 2 --amount 100 --no-mev-protection
         """
         self.verbosity_handler(quiet, verbose, json_output)
         console.print(
@@ -5056,6 +5093,7 @@ class CLIManager:
             f"prompt: {prompt}\n"
             f"wait_for_inclusion: {wait_for_inclusion}\n"
             f"wait_for_finalization: {wait_for_finalization}\n"
+            f"mev_protection: {mev_protection}\n"
         )
         result, ext_id = self._run_command(
             move_stake.swap_stake(
@@ -5070,6 +5108,7 @@ class CLIManager:
                 prompt=prompt,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
+                mev_protection=mev_protection,
             )
         )
         if json_output:
@@ -5085,6 +5124,7 @@ class CLIManager:
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         period: int = Options.period,
+        mev_protection: bool = Options.mev_protection,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -5150,6 +5190,7 @@ class CLIManager:
                     era=period,
                     interactive_selection=False,
                     prompt=prompt,
+                    mev_protection=mev_protection,
                 )
             )
         elif operation == "transfer":
@@ -5179,6 +5220,7 @@ class CLIManager:
                     era=period,
                     interactive_selection=False,
                     prompt=prompt,
+                    mev_protection=mev_protection,
                 )
             )
         elif operation == "swap":
@@ -5194,6 +5236,7 @@ class CLIManager:
                     era=period,
                     interactive_selection=False,
                     prompt=prompt,
+                    mev_protection=mev_protection,
                 )
             )
         else:
@@ -6427,6 +6470,7 @@ class CLIManager:
         additional_info: Optional[str] = typer.Option(
             None, "--additional-info", help="Additional information"
         ),
+        mev_protection: bool = Options.mev_protection,
         json_output: bool = Options.json_output,
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
@@ -6445,6 +6489,9 @@ class CLIManager:
 
         2. Create with GitHub repo and contact email:
         [green]$[/green] btcli subnets create --subnet-name MySubnet --github-repo https://github.com/myorg/mysubnet --subnet-contact team@mysubnet.net
+
+        3. Create subnet without MEV protection:
+        [green]$[/green] btcli subnets create --no-mev-protection
         """
         self.verbosity_handler(quiet, verbose, json_output)
         wallet = self.wallet_ask(
@@ -6472,7 +6519,12 @@ class CLIManager:
         logger.debug(f"args:\nnetwork: {network}\nidentity: {identity}\n")
         self._run_command(
             subnets.create(
-                wallet, self.initialize_chain(network), identity, json_output, prompt
+                wallet,
+                self.initialize_chain(network),
+                identity,
+                json_output,
+                prompt,
+                mev_protection,
             )
         )
 

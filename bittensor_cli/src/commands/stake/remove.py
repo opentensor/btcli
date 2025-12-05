@@ -11,6 +11,11 @@ from rich.table import Table
 
 from async_substrate_interface.errors import SubstrateRequestException
 from bittensor_cli.src import COLOR_PALETTE
+from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
+    encrypt_call,
+    extract_mev_shield_id,
+    wait_for_mev_execution,
+)
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.utils import (
     console,
@@ -48,6 +53,7 @@ async def unstake(
     allow_partial_stake: bool,
     json_output: bool,
     era: int,
+    mev_protection: bool,
 ):
     """Unstake from hotkey(s)."""
 
@@ -326,6 +332,7 @@ async def unstake(
                 "hotkey_ss58": op["hotkey_ss58"],
                 "status": status,
                 "era": era,
+                "mev_protection": mev_protection,
             }
 
             if safe_staking and op["netuid"] != 0:
@@ -370,6 +377,7 @@ async def unstake_all(
     era: int = 3,
     prompt: bool = True,
     json_output: bool = False,
+    mev_protection: bool = True,
 ) -> None:
     """Unstakes all stakes from all hotkeys in all subnets."""
     include_hotkeys = include_hotkeys or []
@@ -546,6 +554,7 @@ async def unstake_all(
                 unstake_all_alpha=unstake_all_alpha,
                 status=status,
                 era=era,
+                mev_protection=mev_protection,
             )
             ext_id = await ext_receipt.get_extrinsic_identifier() if success else None
             successes[hotkey_ss58] = {
@@ -566,6 +575,7 @@ async def _unstake_extrinsic(
     hotkey_ss58: str,
     status=None,
     era: int = 3,
+    mev_protection: bool = True,
 ) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """Execute a standard unstake extrinsic.
 
@@ -601,6 +611,9 @@ async def _unstake_extrinsic(
             },
         ),
     )
+
+    if mev_protection:
+        call = await encrypt_call(subtensor, wallet, call)
     extrinsic = await subtensor.substrate.create_signed_extrinsic(
         call=call, keypair=wallet.coldkey, era={"period": era}
     )
@@ -615,6 +628,19 @@ async def _unstake_extrinsic(
                 f"{format_error_message(await response.error_message)}"
             )
             return False, None
+
+        if mev_protection:
+            mev_shield_id = await extract_mev_shield_id(response)
+            if mev_shield_id:
+                mev_success, mev_error, response = await wait_for_mev_execution(
+                    subtensor, mev_shield_id, response.block_hash, status=status
+                )
+                if not mev_success:
+                    status.stop()
+                    err_msg = f"{failure_prelude}: {mev_error}"
+                    err_out("\n" + err_msg)
+                    return False, None
+
         # Fetch latest balance and stake
         await print_extrinsic_id(response)
         block_hash = await subtensor.substrate.get_chain_head()
@@ -653,6 +679,7 @@ async def _safe_unstake_extrinsic(
     allow_partial_stake: bool,
     status=None,
     era: int = 3,
+    mev_protection: bool = True,
 ) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """Execute a safe unstake extrinsic with price limit.
 
@@ -678,9 +705,8 @@ async def _safe_unstake_extrinsic(
 
     block_hash = await subtensor.substrate.get_chain_head()
 
-    current_balance, next_nonce, current_stake, call = await asyncio.gather(
+    current_balance, current_stake, call = await asyncio.gather(
         subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash),
-        subtensor.substrate.get_account_next_index(wallet.coldkeypub.ss58_address),
         subtensor.get_stake(
             hotkey_ss58=hotkey_ss58,
             coldkey_ss58=wallet.coldkeypub.ss58_address,
@@ -701,8 +727,10 @@ async def _safe_unstake_extrinsic(
         ),
     )
 
+    if mev_protection:
+        call = await encrypt_call(subtensor, wallet, call)
     extrinsic = await subtensor.substrate.create_signed_extrinsic(
-        call=call, keypair=wallet.coldkey, nonce=next_nonce, era={"period": era}
+        call=call, keypair=wallet.coldkey, era={"period": era}
     )
 
     try:
@@ -726,6 +754,19 @@ async def _safe_unstake_extrinsic(
             f"\n{failure_prelude} with error: {format_error_message(await response.error_message)}"
         )
         return False, None
+
+    if mev_protection:
+        mev_shield_id = await extract_mev_shield_id(response)
+        if mev_shield_id:
+            mev_success, mev_error, response = await wait_for_mev_execution(
+                subtensor, mev_shield_id, response.block_hash, status=status
+            )
+            if not mev_success:
+                status.stop()
+                err_msg = f"{failure_prelude}: {mev_error}"
+                err_out("\n" + err_msg)
+                return False, None
+
     await print_extrinsic_id(response)
     block_hash = await subtensor.substrate.get_chain_head()
     new_balance, new_stake = await asyncio.gather(
@@ -767,6 +808,7 @@ async def _unstake_all_extrinsic(
     unstake_all_alpha: bool,
     status=None,
     era: int = 3,
+    mev_protection: bool = True,
 ) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """Execute an unstake all extrinsic.
 
@@ -814,6 +856,9 @@ async def _unstake_all_extrinsic(
         call_params={"hotkey": hotkey_ss58},
     )
 
+    if mev_protection:
+        call = await encrypt_call(subtensor, wallet, call)
+
     try:
         response = await subtensor.substrate.submit_extrinsic(
             extrinsic=await subtensor.substrate.create_signed_extrinsic(
@@ -829,8 +874,20 @@ async def _unstake_all_extrinsic(
                 f"{format_error_message(await response.error_message)}"
             )
             return False, None
-        else:
-            await print_extrinsic_id(response)
+
+        if mev_protection:
+            mev_shield_id = await extract_mev_shield_id(response)
+            if mev_shield_id:
+                mev_success, mev_error, response = await wait_for_mev_execution(
+                    subtensor, mev_shield_id, response.block_hash, status=status
+                )
+                if not mev_success:
+                    status.stop()
+                    err_msg = f"{failure_prelude}: {mev_error}"
+                    err_out("\n" + err_msg)
+                    return False, None
+
+        await print_extrinsic_id(response)
 
         # Fetch latest balance and stake
         block_hash = await subtensor.substrate.get_chain_head()

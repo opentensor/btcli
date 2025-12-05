@@ -132,6 +132,34 @@ def extract_coldkey_balance(
     }
 
 
+def find_stake_entries(
+    stake_payload: dict, netuid: int, hotkey_ss58: str | None = None
+) -> list[dict]:
+    """
+    Return stake entries matching a given netuid, optionally scoped to a specific hotkey.
+    Requires json payload using `--json-output` flag.
+
+    Args:
+        stake_payload: Parsed JSON payload containing `stake_info`.
+        netuid: The subnet identifier to filter on.
+        hotkey_ss58: Optional hotkey address to further narrow results.
+
+    Returns:
+        A list of stake dicts matching the criteria (may be empty).
+    """
+    stake_info = stake_payload.get("stake_info", {}) or {}
+    matching_stakes: list[dict] = []
+
+    for stake_hotkey, stakes in stake_info.items():
+        if hotkey_ss58 and stake_hotkey != hotkey_ss58:
+            continue
+        for stake in stakes or []:
+            if stake.get("netuid") == netuid:
+                matching_stakes.append(stake)
+
+    return matching_stakes
+
+
 def verify_subnet_entry(output_text: str, netuid: str, ss58_address: str) -> bool:
     """
     Verifies the presence of a specific subnet entry subnets list output.
