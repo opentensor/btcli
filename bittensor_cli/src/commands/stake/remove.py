@@ -11,9 +11,8 @@ from rich.table import Table
 
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
-    encrypt_call,
     extract_mev_shield_id,
-    wait_for_mev_execution,
+    wait_for_extrinsic_by_hash,
 )
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.utils import (
@@ -612,8 +611,9 @@ async def _unstake_extrinsic(
             f"\n:satellite: Unstaking {amount} from {hotkey_ss58} on netuid: {netuid} ..."
         )
 
-    current_balance, call = await asyncio.gather(
+    current_balance, next_nonce, call = await asyncio.gather(
         subtensor.get_balance(coldkey_ss58),
+        subtensor.substrate.get_account_next_index(coldkey_ss58),
         subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function="remove_stake",
@@ -625,24 +625,30 @@ async def _unstake_extrinsic(
         ),
     )
 
-    if mev_protection:
-        call = await encrypt_call(subtensor, wallet, call)
-
     success, err_msg, response = await subtensor.sign_and_send_extrinsic(
-        call=call, wallet=wallet, era={"period": era}, proxy=proxy
+        # TODO I think this should handle announce-only
+        call=call,
+        wallet=wallet,
+        era={"period": era},
+        proxy=proxy,
+        mev_protection=mev_protection,
+        nonce=next_nonce,
     )
     if success:
         if mev_protection:
+            inner_hash = err_msg
             mev_shield_id = await extract_mev_shield_id(response)
-            if mev_shield_id:
-                mev_success, mev_error, response = await wait_for_mev_execution(
-                    subtensor, mev_shield_id, response.block_hash, status=status
-                )
-                if not mev_success:
-                    status.stop()
-                    err_msg = f"{failure_prelude}: {mev_error}"
-                    err_out("\n" + err_msg)
-                    return False, None
+            mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
+                subtensor=subtensor,
+                extrinsic_hash=inner_hash,
+                shield_id=mev_shield_id,
+                submit_block_hash=response.block_hash,
+                status=status,
+            )
+            if not mev_success:
+                status.stop()
+                err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
+                return False, None
         await print_extrinsic_id(response)
         block_hash = await subtensor.substrate.get_chain_head()
         new_balance, new_stake = await asyncio.gather(
@@ -734,28 +740,29 @@ async def _safe_unstake_extrinsic(
             block_hash=block_hash,
         ),
     )
-
-    if mev_protection:
-        call = await encrypt_call(subtensor, wallet, call)
     success, err_msg, response = await subtensor.sign_and_send_extrinsic(
         call=call,
         wallet=wallet,
         nonce=next_nonce,
         era={"period": era},
         proxy=proxy,
+        mev_protection=mev_protection,
     )
     if success:
         if mev_protection:
+            inner_hash = err_msg
             mev_shield_id = await extract_mev_shield_id(response)
-            if mev_shield_id:
-                mev_success, mev_error, response = await wait_for_mev_execution(
-                    subtensor, mev_shield_id, response.block_hash, status=status
-                )
-                if not mev_success:
-                    status.stop()
-                    err_msg = f"{failure_prelude}: {mev_error}"
-                    err_out("\n" + err_msg)
-                    return False, None
+            mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
+                subtensor=subtensor,
+                extrinsic_hash=inner_hash,
+                shield_id=mev_shield_id,
+                submit_block_hash=response.block_hash,
+                status=status,
+            )
+            if not mev_success:
+                status.stop()
+                err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
+                return False, None
         await print_extrinsic_id(response)
         block_hash = await subtensor.substrate.get_chain_head()
         new_balance, new_stake = await asyncio.gather(
@@ -851,21 +858,22 @@ async def _unstake_all_extrinsic(
         previous_root_stake = None
 
     call_function = "unstake_all_alpha" if unstake_all_alpha else "unstake_all"
-    call = await subtensor.substrate.compose_call(
-        call_module="SubtensorModule",
-        call_function=call_function,
-        call_params={"hotkey": hotkey_ss58},
+    call, next_nonce = await asyncio.gather(
+        subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function=call_function,
+            call_params={"hotkey": hotkey_ss58},
+        ),
+        subtensor.substrate.get_account_next_index(coldkey_ss58),
     )
-
-    if mev_protection:
-        call = await encrypt_call(subtensor, wallet, call)
-
     try:
         success_, err_msg, response = await subtensor.sign_and_send_extrinsic(
             call=call,
             wallet=wallet,
             era={"period": era},
+            nonce=next_nonce,
             proxy=proxy,
+            mev_protection=mev_protection,
         )
 
         if not success_:
@@ -873,16 +881,20 @@ async def _unstake_all_extrinsic(
             return False, None
 
         if mev_protection:
+            inner_hash = err_msg
             mev_shield_id = await extract_mev_shield_id(response)
-            if mev_shield_id:
-                mev_success, mev_error, response = await wait_for_mev_execution(
-                    subtensor, mev_shield_id, response.block_hash, status=status
-                )
-                if not mev_success:
-                    status.stop()
-                    err_msg = f"{failure_prelude}: {mev_error}"
-                    err_out("\n" + err_msg)
-                    return False, None
+            mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
+                subtensor=subtensor,
+                extrinsic_hash=inner_hash,
+                shield_id=mev_shield_id,
+                submit_block_hash=response.block_hash,
+                status=status,
+            )
+            if not mev_success:
+                status.stop()
+                err_msg = f"{failure_prelude}: {mev_error}"
+                err_out("\n" + err_msg)
+                return False, None
 
         await print_extrinsic_id(response)
 

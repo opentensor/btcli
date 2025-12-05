@@ -11,9 +11,8 @@ from rich.prompt import Confirm, Prompt
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
-    encrypt_call,
     extract_mev_shield_id,
-    wait_for_mev_execution,
+    wait_for_extrinsic_by_hash,
 )
 from bittensor_cli.src.bittensor.utils import (
     console,
@@ -141,14 +140,13 @@ async def stake_add(
                 },
             ),
         )
-        if mev_protection:
-            call = await encrypt_call(subtensor, wallet, call)
         success_, err_msg, response = await subtensor.sign_and_send_extrinsic(
             call=call,
             wallet=wallet,
             nonce=next_nonce,
             era={"period": era},
             proxy=proxy,
+            mev_protection=mev_protection,
         )
         if not success_:
             if "Custom error: 8" in err_msg:
@@ -164,16 +162,20 @@ async def stake_add(
             return False, err_msg, None
         else:
             if mev_protection:
+                inner_hash = err_msg
                 mev_shield_id = await extract_mev_shield_id(response)
-                if mev_shield_id:
-                    mev_success, mev_error, response = await wait_for_mev_execution(
-                        subtensor, mev_shield_id, response.block_hash, status=status_
-                    )
-                    if not mev_success:
-                        status_.stop()
-                        err_msg = f"{failure_prelude}: {mev_error}"
-                        err_out("\n" + err_msg)
-                        return False, err_msg, None
+                mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
+                    subtensor=subtensor,
+                    extrinsic_hash=inner_hash,
+                    shield_id=mev_shield_id,
+                    submit_block_hash=response.block_hash,
+                    status=status_,
+                )
+                if not mev_success:
+                    status_.stop()
+                    err_msg = f"{failure_prelude}: {mev_error}"
+                    err_out("\n" + err_msg)
+                    return False, err_msg, None
             if json_output:
                 # the rest of this checking is not necessary if using json_output
                 return True, "", response
@@ -239,14 +241,13 @@ async def stake_add(
         failure_prelude = (
             f":cross_mark: [red]Failed[/red] to stake {amount} on Netuid {netuid_i}"
         )
-        if mev_protection:
-            call = await encrypt_call(subtensor, wallet, call)
         success_, err_msg, response = await subtensor.sign_and_send_extrinsic(
             call=call,
             wallet=wallet,
             nonce=next_nonce,
             era={"period": era},
             proxy=proxy,
+            mev_protection=mev_protection,
         )
         if not success_:
             err_msg = f"{failure_prelude} with error: {err_msg}"
@@ -254,16 +255,20 @@ async def stake_add(
             return False, err_msg, None
         else:
             if mev_protection:
+                inner_hash = err_msg
                 mev_shield_id = await extract_mev_shield_id(response)
-                if mev_shield_id:
-                    mev_success, mev_error, response = await wait_for_mev_execution(
-                        subtensor, mev_shield_id, response.block_hash, status=status_
-                    )
-                    if not mev_success:
-                        status_.stop()
-                        err_msg = f"{failure_prelude}: {mev_error}"
-                        err_out("\n" + err_msg)
-                        return False, err_msg, None
+                mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
+                    subtensor=subtensor,
+                    extrinsic_hash=inner_hash,
+                    shield_id=mev_shield_id,
+                    submit_block_hash=response.block_hash,
+                    status=status_,
+                )
+                if not mev_success:
+                    status_.stop()
+                    err_msg = f"{failure_prelude}: {mev_error}"
+                    err_out("\n" + err_msg)
+                    return False, err_msg, None
             if json_output:
                 # the rest of this is not necessary if using json_output
                 return True, "", response

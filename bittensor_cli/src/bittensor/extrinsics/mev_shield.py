@@ -1,76 +1,47 @@
-import asyncio
 import hashlib
 from typing import TYPE_CHECKING, Optional
 
 from async_substrate_interface import AsyncExtrinsicReceipt
-from bittensor_drand import encrypt_mlkem768, mlkem_kdf_id
-from bittensor_cli.src.bittensor.utils import encode_account_id, format_error_message
+from bittensor_drand import encrypt_mlkem768
+from bittensor_cli.src.bittensor.utils import format_error_message
 
 if TYPE_CHECKING:
-    from bittensor_wallet import Wallet
-    from scalecodec import GenericCall
+    from bittensor_wallet import Keypair
+    from scalecodec import GenericCall, GenericExtrinsic
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 
 
-async def encrypt_call(
+async def encrypt_extrinsic(
     subtensor: "SubtensorInterface",
-    wallet: "Wallet",
-    call: "GenericCall",
+    signed_extrinsic: "GenericExtrinsic",
 ) -> "GenericCall":
     """
-    Encrypt a call using MEV Shield.
+    Encrypt a signed extrinsic using MEV Shield.
 
-    Takes any call and returns a MevShield.submit_encrypted call
-    that can be submitted like any regular extrinsic.
+    Takes a pre-signed extrinsic and returns a MevShield.submit_encrypted call.
 
     Args:
         subtensor: The SubtensorInterface instance for chain queries.
-        wallet: The wallet whose coldkey will sign the inner payload.
-        call: The call to encrypt.
+        signed_extrinsic: The signed extrinsic to encrypt.
 
     Returns:
-        A MevShield.submit_encrypted call.
+        A MevShield.submit_encrypted call to be signed with the current nonce.
 
     Raises:
         ValueError: If MEV Shield NextKey is not available on chain.
     """
 
-    next_key_result, genesis_hash = await asyncio.gather(
-        subtensor.get_mev_shield_next_key(),
-        subtensor.substrate.get_block_hash(0),
-    )
-    if next_key_result is None:
+    ml_kem_768_public_key = await subtensor.get_mev_shield_next_key()
+    if ml_kem_768_public_key is None:
         raise ValueError("MEV Shield NextKey not available on chain")
 
-    ml_kem_768_public_key = next_key_result
-
-    # Create payload_core: signer (32B) + next_key (32B) + SCALE(call)
-    signer_bytes = encode_account_id(wallet.coldkey.ss58_address)
-    scale_call_bytes = bytes(call.data.data)
-    next_key = hashlib.blake2b(next_key_result, digest_size=32).digest()
-
-    payload_core = signer_bytes + next_key + scale_call_bytes
-
-    mev_shield_version = mlkem_kdf_id()
-    genesis_hash_clean = (
-        genesis_hash[2:] if genesis_hash.startswith("0x") else genesis_hash
-    )
-    genesis_hash_bytes = bytes.fromhex(genesis_hash_clean)
-
-    # Sign: coldkey.sign(b"mev-shield:v1" + genesis_hash + payload_core)
-    message_to_sign = (
-        b"mev-shield:" + mev_shield_version + genesis_hash_bytes + payload_core
-    )
-    signature = wallet.coldkey.sign(message_to_sign)
-
-    # Plaintext: payload_core + b"\x01" + signature
-    plaintext = payload_core + b"\x01" + signature
+    plaintext = bytes(signed_extrinsic.data.data)
 
     # Encrypt using ML-KEM-768
     ciphertext = encrypt_mlkem768(ml_kem_768_public_key, plaintext)
 
     # Commitment: blake2_256(payload_core)
-    commitment_hash = hashlib.blake2b(payload_core, digest_size=32).digest()
+    commitment_hash = hashlib.blake2b(plaintext, digest_size=32).digest()
     commitment_hex = "0x" + commitment_hash.hex()
 
     # Create the MevShield.submit_encrypted call
@@ -105,31 +76,37 @@ async def extract_mev_shield_id(response: "AsyncExtrinsicReceipt") -> Optional[s
     return None
 
 
-async def wait_for_mev_execution(
+async def wait_for_extrinsic_by_hash(
     subtensor: "SubtensorInterface",
-    wrapper_id: str,
+    extrinsic_hash: str,
+    shield_id: str,
     submit_block_hash: str,
-    timeout_blocks: int = 4,
+    timeout_blocks: int = 2,
     status=None,
 ) -> tuple[bool, Optional[str], Optional[AsyncExtrinsicReceipt]]:
     """
-    Wait for MEV Shield inner call execution.
+    Wait for the result of a MeV Shield encrypted extrinsic.
 
-    After submit_encrypted succeeds, the block author will decrypt and execute
-    the inner call via execute_revealed. This function polls for the
-    DecryptedExecuted or DecryptedRejected event.
+    After submit_encrypted succeeds, the block author will decrypt and submit
+    the inner extrinsic directly. This function polls subsequent blocks looking
+    for either:
+    - an extrinsic matching the provided hash (success)
+    OR
+    - a markDecryptionFailed extrinsic with matching shield ID (failure)
 
     Args:
         subtensor: SubtensorInterface instance.
-        wrapper_id: The ID from EncryptedSubmitted event.
-        submit_block_number: Block number where submit_encrypted was included.
-        timeout_blocks: Max blocks to wait (default 4).
+        extrinsic_hash: The hash of the inner extrinsic to find.
+        shield_id: The wrapper ID from EncryptedSubmitted event (for detecting decryption failures).
+        submit_block_hash: Block hash where submit_encrypted was included.
+        timeout_blocks: Max blocks to wait (default 2).
         status: Optional rich.Status object for progress updates.
 
     Returns:
         Tuple of (success: bool, error: Optional[str], receipt: Optional[AsyncExtrinsicReceipt]).
-        - (True, None, receipt) if DecryptedExecuted was found.
-        - (False, error_message, None) if the call failed or timeout.
+        - (True, None, receipt) if extrinsic was found and succeeded.
+        - (False, error_message, receipt) if extrinsic was found but failed.
+        - (False, "Timeout...", None) if not found within timeout.
     """
 
     async def _noop(_):
@@ -154,42 +131,45 @@ async def wait_for_mev_execution(
         block_hash = await subtensor.substrate.get_block_hash(current_block)
         extrinsics = await subtensor.substrate.get_extrinsics(block_hash)
 
-        # Find executeRevealed extrinsic & match ids
-        execute_revealed_index = None
+        result_idx = None
         for idx, extrinsic in enumerate(extrinsics):
-            call = extrinsic.value.get("call", {})
-            call_module = call.get("call_module")
-            call_function = call.get("call_function")
+            # Success: Inner extrinsic executed
+            if f"0x{extrinsic.extrinsic_hash.hex()}" == extrinsic_hash:
+                result_idx = idx
+                break
 
-            if call_module == "MevShield" and call_function in (
-                "execute_revealed",
-                "mark_decryption_failed",
+            # Failure: Decryption failed
+            call = extrinsic.value.get("call", {})
+            if (
+                call.get("call_module") == "MevShield"
+                and call.get("call_function") == "mark_decryption_failed"
             ):
                 call_args = call.get("call_args", [])
                 for arg in call_args:
-                    if arg.get("name") == "id":
-                        extrinsic_wrapper_id = arg.get("value")
-                        if extrinsic_wrapper_id == wrapper_id:
-                            execute_revealed_index = idx
-                            break
-
-                if execute_revealed_index is not None:
+                    if arg.get("name") == "id" and arg.get("value") == shield_id:
+                        result_idx = idx
+                        break
+                if result_idx is not None:
                     break
 
-        if execute_revealed_index is None:
-            current_block += 1
-            continue
+        if result_idx is not None:
+            receipt = AsyncExtrinsicReceipt(
+                substrate=subtensor.substrate,
+                block_hash=block_hash,
+                block_number=current_block,
+                extrinsic_idx=result_idx,
+            )
 
-        receipt = AsyncExtrinsicReceipt(
-            substrate=subtensor.substrate,
-            block_hash=block_hash,
-            extrinsic_idx=execute_revealed_index,
-        )
+            if not await receipt.is_success:
+                error_msg = format_error_message(await receipt.error_message)
+                return False, error_msg, receipt
 
-        if not await receipt.is_success:
-            error_msg = format_error_message(await receipt.error_message)
-            return False, error_msg, None
+            return True, None, receipt
 
-        return True, None, receipt
+        current_block += 1
 
-    return False, "Timeout waiting for MEV Shield execution", None
+    return (
+        False,
+        "Failed to find outcome of the shield extrinsic (The protected extrinsic wasn't decrypted)",
+        None,
+    )

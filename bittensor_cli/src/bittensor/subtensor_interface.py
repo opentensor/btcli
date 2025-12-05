@@ -34,6 +34,7 @@ from bittensor_cli.src.bittensor.chain_data import (
 from bittensor_cli.src import DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance, fixed_to_float
 from bittensor_cli.src import Constants, defaults, TYPE_REGISTRY
+from bittensor_cli.src.bittensor.extrinsics.mev_shield import encrypt_extrinsic
 from bittensor_cli.src.bittensor.utils import (
     format_error_message,
     console,
@@ -1178,6 +1179,7 @@ class SubtensorInterface:
         nonce: Optional[int] = None,
         sign_with: Literal["coldkey", "hotkey", "coldkeypub"] = "coldkey",
         announce_only: bool = False,
+        mev_protection: bool = False,
     ) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
         """
         Helper method to sign and submit an extrinsic call to chain.
@@ -1190,10 +1192,29 @@ class SubtensorInterface:
         :param proxy: The real account used to create the proxy. None if not using a proxy for this call.
         :param nonce: The nonce used to submit this extrinsic call.
         :param sign_with: Determine which of the wallet's keypairs to use to sign the extrinsic call.
-        :param announce_only: If set, makes the call as an announcement, rather than making the call.
+        :param announce_only: If set, makes the call as an announcement, rather than making the call. Cannot
+            be used with `mev_protection=True`.
+        :param mev_protection: If set, uses Mev Protection on the extrinsic, thus encrypting it. Cannot be
+            used with `announce_only=True`.
 
-        :return: (success, error message, extrinsic receipt | None)
+        :return: (success, error message or inner extrinsic hash (if using mev_protection), extrinsic receipt | None)
         """
+
+        async def create_signed(call_to_sign, n):
+            kwargs = {
+                "call": call_to_sign,
+                "keypair": keypair,
+                "nonce": n,
+            }
+            if era is not None:
+                kwargs["era"] = era
+            return await self.substrate.create_signed_extrinsic(**kwargs)
+
+        if announce_only and mev_protection:
+            raise ValueError(
+                "Cannot use announce-only and mev-protection. Calls should be announced without mev protection,"
+                "and executed with them."
+            )
         if proxy is not None:
             if announce_only:
                 call_to_announce = call
@@ -1225,7 +1246,17 @@ class SubtensorInterface:
             call_args["nonce"] = await self.substrate.get_account_next_index(
                 keypair.ss58_address
             )
-        extrinsic = await self.substrate.create_signed_extrinsic(**call_args)
+        inner_hash = ""
+        if mev_protection:
+            next_nonce = await self.substrate.get_account_next_index(
+                keypair.ss58_address
+            )
+            inner_extrinsic = await create_signed(call, next_nonce)
+            inner_hash = f"0x{inner_extrinsic.extrinsic_hash.hex()}"
+            shield_call = await encrypt_extrinsic(self, inner_extrinsic)
+            extrinsic = await create_signed(shield_call, nonce)
+        else:
+            extrinsic = await self.substrate.create_signed_extrinsic(**call_args)
         try:
             response = await self.substrate.submit_extrinsic(
                 extrinsic,
@@ -1234,7 +1265,7 @@ class SubtensorInterface:
             )
             # We only wait here if we expect finalization.
             if not wait_for_finalization and not wait_for_inclusion:
-                return True, "", response
+                return True, inner_hash, response
             if await response.is_success:
                 if announce_only:
                     block = await self.substrate.get_block_number(response.block_hash)
@@ -1251,7 +1282,7 @@ class SubtensorInterface:
                     console.print(
                         f"Added entry {call_to_announce.call_hash} at block {block} to your ProxyAnnouncements address book."
                     )
-                return True, "", response
+                return True, inner_hash, response
             else:
                 return False, format_error_message(await response.error_message), None
         except SubstrateRequestException as e:
@@ -2378,7 +2409,7 @@ class SubtensorInterface:
                 ema_map[netuid] = Balance.from_rao(0)
             else:
                 _, raw_ema_value = value
-                ema_value = fixed_to_float(raw_ema_value)
+                ema_value = int(fixed_to_float(raw_ema_value))
                 ema_map[netuid] = Balance.from_rao(ema_value)
         return ema_map
 
@@ -2409,13 +2440,13 @@ class SubtensorInterface:
         if not value:
             return Balance.from_rao(0)
         _, raw_ema_value = value
-        ema_value = fixed_to_float(raw_ema_value)
+        ema_value = int(fixed_to_float(raw_ema_value))
         return Balance.from_rao(ema_value)
 
     async def get_mev_shield_next_key(
         self,
         block_hash: Optional[str] = None,
-    ) -> Optional[tuple[bytes, int]]:
+    ) -> bytes:
         """
         Get the next MEV Shield public key and epoch from chain storage.
 
@@ -2443,7 +2474,7 @@ class SubtensorInterface:
     async def get_mev_shield_current_key(
         self,
         block_hash: Optional[str] = None,
-    ) -> Optional[tuple[bytes, int]]:
+    ) -> bytes:
         """
         Get the current MEV Shield public key and epoch from chain storage.
 

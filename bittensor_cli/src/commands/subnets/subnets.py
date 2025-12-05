@@ -19,9 +19,8 @@ from bittensor_cli.src.bittensor.extrinsics.registration import (
 )
 from bittensor_cli.src.bittensor.extrinsics.root import root_register_extrinsic
 from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
-    encrypt_call,
     extract_mev_shield_id,
-    wait_for_mev_execution,
+    wait_for_extrinsic_by_hash,
 )
 from rich.live import Live
 from bittensor_cli.src.bittensor.minigraph import MiniGraph
@@ -233,38 +232,46 @@ async def register_subnetwork_extrinsic(
     if not unlock_key(wallet).success:
         return False, None, None
 
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
+
     with console.status(":satellite: Registering subnet...", spinner="earth") as status:
         substrate = subtensor.substrate
-        # create extrinsic call
-        call = await substrate.compose_call(
-            call_module="SubtensorModule",
-            call_function=call_function,
-            call_params=call_params,
+        call, next_nonce = await asyncio.gather(
+            substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function=call_function,
+                call_params=call_params,
+            ),
+            substrate.get_account_next_index(coldkey_ss58),
         )
-        if mev_protection:
-            call = await encrypt_call(subtensor, wallet, call)
         success, err_msg, response = await subtensor.sign_and_send_extrinsic(
             call=call,
             wallet=wallet,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
             proxy=proxy,
+            nonce=next_nonce,
+            mev_protection=mev_protection,
         )
 
-    # We only wait here if we expect finalization.
-    if not wait_for_finalization and not wait_for_inclusion:
-        return True, None, None
+        # We only wait here if we expect finalization.
+        if not wait_for_finalization and not wait_for_inclusion:
+            return True, None, None
 
-    if not success:
-        err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
-        return False, None, None
-    else:
-        # Check for MEV shield execution
-        if mev_protection:
-            mev_shield_id = await extract_mev_shield_id(response)
-            if mev_shield_id:
-                mev_success, mev_error, response = await wait_for_mev_execution(
-                    subtensor, mev_shield_id, response.block_hash, status=status
+        if not success:
+            err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+            return False, None, None
+        else:
+            # Check for MEV shield execution
+            if mev_protection:
+                inner_hash = err_msg
+                mev_shield_id = await extract_mev_shield_id(response)
+                mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
+                    subtensor=subtensor,
+                    extrinsic_hash=inner_hash,
+                    shield_id=mev_shield_id,
+                    submit_block_hash=response.block_hash,
+                    status=status,
                 )
                 if not mev_success:
                     status.stop()
@@ -273,24 +280,24 @@ async def register_subnetwork_extrinsic(
                     )
                     return False, None, None
 
-        # Successful registration, final check for membership
+            # Successful registration, final check for membership
 
-        attributes = await _find_event_attributes_in_extrinsic_receipt(
-            response, "NetworkAdded"
-        )
-        await print_extrinsic_id(response)
-        ext_id = await response.get_extrinsic_identifier()
-        if not attributes:
-            console.print(
-                ":exclamation: [yellow]A possible error has occurred[/yellow]. The extrinsic reports success, but "
-                "we are unable to locate the 'NetworkAdded' event inside the extrinsic's events."
-                ""
+            attributes = await _find_event_attributes_in_extrinsic_receipt(
+                response, "NetworkAdded"
             )
-        else:
-            console.print(
-                f":white_heavy_check_mark: [dark_sea_green3]Registered subnetwork with netuid: {attributes[0]}"
-            )
-        return True, int(attributes[0]), ext_id
+            await print_extrinsic_id(response)
+            ext_id = await response.get_extrinsic_identifier()
+            if not attributes:
+                console.print(
+                    ":exclamation: [yellow]A possible error has occurred[/yellow]. The extrinsic reports success, but "
+                    "we are unable to locate the 'NetworkAdded' event inside the extrinsic's events."
+                    ""
+                )
+            else:
+                console.print(
+                    f":white_heavy_check_mark: [dark_sea_green3]Registered subnetwork with netuid: {attributes[0]}"
+                )
+            return True, int(attributes[0]), ext_id
 
 
 # commands
