@@ -250,6 +250,7 @@ async def register_subnetwork_extrinsic(
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
             proxy=proxy,
+            nonce=next_nonce,
             mev_protection=mev_protection,
         )
 

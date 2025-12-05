@@ -1192,7 +1192,10 @@ class SubtensorInterface:
         :param proxy: The real account used to create the proxy. None if not using a proxy for this call.
         :param nonce: The nonce used to submit this extrinsic call.
         :param sign_with: Determine which of the wallet's keypairs to use to sign the extrinsic call.
-        :param announce_only: If set, makes the call as an announcement, rather than making the call.
+        :param announce_only: If set, makes the call as an announcement, rather than making the call. Cannot
+            be used with `mev_protection=True`.
+        :param mev_protection: If set, uses Mev Protection on the extrinsic, thus encrypting it. Cannot be
+            used with `announce_only=True`.
 
         :return: (success, error message or inner extrinsic hash (if using mev_protection), extrinsic receipt | None)
         """
@@ -1204,7 +1207,7 @@ class SubtensorInterface:
                 "nonce": n,
             }
             if era is not None:
-                kwargs["era"] = {"period": era}
+                kwargs["era"] = era
             return await self.substrate.create_signed_extrinsic(**kwargs)
 
         if announce_only and mev_protection:

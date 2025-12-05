@@ -767,7 +767,9 @@ async def transfer_stake(
             amount=amount_to_transfer.rao,
         ),
         subtensor.get_extrinsic_fee(call, wallet.coldkeypub, proxy=proxy),
-        subtensor.substrate.get_account_next_index(proxy or wallet.coldkeypub.ss58_address),
+        subtensor.substrate.get_account_next_index(
+            proxy or wallet.coldkeypub.ss58_address
+        ),
     )
 
     # Display stake movement details
@@ -960,7 +962,9 @@ async def swap_stake(
             amount=amount_to_swap.rao,
         ),
         subtensor.get_extrinsic_fee(call, wallet.coldkeypub, proxy=proxy),
-        subtensor.substrate.get_account_next_index(proxy or wallet.coldkeypub.ss58_address),
+        subtensor.substrate.get_account_next_index(
+            proxy or wallet.coldkeypub.ss58_address
+        ),
     )
 
     # Display stake movement details
