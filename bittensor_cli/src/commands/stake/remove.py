@@ -9,7 +9,6 @@ from bittensor_wallet import Wallet
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
-from async_substrate_interface.errors import SubstrateRequestException
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
     encrypt_call,

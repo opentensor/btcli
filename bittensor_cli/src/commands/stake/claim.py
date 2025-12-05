@@ -65,13 +65,7 @@ async def set_claim_type(
     """
 
     if claim_type is not None:
-        claim_type = claim_type.capitalize()
-        if claim_type not in ["Keep", "Swap"]:
-            msg = f"Invalid claim type: {claim_type}. Use 'Keep' or 'Swap', or omit for interactive mode."
-            err_console.print(f"[red]{msg}[/red]")
-            if json_output:
-                json_console.print(json.dumps({"success": False, "message": msg}))
-            return False, msg, None
+        claim_type = claim_type.value
 
     current_claim_info, all_netuids = await asyncio.gather(
         subtensor.get_coldkey_claim_type(coldkey_ss58=wallet.coldkeypub.ss58_address),

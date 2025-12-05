@@ -273,7 +273,7 @@ async def register_subnetwork_extrinsic(
                     )
                     return False, None, None
 
-    # Successful registration, final check for membership
+        # Successful registration, final check for membership
 
         attributes = await _find_event_attributes_in_extrinsic_receipt(
             response, "NetworkAdded"
@@ -1730,7 +1730,7 @@ async def create(
         subnet_identity=subnet_identity,
         prompt=prompt,
         proxy=proxy,
-        mev_protection=mev_protection
+        mev_protection=mev_protection,
     )
     if json_output:
         # technically, netuid can be `None`, but only if not wait for finalization/inclusion. However, as of present

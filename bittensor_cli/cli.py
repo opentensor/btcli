@@ -7093,7 +7093,7 @@ class CLIManager:
                 proxy=proxy,
                 json_output=json_output,
                 prompt=prompt,
-                mev_protection=mev_protection
+                mev_protection=mev_protection,
             )
         )
 

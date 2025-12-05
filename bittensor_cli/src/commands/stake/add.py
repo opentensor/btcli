@@ -8,7 +8,6 @@ from async_substrate_interface import AsyncExtrinsicReceipt
 from rich.table import Table
 from rich.prompt import Confirm, Prompt
 
-from async_substrate_interface.errors import SubstrateRequestException
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
@@ -19,7 +18,6 @@ from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
 from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
-    format_error_message,
     get_hotkey_wallets_for_wallet,
     is_valid_ss58_address,
     print_error,
@@ -71,6 +69,7 @@ async def stake_add(
         json_output: whether to output stake info in JSON format
         era: Blocks for which the transaction should be valid.
         proxy: Optional proxy to use for staking.
+        mev_protection: If true, will encrypt the extrinsic behind the mev protection shield.
 
     Returns:
         bool: True if stake operation is successful, False otherwise
@@ -121,9 +120,9 @@ async def stake_add(
         current_stake: Balance,
         hotkey_ss58_: str,
         price_limit: Balance,
-        status=None,
+        status_=None,
     ) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
-        err_out = partial(print_error, status=status)
+        err_out = partial(print_error, status=status_)
         failure_prelude = (
             f":cross_mark: [red]Failed[/red] to stake {amount_} on Netuid {netuid_}"
         )
@@ -158,7 +157,7 @@ async def stake_add(
                     f"Transaction rejected because partial staking is disabled. "
                     f"Either increase price tolerance or enable partial staking."
                 )
-                print_error("\n" + err_msg, status=status)
+                print_error("\n" + err_msg, status=status_)
             else:
                 err_msg = f"{failure_prelude} with error: {err_msg}"
                 err_out("\n" + err_msg)
@@ -168,10 +167,10 @@ async def stake_add(
                 mev_shield_id = await extract_mev_shield_id(response)
                 if mev_shield_id:
                     mev_success, mev_error, response = await wait_for_mev_execution(
-                        subtensor, mev_shield_id, response.block_hash, status=status
+                        subtensor, mev_shield_id, response.block_hash, status=status_
                     )
                     if not mev_success:
-                        status.stop()
+                        status_.stop()
                         err_msg = f"{failure_prelude}: {mev_error}"
                         err_out("\n" + err_msg)
                         return False, err_msg, None
@@ -219,9 +218,9 @@ async def stake_add(
             return True, "", response
 
     async def stake_extrinsic(
-        netuid_i, amount_, current, staking_address_ss58, status=None
+        netuid_i, amount_, current, staking_address_ss58, status_=None
     ) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
-        err_out = partial(print_error, status=status)
+        err_out = partial(print_error, status=status_)
         block_hash = await subtensor.substrate.get_chain_head()
         current_balance, next_nonce, call = await asyncio.gather(
             subtensor.get_balance(coldkey_ss58, block_hash=block_hash),
@@ -258,10 +257,10 @@ async def stake_add(
                 mev_shield_id = await extract_mev_shield_id(response)
                 if mev_shield_id:
                     mev_success, mev_error, response = await wait_for_mev_execution(
-                        subtensor, mev_shield_id, response.block_hash, status=status
+                        subtensor, mev_shield_id, response.block_hash, status=status_
                     )
                     if not mev_success:
-                        status.stop()
+                        status_.stop()
                         err_msg = f"{failure_prelude}: {mev_error}"
                         err_out("\n" + err_msg)
                         return False, err_msg, None
@@ -485,7 +484,7 @@ async def stake_add(
                             amount_=am,
                             current=curr,
                             staking_address_ss58=staking_address,
-                            status=status,
+                            status_=status,
                         )
                     else:
                         stake_coroutines[(ni, staking_address)] = safe_stake_extrinsic(
@@ -494,7 +493,7 @@ async def stake_add(
                             current_stake=curr,
                             hotkey_ss58_=staking_address,
                             price_limit=price_with_tolerance,
-                            status=status,
+                            status_=status,
                         )
         else:
             stake_coroutines = {
@@ -503,7 +502,7 @@ async def stake_add(
                     amount_=am,
                     current=curr,
                     staking_address_ss58=staking_address,
-                    status=status,
+                    status_=status,
                 )
                 for i, (ni, am, curr) in enumerate(
                     zip(netuids, amounts_to_stake, current_stake_balances)

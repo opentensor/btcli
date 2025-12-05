@@ -17,7 +17,6 @@ from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
     print_error,
-    format_error_message,
     group_subnets,
     get_subnet_name,
     unlock_key,
@@ -680,6 +679,7 @@ async def transfer_stake(
         era: number of blocks for which the extrinsic should be valid
         stake_all: If true, transfer all stakes.
         proxy: Optional proxy to use for this extrinsic
+        mev_protection: If true, will encrypt the extrinsic behind the mev protection shield.
 
     Returns:
         tuple:
@@ -804,15 +804,15 @@ async def transfer_stake(
 
     if success_:
         if mev_protection:
-                mev_shield_id = await extract_mev_shield_id(response)
-                if mev_shield_id:
-                    mev_success, mev_error, response = await wait_for_mev_execution(
-                        subtensor, mev_shield_id, response.block_hash, status=status
-                    )
-                    if not mev_success:
-                        status.stop()
-                        err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
-                        return False, ""    ext_id = await response.get_extrinsic_identifier()
+            mev_shield_id = await extract_mev_shield_id(response)
+            if mev_shield_id:
+                mev_success, mev_error, response = await wait_for_mev_execution(
+                    subtensor, mev_shield_id, response.block_hash, status=status
+                )
+                if not mev_success:
+                    status.stop()
+                    err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
+                    return False, ""
         await print_extrinsic_id(response)
         ext_id = await response.get_extrinsic_identifier()
         if not prompt:
@@ -878,6 +878,7 @@ async def swap_stake(
         prompt: If true, prompts for confirmation before executing swap.
         wait_for_inclusion: If true, waits for the transaction to be included in a block.
         wait_for_finalization: If true, waits for the transaction to be finalized.
+        mev_protection: If true, will encrypt the extrinsic behind the mev protection shield.
 
     Returns:
         (success, extrinsic_identifier):
