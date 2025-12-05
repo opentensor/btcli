@@ -161,7 +161,10 @@ async def wait_for_mev_execution(
             call_module = call.get("call_module")
             call_function = call.get("call_function")
 
-            if call_module == "MevShield" and call_function == "execute_revealed":
+            if call_module == "MevShield" and call_function in (
+                "execute_revealed",
+                "mark_decryption_failed",
+            ):
                 call_args = call.get("call_args", [])
                 for arg in call_args:
                     if arg.get("name") == "id":
@@ -190,68 +193,3 @@ async def wait_for_mev_execution(
         return True, None, receipt
 
     return False, "Timeout waiting for MEV Shield execution", None
-
-
-async def check_mev_shield_error(
-    receipt: AsyncExtrinsicReceipt,
-    subtensor: "SubtensorInterface",
-    wrapper_id: str,
-) -> Optional[dict]:
-    """
-    Handles & extracts error messages in the MEV Shield extrinsics.
-    This is a temporary implementation until we update up-stream code.
-
-    Args:
-        receipt: AsyncExtrinsicReceipt for the execute_revealed extrinsic.
-        subtensor: SubtensorInterface instance.
-        wrapper_id: The wrapper ID to verify we're checking the correct event.
-
-    Returns:
-        Error dict to be used with format_error_message(), or None if no error.
-    """
-    if not await receipt.is_success:
-        return await receipt.error_message
-
-    for event in await receipt.triggered_events:
-        event_details = event.get("event", {})
-
-        if (
-            event_details.get("module_id") == "MevShield"
-            and event_details.get("event_id") == "DecryptedRejected"
-        ):
-            attributes = event_details.get("attributes", {})
-            event_wrapper_id = attributes.get("id")
-
-            if event_wrapper_id != wrapper_id:
-                continue
-
-            reason = attributes.get("reason", {})
-            dispatch_error = reason.get("error", {})
-
-            try:
-                if "Module" in dispatch_error:
-                    module_index = dispatch_error["Module"]["index"]
-                    error_index = dispatch_error["Module"]["error"]
-
-                    if isinstance(error_index, str) and error_index.startswith("0x"):
-                        error_index = int(error_index[2:4], 16)
-
-                    runtime = await subtensor.substrate.init_runtime(
-                        block_hash=receipt.block_hash
-                    )
-                    module_error = runtime.metadata.get_module_error(
-                        module_index=module_index,
-                        error_index=error_index,
-                    )
-
-                    return {
-                        "type": "Module",
-                        "name": module_error.name,
-                        "docs": module_error.docs,
-                    }
-            except Exception:
-                return dispatch_error
-
-            return dispatch_error
-
-    return None
