@@ -4013,6 +4013,9 @@ class CLIManager:
         7. Stake the same amount to multiple subnets:
             [green]$[/green] btcli stake add --amount 100 --netuids 4,5,6
 
+        8. Stake without MEV protection:
+            [green]$[/green] btcli stake add --amount 100 --netuid 1 --no-mev-protection
+
         [bold]Safe Staking Parameters:[/bold]
         • [blue]--safe[/blue]: Enables rate tolerance checks
         • [blue]--tolerance[/blue]: Maximum % rate change allowed (0.05 = 5%)
@@ -4315,6 +4318,9 @@ class CLIManager:
 
         6. Unstake all Alpha from a hotkey and stake to Root:
             [green]$[/green] btcli stake remove --all-alpha
+
+        7. Unstake without MEV protection:
+            [green]$[/green] btcli stake remove --amount 100 --netuid 1 --no-mev-protection
 
         [bold]Safe Staking Parameters:[/bold]
         • [blue]--safe[/blue]: Enables rate tolerance checks during unstaking
@@ -4645,9 +4651,13 @@ class CLIManager:
 
         If no arguments are provided, an interactive selection menu will be shown.
 
-        EXAMPLE
+        EXAMPLES
 
-        [green]$[/green] btcli stake move
+        1. Interactive move (guided prompts):
+            [green]$[/green] btcli stake move
+
+        2. Move stake without MEV protection:
+            [green]$[/green] btcli stake move --no-mev-protection
         """
         self.verbosity_handler(quiet, verbose, json_output)
         if prompt:
@@ -4856,6 +4866,9 @@ class CLIManager:
 
         Transfer all available stake from origin hotkey:
         [green]$[/green] btcli stake transfer --all --origin-netuid 1 --dest-netuid 2
+
+        Transfer stake without MEV protection:
+        [green]$[/green] btcli stake transfer --origin-netuid 1 --dest-netuid 2 --amount 100 --no-mev-protection
         """
         self.verbosity_handler(quiet, verbose, json_output)
         if prompt:
@@ -5032,10 +5045,13 @@ class CLIManager:
 
         If no arguments are provided, an interactive selection menu will be shown.
 
-        EXAMPLE
+        EXAMPLES
 
-        Swap 100 TAO from subnet 1 to subnet 2:
-        [green]$[/green] btcli stake swap --wallet-name default --wallet-hotkey default --origin-netuid 1 --dest-netuid 2 --amount 100
+        1. Swap 100 TAO from subnet 1 to subnet 2:
+            [green]$[/green] btcli stake swap --wallet-name default --wallet-hotkey default --origin-netuid 1 --dest-netuid 2 --amount 100
+
+        2. Swap stake without MEV protection:
+            [green]$[/green] btcli stake swap --origin-netuid 1 --dest-netuid 2 --amount 100 --no-mev-protection
         """
         self.verbosity_handler(quiet, verbose, json_output)
         console.print(
@@ -6473,6 +6489,9 @@ class CLIManager:
 
         2. Create with GitHub repo and contact email:
         [green]$[/green] btcli subnets create --subnet-name MySubnet --github-repo https://github.com/myorg/mysubnet --subnet-contact team@mysubnet.net
+
+        3. Create subnet without MEV protection:
+        [green]$[/green] btcli subnets create --no-mev-protection
         """
         self.verbosity_handler(quiet, verbose, json_output)
         wallet = self.wallet_ask(
