@@ -18,9 +18,9 @@ from bittensor_cli.src.bittensor.extrinsics.registration import (
 )
 from bittensor_cli.src.bittensor.extrinsics.root import root_register_extrinsic
 from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
-    encrypt_call,
+    create_mev_protected_extrinsic,
     extract_mev_shield_id,
-    wait_for_mev_execution,
+    wait_for_extrinsic_by_hash,
 )
 from rich.live import Live
 from bittensor_cli.src.bittensor.minigraph import MiniGraph
@@ -232,17 +232,27 @@ async def register_subnetwork_extrinsic(
 
     with console.status(":satellite: Registering subnet...", spinner="earth") as status:
         substrate = subtensor.substrate
-        # create extrinsic call
-        call = await substrate.compose_call(
-            call_module="SubtensorModule",
-            call_function=call_function,
-            call_params=call_params,
+        call, next_nonce = await asyncio.gather(
+            substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function=call_function,
+                call_params=call_params,
+            ),
+            substrate.get_account_next_index(wallet.coldkeypub.ss58_address),
         )
         if mev_protection:
-            call = await encrypt_call(subtensor, wallet, call)
-        extrinsic = await substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey
-        )
+            extrinsic, inner_hash = await create_mev_protected_extrinsic(
+                subtensor=subtensor,
+                wallet=wallet,
+                call=call,
+                next_nonce=next_nonce,
+                era=None,
+            )
+        else:
+            inner_hash = None
+            extrinsic = await substrate.create_signed_extrinsic(
+                call=call, keypair=wallet.coldkey, nonce=next_nonce
+            )
         response = await substrate.submit_extrinsic(
             extrinsic,
             wait_for_inclusion=wait_for_inclusion,
@@ -263,16 +273,19 @@ async def register_subnetwork_extrinsic(
         # Check for MEV shield execution
         if mev_protection:
             mev_shield_id = await extract_mev_shield_id(response)
-            if mev_shield_id:
-                mev_success, mev_error, response = await wait_for_mev_execution(
-                    subtensor, mev_shield_id, response.block_hash, status=status
+            mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
+                subtensor=subtensor,
+                inner_hash=inner_hash,
+                mev_shield_id=mev_shield_id,
+                block_hash=response.block_hash,
+                status=status,
+            )
+            if not mev_success:
+                status.stop()
+                err_console.print(
+                    f":cross_mark: [red]Failed[/red]: MEV execution failed: {mev_error}"
                 )
-                if not mev_success:
-                    status.stop()
-                    err_console.print(
-                        f":cross_mark: [red]Failed[/red]: MEV execution failed: {mev_error}"
-                    )
-                    return False, None, None
+                return False, None, None
 
         # Successful registration, final check for membership
         attributes = await _find_event_attributes_in_extrinsic_receipt(
