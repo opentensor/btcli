@@ -9,9 +9,9 @@ from rich.prompt import Confirm, Prompt
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
-    encrypt_call,
+    create_mev_protected_extrinsic,
     extract_mev_shield_id,
-    wait_for_mev_execution,
+    wait_for_extrinsic_by_hash,
 )
 from bittensor_cli.src.bittensor.utils import (
     console,
@@ -548,13 +548,14 @@ async def move_stake(
             "alpha_amount": amount_to_move_as_balance.rao,
         },
     )
-    sim_swap, extrinsic_fee = await asyncio.gather(
+    sim_swap, extrinsic_fee, next_nonce = await asyncio.gather(
         subtensor.sim_swap(
             origin_netuid=origin_netuid,
             destination_netuid=destination_netuid,
             amount=amount_to_move_as_balance.rao,
         ),
         subtensor.get_extrinsic_fee(call, wallet.coldkeypub),
+        subtensor.substrate.get_account_next_index(wallet.coldkeypub.ss58_address),
     )
 
     # Display stake movement details
@@ -586,24 +587,35 @@ async def move_stake(
         f"[blue]{destination_hotkey}[/blue] on netuid: [blue]{destination_netuid}[/blue] ..."
     ) as status:
         if mev_protection:
-            call = await encrypt_call(subtensor, wallet, call)
-        extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey, era={"period": era}
-        )
+            extrinsic, inner_hash = await create_mev_protected_extrinsic(
+                subtensor=subtensor,
+                keypair=wallet.coldkey,
+                call=call,
+                next_nonce=next_nonce,
+                era=era,
+            )
+        else:
+            inner_hash = None
+            extrinsic = await subtensor.substrate.create_signed_extrinsic(
+                call=call, keypair=wallet.coldkey, nonce=next_nonce, era={"period": era}
+            )
         response = await subtensor.substrate.submit_extrinsic(
             extrinsic, wait_for_inclusion=True, wait_for_finalization=False
         )
 
         if mev_protection:
             mev_shield_id = await extract_mev_shield_id(response)
-            if mev_shield_id:
-                mev_success, mev_error, response = await wait_for_mev_execution(
-                    subtensor, mev_shield_id, response.block_hash, status=status
-                )
-                if not mev_success:
-                    status.stop()
-                    err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
-                    return False, ""
+            mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
+                subtensor=subtensor,
+                inner_hash=inner_hash,
+                mev_shield_id=mev_shield_id,
+                block_hash=response.block_hash,
+                status=status,
+            )
+            if not mev_success:
+                status.stop()
+                err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
+                return False, ""
 
     ext_id = await response.get_extrinsic_identifier()
 
@@ -752,13 +764,14 @@ async def transfer_stake(
             "alpha_amount": amount_to_transfer.rao,
         },
     )
-    sim_swap, extrinsic_fee = await asyncio.gather(
+    sim_swap, extrinsic_fee, next_nonce = await asyncio.gather(
         subtensor.sim_swap(
             origin_netuid=origin_netuid,
             destination_netuid=dest_netuid,
             amount=amount_to_transfer.rao,
         ),
         subtensor.get_extrinsic_fee(call, wallet.coldkeypub),
+        subtensor.substrate.get_account_next_index(wallet.coldkeypub.ss58_address),
     )
 
     # Display stake movement details
@@ -788,10 +801,18 @@ async def transfer_stake(
 
     with console.status("\n:satellite: Transferring stake ...") as status:
         if mev_protection:
-            call = await encrypt_call(subtensor, wallet, call)
-        extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey, era={"period": era}
-        )
+            extrinsic, inner_hash = await create_mev_protected_extrinsic(
+                subtensor=subtensor,
+                keypair=wallet.coldkey,
+                call=call,
+                next_nonce=next_nonce,
+                era=era,
+            )
+        else:
+            inner_hash = None
+            extrinsic = await subtensor.substrate.create_signed_extrinsic(
+                call=call, keypair=wallet.coldkey, nonce=next_nonce, era={"period": era}
+            )
 
         response = await subtensor.substrate.submit_extrinsic(
             extrinsic, wait_for_inclusion=True, wait_for_finalization=False
@@ -799,14 +820,17 @@ async def transfer_stake(
 
         if mev_protection:
             mev_shield_id = await extract_mev_shield_id(response)
-            if mev_shield_id:
-                mev_success, mev_error, response = await wait_for_mev_execution(
-                    subtensor, mev_shield_id, response.block_hash, status=status
-                )
-                if not mev_success:
-                    status.stop()
-                    err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
-                    return False, ""
+            mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
+                subtensor=subtensor,
+                inner_hash=inner_hash,
+                mev_shield_id=mev_shield_id,
+                block_hash=response.block_hash,
+                status=status,
+            )
+            if not mev_success:
+                status.stop()
+                err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
+                return False, ""
 
     ext_id = await response.get_extrinsic_identifier()
 
@@ -939,13 +963,14 @@ async def swap_stake(
             "alpha_amount": amount_to_swap.rao,
         },
     )
-    sim_swap, extrinsic_fee = await asyncio.gather(
+    sim_swap, extrinsic_fee, next_nonce = await asyncio.gather(
         subtensor.sim_swap(
             origin_netuid=origin_netuid,
             destination_netuid=destination_netuid,
             amount=amount_to_swap.rao,
         ),
         subtensor.get_extrinsic_fee(call, wallet.coldkeypub),
+        subtensor.substrate.get_account_next_index(wallet.coldkeypub.ss58_address),
     )
 
     # Display stake movement details
@@ -978,10 +1003,18 @@ async def swap_stake(
         f"to netuid [blue]{destination_netuid}[/blue]..."
     ) as status:
         if mev_protection:
-            call = await encrypt_call(subtensor, wallet, call)
-        extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey, era={"period": era}
-        )
+            extrinsic, inner_hash = await create_mev_protected_extrinsic(
+                subtensor=subtensor,
+                keypair=wallet.coldkey,
+                call=call,
+                next_nonce=next_nonce,
+                era=era,
+            )
+        else:
+            inner_hash = None
+            extrinsic = await subtensor.substrate.create_signed_extrinsic(
+                call=call, keypair=wallet.coldkey, nonce=next_nonce, era={"period": era}
+            )
 
         response = await subtensor.substrate.submit_extrinsic(
             extrinsic,
@@ -991,14 +1024,17 @@ async def swap_stake(
 
         if mev_protection:
             mev_shield_id = await extract_mev_shield_id(response)
-            if mev_shield_id:
-                mev_success, mev_error, response = await wait_for_mev_execution(
-                    subtensor, mev_shield_id, response.block_hash, status=status
-                )
-                if not mev_success:
-                    status.stop()
-                    err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
-                    return False, ""
+            mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
+                subtensor=subtensor,
+                inner_hash=inner_hash,
+                mev_shield_id=mev_shield_id,
+                block_hash=response.block_hash,
+                status=status,
+            )
+            if not mev_success:
+                status.stop()
+                err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
+                return False, ""
 
     ext_id = await response.get_extrinsic_identifier()
 
