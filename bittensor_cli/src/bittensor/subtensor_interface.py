@@ -2409,8 +2409,7 @@ class SubtensorInterface:
                 ema_map[netuid] = Balance.from_rao(0)
             else:
                 _, raw_ema_value = value
-                ema_value = fixed_to_float(raw_ema_value)
-                # TODO @abe is this intentional: float passed as int for from_rao
+                ema_value = int(fixed_to_float(raw_ema_value))
                 ema_map[netuid] = Balance.from_rao(ema_value)
         return ema_map
 
@@ -2441,8 +2440,7 @@ class SubtensorInterface:
         if not value:
             return Balance.from_rao(0)
         _, raw_ema_value = value
-        ema_value = fixed_to_float(raw_ema_value)
-        # TODO @abe this is a float, but we're passing it as an int for from_rao, is this intentional?
+        ema_value = int(fixed_to_float(raw_ema_value))
         return Balance.from_rao(ema_value)
 
     async def get_mev_shield_next_key(
