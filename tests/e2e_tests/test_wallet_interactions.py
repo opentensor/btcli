@@ -394,6 +394,7 @@ def test_wallet_identities(local_chain, wallet_setup):
             "--logo-url",
             "https://testsubnet.com/logo.png",
             "--no-prompt",
+            "--no-mev-protection",
         ],
     )
     assert f"✅ Registered subnetwork with netuid: {netuid}" in result.stdout
