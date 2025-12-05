@@ -1178,6 +1178,7 @@ class SubtensorInterface:
         nonce: Optional[int] = None,
         sign_with: Literal["coldkey", "hotkey", "coldkeypub"] = "coldkey",
         announce_only: bool = False,
+        mev_protection: bool = False,
     ) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
         """
         Helper method to sign and submit an extrinsic call to chain.
@@ -1192,8 +1193,24 @@ class SubtensorInterface:
         :param sign_with: Determine which of the wallet's keypairs to use to sign the extrinsic call.
         :param announce_only: If set, makes the call as an announcement, rather than making the call.
 
-        :return: (success, error message, extrinsic receipt | None)
+        :return: (success, error message or inner extrinsic hash (if using mev_protection), extrinsic receipt | None)
         """
+
+        async def create_signed(call_to_sign, n):
+            kwargs = {
+                "call": call_to_sign,
+                "keypair": keypair,
+                "nonce": n,
+            }
+            if era is not None:
+                kwargs["era"] = {"period": era}
+            return await self.substrate.create_signed_extrinsic(**kwargs)
+
+        if announce_only and mev_protection:
+            raise ValueError(
+                "Cannot use announce-only and mev-protection. Calls should be announced without mev protection,"
+                "and executed with them."
+            )
         if proxy is not None:
             if announce_only:
                 call_to_announce = call
@@ -1225,7 +1242,17 @@ class SubtensorInterface:
             call_args["nonce"] = await self.substrate.get_account_next_index(
                 keypair.ss58_address
             )
-        extrinsic = await self.substrate.create_signed_extrinsic(**call_args)
+        inner_hash = ""
+        if mev_protection:
+            next_nonce = await self.substrate.get_account_next_index(
+                keypair.ss58_address
+            )
+            inner_extrinsic = await create_signed(call, next_nonce)
+            inner_hash = f"0x{inner_extrinsic.extrinsic_hash.hex()}"
+            shield_call = await encrypt_extrinsic(self, inner_extrinsic)
+            extrinsic = await create_signed(shield_call, nonce)
+        else:
+            extrinsic = await self.substrate.create_signed_extrinsic(**call_args)
         try:
             response = await self.substrate.submit_extrinsic(
                 extrinsic,
@@ -1234,7 +1261,7 @@ class SubtensorInterface:
             )
             # We only wait here if we expect finalization.
             if not wait_for_finalization and not wait_for_inclusion:
-                return True, "", response
+                return True, inner_hash, response
             if await response.is_success:
                 if announce_only:
                     block = await self.substrate.get_block_number(response.block_hash)
@@ -1251,7 +1278,7 @@ class SubtensorInterface:
                     console.print(
                         f"Added entry {call_to_announce.call_hash} at block {block} to your ProxyAnnouncements address book."
                     )
-                return True, "", response
+                return True, inner_hash, response
             else:
                 return False, format_error_message(await response.error_message), None
         except SubstrateRequestException as e:
