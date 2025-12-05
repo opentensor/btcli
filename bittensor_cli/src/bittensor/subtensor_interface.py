@@ -34,6 +34,7 @@ from bittensor_cli.src.bittensor.chain_data import (
 from bittensor_cli.src import DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance, fixed_to_float
 from bittensor_cli.src import Constants, defaults, TYPE_REGISTRY
+from bittensor_cli.src.bittensor.extrinsics.mev_shield import encrypt_extrinsic
 from bittensor_cli.src.bittensor.utils import (
     format_error_message,
     console,
@@ -2406,6 +2407,7 @@ class SubtensorInterface:
             else:
                 _, raw_ema_value = value
                 ema_value = fixed_to_float(raw_ema_value)
+                # TODO @abe is this intentional: float passed as int for from_rao
                 ema_map[netuid] = Balance.from_rao(ema_value)
         return ema_map
 
@@ -2437,12 +2439,13 @@ class SubtensorInterface:
             return Balance.from_rao(0)
         _, raw_ema_value = value
         ema_value = fixed_to_float(raw_ema_value)
+        # TODO @abe this is a float, but we're passing it as an int for from_rao, is this intentional?
         return Balance.from_rao(ema_value)
 
     async def get_mev_shield_next_key(
         self,
         block_hash: Optional[str] = None,
-    ) -> Optional[tuple[bytes, int]]:
+    ) -> bytes:
         """
         Get the next MEV Shield public key and epoch from chain storage.
 
@@ -2470,7 +2473,7 @@ class SubtensorInterface:
     async def get_mev_shield_current_key(
         self,
         block_hash: Optional[str] = None,
-    ) -> Optional[tuple[bytes, int]]:
+    ) -> bytes:
         """
         Get the current MEV Shield public key and epoch from chain storage.
 

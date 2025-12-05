@@ -9,7 +9,6 @@ from rich.prompt import Confirm, Prompt
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
-    create_mev_protected_extrinsic,
     extract_mev_shield_id,
     wait_for_extrinsic_by_hash,
 )
@@ -588,28 +587,30 @@ async def move_stake(
         f"[blue]{origin_netuid}[/blue] \nto "
         f"[blue]{destination_hotkey}[/blue] on netuid: [blue]{destination_netuid}[/blue] ..."
     ) as status:
-        if mev_protection:
-            call = await encrypt_call(subtensor, wallet, call)
         success_, err_msg, response = await subtensor.sign_and_send_extrinsic(
             call=call,
             wallet=wallet,
             era={"period": era},
             proxy=proxy,
+            mev_protection=mev_protection,
         )
-
-        if mev_protection:
-            mev_shield_id = await extract_mev_shield_id(response)
-            if mev_shield_id:
-                mev_success, mev_error, response = await wait_for_mev_execution(
-                    subtensor, mev_shield_id, response.block_hash, status=status
-                )
-                if not mev_success:
-                    status.stop()
-                    err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
-                    return False, ""
 
     ext_id = await response.get_extrinsic_identifier() if response else ""
     if success_:
+        if mev_protection:
+            inner_hash = err_msg
+            mev_shield_id = await extract_mev_shield_id(response)
+            mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
+                subtensor=subtensor,
+                extrinsic_hash=inner_hash,
+                shield_id=mev_shield_id,
+                submit_block_hash=response.block_hash,
+                status=status,
+            )
+            if not mev_success:
+                status.stop()
+                err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
+                return False, ""
         await print_extrinsic_id(response)
         if not prompt:
             console.print(":white_heavy_check_mark: [green]Sent[/green]")
@@ -797,59 +798,62 @@ async def transfer_stake(
         return False, ""
 
     with console.status("\n:satellite: Transferring stake ...") as status:
-        if mev_protection:
-            call = await encrypt_call(subtensor, wallet, call)
         success_, err_msg, response = await subtensor.sign_and_send_extrinsic(
             call=call,
             wallet=wallet,
             era={"period": era},
             proxy=proxy,
+            mev_protection=mev_protection,
         )
 
-    if success_:
-        if mev_protection:
-            mev_shield_id = await extract_mev_shield_id(response)
-            if mev_shield_id:
-                mev_success, mev_error, response = await wait_for_mev_execution(
-                    subtensor, mev_shield_id, response.block_hash, status=status
+        if success_:
+            if mev_protection:
+                inner_hash = err_msg
+                mev_shield_id = await extract_mev_shield_id(response)
+                mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
+                    subtensor=subtensor,
+                    extrinsic_hash=inner_hash,
+                    shield_id=mev_shield_id,
+                    submit_block_hash=response.block_hash,
+                    status=status,
                 )
                 if not mev_success:
                     status.stop()
                     err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
                     return False, ""
-        await print_extrinsic_id(response)
-        ext_id = await response.get_extrinsic_identifier()
-        if not prompt:
-            console.print(":white_heavy_check_mark: [green]Sent[/green]")
-            return True, ext_id
+            await print_extrinsic_id(response)
+            ext_id = await response.get_extrinsic_identifier()
+            if not prompt:
+                console.print(":white_heavy_check_mark: [green]Sent[/green]")
+                return True, ext_id
+            else:
+                # Get and display new stake balances
+                new_stake, new_dest_stake = await asyncio.gather(
+                    subtensor.get_stake(
+                        coldkey_ss58=wallet.coldkeypub.ss58_address,
+                        hotkey_ss58=origin_hotkey,
+                        netuid=origin_netuid,
+                    ),
+                    subtensor.get_stake(
+                        coldkey_ss58=dest_coldkey_ss58,
+                        hotkey_ss58=origin_hotkey,
+                        netuid=dest_netuid,
+                    ),
+                )
+
+                console.print(
+                    f"Origin Stake:\n  [blue]{current_stake}[/blue] :arrow_right: "
+                    f"[{COLOR_PALETTE.S.AMOUNT}]{new_stake}"
+                )
+                console.print(
+                    f"Destination Stake:\n  [blue]{current_dest_stake}[/blue] :arrow_right: "
+                    f"[{COLOR_PALETTE.S.AMOUNT}]{new_dest_stake}"
+                )
+                return True, ext_id
+
         else:
-            # Get and display new stake balances
-            new_stake, new_dest_stake = await asyncio.gather(
-                subtensor.get_stake(
-                    coldkey_ss58=wallet.coldkeypub.ss58_address,
-                    hotkey_ss58=origin_hotkey,
-                    netuid=origin_netuid,
-                ),
-                subtensor.get_stake(
-                    coldkey_ss58=dest_coldkey_ss58,
-                    hotkey_ss58=origin_hotkey,
-                    netuid=dest_netuid,
-                ),
-            )
-
-            console.print(
-                f"Origin Stake:\n  [blue]{current_stake}[/blue] :arrow_right: "
-                f"[{COLOR_PALETTE.S.AMOUNT}]{new_stake}"
-            )
-            console.print(
-                f"Destination Stake:\n  [blue]{current_dest_stake}[/blue] :arrow_right: "
-                f"[{COLOR_PALETTE.S.AMOUNT}]{new_dest_stake}"
-            )
-            return True, ext_id
-
-    else:
-        err_console.print(f":cross_mark: [red]Failed[/red] with error: {err_msg}")
-        return False, ""
+            err_console.print(f":cross_mark: [red]Failed[/red] with error: {err_msg}")
+            return False, ""
 
 
 async def swap_stake(
@@ -991,8 +995,6 @@ async def swap_stake(
         f"\n:satellite: Swapping stake from netuid [blue]{origin_netuid}[/blue] "
         f"to netuid [blue]{destination_netuid}[/blue]..."
     ) as status:
-        if mev_protection:
-            call = await encrypt_call(subtensor, wallet, call)
         success_, err_msg, response = await subtensor.sign_and_send_extrinsic(
             call=call,
             wallet=wallet,
@@ -1000,51 +1002,55 @@ async def swap_stake(
             proxy=proxy,
             wait_for_finalization=wait_for_finalization,
             wait_for_inclusion=wait_for_inclusion,
+            mev_protection=mev_protection,
         )
 
-        if mev_protection:
-            mev_shield_id = await extract_mev_shield_id(response)
-            if mev_shield_id:
-                mev_success, mev_error, response = await wait_for_mev_execution(
-                    subtensor, mev_shield_id, response.block_hash, status=status
+        ext_id = await response.get_extrinsic_identifier()
+
+        if success_:
+            if mev_protection:
+                inner_hash = err_msg
+                mev_shield_id = await extract_mev_shield_id(response)
+                mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
+                    subtensor=subtensor,
+                    extrinsic_hash=inner_hash,
+                    shield_id=mev_shield_id,
+                    submit_block_hash=response.block_hash,
+                    status=status,
                 )
                 if not mev_success:
                     status.stop()
                     err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
                     return False, ""
+            await print_extrinsic_id(response)
+            if not prompt:
+                console.print(":white_heavy_check_mark: [green]Sent[/green]")
+                return True, await response.get_extrinsic_identifier()
+            else:
+                # Get and display new stake balances
+                new_stake, new_dest_stake = await asyncio.gather(
+                    subtensor.get_stake(
+                        coldkey_ss58=wallet.coldkeypub.ss58_address,
+                        hotkey_ss58=hotkey_ss58,
+                        netuid=origin_netuid,
+                    ),
+                    subtensor.get_stake(
+                        coldkey_ss58=wallet.coldkeypub.ss58_address,
+                        hotkey_ss58=hotkey_ss58,
+                        netuid=destination_netuid,
+                    ),
+                )
 
-    ext_id = await response.get_extrinsic_identifier()
+                console.print(
+                    f"Origin Stake:\n  [blue]{current_stake}[/blue] :arrow_right: "
+                    f"[{COLOR_PALETTE.S.AMOUNT}]{new_stake}"
+                )
+                console.print(
+                    f"Destination Stake:\n  [blue]{current_dest_stake}[/blue] :arrow_right: "
+                    f"[{COLOR_PALETTE.S.AMOUNT}]{new_dest_stake}"
+                )
+                return True, ext_id
 
-    if success_:
-        await print_extrinsic_id(response)
-        if not prompt:
-            console.print(":white_heavy_check_mark: [green]Sent[/green]")
-            return True, await response.get_extrinsic_identifier()
         else:
-            # Get and display new stake balances
-            new_stake, new_dest_stake = await asyncio.gather(
-                subtensor.get_stake(
-                    coldkey_ss58=wallet.coldkeypub.ss58_address,
-                    hotkey_ss58=hotkey_ss58,
-                    netuid=origin_netuid,
-                ),
-                subtensor.get_stake(
-                    coldkey_ss58=wallet.coldkeypub.ss58_address,
-                    hotkey_ss58=hotkey_ss58,
-                    netuid=destination_netuid,
-                ),
-            )
-
-            console.print(
-                f"Origin Stake:\n  [blue]{current_stake}[/blue] :arrow_right: "
-                f"[{COLOR_PALETTE.S.AMOUNT}]{new_stake}"
-            )
-            console.print(
-                f"Destination Stake:\n  [blue]{current_dest_stake}[/blue] :arrow_right: "
-                f"[{COLOR_PALETTE.S.AMOUNT}]{new_dest_stake}"
-            )
-            return True, ext_id
-
-    else:
-        err_console.print(f":cross_mark: [red]Failed[/red] with error: {err_msg}")
-        return False, ""
+            err_console.print(f":cross_mark: [red]Failed[/red] with error: {err_msg}")
+            return False, ""

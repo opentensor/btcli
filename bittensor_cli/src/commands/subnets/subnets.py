@@ -19,7 +19,6 @@ from bittensor_cli.src.bittensor.extrinsics.registration import (
 )
 from bittensor_cli.src.bittensor.extrinsics.root import root_register_extrinsic
 from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
-    create_mev_protected_extrinsic,
     extract_mev_shield_id,
     wait_for_extrinsic_by_hash,
 )
@@ -233,6 +232,8 @@ async def register_subnetwork_extrinsic(
     if not unlock_key(wallet).success:
         return False, None, None
 
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
+
     with console.status(":satellite: Registering subnet...", spinner="earth") as status:
         substrate = subtensor.substrate
         call, next_nonce = await asyncio.gather(
@@ -243,14 +244,13 @@ async def register_subnetwork_extrinsic(
             ),
             substrate.get_account_next_index(coldkey_ss58),
         )
-        if mev_protection:
-            call = await encrypt_call(subtensor, wallet, call)
         success, err_msg, response = await subtensor.sign_and_send_extrinsic(
             call=call,
             wallet=wallet,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
             proxy=proxy,
+            mev_protection=mev_protection,
         )
 
     # We only wait here if we expect finalization.
@@ -263,6 +263,7 @@ async def register_subnetwork_extrinsic(
     else:
         # Check for MEV shield execution
         if mev_protection:
+            inner_hash = err_msg
             mev_shield_id = await extract_mev_shield_id(response)
             mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
                 subtensor=subtensor,

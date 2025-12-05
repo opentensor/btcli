@@ -57,56 +57,6 @@ async def encrypt_extrinsic(
     return encrypted_call
 
 
-async def create_mev_protected_extrinsic(
-    subtensor: "SubtensorInterface",
-    keypair: "Keypair",
-    call: "GenericCall",
-    nonce: int,
-    era: Optional[int] = None,
-) -> tuple["GenericExtrinsic", str]:
-    """
-    Create a MEV-protected extrinsic.
-
-    This function handles MEV Shield wrapping:
-    1. Fetches a future nonce (current_nonce + 1) & signs the inner call with it
-    2. Encrypts it into a wrapper call
-    3. Signs the wrapper with the current nonce
-
-    Args:
-        subtensor: The SubtensorInterface instance.
-        keypair: Keypair for signing.
-        call: The call to protect (e.g., add_stake).
-        nonce: The current account nonce (wrapper will use this, inner uses nonce+1).
-        era: The era period for the extrinsic.
-
-    Returns:
-        Tuple of (signed_shield_extrinsic, inner_extrinsic_hash).
-        The inner_extrinsic_hash is used for tracking actual extrinsic.
-    """
-
-    async def create_signed(call_to_sign, n):
-        kwargs = {
-            "call": call_to_sign,
-            "keypair": keypair,
-            "nonce": n,
-        }
-        if era is not None:
-            kwargs["era"] = {"period": era}
-        return await subtensor.substrate.create_signed_extrinsic(**kwargs)
-
-    next_nonce = await subtensor.substrate.get_account_next_index(keypair.ss58_address)
-
-    # Actual call: Sign with future nonce (current_nonce + 1)
-    inner_extrinsic = await create_signed(call, next_nonce)
-    inner_hash = f"0x{inner_extrinsic.extrinsic_hash.hex()}"
-
-    # MeV Shield wrapper: Sign with current nonce
-    shield_call = await encrypt_extrinsic(subtensor, inner_extrinsic)
-    shield_extrinsic = await create_signed(shield_call, nonce)
-
-    return shield_extrinsic, inner_hash
-
-
 async def extract_mev_shield_id(response: "AsyncExtrinsicReceipt") -> Optional[str]:
     """
     Extract the MEV Shield wrapper ID from an extrinsic response.
