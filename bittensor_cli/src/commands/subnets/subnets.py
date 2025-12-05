@@ -254,50 +254,50 @@ async def register_subnetwork_extrinsic(
             mev_protection=mev_protection,
         )
 
-    # We only wait here if we expect finalization.
-    if not wait_for_finalization and not wait_for_inclusion:
-        return True, None, None
+        # We only wait here if we expect finalization.
+        if not wait_for_finalization and not wait_for_inclusion:
+            return True, None, None
 
-    if not success:
-        err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
-        return False, None, None
-    else:
-        # Check for MEV shield execution
-        if mev_protection:
-            inner_hash = err_msg
-            mev_shield_id = await extract_mev_shield_id(response)
-            mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
-                subtensor=subtensor,
-                extrinsic_hash=inner_hash,
-                shield_id=mev_shield_id,
-                submit_block_hash=response.block_hash,
-                status=status,
-            )
-            if not mev_success:
-                status.stop()
-                err_console.print(
-                    f":cross_mark: [red]Failed[/red]: MEV execution failed: {mev_error}"
-                )
-                return False, None, None
-
-        # Successful registration, final check for membership
-
-        attributes = await _find_event_attributes_in_extrinsic_receipt(
-            response, "NetworkAdded"
-        )
-        await print_extrinsic_id(response)
-        ext_id = await response.get_extrinsic_identifier()
-        if not attributes:
-            console.print(
-                ":exclamation: [yellow]A possible error has occurred[/yellow]. The extrinsic reports success, but "
-                "we are unable to locate the 'NetworkAdded' event inside the extrinsic's events."
-                ""
-            )
+        if not success:
+            err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+            return False, None, None
         else:
-            console.print(
-                f":white_heavy_check_mark: [dark_sea_green3]Registered subnetwork with netuid: {attributes[0]}"
+            # Check for MEV shield execution
+            if mev_protection:
+                inner_hash = err_msg
+                mev_shield_id = await extract_mev_shield_id(response)
+                mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
+                    subtensor=subtensor,
+                    extrinsic_hash=inner_hash,
+                    shield_id=mev_shield_id,
+                    submit_block_hash=response.block_hash,
+                    status=status,
+                )
+                if not mev_success:
+                    status.stop()
+                    err_console.print(
+                        f":cross_mark: [red]Failed[/red]: MEV execution failed: {mev_error}"
+                    )
+                    return False, None, None
+
+            # Successful registration, final check for membership
+
+            attributes = await _find_event_attributes_in_extrinsic_receipt(
+                response, "NetworkAdded"
             )
-        return True, int(attributes[0]), ext_id
+            await print_extrinsic_id(response)
+            ext_id = await response.get_extrinsic_identifier()
+            if not attributes:
+                console.print(
+                    ":exclamation: [yellow]A possible error has occurred[/yellow]. The extrinsic reports success, but "
+                    "we are unable to locate the 'NetworkAdded' event inside the extrinsic's events."
+                    ""
+                )
+            else:
+                console.print(
+                    f":white_heavy_check_mark: [dark_sea_green3]Registered subnetwork with netuid: {attributes[0]}"
+                )
+            return True, int(attributes[0]), ext_id
 
 
 # commands
