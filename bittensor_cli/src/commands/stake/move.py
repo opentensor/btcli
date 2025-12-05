@@ -591,7 +591,7 @@ async def move_stake(
                 subtensor=subtensor,
                 keypair=wallet.coldkey,
                 call=call,
-                next_nonce=next_nonce,
+                nonce=next_nonce,
                 era=era,
             )
         else:
@@ -607,9 +607,9 @@ async def move_stake(
             mev_shield_id = await extract_mev_shield_id(response)
             mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
                 subtensor=subtensor,
-                inner_hash=inner_hash,
-                mev_shield_id=mev_shield_id,
-                block_hash=response.block_hash,
+                extrinsic_hash=inner_hash,
+                shield_id=mev_shield_id,
+                submit_block_hash=response.block_hash,
                 status=status,
             )
             if not mev_success:
@@ -805,7 +805,7 @@ async def transfer_stake(
                 subtensor=subtensor,
                 keypair=wallet.coldkey,
                 call=call,
-                next_nonce=next_nonce,
+                nonce=next_nonce,
                 era=era,
             )
         else:
@@ -822,9 +822,9 @@ async def transfer_stake(
             mev_shield_id = await extract_mev_shield_id(response)
             mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
                 subtensor=subtensor,
-                inner_hash=inner_hash,
-                mev_shield_id=mev_shield_id,
-                block_hash=response.block_hash,
+                extrinsic_hash=inner_hash,
+                shield_id=mev_shield_id,
+                submit_block_hash=response.block_hash,
                 status=status,
             )
             if not mev_success:
@@ -1007,7 +1007,7 @@ async def swap_stake(
                 subtensor=subtensor,
                 keypair=wallet.coldkey,
                 call=call,
-                next_nonce=next_nonce,
+                nonce=next_nonce,
                 era=era,
             )
         else:
@@ -1026,9 +1026,9 @@ async def swap_stake(
             mev_shield_id = await extract_mev_shield_id(response)
             mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
                 subtensor=subtensor,
-                inner_hash=inner_hash,
-                mev_shield_id=mev_shield_id,
-                block_hash=response.block_hash,
+                extrinsic_hash=inner_hash,
+                shield_id=mev_shield_id,
+                submit_block_hash=response.block_hash,
                 status=status,
             )
             if not mev_success:

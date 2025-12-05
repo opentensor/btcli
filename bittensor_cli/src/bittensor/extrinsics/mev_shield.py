@@ -184,10 +184,7 @@ async def wait_for_extrinsic_by_hash(
         result_idx = None
         for idx, extrinsic in enumerate(extrinsics):
             # Success: Inner extrinsic executed
-            if (
-                extrinsic.extrinsic_hash
-                and f"0x{extrinsic.extrinsic_hash.hex()}" == extrinsic_hash
-            ):
+            if f"0x{extrinsic.extrinsic_hash.hex()}" == extrinsic_hash:
                 result_idx = idx
                 break
 
