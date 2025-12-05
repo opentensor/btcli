@@ -50,9 +50,9 @@ async def stake_list(
             subtensor.all_subnets(block_hash=block_hash_),
         )
 
-        claimable_amounts = {}
+        claimable_amounts_ = {}
         if sub_stakes_:
-            claimable_amounts = await subtensor.get_claimable_stakes_for_coldkey(
+            claimable_amounts_ = await subtensor.get_claimable_stakes_for_coldkey(
                 coldkey_ss58=coldkey_address,
                 stakes_info=sub_stakes_,
                 block_hash=block_hash_,
@@ -63,7 +63,7 @@ async def stake_list(
             sub_stakes_,
             registered_delegate_info_,
             dynamic_info__,
-            claimable_amounts,
+            claimable_amounts_,
         )
 
     def define_table(

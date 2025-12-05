@@ -1,7 +1,7 @@
 import asyncio
 import os
 import time
-from typing import Optional, Any, Union, TypedDict, Iterable
+from typing import Optional, Any, Union, TypedDict, Iterable, Literal
 
 from async_substrate_interface import AsyncExtrinsicReceipt
 from async_substrate_interface.async_substrate import (
@@ -43,6 +43,7 @@ from bittensor_cli.src.bittensor.utils import (
     u16_normalized_float,
     MEV_SHIELD_PUBLIC_KEY_SIZE,
     get_hotkey_pub_ss58,
+    ProxyAnnouncements,
 )
 
 GENESIS_ADDRESS = "5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM"
@@ -1173,6 +1174,10 @@ class SubtensorInterface:
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = False,
         era: Optional[dict[str, int]] = None,
+        proxy: Optional[str] = None,
+        nonce: Optional[int] = None,
+        sign_with: Literal["coldkey", "hotkey", "coldkeypub"] = "coldkey",
+        announce_only: bool = False,
     ) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
         """
         Helper method to sign and submit an extrinsic call to chain.
@@ -1182,18 +1187,45 @@ class SubtensorInterface:
         :param wait_for_inclusion: whether to wait until the extrinsic call is included on the chain
         :param wait_for_finalization: whether to wait until the extrinsic call is finalized on the chain
         :param era: The length (in blocks) for which a transaction should be valid.
+        :param proxy: The real account used to create the proxy. None if not using a proxy for this call.
+        :param nonce: The nonce used to submit this extrinsic call.
+        :param sign_with: Determine which of the wallet's keypairs to use to sign the extrinsic call.
+        :param announce_only: If set, makes the call as an announcement, rather than making the call.
 
-        :return: (success, error message)
+        :return: (success, error message, extrinsic receipt | None)
         """
-        call_args: dict[str, Union[GenericCall, Keypair, dict[str, int]]] = {
+        if proxy is not None:
+            if announce_only:
+                call_to_announce = call
+                call = await self.substrate.compose_call(
+                    "Proxy",
+                    "announce",
+                    {
+                        "real": proxy,
+                        "call_hash": f"0x{call_to_announce.call_hash.hex()}",
+                    },
+                )
+            else:
+                call = await self.substrate.compose_call(
+                    "Proxy",
+                    "proxy",
+                    {"real": proxy, "call": call, "force_proxy_type": None},
+                )
+        keypair = getattr(wallet, sign_with)
+        call_args: dict[str, Union[GenericCall, Keypair, dict[str, int], int]] = {
             "call": call,
-            "keypair": wallet.coldkey,
+            # sign with specified key
+            "keypair": keypair,
         }
         if era is not None:
             call_args["era"] = era
-        extrinsic = await self.substrate.create_signed_extrinsic(
-            **call_args
-        )  # sign with coldkey
+        if nonce is not None:
+            call_args["nonce"] = nonce
+        else:
+            call_args["nonce"] = await self.substrate.get_account_next_index(
+                keypair.ss58_address
+            )
+        extrinsic = await self.substrate.create_signed_extrinsic(**call_args)
         try:
             response = await self.substrate.submit_extrinsic(
                 extrinsic,
@@ -1204,11 +1236,40 @@ class SubtensorInterface:
             if not wait_for_finalization and not wait_for_inclusion:
                 return True, "", response
             if await response.is_success:
+                if announce_only:
+                    block = await self.substrate.get_block_number(response.block_hash)
+                    with ProxyAnnouncements.get_db() as (conn, cursor):
+                        ProxyAnnouncements.add_entry(
+                            conn,
+                            cursor,
+                            address=proxy,
+                            epoch_time=int(time.time()),
+                            block=block,
+                            call_hash=call_to_announce.call_hash.hex(),
+                            call=call_to_announce,
+                        )
+                    console.print(
+                        f"Added entry {call_to_announce.call_hash} at block {block} to your ProxyAnnouncements address book."
+                    )
                 return True, "", response
             else:
                 return False, format_error_message(await response.error_message), None
         except SubstrateRequestException as e:
-            return False, format_error_message(e), None
+            err_msg = format_error_message(e)
+            if proxy and "Invalid Transaction" in err_msg:
+                extrinsic_fee, signer_balance = await asyncio.gather(
+                    self.get_extrinsic_fee(
+                        call, keypair=wallet.coldkeypub, proxy=proxy
+                    ),
+                    self.get_balance(wallet.coldkeypub.ss58_address),
+                )
+                if extrinsic_fee > signer_balance:
+                    err_msg += (
+                        "\nAs this is a proxy transaction, the signing account needs to pay the extrinsic fee. "
+                        f"However, the balance of the signing account is {signer_balance}, and the extrinsic fee is "
+                        f"{extrinsic_fee}."
+                    )
+            return False, err_msg, None
 
     async def get_children(self, hotkey, netuid) -> tuple[bool, list, str]:
         """
@@ -1615,16 +1676,25 @@ class SubtensorInterface:
 
         return [decode_account_id(hotkey[0]) for hotkey in owned_hotkeys or []]
 
-    async def get_extrinsic_fee(self, call: GenericCall, keypair: Keypair) -> Balance:
+    async def get_extrinsic_fee(
+        self, call: GenericCall, keypair: Keypair, proxy: Optional[str] = None
+    ) -> Balance:
         """
         Determines the fee for the extrinsic call.
         Args:
             call: Created extrinsic call
             keypair: The keypair that would sign the extrinsic (usually you would just want to use the *pub for this)
+            proxy: Optional proxy for the extrinsic call
 
         Returns:
             Balance object representing the fee for this extrinsic.
         """
+        if proxy is not None:
+            call = await self.substrate.compose_call(
+                "Proxy",
+                "proxy",
+                {"real": proxy, "call": call, "force_proxy_type": None},
+            )
         fee_dict = await self.substrate.get_payment_info(call, keypair)
         return Balance.from_rao(fee_dict["partial_fee"])
 
@@ -2240,6 +2310,7 @@ class SubtensorInterface:
 
         :return: The current Alpha price in TAO units for the specified subnet.
         """
+        # TODO update this to use the runtime call SwapRuntimeAPI.current_alpha_price
         current_sqrt_price = await self.query(
             module="Swap",
             storage_function="AlphaSqrtPrice",

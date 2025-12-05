@@ -176,6 +176,7 @@ async def set_mechanism_count_extrinsic(
     subtensor: "SubtensorInterface",
     wallet: "Wallet",
     netuid: int,
+    proxy: Optional[str],
     mech_count: int,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
@@ -204,6 +205,7 @@ async def set_mechanism_count_extrinsic(
             wallet,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
+            proxy=proxy,
         )
 
     if not success:
@@ -216,6 +218,7 @@ async def set_mechanism_emission_extrinsic(
     subtensor: "SubtensorInterface",
     wallet: "Wallet",
     netuid: int,
+    proxy: Optional[str],
     split: list[int],
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
@@ -242,6 +245,7 @@ async def set_mechanism_emission_extrinsic(
             wallet,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
+            proxy=proxy,
         )
 
     if not success:
@@ -254,6 +258,7 @@ async def set_hyperparameter_extrinsic(
     subtensor: "SubtensorInterface",
     wallet: "Wallet",
     netuid: int,
+    proxy: Optional[str],
     parameter: str,
     value: Optional[Union[str, float, list[float]]],
     wait_for_inclusion: bool = False,
@@ -265,6 +270,7 @@ async def set_hyperparameter_extrinsic(
     :param subtensor: initialized SubtensorInterface object
     :param wallet: bittensor wallet object.
     :param netuid: Subnetwork `uid`.
+    :param proxy: Optional proxy to use for this extrinsic submission.
     :param parameter: Hyperparameter name.
     :param value: New hyperparameter value.
     :param wait_for_inclusion: If set, waits for the extrinsic to enter a block before returning `True`, or returns
@@ -280,17 +286,12 @@ async def set_hyperparameter_extrinsic(
              extrinsic_identifier: optional extrinsic identifier if the extrinsic was included
     """
     print_verbose("Confirming subnet owner")
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
     subnet_owner = await subtensor.query(
         module="SubtensorModule",
         storage_function="SubnetOwner",
         params=[netuid],
     )
-    if subnet_owner != wallet.coldkeypub.ss58_address:
-        err_msg = (
-            ":cross_mark: [red]This wallet doesn't own the specified subnet.[/red]"
-        )
-        err_console.print(err_msg)
-        return False, err_msg, None
 
     if not (ulw := unlock_key(wallet)).success:
         return False, ulw.message, None
@@ -374,8 +375,18 @@ async def set_hyperparameter_extrinsic(
                 call_params={"call": call_},
             )
         else:
+            if subnet_owner != coldkey_ss58:
+                err_msg = ":cross_mark: [red]This wallet doesn't own the specified subnet.[/red]"
+                err_console.print(err_msg)
+                return False, err_msg, None
             call = call_
     else:
+        if subnet_owner != coldkey_ss58:
+            err_msg = (
+                ":cross_mark: [red]This wallet doesn't own the specified subnet.[/red]"
+            )
+            err_console.print(err_msg)
+            return False, err_msg, None
         call = call_
     with console.status(
         f":satellite: Setting hyperparameter [{COLOR_PALETTE.G.SUBHEAD}]{parameter}[/{COLOR_PALETTE.G.SUBHEAD}]"
@@ -384,7 +395,7 @@ async def set_hyperparameter_extrinsic(
         spinner="earth",
     ):
         success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
-            call, wallet, wait_for_inclusion, wait_for_finalization
+            call, wallet, wait_for_inclusion, wait_for_finalization, proxy=proxy
         )
     if not success:
         err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
@@ -565,6 +576,7 @@ async def _is_senate_member(subtensor: "SubtensorInterface", hotkey_ss58: str) -
 async def vote_senate_extrinsic(
     subtensor: "SubtensorInterface",
     wallet: Wallet,
+    proxy: Optional[str],
     proposal_hash: str,
     proposal_idx: int,
     vote: bool,
@@ -576,6 +588,7 @@ async def vote_senate_extrinsic(
 
     :param subtensor: The SubtensorInterface object to use for the query
     :param wallet: Bittensor wallet object, with coldkey and hotkey unlocked.
+    :param proxy: Optional proxy address to use for the extrinsic submission
     :param proposal_hash: The hash of the proposal for which voting data is requested.
     :param proposal_idx: The index of the proposal to vote.
     :param vote: Whether to vote aye or nay.
@@ -606,11 +619,10 @@ async def vote_senate_extrinsic(
             },
         )
         success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
-            call, wallet, wait_for_inclusion, wait_for_finalization
+            call, wallet, wait_for_inclusion, wait_for_finalization, proxy=proxy
         )
         if not success:
             err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
-            await asyncio.sleep(0.5)
             return False
         # Successful vote, final check for data
         else:
@@ -638,6 +650,7 @@ async def set_take_extrinsic(
     wallet: Wallet,
     delegate_ss58: str,
     take: float = 0.0,
+    proxy: Optional[str] = None,
 ) -> tuple[bool, Optional[str]]:
     """
     Set delegate hotkey take
@@ -646,6 +659,7 @@ async def set_take_extrinsic(
     :param wallet: The wallet containing the hotkey to be nominated.
     :param delegate_ss58:  Hotkey
     :param take: Delegate take on subnet ID
+    :param proxy: Optional proxy address to use for the extrinsic submission
 
     :return: `True` if the process is successful, `False` otherwise.
 
@@ -682,7 +696,7 @@ async def set_take_extrinsic(
                 },
             )
             success, err, ext_receipt = await subtensor.sign_and_send_extrinsic(
-                call, wallet
+                call, wallet, proxy=proxy
             )
 
     else:
@@ -702,7 +716,7 @@ async def set_take_extrinsic(
                 },
             )
             success, err, ext_receipt = await subtensor.sign_and_send_extrinsic(
-                call, wallet
+                call, wallet, proxy=proxy
             )
 
     if not success:
@@ -724,6 +738,7 @@ async def sudo_set_hyperparameter(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
     netuid: int,
+    proxy: Optional[str],
     param_name: str,
     param_value: Optional[str],
     prompt: bool,
@@ -741,7 +756,7 @@ async def sudo_set_hyperparameter(
     if json_output:
         prompt = False
     success, err_msg, ext_id = await set_hyperparameter_extrinsic(
-        subtensor, wallet, netuid, param_name, value, prompt=prompt
+        subtensor, wallet, netuid, proxy, param_name, value, prompt=prompt
     )
     if json_output:
         return success, err_msg, ext_id
@@ -955,6 +970,7 @@ async def proposals(
 async def senate_vote(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
+    proxy: Optional[str],
     proposal_hash: str,
     vote: bool,
     prompt: bool,
@@ -991,6 +1007,7 @@ async def senate_vote(
     success = await vote_senate_extrinsic(
         subtensor=subtensor,
         wallet=wallet,
+        proxy=proxy,
         proposal_hash=proposal_hash,
         proposal_idx=vote_data.index,
         vote=vote,
@@ -1015,7 +1032,7 @@ async def display_current_take(subtensor: "SubtensorInterface", wallet: Wallet) 
 
 
 async def set_take(
-    wallet: Wallet, subtensor: "SubtensorInterface", take: float
+    wallet: Wallet, subtensor: "SubtensorInterface", take: float, proxy: Optional[str]
 ) -> tuple[bool, Optional[str]]:
     """Set delegate take."""
 
@@ -1042,6 +1059,7 @@ async def set_take(
             wallet=wallet,
             delegate_ss58=hotkey_ss58,
             take=take,
+            proxy=proxy,
         )
         success, ext_id = result
 
@@ -1069,6 +1087,7 @@ async def trim(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
     netuid: int,
+    proxy: Optional[str],
     max_n: int,
     period: int,
     prompt: bool,
@@ -1083,6 +1102,7 @@ async def trim(
         storage_function="SubnetOwner",
         params=[netuid],
     )
+    # TODO should this check proxy also?
     if subnet_owner != wallet.coldkeypub.ss58_address:
         err_msg = "This wallet doesn't own the specified subnet."
         if json_output:
@@ -1102,7 +1122,7 @@ async def trim(
         call_params={"netuid": netuid, "max_n": max_n},
     )
     success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
-        call=call, wallet=wallet, era={"period": period}
+        call=call, wallet=wallet, era={"period": period}, proxy=proxy
     )
     if not success:
         if json_output:
