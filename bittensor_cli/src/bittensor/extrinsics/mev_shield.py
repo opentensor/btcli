@@ -101,3 +101,116 @@ async def create_mev_protected_extrinsic(
 
     return shield_extrinsic, inner_hash
 
+
+async def extract_mev_shield_id(response: "AsyncExtrinsicReceipt") -> Optional[str]:
+    """
+    Extracts the MEV Shield wrapper ID from an extrinsic response.
+
+    After submitting a MEV Shield encrypted call, the `EncryptedSubmitted` event
+    contains the wrapper ID needed to track execution.
+
+    :param response: Extrinsic receipt from `submit_extrinsic`.
+
+    :return: Wrapper ID (hex string) or `None` if not found.
+    """
+    for event in await response.triggered_events:
+        if event["event_id"] == "EncryptedSubmitted":
+            return event["attributes"]["id"]
+    return None
+
+
+async def wait_for_extrinsic_by_hash(
+    subtensor: "SubtensorInterface",
+    extrinsic_hash: str,
+    shield_id: str,
+    submit_block_hash: str,
+    timeout_blocks: int = 2,
+    status=None,
+) -> tuple[bool, Optional[str], Optional[AsyncExtrinsicReceipt]]:
+    """
+    Waits for the result of a MEV Shield encrypted extrinsic.
+
+    After `submit_encrypted` succeeds, the block author decrypts and submits the
+    inner extrinsic directly. This polls subsequent blocks for either the inner
+    extrinsic hash (success) or a `mark_decryption_failed` extrinsic for the
+    matching shield ID (failure).
+
+    :param subtensor: SubtensorInterface instance.
+    :param extrinsic_hash: Hash of the inner extrinsic to find.
+    :param shield_id: Wrapper ID from the `EncryptedSubmitted` event (used to detect decryption failures).
+    :param submit_block_hash: Block hash where `submit_encrypted` was included.
+    :param timeout_blocks: Maximum blocks to wait before timing out (default 2).
+    :param status: Optional `rich.Status` object for progress updates.
+
+    :return: Tuple `(success, error_message, receipt)` where:
+        - `success` is True if the extrinsic was found and succeeded.
+        - `error_message` contains the formatted failure reason, if any.
+        - `receipt` is the AsyncExtrinsicReceipt when available.
+    """
+
+    async def _noop(_):
+        return True
+
+    starting_block = await subtensor.substrate.get_block_number(submit_block_hash)
+    current_block = starting_block + 1
+
+    while current_block - starting_block <= timeout_blocks:
+        if status:
+            status.update(
+                f"Waiting for :shield: MEV Protection "
+                f"(checking block {current_block - starting_block} of {timeout_blocks})..."
+            )
+
+        await subtensor.substrate.wait_for_block(
+            current_block,
+            result_handler=_noop,
+            task_return=False,
+        )
+
+        block_hash = await subtensor.substrate.get_block_hash(current_block)
+        extrinsics = await subtensor.substrate.get_extrinsics(block_hash)
+
+        result_idx = None
+        for idx, extrinsic in enumerate(extrinsics):
+            # Success: Inner extrinsic executed
+            if (
+                extrinsic.extrinsic_hash
+                and f"0x{extrinsic.extrinsic_hash.hex()}" == extrinsic_hash
+            ):
+                result_idx = idx
+                break
+
+            # Failure: Decryption failed
+            call = extrinsic.value.get("call", {})
+            if (
+                call.get("call_module") == "MevShield"
+                and call.get("call_function") == "mark_decryption_failed"
+            ):
+                call_args = call.get("call_args", [])
+                for arg in call_args:
+                    if arg.get("name") == "id" and arg.get("value") == shield_id:
+                        result_idx = idx
+                        break
+                if result_idx is not None:
+                    break
+
+        if result_idx is not None:
+            receipt = AsyncExtrinsicReceipt(
+                substrate=subtensor.substrate,
+                block_hash=block_hash,
+                extrinsic_idx=result_idx,
+            )
+
+            if not await receipt.is_success:
+                error_msg = format_error_message(await receipt.error_message)
+                return False, error_msg, receipt
+
+            return True, None, receipt
+
+        current_block += 1
+
+    return (
+        False,
+        "Failed to find outcome of the shield extrinsic (The protected extrinsic wasn't decrypted)",
+        None,
+    )
