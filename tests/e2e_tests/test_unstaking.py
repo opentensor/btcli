@@ -89,6 +89,7 @@ def test_unstaking(local_chain, wallet_setup):
             "--no-prompt",
         ],
     )
+    print(result.stdout, result.stderr)
     assert "✅ Registered subnetwork with netuid: 2" in result.stdout
     assert "Your extrinsic has been included" in result.stdout, result.stdout
 
