@@ -12,9 +12,9 @@ from async_substrate_interface.errors import SubstrateRequestException
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
-    encrypt_call,
+    create_mev_protected_extrinsic,
     extract_mev_shield_id,
-    wait_for_mev_execution,
+    wait_for_extrinsic_by_hash,
 )
 from bittensor_cli.src.bittensor.utils import (
     console,
@@ -141,13 +141,21 @@ async def stake_add(
             ),
         )
         if mev_protection:
-            call = await encrypt_call(subtensor, wallet, call)
-        extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call,
-            keypair=wallet.coldkey,
-            nonce=next_nonce,
-            era={"period": era},
-        )
+            extrinsic, inner_hash = await create_mev_protected_extrinsic(
+                subtensor=subtensor,
+                keypair=wallet.coldkey,
+                call=call,
+                next_nonce=next_nonce,
+                era=era,
+            )
+        else:
+            inner_hash = None
+            extrinsic = await subtensor.substrate.create_signed_extrinsic(
+                call=call,
+                keypair=wallet.coldkey,
+                nonce=next_nonce,
+                era={"period": era},
+            )
         try:
             response = await subtensor.substrate.submit_extrinsic(
                 extrinsic, wait_for_inclusion=True, wait_for_finalization=False
@@ -171,15 +179,18 @@ async def stake_add(
 
         if mev_protection:
             mev_shield_id = await extract_mev_shield_id(response)
-            if mev_shield_id:
-                mev_success, mev_error, response = await wait_for_mev_execution(
-                    subtensor, mev_shield_id, response.block_hash, status=status
-                )
-                if not mev_success:
-                    status.stop()
-                    err_msg = f"{failure_prelude}: {mev_error}"
-                    err_out("\n" + err_msg)
-                    return False, err_msg, None
+            mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
+                subtensor=subtensor,
+                inner_hash=inner_hash,
+                mev_shield_id=mev_shield_id,
+                block_hash=response.block_hash,
+                status=status,
+            )
+            if not mev_success:
+                status.stop()
+                err_msg = f"{failure_prelude}: {mev_error}"
+                err_out("\n" + err_msg)
+                return False, err_msg, None
 
         if json_output:
             # the rest of this checking is not necessary if using json_output
@@ -245,10 +256,18 @@ async def stake_add(
             f":cross_mark: [red]Failed[/red] to stake {amount} on Netuid {netuid_i}"
         )
         if mev_protection:
-            call = await encrypt_call(subtensor, wallet, call)
-        extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey, nonce=next_nonce, era={"period": era}
-        )
+            extrinsic, inner_hash = await create_mev_protected_extrinsic(
+                subtensor=subtensor,
+                keypair=wallet.coldkey,
+                call=call,
+                next_nonce=next_nonce,
+                era=era,
+            )
+        else:
+            inner_hash = None
+            extrinsic = await subtensor.substrate.create_signed_extrinsic(
+                call=call, keypair=wallet.coldkey, nonce=next_nonce, era={"period": era}
+            )
         try:
             response = await subtensor.substrate.submit_extrinsic(
                 extrinsic, wait_for_inclusion=True, wait_for_finalization=False
@@ -264,15 +283,18 @@ async def stake_add(
 
         if mev_protection:
             mev_shield_id = await extract_mev_shield_id(response)
-            if mev_shield_id:
-                mev_success, mev_error, response = await wait_for_mev_execution(
-                    subtensor, mev_shield_id, response.block_hash, status=status
-                )
-                if not mev_success:
-                    status.stop()
-                    err_msg = f"{failure_prelude}: {mev_error}"
-                    err_out("\n" + err_msg)
-                    return False, err_msg, None
+            mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
+                subtensor=subtensor,
+                inner_hash=inner_hash,
+                mev_shield_id=mev_shield_id,
+                block_hash=response.block_hash,
+                status=status,
+            )
+            if not mev_success:
+                status.stop()
+                err_msg = f"{failure_prelude}: {mev_error}"
+                err_out("\n" + err_msg)
+                return False, err_msg, None
 
         if json_output:
             # the rest of this is not necessary if using json_output
