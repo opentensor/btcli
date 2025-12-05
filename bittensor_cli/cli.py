@@ -3747,24 +3747,24 @@ class CLIManager:
     ):
         """
         Reset the axon information for a neuron on the network.
-        
+
         This command removes the serving endpoint by setting the IP to 0.0.0.0 and port to 1,
         indicating the neuron is no longer serving.
-        
+
         USAGE
-        
+
         The command requires you to specify the netuid where the neuron is registered.
         It will reset the axon information for the hotkey associated with the wallet.
-        
+
         EXAMPLE
-        
+
         [green]$[/green] btcli axon reset --netuid 1 --wallet-name my_wallet --wallet-hotkey my_hotkey
-        
+
         [bold]NOTE[/bold]: This command is used to stop serving on a specific subnet. The neuron will
         remain registered but will not be reachable by other neurons until a new axon is set.
         """
         self.verbosity_handler(quiet, verbose, json_output)
-        
+
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -3772,9 +3772,9 @@ class CLIManager:
             ask_for=[WO.NAME, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
-        
+
         subtensor = self.initialize_chain(network)
-        
+
         logger.debug(
             "args:\n"
             f"netuid: {netuid}\n"
@@ -3783,7 +3783,7 @@ class CLIManager:
             f"wait_for_inclusion: {wait_for_inclusion}\n"
             f"wait_for_finalization: {wait_for_finalization}\n"
         )
-        
+
         return self._run_command(
             axon.reset(
                 wallet=wallet,
@@ -3834,24 +3834,24 @@ class CLIManager:
     ):
         """
         Set the axon information for a neuron on the network.
-        
+
         This command configures the serving endpoint for a neuron by specifying its IP address
         and port, allowing other neurons to connect to it.
-        
+
         USAGE
-        
+
         The command requires you to specify the netuid, IP address, and port number.
         It will set the axon information for the hotkey associated with the wallet.
-        
+
         EXAMPLE
-        
+
         [green]$[/green] btcli axon set --netuid 1 --ip 192.168.1.100 --port 8091 --wallet-name my_wallet --wallet-hotkey my_hotkey
-        
+
         [bold]NOTE[/bold]: This command is used to advertise your serving endpoint on the network.
         Make sure the IP and port are accessible from the internet if you want other neurons to connect.
         """
         self.verbosity_handler(quiet, verbose, json_output)
-        
+
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -3859,9 +3859,9 @@ class CLIManager:
             ask_for=[WO.NAME, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
-        
+
         subtensor = self.initialize_chain(network)
-        
+
         logger.debug(
             "args:\n"
             f"netuid: {netuid}\n"
@@ -3874,7 +3874,7 @@ class CLIManager:
             f"wait_for_inclusion: {wait_for_inclusion}\n"
             f"wait_for_finalization: {wait_for_finalization}\n"
         )
-        
+
         return self._run_command(
             axon.set_axon(
                 wallet=wallet,

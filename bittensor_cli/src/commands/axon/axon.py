@@ -1,6 +1,7 @@
 """
 Axon commands for managing neuron serving endpoints.
 """
+
 import json
 from typing import TYPE_CHECKING
 
@@ -31,10 +32,10 @@ async def reset(
 ):
     """
     Reset the axon information for a neuron on the network.
-    
+
     This command removes the serving endpoint by setting the IP to 0.0.0.0 and port to 1,
     indicating the neuron is no longer serving.
-    
+
     Args:
         wallet: The wallet containing the hotkey to reset the axon for
         subtensor: The subtensor interface to use for the extrinsic
@@ -52,16 +53,18 @@ async def reset(
         wait_for_inclusion=wait_for_inclusion,
         wait_for_finalization=wait_for_finalization,
     )
-    
+
     if json_output:
         json_console.print(
-            json.dumps({
-                "success": success,
-                "message": message,
-                "extrinsic_identifier": ext_id,
-                "netuid": netuid,
-                "hotkey": wallet.hotkey.ss58_address,
-            })
+            json.dumps(
+                {
+                    "success": success,
+                    "message": message,
+                    "extrinsic_identifier": ext_id,
+                    "netuid": netuid,
+                    "hotkey": wallet.hotkey.ss58_address,
+                }
+            )
         )
     elif not success:
         err_console.print(f"[red]Failed to reset axon: {message}[/red]")
@@ -82,10 +85,10 @@ async def set_axon(
 ):
     """
     Set the axon information for a neuron on the network.
-    
+
     This command configures the serving endpoint for a neuron by specifying its IP address
     and port, allowing other neurons to connect to it.
-    
+
     Args:
         wallet: The wallet containing the hotkey to set the axon for
         subtensor: The subtensor interface to use for the extrinsic
@@ -111,18 +114,20 @@ async def set_axon(
         wait_for_inclusion=wait_for_inclusion,
         wait_for_finalization=wait_for_finalization,
     )
-    
+
     if json_output:
         json_console.print(
-            json.dumps({
-                "success": success,
-                "message": message,
-                "extrinsic_identifier": ext_id,
-                "netuid": netuid,
-                "hotkey": wallet.hotkey.ss58_address,
-                "ip": ip,
-                "port": port,
-            })
+            json.dumps(
+                {
+                    "success": success,
+                    "message": message,
+                    "extrinsic_identifier": ext_id,
+                    "netuid": netuid,
+                    "hotkey": wallet.hotkey.ss58_address,
+                    "ip": ip,
+                    "port": port,
+                }
+            )
         )
     elif not success:
         err_console.print(f"[red]Failed to set axon: {message}[/red]")
