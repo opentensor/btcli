@@ -285,13 +285,18 @@ async def add_liquidity(
         price_low=price_low,
         price_high=price_high,
     )
-    await print_extrinsic_id(ext_receipt)
-    ext_id = await ext_receipt.get_extrinsic_identifier()
+    if success:
+        await print_extrinsic_id(ext_receipt)
+        ext_id = await ext_receipt.get_extrinsic_identifier()
+    else:
+        ext_id = None
     if json_output:
-        json_console.print(
-            json.dumps(
-                {"success": success, "message": message, "extrinsic_identifier": ext_id}
-            )
+        json_console.print_json(
+            data={
+                "success": success,
+                "message": message,
+                "extrinsic_identifier": ext_id,
+            }
         )
     else:
         if success:
