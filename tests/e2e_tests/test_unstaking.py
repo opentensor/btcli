@@ -388,9 +388,7 @@ def test_unstaking(local_chain, wallet_setup):
         ],
     )
 
-    assert (
-        "✅ Finalized: Successfully unstaked all Alpha stakes" in unstake_alpha.stdout
-    )
+    assert "✅ Included: Successfully unstaked all Alpha stakes" in unstake_alpha.stdout
     assert "Your extrinsic has been included" in unstake_alpha.stdout, (
         unstake_alpha.stdout
     )
@@ -443,6 +441,6 @@ def test_unstaking(local_chain, wallet_setup):
             "144",
         ],
     )
-    assert "✅ Finalized: Successfully unstaked all stakes from" in unstake_all.stdout
+    assert "✅ Included: Successfully unstaked all stakes from" in unstake_all.stdout
     assert "Your extrinsic has been included" in unstake_all.stdout, unstake_all.stdout
     print("Passed unstaking tests 🎉")
