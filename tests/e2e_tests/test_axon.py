@@ -44,6 +44,8 @@ def test_axon_reset_and_set(local_chain, wallet_setup):
             wallet_alice.name,
             "--wallet-hotkey",
             wallet_alice.hotkey_str,
+            "--subnet-name",
+            "Test Axon Subnet",
             "--no-prompt",
         ],
     )
@@ -211,6 +213,8 @@ def test_axon_set_with_ipv6(local_chain, wallet_setup):
             wallet_bob.name,
             "--wallet-hotkey",
             wallet_bob.hotkey_str,
+            "--subnet-name",
+            "Test IPv6 Subnet",
             "--no-prompt",
         ],
     )
@@ -296,6 +300,8 @@ def test_axon_set_invalid_inputs(local_chain, wallet_setup):
             wallet_charlie.name,
             "--wallet-hotkey",
             wallet_charlie.hotkey_str,
+            "--subnet-name",
+            "Test Invalid Inputs Subnet",
             "--no-prompt",
         ],
     )
