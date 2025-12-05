@@ -632,6 +632,7 @@ async def _unstake_extrinsic(
         era={"period": era},
         proxy=proxy,
         mev_protection=mev_protection,
+        nonce=next_nonce,
     )
     if success:
         if mev_protection:
@@ -870,6 +871,7 @@ async def _unstake_all_extrinsic(
             call=call,
             wallet=wallet,
             era={"period": era},
+            nonce=next_nonce,
             proxy=proxy,
             mev_protection=mev_protection,
         )

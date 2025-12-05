@@ -593,6 +593,7 @@ async def move_stake(
             era={"period": era},
             proxy=proxy,
             mev_protection=mev_protection,
+            nonce=next_nonce,
         )
 
     ext_id = await response.get_extrinsic_identifier() if response else ""
@@ -805,6 +806,7 @@ async def transfer_stake(
             era={"period": era},
             proxy=proxy,
             mev_protection=mev_protection,
+            nonce=next_nonce,
         )
 
         if success_:
@@ -1005,6 +1007,7 @@ async def swap_stake(
             wait_for_finalization=wait_for_finalization,
             wait_for_inclusion=wait_for_inclusion,
             mev_protection=mev_protection,
+            nonce=next_nonce,
         )
 
         ext_id = await response.get_extrinsic_identifier()
