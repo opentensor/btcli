@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 BT_DOCS_LINK = "https://docs.learnbittensor.org"
 
 GLOBAL_MAX_SUBNET_COUNT = 4096
+MEV_SHIELD_PUBLIC_KEY_SIZE = 1184
 
 console = Console()
 json_console = Console()
@@ -1362,6 +1363,58 @@ def group_subnets(registrations):
         ranges.append(f"{start}-{registrations[-1]}")
 
     return ", ".join(ranges)
+
+
+def parse_subnet_range(input_str: str, total_subnets: int) -> list[int]:
+    """
+    Parse subnet range input like "1-24, 30-40, 5".
+
+    Args:
+        input_str: Comma-separated list of subnets and ranges
+                  Examples: "1-5", "1,2,3", "1-5, 10, 20-25"
+        total_subnets: Total number of subnets available
+
+    Returns:
+        Sorted list of unique subnet IDs
+
+    Raises:
+        ValueError: If input format is invalid
+
+    Examples:
+        >>> parse_subnet_range("1-5, 10")
+        [1, 2, 3, 4, 5, 10]
+        >>> parse_subnet_range("5, 3, 1")
+        [1, 3, 5]
+    """
+    subnets = set()
+    parts = [p.strip() for p in input_str.split(",") if p.strip()]
+    for part in parts:
+        if "-" in part:
+            try:
+                start, end = part.split("-", 1)
+                start_num = int(start.strip())
+                end_num = int(end.strip())
+
+                if start_num > end_num:
+                    raise ValueError(f"Invalid range '{part}': start must be ≤ end")
+
+                if end_num - start_num > total_subnets:
+                    raise ValueError(
+                        f"Range '{part}' is not valid (total of {total_subnets} subnets)"
+                    )
+
+                subnets.update(range(start_num, end_num + 1))
+            except ValueError as e:
+                if "invalid literal" in str(e):
+                    raise ValueError(f"Invalid range '{part}': must be 'start-end'")
+                raise
+        else:
+            try:
+                subnets.add(int(part))
+            except ValueError:
+                raise ValueError(f"Invalid subnet ID '{part}': must be a number")
+
+    return sorted(subnets)
 
 
 def validate_chain_endpoint(endpoint_url) -> tuple[bool, str]:

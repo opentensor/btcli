@@ -1,12 +1,13 @@
 import asyncio
 import json
 import re
-
+import pytest
 from bittensor_cli.src.bittensor.balances import Balance
 
 from .utils import set_storage_extrinsic
 
 
+@pytest.mark.parametrize("local_chain", [False], indirect=True)
 def test_unstaking(local_chain, wallet_setup):
     """
     Test various unstaking scenarios including partial unstake, unstake all alpha, and unstake all.

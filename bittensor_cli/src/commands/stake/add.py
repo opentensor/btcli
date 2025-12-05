@@ -11,6 +11,11 @@ from rich.prompt import Confirm, Prompt
 from async_substrate_interface.errors import SubstrateRequestException
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
+from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
+    encrypt_call,
+    extract_mev_shield_id,
+    wait_for_mev_execution,
+)
 from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
@@ -46,6 +51,7 @@ async def stake_add(
     allow_partial_stake: bool,
     json_output: bool,
     era: int,
+    mev_protection: bool,
     proxy: Optional[str],
 ):
     """
@@ -136,6 +142,8 @@ async def stake_add(
                 },
             ),
         )
+        if mev_protection:
+            call = await encrypt_call(subtensor, wallet, call)
         success_, err_msg, response = await subtensor.sign_and_send_extrinsic(
             call=call,
             wallet=wallet,
@@ -156,6 +164,17 @@ async def stake_add(
                 err_out("\n" + err_msg)
             return False, err_msg, None
         else:
+            if mev_protection:
+                mev_shield_id = await extract_mev_shield_id(response)
+                if mev_shield_id:
+                    mev_success, mev_error, response = await wait_for_mev_execution(
+                        subtensor, mev_shield_id, response.block_hash, status=status
+                    )
+                    if not mev_success:
+                        status.stop()
+                        err_msg = f"{failure_prelude}: {mev_error}"
+                        err_out("\n" + err_msg)
+                        return False, err_msg, None
             if json_output:
                 # the rest of this checking is not necessary if using json_output
                 return True, "", response
@@ -221,6 +240,8 @@ async def stake_add(
         failure_prelude = (
             f":cross_mark: [red]Failed[/red] to stake {amount} on Netuid {netuid_i}"
         )
+        if mev_protection:
+            call = await encrypt_call(subtensor, wallet, call)
         success_, err_msg, response = await subtensor.sign_and_send_extrinsic(
             call=call,
             wallet=wallet,
@@ -233,6 +254,17 @@ async def stake_add(
             err_out("\n" + err_msg)
             return False, err_msg, None
         else:
+            if mev_protection:
+                mev_shield_id = await extract_mev_shield_id(response)
+                if mev_shield_id:
+                    mev_success, mev_error, response = await wait_for_mev_execution(
+                        subtensor, mev_shield_id, response.block_hash, status=status
+                    )
+                    if not mev_success:
+                        status.stop()
+                        err_msg = f"{failure_prelude}: {mev_error}"
+                        err_out("\n" + err_msg)
+                        return False, err_msg, None
             if json_output:
                 # the rest of this is not necessary if using json_output
                 return True, "", response
@@ -431,47 +463,53 @@ async def stake_add(
     if not unlock_key(wallet).success:
         return
 
-    if safe_staking:
-        stake_coroutines = {}
-        for i, (ni, am, curr, price_with_tolerance) in enumerate(
-            zip(
-                netuids, amounts_to_stake, current_stake_balances, prices_with_tolerance
-            )
-        ):
-            for _, staking_address in hotkeys_to_stake_to:
-                # Regular extrinsic for root subnet
-                if ni == 0:
-                    stake_coroutines[(ni, staking_address)] = stake_extrinsic(
-                        netuid_i=ni,
-                        amount_=am,
-                        current=curr,
-                        staking_address_ss58=staking_address,
-                    )
-                else:
-                    stake_coroutines[(ni, staking_address)] = safe_stake_extrinsic(
-                        netuid_=ni,
-                        amount_=am,
-                        current_stake=curr,
-                        hotkey_ss58_=staking_address,
-                        price_limit=price_with_tolerance,
-                    )
-    else:
-        stake_coroutines = {
-            (ni, staking_address): stake_extrinsic(
-                netuid_i=ni,
-                amount_=am,
-                current=curr,
-                staking_address_ss58=staking_address,
-            )
-            for i, (ni, am, curr) in enumerate(
-                zip(netuids, amounts_to_stake, current_stake_balances)
-            )
-            for _, staking_address in hotkeys_to_stake_to
-        }
     successes = defaultdict(dict)
     error_messages = defaultdict(dict)
     extrinsic_ids = defaultdict(dict)
-    with console.status(f"\n:satellite: Staking on netuid(s): {netuids} ..."):
+    with console.status(f"\n:satellite: Staking on netuid(s): {netuids} ...") as status:
+        if safe_staking:
+            stake_coroutines = {}
+            for i, (ni, am, curr, price_with_tolerance) in enumerate(
+                zip(
+                    netuids,
+                    amounts_to_stake,
+                    current_stake_balances,
+                    prices_with_tolerance,
+                )
+            ):
+                for _, staking_address in hotkeys_to_stake_to:
+                    # Regular extrinsic for root subnet
+                    if ni == 0:
+                        stake_coroutines[(ni, staking_address)] = stake_extrinsic(
+                            netuid_i=ni,
+                            amount_=am,
+                            current=curr,
+                            staking_address_ss58=staking_address,
+                            status=status,
+                        )
+                    else:
+                        stake_coroutines[(ni, staking_address)] = safe_stake_extrinsic(
+                            netuid_=ni,
+                            amount_=am,
+                            current_stake=curr,
+                            hotkey_ss58_=staking_address,
+                            price_limit=price_with_tolerance,
+                            status=status,
+                        )
+        else:
+            stake_coroutines = {
+                (ni, staking_address): stake_extrinsic(
+                    netuid_i=ni,
+                    amount_=am,
+                    current=curr,
+                    staking_address_ss58=staking_address,
+                    status=status,
+                )
+                for i, (ni, am, curr) in enumerate(
+                    zip(netuids, amounts_to_stake, current_stake_balances)
+                )
+                for _, staking_address in hotkeys_to_stake_to
+            }
         # We can gather them all at once but balance reporting will be in race-condition.
         for (ni, staking_address), coroutine in stake_coroutines.items():
             success, er_msg, ext_receipt = await coroutine

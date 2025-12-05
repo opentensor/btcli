@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm, Prompt
+from rich.panel import Panel
 from rich.table import Table, Column
 from rich import box
 
@@ -17,6 +18,8 @@ from bittensor_cli.src.bittensor.utils import (
     print_extrinsic_id,
     json_console,
     millify_tao,
+    group_subnets,
+    parse_subnet_range,
 )
 
 if TYPE_CHECKING:
@@ -33,6 +36,7 @@ async def set_claim_type(
     subtensor: "SubtensorInterface",
     claim_type: Optional[ClaimType],
     proxy: Optional[str],
+    netuids: Optional[str] = None,
     prompt: bool = True,
     json_output: bool = False,
 ) -> tuple[bool, str, Optional[str]]:
@@ -42,12 +46,14 @@ async def set_claim_type(
     Root claim types control how staking emissions are handled on the ROOT network (subnet 0):
         - "Swap": Future Root Alpha Emissions are swapped to TAO at claim time and added to root stake
         - "Keep": Future Root Alpha Emissions are kept as Alpha tokens
+        - "KeepSubnets": Specific subnets kept as Alpha, rest swapped to TAO
 
     Args:
         wallet: Bittensor wallet object
         subtensor: SubtensorInterface object
         claim_type: Claim type ("Keep" or "Swap"). If omitted, user will be prompted.
         proxy: Optional proxy to use with this extrinsic submission.
+        netuids: Optional string of subnet IDs (e.g., "1-5,10,20-30"). Will be parsed internally.
         prompt: Whether to prompt for user confirmation
         json_output: Whether to output JSON
 
@@ -58,74 +64,54 @@ async def set_claim_type(
             - Optional[str]: Extrinsic identifier if successful
     """
 
-    current_type = await subtensor.get_coldkey_claim_type(
-        coldkey_ss58=wallet.coldkeypub.ss58_address
+    if claim_type is not None:
+        claim_type = claim_type.capitalize()
+        if claim_type not in ["Keep", "Swap"]:
+            msg = f"Invalid claim type: {claim_type}. Use 'Keep' or 'Swap', or omit for interactive mode."
+            err_console.print(f"[red]{msg}[/red]")
+            if json_output:
+                json_console.print(json.dumps({"success": False, "message": msg}))
+            return False, msg, None
+
+    current_claim_info, all_netuids = await asyncio.gather(
+        subtensor.get_coldkey_claim_type(coldkey_ss58=wallet.coldkeypub.ss58_address),
+        subtensor.get_all_subnet_netuids(),
     )
+    all_subnets = sorted([n for n in all_netuids if n != 0])
+
+    selected_netuids = None
+    if netuids is not None:
+        try:
+            selected_netuids = parse_subnet_range(
+                netuids, total_subnets=len(all_subnets)
+            )
+        except ValueError as e:
+            msg = f"Invalid netuid format: {e}"
+            err_console.print(f"[red]{msg}[/red]")
+            if json_output:
+                json_console.print(json.dumps({"success": False, "message": msg}))
+            return False, msg, None
 
     claim_table = Table(
+        Column("[bold white]Coldkey", style=COLORS.GENERAL.COLDKEY, justify="left"),
         Column(
-            "[bold white]Coldkey",
-            style=COLORS.GENERAL.COLDKEY,
-            justify="left",
-        ),
-        Column(
-            "[bold white]Root Claim Type",
-            style=COLORS.GENERAL.SUBHEADING,
-            justify="center",
+            "[bold white]Current Type", style=COLORS.GENERAL.SUBHEADING, justify="left"
         ),
         show_header=True,
-        show_footer=False,
-        show_edge=True,
         border_style="bright_black",
         box=box.SIMPLE,
-        pad_edge=False,
-        width=None,
-        title=f"\n[{COLORS.GENERAL.HEADER}]Current root claim type:[/{COLORS.GENERAL.HEADER}]",
+        title=f"\n[{COLORS.GENERAL.HEADER}]Current Root Claim Type[/{COLORS.GENERAL.HEADER}]",
     )
     claim_table.add_row(
-        wallet.coldkeypub.ss58_address, f"[yellow]{current_type}[/yellow]"
+        wallet.coldkeypub.ss58_address,
+        _format_claim_type_display(current_claim_info, all_subnets),
     )
     console.print(claim_table)
 
-    new_type = (
-        claim_type.value
-        if claim_type
-        else Prompt.ask(
-            "Select new root claim type", choices=["Swap", "Keep"], default=current_type
-        )
-    )
-    if new_type == current_type:
-        msg = f"Root claim type is already set to '{current_type}'. No change needed."
-        console.print(f"[yellow]{msg}[/yellow]")
-        if json_output:
-            json_console.print(
-                json.dumps(
-                    {
-                        "success": True,
-                        "message": msg,
-                        "extrinsic_identifier": None,
-                        "old_type": current_type,
-                        "new_type": current_type,
-                    }
-                )
-            )
-        return True, msg, None
-
-    if prompt:
-        console.print(
-            f"\n[bold]Changing root claim type from '{current_type}' -> '{new_type}'[/bold]\n"
-        )
-
-        if new_type == "Swap":
-            console.print(
-                "[yellow]Note:[/yellow] With 'Swap', future root alpha emissions will be swapped to TAO and added to root stake."
-            )
-        else:
-            console.print(
-                "[yellow]Note:[/yellow] With 'Keep', future root alpha emissions will be kept as Alpha tokens."
-            )
-
-        if not Confirm.ask("\nDo you want to proceed?"):
+    # Full wizard
+    if claim_type is None and selected_netuids is None:
+        new_claim_info = await _ask_for_claim_types(wallet, subtensor, all_subnets)
+        if new_claim_info is None:
             msg = "Operation cancelled."
             console.print(f"[yellow]{msg}[/yellow]")
             if json_output:
@@ -135,37 +121,84 @@ async def set_claim_type(
                             "success": False,
                             "message": msg,
                             "extrinsic_identifier": None,
-                            "old_type": current_type,
-                            "new_type": new_type,
                         }
                     )
                 )
+            return False, msg, None
+
+    # Keep netuids passed thru the cli and assume Keep type
+    elif claim_type is None and selected_netuids is not None:
+        new_claim_info = {"type": "KeepSubnets", "subnets": selected_netuids}
+
+    else:
+        # Netuids passed with Keep type
+        if selected_netuids is not None and claim_type == "Keep":
+            new_claim_info = {"type": "KeepSubnets", "subnets": selected_netuids}
+
+        # Netuids passed with Swap type
+        elif selected_netuids is not None and claim_type == "Swap":
+            keep_subnets = [n for n in all_subnets if n not in selected_netuids]
+            invalid = [n for n in selected_netuids if n not in all_subnets]
+            if invalid:
+                msg = f"Invalid subnets (not available): {group_subnets(invalid)}"
+                err_console.print(msg)
+                if json_output:
+                    json_console.print(json.dumps({"success": False, "message": msg}))
+                return False, msg, None
+
+            if not keep_subnets:
+                new_claim_info = {"type": "Swap"}
+            elif set(keep_subnets) == set(all_subnets):
+                new_claim_info = {"type": "Keep"}
+            else:
+                new_claim_info = {"type": "KeepSubnets", "subnets": keep_subnets}
+        else:
+            new_claim_info = {"type": claim_type}
+
+    if _claim_types_equal(current_claim_info, new_claim_info):
+        msg = f"Claim type already set to {_format_claim_type_display(new_claim_info)}. \nNo change needed."
+        console.print(msg)
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": True,
+                        "message": msg,
+                        "extrinsic_identifier": None,
+                    }
+                )
+            )
+        return True, msg, None
+
+    if prompt:
+        console.print(
+            Panel(
+                f"[{COLORS.GENERAL.HEADER}]Confirm Claim Type Change[/{COLORS.GENERAL.HEADER}]\n\n"
+                f"FROM: {_format_claim_type_display(current_claim_info, all_subnets)}\n\n"
+                f"TO:   {_format_claim_type_display(new_claim_info, all_subnets)}"
+            )
+        )
+
+        if not Confirm.ask("\nProceed with this change?"):
+            msg = "Operation cancelled."
+            console.print(f"[yellow]{msg}[/yellow]")
+            if json_output:
+                json_console.print(json.dumps({"success": False, "message": msg}))
             return False, msg, None
 
     if not (unlock := unlock_key(wallet)).success:
         msg = f"Failed to unlock wallet: {unlock.message}"
         err_console.print(f":cross_mark: [red]{msg}[/red]")
         if json_output:
-            json_console.print(
-                json.dumps(
-                    {
-                        "success": False,
-                        "message": msg,
-                        "extrinsic_identifier": None,
-                        "old_type": current_type,
-                        "new_type": new_type,
-                    }
-                )
-            )
+            json_console.print(json.dumps({"success": False, "message": msg}))
         return False, msg, None
 
-    with console.status(
-        f":satellite: Setting root claim type to '{new_type}'...", spinner="earth"
-    ):
+    with console.status(":satellite: Setting root claim type...", spinner="earth"):
+        claim_type_param = _prepare_claim_type_args(new_claim_info)
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function="set_root_claim_type",
-            call_params={"new_root_claim_type": new_type},
+            call_params={"new_root_claim_type": claim_type_param},
         )
         success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
             call, wallet, proxy=proxy
@@ -173,7 +206,7 @@ async def set_claim_type(
 
     if success:
         ext_id = await ext_receipt.get_extrinsic_identifier()
-        msg = f"Successfully set root claim type to '{new_type}'"
+        msg = "Successfully changed claim type"
         console.print(f":white_heavy_check_mark: [green]{msg}[/green]")
         await print_extrinsic_id(ext_receipt)
         if json_output:
@@ -183,28 +216,15 @@ async def set_claim_type(
                         "success": True,
                         "message": msg,
                         "extrinsic_identifier": ext_id,
-                        "old_type": current_type,
-                        "new_type": new_type,
                     }
                 )
             )
         return True, msg, ext_id
-
     else:
-        msg = f"Failed to set root claim type: {err_msg}"
+        msg = f"Failed to set claim type: {err_msg}"
         err_console.print(f":cross_mark: [red]{msg}[/red]")
         if json_output:
-            json_console.print(
-                json.dumps(
-                    {
-                        "success": False,
-                        "message": msg,
-                        "extrinsic_identifier": None,
-                        "old_type": current_type,
-                        "new_type": new_type,
-                    }
-                )
-            )
+            json_console.print(json.dumps({"success": False, "message": msg}))
         return False, msg, None
 
 
@@ -493,3 +513,239 @@ def _print_claimable_table(
             first_row = False
 
     console.print(table)
+
+
+async def _ask_for_claim_types(
+    wallet: Wallet,
+    subtensor: "SubtensorInterface",
+    all_subnets: list,
+) -> Optional[dict]:
+    """
+    Interactive prompts for claim type selection.
+
+    Flow:
+    1. Ask "Keep or Swap?"
+    2. Ask "All subnets?"
+       - If yes → return simple type (Keep or Swap)
+       - If no → enter subnet selection
+
+    Returns:
+        dict: Selected claim type, or None if cancelled
+    """
+
+    console.print("\n")
+    console.print(
+        Panel(
+            f"[{COLORS.GENERAL.HEADER}]Root Claim Type Selection[/{COLORS.GENERAL.HEADER}]\n\n"
+            "Configure how your root network emissions are claimed.\n\n"
+            "[yellow]Options:[/yellow]\n"
+            "  • [green]Swap[/green] - Convert emissions to TAO\n"
+            "  • [green]Keep[/green] - Keep emissions as Alpha\n"
+            "  • [green]Keep Specific[/green] - Keep selected subnets, swap others\n",
+        )
+    )
+
+    primary_choice = Prompt.ask(
+        "\nSelect new root claim type",
+        choices=["keep", "swap", "cancel"],
+        default="cancel",
+    )
+    if primary_choice == "cancel":
+        return None
+
+    apply_to_all = Confirm.ask(
+        f"\nSet {primary_choice.capitalize()} to ALL subnets?", default=True
+    )
+
+    if apply_to_all:
+        return {"type": primary_choice.capitalize()}
+
+    if primary_choice == "keep":
+        console.print(
+            "\nYou can select which subnets to KEEP as Alpha (others will be swapped to TAO).\n"
+        )
+    else:
+        console.print(
+            "\nYou can select which subnets to SWAP to TAO (others will be kept as Alpha).\n"
+        )
+
+    return await _prompt_claim_netuids(
+        wallet, subtensor, all_subnets, mode=primary_choice
+    )
+
+
+async def _prompt_claim_netuids(
+    wallet: Wallet,
+    subtensor: "SubtensorInterface",
+    all_subnets: list,
+    mode: str = "keep",
+) -> Optional[dict]:
+    """
+    Interactive subnet selection.
+
+    Args:
+        mode: "keep" to select subnets to keep as Alpha, "swap" to select subnets to swap to TAO
+
+    Returns:
+        dict: KeepSubnets claim type or None if cancelled
+    """
+
+    if not all_subnets:
+        console.print("[yellow]No subnets available.[/yellow]")
+        return {"type": "Swap"}
+
+    if mode == "keep":
+        action = "KEEP as Alpha"
+    else:
+        action = "SWAP to TAO"
+
+    console.print(
+        Panel(
+            f"[{COLORS.GENERAL.HEADER}]Subnet Selection[/{COLORS.GENERAL.HEADER}]\n\n"
+            f"[bold]Available subnets:[/bold] {group_subnets(sorted(all_subnets))}\n"
+            f"[dim]Total: {len(all_subnets)} subnets[/dim]\n\n"
+            "[yellow]Input examples:[/yellow]\n"
+            "  • [cyan]1-10[/cyan] - Range from 1 to 10\n"
+            "  • [cyan]1, 5, 10[/cyan] - Specific subnets\n"
+            "  • [cyan]1-10, 20-30, 50[/cyan] - Mixed"
+        )
+    )
+
+    while True:
+        subnet_input = Prompt.ask(
+            f"\nEnter subnets to {action} [dim]{group_subnets(sorted(all_subnets))}",
+            default="",
+        )
+
+        if not subnet_input.strip():
+            err_console.print("[red]No subnets entered. Please try again.[/red]")
+            continue
+
+        try:
+            selected = parse_subnet_range(subnet_input, total_subnets=len(all_subnets))
+            invalid = [s for s in selected if s not in all_subnets]
+            if invalid:
+                err_console.print(
+                    f"[red]Invalid subnets (not available): {group_subnets(invalid)}[/red]"
+                )
+                err_console.print("[yellow]Please try again.[/yellow]")
+                continue
+
+            if mode == "keep":
+                keep_subnets = selected
+            else:
+                keep_subnets = [n for n in all_subnets if n not in selected]
+
+            if _preview_subnet_selection(keep_subnets, all_subnets):
+                if not keep_subnets:
+                    return {"type": "Swap"}
+                elif set(keep_subnets) == set(all_subnets):
+                    return {"type": "Keep"}
+                else:
+                    return {"type": "KeepSubnets", "subnets": keep_subnets}
+            else:
+                console.print(
+                    "[yellow]Selection cancelled. Starting over...[/yellow]\n"
+                )
+                return await _prompt_claim_netuids(
+                    wallet, subtensor, all_subnets, mode=mode
+                )
+
+        except ValueError as e:
+            err_console.print(
+                f"Invalid subnet selection: {e}\n[yellow]Please try again."
+            )
+
+
+def _preview_subnet_selection(keep_subnets: list[int], all_subnets: list[int]) -> bool:
+    """Show preview and ask for confirmation."""
+
+    swap_subnets = [n for n in all_subnets if n not in keep_subnets]
+    preview_content = (
+        f"[{COLORS.GENERAL.HEADER}]Preview Your Selection[/{COLORS.GENERAL.HEADER}]\n\n"
+    )
+
+    if keep_subnets:
+        preview_content += (
+            f"[green]✓ Keep as Alpha:[/green] {group_subnets(keep_subnets)}\n"
+            f"[dim]  ({len(keep_subnets)} subnet{'s' if len(keep_subnets) != 1 else ''})[/dim]"
+        )
+    else:
+        preview_content += "[dim]No subnets kept as Alpha[/dim]"
+
+    if swap_subnets:
+        preview_content += (
+            f"\n\n[yellow]⟳ Swap to TAO:[/yellow] {group_subnets(swap_subnets)}\n"
+            f"[dim]  ({len(swap_subnets)} subnet{'s' if len(swap_subnets) != 1 else ''})[/dim]"
+        )
+    else:
+        preview_content += "\n\n[dim]No subnets swapped to TAO[/dim]"
+
+    console.print(Panel(preview_content))
+
+    return Confirm.ask("\nIs this correct?", default=True)
+
+
+def _format_claim_type_display(
+    claim_info: dict, all_subnets: Optional[list[int]] = None
+) -> str:
+    """
+    Format claim type for human-readable display.
+
+    Args:
+        claim_info: Claim type information dict
+        all_subnets: Optional list of all available subnets (for showing swap info)
+    """
+
+    claim_type = claim_info["type"]
+    if claim_type == "Swap":
+        return "[yellow]Swap All[/yellow]"
+
+    elif claim_type == "Keep":
+        return "[dark_sea_green3]Keep All[/dark_sea_green3]"
+
+    elif claim_type == "KeepSubnets":
+        subnets = claim_info["subnets"]
+        subnet_display = group_subnets(subnets)
+
+        result = (
+            f"[cyan]Keep Specific[/cyan]\n[green]  ✓ Keep:[/green] {subnet_display}"
+        )
+        if all_subnets:
+            swap_subnets = [n for n in all_subnets if n not in subnets]
+            if swap_subnets:
+                swap_display = group_subnets(swap_subnets)
+                result += f"\n[yellow]  ⟳ Swap:[/yellow] {swap_display}"
+
+        return result
+    else:
+        return "[red]Unknown[/red]"
+
+
+def _claim_types_equal(claim1: dict, claim2: dict) -> bool:
+    """Check if two claim type configs are equivalent."""
+
+    if claim1["type"] != claim2["type"]:
+        return False
+
+    if claim1["type"] == "KeepSubnets":
+        subnets1 = sorted(claim1.get("subnets", []))
+        subnets2 = sorted(claim2.get("subnets", []))
+        return subnets1 == subnets2
+
+    return True
+
+
+def _prepare_claim_type_args(claim_info: dict) -> dict:
+    """Convert claim type arguments for chain call"""
+
+    claim_type = claim_info["type"]
+    if claim_type == "Swap":
+        return {"Swap": None}
+    elif claim_type == "Keep":
+        return {"Keep": None}
+    elif claim_type == "KeepSubnets":
+        subnets = claim_info["subnets"]
+        return {"KeepSubnets": {"subnets": subnets}}
+    else:
+        raise ValueError(f"Unknown claim type: {claim_type}")

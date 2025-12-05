@@ -18,6 +18,11 @@ from bittensor_cli.src.bittensor.extrinsics.registration import (
     burned_register_extrinsic,
 )
 from bittensor_cli.src.bittensor.extrinsics.root import root_register_extrinsic
+from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
+    encrypt_call,
+    extract_mev_shield_id,
+    wait_for_mev_execution,
+)
 from rich.live import Live
 from bittensor_cli.src.bittensor.minigraph import MiniGraph
 from bittensor_cli.src.commands.wallets import set_id, get_id
@@ -49,6 +54,64 @@ TAO_WEIGHT = 0.18
 # helpers and extrinsics
 
 
+def format_claim_type_for_root(claim_info: dict, total_subnets: int) -> str:
+    """
+    Format claim type for root network metagraph.
+
+    Args:
+        claim_info: Claim type dict {"type": "...", "subnets": [...]}
+        total_subnets: Total number of subnets in network (excluding netuid 0)
+
+    Returns:
+        Formatted string showing keep/swap counts
+
+    Examples:
+        {"type": "Keep"} → "Keep all"
+        {"type": "Swap"} → "Swap all"
+        {"type": "KeepSubnets", "subnets": [1,2,3]} → "Keep (3), Swap (54)"
+    """
+    claim_type = claim_info.get("type", "Swap")
+
+    if claim_type == "Keep":
+        return "Keep all"
+    elif claim_type == "Swap":
+        return "Swap all"
+    else:
+        keep_subnets = claim_info.get("subnets", [])
+        keep_count = len(keep_subnets)
+        swap_count = total_subnets - keep_count
+        return f"Keep ({keep_count}), Swap ({swap_count})"
+
+
+def format_claim_type_for_subnet(claim_info: dict, current_netuid: int) -> str:
+    """
+    Format claim type for specific subnet metagraph.
+    Shows whether THIS subnet's emissions are kept or swapped.
+
+    Args:
+        claim_info: Claim type dict {"type": "...", "subnets": [...]}
+        current_netuid: The netuid being viewed
+
+    Returns:
+        "Keep" if this subnet is kept, "Swap" if swapped
+
+    Examples:
+        {"type": "Keep"}, netuid=5 → "Keep"
+        {"type": "Swap"}, netuid=5 → "Swap"
+        {"type": "KeepSubnets", "subnets": [1,5,10]}, netuid=5 → "Keep"
+        {"type": "KeepSubnets", "subnets": [1,5,10]}, netuid=3 → "Swap"
+    """
+    claim_type = claim_info.get("type", "Swap")
+
+    if claim_type == "Keep":
+        return "Keep"
+    elif claim_type == "Swap":
+        return "Swap"
+    else:
+        keep_subnets = claim_info.get("subnets", [])
+        return "Keep" if current_netuid in keep_subnets else "Swap"
+
+
 async def register_subnetwork_extrinsic(
     subtensor: "SubtensorInterface",
     wallet: Wallet,
@@ -57,6 +120,7 @@ async def register_subnetwork_extrinsic(
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = True,
     prompt: bool = False,
+    mev_protection: bool = True,
 ) -> tuple[bool, Optional[int], Optional[str]]:
     """Registers a new subnetwork.
 
@@ -169,7 +233,7 @@ async def register_subnetwork_extrinsic(
     if not unlock_key(wallet).success:
         return False, None, None
 
-    with console.status(":satellite: Registering subnet...", spinner="earth"):
+    with console.status(":satellite: Registering subnet...", spinner="earth") as status:
         substrate = subtensor.substrate
         # create extrinsic call
         call = await substrate.compose_call(
@@ -177,6 +241,8 @@ async def register_subnetwork_extrinsic(
             call_function=call_function,
             call_params=call_params,
         )
+        if mev_protection:
+            call = await encrypt_call(subtensor, wallet, call)
         success, err_msg, response = await subtensor.sign_and_send_extrinsic(
             call=call,
             wallet=wallet,
@@ -192,9 +258,23 @@ async def register_subnetwork_extrinsic(
     if not success:
         err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
         return False, None, None
+    else:
+        # Check for MEV shield execution
+        if mev_protection:
+            mev_shield_id = await extract_mev_shield_id(response)
+            if mev_shield_id:
+                mev_success, mev_error, response = await wait_for_mev_execution(
+                    subtensor, mev_shield_id, response.block_hash, status=status
+                )
+                if not mev_success:
+                    status.stop()
+                    err_console.print(
+                        f":cross_mark: [red]Failed[/red]: MEV execution failed: {mev_error}"
+                    )
+                    return False, None, None
 
     # Successful registration, final check for membership
-    else:
+
         attributes = await _find_event_attributes_in_extrinsic_receipt(
             response, "NetworkAdded"
         )
@@ -1083,7 +1163,9 @@ async def show(
             )
 
             coldkey_ss58 = root_state.coldkeys[idx]
-            claim_type = root_claim_types.get(coldkey_ss58, "Swap")
+            claim_type_info = root_claim_types.get(coldkey_ss58, {"type": "Swap"})
+            total_subnets = len([n for n in all_subnets if n != 0])
+            claim_type = format_claim_type_for_root(claim_type_info, total_subnets)
 
             sorted_rows.append(
                 (
@@ -1157,7 +1239,8 @@ async def show(
             - Emission: The emission accrued to this hotkey across all subnets every block measured in TAO.
             - Hotkey: The hotkey ss58 address.
             - Coldkey: The coldkey ss58 address.
-            - Root Claim: The root claim type for this coldkey. 'Swap' converts Alpha to TAO every epoch. 'Keep' keeps Alpha emissions.
+            - Root Claim: The root claim type for this coldkey. 'Swap' converts Alpha to TAO every epoch. 'Keep' keeps Alpha emissions. 
+                        'Keep (count)' indicates how many subnets this coldkey is keeping Alpha emissions for.
     """
             )
         if delegate_selection:
@@ -1332,10 +1415,12 @@ async def show(
 
             # Get claim type for this coldkey if applicable TAO stake
             coldkey_ss58 = metagraph_info.coldkeys[idx]
+            claim_type_info = {"type": "Swap"}  # Default
+            claim_type = "-"
+
             if tao_stake.tao > 0:
-                claim_type = root_claim_types.get(coldkey_ss58, "Swap")
-            else:
-                claim_type = "-"
+                claim_type_info = root_claim_types.get(coldkey_ss58, {"type": "Swap"})
+                claim_type = format_claim_type_for_subnet(claim_type_info, netuid_)
 
             rows.append(
                 (
@@ -1376,7 +1461,12 @@ async def show(
                     "hotkey": metagraph_info.hotkeys[idx],
                     "coldkey": metagraph_info.coldkeys[idx],
                     "identity": uid_identity,
-                    "claim_type": claim_type,
+                    "claim_type": claim_type_info.get("type")
+                    if tao_stake.tao > 0
+                    else None,
+                    "claim_type_subnets": claim_type_info.get("subnets")
+                    if claim_type_info.get("type") == "KeepSubnets"
+                    else None,
                 }
             )
 
@@ -1629,6 +1719,7 @@ async def create(
     proxy: Optional[str],
     json_output: bool,
     prompt: bool,
+    mev_protection: bool = True,
 ):
     """Register a subnetwork"""
     coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
@@ -1639,6 +1730,7 @@ async def create(
         subnet_identity=subnet_identity,
         prompt=prompt,
         proxy=proxy,
+        mev_protection=mev_protection
     )
     if json_output:
         # technically, netuid can be `None`, but only if not wait for finalization/inclusion. However, as of present

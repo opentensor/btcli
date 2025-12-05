@@ -8,6 +8,11 @@ from rich.prompt import Confirm, Prompt
 
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
+from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
+    encrypt_call,
+    extract_mev_shield_id,
+    wait_for_mev_execution,
+)
 from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
@@ -460,6 +465,7 @@ async def move_stake(
     interactive_selection: bool = False,
     prompt: bool = True,
     proxy: Optional[str] = None,
+    mev_protection: bool = True,
 ) -> tuple[bool, str]:
     if interactive_selection:
         try:
@@ -580,13 +586,26 @@ async def move_stake(
         f"\n:satellite: Moving [blue]{amount_to_move_as_balance}[/blue] from [blue]{origin_hotkey}[/blue] on netuid: "
         f"[blue]{origin_netuid}[/blue] \nto "
         f"[blue]{destination_hotkey}[/blue] on netuid: [blue]{destination_netuid}[/blue] ..."
-    ):
+    ) as status:
+        if mev_protection:
+            call = await encrypt_call(subtensor, wallet, call)
         success_, err_msg, response = await subtensor.sign_and_send_extrinsic(
             call=call,
             wallet=wallet,
             era={"period": era},
             proxy=proxy,
         )
+
+        if mev_protection:
+            mev_shield_id = await extract_mev_shield_id(response)
+            if mev_shield_id:
+                mev_success, mev_error, response = await wait_for_mev_execution(
+                    subtensor, mev_shield_id, response.block_hash, status=status
+                )
+                if not mev_success:
+                    status.stop()
+                    err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
+                    return False, ""
 
     ext_id = await response.get_extrinsic_identifier() if response else ""
     if success_:
@@ -644,6 +663,7 @@ async def transfer_stake(
     stake_all: bool = False,
     prompt: bool = True,
     proxy: Optional[str] = None,
+    mev_protection: bool = True,
 ) -> tuple[bool, str]:
     """Transfers stake from one network to another.
 
@@ -772,7 +792,9 @@ async def transfer_stake(
     if not unlock_key(wallet).success:
         return False, ""
 
-    with console.status("\n:satellite: Transferring stake ..."):
+    with console.status("\n:satellite: Transferring stake ...") as status:
+        if mev_protection:
+            call = await encrypt_call(subtensor, wallet, call)
         success_, err_msg, response = await subtensor.sign_and_send_extrinsic(
             call=call,
             wallet=wallet,
@@ -781,8 +803,18 @@ async def transfer_stake(
         )
 
     if success_:
-        ext_id = await response.get_extrinsic_identifier()
+        if mev_protection:
+                mev_shield_id = await extract_mev_shield_id(response)
+                if mev_shield_id:
+                    mev_success, mev_error, response = await wait_for_mev_execution(
+                        subtensor, mev_shield_id, response.block_hash, status=status
+                    )
+                    if not mev_success:
+                        status.stop()
+                        err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
+                        return False, ""    ext_id = await response.get_extrinsic_identifier()
         await print_extrinsic_id(response)
+        ext_id = await response.get_extrinsic_identifier()
         if not prompt:
             console.print(":white_heavy_check_mark: [green]Sent[/green]")
             return True, ext_id
@@ -829,6 +861,7 @@ async def swap_stake(
     prompt: bool = True,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
+    mev_protection: bool = True,
 ) -> tuple[bool, str]:
     """Swaps stake between subnets while keeping the same coldkey-hotkey pair ownership.
 
@@ -950,7 +983,9 @@ async def swap_stake(
     with console.status(
         f"\n:satellite: Swapping stake from netuid [blue]{origin_netuid}[/blue] "
         f"to netuid [blue]{destination_netuid}[/blue]..."
-    ):
+    ) as status:
+        if mev_protection:
+            call = await encrypt_call(subtensor, wallet, call)
         success_, err_msg, response = await subtensor.sign_and_send_extrinsic(
             call=call,
             wallet=wallet,
@@ -959,6 +994,19 @@ async def swap_stake(
             wait_for_finalization=wait_for_finalization,
             wait_for_inclusion=wait_for_inclusion,
         )
+
+        if mev_protection:
+            mev_shield_id = await extract_mev_shield_id(response)
+            if mev_shield_id:
+                mev_success, mev_error, response = await wait_for_mev_execution(
+                    subtensor, mev_shield_id, response.block_hash, status=status
+                )
+                if not mev_success:
+                    status.stop()
+                    err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
+                    return False, ""
+
+    ext_id = await response.get_extrinsic_identifier()
 
     if success_:
         await print_extrinsic_id(response)
