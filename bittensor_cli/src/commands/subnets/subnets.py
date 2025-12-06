@@ -3,6 +3,7 @@ import json
 import sqlite3
 from typing import TYPE_CHECKING, Optional, cast
 
+from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm, Prompt
 from rich.console import Group
@@ -10,23 +11,26 @@ from rich.progress import Progress, BarColumn, TextColumn
 from rich.table import Column, Table
 from rich import box
 
-from bittensor_cli.src import COLOR_PALETTE, Constants
+from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.extrinsics.registration import (
     register_extrinsic,
     burned_register_extrinsic,
 )
 from bittensor_cli.src.bittensor.extrinsics.root import root_register_extrinsic
+from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
+    extract_mev_shield_id,
+    wait_for_extrinsic_by_hash,
+)
 from rich.live import Live
 from bittensor_cli.src.bittensor.minigraph import MiniGraph
 from bittensor_cli.src.commands.wallets import set_id, get_id
 from bittensor_cli.src.bittensor.utils import (
     console,
-    create_table,
+    create_and_populate_table,
     err_console,
     print_verbose,
     print_error,
-    format_error_message,
     get_metadata_table,
     millify_tao,
     render_table,
@@ -49,13 +53,73 @@ TAO_WEIGHT = 0.18
 # helpers and extrinsics
 
 
+def format_claim_type_for_root(claim_info: dict, total_subnets: int) -> str:
+    """
+    Format claim type for root network metagraph.
+
+    Args:
+        claim_info: Claim type dict {"type": "...", "subnets": [...]}
+        total_subnets: Total number of subnets in network (excluding netuid 0)
+
+    Returns:
+        Formatted string showing keep/swap counts
+
+    Examples:
+        {"type": "Keep"} → "Keep all"
+        {"type": "Swap"} → "Swap all"
+        {"type": "KeepSubnets", "subnets": [1,2,3]} → "Keep (3), Swap (54)"
+    """
+    claim_type = claim_info.get("type", "Swap")
+
+    if claim_type == "Keep":
+        return "Keep all"
+    elif claim_type == "Swap":
+        return "Swap all"
+    else:
+        keep_subnets = claim_info.get("subnets", [])
+        keep_count = len(keep_subnets)
+        swap_count = total_subnets - keep_count
+        return f"Keep ({keep_count}), Swap ({swap_count})"
+
+
+def format_claim_type_for_subnet(claim_info: dict, current_netuid: int) -> str:
+    """
+    Format claim type for specific subnet metagraph.
+    Shows whether THIS subnet's emissions are kept or swapped.
+
+    Args:
+        claim_info: Claim type dict {"type": "...", "subnets": [...]}
+        current_netuid: The netuid being viewed
+
+    Returns:
+        "Keep" if this subnet is kept, "Swap" if swapped
+
+    Examples:
+        {"type": "Keep"}, netuid=5 → "Keep"
+        {"type": "Swap"}, netuid=5 → "Swap"
+        {"type": "KeepSubnets", "subnets": [1,5,10]}, netuid=5 → "Keep"
+        {"type": "KeepSubnets", "subnets": [1,5,10]}, netuid=3 → "Swap"
+    """
+    claim_type = claim_info.get("type", "Swap")
+
+    if claim_type == "Keep":
+        return "Keep"
+    elif claim_type == "Swap":
+        return "Swap"
+    else:
+        keep_subnets = claim_info.get("subnets", [])
+        return "Keep" if current_netuid in keep_subnets else "Swap"
+
+
 async def register_subnetwork_extrinsic(
     subtensor: "SubtensorInterface",
     wallet: Wallet,
     subnet_identity: dict,
+    proxy: Optional[str],
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = True,
     prompt: bool = False,
+    mev_protection: bool = True,
 ) -> tuple[bool, Optional[int], Optional[str]]:
     """Registers a new subnetwork.
 
@@ -75,8 +139,9 @@ async def register_subnetwork_extrinsic(
         extrinsic_identifier: Optional extrinsic identifier, if the extrinsic was included.
     """
 
+    # TODO why doesn't this have an era?
     async def _find_event_attributes_in_extrinsic_receipt(
-        response_, event_name: str
+        response_: AsyncExtrinsicReceipt, event_name: str
     ) -> list:
         """
         Searches for the attributes of a specified event within an extrinsic receipt.
@@ -93,18 +158,19 @@ async def register_subnetwork_extrinsic(
             if event_details["event_id"] == event_name:
                 # Once found, you can access the attributes of the event_name
                 return event_details["attributes"]
-        return [-1]
+        return []
 
     print_verbose("Fetching balance")
-    your_balance = await subtensor.get_balance(wallet.coldkeypub.ss58_address)
+
+    your_balance = await subtensor.get_balance(proxy or wallet.coldkeypub.ss58_address)
 
     print_verbose("Fetching burn_cost")
     sn_burn_cost = await burn_cost(subtensor)
     if sn_burn_cost > your_balance:
         err_console.print(
-            f"Your balance of: [{COLOR_PALETTE['POOLS']['TAO']}]{your_balance}[{COLOR_PALETTE['POOLS']['TAO']}]"
+            f"Your balance of: [{COLOR_PALETTE.POOLS.TAO}]{your_balance}[{COLOR_PALETTE.POOLS.TAO}]"
             f" is not enough to burn "
-            f"[{COLOR_PALETTE['POOLS']['TAO']}]{sn_burn_cost}[{COLOR_PALETTE['POOLS']['TAO']}] "
+            f"[{COLOR_PALETTE.POOLS.TAO}]{sn_burn_cost}[{COLOR_PALETTE.POOLS.TAO}] "
             f"to register a subnet."
         )
         return False, None, None
@@ -166,44 +232,71 @@ async def register_subnetwork_extrinsic(
     if not unlock_key(wallet).success:
         return False, None, None
 
-    with console.status(":satellite: Registering subnet...", spinner="earth"):
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
+
+    with console.status(":satellite: Registering subnet...", spinner="earth") as status:
         substrate = subtensor.substrate
-        # create extrinsic call
-        call = await substrate.compose_call(
-            call_module="SubtensorModule",
-            call_function=call_function,
-            call_params=call_params,
+        call, next_nonce = await asyncio.gather(
+            substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function=call_function,
+                call_params=call_params,
+            ),
+            substrate.get_account_next_index(coldkey_ss58),
         )
-        extrinsic = await substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey
-        )
-        response = await substrate.submit_extrinsic(
-            extrinsic,
+        success, err_msg, response = await subtensor.sign_and_send_extrinsic(
+            call=call,
+            wallet=wallet,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
+            proxy=proxy,
+            nonce=next_nonce,
+            mev_protection=mev_protection,
         )
 
         # We only wait here if we expect finalization.
         if not wait_for_finalization and not wait_for_inclusion:
             return True, None, None
 
-        if not await response.is_success:
-            err_console.print(
-                f":cross_mark: [red]Failed[/red]: {format_error_message(await response.error_message)}"
-            )
-            await asyncio.sleep(0.5)
+        if not success:
+            err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
             return False, None, None
-
-        # Successful registration, final check for membership
         else:
+            # Check for MEV shield execution
+            if mev_protection:
+                inner_hash = err_msg
+                mev_shield_id = await extract_mev_shield_id(response)
+                mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
+                    subtensor=subtensor,
+                    extrinsic_hash=inner_hash,
+                    shield_id=mev_shield_id,
+                    submit_block_hash=response.block_hash,
+                    status=status,
+                )
+                if not mev_success:
+                    status.stop()
+                    err_console.print(
+                        f":cross_mark: [red]Failed[/red]: MEV execution failed: {mev_error}"
+                    )
+                    return False, None, None
+
+            # Successful registration, final check for membership
+
             attributes = await _find_event_attributes_in_extrinsic_receipt(
                 response, "NetworkAdded"
             )
             await print_extrinsic_id(response)
             ext_id = await response.get_extrinsic_identifier()
-            console.print(
-                f":white_heavy_check_mark: [dark_sea_green3]Registered subnetwork with netuid: {attributes[0]}"
-            )
+            if not attributes:
+                console.print(
+                    ":exclamation: [yellow]A possible error has occurred[/yellow]. The extrinsic reports success, but "
+                    "we are unable to locate the 'NetworkAdded' event inside the extrinsic's events."
+                    ""
+                )
+            else:
+                console.print(
+                    f":white_heavy_check_mark: [dark_sea_green3]Registered subnetwork with netuid: {attributes[0]}"
+                )
             return True, int(attributes[0]), ext_id
 
 
@@ -1077,7 +1170,9 @@ async def show(
             )
 
             coldkey_ss58 = root_state.coldkeys[idx]
-            claim_type = root_claim_types.get(coldkey_ss58, "Swap")
+            claim_type_info = root_claim_types.get(coldkey_ss58, {"type": "Swap"})
+            total_subnets = len([n for n in all_subnets if n != 0])
+            claim_type = format_claim_type_for_root(claim_type_info, total_subnets)
 
             sorted_rows.append(
                 (
@@ -1151,7 +1246,8 @@ async def show(
             - Emission: The emission accrued to this hotkey across all subnets every block measured in TAO.
             - Hotkey: The hotkey ss58 address.
             - Coldkey: The coldkey ss58 address.
-            - Root Claim: The root claim type for this coldkey. 'Swap' converts Alpha to TAO every epoch. 'Keep' keeps Alpha emissions.
+            - Root Claim: The root claim type for this coldkey. 'Swap' converts Alpha to TAO every epoch. 'Keep' keeps Alpha emissions. 
+                        'Keep (count)' indicates how many subnets this coldkey is keeping Alpha emissions for.
     """
             )
         if delegate_selection:
@@ -1326,10 +1422,12 @@ async def show(
 
             # Get claim type for this coldkey if applicable TAO stake
             coldkey_ss58 = metagraph_info.coldkeys[idx]
+            claim_type_info = {"type": "Swap"}  # Default
+            claim_type = "-"
+
             if tao_stake.tao > 0:
-                claim_type = root_claim_types.get(coldkey_ss58, "Swap")
-            else:
-                claim_type = "-"
+                claim_type_info = root_claim_types.get(coldkey_ss58, {"type": "Swap"})
+                claim_type = format_claim_type_for_subnet(claim_type_info, netuid_)
 
             rows.append(
                 (
@@ -1370,7 +1468,12 @@ async def show(
                     "hotkey": metagraph_info.hotkeys[idx],
                     "coldkey": metagraph_info.coldkeys[idx],
                     "identity": uid_identity,
-                    "claim_type": claim_type,
+                    "claim_type": claim_type_info.get("type")
+                    if tao_stake.tao > 0
+                    else None,
+                    "claim_type_subnets": claim_type_info.get("subnets")
+                    if claim_type_info.get("type") == "KeepSubnets"
+                    else None,
                 }
             )
 
@@ -1620,14 +1723,21 @@ async def create(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
     subnet_identity: dict,
+    proxy: Optional[str],
     json_output: bool,
     prompt: bool,
+    mev_protection: bool = True,
 ):
     """Register a subnetwork"""
-
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
     # Call register command.
     success, netuid, ext_id = await register_subnetwork_extrinsic(
-        subtensor, wallet, subnet_identity, prompt=prompt
+        subtensor=subtensor,
+        wallet=wallet,
+        subnet_identity=subnet_identity,
+        prompt=prompt,
+        proxy=proxy,
+        mev_protection=mev_protection,
     )
     if json_output:
         # technically, netuid can be `None`, but only if not wait for finalization/inclusion. However, as of present
@@ -1646,7 +1756,7 @@ async def create(
 
         if do_set_identity:
             current_identity = await get_id(
-                subtensor, wallet.coldkeypub.ss58_address, "Current on-chain identity"
+                subtensor, coldkey_ss58, "Current on-chain identity"
             )
             if prompt:
                 if not Confirm.ask(
@@ -1668,16 +1778,16 @@ async def create(
             )
 
             await set_id(
-                wallet,
-                subtensor,
-                identity["name"],
-                identity["url"],
-                identity["image"],
-                identity["discord"],
-                identity["description"],
-                identity["additional"],
-                identity["github_repo"],
-                prompt,
+                wallet=wallet,
+                subtensor=subtensor,
+                name=identity["name"],
+                web_url=identity["url"],
+                image_url=identity["image"],
+                discord=identity["discord"],
+                description=identity["description"],
+                additional=identity["additional"],
+                github_repo=identity["github_repo"],
+                proxy=proxy,
             )
 
 
@@ -1718,9 +1828,10 @@ async def register(
     era: Optional[int],
     json_output: bool,
     prompt: bool,
+    proxy: Optional[str] = None,
 ):
     """Register neuron by recycling some TAO."""
-
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
     # Verify subnet exists
     print_verbose("Checking subnet status")
     block_hash = await subtensor.substrate.get_chain_head()
@@ -1742,7 +1853,7 @@ async def register(
         subtensor.get_hyperparameter(
             param_name="Burn", netuid=netuid, block_hash=block_hash
         ),
-        subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash=block_hash),
+        subtensor.get_balance(coldkey_ss58, block_hash=block_hash),
     )
     current_recycle = (
         Balance.from_rao(int(current_recycle_)) if current_recycle_ else Balance(0)
@@ -1762,8 +1873,11 @@ async def register(
         # TODO make this a reusable function, also used in subnets list
         # Show creation table.
         table = Table(
-            title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Register to [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]netuid: {netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
-            f"\nNetwork: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{subtensor.network}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]\n",
+            title=(
+                f"\n[{COLOR_PALETTE.G.HEADER}]"
+                f"Register to [{COLOR_PALETTE.G.SUBHEAD}]netuid: {netuid}[/{COLOR_PALETTE.G.SUBHEAD}]"
+                f"\nNetwork: [{COLOR_PALETTE.G.SUBHEAD}]{subtensor.network}[/{COLOR_PALETTE.G.SUBHEAD}]\n"
+            ),
             show_footer=True,
             show_edge=False,
             header_style="bold white",
@@ -1805,7 +1919,7 @@ async def register(
             f"{Balance.get_unit(netuid)}",
             f"τ {current_recycle.tao:.4f}",
             f"{get_hotkey_pub_ss58(wallet)}",
-            f"{wallet.coldkeypub.ss58_address}",
+            f"{coldkey_ss58}",
         )
         console.print(table)
         if not (
@@ -1820,7 +1934,9 @@ async def register(
             return
 
     if netuid == 0:
-        success, msg, ext_id = await root_register_extrinsic(subtensor, wallet=wallet)
+        success, msg, ext_id = await root_register_extrinsic(
+            subtensor, wallet=wallet, proxy=proxy
+        )
     else:
         success, msg, ext_id = await burned_register_extrinsic(
             subtensor,
@@ -1828,6 +1944,7 @@ async def register(
             netuid=netuid,
             old_balance=balance,
             era=era,
+            proxy=proxy,
         )
     if json_output:
         json_console.print(
@@ -1982,7 +2099,7 @@ async def metagraph_cmd(
         }
         if not no_cache:
             update_metadata_table("metagraph", metadata_info)
-            create_table(
+            create_and_populate_table(
                 "metagraph",
                 columns=[
                     ("UID", "INTEGER"),
@@ -2358,6 +2475,7 @@ async def set_identity(
     netuid: int,
     subnet_identity: dict,
     prompt: bool = False,
+    proxy: Optional[str] = None,
 ) -> tuple[bool, Optional[str]]:
     """Set identity information for a subnet"""
 
@@ -2418,7 +2536,7 @@ async def set_identity(
         spinner="earth",
     ):
         success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
-            call, wallet
+            call, wallet, proxy=proxy
         )
 
         if not success:
@@ -2561,10 +2679,11 @@ async def start_subnet(
     wallet: "Wallet",
     subtensor: "SubtensorInterface",
     netuid: int,
+    proxy: Optional[str],
     prompt: bool = False,
 ) -> bool:
     """Start a subnet's emission schedule"""
-
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
     if not await subtensor.subnet_exists(netuid):
         print_error(f"Subnet {netuid} does not exist.")
         return False
@@ -2574,7 +2693,8 @@ async def start_subnet(
         storage_function="SubnetOwner",
         params=[netuid],
     )
-    if subnet_owner != wallet.coldkeypub.ss58_address:
+    # TODO should this check against proxy as well?
+    if subnet_owner != coldkey_ss58:
         print_error(":cross_mark: This wallet doesn't own the specified subnet.")
         return False
 
@@ -2595,26 +2715,21 @@ async def start_subnet(
             call_function="start_call",
             call_params={"netuid": netuid},
         )
-
-        signed_ext = await subtensor.substrate.create_signed_extrinsic(
+        success, error_msg, response = await subtensor.sign_and_send_extrinsic(
             call=start_call,
-            keypair=wallet.coldkey,
-        )
-
-        response = await subtensor.substrate.submit_extrinsic(
-            extrinsic=signed_ext,
+            wallet=wallet,
             wait_for_inclusion=True,
             wait_for_finalization=True,
+            proxy=proxy,
         )
 
-        if await response.is_success:
+        if success:
             await print_extrinsic_id(response)
             console.print(
                 f":white_heavy_check_mark: [green]Successfully started subnet {netuid}'s emission schedule.[/green]"
             )
             return True
         else:
-            error_msg = format_error_message(await response.error_message)
             if "FirstEmissionBlockNumberAlreadySet" in error_msg:
                 console.print(
                     f"[dark_sea_green3]Subnet {netuid} already has an emission schedule.[/dark_sea_green3]"
@@ -2631,6 +2746,8 @@ async def set_symbol(
     subtensor: "SubtensorInterface",
     netuid: int,
     symbol: str,
+    proxy: Optional[str],
+    period: int,
     prompt: bool = False,
     json_output: bool = False,
 ) -> bool:
@@ -2671,16 +2788,11 @@ async def set_symbol(
         call_params={"netuid": netuid, "symbol": symbol.encode("utf-8")},
     )
 
-    signed_ext = await subtensor.substrate.create_signed_extrinsic(
-        call=start_call,
-        keypair=wallet.coldkey,
+    success, err_msg, response = await subtensor.sign_and_send_extrinsic(
+        call=start_call, wallet=wallet, proxy=proxy, era={"period": period}
     )
 
-    response = await subtensor.substrate.submit_extrinsic(
-        extrinsic=signed_ext,
-        wait_for_inclusion=True,
-    )
-    if await response.is_success:
+    if success:
         ext_id = await response.get_extrinsic_identifier()
         await print_extrinsic_id(response)
         message = f"Successfully updated SN{netuid}'s symbol to {symbol}."
@@ -2696,11 +2808,14 @@ async def set_symbol(
             console.print(f":white_heavy_check_mark:[dark_sea_green3] {message}\n")
         return True
     else:
-        err = format_error_message(await response.error_message)
         if json_output:
             json_console.print_json(
-                data={"success": False, "message": err, "extrinsic_identifier": None}
+                data={
+                    "success": False,
+                    "message": err_msg,
+                    "extrinsic_identifier": None,
+                }
             )
         else:
-            err_console.print(f":cross_mark: [red]Failed[/red]: {err}")
+            err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
         return False

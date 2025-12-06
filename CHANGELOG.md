@@ -1,5 +1,23 @@
 # Changelog
 
+## 9.16.0 /2025-12-09
+
+## What's Changed
+* proxy help text by @chideraao in https://github.com/opentensor/btcli/pull/707
+* In `btcli st list`, display the total even with the `--verbose` flag by @thewhaleking in https://github.com/opentensor/btcli/pull/717
+* Make `btcli st wizard` by @OxLeOx in https://github.com/opentensor/btcli/pull/720
+* Feat/Root claim update for netuids by @ibraheem-abe in https://github.com/opentensor/btcli/pull/722
+* Improve e2e tests workflow by @basfroman in https://github.com/opentensor/btcli/pull/728
+* Feat: MeV protection in staking operations by @ibraheem-abe in https://github.com/opentensor/btcli/pull/724
+* proxy app by @thewhaleking in https://github.com/opentensor/btcli/pull/706
+* Fixes: updated mev shield by @thewhaleking in https://github.com/opentensor/btcli/pull/731
+
+## New Contributors
+* @chideraao made their first contribution in https://github.com/opentensor/btcli/pull/707
+* @OxLeOx made their first contribution in https://github.com/opentensor/btcli/pull/720
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.15.3...v9.16.0
+
 ## 9.15.3 /2025-11-17
 
 ## What's Changed

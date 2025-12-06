@@ -23,6 +23,7 @@ def test_set_id(local_chain, wallet_setup):
     keypair_alice, wallet_alice, wallet_path_alice, exec_command_alice = wallet_setup(
         wallet_path_alice
     )
+
     # Register a subnet with sudo as Alice
     result = exec_command_alice(
         command="subnets",
@@ -54,6 +55,7 @@ def test_set_id(local_chain, wallet_setup):
             "https://testsubnet.com/logo.png",
             "--no-prompt",
             "--json-output",
+            "--no-mev-protection",
         ],
     )
     result_output = json.loads(result.stdout)

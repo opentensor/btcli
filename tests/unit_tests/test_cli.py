@@ -228,3 +228,434 @@ def test_swap_hotkey_netuid_1_no_warning(mock_console):
         assert not any(
             "WARNING" in str(call) and "netuid 0" in str(call) for call in warning_calls
         )
+
+
+# ============================================================================
+# Tests for proxy parameter handling
+# ============================================================================
+
+
+def test_is_valid_proxy_name_or_ss58_with_none_proxy():
+    """Test that None proxy is accepted when announce_only is False"""
+    cli_manager = CLIManager()
+    result = cli_manager.is_valid_proxy_name_or_ss58(None, announce_only=False)
+    assert result is None
+
+
+def test_is_valid_proxy_name_or_ss58_raises_with_announce_only_without_proxy():
+    """Test that announce_only=True without proxy raises BadParameter"""
+    cli_manager = CLIManager()
+    with pytest.raises(typer.BadParameter) as exc_info:
+        cli_manager.is_valid_proxy_name_or_ss58(None, announce_only=True)
+    assert "Cannot supply '--announce-only' without supplying '--proxy'" in str(
+        exc_info.value
+    )
+
+
+def test_is_valid_proxy_name_or_ss58_with_valid_ss58():
+    """Test that a valid SS58 address is accepted"""
+    cli_manager = CLIManager()
+    valid_ss58 = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+    result = cli_manager.is_valid_proxy_name_or_ss58(valid_ss58, announce_only=False)
+    assert result == valid_ss58
+
+
+def test_is_valid_proxy_name_or_ss58_with_invalid_ss58():
+    """Test that an invalid SS58 address raises BadParameter"""
+    cli_manager = CLIManager()
+    invalid_ss58 = "invalid_address"
+    with pytest.raises(typer.BadParameter) as exc_info:
+        cli_manager.is_valid_proxy_name_or_ss58(invalid_ss58, announce_only=False)
+    assert "Invalid SS58 address" in str(exc_info.value)
+
+
+def test_is_valid_proxy_name_or_ss58_with_proxy_from_config():
+    """Test that a proxy name from config is resolved to SS58 address"""
+    cli_manager = CLIManager()
+    valid_ss58 = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+    cli_manager.proxies = {"my_proxy": {"address": valid_ss58}}
+
+    result = cli_manager.is_valid_proxy_name_or_ss58("my_proxy", announce_only=False)
+    assert result == valid_ss58
+
+
+def test_is_valid_proxy_name_or_ss58_with_invalid_proxy_from_config():
+    """Test that an invalid SS58 in config raises BadParameter"""
+    cli_manager = CLIManager()
+    cli_manager.proxies = {"my_proxy": {"address": "invalid_address"}}
+
+    with pytest.raises(typer.BadParameter) as exc_info:
+        cli_manager.is_valid_proxy_name_or_ss58("my_proxy", announce_only=False)
+    assert "Invalid SS58 address" in str(exc_info.value)
+    assert "from config" in str(exc_info.value)
+
+
+@patch("bittensor_cli.cli.is_valid_ss58_address")
+def test_wallet_transfer_calls_proxy_validation(mock_is_valid_ss58):
+    """Test that wallet_transfer calls is_valid_proxy_name_or_ss58"""
+    cli_manager = CLIManager()
+    mock_is_valid_ss58.return_value = True
+    valid_proxy = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+
+    with (
+        patch.object(cli_manager, "verbosity_handler"),
+        patch.object(cli_manager, "wallet_ask") as mock_wallet_ask,
+        patch.object(cli_manager, "initialize_chain"),
+        patch.object(cli_manager, "_run_command"),
+        patch.object(
+            cli_manager, "is_valid_proxy_name_or_ss58", return_value=valid_proxy
+        ) as mock_proxy_validation,
+    ):
+        mock_wallet_ask.return_value = Mock()
+
+        cli_manager.wallet_transfer(
+            destination_ss58_address="5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+            amount=10.0,
+            transfer_all=False,
+            allow_death=False,
+            period=100,
+            proxy=valid_proxy,
+            announce_only=False,
+            wallet_name="test_wallet",
+            wallet_path="/tmp/test",
+            wallet_hotkey="test_hotkey",
+            network=None,
+            prompt=False,
+            quiet=True,
+            verbose=False,
+            json_output=False,
+        )
+
+        # Assert that proxy validation was called
+        mock_proxy_validation.assert_called_once_with(valid_proxy, False)
+
+
+@patch("bittensor_cli.cli.is_valid_ss58_address")
+def test_wallet_transfer_with_announce_only_requires_proxy(mock_is_valid_ss58):
+    """Test that wallet_transfer with announce_only=True requires proxy"""
+    cli_manager = CLIManager()
+    mock_is_valid_ss58.return_value = True
+
+    with (
+        patch.object(cli_manager, "verbosity_handler"),
+        patch.object(cli_manager, "wallet_ask") as mock_wallet_ask,
+        patch.object(cli_manager, "initialize_chain"),
+    ):
+        mock_wallet_ask.return_value = Mock()
+
+        with pytest.raises(typer.BadParameter) as exc_info:
+            cli_manager.wallet_transfer(
+                destination_ss58_address="5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+                amount=10.0,
+                transfer_all=False,
+                allow_death=False,
+                period=100,
+                proxy=None,
+                announce_only=True,  # announce_only without proxy should fail
+                wallet_name="test_wallet",
+                wallet_path="/tmp/test",
+                wallet_hotkey="test_hotkey",
+                network=None,
+                prompt=False,
+                quiet=True,
+                verbose=False,
+                json_output=False,
+            )
+
+        assert "Cannot supply '--announce-only' without supplying '--proxy'" in str(
+            exc_info.value
+        )
+
+
+def test_stake_add_calls_proxy_validation():
+    """Test that stake_add calls is_valid_proxy_name_or_ss58"""
+    cli_manager = CLIManager()
+    valid_proxy = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+
+    with (
+        patch.object(cli_manager, "verbosity_handler"),
+        patch.object(cli_manager, "wallet_ask") as mock_wallet_ask,
+        patch.object(cli_manager, "initialize_chain"),
+        patch.object(cli_manager, "_run_command"),
+        patch.object(cli_manager, "ask_safe_staking", return_value=False),
+        patch.object(
+            cli_manager, "is_valid_proxy_name_or_ss58", return_value=valid_proxy
+        ) as mock_proxy_validation,
+    ):
+        mock_wallet_ask.return_value = Mock()
+
+        cli_manager.stake_add(
+            stake_all=False,
+            amount=10.0,
+            include_hotkeys="",
+            exclude_hotkeys="",
+            all_hotkeys=False,
+            netuids="1",
+            all_netuids=False,
+            wallet_name="test_wallet",
+            wallet_path="/tmp/test",
+            wallet_hotkey="test_hotkey",
+            proxy=valid_proxy,
+            announce_only=False,
+            network=None,
+            rate_tolerance=None,
+            safe_staking=False,
+            allow_partial_stake=None,
+            period=100,
+            prompt=False,
+            quiet=True,
+            verbose=False,
+            json_output=False,
+        )
+
+        # Assert that proxy validation was called
+        mock_proxy_validation.assert_called_once_with(valid_proxy, False)
+
+
+def test_stake_remove_calls_proxy_validation():
+    """Test that stake_remove calls is_valid_proxy_name_or_ss58"""
+    cli_manager = CLIManager()
+    valid_proxy = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+
+    with (
+        patch.object(cli_manager, "verbosity_handler"),
+        patch.object(cli_manager, "wallet_ask") as mock_wallet_ask,
+        patch.object(cli_manager, "initialize_chain"),
+        patch.object(cli_manager, "_run_command"),
+        patch.object(cli_manager, "ask_safe_staking", return_value=False),
+        patch.object(
+            cli_manager, "is_valid_proxy_name_or_ss58", return_value=valid_proxy
+        ) as mock_proxy_validation,
+    ):
+        mock_wallet_ask.return_value = Mock()
+
+        cli_manager.stake_remove(
+            network=None,
+            wallet_name="test_wallet",
+            wallet_path="/tmp/test",
+            wallet_hotkey="test_hotkey",
+            netuid=1,
+            all_netuids=False,
+            unstake_all=False,
+            unstake_all_alpha=False,
+            amount=10.0,
+            hotkey_ss58_address="",
+            include_hotkeys="",
+            exclude_hotkeys="",
+            all_hotkeys=False,
+            proxy=valid_proxy,
+            announce_only=False,
+            rate_tolerance=None,
+            safe_staking=False,
+            allow_partial_stake=None,
+            period=100,
+            prompt=False,
+            quiet=True,
+            verbose=False,
+            json_output=False,
+        )
+
+        # Assert that proxy validation was called
+        mock_proxy_validation.assert_called_once_with(valid_proxy, False)
+
+
+def test_wallet_associate_hotkey_calls_proxy_validation():
+    """Test that wallet_associate_hotkey calls is_valid_proxy_name_or_ss58"""
+    cli_manager = CLIManager()
+    valid_proxy = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+    valid_hotkey = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+
+    with (
+        patch.object(cli_manager, "verbosity_handler"),
+        patch.object(cli_manager, "wallet_ask") as mock_wallet_ask,
+        patch.object(cli_manager, "initialize_chain"),
+        patch.object(cli_manager, "_run_command"),
+        patch("bittensor_cli.cli.is_valid_ss58_address", return_value=True),
+        patch.object(
+            cli_manager, "is_valid_proxy_name_or_ss58", return_value=valid_proxy
+        ) as mock_proxy_validation,
+    ):
+        mock_wallet = Mock()
+        mock_wallet.name = "test_wallet"
+        mock_wallet_ask.return_value = mock_wallet
+
+        cli_manager.wallet_associate_hotkey(
+            wallet_name="test_wallet",
+            wallet_path="/tmp/test",
+            wallet_hotkey=valid_hotkey,
+            network=None,
+            proxy=valid_proxy,
+            announce_only=False,
+            prompt=False,
+            quiet=True,
+            verbose=False,
+        )
+
+        # Assert that proxy validation was called
+        mock_proxy_validation.assert_called_once_with(valid_proxy, False)
+
+
+def test_wallet_set_id_calls_proxy_validation():
+    """Test that wallet_set_id calls is_valid_proxy_name_or_ss58"""
+    cli_manager = CLIManager()
+    valid_proxy = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+
+    with (
+        patch.object(cli_manager, "verbosity_handler"),
+        patch.object(cli_manager, "wallet_ask") as mock_wallet_ask,
+        patch.object(cli_manager, "initialize_chain"),
+        patch.object(cli_manager, "_run_command"),
+        patch.object(
+            cli_manager, "is_valid_proxy_name_or_ss58", return_value=valid_proxy
+        ) as mock_proxy_validation,
+    ):
+        mock_wallet_ask.return_value = Mock()
+
+        cli_manager.wallet_set_id(
+            wallet_name="test_wallet",
+            wallet_path="/tmp/test",
+            wallet_hotkey="test_hotkey",
+            network=None,
+            name="Test Name",
+            web_url="https://example.com",
+            image_url="https://example.com/image.png",
+            discord="testuser",
+            description="Test description",
+            additional="Additional info",
+            github_repo="test/repo",
+            proxy=valid_proxy,
+            announce_only=False,
+            quiet=True,
+            verbose=False,
+            prompt=False,
+            json_output=False,
+        )
+
+        # Assert that proxy validation was called
+        mock_proxy_validation.assert_called_once_with(valid_proxy, False)
+
+
+def test_wallet_swap_coldkey_calls_proxy_validation():
+    """Test that wallet_swap_coldkey calls is_valid_proxy_name_or_ss58"""
+    cli_manager = CLIManager()
+    valid_proxy = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+    new_coldkey = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+
+    with (
+        patch.object(cli_manager, "verbosity_handler"),
+        patch.object(cli_manager, "wallet_ask") as mock_wallet_ask,
+        patch.object(cli_manager, "initialize_chain"),
+        patch.object(cli_manager, "_run_command"),
+        patch("bittensor_cli.cli.is_valid_ss58_address", return_value=True),
+        patch.object(
+            cli_manager, "is_valid_proxy_name_or_ss58", return_value=valid_proxy
+        ) as mock_proxy_validation,
+    ):
+        mock_wallet = Mock()
+        mock_wallet.coldkeypub = Mock()
+        mock_wallet.coldkeypub.ss58_address = (
+            "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+        )
+        mock_wallet_ask.return_value = mock_wallet
+
+        cli_manager.wallet_swap_coldkey(
+            wallet_name="test_wallet",
+            wallet_path="/tmp/test",
+            wallet_hotkey="test_hotkey",
+            new_wallet_or_ss58=new_coldkey,
+            network=None,
+            proxy=valid_proxy,
+            announce_only=False,
+            quiet=True,
+            verbose=False,
+            force_swap=False,
+        )
+
+        # Assert that proxy validation was called
+        mock_proxy_validation.assert_called_once_with(valid_proxy, False)
+
+
+def test_stake_move_calls_proxy_validation():
+    """Test that stake_move calls is_valid_proxy_name_or_ss58"""
+    cli_manager = CLIManager()
+    valid_proxy = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+    dest_hotkey = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+
+    with (
+        patch.object(cli_manager, "verbosity_handler"),
+        patch.object(cli_manager, "wallet_ask") as mock_wallet_ask,
+        patch.object(cli_manager, "initialize_chain"),
+        patch.object(cli_manager, "_run_command", return_value=(None, None)),
+        patch("bittensor_cli.cli.is_valid_ss58_address", return_value=True),
+        patch.object(
+            cli_manager, "is_valid_proxy_name_or_ss58", return_value=valid_proxy
+        ) as mock_proxy_validation,
+    ):
+        mock_wallet = Mock()
+        mock_wallet.hotkey_str = "test_hotkey"
+        mock_wallet_ask.return_value = mock_wallet
+
+        cli_manager.stake_move(
+            network=None,
+            wallet_name="test_wallet",
+            wallet_path="/tmp/test",
+            wallet_hotkey="test_hotkey",
+            origin_netuid=1,
+            destination_netuid=2,
+            destination_hotkey=dest_hotkey,
+            amount=10.0,
+            stake_all=False,
+            proxy=valid_proxy,
+            announce_only=False,
+            period=100,
+            prompt=False,
+            quiet=True,
+            verbose=False,
+            json_output=False,
+        )
+
+        # Assert that proxy validation was called
+        mock_proxy_validation.assert_called_once_with(valid_proxy, False)
+
+
+def test_stake_transfer_calls_proxy_validation():
+    """Test that stake_transfer calls is_valid_proxy_name_or_ss58"""
+    cli_manager = CLIManager()
+    valid_proxy = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+    dest_ss58 = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+
+    with (
+        patch.object(cli_manager, "verbosity_handler"),
+        patch.object(cli_manager, "wallet_ask") as mock_wallet_ask,
+        patch.object(cli_manager, "initialize_chain"),
+        patch.object(cli_manager, "_run_command", return_value=(None, None)),
+        patch("bittensor_cli.cli.is_valid_ss58_address", return_value=True),
+        patch.object(
+            cli_manager, "is_valid_proxy_name_or_ss58", return_value=valid_proxy
+        ) as mock_proxy_validation,
+    ):
+        mock_wallet = Mock()
+        mock_wallet.hotkey_str = "test_hotkey"
+        mock_wallet_ask.return_value = mock_wallet
+
+        cli_manager.stake_transfer(
+            network=None,
+            wallet_name="test_wallet",
+            wallet_path="/tmp/test",
+            wallet_hotkey="test_hotkey",
+            origin_netuid=1,
+            dest_netuid=2,
+            dest_ss58=dest_ss58,
+            amount=10.0,
+            stake_all=False,
+            period=100,
+            proxy=valid_proxy,
+            announce_only=False,
+            prompt=False,
+            quiet=True,
+            verbose=False,
+            json_output=False,
+        )
+
+        # Assert that proxy validation was called
+        mock_proxy_validation.assert_called_once_with(valid_proxy, False)

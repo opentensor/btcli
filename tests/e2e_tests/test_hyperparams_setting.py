@@ -1,6 +1,6 @@
 import asyncio
 import json
-
+import pytest
 from bittensor_cli.src import HYPERPARAMS, RootSudoOnly
 from .utils import turn_off_hyperparam_freeze_window
 
@@ -13,6 +13,7 @@ Verify commands:
 """
 
 
+@pytest.mark.parametrize("local_chain", [False], indirect=True)
 def test_hyperparams_setting(local_chain, wallet_setup):
     netuid = 2
     wallet_path_alice = "//Alice"

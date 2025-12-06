@@ -182,6 +182,7 @@ async def set_emission_split(
     wallet: Wallet,
     netuid: int,
     new_emission_split: Optional[str],
+    proxy: Optional[str],
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
     prompt: bool,
@@ -356,6 +357,7 @@ async def set_emission_split(
         subtensor=subtensor,
         netuid=netuid,
         split=normalized_weights,
+        proxy=proxy,
         wait_for_inclusion=wait_for_inclusion,
         wait_for_finalization=wait_for_finalization,
         json_output=json_output,
@@ -406,6 +408,7 @@ async def set_mechanism_count(
     netuid: int,
     mechanism_count: int,
     previous_count: int,
+    proxy: Optional[str],
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
     json_output: bool,
@@ -436,6 +439,7 @@ async def set_mechanism_count(
         wallet=wallet,
         netuid=netuid,
         mech_count=mechanism_count,
+        proxy=proxy,
         wait_for_inclusion=wait_for_inclusion,
         wait_for_finalization=wait_for_finalization,
     )
@@ -461,6 +465,7 @@ async def set_mechanism_emission(
     subtensor: "SubtensorInterface",
     netuid: int,
     split: list[int],
+    proxy: Optional[str],
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
     json_output: bool,
@@ -480,6 +485,7 @@ async def set_mechanism_emission(
         split=split,
         wait_for_inclusion=wait_for_inclusion,
         wait_for_finalization=wait_for_finalization,
+        proxy=proxy,
     )
     ext_id = await ext_receipt.get_extrinsic_identifier() if success else None
 

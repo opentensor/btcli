@@ -174,6 +174,7 @@ async def set_auto_stake_destination(
     subtensor: "SubtensorInterface",
     netuid: int,
     hotkey_ss58: str,
+    proxy: Optional[str] = None,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt_user: bool = True,
@@ -269,6 +270,7 @@ async def set_auto_stake_destination(
             wallet,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
+            proxy=proxy,
         )
 
     ext_id = await ext_receipt.get_extrinsic_identifier() if success else None

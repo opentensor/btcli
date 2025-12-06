@@ -1,11 +1,13 @@
 import ast
+import json
 from collections import namedtuple
 import math
 import os
 import sqlite3
 import webbrowser
+from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable
+from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable, Generator
 from urllib.parse import urlparse
 from functools import partial
 import re
@@ -22,6 +24,7 @@ import numpy as np
 from numpy.typing import NDArray
 from rich.console import Console
 from rich.prompt import Prompt
+from scalecodec import GenericCall
 from scalecodec.utils.ss58 import ss58_encode, ss58_decode
 import typer
 
@@ -37,6 +40,7 @@ if TYPE_CHECKING:
 BT_DOCS_LINK = "https://docs.learnbittensor.org"
 
 GLOBAL_MAX_SUBNET_COUNT = 4096
+MEV_SHIELD_PUBLIC_KEY_SIZE = 1184
 
 console = Console()
 json_console = Console()
@@ -402,6 +406,15 @@ def is_valid_ss58_address(address: str) -> bool:
         )  # Default substrate ss58 format (legacy)
     except IndexError:
         return False
+
+
+def is_valid_ss58_address_prompt(text: str) -> str:
+    valid = False
+    address = ""
+    while not valid:
+        address = Prompt.ask(text).strip()
+        valid = is_valid_ss58_address(address)
+    return address
 
 
 def is_valid_ed25519_pubkey(public_key: Union[str, bytes]) -> bool:
@@ -806,16 +819,302 @@ def normalize_hyperparameters(
     return normalized_values
 
 
+class TableDefinition:
+    """
+    Base class for address book table definitions/functions
+    """
+
+    name: str
+    cols: tuple[tuple[str, str], ...]
+
+    @staticmethod
+    @contextmanager
+    def get_db() -> Generator[tuple[sqlite3.Connection, sqlite3.Cursor], None, None]:
+        """
+        Helper function to get a DB connection
+        """
+        with DB() as (conn, cursor):
+            yield conn, cursor
+
+    @classmethod
+    def create_if_not_exists(cls, conn: sqlite3.Connection, _: sqlite3.Cursor) -> None:
+        """
+        Creates the table if it doesn't exist.
+        Args:
+            conn: sqlite3 connection
+            _: sqlite3 cursor
+        """
+        columns_ = ", ".join([" ".join(x) for x in cls.cols])
+        conn.execute(f"CREATE TABLE IF NOT EXISTS {cls.name} ({columns_})")
+        conn.commit()
+
+    @classmethod
+    def read_rows(
+        cls,
+        _: sqlite3.Connection,
+        cursor: sqlite3.Cursor,
+        include_header: bool = True,
+    ) -> list[tuple[Union[str, int], ...]]:
+        """
+        Reads rows from a table.
+
+        Args:
+            _: sqlite3 connection
+            cursor: sqlite3 cursor
+            include_header: Whether to include the header row
+
+        Returns:
+            rows of the table, with column names as the header row if `include_header` is set
+
+        """
+        header = tuple(x[0] for x in cls.cols)
+        cols = ", ".join(header)
+        cursor.execute(f"SELECT {cols} FROM {cls.name}")
+        rows = cursor.fetchall()
+        if not include_header:
+            return rows
+        else:
+            return [header] + rows
+
+    @classmethod
+    def update_entry(cls, *args, **kwargs):
+        """
+        Updates an existing entry in the table.
+        """
+        raise NotImplementedError()
+
+    @classmethod
+    def add_entry(cls, *args, **kwargs):
+        """
+        Adds an entry to the table.
+        """
+        raise NotImplementedError()
+
+    @classmethod
+    def delete_entry(cls, *args, **kwargs):
+        """
+        Deletes an entry from the table.
+        """
+        raise NotImplementedError()
+
+
+class AddressBook(TableDefinition):
+    name = "address_book"
+    cols = (("name", "TEXT"), ("ss58_address", "TEXT"), ("note", "TEXT"))
+
+    @classmethod
+    def add_entry(
+        cls,
+        conn: sqlite3.Connection,
+        _: sqlite3.Cursor,
+        *,
+        name: str,
+        ss58_address: str,
+        note: str,
+    ) -> None:
+        conn.execute(
+            f"INSERT INTO {cls.name} (name, ss58_address, note) VALUES (?, ?, ?)",
+            (name, ss58_address, note),
+        )
+        conn.commit()
+
+    @classmethod
+    def update_entry(
+        cls,
+        conn: sqlite3.Connection,
+        cursor: sqlite3.Cursor,
+        *,
+        name: str,
+        ss58_address: Optional[str] = None,
+        note: Optional[str] = None,
+    ):
+        cursor.execute(
+            f"SELECT ss58_address, note FROM {cls.name} WHERE name = ?",
+            (name,),
+        )
+        row = cursor.fetchone()[0]
+        ss58_address_ = ss58_address or row[0]
+        note_ = note or row[1]
+        conn.execute(
+            f"UPDATE {cls.name} SET ss58_address = ?, note = ? WHERE name = ?",
+            (ss58_address_, note_, name),
+        )
+        conn.commit()
+
+    @classmethod
+    def delete_entry(
+        cls, conn: sqlite3.Connection, cursor: sqlite3.Cursor, *, name: str
+    ):
+        conn.execute(
+            f"DELETE FROM {cls.name} WHERE name = ?",
+            (name,),
+        )
+        conn.commit()
+
+
+class ProxyAddressBook(TableDefinition):
+    name = "proxy_address_book"
+    cols = (
+        ("name", "TEXT"),
+        ("ss58_address", "TEXT"),
+        ("delay", "INTEGER"),
+        ("spawner", "TEXT"),
+        ("proxy_type", "TEXT"),
+        ("note", "TEXT"),
+    )
+
+    @classmethod
+    def update_entry(
+        cls,
+        conn: sqlite3.Connection,
+        cursor: sqlite3.Cursor,
+        *,
+        name: str,
+        ss58_address: Optional[str] = None,
+        delay: Optional[int] = None,
+        spawner: Optional[str] = None,
+        proxy_type: Optional[str] = None,
+        note: Optional[str] = None,
+    ) -> None:
+        cursor.execute(
+            f"SELECT ss58_address, spawner, proxy_type, delay, note FROM {cls.name} WHERE name = ?",
+            (name,),
+        )
+        row = cursor.fetchone()[0]
+        ss58_address_ = ss58_address or row[0]
+        spawner_ = spawner or row[1]
+        proxy_type_ = proxy_type or row[2]
+        delay = delay if delay is not None else row[3]
+        note_ = note or row[4]
+        conn.execute(
+            f"UPDATE {cls.name} SET ss58_address = ?, spawner = ?, proxy_type = ?, delay = ?, note = ? WHERE name = ?",
+            (ss58_address_, spawner_, proxy_type_, note_, delay, name),
+        )
+        conn.commit()
+
+    @classmethod
+    def add_entry(
+        cls,
+        conn: sqlite3.Connection,
+        _: sqlite3.Cursor,
+        *,
+        name: str,
+        ss58_address: str,
+        delay: int,
+        spawner: str,
+        proxy_type: str,
+        note: str,
+    ) -> None:
+        conn.execute(
+            f"INSERT INTO {cls.name} (name, ss58_address, delay, spawner, proxy_type, note) VALUES (?, ?, ?, ?, ?, ?)",
+            (name, ss58_address, delay, spawner, proxy_type, note),
+        )
+        conn.commit()
+
+    @classmethod
+    def delete_entry(
+        cls,
+        conn: sqlite3.Connection,
+        _: sqlite3.Cursor,
+        *,
+        name: str,
+    ):
+        conn.execute(
+            f"DELETE FROM {cls.name} WHERE name = ?",
+            (name,),
+        )
+        conn.commit()
+
+
+class ProxyAnnouncements(TableDefinition):
+    name = "proxy_announcements"
+    cols = (
+        ("id", "INTEGER PRIMARY KEY"),
+        ("address", "TEXT"),
+        ("epoch_time", "INTEGER"),
+        ("block", "INTEGER"),
+        ("call_hash", "TEXT"),
+        ("call", "TEXT"),
+        ("call_serialized", "TEXT"),
+        ("executed", "INTEGER"),
+    )
+
+    @classmethod
+    def add_entry(
+        cls,
+        conn: sqlite3.Connection,
+        _: sqlite3.Cursor,
+        *,
+        address: str,
+        epoch_time: int,
+        block: int,
+        call_hash: str,
+        call: GenericCall,
+        executed: bool = False,
+    ) -> None:
+        call_hex = call.data.to_hex()
+        call_serialized = json.dumps(call.serialize())
+        executed_int = int(executed)
+        conn.execute(
+            f"INSERT INTO {cls.name} (address, epoch_time, block, call_hash, call, call_serialized, executed)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                address,
+                epoch_time,
+                block,
+                call_hash,
+                call_hex,
+                call_serialized,
+                executed_int,
+            ),
+        )
+        conn.commit()
+
+    @classmethod
+    def delete_entry(
+        cls,
+        conn: sqlite3.Connection,
+        _: sqlite3.Cursor,
+        *,
+        address: str,
+        epoch_time: int,
+        block: int,
+        call_hash: str,
+    ):
+        conn.execute(
+            f"DELETE FROM {cls.name} WHERE call_hash = ?, address = ?, epoch_time = ?, block = ?",
+            (call_hash, address, epoch_time, block),
+        )
+        conn.commit()
+
+    @classmethod
+    def mark_as_executed(cls, conn: sqlite3.Connection, _: sqlite3.Cursor, idx: int):
+        conn.execute(
+            f"UPDATE {cls.name} SET executed = ? WHERE id = ?",
+            (1, idx),
+        )
+        conn.commit()
+
+
 class DB:
     """
     For ease of interaction with the SQLite database used for --reuse-last and --html outputs of tables
+
+    Also for address book
     """
 
     def __init__(
         self,
-        db_path: str = os.path.expanduser("~/.bittensor/bittensor.db"),
+        db_path: Optional[str] = None,
         row_factory=None,
     ):
+        if db_path is None:
+            if path_from_env := os.getenv("BTCLI_PROXIES_PATH"):
+                db_path = path_from_env
+            else:
+                db_path = os.path.join(
+                    os.path.expanduser(defaults.config.base_path), "bittensor.db"
+                )
         self.db_path = db_path
         self.conn: Optional[sqlite3.Connection] = None
         self.row_factory = row_factory
@@ -830,9 +1129,14 @@ class DB:
             self.conn.close()
 
 
-def create_table(title: str, columns: list[tuple[str, str]], rows: list[list]) -> None:
+def create_and_populate_table(
+    title: str, columns: list[tuple[str, str]], rows: list[list]
+) -> None:
     """
     Creates and populates the rows of a table in the SQLite database.
+
+    Warning:
+        Will overwrite the existing table.
 
     :param title: title of the table
     :param columns: [(column name, column type), ...]
@@ -853,8 +1157,7 @@ def create_table(title: str, columns: list[tuple[str, str]], rows: list[list]) -
         conn.commit()
         columns_ = ", ".join([" ".join(x) for x in columns])
         creation_query = f"CREATE TABLE IF NOT EXISTS {title} ({columns_})"
-        conn.commit()
-        cursor.execute(creation_query)
+        conn.execute(creation_query)
         conn.commit()
         query = f"INSERT INTO {title} ({', '.join([x[0] for x in columns])}) VALUES ({', '.join(['?'] * len(columns))})"
         cursor.executemany(query, rows)
@@ -1026,6 +1329,17 @@ def render_tree(
         webbrowser.open(f"file://{output_file}")
 
 
+def ensure_address_book_tables_exist():
+    """
+    Creates address book tables if they don't exist.
+
+    Should be run at startup to ensure that the address book tables exist.
+    """
+    with DB() as (conn, cursor):
+        for table in (AddressBook, ProxyAddressBook, ProxyAnnouncements):
+            table.create_if_not_exists(conn, cursor)
+
+
 def group_subnets(registrations):
     if not registrations:
         return ""
@@ -1049,6 +1363,58 @@ def group_subnets(registrations):
         ranges.append(f"{start}-{registrations[-1]}")
 
     return ", ".join(ranges)
+
+
+def parse_subnet_range(input_str: str, total_subnets: int) -> list[int]:
+    """
+    Parse subnet range input like "1-24, 30-40, 5".
+
+    Args:
+        input_str: Comma-separated list of subnets and ranges
+                  Examples: "1-5", "1,2,3", "1-5, 10, 20-25"
+        total_subnets: Total number of subnets available
+
+    Returns:
+        Sorted list of unique subnet IDs
+
+    Raises:
+        ValueError: If input format is invalid
+
+    Examples:
+        >>> parse_subnet_range("1-5, 10")
+        [1, 2, 3, 4, 5, 10]
+        >>> parse_subnet_range("5, 3, 1")
+        [1, 3, 5]
+    """
+    subnets = set()
+    parts = [p.strip() for p in input_str.split(",") if p.strip()]
+    for part in parts:
+        if "-" in part:
+            try:
+                start, end = part.split("-", 1)
+                start_num = int(start.strip())
+                end_num = int(end.strip())
+
+                if start_num > end_num:
+                    raise ValueError(f"Invalid range '{part}': start must be ≤ end")
+
+                if end_num - start_num > total_subnets:
+                    raise ValueError(
+                        f"Range '{part}' is not valid (total of {total_subnets} subnets)"
+                    )
+
+                subnets.update(range(start_num, end_num + 1))
+            except ValueError as e:
+                if "invalid literal" in str(e):
+                    raise ValueError(f"Invalid range '{part}': must be 'start-end'")
+                raise
+        else:
+            try:
+                subnets.add(int(part))
+            except ValueError:
+                raise ValueError(f"Invalid subnet ID '{part}': must be a number")
+
+    return sorted(subnets)
 
 
 def validate_chain_endpoint(endpoint_url) -> tuple[bool, str]:
