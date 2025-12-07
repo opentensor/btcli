@@ -86,6 +86,7 @@ def test_stake_movement(local_chain, wallet_setup):
                 "https://testsubnet.com/logo.png",
                 "--no-prompt",
                 "--json-output",
+                "--no-mev-protection",
             ],
         )
         create_subnet_payload = json.loads(create_subnet_result.stdout)

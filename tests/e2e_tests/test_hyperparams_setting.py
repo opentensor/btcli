@@ -58,6 +58,7 @@ def test_hyperparams_setting(local_chain, wallet_setup):
             "https://testsubnet.com/logo.png",
             "--no-prompt",
             "--json-output",
+            "--no-mev-protection",
         ],
     )
     result_output = json.loads(result.stdout)

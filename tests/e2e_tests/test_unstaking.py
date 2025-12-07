@@ -87,6 +87,7 @@ def test_unstaking(local_chain, wallet_setup):
             "--logo-url",
             "https://testsubnet.com/logo.png",
             "--no-prompt",
+            "--no-mev-protection",
         ],
     )
     assert "✅ Registered subnetwork with netuid: 2" in result.stdout
