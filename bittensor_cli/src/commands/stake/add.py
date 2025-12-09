@@ -1,9 +1,10 @@
 import asyncio
-import json
 from collections import defaultdict
 from functools import partial
 
 from typing import TYPE_CHECKING, Optional
+
+from async_substrate_interface import AsyncExtrinsicReceipt
 from rich.table import Table
 from rich.prompt import Confirm, Prompt
 
@@ -20,6 +21,8 @@ from bittensor_cli.src.bittensor.utils import (
     print_verbose,
     unlock_key,
     json_console,
+    get_hotkey_pub_ss58,
+    print_extrinsic_id,
 )
 from bittensor_wallet import Wallet
 
@@ -111,7 +114,7 @@ async def stake_add(
         hotkey_ss58_: str,
         price_limit: Balance,
         status=None,
-    ) -> tuple[bool, str]:
+    ) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
         err_out = partial(print_error, status=status)
         failure_prelude = (
             f":cross_mark: [red]Failed[/red] to stake {amount_} on Netuid {netuid_}"
@@ -152,15 +155,16 @@ async def stake_add(
             else:
                 err_msg = f"{failure_prelude} with error: {format_error_message(e)}"
                 err_out("\n" + err_msg)
-            return False, err_msg
+            return False, err_msg, None
         if not await response.is_success:
             err_msg = f"{failure_prelude} with error: {format_error_message(await response.error_message)}"
             err_out("\n" + err_msg)
-            return False, err_msg
+            return False, err_msg, None
         else:
             if json_output:
                 # the rest of this checking is not necessary if using json_output
-                return True, ""
+                return True, "", response
+            await print_extrinsic_id(response)
             block_hash = await subtensor.substrate.get_chain_head()
             new_balance, new_stake = await asyncio.gather(
                 subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash),
@@ -198,11 +202,11 @@ async def stake_add(
                 f":arrow_right: "
                 f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}\n"
             )
-            return True, ""
+            return True, "", response
 
     async def stake_extrinsic(
         netuid_i, amount_, current, staking_address_ss58, status=None
-    ) -> tuple[bool, str]:
+    ) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
         err_out = partial(print_error, status=status)
         current_balance, next_nonce, call = await asyncio.gather(
             subtensor.get_balance(wallet.coldkeypub.ss58_address),
@@ -230,16 +234,17 @@ async def stake_add(
         except SubstrateRequestException as e:
             err_msg = f"{failure_prelude} with error: {format_error_message(e)}"
             err_out("\n" + err_msg)
-            return False, err_msg
+            return False, err_msg, None
         else:
             if not await response.is_success:
                 err_msg = f"{failure_prelude} with error: {format_error_message(await response.error_message)}"
                 err_out("\n" + err_msg)
-                return False, err_msg
+                return False, err_msg, None
             else:
                 if json_output:
                     # the rest of this is not necessary if using json_output
-                    return True, ""
+                    return True, "", response
+                await print_extrinsic_id(response)
                 new_block_hash = await subtensor.substrate.get_chain_head()
                 new_balance, new_stake = await asyncio.gather(
                     subtensor.get_balance(
@@ -268,7 +273,7 @@ async def stake_add(
                     f":arrow_right: "
                     f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}\n"
                 )
-                return True, ""
+                return True, "", response
 
     netuids = (
         netuids if netuids is not None else await subtensor.get_all_subnet_netuids()
@@ -343,19 +348,8 @@ async def stake_add(
                     f"[red]Not enough stake[/red]:[bold white]\n wallet balance:{remaining_wallet_balance} < "
                     f"staking amount: {amount_to_stake}[/bold white]"
                 )
-                return False
+                return
             remaining_wallet_balance -= amount_to_stake
-
-            # TODO this should be asyncio gathered before the for loop
-            stake_fee = await subtensor.get_stake_fee(
-                origin_hotkey_ss58=None,
-                origin_netuid=None,
-                origin_coldkey_ss58=wallet.coldkeypub.ss58_address,
-                destination_hotkey_ss58=hotkey[1],
-                destination_netuid=netuid,
-                destination_coldkey_ss58=wallet.coldkeypub.ss58_address,
-                amount=amount_to_stake.rao,
-            )
 
             # Calculate slippage
             # TODO: Update for V3, slippage calculation is significantly different in v3
@@ -408,7 +402,13 @@ async def stake_add(
                     safe_staking_=safe_staking,
                 )
                 row_extension = []
-            received_amount = rate * (amount_to_stake - stake_fee - extrinsic_fee)
+            # TODO this should be asyncio gathered before the for loop
+            sim_swap = await subtensor.sim_swap(
+                origin_netuid=0,
+                destination_netuid=netuid,
+                amount=(amount_to_stake - extrinsic_fee).rao,
+            )
+            received_amount = sim_swap.alpha_amount
             # Add rows for the table
             base_row = [
                 str(netuid),  # netuid
@@ -417,7 +417,7 @@ async def stake_add(
                 str(rate)
                 + f" {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ",  # rate
                 str(received_amount.set_unit(netuid)),  # received
-                str(stake_fee),  # fee
+                str(sim_swap.tao_fee),  # fee
                 str(extrinsic_fee),
                 # str(slippage_pct),  # slippage
             ] + row_extension
@@ -431,9 +431,9 @@ async def stake_add(
 
     if prompt:
         if not Confirm.ask("Would you like to continue?"):
-            return False
+            return
     if not unlock_key(wallet).success:
-        return False
+        return
 
     if safe_staking:
         stake_coroutines = {}
@@ -474,15 +474,24 @@ async def stake_add(
         }
     successes = defaultdict(dict)
     error_messages = defaultdict(dict)
+    extrinsic_ids = defaultdict(dict)
     with console.status(f"\n:satellite: Staking on netuid(s): {netuids} ..."):
         # We can gather them all at once but balance reporting will be in race-condition.
         for (ni, staking_address), coroutine in stake_coroutines.items():
-            success, er_msg = await coroutine
+            success, er_msg, ext_receipt = await coroutine
             successes[ni][staking_address] = success
             error_messages[ni][staking_address] = er_msg
+            if success:
+                extrinsic_ids[ni][
+                    staking_address
+                ] = await ext_receipt.get_extrinsic_identifier()
     if json_output:
-        json_console.print(
-            json.dumps({"staking_success": successes, "error_messages": error_messages})
+        json_console.print_json(
+            data={
+                "staking_success": successes,
+                "error_messages": error_messages,
+                "extrinsic_ids": extrinsic_ids,
+            }
         )
 
 
@@ -528,6 +537,8 @@ def _prompt_stake_amount(
             return Balance.from_tao(amount), False
         except ValueError:
             console.print("[red]Please enter a valid number or 'all'[/red]")
+    # will never return this, but fixes the type checker
+    return Balance(0), False
 
 
 def _get_hotkeys_to_stake_to(
@@ -552,7 +563,7 @@ def _get_hotkeys_to_stake_to(
         # Stake to all hotkeys except excluded ones
         all_hotkeys_: list[Wallet] = get_hotkey_wallets_for_wallet(wallet=wallet)
         return [
-            (wallet.hotkey_str, wallet.hotkey.ss58_address)
+            (wallet.hotkey_str, get_hotkey_pub_ss58(wallet))
             for wallet in all_hotkeys_
             if wallet.hotkey_str not in (exclude_hotkeys or [])
         ]
@@ -572,7 +583,7 @@ def _get_hotkeys_to_stake_to(
                     name=wallet.name,
                     hotkey=hotkey_ss58_or_hotkey_name,
                 )
-                hotkeys.append((wallet_.hotkey_str, wallet_.hotkey.ss58_address))
+                hotkeys.append((wallet_.hotkey_str, get_hotkey_pub_ss58(wallet_)))
 
         return hotkeys
 
@@ -581,7 +592,7 @@ def _get_hotkeys_to_stake_to(
         f"Staking to hotkey: ({wallet.hotkey_str}) in wallet: ({wallet.name})"
     )
     assert wallet.hotkey is not None
-    return [(None, wallet.hotkey.ss58_address)]
+    return [(None, get_hotkey_pub_ss58(wallet))]
 
 
 def _define_stake_table(

@@ -9,7 +9,6 @@ class Constants:
         "finney",
         "test",
         "archive",
-        "subvortex",
         "rao",
         "dev",
         "latent-lite",
@@ -17,12 +16,11 @@ class Constants:
     finney_entrypoint = "wss://entrypoint-finney.opentensor.ai:443"
     finney_test_entrypoint = "wss://test.finney.opentensor.ai:443"
     archive_entrypoint = "wss://archive.chain.opentensor.ai:443"
-    subvortex_entrypoint = "ws://subvortex.info:9944"
     local_entrypoint = "ws://127.0.0.1:9944"
     rao_entrypoint = "wss://rao.chain.opentensor.ai:443"
     dev_entrypoint = "wss://dev.chain.opentensor.ai:443"
-    local_entrypoint = "ws://127.0.0.1:9944"
     latent_lite_entrypoint = "wss://lite.sub.latent.to:443"
+    lite_nodes = [finney_entrypoint, latent_lite_entrypoint]
     network_map = {
         "finney": finney_entrypoint,
         "test": finney_test_entrypoint,
@@ -31,7 +29,6 @@ class Constants:
         "dev": dev_entrypoint,
         "rao": rao_entrypoint,
         "latent-lite": latent_lite_entrypoint,
-        "subvortex": subvortex_entrypoint,
     }
     genesis_block_hash_map = {
         "finney": "0x2f0555cc76fc2840a25a6ea3b9637146806f1f44b090c175ffde2a7e5ab36c03",
@@ -88,12 +85,14 @@ class Defaults:
     class config:
         base_path = "~/.bittensor"
         path = "~/.bittensor/config.yml"
+        debug_file_path = "~/.bittensor/debug.txt"
         dictionary = {
             "network": None,
             "wallet_path": None,
             "wallet_name": None,
             "wallet_hotkey": None,
             "use_cache": True,
+            "disk_cache": False,
             "metagraph_cols": {
                 "UID": True,
                 "GLOBAL_STAKE": True,
@@ -623,46 +622,62 @@ NETWORK_EXPLORER_MAP = {
 }
 
 
+class RootSudoOnly(Enum):
+    FALSE = 0
+    TRUE = 1
+    COMPLICATED = 2
+
+
 HYPERPARAMS = {
-    # btcli name: (subtensor method, root-only bool)
-    "rho": ("sudo_set_rho", False),
-    "kappa": ("sudo_set_kappa", False),
-    "immunity_period": ("sudo_set_immunity_period", False),
-    "min_allowed_weights": ("sudo_set_min_allowed_weights", False),
-    "max_weights_limit": ("sudo_set_max_weight_limit", False),
-    "tempo": ("sudo_set_tempo", True),
-    "min_difficulty": ("sudo_set_min_difficulty", False),
-    "max_difficulty": ("sudo_set_max_difficulty", False),
-    "weights_version": ("sudo_set_weights_version_key", False),
-    "weights_rate_limit": ("sudo_set_weights_set_rate_limit", False),
-    "adjustment_interval": ("sudo_set_adjustment_interval", True),
-    "activity_cutoff": ("sudo_set_activity_cutoff", False),
-    "target_regs_per_interval": ("sudo_set_target_registrations_per_interval", True),
-    "min_burn": ("sudo_set_min_burn", True),
-    "max_burn": ("sudo_set_max_burn", True),
-    "bonds_moving_avg": ("sudo_set_bonds_moving_average", False),
-    "max_regs_per_block": ("sudo_set_max_registrations_per_block", True),
-    "serving_rate_limit": ("sudo_set_serving_rate_limit", False),
-    "max_validators": ("sudo_set_max_allowed_validators", True),
-    "adjustment_alpha": ("sudo_set_adjustment_alpha", False),
-    "difficulty": ("sudo_set_difficulty", False),
+    # btcli name: (subtensor method, root-only enum)
+    "rho": ("sudo_set_rho", RootSudoOnly.FALSE),
+    "kappa": ("sudo_set_kappa", RootSudoOnly.TRUE),
+    "immunity_period": ("sudo_set_immunity_period", RootSudoOnly.FALSE),
+    "min_allowed_weights": ("sudo_set_min_allowed_weights", RootSudoOnly.FALSE),
+    "max_weights_limit": ("sudo_set_max_weight_limit", RootSudoOnly.FALSE),
+    "tempo": ("sudo_set_tempo", RootSudoOnly.TRUE),
+    "min_difficulty": ("sudo_set_min_difficulty", RootSudoOnly.TRUE),
+    "max_difficulty": ("sudo_set_max_difficulty", RootSudoOnly.FALSE),
+    "weights_version": ("sudo_set_weights_version_key", RootSudoOnly.FALSE),
+    "weights_rate_limit": ("sudo_set_weights_set_rate_limit", RootSudoOnly.TRUE),
+    "adjustment_interval": ("sudo_set_adjustment_interval", RootSudoOnly.TRUE),
+    "activity_cutoff": ("sudo_set_activity_cutoff", RootSudoOnly.FALSE),
+    "target_regs_per_interval": (
+        "sudo_set_target_registrations_per_interval",
+        RootSudoOnly.TRUE,
+    ),
+    "min_burn": ("sudo_set_min_burn", RootSudoOnly.FALSE),
+    "max_burn": ("sudo_set_max_burn", RootSudoOnly.TRUE),
+    "bonds_moving_avg": ("sudo_set_bonds_moving_average", RootSudoOnly.FALSE),
+    "max_regs_per_block": ("sudo_set_max_registrations_per_block", RootSudoOnly.TRUE),
+    "serving_rate_limit": ("sudo_set_serving_rate_limit", RootSudoOnly.FALSE),
+    "max_validators": ("sudo_set_max_allowed_validators", RootSudoOnly.TRUE),
+    "adjustment_alpha": ("sudo_set_adjustment_alpha", RootSudoOnly.FALSE),
+    "difficulty": ("sudo_set_difficulty", RootSudoOnly.TRUE),
     "commit_reveal_period": (
         "sudo_set_commit_reveal_weights_interval",
-        False,
+        RootSudoOnly.FALSE,
     ),
-    "commit_reveal_weights_enabled": ("sudo_set_commit_reveal_weights_enabled", False),
-    "alpha_values": ("sudo_set_alpha_values", False),
-    "liquid_alpha_enabled": ("sudo_set_liquid_alpha_enabled", False),
-    "registration_allowed": ("sudo_set_network_registration_allowed", False),
+    "commit_reveal_weights_enabled": (
+        "sudo_set_commit_reveal_weights_enabled",
+        RootSudoOnly.FALSE,
+    ),
+    "alpha_values": ("sudo_set_alpha_values", RootSudoOnly.FALSE),
+    "liquid_alpha_enabled": ("sudo_set_liquid_alpha_enabled", RootSudoOnly.FALSE),
+    "registration_allowed": (
+        "sudo_set_network_registration_allowed",
+        RootSudoOnly.TRUE,
+    ),
     "network_pow_registration_allowed": (
         "sudo_set_network_pow_registration_allowed",
-        False,
+        RootSudoOnly.FALSE,
     ),
-    "yuma3_enabled": ("sudo_set_yuma3_enabled", False),
-    "alpha_sigmoid_steepness": ("sudo_set_alpha_sigmoid_steepness", True),
-    "user_liquidity_enabled": ("toggle_user_liquidity", False),
-    "bonds_reset_enabled": ("sudo_set_bonds_reset_enabled", False),
-    "transfers_enabled": ("sudo_set_toggle_transfer", False),
+    "yuma3_enabled": ("sudo_set_yuma3_enabled", RootSudoOnly.FALSE),
+    "alpha_sigmoid_steepness": ("sudo_set_alpha_sigmoid_steepness", RootSudoOnly.TRUE),
+    "user_liquidity_enabled": ("toggle_user_liquidity", RootSudoOnly.COMPLICATED),
+    "bonds_reset_enabled": ("sudo_set_bonds_reset_enabled", RootSudoOnly.FALSE),
+    "transfers_enabled": ("sudo_set_toggle_transfer", RootSudoOnly.FALSE),
+    "min_allowed_uids": ("sudo_set_min_allowed_uids", RootSudoOnly.TRUE),
 }
 
 HYPERPARAMS_MODULE = {
@@ -690,11 +705,16 @@ HELP_PANELS = {
         "STAKE_MGMT": "Stake Management",
         "CHILD": "Child Hotkeys",
         "MOVEMENT": "Stake Movement",
+        "CLAIM": "Root Claim Management",
     },
     "SUDO": {
         "CONFIG": "Subnet Configuration",
         "GOVERNANCE": "Governance",
         "TAKE": "Delegate take configuration",
+    },
+    "MECHANISMS": {
+        "CONFIG": "Mechanism Configuration",
+        "EMISSION": "Mechanism Emission",
     },
     "SUBNETS": {
         "INFO": "Subnet Information",
@@ -708,6 +728,11 @@ HELP_PANELS = {
     },
     "LIQUIDITY": {
         "LIQUIDITY_MGMT": "Liquidity Management",
+    },
+    "CROWD": {
+        "INITIATOR": "Crowdloan Creation & Management",
+        "PARTICIPANT": "Crowdloan Participation",
+        "INFO": "Crowdloan Information",
     },
 }
 

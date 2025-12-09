@@ -27,7 +27,7 @@ jobs:
 
   find-tests:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.draft == false && !startsWith(github.head_ref, 'changelog/')) }}
     outputs:
       test-files: ${{ steps.get-tests.outputs.test-files }}
     steps:
@@ -43,6 +43,7 @@ jobs:
 
   pull-docker-image:
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.draft == false && !startsWith(github.head_ref, 'changelog/')) }}
     steps:
       - name: Log in to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
@@ -73,7 +74,7 @@ jobs:
         os:
           - ubuntu-latest
         test-file: ${{ fromJson(needs.find-tests.outputs.test-files) }}
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
     steps:
       - name: Check-out repository
         uses: actions/checkout@v4
@@ -82,12 +83,6 @@ jobs:
         uses: astral-sh/setup-uv@v4
         with:
           python-version: 3.13
-
-      - name: install dependencies
-        run: |
-          uv venv .venv
-          source .venv/bin/activate
-          uv pip install .[dev]
 
       - name: Download Cached Docker Image
         uses: actions/download-artifact@v4
@@ -99,5 +94,4 @@ jobs:
 
       - name: Run tests
         run: |
-          source .venv/bin/activate
           uv run pytest ${{ matrix.test-file }} -s

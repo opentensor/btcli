@@ -10,6 +10,8 @@ from urllib.parse import urlparse
 from functools import partial
 import re
 
+import aiohttp
+from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet, Keypair
 from bittensor_wallet.utils import SS58_FORMAT
 from bittensor_wallet.errors import KeyFileError, PasswordError
@@ -34,6 +36,7 @@ if TYPE_CHECKING:
 
 BT_DOCS_LINK = "https://docs.learnbittensor.org"
 
+GLOBAL_MAX_SUBNET_COUNT = 4096
 
 console = Console()
 json_console = Console()
@@ -266,16 +269,32 @@ def get_hotkey_wallets_for_wallet(
     hotkeys_path = wallet_path / wallet.name / "hotkeys"
     try:
         hotkeys = [entry.name for entry in hotkeys_path.iterdir()]
-    except FileNotFoundError:
+    except (FileNotFoundError, NotADirectoryError):
         hotkeys = []
     for h_name in hotkeys:
-        hotkey_for_name = Wallet(path=str(wallet_path), name=wallet.name, hotkey=h_name)
+        if h_name.endswith("pub.txt"):
+            if h_name.split("pub.txt")[0] in hotkeys:
+                continue
+            else:
+                hotkey_for_name = Wallet(
+                    path=str(wallet_path),
+                    name=wallet.name,
+                    hotkey=h_name.split("pub.txt")[0],
+                )
+        else:
+            hotkey_for_name = Wallet(
+                path=str(wallet_path), name=wallet.name, hotkey=h_name
+            )
         try:
+            exists = (
+                hotkey_for_name.hotkey_file.exists_on_device()
+                or hotkey_for_name.hotkeypub_file.exists_on_device()
+            )
             if (
-                (exists := hotkey_for_name.hotkey_file.exists_on_device())
+                exists
                 and not hotkey_for_name.hotkey_file.is_encrypted()
                 # and hotkey_for_name.coldkeypub.ss58_address
-                and hotkey_for_name.hotkey.ss58_address
+                and get_hotkey_pub_ss58(hotkey_for_name)
             ):
                 hotkey_wallets.append(hotkey_for_name)
             elif (
@@ -291,6 +310,7 @@ def get_hotkey_wallets_for_wallet(
             AttributeError,
             TypeError,
             KeyFileError,
+            ValueError,
         ):  # usually an unrelated file like .DS_Store
             continue
 
@@ -490,6 +510,7 @@ def get_explorer_url_for_network(
 
     :return: The explorer url for the given block hash and network
     """
+    # TODO remove
 
     explorer_urls: dict[str, str] = {}
     # Will be None if the network is not known. i.e. not in network_map
@@ -575,7 +596,9 @@ def format_error_message(error_message: Union[dict, Exception]) -> str:
             err_type = error_message.get("type", err_type)
             err_name = error_message.get("name", err_name)
             err_docs = error_message.get("docs", [err_description])
-            err_description = " ".join(err_docs)
+            err_description = (
+                " ".join(err_docs) if not isinstance(err_docs, str) else err_docs
+            )
             err_description += (
                 f" | Please consult {BT_DOCS_LINK}/errors/subtensor#{err_name.lower()}"
             )
@@ -1431,3 +1454,89 @@ def blocks_to_duration(blocks: int) -> str:
             results.append(f"{unit_count}{unit}")
     # Return only the first two non-zero units
     return " ".join(results[:2]) or "0s"
+
+
+def get_hotkey_pub_ss58(wallet: Wallet) -> str:
+    """
+    Helper fn to retrieve the hotkeypub ss58 of a wallet that may have been created before
+    bt-wallet 3.1.1 and thus not have a wallet hotkeypub. In this case, it will return the hotkey
+    SS58.
+    """
+    try:
+        return wallet.hotkeypub.ss58_address
+    except (KeyFileError, AttributeError):
+        return wallet.hotkey.ss58_address
+
+
+def get_netuid_and_subuid_by_storage_index(storage_index: int) -> tuple[int, int]:
+    """Returns the netuid and subuid from the storage index.
+
+    Chain APIs (e.g., SubMetagraph response) returns netuid which is storage index that encodes both the netuid and
+    subuid. This function reverses the encoding to extract these components.
+
+    Parameters:
+        storage_index: The storage index of the subnet.
+
+    Returns:
+        tuple[int, int]:
+            - netuid subnet identifier.
+            - subuid identifier.
+    """
+    return (
+        storage_index % GLOBAL_MAX_SUBNET_COUNT,
+        storage_index // GLOBAL_MAX_SUBNET_COUNT,
+    )
+
+
+async def print_extrinsic_id(
+    extrinsic_receipt: Optional[AsyncExtrinsicReceipt],
+) -> None:
+    """
+    Prints the extrinsic identifier to the console. If the substrate attached to the extrinsic receipt is on a finney
+        node, it will also include a link to browse the extrinsic in tao dot app.
+    Args:
+        extrinsic_receipt: AsyncExtrinsicReceipt object from a successful extrinsic submission.
+    """
+    if extrinsic_receipt is None or not (await extrinsic_receipt.is_success):
+        return
+    substrate = extrinsic_receipt.substrate
+    ext_id = await extrinsic_receipt.get_extrinsic_identifier()
+    if substrate:
+        query = await substrate.rpc_request("system_chainType", [])
+        if query.get("result") == "Live":
+            console.print(
+                f":white_heavy_check_mark: Your extrinsic has been included as {ext_id}: "
+                f"[blue]https://tao.app/extrinsic/{ext_id}[/blue]"
+            )
+            return
+    console.print(
+        f":white_heavy_check_mark: Your extrinsic has been included as {ext_id}"
+    )
+    return
+
+
+async def check_img_mimetype(img_url: str) -> tuple[bool, str, str]:
+    """
+    Checks to see if the given URL is an image, as defined by its mimetype.
+
+    Args:
+        img_url: the URL to check
+
+    Returns:
+        tuple:
+            bool: True if the URL has a MIME type indicating image (e.g. 'image/...'), False otherwise.
+            str: MIME type of the URL.
+            str: error message if the URL could not be retrieved
+
+    """
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(img_url) as response:
+                if response.status != 200:
+                    return False, "", "Could not fetch image"
+                elif "image/" not in response.content_type:
+                    return False, response.content_type, ""
+                else:
+                    return True, response.content_type, ""
+        except aiohttp.ClientError:
+            return False, "", "Could not fetch image"

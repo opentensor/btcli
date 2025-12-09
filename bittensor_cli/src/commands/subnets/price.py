@@ -10,6 +10,7 @@ import plotille
 import plotly.graph_objects as go
 
 from bittensor_cli.src import COLOR_PALETTE
+from bittensor_cli.src.bittensor.chain_data import DynamicInfo
 from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
@@ -27,7 +28,8 @@ async def price(
     subtensor: "SubtensorInterface",
     netuids: list[int],
     all_netuids: bool = False,
-    interval_hours: int = 24,
+    interval_hours: int = 4,
+    current_only: bool = False,
     html_output: bool = False,
     log_scale: bool = False,
     json_output: bool = False,
@@ -41,45 +43,106 @@ async def price(
     blocks_per_hour = int(3600 / 12)  # ~300 blocks per hour
     total_blocks = blocks_per_hour * interval_hours
 
-    with console.status(":chart_increasing: Fetching historical price data..."):
-        current_block_hash = await subtensor.substrate.get_chain_head()
-        current_block = await subtensor.substrate.get_block_number(current_block_hash)
+    if not current_only:
+        with console.status(":chart_increasing: Fetching historical price data..."):
+            current_block_hash = await subtensor.substrate.get_chain_head()
+            current_block = await subtensor.substrate.get_block_number(
+                current_block_hash
+            )
 
-        step = 300
-        start_block = max(0, current_block - total_blocks)
-        block_numbers = list(range(start_block, current_block + 1, step))
+            step = 300
+            start_block = max(0, current_block - total_blocks)
 
-        # Block hashes
-        block_hash_cors = [
-            subtensor.substrate.get_block_hash(bn) for bn in block_numbers
-        ]
-        block_hashes = await asyncio.gather(*block_hash_cors)
+            # snap start block down to nearest multiple of 10
+            start_block -= start_block % 10
 
-        # We fetch all subnets when there is more than one netuid
-        if all_netuids or len(netuids) > 1:
-            subnet_info_cors = [subtensor.all_subnets(bh) for bh in block_hashes]
-        else:
-            # If there is only one netuid, we fetch the subnet info for that netuid
-            netuid = netuids[0]
-            subnet_info_cors = [subtensor.subnet(netuid, bh) for bh in block_hashes]
-        all_subnet_infos = await asyncio.gather(*subnet_info_cors)
+            block_numbers = []
+            for b in range(start_block, current_block + 1, step):
+                if b == current_block:
+                    block_numbers.append(b)  # exact current block
+                else:
+                    block_numbers.append(b - (b % 5))  # snap down to multiple of 10
+            block_numbers = sorted(set(block_numbers))
+
+            # Block hashes
+            block_hash_cors = [
+                subtensor.substrate.get_block_hash(bn) for bn in block_numbers
+            ]
+            block_hashes = await asyncio.gather(*block_hash_cors)
+
+            # We fetch all subnets when there is more than one netuid
+            if all_netuids or len(netuids) > 1:
+                subnet_info_cors = [subtensor.all_subnets(bh) for bh in block_hashes]
+            else:
+                # If there is only one netuid, we fetch the subnet info for that netuid
+                netuid = netuids[0]
+                subnet_info_cors = [subtensor.subnet(netuid, bh) for bh in block_hashes]
+            all_subnet_infos = await asyncio.gather(*subnet_info_cors)
 
         subnet_data = _process_subnet_data(
             block_numbers, all_subnet_infos, netuids, all_netuids
         )
+        if not subnet_data:
+            err_console.print("[red]No valid price data found for any subnet[/red]")
+            return
 
-    if not subnet_data:
-        err_console.print("[red]No valid price data found for any subnet[/red]")
-        return
-
-    if html_output:
-        await _generate_html_output(
-            subnet_data, block_numbers, interval_hours, log_scale
-        )
-    elif json_output:
-        json_console.print(json.dumps(_generate_json_output(subnet_data)))
+        if html_output:
+            await _generate_html_output(
+                subnet_data, block_numbers, interval_hours, log_scale
+            )
+        elif json_output:
+            json_console.print(json.dumps(_generate_json_output(subnet_data)))
+        else:
+            _generate_cli_output(subnet_data, block_numbers, interval_hours, log_scale)
     else:
-        _generate_cli_output(subnet_data, block_numbers, interval_hours, log_scale)
+        with console.status("Fetching current price data..."):
+            if all_netuids or len(netuids) > 1:
+                all_subnet_info = await subtensor.all_subnets()
+            else:
+                all_subnet_info = [await subtensor.subnet(netuid=netuids[0])]
+        subnet_data = _process_current_subnet_data(
+            all_subnet_info, netuids, all_netuids
+        )
+        if json_output:
+            json_console.print(json.dumps(_generate_json_output(subnet_data)))
+        else:
+            _generate_cli_output_current(subnet_data)
+
+
+def _process_current_subnet_data(subnet_infos: list[DynamicInfo], netuids, all_netuids):
+    subnet_data = {}
+    if all_netuids or len(netuids) > 1:
+        # Most recent data for statistics
+        for subnet_info in subnet_infos:
+            stats = {
+                "current_price": subnet_info.price,
+                "supply": subnet_info.alpha_in.tao + subnet_info.alpha_out.tao,
+                "market_cap": subnet_info.price.tao
+                * (subnet_info.alpha_in.tao + subnet_info.alpha_out.tao),
+                "emission": subnet_info.emission.tao,
+                "stake": subnet_info.alpha_out.tao,
+                "symbol": subnet_info.symbol,
+                "name": get_subnet_name(subnet_info),
+            }
+            subnet_data[subnet_info.netuid] = {
+                "stats": stats,
+            }
+    else:
+        subnet_info = subnet_infos[0]
+        stats = {
+            "current_price": subnet_info.price.tao,
+            "supply": subnet_info.alpha_in.tao + subnet_info.alpha_out.tao,
+            "market_cap": subnet_info.price.tao
+            * (subnet_info.alpha_in.tao + subnet_info.alpha_out.tao),
+            "emission": subnet_info.emission.tao,
+            "stake": subnet_info.alpha_out.tao,
+            "symbol": subnet_info.symbol,
+            "name": get_subnet_name(subnet_info),
+        }
+        subnet_data[subnet_info.netuid] = {
+            "stats": stats,
+        }
+    return subnet_data
 
 
 def _process_subnet_data(block_numbers, all_subnet_infos, netuids, all_netuids):
@@ -623,6 +686,49 @@ def _generate_cli_output(subnet_data, block_numbers, interval_hours, log_scale):
                 f"{stats['symbol']} {stats['emission']:,.2f}[/{COLOR_PALETTE['POOLS']['EMISSION']}]\n"
                 f"Stake: [{COLOR_PALETTE['STAKE']['TAO']}]"
                 f"{stats['symbol']} {stats['stake']:,.2f}[/{COLOR_PALETTE['STAKE']['TAO']}]"
+            )
+
+        console.print(stats_text)
+
+
+def _generate_cli_output_current(subnet_data):
+    for netuid, data in subnet_data.items():
+        stats = data["stats"]
+
+        if netuid != 0:
+            console.print(
+                f"\n[{COLOR_PALETTE.G.SYM}]Subnet {netuid} - {stats['symbol']} "
+                f"[cyan]{stats['name']}[/cyan][/{COLOR_PALETTE.G.SYM}]\n"
+                f"Current: [blue]{stats['current_price']:.6f}{stats['symbol']}[/blue]\n"
+            )
+        else:
+            console.print(
+                f"\n[{COLOR_PALETTE.G.SYM}]Subnet {netuid} - {stats['symbol']} "
+                f"[cyan]{stats['name']}[/cyan][/{COLOR_PALETTE.G.SYM}]\n"
+                f"Current: [blue]{stats['symbol']} {stats['current_price']:.6f}[/blue]\n"
+            )
+
+        if netuid != 0:
+            stats_text = (
+                "\nLatest stats:\n"
+                f"Supply: [{COLOR_PALETTE.P.ALPHA_IN}]"
+                f"{stats['supply']:,.2f} {stats['symbol']}[/{COLOR_PALETTE.P.ALPHA_IN}]\n"
+                f"Market Cap: [steel_blue3]{stats['market_cap']:,.2f} {stats['symbol']} / 21M[/steel_blue3]\n"
+                f"Emission: [{COLOR_PALETTE.P.EMISSION}]"
+                f"{stats['emission']:,.2f} {stats['symbol']}[/{COLOR_PALETTE.P.EMISSION}]\n"
+                f"Stake: [{COLOR_PALETTE.S.TAO}]"
+                f"{stats['stake']:,.2f} {stats['symbol']}[/{COLOR_PALETTE.S.TAO}]"
+            )
+        else:
+            stats_text = (
+                "\nLatest stats:\n"
+                f"Supply: [{COLOR_PALETTE.P.ALPHA_IN}]"
+                f"{stats['symbol']} {stats['supply']:,.2f}[/{COLOR_PALETTE.P.ALPHA_IN}]\n"
+                f"Market Cap: [steel_blue3]{stats['symbol']} {stats['market_cap']:,.2f} / 21M[/steel_blue3]\n"
+                f"Emission: [{COLOR_PALETTE.P.EMISSION}]"
+                f"{stats['symbol']} {stats['emission']:,.2f}[/{COLOR_PALETTE.P.EMISSION}]\n"
+                f"Stake: [{COLOR_PALETTE.S.TAO}]"
+                f"{stats['symbol']} {stats['stake']:,.2f}[/{COLOR_PALETTE.S.TAO}]"
             )
 
         console.print(stats_text)

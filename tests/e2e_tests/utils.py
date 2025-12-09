@@ -1,14 +1,18 @@
+import importlib
 import inspect
 import os
 import re
 import shutil
 import subprocess
 import sys
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Protocol
+
+from bittensor_wallet import Keypair, Wallet
+from click.testing import Result
+from packaging.version import parse as parse_version, Version
+from typer.testing import CliRunner
 
 from bittensor_cli.cli import CLIManager
-from bittensor_wallet import Keypair, Wallet
-from typer.testing import CliRunner
 
 if TYPE_CHECKING:
     from async_substrate_interface.async_substrate import AsyncSubstrateInterface
@@ -17,7 +21,19 @@ template_path = os.getcwd() + "/neurons/"
 templates_repo = "templates repository"
 
 
-def setup_wallet(uri: str):
+class ExecCommand(Protocol):
+    """Type Protocol for setup_wallet's exec_command fn"""
+
+    def __call__(
+        self,
+        command: str,
+        sub_command: str,
+        extra_args: Optional[list[str]] = None,
+        inputs: Optional[list[str]] = None,
+    ) -> Result: ...
+
+
+def setup_wallet(uri: str) -> tuple[Keypair, Wallet, str, ExecCommand]:
     keypair = Keypair.create_from_uri(uri)
     wallet_path = f"/tmp/btcli-e2e-wallet-{uri.strip('/')}"
     wallet = Wallet(path=wallet_path)
@@ -29,7 +45,7 @@ def setup_wallet(uri: str):
         command: str,
         sub_command: str,
         extra_args: Optional[list[str]] = None,
-        inputs: list[str] = None,
+        inputs: Optional[list[str]] = None,
     ):
         extra_args = extra_args or []
         cli_manager = CLIManager()
@@ -55,7 +71,10 @@ def setup_wallet(uri: str):
                             extra_args.extend(["--network", "ws://127.0.0.1:9945"])
 
         # Capture stderr separately from stdout
-        runner = CliRunner(mix_stderr=False)
+        if parse_version(importlib.metadata.version("click")) < Version("8.2.0"):
+            runner = CliRunner(mix_stderr=False)
+        else:
+            runner = CliRunner()
         # Prepare the command arguments
         args = [
             command,
@@ -364,3 +383,29 @@ async def set_storage_extrinsic(
         print(":white_heavy_check_mark: [dark_sea_green_3]Success[/dark_sea_green_3]")
 
     return response
+
+
+async def turn_off_hyperparam_freeze_window(
+    substrate: "AsyncSubstrateInterface", wallet: Wallet
+):
+    call = await substrate.compose_call(
+        call_module="Sudo",
+        call_function="sudo",
+        call_params={
+            "call": await substrate.compose_call(
+                call_module="AdminUtils",
+                call_function="sudo_set_admin_freeze_window",
+                call_params={"window": 0},
+            )
+        },
+    )
+    extrinsic = await substrate.create_signed_extrinsic(
+        call=call, keypair=wallet.coldkey
+    )
+    response = await substrate.submit_extrinsic(
+        extrinsic,
+        wait_for_inclusion=True,
+        wait_for_finalization=True,
+    )
+
+    return await response.is_success, await response.error_message

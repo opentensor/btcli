@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=70.0.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["flit_core >=3.11,<4"]
+build-backend = "flit_core.buildapi"
 
 [project]
 name = "vanta-cli"
@@ -13,23 +13,38 @@ authors = [
 license = { file = "LICENSE" }
 scripts = { vanta = "vanta_cli.vanta:main" }
 requires-python = ">=3.9,<3.14"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: End Users/Desktop",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Utilities"
+]
 dependencies = [
     "wheel",
     "collateral_sdk @ git+https://github.com/taoshidev/collateral_sdk.git@1.0.6",
-    "async-substrate-interface>=1.4.2",
-    "aiohttp~=3.10.2",
+    "async-substrate-interface>=1.5.2",
+    "aiohttp~=3.13",
     "backoff~=2.2.1",
-    "click<8.2.0",  # typer.testing.CliRunner(mix_stderr=) is broken in click 8.2.0+
     "GitPython>=3.0.0",
     "netaddr~=1.3.0",
     "numpy>=2.0.1,<3.0.0",
     "Jinja2",
     "pycryptodome>=3.0.0,<4.0.0",
-    "PyYAML~=6.0.1",
+    "PyYAML~=6.0",
     "rich>=13.7,<15.0",
-    "scalecodec>=1.2.11",
-    "typer>=0.12,<0.16",
-    "bittensor-wallet>=3.0.7",
+    "scalecodec==1.2.12",
+    "typer>=0.16",
+    "bittensor-wallet>=4.0.0",
+    "packaging",
     "plotille>=5.0.0",
     "plotly>=6.0.0",
 ]
@@ -38,6 +53,8 @@ dependencies = [
 cuda = [
     "torch>=1.13.1,<3.0",
 ]
+
+[dependency-groups]
 dev = [
     "pytest",
     "pytest-asyncio",
@@ -48,23 +65,3 @@ dev = [
 # more details can be found here
 homepage = "https://github.com/taoshidev/vanta-cli"
 Repository = "https://github.com/taoshidev/vanta-cli"
-
-[tool.flit.metadata]
-classifiers = [
-    "Development Status :: 5 - Production/Stable",
-    "Intended Audience :: End Users/Desktop",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Topic :: Scientific/Engineering",
-    "Topic :: Scientific/Engineering :: Mathematics",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "Topic :: Utilities"
-]
-
-[tool.setuptools]
-package-dir = { "vanta_cli" = "vanta_cli" }
-include-package-data = true

@@ -421,7 +421,7 @@ def test_wallet_identities(local_chain, wallet_setup):
             wallet_alice.name,
             "--wallet-hotkey",
             wallet_alice.hotkey_str,
-            "--name",
+            "--id-name",
             alice_identity["name"],
             "--web-url",
             alice_identity["url"],
@@ -443,17 +443,19 @@ def test_wallet_identities(local_chain, wallet_setup):
     assert "✅ Success!" in set_id.stdout
     set_id_output = set_id.stdout.splitlines()
 
-    assert alice_identity["name"] in set_id_output[6]
-    assert alice_identity["url"] in set_id_output[7]
-    assert alice_identity["github_repo"] in set_id_output[8]
-    assert alice_identity["image"] in set_id_output[9]
-    assert alice_identity["discord"] in set_id_output[10]
-    assert alice_identity["description"] in set_id_output[11]
-    assert alice_identity["additional"] in set_id_output[12]
+    assert "Your extrinsic has been included as" in set_id_output[1]
+
+    assert alice_identity["name"] in set_id_output[7]
+    assert alice_identity["url"] in set_id_output[8]
+    assert alice_identity["github_repo"] in set_id_output[9]
+    assert alice_identity["image"] in set_id_output[10]
+    assert alice_identity["discord"] in set_id_output[11]
+    assert alice_identity["description"] in set_id_output[12]
+    assert alice_identity["additional"] in set_id_output[13]
 
     # TODO: Currently coldkey + hotkey are the same for test wallets.
     # Maybe we can add a new key to help in distinguishing
-    assert wallet_alice.coldkeypub.ss58_address in set_id_output[5]
+    assert wallet_alice.coldkeypub.ss58_address in set_id_output[6]
 
     # Execute btcli get-identity using hotkey
     get_identity = exec_command_alice(

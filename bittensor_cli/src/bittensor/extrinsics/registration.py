@@ -18,6 +18,7 @@ import typing
 from typing import Optional
 import subprocess
 
+from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet
 from Crypto.Hash import keccak
 import numpy as np
@@ -39,6 +40,8 @@ from bittensor_cli.src.bittensor.utils import (
     print_error,
     unlock_key,
     hex_to_bytes,
+    get_hotkey_pub_ss58,
+    print_extrinsic_id,
 )
 
 if typing.TYPE_CHECKING:
@@ -490,7 +493,7 @@ async def register_extrinsic(
 
     async def get_neuron_for_pubkey_and_subnet():
         uid = await subtensor.query(
-            "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
+            "SubtensorModule", "Uids", [netuid, get_hotkey_pub_ss58(wallet)]
         )
         if uid is None:
             return NeuronInfo.get_null_neuron()
@@ -525,7 +528,7 @@ async def register_extrinsic(
         if not Confirm.ask(
             f"Continue Registration?\n"
             f"  hotkey [{COLOR_PALETTE.G.HK}]({wallet.hotkey_str})[/{COLOR_PALETTE.G.HK}]:"
-            f"\t[{COLOR_PALETTE.G.HK}]{wallet.hotkey.ss58_address}[/{COLOR_PALETTE.G.HK}]\n"
+            f"\t[{COLOR_PALETTE.G.HK}]{get_hotkey_pub_ss58(wallet)}[/{COLOR_PALETTE.G.HK}]\n"
             f"  coldkey [{COLOR_PALETTE.G.CK}]({wallet.name})[/{COLOR_PALETTE.G.CK}]:"
             f"\t[{COLOR_PALETTE.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE.G.CK}]\n"
             f"  network:\t\t[{COLOR_PALETTE.G.LINKS}]{subtensor.network}[/{COLOR_PALETTE.G.LINKS}]\n"
@@ -577,7 +580,7 @@ async def register_extrinsic(
         if not pow_result:
             # might be registered already on this subnet
             is_registered = await is_hotkey_registered(
-                subtensor, netuid=netuid, hotkey_ss58=wallet.hotkey.ss58_address
+                subtensor, netuid=netuid, hotkey_ss58=get_hotkey_pub_ss58(wallet)
             )
             if is_registered:
                 err_console.print(
@@ -598,7 +601,7 @@ async def register_extrinsic(
                             "block_number": pow_result.block_number,
                             "nonce": pow_result.nonce,
                             "work": [int(byte_) for byte_ in pow_result.seal],
-                            "hotkey": wallet.hotkey.ss58_address,
+                            "hotkey": get_hotkey_pub_ss58(wallet),
                             "coldkey": wallet.coldkeypub.ss58_address,
                         },
                     )
@@ -639,7 +642,7 @@ async def register_extrinsic(
                         is_registered = await is_hotkey_registered(
                             subtensor,
                             netuid=netuid,
-                            hotkey_ss58=wallet.hotkey.ss58_address,
+                            hotkey_ss58=get_hotkey_pub_ss58(wallet),
                         )
                         if is_registered:
                             console.print(
@@ -678,7 +681,7 @@ async def burned_register_extrinsic(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
     era: Optional[int] = None,
-) -> tuple[bool, str]:
+) -> tuple[bool, str, Optional[str]]:
     """Registers the wallet to chain by recycling TAO.
 
     :param subtensor: The SubtensorInterface object to use for the call, initialized
@@ -697,14 +700,14 @@ async def burned_register_extrinsic(
     """
 
     if not (unlock_status := unlock_key(wallet, print_out=False)).success:
-        return False, unlock_status.message
+        return False, unlock_status.message, None
 
     with console.status(
         f":satellite: Checking Account on [bold]subnet:{netuid}[/bold]...",
         spinner="aesthetic",
     ) as status:
         my_uid = await subtensor.query(
-            "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
+            "SubtensorModule", "Uids", [netuid, get_hotkey_pub_ss58(wallet)]
         )
         block_hash = await subtensor.substrate.get_chain_head()
 
@@ -741,7 +744,7 @@ async def burned_register_extrinsic(
             f"hotkey: [{COLOR_PALETTE.G.HK}]{neuron.hotkey}[/{COLOR_PALETTE.G.HK}]\n"
             f"coldkey: [{COLOR_PALETTE.G.CK}]{neuron.coldkey}[/{COLOR_PALETTE.G.CK}]"
         )
-        return True, "Already registered"
+        return True, "Already registered", None
 
     with console.status(
         ":satellite: Recycling TAO for Registration...", spinner="aesthetic"
@@ -751,19 +754,21 @@ async def burned_register_extrinsic(
             call_function="burned_register",
             call_params={
                 "netuid": netuid,
-                "hotkey": wallet.hotkey.ss58_address,
+                "hotkey": get_hotkey_pub_ss58(wallet),
             },
         )
-        success, err_msg = await subtensor.sign_and_send_extrinsic(
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
             call, wallet, wait_for_inclusion, wait_for_finalization, era=era_
         )
 
     if not success:
         err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
         await asyncio.sleep(0.5)
-        return False, err_msg
+        return False, err_msg, None
     # Successful registration, final check for neuron and pubkey
     else:
+        ext_id = await ext_receipt.get_extrinsic_identifier()
+        await print_extrinsic_id(ext_receipt)
         with console.status(":satellite: Checking Balance...", spinner="aesthetic"):
             block_hash = await subtensor.substrate.get_chain_head()
             new_balance, netuids_for_hotkey, my_uid = await asyncio.gather(
@@ -773,10 +778,10 @@ async def burned_register_extrinsic(
                     reuse_block=False,
                 ),
                 subtensor.get_netuids_for_hotkey(
-                    wallet.hotkey.ss58_address, block_hash=block_hash
+                    get_hotkey_pub_ss58(wallet), block_hash=block_hash
                 ),
                 subtensor.query(
-                    "SubtensorModule", "Uids", [netuid, wallet.hotkey.ss58_address]
+                    "SubtensorModule", "Uids", [netuid, get_hotkey_pub_ss58(wallet)]
                 ),
             )
 
@@ -790,13 +795,13 @@ async def burned_register_extrinsic(
             console.print(
                 f":white_heavy_check_mark: [green]Registered on netuid {netuid} with UID {my_uid}[/green]"
             )
-            return True, f"Registered on {netuid} with UID {my_uid}"
+            return True, f"Registered on {netuid} with UID {my_uid}", ext_id
         else:
             # neuron not found, try again
             err_console.print(
                 ":cross_mark: [red]Unknown error. Neuron not found.[/red]"
             )
-            return False, "Unknown error. Neuron not found."
+            return False, "Unknown error. Neuron not found.", ext_id
 
 
 async def run_faucet_extrinsic(
@@ -1146,7 +1151,7 @@ async def _block_solver(
 
     timeout = 0.15 if cuda else 0.15
     while netuid == -1 or not await is_hotkey_registered(
-        subtensor, netuid, wallet.hotkey.ss58_address
+        subtensor, netuid, get_hotkey_pub_ss58(wallet)
     ):
         # Wait until a solver finds a solution
         try:
@@ -1748,78 +1753,81 @@ async def swap_hotkey_extrinsic(
     new_wallet: Wallet,
     netuid: Optional[int] = None,
     prompt: bool = False,
-) -> bool:
+) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """
     Performs an extrinsic update for swapping two hotkeys on the chain
 
     :return: Success
     """
     block_hash = await subtensor.substrate.get_chain_head()
+    hk_ss58 = get_hotkey_pub_ss58(wallet)
+    new_hk_ss58 = get_hotkey_pub_ss58(new_wallet)
+
     netuids_registered = await subtensor.get_netuids_for_hotkey(
-        wallet.hotkey.ss58_address, block_hash=block_hash
+        hk_ss58, block_hash=block_hash
     )
     netuids_registered_new_hotkey = await subtensor.get_netuids_for_hotkey(
-        new_wallet.hotkey.ss58_address, block_hash=block_hash
+        new_hk_ss58, block_hash=block_hash
     )
 
     if netuid is not None and netuid not in netuids_registered:
         err_console.print(
-            f":cross_mark: [red]Failed[/red]: Original hotkey {wallet.hotkey.ss58_address} is not registered on subnet {netuid}"
+            f":cross_mark: [red]Failed[/red]: Original hotkey {hk_ss58} is not registered on subnet {netuid}"
         )
-        return False
+        return False, None
 
     elif not len(netuids_registered) > 0:
         err_console.print(
-            f"Original hotkey [dark_orange]{wallet.hotkey.ss58_address}[/dark_orange] is not registered on any subnet. "
+            f"Original hotkey [dark_orange]{hk_ss58}[/dark_orange] is not registered on any subnet. "
             f"Please register and try again"
         )
-        return False
+        return False, None
 
     if netuid is not None:
         if netuid in netuids_registered_new_hotkey:
             err_console.print(
-                f":cross_mark: [red]Failed[/red]: New hotkey {new_wallet.hotkey.ss58_address} "
+                f":cross_mark: [red]Failed[/red]: New hotkey {new_hk_ss58} "
                 f"is already registered on subnet {netuid}"
             )
-            return False
+            return False, None
     else:
         if len(netuids_registered_new_hotkey) > 0:
             err_console.print(
-                f":cross_mark: [red]Failed[/red]: New hotkey {new_wallet.hotkey.ss58_address} "
+                f":cross_mark: [red]Failed[/red]: New hotkey {new_hk_ss58} "
                 f"is already registered on subnet(s) {netuids_registered_new_hotkey}"
             )
-            return False
+            return False, None
 
     if not unlock_key(wallet).success:
-        return False
+        return False, None
 
     if prompt:
         # Prompt user for confirmation.
         if netuid is not None:
             confirm_message = (
                 f"Do you want to swap [dark_orange]{wallet.name}[/dark_orange] hotkey \n\t"
-                f"[dark_orange]{wallet.hotkey.ss58_address} ({wallet.hotkey_str})[/dark_orange] with hotkey \n\t"
-                f"[dark_orange]{new_wallet.hotkey.ss58_address} ({new_wallet.hotkey_str})[/dark_orange] on subnet {netuid}\n"
+                f"[dark_orange]{hk_ss58} ({wallet.hotkey_str})[/dark_orange] with hotkey \n\t"
+                f"[dark_orange]{new_hk_ss58} ({new_wallet.hotkey_str})[/dark_orange] on subnet {netuid}\n"
                 "This operation will cost [bold cyan]1 TAO (recycled)[/bold cyan]"
             )
         else:
             confirm_message = (
                 f"Do you want to swap [dark_orange]{wallet.name}[/dark_orange] hotkey \n\t"
-                f"[dark_orange]{wallet.hotkey.ss58_address} ({wallet.hotkey_str})[/dark_orange] with hotkey \n\t"
-                f"[dark_orange]{new_wallet.hotkey.ss58_address} ({new_wallet.hotkey_str})[/dark_orange] on all subnets\n"
+                f"[dark_orange]{hk_ss58} ({wallet.hotkey_str})[/dark_orange] with hotkey \n\t"
+                f"[dark_orange]{new_hk_ss58} ({new_wallet.hotkey_str})[/dark_orange] on all subnets\n"
                 "This operation will cost [bold cyan]1 TAO (recycled)[/bold cyan]"
             )
 
         if not Confirm.ask(confirm_message):
-            return False
+            return False, None
     print_verbose(
-        f"Swapping {wallet.name}'s hotkey ({wallet.hotkey.ss58_address} - {wallet.hotkey_str}) with "
-        f"{new_wallet.name}'s hotkey ({new_wallet.hotkey.ss58_address} - {new_wallet.hotkey_str})"
+        f"Swapping {wallet.name}'s hotkey ({hk_ss58} - {wallet.hotkey_str}) with "
+        f"{new_wallet.name}'s hotkey ({new_hk_ss58} - {new_wallet.hotkey_str})"
     )
     with console.status(":satellite: Swapping hotkeys...", spinner="aesthetic"):
         call_params = {
-            "hotkey": wallet.hotkey.ss58_address,
-            "new_hotkey": new_wallet.hotkey.ss58_address,
+            "hotkey": hk_ss58,
+            "new_hotkey": new_hk_ss58,
             "netuid": netuid,
         }
 
@@ -1828,14 +1836,17 @@ async def swap_hotkey_extrinsic(
             call_function="swap_hotkey",
             call_params=call_params,
         )
-        success, err_msg = await subtensor.sign_and_send_extrinsic(call, wallet)
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
+            call, wallet
+        )
 
         if success:
             console.print(
-                f"Hotkey {wallet.hotkey.ss58_address} ({wallet.hotkey_str}) swapped for new hotkey: {new_wallet.hotkey.ss58_address} ({new_wallet.hotkey_str})"
+                f"Hotkey {hk_ss58} ({wallet.hotkey_str}) swapped for new hotkey: "
+                f"{new_hk_ss58} ({new_wallet.hotkey_str})"
             )
-            return True
+            return True, ext_receipt
         else:
             err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
             time.sleep(0.5)
-            return False
+            return False, ext_receipt

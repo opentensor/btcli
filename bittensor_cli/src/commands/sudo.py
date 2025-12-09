@@ -1,7 +1,8 @@
 import asyncio
 import json
-from typing import TYPE_CHECKING, Union, Optional
+from typing import TYPE_CHECKING, Union, Optional, Type
 
+from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet
 from rich import box
 from rich.table import Column, Table
@@ -11,6 +12,7 @@ from scalecodec import GenericCall
 from bittensor_cli.src import (
     HYPERPARAMS,
     HYPERPARAMS_MODULE,
+    RootSudoOnly,
     DelegatesDetails,
     COLOR_PALETTE,
 )
@@ -26,6 +28,8 @@ from bittensor_cli.src.bittensor.utils import (
     json_console,
     string_to_u16,
     string_to_u64,
+    get_hotkey_pub_ss58,
+    print_extrinsic_id,
 )
 
 if TYPE_CHECKING:
@@ -33,6 +37,7 @@ if TYPE_CHECKING:
         SubtensorInterface,
         ProposalVoteData,
     )
+    from scalecodec.types import GenericMetadataVersioned
 
 
 # helpers and extrinsics
@@ -79,7 +84,7 @@ def allowed_value(
     return True, value
 
 
-def string_to_bool(val) -> bool:
+def string_to_bool(val) -> Union[bool, Type[ValueError]]:
     try:
         return {"true": True, "1": True, "0": False, "false": False}[val.lower()]
     except KeyError:
@@ -90,8 +95,8 @@ def search_metadata(
     param_name: str,
     value: Union[str, bool, float, list[float]],
     netuid: int,
-    metadata,
-    pallet: str = DEFAULT_PALLET,
+    metadata: "GenericMetadataVersioned",
+    pallet_name: str = DEFAULT_PALLET,
 ) -> tuple[bool, Optional[dict]]:
     """
     Searches the substrate metadata AdminUtils pallet for a given parameter name. Crafts a response dict to be used
@@ -102,7 +107,7 @@ def search_metadata(
         value: the value to set the hyperparameter
         netuid: the specified netuid
         metadata: the subtensor.substrate.metadata
-        pallet: the name of the module to use for the query. If not set, the default value is DEFAULT_PALLET
+        pallet_name: the name of the module to use for the query. If not set, the default value is DEFAULT_PALLET
 
     Returns:
         (success, dict of call params)
@@ -124,7 +129,7 @@ def search_metadata(
 
     call_crafter = {"netuid": netuid}
 
-    pallet = metadata.get_metadata_pallet(pallet)
+    pallet = metadata.get_metadata_pallet(pallet_name)
     for call in pallet.calls:
         if call.name == param_name:
             if "netuid" not in [x.name for x in call.args]:
@@ -154,7 +159,7 @@ def requires_bool(metadata, param_name, pallet: str = DEFAULT_PALLET) -> bool:
     for call in pallet.calls:
         if call.name == param_name:
             if "netuid" not in [x.name for x in call.args]:
-                return False, None
+                return False
             call_args = [arg for arg in call.args if arg.value["name"] != "netuid"]
             if len(call_args) != 1:
                 return False
@@ -167,6 +172,84 @@ def requires_bool(metadata, param_name, pallet: str = DEFAULT_PALLET) -> bool:
     raise ValueError(f"{param_name} not found in pallet.")
 
 
+async def set_mechanism_count_extrinsic(
+    subtensor: "SubtensorInterface",
+    wallet: "Wallet",
+    netuid: int,
+    mech_count: int,
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = True,
+) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
+    """Sets the number of mechanisms for a subnet via AdminUtils."""
+
+    unlock_result = unlock_key(wallet)
+    if not unlock_result.success:
+        return False, unlock_result.message, None
+
+    substrate = subtensor.substrate
+    call_params = {"netuid": netuid, "mechanism_count": mech_count}
+
+    with console.status(
+        f":satellite: Setting mechanism count to [white]{mech_count}[/white] on "
+        f"[{COLOR_PALETTE.G.SUBHEAD}]{netuid}[/{COLOR_PALETTE.G.SUBHEAD}] ...",
+        spinner="earth",
+    ):
+        call = await substrate.compose_call(
+            call_module=DEFAULT_PALLET,
+            call_function="sudo_set_mechanism_count",
+            call_params=call_params,
+        )
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
+            call,
+            wallet,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+        )
+
+    if not success:
+        return False, err_msg, None
+
+    return True, "", ext_receipt
+
+
+async def set_mechanism_emission_extrinsic(
+    subtensor: "SubtensorInterface",
+    wallet: "Wallet",
+    netuid: int,
+    split: list[int],
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = True,
+) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
+    """Sets the emission split for a subnet's mechanisms via AdminUtils."""
+
+    unlock_result = unlock_key(wallet)
+    if not unlock_result.success:
+        return False, unlock_result.message, None
+
+    substrate = subtensor.substrate
+
+    with console.status(
+        f":satellite: Setting emission split for subnet {netuid}...",
+        spinner="earth",
+    ):
+        call = await substrate.compose_call(
+            call_module=DEFAULT_PALLET,
+            call_function="sudo_set_mechanism_emission_split",
+            call_params={"netuid": netuid, "maybe_split": split},
+        )
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
+            call,
+            wallet,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+        )
+
+    if not success:
+        return False, err_msg, None
+
+    return True, "", ext_receipt
+
+
 async def set_hyperparameter_extrinsic(
     subtensor: "SubtensorInterface",
     wallet: "Wallet",
@@ -176,7 +259,7 @@ async def set_hyperparameter_extrinsic(
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = True,
     prompt: bool = True,
-) -> bool:
+) -> tuple[bool, str, Optional[str]]:
     """Sets a hyperparameter for a specific subnetwork.
 
     :param subtensor: initialized SubtensorInterface object
@@ -188,9 +271,13 @@ async def set_hyperparameter_extrinsic(
                                `False` if the extrinsic fails to enter the block within the timeout.
     :param wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `True`,
                                   or returns `False` if the extrinsic fails to be finalized within the timeout.
+    :param prompt: If set to False, will not prompt the user.
 
-    :return: success: `True` if extrinsic was finalized or included in the block. If we did not wait for
+    :return: tuple including:
+             success: `True` if extrinsic was finalized or included in the block. If we did not wait for
                       finalization/inclusion, the response is `True`.
+             message: error message if the extrinsic failed
+             extrinsic_identifier: optional extrinsic identifier if the extrinsic was included
     """
     print_verbose("Confirming subnet owner")
     subnet_owner = await subtensor.query(
@@ -199,17 +286,18 @@ async def set_hyperparameter_extrinsic(
         params=[netuid],
     )
     if subnet_owner != wallet.coldkeypub.ss58_address:
-        err_console.print(
+        err_msg = (
             ":cross_mark: [red]This wallet doesn't own the specified subnet.[/red]"
         )
-        return False
+        err_console.print(err_msg)
+        return False, err_msg, None
 
-    if not unlock_key(wallet).success:
-        return False
+    if not (ulw := unlock_key(wallet)).success:
+        return False, ulw.message, None
 
     arbitrary_extrinsic = False
 
-    extrinsic, sudo_ = HYPERPARAMS.get(parameter, ("", False))
+    extrinsic, sudo_ = HYPERPARAMS.get(parameter, ("", RootSudoOnly.FALSE))
     call_params = {"netuid": netuid}
     if not extrinsic:
         arbitrary_extrinsic, call_params = search_metadata(
@@ -217,92 +305,106 @@ async def set_hyperparameter_extrinsic(
         )
         extrinsic = parameter
         if not arbitrary_extrinsic:
-            err_console.print(
-                ":cross_mark: [red]Invalid hyperparameter specified.[/red]"
-            )
-            return False
-    if sudo_ and prompt:
+            err_msg = ":cross_mark: [red]Invalid hyperparameter specified.[/red]"
+            err_console.print(err_msg)
+            return False, err_msg, None
+    if sudo_ is RootSudoOnly.TRUE and prompt:
         if not Confirm.ask(
             "This hyperparam is only settable by root sudo users. If you are not, this will fail. Please confirm"
         ):
-            return False
+            return False, "This hyperparam is only settable by root sudo users", None
 
     substrate = subtensor.substrate
     msg_value = value if not arbitrary_extrinsic else call_params
     pallet = HYPERPARAMS_MODULE.get(parameter) or DEFAULT_PALLET
 
-    with console.status(
-        f":satellite: Setting hyperparameter [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{parameter}"
-        f"[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] to [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{msg_value}"
-        f"[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] on subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
-        f"{netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] ...",
-        spinner="earth",
-    ):
-        if not arbitrary_extrinsic:
-            extrinsic_params = await substrate.get_metadata_call_function(
-                module_name=pallet, call_function_name=extrinsic
+    if not arbitrary_extrinsic:
+        extrinsic_params = await substrate.get_metadata_call_function(
+            module_name=pallet, call_function_name=extrinsic
+        )
+
+        # if input value is a list, iterate through the list and assign values
+        if isinstance(value, list):
+            # Ensure that there are enough values for all non-netuid parameters
+            non_netuid_fields = [
+                pn_str
+                for param in extrinsic_params["fields"]
+                if "netuid" not in (pn_str := str(param["name"]))
+            ]
+
+            if len(value) < len(non_netuid_fields):
+                err_msg = "Not enough values provided in the list for all parameters"
+                err_console.print(err_msg)
+                return False, err_msg, None
+
+            call_params.update(
+                {name: val for name, val in zip(non_netuid_fields, value)}
             )
 
-            # if input value is a list, iterate through the list and assign values
-            if isinstance(value, list):
-                # Ensure that there are enough values for all non-netuid parameters
-                non_netuid_fields = [
-                    pn_str
-                    for param in extrinsic_params["fields"]
-                    if "netuid" not in (pn_str := str(param["name"]))
-                ]
-
-                if len(value) < len(non_netuid_fields):
-                    err_console.print(
-                        "Not enough values provided in the list for all parameters"
-                    )
-                    return False
-
-                call_params.update(
-                    {name: val for name, val in zip(non_netuid_fields, value)}
-                )
-
-            else:
-                if requires_bool(
-                    substrate.metadata, param_name=extrinsic, pallet=pallet
-                ) and isinstance(value, str):
-                    value = string_to_bool(value)
-                value_argument = extrinsic_params["fields"][
-                    len(extrinsic_params["fields"]) - 1
-                ]
-                call_params[str(value_argument["name"])] = value
-
-        # create extrinsic call
-        call_ = await substrate.compose_call(
-            call_module=pallet,
-            call_function=extrinsic,
-            call_params=call_params,
+        else:
+            if requires_bool(
+                substrate.metadata, param_name=extrinsic, pallet=pallet
+            ) and isinstance(value, str):
+                value = string_to_bool(value)
+            value_argument = extrinsic_params["fields"][
+                len(extrinsic_params["fields"]) - 1
+            ]
+            call_params[str(value_argument["name"])] = value
+    # create extrinsic call
+    call_ = await substrate.compose_call(
+        call_module=pallet,
+        call_function=extrinsic,
+        call_params=call_params,
+    )
+    if sudo_ is RootSudoOnly.TRUE:
+        call = await substrate.compose_call(
+            call_module="Sudo", call_function="sudo", call_params={"call": call_}
         )
-        if sudo_:
+    elif sudo_ is RootSudoOnly.COMPLICATED:
+        if not prompt:
+            to_sudo_or_not_to_sudo = True  # default to sudo true when no-prompt is set
+        else:
+            to_sudo_or_not_to_sudo = Confirm.ask(
+                f"This hyperparam can be executed as sudo or not. Do you want to execute as sudo [y] or not [n]?"
+            )
+        if to_sudo_or_not_to_sudo:
             call = await substrate.compose_call(
-                call_module="Sudo", call_function="sudo", call_params={"call": call_}
+                call_module="Sudo",
+                call_function="sudo",
+                call_params={"call": call_},
             )
         else:
             call = call_
-        success, err_msg = await subtensor.sign_and_send_extrinsic(
+    else:
+        call = call_
+    with console.status(
+        f":satellite: Setting hyperparameter [{COLOR_PALETTE.G.SUBHEAD}]{parameter}[/{COLOR_PALETTE.G.SUBHEAD}]"
+        f" to [{COLOR_PALETTE.G.SUBHEAD}]{msg_value}[/{COLOR_PALETTE.G.SUBHEAD}]"
+        f" on subnet: [{COLOR_PALETTE.G.SUBHEAD}]{netuid}[/{COLOR_PALETTE.G.SUBHEAD}] ...",
+        spinner="earth",
+    ):
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
             call, wallet, wait_for_inclusion, wait_for_finalization
         )
-        if not success:
-            err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
-            return False
-        elif arbitrary_extrinsic:
+    if not success:
+        err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+        return False, err_msg, None
+    else:
+        ext_id = await ext_receipt.get_extrinsic_identifier()
+        await print_extrinsic_id(ext_receipt)
+        if arbitrary_extrinsic:
             console.print(
                 f":white_heavy_check_mark: "
                 f"[dark_sea_green3]Hyperparameter {parameter} values changed to {call_params}[/dark_sea_green3]"
             )
-            return True
+            return True, "", ext_id
         # Successful registration, final check for membership
         else:
             console.print(
                 f":white_heavy_check_mark: "
                 f"[dark_sea_green3]Hyperparameter {parameter} changed to {value}[/dark_sea_green3]"
             )
-            return True
+            return True, "", ext_id
 
 
 async def _get_senate_members(
@@ -497,13 +599,13 @@ async def vote_senate_extrinsic(
             call_module="SubtensorModule",
             call_function="vote",
             call_params={
-                "hotkey": wallet.hotkey.ss58_address,
+                "hotkey": get_hotkey_pub_ss58(wallet),
                 "proposal": proposal_hash,
                 "index": proposal_idx,
                 "approve": vote,
             },
         )
-        success, err_msg = await subtensor.sign_and_send_extrinsic(
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
             call, wallet, wait_for_inclusion, wait_for_finalization
         )
         if not success:
@@ -512,10 +614,12 @@ async def vote_senate_extrinsic(
             return False
         # Successful vote, final check for data
         else:
+            await print_extrinsic_id(ext_receipt)
             if vote_data := await subtensor.get_vote_data(proposal_hash):
+                hotkey_ss58 = get_hotkey_pub_ss58(wallet)
                 if (
-                    vote_data.ayes.count(wallet.hotkey.ss58_address) > 0
-                    or vote_data.nays.count(wallet.hotkey.ss58_address) > 0
+                    vote_data.ayes.count(hotkey_ss58) > 0
+                    or vote_data.nays.count(hotkey_ss58) > 0
                 ):
                     console.print(":white_heavy_check_mark: [green]Vote cast.[/green]")
                     return True
@@ -534,7 +638,7 @@ async def set_take_extrinsic(
     wallet: Wallet,
     delegate_ss58: str,
     take: float = 0.0,
-) -> bool:
+) -> tuple[bool, Optional[str]]:
     """
     Set delegate hotkey take
 
@@ -559,7 +663,7 @@ async def set_take_extrinsic(
 
     if take_u16 == current_take_u16:
         console.print("Nothing to do, take hasn't changed")
-        return True
+        return True, None
 
     if current_take_u16 < take_u16:
         console.print(
@@ -577,7 +681,9 @@ async def set_take_extrinsic(
                     "take": take_u16,
                 },
             )
-            success, err = await subtensor.sign_and_send_extrinsic(call, wallet)
+            success, err, ext_receipt = await subtensor.sign_and_send_extrinsic(
+                call, wallet
+            )
 
     else:
         console.print(
@@ -595,15 +701,20 @@ async def set_take_extrinsic(
                     "take": take_u16,
                 },
             )
-            success, err = await subtensor.sign_and_send_extrinsic(call, wallet)
+            success, err, ext_receipt = await subtensor.sign_and_send_extrinsic(
+                call, wallet
+            )
 
     if not success:
         err_console.print(err)
+        ext_id = None
     else:
         console.print(
-            ":white_heavy_check_mark: [dark_sea_green_3]Finalized[/dark_sea_green_3]"
+            ":white_heavy_check_mark: [dark_sea_green_3]Success[/dark_sea_green_3]"
         )
-    return success
+        ext_id = await ext_receipt.get_extrinsic_identifier()
+        await print_extrinsic_id(ext_receipt)
+    return success, ext_id
 
 
 # commands
@@ -617,25 +728,28 @@ async def sudo_set_hyperparameter(
     param_value: Optional[str],
     prompt: bool,
     json_output: bool,
-):
+) -> tuple[bool, str, Optional[str]]:
     """Set subnet hyperparameters."""
     is_allowed_value, value = allowed_value(param_name, param_value)
     if not is_allowed_value:
-        err_console.print(
+        err_msg = (
             f"Hyperparameter [dark_orange]{param_name}[/dark_orange] value is not within bounds. "
             f"Value is {param_value} but must be {value}"
         )
-        return False
-    success = await set_hyperparameter_extrinsic(
+        err_console.print(err_msg)
+        return False, err_msg, None
+    if json_output:
+        prompt = False
+    success, err_msg, ext_id = await set_hyperparameter_extrinsic(
         subtensor, wallet, netuid, param_name, value, prompt=prompt
     )
     if json_output:
-        return success
+        return success, err_msg, ext_id
     if success:
         console.print("\n")
         print_verbose("Fetching hyperparameters")
         await get_hyperparameters(subtensor, netuid=netuid)
-    return success
+    return success, err_msg, ext_id
 
 
 async def get_hyperparameters(
@@ -859,10 +973,9 @@ async def senate_vote(
         return False
 
     print_verbose(f"Fetching senate status of {wallet.hotkey_str}")
-    if not await _is_senate_member(subtensor, hotkey_ss58=wallet.hotkey.ss58_address):
-        err_console.print(
-            f"Aborting: Hotkey {wallet.hotkey.ss58_address} isn't a senate member."
-        )
+    hotkey_ss58 = get_hotkey_pub_ss58(wallet)
+    if not await _is_senate_member(subtensor, hotkey_ss58=hotkey_ss58):
+        err_console.print(f"Aborting: Hotkey {hotkey_ss58} isn't a senate member.")
         return False
 
     # Unlock the wallet.
@@ -890,7 +1003,7 @@ async def senate_vote(
 
 
 async def get_current_take(subtensor: "SubtensorInterface", wallet: Wallet):
-    current_take = await subtensor.current_take(wallet.hotkey.ss58_address)
+    current_take = await subtensor.current_take(get_hotkey_pub_ss58(wallet))
     return current_take
 
 
@@ -903,50 +1016,116 @@ async def display_current_take(subtensor: "SubtensorInterface", wallet: Wallet) 
 
 async def set_take(
     wallet: Wallet, subtensor: "SubtensorInterface", take: float
-) -> bool:
+) -> tuple[bool, Optional[str]]:
     """Set delegate take."""
 
-    async def _do_set_take() -> bool:
+    async def _do_set_take() -> tuple[bool, Optional[str]]:
         if take > 0.18 or take < 0:
             err_console.print("ERROR: Take value should not exceed 18% or be below 0%")
-            return False
+            return False, None
 
         block_hash = await subtensor.substrate.get_chain_head()
+        hotkey_ss58 = get_hotkey_pub_ss58(wallet)
         netuids_registered = await subtensor.get_netuids_for_hotkey(
-            wallet.hotkey.ss58_address, block_hash=block_hash
+            hotkey_ss58, block_hash=block_hash
         )
         if not len(netuids_registered) > 0:
             err_console.print(
-                f"Hotkey [{COLOR_PALETTE.G.HK}]{wallet.hotkey.ss58_address}[/{COLOR_PALETTE.G.HK}] is not registered to"
+                f"Hotkey [{COLOR_PALETTE.G.HK}]{hotkey_ss58}[/{COLOR_PALETTE.G.HK}] is not registered to"
                 f" any subnet. Please register using [{COLOR_PALETTE.G.SUBHEAD}]`btcli subnets register`"
                 f"[{COLOR_PALETTE.G.SUBHEAD}] and try again."
             )
-            return False
+            return False, None
 
-        result: bool = await set_take_extrinsic(
+        result: tuple[bool, Optional[str]] = await set_take_extrinsic(
             subtensor=subtensor,
             wallet=wallet,
-            delegate_ss58=wallet.hotkey.ss58_address,
+            delegate_ss58=hotkey_ss58,
             take=take,
         )
+        success, ext_id = result
 
-        if not result:
+        if not success:
             err_console.print("Could not set the take")
-            return False
+            return False, None
         else:
             new_take = await get_current_take(subtensor, wallet)
             console.print(
                 f"New take is [{COLOR_PALETTE.P.RATE}]{new_take * 100.0:.2f}%"
             )
-            return True
+            return True, ext_id
 
     console.print(
         f"Setting take on [{COLOR_PALETTE.G.LINKS}]network: {subtensor.network}"
     )
 
     if not unlock_key(wallet, "hot").success and unlock_key(wallet, "cold").success:
+        return False, None
+
+    return await _do_set_take()
+
+
+async def trim(
+    wallet: Wallet,
+    subtensor: "SubtensorInterface",
+    netuid: int,
+    max_n: int,
+    period: int,
+    prompt: bool,
+    json_output: bool,
+) -> bool:
+    """
+    Trims a subnet's UIDs to a specified amount
+    """
+    print_verbose("Confirming subnet owner")
+    subnet_owner = await subtensor.query(
+        module="SubtensorModule",
+        storage_function="SubnetOwner",
+        params=[netuid],
+    )
+    if subnet_owner != wallet.coldkeypub.ss58_address:
+        err_msg = "This wallet doesn't own the specified subnet."
+        if json_output:
+            json_console.print_json(data={"success": False, "message": err_msg})
+        else:
+            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
         return False
-
-    result_ = await _do_set_take()
-
-    return result_
+    if prompt and not json_output:
+        if not Confirm.ask(
+            f"You are about to trim UIDs on SN{netuid} to a limit of {max_n}",
+            default=False,
+        ):
+            err_console.print(":cross_mark: [red]User aborted.[/red]")
+    call = await subtensor.substrate.compose_call(
+        call_module="AdminUtils",
+        call_function="sudo_trim_to_max_allowed_uids",
+        call_params={"netuid": netuid, "max_n": max_n},
+    )
+    success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
+        call=call, wallet=wallet, era={"period": period}
+    )
+    if not success:
+        if json_output:
+            json_console.print_json(
+                data={
+                    "success": False,
+                    "message": err_msg,
+                    "extrinsic_identifier": None,
+                }
+            )
+        else:
+            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+        return False
+    else:
+        ext_id = await ext_receipt.get_extrinsic_identifier()
+        msg = f"Successfully trimmed UIDs on SN{netuid} to {max_n}"
+        if json_output:
+            json_console.print_json(
+                data={"success": True, "message": msg, "extrinsic_identifier": ext_id}
+            )
+        else:
+            await print_extrinsic_id(ext_receipt)
+            console.print(
+                f":white_heavy_check_mark: [dark_sea_green3]{msg}[/dark_sea_green3]"
+            )
+        return True

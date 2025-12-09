@@ -1,5 +1,175 @@
 # Changelog
 
+## 9.15.3 /2025-11-17
+
+## What's Changed
+* fix missing classifiers, migrate to flit by @branchvincent in https://github.com/opentensor/btcli/pull/698
+* Removes subvortex as the project is gone. by @thewhaleking in https://github.com/opentensor/btcli/pull/708
+* Small Bug Fixes by @thewhaleking in https://github.com/opentensor/btcli/pull/712:
+  * Ensures that net_claimable is always a Balance object in get_claimable_stakes_for_coldkey
+  * Checks that the HK owner isn't the genesis address
+  * Clearly show the totals in st list as representing staked vs total incl free
+  * Prevents a race condition which could freeze the console for extrinsic submission
+* docs: fix typos in some files by @Edge-Seven in https://github.com/opentensor/btcli/pull/711
+* Fix table width visual bug in stake move command by @BANADDA in https://github.com/opentensor/btcli/pull/709
+* Fix: Decode account id in `btcli swap-check` by @ibraheem-abe in https://github.com/opentensor/btcli/pull/714
+
+## New Contributors
+* @branchvincent made their first contribution in https://github.com/opentensor/btcli/pull/698
+* @Edge-Seven made their first contribution in https://github.com/opentensor/btcli/pull/711
+* @BANADDA made their first contribution in https://github.com/opentensor/btcli/pull/709
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.15.2...v9.15.3
+
+## 9.15.2 /2025-11-05
+
+## What's Changed
+* Update/btcli stake claim args by @ibraheem-abe in https://github.com/opentensor/btcli/pull/701
+* Update metagraph symbols thru subnet info by @ibraheem-abe in https://github.com/opentensor/btcli/pull/703
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.15.1...v9.15.2
+
+## 9.15.1 /2025-11-04
+
+* Update/Subnet list ema by @ibraheem-abe in https://github.com/opentensor/btcli/pull/699
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.15.0...v9.15.1
+
+## 9.15.0 /2025-11-04
+
+* Stop running e2e tests on changelog branches by @thewhaleking in https://github.com/opentensor/btcli/pull/691
+* Feat/root claim by @ibraheem-abe in https://github.com/opentensor/btcli/pull/692
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.14.3...v9.15.0
+
+## 9.14.3 /2025-10-30
+* Allows for installing on Py 3.14 by @thewhaleking in https://github.com/opentensor/btcli/pull/688
+  * corrects `--name` param in `wallet set-identity` and `subnets set-identity` which was a duplicate param alias of `--wallet-name`
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.14.2...v9.14.3
+
+## 9.14.2 /2025-10-28
+* `stake remove --all` fails when unsuccessful by @thewhaleking in https://github.com/opentensor/btcli/pull/679
+* check subnet logo url by @thewhaleking in https://github.com/opentensor/btcli/pull/681
+* `st transfer` extrinsic id fix by @thewhaleking in https://github.com/opentensor/btcli/pull/685
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.14.1...v9.14.2
+
+## 9.14.1 /2025-10-23
+* Updates kappa to root sudo only in-line with devnet-ready by @thewhaleking in https://github.com/opentensor/btcli/pull/668
+* Adds additional warnings for move vs transfer by @thewhaleking in https://github.com/opentensor/btcli/pull/672
+* Childkey take was incorrectly labeled. by @thewhaleking in https://github.com/opentensor/btcli/pull/669
+* Updates the help text of crownloan refund by @thewhaleking in https://github.com/opentensor/btcli/pull/674
+* Add a warn flag when --netuid 0 is used for btcli hotkey swap by @nstankov-stkd in https://github.com/opentensor/btcli/pull/666
+  * Add warning and confirmation for `wallet swap_hotkey --netuid 0` to prevent accidental misuse. Using `--netuid 0` only swaps the hotkey on the root network (netuid 0) and does NOT move child hotkey delegation mappings. This is not a full swap across all subnets. Updated documentation and added comprehensive unit tests to clarify proper usage.
+* Edge case bug fixes by @thewhaleking in https://github.com/opentensor/btcli/pull/675
+* Adds wallet balance sorting by @thewhaleking in https://github.com/opentensor/btcli/pull/676
+
+## New Contributors
+* @nstankov-stkd made their first contribution in https://github.com/opentensor/btcli/pull/666
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.14.0...v9.14.1
+
+## 9.14.0 /2025-10-20
+* Skips senate tests by @thewhaleking in https://github.com/opentensor/btcli/pull/658
+* Feat/crowdloans by @ibraheem-abe in https://github.com/opentensor/btcli/pull/657
+* Removes the fetching of identities in GitHub by @thewhaleking in https://github.com/opentensor/btcli/pull/659
+* Fixes the double `--hotkey` arg in set childkey take by @thewhaleking in https://github.com/opentensor/btcli/pull/662
+* Updates the help text for coldkey regen by @thewhaleking in https://github.com/opentensor/btcli/pull/663
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.13.1...v9.14.0
+
+# 9.13.1 /2025-10-14
+* Fix for complicated (user_liquidity_enabled) hyperparams by @thewhaleking in https://github.com/opentensor/btcli/pull/652
+* Fixes a number of type annotations by @thewhaleking in https://github.com/opentensor/btcli/pull/653
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.13.0...v9.13.1
+
+## 9.13.0 /2025-10-09
+
+## What's Changed
+* Updates wording in transfer confirm by @thewhaleking in https://github.com/opentensor/btcli/pull/642
+* Update/split emissions by @ibraheem-abe in https://github.com/opentensor/btcli/pull/643
+* Feat/auto staking by @ibraheem-abe in https://github.com/opentensor/btcli/pull/632
+* Updates wording on origin/destination hotkey in `st move` by @thewhaleking in https://github.com/opentensor/btcli/pull/647
+* commands list fixes by @thewhaleking in https://github.com/opentensor/btcli/pull/648
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.12.0...v9.13.0
+
+## 9.12.0 /2025-09-25
+* Removes warning icon in transfer by @ibraheem-abe in https://github.com/opentensor/btcli/pull/634
+* Add Extrinsic Identifier Output by @thewhaleking in https://github.com/opentensor/btcli/pull/633
+* Update the example text for sudo trim by @thewhaleking in https://github.com/opentensor/btcli/pull/636
+* Feat/Individual wallet list by @ibraheem-abe in https://github.com/opentensor/btcli/pull/638
+* Feat/ subnet mechanisms by @ibraheem-abe in https://github.com/opentensor/btcli/pull/627
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.11.2...v9.12.0
+
+## 9.11.2 /2025-09-19
+* Fix: Stake movement between non-root sns by @ibraheem-abe in https://github.com/opentensor/btcli/pull/629
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.11.1...v9.11.2
+
+## 9.11.1 /2025-09-16
+
+* Transfer not staking warning by @thewhaleking in https://github.com/opentensor/btcli/pull/618
+* update e2e tests for hyperparam freeze window by @thewhaleking in https://github.com/opentensor/btcli/pull/620
+* Corrects the stake fee calculation by @thewhaleking in https://github.com/opentensor/btcli/pull/621
+* Fix: Handle encrypted wallet hotkeys  by @ibraheem-abe in https://github.com/opentensor/btcli/pull/622
+* Fix: Handle malformed wallets/files by @ibraheem-abe in https://github.com/opentensor/btcli/pull/623
+* `min_burn` now not root sudo only by @thewhaleking in https://github.com/opentensor/btcli/pull/624
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.11.0...v9.11.1
+
+## 9.11.0 /2025-09-05
+* Better arg naming + type annotations by @thewhaleking in https://github.com/opentensor/btcli/pull/590
+* disk cache in config by @thewhaleking in https://github.com/opentensor/btcli/pull/588
+* Unstake no prompts by @thewhaleking in https://github.com/opentensor/btcli/pull/591
+* expand readme by @thewhaleking in https://github.com/opentensor/btcli/pull/598
+* Better arg formatting for readability by @thewhaleking in https://github.com/opentensor/btcli/pull/592
+* Update childkey proportion CLI argument in docs by @HudsonGraeme in https://github.com/opentensor/btcli/pull/602
+* Update example for show command by @HudsonGraeme in https://github.com/opentensor/btcli/pull/604
+* New cmd: `btcli utils latency` by @thewhaleking in https://github.com/opentensor/btcli/pull/599
+* Fix: Swap hotkey - new hotkey reg check by @ibraheem-abe in https://github.com/opentensor/btcli/pull/608
+* Update cli.py to remove double negative typo by @calebcgates in https://github.com/opentensor/btcli/pull/606
+* Better shows hotkeypubs in `w list` by @thewhaleking in https://github.com/opentensor/btcli/pull/611
+* subnet symbol set command by @thewhaleking in https://github.com/opentensor/btcli/pull/613
+* Debug log by @thewhaleking in https://github.com/opentensor/btcli/pull/597
+* Debug log additional by @thewhaleking in https://github.com/opentensor/btcli/pull/615
+
+### New Contributors
+* @calebcgates made their first contribution in https://github.com/opentensor/btcli/pull/606
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.10.1...v9.11.0
+
+## 9.10.2 /2025-09-05
+* Fixes swap-hotkey in by @ibraheem-abe in https://github.com/opentensor/btcli/commit/aec630ec06fb679957c1c2940f37a28751fd427f
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.10.1...v9.10.2
+
+## 9.10.1 /2025-08-12
+* Removes double param for `--cache` in `config set` by @thewhaleking in https://github.com/opentensor/btcli/pull/579
+* change root only sudo hyperparams by @thewhaleking in https://github.com/opentensor/btcli/pull/580
+* Better error formatting by @thewhaleking in https://github.com/opentensor/btcli/pull/581
+* Handle optional netuid better by @thewhaleking in https://github.com/opentensor/btcli/pull/582
+* wallet fixes by @thewhaleking in https://github.com/opentensor/btcli/pull/585
+* Adds `moving_price` attr to DynamicInfo by @thewhaleking in https://github.com/opentensor/btcli/pull/583
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.10.0...v9.10.1
+
+## 9.10.0 /2025-08-06
+* Sets default interval hours for subnets price to 4, bc of rate limiting. by @thewhaleking in https://github.com/opentensor/btcli/pull/568
+* Subnets Price --current + improvements by @thewhaleking in https://github.com/opentensor/btcli/pull/569
+* Reconfig Asyncio Runner by @thewhaleking in https://github.com/opentensor/btcli/pull/570
+* Show amount on `transfer --all` by @thewhaleking in https://github.com/opentensor/btcli/pull/571
+* Allows for typer>=0.16 and Click 8.2+ by @thewhaleking in https://github.com/opentensor/btcli/pull/572
+* BTCLI Config Updates by @thewhaleking in https://github.com/opentensor/btcli/pull/573
+* Added info about preinstalled macOS CPython by @thewhaleking in https://github.com/opentensor/btcli/pull/574
+* Click 8.2+/- compatibility by @thewhaleking in https://github.com/opentensor/btcli/pull/576
+* New command: `btcli w regen-hotkeypub` by @thewhaleking in https://github.com/opentensor/btcli/pull/575
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.9.0...v9.10.0
+
 ## 9.9.0 /2025-07-28
 * Feat/wallet verify by @ibraheem-abe in https://github.com/opentensor/btcli/pull/561
 * Improved speed of query_all_identities and fetch_coldkey_hotkey_identities by @thewhaleking in https://github.com/opentensor/btcli/pull/560

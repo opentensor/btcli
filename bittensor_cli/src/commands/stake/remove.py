@@ -4,6 +4,7 @@ from functools import partial
 
 from typing import TYPE_CHECKING, Optional
 
+from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
@@ -22,6 +23,8 @@ from bittensor_cli.src.bittensor.utils import (
     group_subnets,
     unlock_key,
     json_console,
+    get_hotkey_pub_ss58,
+    print_extrinsic_id,
 )
 
 if TYPE_CHECKING:
@@ -133,7 +136,8 @@ async def unstake(
     skip_remaining_subnets = False
     if len(netuids) > 1 and not amount:
         console.print(
-            "[dark_sea_green3]Tip: Enter 'q' any time to stop going over remaining subnets and process current unstakes.\n"
+            "[dark_sea_green3]Tip: Enter 'q' any time to stop going over "
+            "remaining subnets and process current unstakes.\n"
         )
 
     # Iterate over hotkeys and netuids to collect unstake operations
@@ -199,16 +203,6 @@ async def unstake(
                 )
                 continue  # Skip to the next subnet - useful when single amount is specified for all subnets
 
-            stake_fee = await subtensor.get_stake_fee(
-                origin_hotkey_ss58=staking_address_ss58,
-                origin_netuid=netuid,
-                origin_coldkey_ss58=wallet.coldkeypub.ss58_address,
-                destination_hotkey_ss58=None,
-                destination_netuid=None,
-                destination_coldkey_ss58=wallet.coldkeypub.ss58_address,
-                amount=amount_to_unstake_as_balance.rao,
-            )
-
             try:
                 current_price = subnet_info.price.tao
                 if safe_staking:
@@ -239,10 +233,10 @@ async def unstake(
                         netuid=netuid,
                         amount=amount_to_unstake_as_balance,
                     )
-                rate = current_price
-                received_amount = (
-                    (amount_to_unstake_as_balance - stake_fee) * rate
-                ) - extrinsic_fee
+                sim_swap = await subtensor.sim_swap(
+                    netuid, 0, amount_to_unstake_as_balance.rao
+                )
+                received_amount = sim_swap.tao_amount - extrinsic_fee
             except ValueError:
                 continue
             total_received_amount += received_amount
@@ -265,7 +259,7 @@ async def unstake(
                 str(amount_to_unstake_as_balance),  # Amount to Unstake
                 f"{subnet_info.price.tao:.6f}"
                 + f"(τ/{Balance.get_unit(netuid)})",  # Rate
-                str(stake_fee.set_unit(netuid)),  # Fee
+                str(sim_swap.alpha_fee),  # Fee
                 str(extrinsic_fee),  # Extrinsic fee
                 str(received_amount),  # Received Amount
                 # slippage_pct,  # Slippage Percent
@@ -344,7 +338,8 @@ async def unstake(
                 func = _unstake_extrinsic
                 specific_args = {"current_stake": op["current_stake_balance"]}
 
-            suc = await func(**common_args, **specific_args)
+            suc, ext_receipt = await func(**common_args, **specific_args)
+            ext_id = await ext_receipt.get_extrinsic_identifier() if suc else None
 
             successes.append(
                 {
@@ -352,6 +347,7 @@ async def unstake(
                     "hotkey_ss58": op["hotkey_ss58"],
                     "unstake_amount": op["amount_to_unstake"].tao,
                     "success": suc,
+                    "extrinsic_identifier": ext_id,
                 }
             )
 
@@ -359,7 +355,8 @@ async def unstake(
         f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]Unstaking operations completed."
     )
     if json_output:
-        json_console.print(json.dumps(successes))
+        json_console.print_json(data=successes)
+    return True
 
 
 async def unstake_all(
@@ -373,7 +370,7 @@ async def unstake_all(
     era: int = 3,
     prompt: bool = True,
     json_output: bool = False,
-) -> bool:
+) -> None:
     """Unstakes all stakes from all hotkeys in all subnets."""
     include_hotkeys = include_hotkeys or []
     exclude_hotkeys = exclude_hotkeys or []
@@ -407,7 +404,7 @@ async def unstake_all(
                 old_identities=old_identities,
             )
         elif not hotkey_ss58_address:
-            hotkeys = [(wallet.hotkey_str, wallet.hotkey.ss58_address, None)]
+            hotkeys = [(wallet.hotkey_str, get_hotkey_pub_ss58(wallet), None)]
         else:
             hotkeys = [(None, hotkey_ss58_address, None)]
 
@@ -422,7 +419,7 @@ async def unstake_all(
 
         if not stake_info:
             console.print("[red]No stakes found to unstake[/red]")
-            return False
+            return
 
         all_sn_dynamic_info = {info.netuid: info for info in all_sn_dynamic_info_}
 
@@ -492,15 +489,6 @@ async def unstake_all(
             hotkey_display = hotkey_names.get(stake.hotkey_ss58, stake.hotkey_ss58)
             subnet_info = all_sn_dynamic_info.get(stake.netuid)
             stake_amount = stake.stake
-            stake_fee = await subtensor.get_stake_fee(
-                origin_hotkey_ss58=stake.hotkey_ss58,
-                origin_netuid=stake.netuid,
-                origin_coldkey_ss58=wallet.coldkeypub.ss58_address,
-                destination_hotkey_ss58=None,
-                destination_netuid=None,
-                destination_coldkey_ss58=wallet.coldkeypub.ss58_address,
-                amount=stake_amount.rao,
-            )
 
             try:
                 current_price = subnet_info.price.tao
@@ -513,8 +501,8 @@ async def unstake_all(
                     subtensor,
                     hotkey_ss58=stake.hotkey_ss58,
                 )
-                rate = current_price
-                received_amount = ((stake_amount - stake_fee) * rate) - extrinsic_fee
+                sim_swap = await subtensor.sim_swap(stake.netuid, 0, stake_amount.rao)
+                received_amount = sim_swap.tao_amount - extrinsic_fee
 
                 if received_amount < Balance.from_tao(0):
                     print_error("Not enough Alpha to pay the transaction fee.")
@@ -530,7 +518,7 @@ async def unstake_all(
                 str(stake_amount),
                 f"{float(subnet_info.price):.6f}"
                 + f"({Balance.get_unit(0)}/{Balance.get_unit(stake.netuid)})",
-                str(stake_fee),
+                str(sim_swap.alpha_fee),
                 str(extrinsic_fee),
                 str(received_amount),
             )
@@ -543,14 +531,14 @@ async def unstake_all(
     if prompt and not Confirm.ask(
         "\nDo you want to proceed with unstaking everything?"
     ):
-        return False
+        return
 
     if not unlock_key(wallet).success:
-        return False
+        return
     successes = {}
     with console.status("Unstaking all stakes...") as status:
         for hotkey_ss58 in hotkey_ss58s:
-            successes[hotkey_ss58] = await _unstake_all_extrinsic(
+            success, ext_receipt = await _unstake_all_extrinsic(
                 wallet=wallet,
                 subtensor=subtensor,
                 hotkey_ss58=hotkey_ss58,
@@ -559,8 +547,13 @@ async def unstake_all(
                 status=status,
                 era=era,
             )
+            ext_id = await ext_receipt.get_extrinsic_identifier() if success else None
+            successes[hotkey_ss58] = {
+                "success": success,
+                "extrinsic_identifier": ext_id,
+            }
     if json_output:
-        return json_console.print(json.dumps({"success": successes}))
+        json_console.print(json.dumps({"success": successes}))
 
 
 # Extrinsics
@@ -573,7 +566,7 @@ async def _unstake_extrinsic(
     hotkey_ss58: str,
     status=None,
     era: int = 3,
-) -> bool:
+) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """Execute a standard unstake extrinsic.
 
     Args:
@@ -621,8 +614,9 @@ async def _unstake_extrinsic(
                 f"{failure_prelude} with error: "
                 f"{format_error_message(await response.error_message)}"
             )
-            return False
+            return False, None
         # Fetch latest balance and stake
+        await print_extrinsic_id(response)
         block_hash = await subtensor.substrate.get_chain_head()
         new_balance, new_stake = await asyncio.gather(
             subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash),
@@ -642,11 +636,11 @@ async def _unstake_extrinsic(
             f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
             f" Stake:\n  [blue]{current_stake}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}"
         )
-        return True
+        return True, response
 
     except Exception as e:
         err_out(f"{failure_prelude} with error: {str(e)}")
-        return False
+        return False, None
 
 
 async def _safe_unstake_extrinsic(
@@ -659,7 +653,7 @@ async def _safe_unstake_extrinsic(
     allow_partial_stake: bool,
     status=None,
     era: int = 3,
-) -> bool:
+) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """Execute a safe unstake extrinsic with price limit.
 
     Args:
@@ -725,14 +719,14 @@ async def _safe_unstake_extrinsic(
             )
         else:
             err_out(f"\n{failure_prelude} with error: {format_error_message(e)}")
-        return False
+        return False, None
 
     if not await response.is_success:
         err_out(
             f"\n{failure_prelude} with error: {format_error_message(await response.error_message)}"
         )
-        return False
-
+        return False, None
+    await print_extrinsic_id(response)
     block_hash = await subtensor.substrate.get_chain_head()
     new_balance, new_stake = await asyncio.gather(
         subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash),
@@ -762,7 +756,7 @@ async def _safe_unstake_extrinsic(
         f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] "
         f"Stake:\n  [blue]{current_stake}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}"
     )
-    return True
+    return True, response
 
 
 async def _unstake_all_extrinsic(
@@ -773,7 +767,7 @@ async def _unstake_all_extrinsic(
     unstake_all_alpha: bool,
     status=None,
     era: int = 3,
-) -> None:
+) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """Execute an unstake all extrinsic.
 
     Args:
@@ -791,7 +785,7 @@ async def _unstake_all_extrinsic(
 
     if status:
         status.update(
-            f"\n:satellite: {'Unstaking all Alpha stakes' if unstake_all_alpha else 'Unstaking all stakes'} from {hotkey_name} ..."
+            f"\n:satellite: Unstaking all {'Alpha ' if unstake_all_alpha else ''}stakes from {hotkey_name} ..."
         )
 
     block_hash = await subtensor.substrate.get_chain_head()
@@ -834,7 +828,9 @@ async def _unstake_all_extrinsic(
                 f"{failure_prelude} with error: "
                 f"{format_error_message(await response.error_message)}"
             )
-            return
+            return False, None
+        else:
+            await print_extrinsic_id(response)
 
         # Fetch latest balance and stake
         block_hash = await subtensor.substrate.get_chain_head()
@@ -872,9 +868,11 @@ async def _unstake_all_extrinsic(
                 f"[blue]{previous_root_stake}[/blue] :arrow_right: "
                 f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_root_stake}"
             )
+        return True, response
 
     except Exception as e:
         err_out(f"{failure_prelude} with error: {str(e)}")
+        return False, None
 
 
 async def _get_extrinsic_fee(
@@ -1198,7 +1196,7 @@ def _get_hotkeys_to_unstake(
         print_verbose("Unstaking from all hotkeys")
         all_hotkeys_ = get_hotkey_wallets_for_wallet(wallet=wallet)
         wallet_hotkeys = [
-            (wallet.hotkey_str, wallet.hotkey.ss58_address, None)
+            (wallet.hotkey_str, get_hotkey_pub_ss58(wallet), None)
             for wallet in all_hotkeys_
             if wallet.hotkey_str not in exclude_hotkeys
         ]
@@ -1230,7 +1228,7 @@ def _get_hotkeys_to_unstake(
                     path=wallet.path,
                     hotkey=hotkey_identifier,
                 )
-                result.append((wallet_.hotkey_str, wallet_.hotkey.ss58_address, None))
+                result.append((wallet_.hotkey_str, get_hotkey_pub_ss58(wallet_), None))
         return result
 
     # Only cli.config.wallet.hotkey is specified
@@ -1238,7 +1236,7 @@ def _get_hotkeys_to_unstake(
         f"Unstaking from wallet: ({wallet.name}) from hotkey: ({wallet.hotkey_str})"
     )
     assert wallet.hotkey is not None
-    return [(wallet.hotkey_str, wallet.hotkey.ss58_address, None)]
+    return [(wallet.hotkey_str, get_hotkey_pub_ss58(wallet), None)]
 
 
 def _create_unstake_table(
