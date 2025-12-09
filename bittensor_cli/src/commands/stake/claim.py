@@ -150,19 +150,20 @@ async def set_claim_type(
             new_claim_info = {"type": claim_type}
 
     if _claim_types_equal(current_claim_info, new_claim_info):
-        msg = f"Claim type already set to {_format_claim_type_display(new_claim_info)}. \nNo change needed."
-        console.print(msg)
-        if json_output:
-            json_console.print(
-                json.dumps(
-                    {
-                        "success": True,
-                        "message": msg,
-                        "extrinsic_identifier": None,
-                    }
+        if new_claim_info["type"] == "KeepSubnets":
+            msg = f"Claim type already set to {_format_claim_type_display(new_claim_info)}. \nNo change needed."
+            console.print(msg)
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {
+                            "success": True,
+                            "message": msg,
+                            "extrinsic_identifier": None,
+                        }
+                    )
                 )
-            )
-        return True, msg, None
+            return True, msg, None
 
     if prompt:
         console.print(
