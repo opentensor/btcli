@@ -94,6 +94,11 @@ from bittensor_cli.src.commands.subnets import (
     subnets,
     mechanisms as subnet_mechanisms,
 )
+from bittensor_cli.src.commands.proxy import (
+    add as add_proxy,
+    remove as remove_proxy,
+    list as list_proxy,
+)
 from bittensor_cli.src.commands.wallets import SortByBalance
 from bittensor_cli.version import __version__, __version_as_int__
 
@@ -769,6 +774,7 @@ class CLIManager:
         self.liquidity_app = typer.Typer(epilog=_epilog)
         self.crowd_app = typer.Typer(epilog=_epilog)
         self.utils_app = typer.Typer(epilog=_epilog)
+        self.proxy_app = typer.Typer(epilog=_epilog)
 
         # config alias
         self.app.add_typer(
@@ -864,6 +870,14 @@ class CLIManager:
             self.view_app,
             name="view",
             short_help="HTML view commands",
+            no_args_is_help=True,
+        )
+
+        # proxy app
+        self.app.add_typer(
+            self.proxy_app,
+            name="proxy",
+            short_help="Proxy commands for managing delegate accounts",
             no_args_is_help=True,
         )
 
@@ -1227,6 +1241,12 @@ class CLIManager:
         # utils app
         self.utils_app.command("convert")(self.convert)
         self.utils_app.command("latency")(self.best_connection)
+
+        # proxy commands
+        self.proxy_app.command("add")(self.proxy_add)
+        self.proxy_app.command("remove")(self.proxy_remove)
+        self.proxy_app.command("remove-all")(self.proxy_remove_all)
+        self.proxy_app.command("list")(self.proxy_list)
 
     def generate_command_tree(self) -> Tree:
         """
@@ -8149,6 +8169,193 @@ class CLIManager:
                     f"\nYou can update this with {arg__(f'btcli config set --network {fastest}')}"
                 )
         return True
+
+    # ========================
+    # Proxy Commands
+    # ========================
+
+    def proxy_add(
+        self,
+        delegate: str = typer.Option(
+            ...,
+            "--delegate",
+            "-d",
+            help="SS58 address of the delegate account to add as proxy.",
+        ),
+        proxy_type: str = typer.Option(
+            "Any",
+            "--type",
+            "-t",
+            help="Type of proxy permissions. Options: Any, NonTransfer, Governance, Staking, "
+                 "Registration, SenateVoting, Transfer, SmallTransfer, RootWeights, ChildKeys.",
+        ),
+        delay: int = typer.Option(
+            0,
+            "--delay",
+            help="Block delay before proxy can execute (0 for immediate).",
+        ),
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        network: Optional[list[str]] = Options.network,
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Add a proxy delegate to your account.
+
+        A proxy allows another account to execute specific actions on behalf of your coldkey.
+        Different proxy types grant different levels of access.
+
+        [bold]Examples:[/bold]
+
+        1. Add a full proxy (any action):
+            [green]$[/green] btcli proxy add --delegate 5xyz... --type Any
+
+        2. Add a staking-only proxy:
+            [green]$[/green] btcli proxy add --delegate 5xyz... --type Staking
+
+        3. Add a delayed proxy (24 hour delay = ~14400 blocks):
+            [green]$[/green] btcli proxy add --delegate 5xyz... --type Transfer --delay 14400
+
+        [bold]Proxy Types:[/bold]
+        • [blue]Any[/blue]: Full access to all operations
+        • [blue]NonTransfer[/blue]: All operations except balance transfers
+        • [blue]Staking[/blue]: Staking operations only
+        • [blue]Transfer[/blue]: Transfer operations only
+        • [blue]SmallTransfer[/blue]: Transfers under 0.5 TAO only
+        • [blue]Governance[/blue]: Governance/voting operations
+        """
+        self.verbosity_handler(quiet, verbose)
+        wallet = self.wallet_ask(wallet_name, wallet_path, validate=WV.WALLET_AND_COLDKEY)
+
+        return self._run_command(
+            add_proxy.proxy_add(
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                delegate=delegate,
+                proxy_type=proxy_type,
+                delay=delay,
+                prompt=prompt,
+            )
+        )
+
+    def proxy_remove(
+        self,
+        delegate: str = typer.Option(
+            ...,
+            "--delegate",
+            "-d",
+            help="SS58 address of the delegate account to remove.",
+        ),
+        proxy_type: str = typer.Option(
+            "Any",
+            "--type",
+            "-t",
+            help="Type of proxy permissions to remove.",
+        ),
+        delay: int = typer.Option(
+            0,
+            "--delay",
+            help="Block delay that was set for the proxy.",
+        ),
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        network: Optional[list[str]] = Options.network,
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Remove a proxy delegate from your account.
+
+        [bold]Example:[/bold]
+            [green]$[/green] btcli proxy remove --delegate 5xyz... --type Any
+        """
+        self.verbosity_handler(quiet, verbose)
+        wallet = self.wallet_ask(wallet_name, wallet_path, validate=WV.WALLET_AND_COLDKEY)
+
+        return self._run_command(
+            remove_proxy.proxy_remove(
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                delegate=delegate,
+                proxy_type=proxy_type,
+                delay=delay,
+                prompt=prompt,
+            )
+        )
+
+    def proxy_remove_all(
+        self,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        network: Optional[list[str]] = Options.network,
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Remove ALL proxies from your account.
+
+        [bold red]WARNING:[/bold red] This removes all delegate access to your account.
+
+        [bold]Example:[/bold]
+            [green]$[/green] btcli proxy remove-all
+        """
+        self.verbosity_handler(quiet, verbose)
+        wallet = self.wallet_ask(wallet_name, wallet_path, validate=WV.WALLET_AND_COLDKEY)
+
+        return self._run_command(
+            remove_proxy.proxy_remove_all(
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                prompt=prompt,
+            )
+        )
+
+    def proxy_list(
+        self,
+        address: Optional[str] = typer.Option(
+            None,
+            "--address",
+            "-a",
+            help="SS58 address to query. If not provided, uses wallet's coldkey.",
+        ),
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        network: Optional[list[str]] = Options.network,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        List all proxies for an account.
+
+        [bold]Examples:[/bold]
+
+        1. List proxies for your wallet:
+            [green]$[/green] btcli proxy list
+
+        2. List proxies for any address:
+            [green]$[/green] btcli proxy list --address 5xyz...
+        """
+        self.verbosity_handler(quiet, verbose)
+
+        if address:
+            return self._run_command(
+                list_proxy.proxy_list(
+                    subtensor=self.initialize_chain(network),
+                    address=address,
+                )
+            )
+        else:
+            wallet = self.wallet_ask(wallet_name, wallet_path, validate=WV.WALLET)
+            return self._run_command(
+                list_proxy.proxy_list_for_wallet(
+                    wallet=wallet,
+                    subtensor=self.initialize_chain(network),
+                )
+            )
 
     def run(self):
         self.app()
