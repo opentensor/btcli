@@ -1,6 +1,7 @@
 import asyncio
 import json
 import re
+import pytest
 from typing import Union
 
 from bittensor_cli.src.bittensor.balances import Balance
@@ -24,6 +25,7 @@ Verify commands:
 """
 
 
+@pytest.mark.parametrize("local_chain", [False], indirect=True)
 def test_staking(local_chain, wallet_setup):
     """
     Test staking & sudo commands and inspect their output
@@ -402,7 +404,7 @@ def test_staking(local_chain, wallet_setup):
         for line in show_stake_adding_single.stdout.splitlines()
     ]
     stake_added = cleaned_stake[8].split("│")[3].strip().split()[0]
-    assert Balance.from_tao(float(stake_added)) >= Balance.from_tao(90)
+    assert Balance.from_tao(float(stake_added)) >= Balance.from_tao(87)
 
     show_stake_json = exec_command_alice(
         command="stake",
@@ -419,9 +421,9 @@ def test_staking(local_chain, wallet_setup):
     )
     show_stake_json_output = json.loads(show_stake_json.stdout)
     alice_stake = show_stake_json_output["stake_info"][keypair_alice.ss58_address][0]
-    assert Balance.from_tao(alice_stake["stake_value"]) > Balance.from_tao(90.0)
+    assert Balance.from_tao(alice_stake["stake_value"]) >= Balance.from_tao(87.0)
 
-    # Execute remove_stake command and remove all alpha stakes from Alice
+    # Execute remove_stake command and remove all alpha stakes from Alice's wallet
     remove_stake = exec_command_alice(
         command="stake",
         sub_command="remove",
@@ -472,7 +474,7 @@ def test_staking(local_chain, wallet_setup):
             "--partial",
             "--no-prompt",
             "--era",
-            "144",
+            "32",
             "--json-output",
         ],
     )

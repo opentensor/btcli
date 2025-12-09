@@ -33,6 +33,8 @@ async def transfer_extrinsic(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt: bool = False,
+    proxy: Optional[str] = None,
+    announce_only: bool = False,
 ) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """Transfers funds from this wallet to the destination public key address.
 
@@ -48,6 +50,9 @@ async def transfer_extrinsic(
     :param wait_for_finalization:  If set, waits for the extrinsic to be finalized on the chain before returning
                                    `True`, or returns `False` if the extrinsic fails to be finalized within the timeout.
     :param prompt: If `True`, the call waits for confirmation from the user before proceeding.
+    :param proxy: Optional proxy to use for this call.
+    :param announce_only: If set along with proxy, will make this call as an announcement, rather than making the call
+
     :return: success: Flag is `True` if extrinsic was finalized or included in the block. If we did not wait for
                       finalization / inclusion, the response is `True`, regardless of its inclusion.
     """
@@ -63,22 +68,11 @@ async def transfer_extrinsic(
             call_function=call_function,
             call_params=call_params,
         )
+        return await subtensor.get_extrinsic_fee(
+            call=call, keypair=wallet.coldkeypub, proxy=proxy
+        )
 
-        try:
-            payment_info = await subtensor.substrate.get_payment_info(
-                call=call, keypair=wallet.coldkeypub
-            )
-        except SubstrateRequestException as e:
-            payment_info = {"partial_fee": int(2e7)}  # assume  0.02 Tao
-            err_console.print(
-                f":cross_mark: [red]Failed to get payment info[/red]:[bold white]\n"
-                f"  {format_error_message(e)}[/bold white]\n"
-                f"  Defaulting to default transfer fee: {payment_info['partialFee']}"
-            )
-
-        return Balance.from_rao(payment_info["partial_fee"])
-
-    async def do_transfer() -> tuple[bool, str, str, AsyncExtrinsicReceipt]:
+    async def do_transfer() -> tuple[bool, str, str, Optional[AsyncExtrinsicReceipt]]:
         """
         Makes transfer from wallet to destination public key address.
         :return: success, block hash, formatted error message
@@ -88,29 +82,17 @@ async def transfer_extrinsic(
             call_function=call_function,
             call_params=call_params,
         )
-        extrinsic = await subtensor.substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey, era={"period": era}
-        )
-        response = await subtensor.substrate.submit_extrinsic(
-            extrinsic,
-            wait_for_inclusion=wait_for_inclusion,
+        success_, error_msg_, receipt_ = await subtensor.sign_and_send_extrinsic(
+            call=call,
+            wallet=wallet,
             wait_for_finalization=wait_for_finalization,
+            wait_for_inclusion=wait_for_inclusion,
+            proxy=proxy,
+            era={"period": era},
+            announce_only=announce_only,
         )
-        # We only wait here if we expect finalization.
-        if not wait_for_finalization and not wait_for_inclusion:
-            return True, "", "", response
-
-        # Otherwise continue with finalization.
-        if await response.is_success:
-            block_hash_ = response.block_hash
-            return True, block_hash_, "", response
-        else:
-            return (
-                False,
-                "",
-                format_error_message(await response.error_message),
-                response,
-            )
+        block_hash_ = receipt_.block_hash if receipt_ is not None else ""
+        return success_, block_hash_, error_msg_, receipt_
 
     # Validate destination address.
     if not is_valid_bittensor_address_or_public_key(destination):
@@ -142,36 +124,66 @@ async def transfer_extrinsic(
         # check existential deposit and fee
         print_verbose("Fetching existential and fee", status)
         block_hash = await subtensor.substrate.get_chain_head()
-        account_balance, existential_deposit = await asyncio.gather(
+        if proxy:
+            proxy_balance = await subtensor.get_balance(proxy, block_hash=block_hash)
+        account_balance, existential_deposit, fee = await asyncio.gather(
             subtensor.get_balance(
                 wallet.coldkeypub.ss58_address, block_hash=block_hash
             ),
             subtensor.get_existential_deposit(block_hash=block_hash),
+            get_transfer_fee(),
         )
-        fee = await get_transfer_fee()
 
     if allow_death:
         # Check if the transfer should keep alive the account
         existential_deposit = Balance(0)
 
-    if account_balance < (amount + fee + existential_deposit) and not allow_death:
-        err_console.print(
-            ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
-            f"  balance: [bright_cyan]{account_balance}[/bright_cyan]\n"
-            f"  amount: [bright_cyan]{amount}[/bright_cyan]\n"
-            f"  for fee: [bright_cyan]{fee}[/bright_cyan]\n"
-            f"   would bring you under the existential deposit: [bright_cyan]{existential_deposit}[/bright_cyan].\n"
-            f"You can try again with `--allow-death`."
-        )
-        return False, None
-    elif account_balance < (amount + fee) and allow_death:
-        print_error(
-            ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
-            f"  balance: [bright_red]{account_balance}[/bright_red]\n"
-            f"  amount: [bright_red]{amount}[/bright_red]\n"
-            f"  for fee: [bright_red]{fee}[/bright_red]"
-        )
-        return False, None
+    if proxy:
+        if proxy_balance < (amount + existential_deposit) and not allow_death:
+            err_console.print(
+                ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
+                f"  balance: [bright_cyan]{proxy_balance}[/bright_cyan]\n"
+                f"  amount: [bright_cyan]{amount}[/bright_cyan]\n"
+                f"   would bring you under the existential deposit: [bright_cyan]{existential_deposit}[/bright_cyan].\n"
+                f"You can try again with `--allow-death`."
+            )
+            return False, None
+        if account_balance < fee:
+            err_console.print(
+                ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
+                f"  balance: [bright_cyan]{account_balance}[/bright_cyan]\n"
+                f"  fee: [bright_cyan]{fee}[/bright_cyan]\n"
+                f"   would bring you under the existential deposit: [bright_cyan]{existential_deposit}[/bright_cyan].\n"
+            )
+            return False, None
+        if account_balance < amount and allow_death:
+            print_error(
+                ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
+                f"  balance: [bright_red]{account_balance}[/bright_red]\n"
+                f"  amount: [bright_red]{amount}[/bright_red]\n"
+            )
+            return False, None
+    else:
+        if account_balance < (amount + fee + existential_deposit) and not allow_death:
+            err_console.print(
+                ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
+                f"  balance: [bright_cyan]{account_balance}[/bright_cyan]\n"
+                f"  amount: [bright_cyan]{amount}[/bright_cyan]\n"
+                f"  for fee: [bright_cyan]{fee}[/bright_cyan]\n"
+                f"   would bring you under the existential deposit: [bright_cyan]{existential_deposit}[/bright_cyan].\n"
+                f"You can try again with `--allow-death`."
+            )
+            return False, None
+        elif account_balance < (amount + fee) and allow_death:
+            print_error(
+                ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
+                f"  balance: [bright_red]{account_balance}[/bright_red]\n"
+                f"  amount: [bright_red]{amount}[/bright_red]\n"
+                f"  for fee: [bright_red]{fee}[/bright_red]"
+            )
+            return False, None
+    if proxy:
+        account_balance = proxy_balance
 
     # Ask before moving on.
     if prompt:
@@ -213,7 +225,7 @@ async def transfer_extrinsic(
     if success:
         with console.status(":satellite: Checking Balance...", spinner="aesthetic"):
             new_balance = await subtensor.get_balance(
-                wallet.coldkeypub.ss58_address, reuse_block=False
+                proxy or wallet.coldkeypub.ss58_address, reuse_block=False
             )
             console.print(
                 f"Balance:\n"
