@@ -40,7 +40,7 @@ async def select(
     hotkey = wallet.hotkey
 
     if prompt:
-        confirm = typer.confirm(f"Are you sure you want to select asset class {asset} for miner {coldkey.ss58_address}?")
+        confirm = typer.confirm(f"Are you sure you want to select asset class {asset} for miner {hotkey.ss58_address}?")
         if not confirm:
             console.print("[yellow]Asset Class Selection Cancelled[/yellow]")
             return False
