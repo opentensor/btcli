@@ -149,6 +149,22 @@ def is_valid_ss58_address_param(address: Optional[str]) -> Optional[str]:
     return address
 
 
+def validate_claim_type(value: Optional[str]) -> Optional[claim_stake.ClaimType]:
+    """
+    Validates the claim type argument, allowing case-insensitive input.
+    """
+    if value is None:
+        return None
+
+    try:
+        for member in claim_stake.ClaimType:
+            if member.value.lower() == value.lower():
+                return member
+        return claim_stake.ClaimType(value)
+    except ValueError:
+        raise typer.BadParameter(f"'{value}' is not one of 'Keep', 'Swap'.")
+
+
 class Options:
     """
     Re-usable typer args
@@ -5616,9 +5632,10 @@ class CLIManager:
     def stake_set_claim_type(
         self,
         claim_type: Annotated[
-            Optional[claim_stake.ClaimType],
+            Optional[str],
             typer.Argument(
                 help="Claim type: 'Keep' or 'Swap'. If omitted, user will be prompted.",
+                callback=validate_claim_type,
             ),
         ] = None,
         netuids: Optional[str] = typer.Option(
