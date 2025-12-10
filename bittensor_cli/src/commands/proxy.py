@@ -191,7 +191,9 @@ async def remove_all_proxies(
                 }
             )
         else:
-            console.print(":white_check_mark:[green]All proxies removed successfully![/green]")
+            console.print(
+                ":white_check_mark:[green]All proxies removed successfully![/green]"
+            )
     else:
         if json_output:
             json_console.print_json(
@@ -202,7 +204,9 @@ async def remove_all_proxies(
                 }
             )
         else:
-            err_console.print(f":cross_mark:[red]Failed to remove all proxies: {msg}[/red]")
+            err_console.print(
+                f":cross_mark:[red]Failed to remove all proxies: {msg}[/red]"
+            )
 
 
 async def reject_announcement(
@@ -283,7 +287,9 @@ async def reject_announcement(
                 }
             )
         else:
-            console.print(":white_check_mark:[green]Announcement rejected successfully![/green]")
+            console.print(
+                ":white_check_mark:[green]Announcement rejected successfully![/green]"
+            )
     else:
         if json_output:
             json_console.print_json(
@@ -294,7 +300,9 @@ async def reject_announcement(
                 }
             )
         else:
-            err_console.print(f":cross_mark:[red]Failed to reject announcement: {msg}[/red]")
+            err_console.print(
+                f":cross_mark:[red]Failed to reject announcement: {msg}[/red]"
+            )
 
 
 async def submit_proxy(

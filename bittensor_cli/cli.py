@@ -9536,11 +9536,7 @@ class CLIManager:
             )
             address = wallet.coldkeypub.ss58_address
 
-        logger.debug(
-            "args:\n"
-            f"address: {address}\n"
-            f"network: {network}\n"
-        )
+        logger.debug(f"args:\naddress: {address}\nnetwork: {network}\n")
 
         return self._run_command(
             proxy_commands.list_proxies(
