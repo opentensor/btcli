@@ -241,14 +241,16 @@ def test_axon_set_with_ipv6(local_chain, wallet_setup):
     Test setting axon with IPv6 address.
     """
     wallet_path_bob = "//Bob"
+    wallet_path_alice = "//Alice"
     netuid = 2
 
     # Create wallet for Bob
     keypair_bob, wallet_bob, wallet_path_bob, exec_command_bob = wallet_setup(
         wallet_path_bob
     )
+    _, wallet_alice, *_ = wallet_setup(wallet_path_alice)
 
-    execute_turn_off_hyperparam_freeze_window(local_chain, wallet_bob)
+    execute_turn_off_hyperparam_freeze_window(local_chain, wallet_alice)
 
     # Register a subnet with sudo as Bob
     result = exec_command_bob(
@@ -459,6 +461,7 @@ def test_axon_set_invalid_inputs(local_chain, wallet_setup):
     )
     assert result.exit_code == 0, f"Setting serving_rate_limit failed: {result.stdout}"
 
+    invalid_port = "70000"
     # Test with invalid port (too high)
     result = exec_command_charlie(
         command="axon",
@@ -477,18 +480,18 @@ def test_axon_set_invalid_inputs(local_chain, wallet_setup):
             "--ip",
             "192.168.1.1",
             "--port",
-            "70000",  # Invalid port
+            invalid_port,  # Invalid port
             "--no-prompt",
         ],
     )
 
     # Should fail with invalid port
     assert (
-        result.exit_code != 0
-        or "invalid port" in result.stdout.lower()
-        or "failed" in result.stdout.lower()
-    ), f"Expected error for invalid port, got: {result.stdout}"
+        f"Failed to set axon: Invalid port number: {invalid_port}. Must be between 0 and 65535."
+        in result.stderr
+    ), f"Expected error for invalid port, got: {result.stdout}\n{result.stderr}"
 
+    invalid_ip_address = "invalid.ip.address"
     # Test with invalid IP
     result = exec_command_charlie(
         command="axon",
@@ -505,16 +508,14 @@ def test_axon_set_invalid_inputs(local_chain, wallet_setup):
             "--netuid",
             str(netuid),
             "--ip",
-            "invalid.ip.address",  # Invalid IP
+            invalid_ip_address,
             "--port",
             "8091",
             "--no-prompt",
         ],
     )
 
-    # Should fail with invalid IP
     assert (
-        result.exit_code != 0
-        or "invalid ip" in result.stdout.lower()
-        or "failed" in result.stdout.lower()
-    ), f"Expected error for invalid IP, got: {result.stdout}"
+        "Failed to set axon: Invalid IP address: invalid.ip.address. "
+        "Error: failed to detect a valid IP address from 'invalid.ip.address'"
+    ) in result.stderr, f"Expected error for invalid IP, got: {result.stderr}"

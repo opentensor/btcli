@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from typing import TYPE_CHECKING, Optional, Protocol
 
 from bittensor_wallet import Keypair, Wallet
@@ -445,6 +446,7 @@ def execute_turn_off_hyperparam_freeze_window(
 ):
     try:
         asyncio.run(turn_off_hyperparam_freeze_window(local_chain, wallet))
+        time.sleep(3)
     except ValueError:
         print(
             "Skipping turning off hyperparams freeze window. This indicates the call does not exist on the chain you are testing."
