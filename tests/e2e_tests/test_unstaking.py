@@ -1,12 +1,13 @@
 import asyncio
 import json
 import re
-
+import pytest
 from bittensor_cli.src.bittensor.balances import Balance
 
 from .utils import set_storage_extrinsic
 
 
+@pytest.mark.parametrize("local_chain", [False], indirect=True)
 def test_unstaking(local_chain, wallet_setup):
     """
     Test various unstaking scenarios including partial unstake, unstake all alpha, and unstake all.
@@ -387,9 +388,7 @@ def test_unstaking(local_chain, wallet_setup):
         ],
     )
 
-    assert (
-        "✅ Finalized: Successfully unstaked all Alpha stakes" in unstake_alpha.stdout
-    )
+    assert "✅ Included: Successfully unstaked all Alpha stakes" in unstake_alpha.stdout
     assert "Your extrinsic has been included" in unstake_alpha.stdout, (
         unstake_alpha.stdout
     )
@@ -442,6 +441,6 @@ def test_unstaking(local_chain, wallet_setup):
             "144",
         ],
     )
-    assert "✅ Finalized: Successfully unstaked all stakes from" in unstake_all.stdout
+    assert "✅ Included: Successfully unstaked all stakes from" in unstake_all.stdout
     assert "Your extrinsic has been included" in unstake_all.stdout, unstake_all.stdout
     print("Passed unstaking tests 🎉")

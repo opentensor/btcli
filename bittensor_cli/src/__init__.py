@@ -114,6 +114,11 @@ class Defaults:
             },
         }
 
+    class proxies:
+        base_path = "~/.bittensor"
+        path = "~/.bittensor/bittensor.db"
+        dictionary = {}
+
     class subtensor:
         network = "finney"
         chain_endpoint = None
@@ -733,6 +738,9 @@ HELP_PANELS = {
         "INITIATOR": "Crowdloan Creation & Management",
         "PARTICIPANT": "Crowdloan Participation",
         "INFO": "Crowdloan Information",
+    },
+    "PROXY": {
+        "MGMT": "Proxy Account Management",
     },
 }
 
