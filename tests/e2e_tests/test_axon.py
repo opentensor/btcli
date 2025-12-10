@@ -84,7 +84,31 @@ def test_axon_reset_and_set(local_chain, wallet_setup):
         ],
     )
     assert result.exit_code == 0, f"Neuron registration failed: {result.stdout}"
-
+    
+    # Set serving rate limit to 0 to allow immediate axon updates
+    result = exec_command_alice(
+        command="sudo",
+        sub_command="set",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--netuid",
+            str(netuid),
+            "--param",
+            "serving_rate_limit",
+            "--value",
+            "0",
+            "--no-prompt",
+        ],
+    )
+    assert result.exit_code == 0, f"Setting serving_rate_limit failed: {result.stdout}"
+    
     # Set axon information
     test_ip = "192.168.1.100"
     test_port = 8091
@@ -267,7 +291,31 @@ def test_axon_set_with_ipv6(local_chain, wallet_setup):
         ],
     )
     assert result.exit_code == 0, f"Neuron registration failed: {result.stdout}"
-
+    
+    # Set serving rate limit to 0 to allow immediate axon updates
+    result = exec_command_bob(
+        command="sudo",
+        sub_command="set",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_bob,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_bob.name,
+            "--wallet-hotkey",
+            wallet_bob.hotkey_str,
+            "--netuid",
+            str(netuid),
+            "--param",
+            "serving_rate_limit",
+            "--value",
+            "0",
+            "--no-prompt",
+        ],
+    )
+    assert result.exit_code == 0, f"Setting serving_rate_limit failed: {result.stdout}"
+    
     # Set axon with IPv6 address
     test_ipv6 = "2001:db8::1"
     test_port = 8092
@@ -368,7 +416,31 @@ def test_axon_set_invalid_inputs(local_chain, wallet_setup):
         ],
     )
     assert result.exit_code == 0
-
+    
+    # Set serving rate limit to 0 to allow immediate axon updates
+    result = exec_command_charlie(
+        command="sudo",
+        sub_command="set",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_charlie,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_charlie.name,
+            "--wallet-hotkey",
+            wallet_charlie.hotkey_str,
+            "--netuid",
+            str(netuid),
+            "--param",
+            "serving_rate_limit",
+            "--value",
+            "0",
+            "--no-prompt",
+        ],
+    )
+    assert result.exit_code == 0, f"Setting serving_rate_limit failed: {result.stdout}"
+    
     # Test with invalid port (too high)
     result = exec_command_charlie(
         command="axon",
