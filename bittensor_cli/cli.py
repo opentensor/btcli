@@ -163,7 +163,9 @@ def validate_claim_type(value: Optional[str]) -> Optional[claim_stake.ClaimType]
                 return member
         return claim_stake.ClaimType(value)
     except ValueError:
-        raise typer.BadParameter(f"'{value}' is not one of 'Keep', 'Swap'.")
+        raise typer.BadParameter(
+            f"'{value}' is not one of 'Keep', 'Swap', 'Delegated'."
+        )
 
 
 class Options:
@@ -5838,6 +5840,7 @@ class CLIManager:
         • [green]Swap[/green]: Future Root Alpha Emissions are swapped to TAO and added to root stake (default)
         • [yellow]Keep[/yellow]: Future Root Alpha Emissions are kept as Alpha tokens
         • [cyan]Keep Specific[/cyan]: Keep specific subnets as Alpha, swap others to TAO. You can use this type by selecting the netuids.
+        • [magenta]Delegated[/magenta]: Delegate claim choice to validator (inherits validator claim type)
 
         USAGE:
 
@@ -5846,6 +5849,7 @@ class CLIManager:
         [green]$[/green] btcli stake claim swap [cyan](Swap all subnets)[/cyan]
         [green]$[/green] btcli stake claim keep --netuids 1-5,10,20-30 [cyan](Keep specific subnets)[/cyan]
         [green]$[/green] btcli stake claim swap --netuids 1-30 [cyan](Swap specific subnets)[/cyan]
+        [green]$[/green] btcli stake claim delegated [cyan](Delegate claim choice to validator)[/cyan]
 
         With specific wallet:
 
