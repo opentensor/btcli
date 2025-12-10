@@ -6,8 +6,12 @@ Verify commands:
 * btcli axon set
 """
 
+import json
+
 import pytest
 import re
+
+from tests.e2e_tests.utils import execute_turn_off_hyperparam_freeze_window
 
 
 @pytest.mark.parametrize("local_chain", [None], indirect=True)
@@ -24,12 +28,14 @@ def test_axon_reset_and_set(local_chain, wallet_setup):
     6. Verifies the axon is reset (0.0.0.0:1 - not serving)
     """
     wallet_path_alice = "//Alice"
-    netuid = 1
+    netuid = 2
 
     # Create wallet for Alice
     keypair_alice, wallet_alice, wallet_path_alice, exec_command_alice = wallet_setup(
         wallet_path_alice
     )
+
+    execute_turn_off_hyperparam_freeze_window(local_chain, wallet_alice)
 
     # Register a subnet with sudo as Alice
     result = exec_command_alice(
@@ -81,10 +87,12 @@ def test_axon_reset_and_set(local_chain, wallet_setup):
             "--netuid",
             str(netuid),
             "--no-prompt",
+            "--json-output",
         ],
     )
-    assert result.exit_code == 0, f"Neuron registration failed: {result.stdout}"
-    
+    json_result = json.loads(result.stdout)
+    assert json_result["success"] is True, (result.stdout, result.stdout)
+
     # Set serving rate limit to 0 to allow immediate axon updates
     result = exec_command_alice(
         command="sudo",
@@ -105,10 +113,14 @@ def test_axon_reset_and_set(local_chain, wallet_setup):
             "--value",
             "0",
             "--no-prompt",
+            "--json-output",
         ],
     )
-    assert result.exit_code == 0, f"Setting serving_rate_limit failed: {result.stdout}"
-    
+    result_json = json.loads(result.stdout)
+    assert result_json["success"] is True, (
+        f"Setting serving_rate_limit failed: {result.stdout}"
+    )
+
     # Set axon information
     test_ip = "192.168.1.100"
     test_port = 8091
@@ -155,7 +167,6 @@ def test_axon_reset_and_set(local_chain, wallet_setup):
             str(netuid),
         ],
     )
-
     assert result.exit_code == 0, f"Wallet overview failed: {result.stdout}"
 
     # Check that axon column shows an IP (not "none")
@@ -192,9 +203,9 @@ def test_axon_reset_and_set(local_chain, wallet_setup):
     )
 
     assert result.exit_code == 0, f"Axon reset failed: {result.stdout}"
-    assert (
-        "successfully" in result.stdout.lower() or "success" in result.stdout.lower()
-    ), f"Success message not found in output: {result.stdout}"
+    assert "Axon reset successfully" in result.stdout, (
+        f"Success message not found in output: {result.stdout}"
+    )
 
     # Verify axon is reset by checking wallet overview
     result = exec_command_alice(
@@ -211,14 +222,13 @@ def test_axon_reset_and_set(local_chain, wallet_setup):
             str(netuid),
         ],
     )
-
     assert result.exit_code == 0, f"Wallet overview failed: {result.stdout}"
 
-    # Check that axon column shows "none" after reset
+    # Check that axon column shows the reset ip:port value (0.0.0.0:1) after reset
     lines = result.stdout.split("\n")
     axon_reset = False
     for line in lines:
-        if wallet_alice.hotkey_str[:8] in line and "none" in line.lower():
+        if wallet_alice.hotkey_str[:8] in line and "0.0.0.0:1" in line.lower():
             axon_reset = True
             break
 
@@ -231,12 +241,14 @@ def test_axon_set_with_ipv6(local_chain, wallet_setup):
     Test setting axon with IPv6 address.
     """
     wallet_path_bob = "//Bob"
-    netuid = 1
+    netuid = 2
 
     # Create wallet for Bob
     keypair_bob, wallet_bob, wallet_path_bob, exec_command_bob = wallet_setup(
         wallet_path_bob
     )
+
+    execute_turn_off_hyperparam_freeze_window(local_chain, wallet_bob)
 
     # Register a subnet with sudo as Bob
     result = exec_command_bob(
@@ -288,10 +300,12 @@ def test_axon_set_with_ipv6(local_chain, wallet_setup):
             "--netuid",
             str(netuid),
             "--no-prompt",
+            "--json-output",
         ],
     )
-    assert result.exit_code == 0, f"Neuron registration failed: {result.stdout}"
-    
+    json_result = json.loads(result.stdout)
+    assert json_result["success"] is True, (result.stdout, result.stdout)
+
     # Set serving rate limit to 0 to allow immediate axon updates
     result = exec_command_bob(
         command="sudo",
@@ -312,10 +326,14 @@ def test_axon_set_with_ipv6(local_chain, wallet_setup):
             "--value",
             "0",
             "--no-prompt",
+            "--json-output",
         ],
     )
-    assert result.exit_code == 0, f"Setting serving_rate_limit failed: {result.stdout}"
-    
+    result_json = json.loads(result.stdout)
+    assert result_json["success"] is True, (
+        f"Setting serving_rate_limit failed: {result.stdout}"
+    )
+
     # Set axon with IPv6 address
     test_ipv6 = "2001:db8::1"
     test_port = 8092
@@ -345,9 +363,9 @@ def test_axon_set_with_ipv6(local_chain, wallet_setup):
     )
 
     assert result.exit_code == 0, f"Axon set with IPv6 failed: {result.stdout}"
-    assert (
-        "successfully" in result.stdout.lower() or "success" in result.stdout.lower()
-    ), f"Success message not found in output: {result.stdout}"
+    assert f"Axon set successfully to {test_ipv6}:{test_port}" in result.stdout, (
+        f"Success message not found in output: {result.stdout}"
+    )
 
 
 @pytest.mark.parametrize("local_chain", [None], indirect=True)
@@ -416,7 +434,7 @@ def test_axon_set_invalid_inputs(local_chain, wallet_setup):
         ],
     )
     assert result.exit_code == 0
-    
+
     # Set serving rate limit to 0 to allow immediate axon updates
     result = exec_command_charlie(
         command="sudo",
@@ -440,7 +458,7 @@ def test_axon_set_invalid_inputs(local_chain, wallet_setup):
         ],
     )
     assert result.exit_code == 0, f"Setting serving_rate_limit failed: {result.stdout}"
-    
+
     # Test with invalid port (too high)
     result = exec_command_charlie(
         command="axon",
