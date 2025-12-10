@@ -67,9 +67,12 @@ def test_axon_reset_and_set(local_chain, wallet_setup):
             "--additional-info",
             "Axon test subnet",
             "--no-prompt",
+            "--no-mev-protection",
         ],
     )
-    assert result.exit_code == 0, f"Subnet creation failed: {result.stdout}"
+    assert f"Registered subnetwork with netuid: {netuid}" in result.stdout, (
+        f"Subnet creation failed: {result.stdout}|{result.stderr}"
+    )
 
     # Register neuron on the subnet
     result = exec_command_alice(
@@ -282,9 +285,12 @@ def test_axon_set_with_ipv6(local_chain, wallet_setup):
             "--additional-info",
             "IPv6 test subnet",
             "--no-prompt",
+            "--no-mev-protection",
         ],
     )
-    assert result.exit_code == 0, f"Subnet creation failed: {result.stdout}"
+    assert f"Registered subnetwork with netuid: {netuid}" in result.stdout, (
+        f"Subnet creation failed: {result.stdout}|{result.stderr}"
+    )
 
     # Register neuron on the subnet
     result = exec_command_bob(
@@ -413,6 +419,7 @@ def test_axon_set_invalid_inputs(local_chain, wallet_setup):
             "--additional-info",
             "Invalid inputs test subnet",
             "--no-prompt",
+            "--no-mev-protection",
         ],
     )
     assert result.exit_code == 0
