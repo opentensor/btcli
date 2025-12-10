@@ -1838,7 +1838,7 @@ async def register(
     if not await subtensor.subnet_exists(netuid=netuid, block_hash=block_hash):
         err_console.print(f"[red]Subnet {netuid} does not exist[/red]")
         if json_output:
-            json_console.print(
+            json_console.print_json(
                 data={
                     "success": False,
                     "msg": f"Subnet {netuid} does not exist",
