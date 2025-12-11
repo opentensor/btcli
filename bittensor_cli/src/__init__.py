@@ -687,7 +687,10 @@ HYPERPARAMS = {
     # They are derived or set via other mechanisms
     "alpha_high": ("", RootSudoOnly.FALSE),  # Derived from alpha_values
     "alpha_low": ("", RootSudoOnly.FALSE),  # Derived from alpha_values
-    "max_weight_limit": ("sudo_set_max_weight_limit", RootSudoOnly.FALSE),  # Alias for max_weights_limit
+    "max_weight_limit": (
+        "sudo_set_max_weight_limit",
+        RootSudoOnly.FALSE,
+    ),  # Alias for max_weights_limit
     "subnet_is_active": ("", RootSudoOnly.FALSE),  # Set via btcli subnets start
     "yuma_version": ("", RootSudoOnly.FALSE),  # Related to yuma3_enabled
 }
@@ -879,7 +882,7 @@ HYPERPARAMS_METADATA = {
         "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#userliquidityenabled",
     },
     "bonds_reset_enabled": {
-        "description": "Enable or disable periodic bond resets..",
+        "description": "Enable or disable periodic bond resets.",
         "side_effects": "Enabling provides periodic bond resets, preventing bond accumulation. Disabling allows bonds to accumulate.",
         "owner_settable": True,
         "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#bondsresetenabled",

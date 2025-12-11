@@ -6369,15 +6369,15 @@ class CLIManager:
         Used to set hyperparameters for a specific subnet.
 
         This command allows subnet owners to modify hyperparameters such as its tempo, emission rates, and other hyperparameters.
-        
+
         When listing hyperparameters, descriptions, ownership information, and side-effects are displayed to help you make informed decisions.
-        
+
         You can also set custom hyperparameters not in the standard list by using the exact parameter name from the chain metadata.
 
         EXAMPLE
 
         [green]$[/green] btcli sudo set --netuid 1 --param tempo --value 400
-        
+
         [green]$[/green] btcli sudo set --netuid 1 --param custom_param_name --value 123
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
@@ -6402,10 +6402,11 @@ class CLIManager:
                 [field.name for field in fields(SubnetHyperparameters)]
             )
             console.print("Available hyperparameters:\n")
-            
+
             # Create a table to show hyperparameters with descriptions
             from rich.table import Table, Column
             from rich import box
+
             param_table = Table(
                 Column("[white]#", style="dim", width=4),
                 Column("[white]HYPERPARAMETER", style=COLORS.SU.HYPERPARAMETER),
@@ -6415,11 +6416,11 @@ class CLIManager:
                 show_edge=False,
                 pad_edge=False,
             )
-            
+
             for idx, param in enumerate(hyperparam_list, start=1):
                 metadata = HYPERPARAMS_METADATA.get(param, {})
                 description = metadata.get("description", "No description available.")
-                
+
                 # Check ownership from HYPERPARAMS
                 _, root_sudo = HYPERPARAMS.get(param, ("", RootSudoOnly.FALSE))
                 if root_sudo == RootSudoOnly.TRUE:
@@ -6428,44 +6429,50 @@ class CLIManager:
                     owner_settable_str = "[yellow]Maybe[/yellow]"
                 else:
                     owner_settable_str = "[green]Yes[/green]"
-                
+
                 param_table.add_row(
                     str(idx),
                     f"[bold]{param}[/bold]",
                     owner_settable_str,
                     description,
                 )
-            
+
             console.print(param_table)
             console.print()
-                        
+
             choice = IntPrompt.ask(
                 "Enter the [bold]number[/bold] of the hyperparameter",
                 choices=[str(i) for i in range(1, len(hyperparam_list) + 1)],
                 show_choices=False,
             )
             param_name = hyperparam_list[choice - 1]
-            
+
             # Show additional info for selected parameter
             metadata = HYPERPARAMS_METADATA.get(param_name, {})
             if metadata:
                 console.print(f"\n[bold cyan]Selected:[/bold cyan] {param_name}")
-                description = metadata.get('description', 'No description available.')
-                docs_link = metadata.get('docs_link', '')
+                description = metadata.get("description", "No description available.")
+                docs_link = metadata.get("docs_link", "")
                 if docs_link:
                     # Show description text followed by clickable blue [link] at the end
                     # Use Rich Text to create clickable [link] with blue color
                     from rich.text import Text
+
                     desc_text = Text(f"{description} ")
-                    desc_text.append("[link]", style=f"link https://{docs_link} bright_blue underline")
+                    desc_text.append(
+                        "[link]",
+                        style=f"link https://{docs_link} bright_blue underline",
+                    )
                     console.print(desc_text)
                 else:
                     console.print(f"{description}")
-                side_effects = metadata.get('side_effects', '')
+                side_effects = metadata.get("side_effects", "")
                 if side_effects:
                     console.print(f"[dim]Side Effects:[/dim] {side_effects}")
                 if docs_link:
-                    console.print(f"[dim]📚 Docs:[/dim] [link]https://{docs_link}[/link]\n")
+                    console.print(
+                        f"[dim]📚 Docs:[/dim] [link]https://{docs_link}[/link]\n"
+                    )
 
         if param_name in ["alpha_high", "alpha_low"]:
             if not prompt:
@@ -6564,7 +6571,7 @@ class CLIManager:
     ):
         """
         Shows a list of the hyperparameters for the specified subnet.
-        
+
         Displays hyperparameter values along with descriptions, ownership information (which parameters can be set by subnet owners vs root sudo), and side-effects.
 
         EXAMPLE

@@ -771,7 +771,10 @@ async def sudo_set_hyperparameter(
 
 
 async def get_hyperparameters(
-    subtensor: "SubtensorInterface", netuid: int, json_output: bool = False, show_descriptions: bool = True
+    subtensor: "SubtensorInterface",
+    netuid: int,
+    json_output: bool = False,
+    show_descriptions: bool = True,
 ) -> bool:
     """View hyperparameters of a subnetwork."""
     print_verbose("Fetching hyperparameters")
@@ -832,7 +835,7 @@ async def get_hyperparameters(
                 # Get metadata for this hyperparameter
                 metadata = HYPERPARAMS_METADATA.get(param, {})
                 description = metadata.get("description", "No description available.")
-                
+
                 # Check actual ownership from HYPERPARAMS
                 _, root_sudo = HYPERPARAMS.get(param, ("", RootSudoOnly.FALSE))
                 if root_sudo == RootSudoOnly.TRUE:
@@ -841,17 +844,20 @@ async def get_hyperparameters(
                     owner_settable_str = "[yellow]Maybe (Owner/Sudo)[/yellow]"
                 else:
                     owner_settable_str = "[green]Yes[/green]"
-                
+
                 # Format description with docs link if available
                 docs_link = metadata.get("docs_link", "")
                 if docs_link:
                     # Use Rich Text to create description with clickable bright blue [link] at the end
                     description_text = Text(f"{description} ")
-                    description_text.append("[link]", style=f"link https://{docs_link} bright_blue underline")
+                    description_text.append(
+                        "[link]",
+                        style=f"link https://{docs_link} bright_blue underline",
+                    )
                     description_with_link = description_text
                 else:
                     description_with_link = description
-                
+
                 table.add_row(
                     "  " + param,
                     value,
@@ -867,18 +873,18 @@ async def get_hyperparameters(
             description = metadata.get("description", "No description available.")
             side_effects = metadata.get("side_effects", "No side effects documented.")
             docs_link = metadata.get("docs_link", "")
-            
+
             # Remove all control characters (0x00-0x1F and 0x7F-0x9F) and replace with space
             # Then collapse multiple spaces into single space
             # This ensures valid JSON output
-            description = re.sub(r'[\x00-\x1f\x7f-\x9f]', ' ', str(description))
-            side_effects = re.sub(r'[\x00-\x1f\x7f-\x9f]', ' ', str(side_effects))
-            docs_link = re.sub(r'[\x00-\x1f\x7f-\x9f]', ' ', str(docs_link))
+            description = re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", str(description))
+            side_effects = re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", str(side_effects))
+            docs_link = re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", str(docs_link))
             # Collapse multiple spaces
-            description = ' '.join(description.split())
-            side_effects = ' '.join(side_effects.split())
-            docs_link = ' '.join(docs_link.split())
-            
+            description = " ".join(description.split())
+            side_effects = " ".join(side_effects.split())
+            docs_link = " ".join(docs_link.split())
+
             dict_out.append(
                 {
                     "hyperparameter": str(param),

@@ -501,11 +501,21 @@ def test_staking(local_chain, wallet_setup):
     all_hyperparams = json.loads(hyperparams.stdout)
     # Verify new metadata fields are present in JSON output
     for hyperparam in all_hyperparams:
-        assert "description" in hyperparam, f"Missing description for {hyperparam['hyperparameter']}"
-        assert "side_effects" in hyperparam, f"Missing side_effects for {hyperparam['hyperparameter']}"
-        assert "owner_settable" in hyperparam, f"Missing owner_settable for {hyperparam['hyperparameter']}"
-        assert "docs_link" in hyperparam, f"Missing docs_link for {hyperparam['hyperparameter']}"
-        assert isinstance(hyperparam["description"], str), f"Description should be string for {hyperparam['hyperparameter']}"
+        assert "description" in hyperparam, (
+            f"Missing description for {hyperparam['hyperparameter']}"
+        )
+        assert "side_effects" in hyperparam, (
+            f"Missing side_effects for {hyperparam['hyperparameter']}"
+        )
+        assert "owner_settable" in hyperparam, (
+            f"Missing owner_settable for {hyperparam['hyperparameter']}"
+        )
+        assert "docs_link" in hyperparam, (
+            f"Missing docs_link for {hyperparam['hyperparameter']}"
+        )
+        assert isinstance(hyperparam["description"], str), (
+            f"Description should be string for {hyperparam['hyperparameter']}"
+        )
     max_burn_tao = next(
         filter(lambda x: x["hyperparameter"] == "max_burn", all_hyperparams)
     )["value"]
@@ -606,10 +616,18 @@ def test_staking(local_chain, wallet_setup):
             lambda x: x["hyperparameter"] == "max_burn", updated_hyperparams_json_output
         )
     )
-    assert "description" in max_burn_updated, "Missing description for max_burn after update"
-    assert "side_effects" in max_burn_updated, "Missing side_effects for max_burn after update"
-    assert "owner_settable" in max_burn_updated, "Missing owner_settable for max_burn after update"
-    assert "docs_link" in max_burn_updated, "Missing docs_link for max_burn after update"
+    assert "description" in max_burn_updated, (
+        "Missing description for max_burn after update"
+    )
+    assert "side_effects" in max_burn_updated, (
+        "Missing side_effects for max_burn after update"
+    )
+    assert "owner_settable" in max_burn_updated, (
+        "Missing owner_settable for max_burn after update"
+    )
+    assert "docs_link" in max_burn_updated, (
+        "Missing docs_link for max_burn after update"
+    )
     max_burn_tao_from_json = max_burn_updated["value"]
     assert Balance.from_rao(max_burn_tao_from_json) == Balance.from_tao(10.0)
 
