@@ -499,6 +499,13 @@ def test_staking(local_chain, wallet_setup):
 
     # Parse all hyperparameters and single out max_burn in TAO
     all_hyperparams = json.loads(hyperparams.stdout)
+    # Verify new metadata fields are present in JSON output
+    for hyperparam in all_hyperparams:
+        assert "description" in hyperparam, f"Missing description for {hyperparam['hyperparameter']}"
+        assert "side_effects" in hyperparam, f"Missing side_effects for {hyperparam['hyperparameter']}"
+        assert "owner_settable" in hyperparam, f"Missing owner_settable for {hyperparam['hyperparameter']}"
+        assert "docs_link" in hyperparam, f"Missing docs_link for {hyperparam['hyperparameter']}"
+        assert isinstance(hyperparam["description"], str), f"Description should be string for {hyperparam['hyperparameter']}"
     max_burn_tao = next(
         filter(lambda x: x["hyperparameter"] == "max_burn", all_hyperparams)
     )["value"]
@@ -518,9 +525,15 @@ def test_staking(local_chain, wallet_setup):
         ],
     )
     hyperparams_json_output = json.loads(hyperparams_json.stdout)
-    max_burn_tao_from_json = next(
+    # Verify metadata fields are present in this JSON output too
+    max_burn_param = next(
         filter(lambda x: x["hyperparameter"] == "max_burn", hyperparams_json_output)
-    )["value"]
+    )
+    assert "description" in max_burn_param, "Missing description for max_burn"
+    assert "side_effects" in max_burn_param, "Missing side_effects for max_burn"
+    assert "owner_settable" in max_burn_param, "Missing owner_settable for max_burn"
+    assert "docs_link" in max_burn_param, "Missing docs_link for max_burn"
+    max_burn_tao_from_json = max_burn_param["value"]
     assert Balance.from_rao(max_burn_tao_from_json) == Balance.from_tao(100.0)
 
     # Change max_burn hyperparameter to 10 TAO
@@ -587,11 +600,17 @@ def test_staking(local_chain, wallet_setup):
         ],
     )
     updated_hyperparams_json_output = json.loads(updated_hyperparams_json.stdout)
-    max_burn_tao_from_json = next(
+    # Verify metadata fields are still present after update
+    max_burn_updated = next(
         filter(
             lambda x: x["hyperparameter"] == "max_burn", updated_hyperparams_json_output
         )
-    )["value"]
+    )
+    assert "description" in max_burn_updated, "Missing description for max_burn after update"
+    assert "side_effects" in max_burn_updated, "Missing side_effects for max_burn after update"
+    assert "owner_settable" in max_burn_updated, "Missing owner_settable for max_burn after update"
+    assert "docs_link" in max_burn_updated, "Missing docs_link for max_burn after update"
+    max_burn_tao_from_json = max_burn_updated["value"]
     assert Balance.from_rao(max_burn_tao_from_json) == Balance.from_tao(10.0)
 
     change_yuma3_hyperparam = exec_command_alice(

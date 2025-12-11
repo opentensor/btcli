@@ -7,11 +7,13 @@ from bittensor_wallet import Wallet
 from rich import box
 from rich.table import Column, Table
 from rich.prompt import Confirm
+from rich.text import Text
 from scalecodec import GenericCall
 
 from bittensor_cli.src import (
     HYPERPARAMS,
     HYPERPARAMS_MODULE,
+    HYPERPARAMS_METADATA,
     RootSudoOnly,
     DelegatesDetails,
     COLOR_PALETTE,
@@ -768,7 +770,7 @@ async def sudo_set_hyperparameter(
 
 
 async def get_hyperparameters(
-    subtensor: "SubtensorInterface", netuid: int, json_output: bool = False
+    subtensor: "SubtensorInterface", netuid: int, json_output: bool = False, show_descriptions: bool = True
 ) -> bool:
     """View hyperparameters of a subnetwork."""
     print_verbose("Fetching hyperparameters")
@@ -782,40 +784,120 @@ async def get_hyperparameters(
         print_error(f"Subnet with netuid {netuid} does not exist.")
         return False
 
-    table = Table(
-        Column("[white]HYPERPARAMETER", style=COLOR_PALETTE.SU.HYPERPARAMETER),
-        Column("[white]VALUE", style=COLOR_PALETTE.SU.VALUE),
-        Column("[white]NORMALIZED", style=COLOR_PALETTE.SU.NORMAL),
-        title=f"[{COLOR_PALETTE.G.HEADER}]\nSubnet Hyperparameters\n NETUID: "
-        f"[{COLOR_PALETTE.G.SUBHEAD}]{netuid}"
-        f"{f' ({subnet_info.subnet_name})' if subnet_info.subnet_name is not None else ''}"
-        f"[/{COLOR_PALETTE.G.SUBHEAD}]"
-        f" - Network: [{COLOR_PALETTE.G.SUBHEAD}]{subtensor.network}[/{COLOR_PALETTE.G.SUBHEAD}]\n",
-        show_footer=True,
-        width=None,
-        pad_edge=False,
-        box=box.SIMPLE,
-        show_edge=True,
-    )
+    # Determine if we should show extended info (descriptions, ownership)
+    show_extended = show_descriptions and not json_output
+
+    if show_extended:
+        table = Table(
+            Column("[white]HYPERPARAMETER", style=COLOR_PALETTE.SU.HYPERPARAMETER),
+            Column("[white]VALUE", style=COLOR_PALETTE.SU.VALUE),
+            Column("[white]NORMALIZED", style=COLOR_PALETTE.SU.NORMAL),
+            Column("[white]OWNER SETTABLE", style="bright_cyan"),
+            Column("[white]DESCRIPTION", style="dim", overflow="fold"),
+            title=f"[{COLOR_PALETTE.G.HEADER}]\nSubnet Hyperparameters\n NETUID: "
+            f"[{COLOR_PALETTE.G.SUBHEAD}]{netuid}"
+            f"{f' ({subnet_info.subnet_name})' if subnet_info.subnet_name is not None else ''}"
+            f"[/{COLOR_PALETTE.G.SUBHEAD}]"
+            f" - Network: [{COLOR_PALETTE.G.SUBHEAD}]{subtensor.network}[/{COLOR_PALETTE.G.SUBHEAD}]\n",
+            show_footer=True,
+            width=None,
+            pad_edge=False,
+            box=box.SIMPLE,
+            show_edge=True,
+        )
+    else:
+        table = Table(
+            Column("[white]HYPERPARAMETER", style=COLOR_PALETTE.SU.HYPERPARAMETER),
+            Column("[white]VALUE", style=COLOR_PALETTE.SU.VALUE),
+            Column("[white]NORMALIZED", style=COLOR_PALETTE.SU.NORMAL),
+            title=f"[{COLOR_PALETTE.G.HEADER}]\nSubnet Hyperparameters\n NETUID: "
+            f"[{COLOR_PALETTE.G.SUBHEAD}]{netuid}"
+            f"{f' ({subnet_info.subnet_name})' if subnet_info.subnet_name is not None else ''}"
+            f"[/{COLOR_PALETTE.G.SUBHEAD}]"
+            f" - Network: [{COLOR_PALETTE.G.SUBHEAD}]{subtensor.network}[/{COLOR_PALETTE.G.SUBHEAD}]\n",
+            show_footer=True,
+            width=None,
+            pad_edge=False,
+            box=box.SIMPLE,
+            show_edge=True,
+        )
     dict_out = []
 
     normalized_values = normalize_hyperparameters(subnet, json_output=json_output)
     sorted_values = sorted(normalized_values, key=lambda x: x[0])
     for param, value, norm_value in sorted_values:
         if not json_output:
-            table.add_row("  " + param, value, norm_value)
+            if show_extended:
+                # Get metadata for this hyperparameter
+                metadata = HYPERPARAMS_METADATA.get(param, {})
+                owner_settable = metadata.get("owner_settable", False)
+                description = metadata.get("description", "No description available.")
+                
+                # Check actual ownership from HYPERPARAMS
+                _, root_sudo = HYPERPARAMS.get(param, ("", RootSudoOnly.FALSE))
+                if root_sudo == RootSudoOnly.TRUE:
+                    owner_settable_str = "[red]No (Root Only)[/red]"
+                elif root_sudo == RootSudoOnly.COMPLICATED:
+                    owner_settable_str = "[yellow]Maybe (Owner/Sudo)[/yellow]"
+                else:
+                    owner_settable_str = "[green]Yes[/green]"
+                
+                # Format description with docs link if available
+                docs_link = metadata.get("docs_link", "")
+                if docs_link:
+                    # Use Rich Text to create description with clickable bright blue [link] at the end
+                    description_text = Text(f"{description} ")
+                    description_text.append("[link]", style=f"link https://{docs_link} bright_blue underline")
+                    description_with_link = description_text
+                else:
+                    description_with_link = description
+                
+                table.add_row(
+                    "  " + param,
+                    value,
+                    norm_value,
+                    owner_settable_str,
+                    description_with_link,
+                )
+            else:
+                table.add_row("  " + param, value, norm_value)
         else:
+            metadata = HYPERPARAMS_METADATA.get(param, {})
             dict_out.append(
                 {
                     "hyperparameter": param,
                     "value": value,
                     "normalized_value": norm_value,
+                    "owner_settable": metadata.get("owner_settable", False),
+                    "description": metadata.get("description", "No description available."),
+                    "side_effects": metadata.get("side_effects", "No side effects documented."),
+                    "docs_link": metadata.get("docs_link", ""),
                 }
             )
     if json_output:
         json_console.print(json.dumps(dict_out))
     else:
         console.print(table)
+        if show_extended:
+            console.print(
+                f"\n[dim]💡 Tip: Use [bold]btcli sudo set --param <name> --value <value>[/bold] to modify hyperparameters."
+            )
+            console.print(
+                f"[dim]💡 Tip: Subnet owners can set parameters marked '[green]Yes[/green]'. "
+                f"Parameters marked '[red]No (Root Only)[/red]' require root sudo access."
+            )
+            console.print(
+                f"[dim]💡 Tip: To set custom hyperparameters not in this list, use the exact parameter name from the chain metadata."
+            )
+            console.print(
+                f"[dim]   Example: [bold]btcli sudo set --netuid {netuid} --param custom_param_name --value 123[/bold]"
+            )
+            console.print(
+                f"[dim]   The parameter name must match exactly as defined in the chain's AdminUtils pallet metadata."
+            )
+            console.print(
+                f"[dim]📚 For detailed documentation, visit: [link]https://docs.bittensor.com[/link]"
+            )
     return True
 
 
