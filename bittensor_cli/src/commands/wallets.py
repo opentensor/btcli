@@ -83,6 +83,8 @@ async def associate_hotkey(
     hotkey_ss58: str,
     hotkey_display: str,
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
     proxy: Optional[str] = None,
 ):
     """Associates a hotkey with a wallet"""
@@ -109,7 +111,7 @@ async def associate_hotkey(
             f"{hotkey_display.capitalize()} is not associated with any wallet"
         )
 
-    if prompt and not confirm_action("Do you want to continue with the association?"):
+    if prompt and not confirm_action("Do you want to continue with the association?", decline=decline, quiet=quiet):
         return False
 
     if not unlock_key(wallet).success:
@@ -2047,6 +2049,8 @@ async def schedule_coldkey_swap(
     subtensor: SubtensorInterface,
     new_coldkey_ss58: str,
     force_swap: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
     proxy: Optional[str] = None,
 ) -> bool:
     """Schedules a coldkey swap operation to be executed at a future block.
@@ -2076,13 +2080,13 @@ async def schedule_coldkey_swap(
                 "[yellow]Continuing with the swap due to force_swap flag.[/yellow]\n"
             )
 
-    prompt = (
+    prompt_msg = (
         "You are [red]swapping[/red] your [blue]coldkey[/blue] to a new address.\n"
         f"Current ss58: [{COLORS.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.G.CK}]\n"
         f"New ss58: [{COLORS.G.CK}]{new_coldkey_ss58}[/{COLORS.G.CK}]\n"
         "Are you sure you want to continue?"
     )
-    if not confirm_action(prompt):
+    if not confirm_action(prompt_msg, decline=decline, quiet=quiet):
         return False
 
     if not unlock_key(wallet).success:

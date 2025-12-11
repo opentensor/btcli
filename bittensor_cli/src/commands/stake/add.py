@@ -41,6 +41,8 @@ async def stake_add(
     stake_all: bool,
     amount: float,
     prompt: bool,
+    decline: bool,
+    quiet: bool,
     all_hotkeys: bool,
     include_hotkeys: list[str],
     exclude_hotkeys: list[str],
@@ -463,7 +465,7 @@ async def stake_add(
     _print_table_and_slippage(table, max_slippage, safe_staking)
 
     if prompt:
-        if not confirm_action("Would you like to continue?"):
+        if not confirm_action("Would you like to continue?", decline=decline, quiet=quiet):
             return
     if not unlock_key(wallet).success:
         return

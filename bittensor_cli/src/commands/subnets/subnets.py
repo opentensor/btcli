@@ -120,6 +120,8 @@ async def register_subnetwork_extrinsic(
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = True,
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
     mev_protection: bool = True,
 ) -> tuple[bool, Optional[int], Optional[str]]:
     """Registers a new subnetwork.
@@ -181,7 +183,9 @@ async def register_subnetwork_extrinsic(
             f"Your balance is: [{COLOR_PALETTE['POOLS']['TAO']}]{your_balance}"
         )
         if not confirm_action(
-            f"Do you want to burn [{COLOR_PALETTE['POOLS']['TAO']}]{sn_burn_cost} to register a subnet?"
+            f"Do you want to burn [{COLOR_PALETTE['POOLS']['TAO']}]{sn_burn_cost} to register a subnet?",
+            decline=decline,
+            quiet=quiet,
         ):
             return False, None, None
 
@@ -1727,6 +1731,8 @@ async def create(
     proxy: Optional[str],
     json_output: bool,
     prompt: bool,
+    decline: bool = False,
+    quiet: bool = False,
     mev_protection: bool = True,
 ):
     """Register a subnetwork"""
@@ -1737,6 +1743,8 @@ async def create(
         wallet=wallet,
         subnet_identity=subnet_identity,
         prompt=prompt,
+        decline=decline,
+        quiet=quiet,
         proxy=proxy,
         mev_protection=mev_protection,
     )
@@ -1752,7 +1760,9 @@ async def create(
     if success and prompt:
         # Prompt for user to set identity.
         do_set_identity = confirm_action(
-            "Would you like to set your own [blue]identity?[/blue]"
+            "Would you like to set your own [blue]identity?[/blue]",
+            decline=decline,
+            quiet=quiet,
         )
 
         if do_set_identity:
@@ -1762,7 +1772,9 @@ async def create(
             if prompt:
                 if not confirm_action(
                     "\nCost to register an [blue]Identity[/blue] is [blue]0.1 TAO[/blue],"
-                    " are you sure you wish to continue?"
+                    " are you sure you wish to continue?",
+                    decline=decline,
+                    quiet=quiet,
                 ):
                     console.print(":cross_mark: Aborted!")
                     return False
@@ -1829,6 +1841,8 @@ async def register(
     era: Optional[int],
     json_output: bool,
     prompt: bool,
+    decline: bool = False,
+    quiet: bool = False,
     proxy: Optional[str] = None,
 ):
     """Register neuron by recycling some TAO."""
@@ -1930,6 +1944,8 @@ async def register(
                 f"[{COLOR_PALETTE.G.COST}]{current_recycle}[/{COLOR_PALETTE.G.COST}]\n"
                 f"Do you want to continue?",
                 default=False,
+                decline=decline,
+                quiet=quiet,
             )
         ):
             return
@@ -2476,6 +2492,8 @@ async def set_identity(
     netuid: int,
     subnet_identity: dict,
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
     proxy: Optional[str] = None,
 ) -> tuple[bool, Optional[str]]:
     """Set identity information for a subnet"""
@@ -2489,12 +2507,18 @@ async def set_identity(
         if not img_valid:
             confirmation_msg = f"Are you sure you want to use [blue]{logo_url}[/blue] as your image URL?"
             if err_msg:
-                if not confirm_action(f"{err_msg}\n{confirmation_msg}"):
+                if not confirm_action(
+                    f"{err_msg}\n{confirmation_msg}",
+                    decline=decline,
+                    quiet=quiet,
+                ):
                     return False, None
             else:
                 if not confirm_action(
                     f"The provided image's MIME type is {content_type}, which is not recognized as a valid"
-                    f" image MIME type.\n{confirmation_msg}"
+                    f" image MIME type.\n{confirmation_msg}",
+                    decline=decline,
+                    quiet=quiet,
                 ):
                     return False, None
 
@@ -2522,7 +2546,9 @@ async def set_identity(
 
     if prompt:
         if not confirm_action(
-            "Are you sure you want to set subnet's identity? This is subject to a fee."
+            "Are you sure you want to set subnet's identity? This is subject to a fee.",
+            decline=decline,
+            quiet=quiet,
         ):
             return False, None
 
@@ -2682,6 +2708,8 @@ async def start_subnet(
     netuid: int,
     proxy: Optional[str],
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
 ) -> bool:
     """Start a subnet's emission schedule"""
     coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
@@ -2701,7 +2729,9 @@ async def start_subnet(
 
     if prompt:
         if not confirm_action(
-            f"Are you sure you want to start subnet {netuid}'s emission schedule?"
+            f"Are you sure you want to start subnet {netuid}'s emission schedule?",
+            decline=decline,
+            quiet=quiet,
         ):
             return False
 
@@ -2750,6 +2780,8 @@ async def set_symbol(
     proxy: Optional[str],
     period: int,
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
     json_output: bool = False,
 ) -> bool:
     """
@@ -2771,7 +2803,9 @@ async def set_symbol(
     if prompt and not json_output:
         sn_info = await subtensor.subnet(netuid=netuid)
         if not confirm_action(
-            f"Your current subnet symbol for SN{netuid} is {sn_info.symbol}. Do you want to update it to {symbol}?"
+            f"Your current subnet symbol for SN{netuid} is {sn_info.symbol}. Do you want to update it to {symbol}?",
+            decline=decline,
+            quiet=quiet,
         ):
             return False
 

@@ -33,6 +33,8 @@ async def update_crowdloan(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
     json_output: bool = False,
 ) -> tuple[bool, str]:
     """Update parameters of a non-finalized crowdloan.
@@ -333,7 +335,10 @@ async def update_crowdloan(
     console.print(table)
 
     if prompt and not confirm_action(
-        f"\n[bold]Proceed with updating {update_type}?[/bold]", default=False
+        f"\n[bold]Proceed with updating {update_type}?[/bold]",
+        default=False,
+        decline=decline,
+        quiet=quiet,
     ):
         if json_output:
             json_console.print(

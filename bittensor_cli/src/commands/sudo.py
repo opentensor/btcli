@@ -264,6 +264,8 @@ async def set_hyperparameter_extrinsic(
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = True,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
 ) -> tuple[bool, str, Optional[str]]:
     """Sets a hyperparameter for a specific subnetwork.
 
@@ -311,7 +313,9 @@ async def set_hyperparameter_extrinsic(
             return False, err_msg, None
     if sudo_ is RootSudoOnly.TRUE and prompt:
         if not confirm_action(
-            "This hyperparam is only settable by root sudo users. If you are not, this will fail. Please confirm"
+            "This hyperparam is only settable by root sudo users. If you are not, this will fail. Please confirm",
+            decline=decline,
+            quiet=quiet,
         ):
             return False, "This hyperparam is only settable by root sudo users", None
 
@@ -366,7 +370,9 @@ async def set_hyperparameter_extrinsic(
             to_sudo_or_not_to_sudo = True  # default to sudo true when no-prompt is set
         else:
             to_sudo_or_not_to_sudo = confirm_action(
-                f"This hyperparam can be executed as sudo or not. Do you want to execute as sudo [y] or not [n]?"
+                f"This hyperparam can be executed as sudo or not. Do you want to execute as sudo [y] or not [n]?",
+                decline=decline,
+                quiet=quiet,
             )
         if to_sudo_or_not_to_sudo:
             call = await substrate.compose_call(
@@ -583,6 +589,8 @@ async def vote_senate_extrinsic(
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = True,
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
 ) -> bool:
     """Votes ayes or nays on proposals.
 
@@ -604,7 +612,7 @@ async def vote_senate_extrinsic(
 
     if prompt:
         # Prompt user for confirmation.
-        if not confirm_action(f"Cast a vote of {vote}?"):
+        if not confirm_action(f"Cast a vote of {vote}?", decline=decline, quiet=quiet):
             return False
 
     with console.status(":satellite: Casting vote..", spinner="aesthetic"):
@@ -1091,6 +1099,8 @@ async def trim(
     max_n: int,
     period: int,
     prompt: bool,
+    decline: bool,
+    quiet: bool,
     json_output: bool,
 ) -> bool:
     """
@@ -1114,6 +1124,8 @@ async def trim(
         if not confirm_action(
             f"You are about to trim UIDs on SN{netuid} to a limit of {max_n}",
             default=False,
+            decline=decline,
+            quiet=quiet,
         ):
             err_console.print(":cross_mark: [red]User aborted.[/red]")
     call = await subtensor.substrate.compose_call(

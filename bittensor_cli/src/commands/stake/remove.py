@@ -45,6 +45,8 @@ async def unstake(
     exclude_hotkeys: list[str],
     amount: float,
     prompt: bool,
+    decline: bool,
+    quiet: bool,
     interactive: bool,
     netuid: Optional[int],
     safe_staking: bool,
@@ -93,6 +95,8 @@ async def unstake(
                 "[blue]Yes[/blue]: Unstake from all subnets and automatically re-stake to subnet 0 (root)\n"
                 "[blue]No[/blue]: Unstake everything (including subnet 0)",
                 default=True,
+                decline=decline,
+                quiet=quiet,
             )
             return await unstake_all(
                 wallet=wallet,
@@ -316,7 +320,7 @@ async def unstake(
 
     _print_table_and_slippage(table, max_float_slippage, safe_staking)
     if prompt:
-        if not confirm_action("Would you like to continue?"):
+        if not confirm_action("Would you like to continue?", decline=decline, quiet=quiet):
             return False
 
     # Execute extrinsics
@@ -379,6 +383,8 @@ async def unstake_all(
     exclude_hotkeys: Optional[list[str]] = None,
     era: int = 3,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
     json_output: bool = False,
     proxy: Optional[str] = None,
     mev_protection: bool = True,
@@ -545,7 +551,9 @@ async def unstake_all(
     )
 
     if prompt and not confirm_action(
-        "\nDo you want to proceed with unstaking everything?"
+        "\nDo you want to proceed with unstaking everything?",
+        decline=decline,
+        quiet=quiet,
     ):
         return
 

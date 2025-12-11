@@ -28,6 +28,8 @@ async def refund_crowdloan(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
     json_output: bool = False,
 ) -> tuple[bool, str]:
     """Refund contributors of a non-finalized crowdloan.
@@ -151,6 +153,8 @@ async def refund_crowdloan(
     if prompt and not confirm_action(
         f"\n[bold]Proceed with refunding contributors of Crowdloan #{crowdloan_id}?[/bold]",
         default=False,
+        decline=decline,
+        quiet=quiet,
     ):
         if json_output:
             json_console.print(

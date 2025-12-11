@@ -371,6 +371,8 @@ async def set_root_weights_extrinsic(
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = False,
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
 ) -> bool:
     """Sets the given weights and values on chain for wallet hotkey account.
 
@@ -472,7 +474,11 @@ async def set_root_weights_extrinsic(
             table.add_row(str(netuid), f"{weight:.8f}")
 
         console.print(table)
-        if not confirm_action("\nDo you want to set these root weights?"):
+        if not confirm_action(
+            "\nDo you want to set these root weights?",
+            decline=decline,
+            quiet=quiet,
+        ):
             return False
 
     try:

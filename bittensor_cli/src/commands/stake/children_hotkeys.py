@@ -62,6 +62,8 @@ async def set_children_extrinsic(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
 ) -> tuple[bool, str, Optional[str]]:
     """
     Sets children hotkeys with proportions assigned from the parent.
@@ -88,7 +90,9 @@ async def set_children_extrinsic(
     if prompt:
         if all_revoked:
             if not confirm_action(
-                f"Do you want to revoke all children hotkeys for hotkey {hotkey} on netuid {netuid}?"
+                f"Do you want to revoke all children hotkeys for hotkey {hotkey} on netuid {netuid}?",
+                decline=decline,
+                quiet=quiet,
             ):
                 return False, "Operation Cancelled", None
         else:
@@ -98,7 +102,9 @@ async def set_children_extrinsic(
                         f"  {child[1]}: {child[0]}"
                         for child in children_with_proportions
                     )
-                )
+                ),
+                decline=decline,
+                quiet=quiet,
             ):
                 return False, "Operation Cancelled", None
 
@@ -157,6 +163,8 @@ async def set_childkey_take_extrinsic(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
 ) -> tuple[bool, str, Optional[str]]:
     """
     Sets childkey take.
@@ -179,7 +187,9 @@ async def set_childkey_take_extrinsic(
     # Ask before moving on.
     if prompt:
         if not confirm_action(
-            f"Do you want to set childkey take to: [bold white]{take * 100}%[/bold white]?"
+            f"Do you want to set childkey take to: [bold white]{take * 100}%[/bold white]?",
+            decline=decline,
+            quiet=quiet,
         ):
             return False, "Operation Cancelled", None
 
@@ -708,6 +718,8 @@ async def childkey_take(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
 ) -> list[tuple[Optional[int], bool, Optional[str]]]:
     """
     Get or Set childkey take.
@@ -813,7 +825,7 @@ async def childkey_take(
 
     # Validate child SS58 addresses
     if not take:
-        if not confirm_action("Would you like to change the child take?"):
+        if not confirm_action("Would you like to change the child take?", decline=decline, quiet=quiet):
             return [(netuid, False, None)]
         new_take_value = -1.0
         while not validate_take_value(new_take_value):

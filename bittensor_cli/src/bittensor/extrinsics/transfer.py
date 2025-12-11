@@ -33,6 +33,8 @@ async def transfer_extrinsic(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
     proxy: Optional[str] = None,
     announce_only: bool = False,
 ) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
@@ -194,6 +196,8 @@ async def transfer_extrinsic(
                 f"Only proceed if you are absolutely sure that [bright_magenta]{destination}[/bright_magenta] is the "
                 f"correct destination.",
                 default=False,
+                decline=decline,
+                quiet=quiet,
             ):
                 return False, None
         if not confirm_action(
@@ -204,7 +208,9 @@ async def transfer_extrinsic(
             f"  to: [bright_magenta]{destination}[/bright_magenta]\n  for fee: [bright_cyan]{fee}[/bright_cyan]\n"
             f"[bright_yellow]Transferring is not the same as staking. To instead stake, use "
             f"[dark_orange]btcli stake add[/dark_orange] instead[/bright_yellow].\n"
-            f"Proceed with transfer?"
+            f"Proceed with transfer?",
+            decline=decline,
+            quiet=quiet,
         ):
             return False, None
 

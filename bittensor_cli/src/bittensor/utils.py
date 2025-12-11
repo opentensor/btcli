@@ -47,53 +47,31 @@ json_console = Console()
 err_console = Console(stderr=True)
 verbose_console = Console(quiet=True)
 
-# Global state for --no flag (auto-decline confirmations)
-_decline_confirmations = False
-_quiet_mode = False
-
-
-def set_decline_confirmations(decline: bool) -> None:
-    """Set the global decline confirmations flag."""
-    global _decline_confirmations
-    _decline_confirmations = decline
-
-
-def get_decline_confirmations() -> bool:
-    """Get the current decline confirmations flag."""
-    return _decline_confirmations
-
-
-def set_quiet_mode(quiet: bool) -> None:
-    """Set the global quiet mode flag."""
-    global _quiet_mode
-    _quiet_mode = quiet
-
-
-def get_quiet_mode() -> bool:
-    """Get the current quiet mode flag."""
-    return _quiet_mode
-
 
 def confirm_action(
     message: str,
     default: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
 ) -> bool:
     """
     Ask for user confirmation with support for auto-decline via --no flag.
 
-    When --no/-n flag is set:
-    - Prints the prompt message (unless --quiet is specified)
+    When decline=True (--no flag is set):
+    - Prints the prompt message (unless quiet=True / --quiet is specified)
     - Automatically returns False (declines)
 
     Args:
         message: The confirmation message to display.
         default: Default value if user just presses Enter (only used in interactive mode).
+        decline: If True, automatically decline without prompting.
+        quiet: If True, suppresses the prompt message when auto-declining.
 
     Returns:
         True if confirmed, False if declined.
     """
-    if _decline_confirmations:
-        if not _quiet_mode:
+    if decline:
+        if not quiet:
             console.print(f"{message} [Auto-declined via --no flag]")
         return False
     return Confirm.ask(message, default=default)

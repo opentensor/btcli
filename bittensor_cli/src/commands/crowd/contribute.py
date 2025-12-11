@@ -58,8 +58,10 @@ async def contribute_to_crowdloan(
     crowdloan_id: int,
     amount: Optional[float],
     prompt: bool,
-    wait_for_inclusion: bool,
-    wait_for_finalization: bool,
+    decline: bool = False,
+    quiet: bool = False,
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = False,
     json_output: bool = False,
 ) -> tuple[bool, str]:
     """Contribute TAO to an active crowdloan.
@@ -223,7 +225,7 @@ async def contribute_to_crowdloan(
         )
 
     if prompt:
-        if not confirm_action("\nProceed with contribution?"):
+        if not confirm_action("\nProceed with contribution?", decline=decline, quiet=quiet):
             if json_output:
                 json_console.print(
                     json.dumps(
@@ -360,6 +362,8 @@ async def withdraw_from_crowdloan(
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
     prompt: bool,
+    decline: bool = False,
+    quiet: bool = False,
     json_output: bool = False,
 ) -> tuple[bool, str]:
     """
@@ -508,7 +512,7 @@ async def withdraw_from_crowdloan(
 
         console.print(table)
 
-        if not confirm_action("\nProceed with withdrawal?"):
+        if not confirm_action("\nProceed with withdrawal?", decline=decline, quiet=quiet):
             if json_output:
                 json_console.print(
                     json.dumps(

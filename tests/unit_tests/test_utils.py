@@ -5,10 +5,6 @@ from unittest.mock import AsyncMock, patch, MagicMock
 from bittensor_cli.src.bittensor.utils import (
     check_img_mimetype,
     confirm_action,
-    set_decline_confirmations,
-    get_decline_confirmations,
-    set_quiet_mode,
-    get_quiet_mode,
 )
 
 
@@ -84,24 +80,6 @@ async def test_get_image_url(img_url, status, content_type, expected_result):
 class TestConfirmAction:
     """Tests for the confirm_action helper function and --no flag behavior."""
 
-    def setup_method(self):
-        """Reset the global flags before each test."""
-        set_decline_confirmations(False)
-        set_quiet_mode(False)
-
-    def teardown_method(self):
-        """Reset the global flags after each test."""
-        set_decline_confirmations(False)
-        set_quiet_mode(False)
-
-    def test_get_set_decline_confirmations(self):
-        """Test that set/get decline_confirmations work correctly."""
-        assert get_decline_confirmations() is False
-        set_decline_confirmations(True)
-        assert get_decline_confirmations() is True
-        set_decline_confirmations(False)
-        assert get_decline_confirmations() is False
-
     def test_confirm_action_interactive_mode_yes(self):
         """Test confirm_action in interactive mode when user confirms."""
         with patch("bittensor_cli.src.bittensor.utils.Confirm.ask", return_value=True):
@@ -115,36 +93,24 @@ class TestConfirmAction:
             assert result is False
 
     def test_confirm_action_decline_flag_returns_false(self):
-        """Test that confirm_action returns False when --no flag is set."""
-        set_decline_confirmations(True)
+        """Test that confirm_action returns False when decline=True."""
         with patch("bittensor_cli.src.bittensor.utils.console.print") as mock_print:
-            result = confirm_action("Do you want to proceed?")
+            result = confirm_action("Do you want to proceed?", decline=True)
             assert result is False
             mock_print.assert_called_once()
             assert "Auto-declined via --no flag" in str(mock_print.call_args)
 
     def test_confirm_action_decline_flag_quiet_mode(self):
-        """Test that confirm_action suppresses message when --no and --quiet are set."""
-        set_decline_confirmations(True)
-        set_quiet_mode(True)
+        """Test that confirm_action suppresses message when decline=True and quiet=True."""
         with patch("bittensor_cli.src.bittensor.utils.console.print") as mock_print:
-            result = confirm_action("Do you want to proceed?")
+            result = confirm_action("Do you want to proceed?", decline=True, quiet=True)
             assert result is False
             mock_print.assert_not_called()
 
-    def test_get_set_quiet_mode(self):
-        """Test that set/get quiet_mode work correctly."""
-        assert get_quiet_mode() is False
-        set_quiet_mode(True)
-        assert get_quiet_mode() is True
-        set_quiet_mode(False)
-        assert get_quiet_mode() is False
-
     def test_confirm_action_decline_flag_does_not_call_confirm_ask(self):
-        """Test that Confirm.ask is not called when --no flag is set."""
-        set_decline_confirmations(True)
+        """Test that Confirm.ask is not called when decline=True."""
         with patch("bittensor_cli.src.bittensor.utils.Confirm.ask") as mock_ask:
-            result = confirm_action("Do you want to proceed?")
+            result = confirm_action("Do you want to proceed?", decline=True)
             assert result is False
             mock_ask.assert_not_called()
 
@@ -155,3 +121,13 @@ class TestConfirmAction:
         ) as mock_ask:
             confirm_action("Do you want to proceed?", default=True)
             mock_ask.assert_called_once_with("Do you want to proceed?", default=True)
+
+    def test_confirm_action_default_values(self):
+        """Test that decline and quiet default to False."""
+        with patch(
+            "bittensor_cli.src.bittensor.utils.Confirm.ask", return_value=True
+        ) as mock_ask:
+            # When decline=False (default), Confirm.ask should be called
+            result = confirm_action("Do you want to proceed?")
+            assert result is True
+            mock_ask.assert_called_once()

@@ -39,6 +39,8 @@ async def set_claim_type(
     proxy: Optional[str],
     netuids: Optional[str] = None,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
     json_output: bool = False,
 ) -> tuple[bool, str, Optional[str]]:
     """
@@ -105,7 +107,7 @@ async def set_claim_type(
 
     # Full wizard
     if claim_type is None and selected_netuids is None:
-        new_claim_info = await _ask_for_claim_types(wallet, subtensor, all_subnets)
+        new_claim_info = await _ask_for_claim_types(wallet, subtensor, all_subnets, decline=decline, quiet=quiet)
         if new_claim_info is None:
             msg = "Operation cancelled."
             console.print(f"[yellow]{msg}[/yellow]")
@@ -175,7 +177,7 @@ async def set_claim_type(
             )
         )
 
-        if not confirm_action("\nProceed with this change?"):
+        if not confirm_action("\nProceed with this change?", decline=decline, quiet=quiet):
             msg = "Operation cancelled."
             console.print(f"[yellow]{msg}[/yellow]")
             if json_output:
@@ -230,6 +232,8 @@ async def process_pending_claims(
     netuids: Optional[list[int]] = None,
     proxy: Optional[str] = None,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
     json_output: bool = False,
     verbose: bool = False,
 ) -> tuple[bool, str, Optional[str]]:
@@ -339,7 +343,7 @@ async def process_pending_claims(
     )
 
     if prompt:
-        if not confirm_action("Do you want to proceed?"):
+        if not confirm_action("Do you want to proceed?", decline=decline, quiet=quiet):
             msg = "Operation cancelled by user"
             console.print(f"[yellow]{msg}[/yellow]")
             if json_output:
@@ -515,6 +519,8 @@ async def _ask_for_claim_types(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
     all_subnets: list,
+    decline: bool = False,
+    quiet: bool = False,
 ) -> Optional[dict]:
     """
     Interactive prompts for claim type selection.
@@ -550,7 +556,10 @@ async def _ask_for_claim_types(
         return None
 
     apply_to_all = confirm_action(
-        f"\nSet {primary_choice.capitalize()} to ALL subnets?", default=True
+        f"\nSet {primary_choice.capitalize()} to ALL subnets?",
+        default=True,
+        decline=decline,
+        quiet=quiet,
     )
 
     if apply_to_all:
@@ -566,7 +575,7 @@ async def _ask_for_claim_types(
         )
 
     return await _prompt_claim_netuids(
-        wallet, subtensor, all_subnets, mode=primary_choice
+        wallet, subtensor, all_subnets, mode=primary_choice, decline=decline, quiet=quiet
     )
 
 
@@ -575,6 +584,8 @@ async def _prompt_claim_netuids(
     subtensor: "SubtensorInterface",
     all_subnets: list,
     mode: str = "keep",
+    decline: bool = False,
+    quiet: bool = False,
 ) -> Optional[dict]:
     """
     Interactive subnet selection.
@@ -632,7 +643,7 @@ async def _prompt_claim_netuids(
             else:
                 keep_subnets = [n for n in all_subnets if n not in selected]
 
-            if _preview_subnet_selection(keep_subnets, all_subnets):
+            if _preview_subnet_selection(keep_subnets, all_subnets, decline=decline, quiet=quiet):
                 if not keep_subnets:
                     return {"type": "Swap"}
                 elif set(keep_subnets) == set(all_subnets):
@@ -653,7 +664,12 @@ async def _prompt_claim_netuids(
             )
 
 
-def _preview_subnet_selection(keep_subnets: list[int], all_subnets: list[int]) -> bool:
+def _preview_subnet_selection(
+    keep_subnets: list[int],
+    all_subnets: list[int],
+    decline: bool = False,
+    quiet: bool = False,
+) -> bool:
     """Show preview and ask for confirmation."""
 
     swap_subnets = [n for n in all_subnets if n not in keep_subnets]
@@ -679,7 +695,7 @@ def _preview_subnet_selection(keep_subnets: list[int], all_subnets: list[int]) -
 
     console.print(Panel(preview_content))
 
-    return confirm_action("\nIs this correct?", default=True)
+    return confirm_action("\nIs this correct?", default=True, decline=decline, quiet=quiet)
 
 
 def _format_claim_type_display(

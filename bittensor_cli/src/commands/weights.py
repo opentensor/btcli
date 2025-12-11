@@ -42,6 +42,8 @@ class SetWeightsExtrinsic:
         salt: list[int],
         version_key: int,
         prompt: bool = False,
+        decline: bool = False,
+        quiet: bool = False,
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = False,
     ):
@@ -54,6 +56,8 @@ class SetWeightsExtrinsic:
         self.salt = salt
         self.version_key = version_key
         self.prompt = prompt
+        self.decline = decline
+        self.quiet = quiet
         self.wait_for_inclusion = wait_for_inclusion
         self.wait_for_finalization = wait_for_finalization
 
@@ -81,7 +85,9 @@ class SetWeightsExtrinsic:
         formatted_weight_vals = [float(v / 65535) for v in weight_vals]
         if self.prompt and not confirm_action(
             f"Do you want to set weights:\n[bold white]"
-            f"  weights: {formatted_weight_vals}\n  uids: {weight_uids}[/bold white ]?"
+            f"  weights: {formatted_weight_vals}\n  uids: {weight_uids}[/bold white ]?",
+            decline=self.decline,
+            quiet=self.quiet,
         ):
             return False, "Prompt refused.", None
 
@@ -288,7 +294,7 @@ class SetWeightsExtrinsic:
     async def reveal_weights_extrinsic(
         self, weight_uids, weight_vals
     ) -> tuple[bool, str, Optional[str]]:
-        if self.prompt and not confirm_action("Would you like to reveal weights?"):
+        if self.prompt and not confirm_action("Would you like to reveal weights?", decline=self.decline, quiet=self.quiet):
             return False, "User cancelled the operation.", None
 
         call = await self.subtensor.substrate.compose_call(
