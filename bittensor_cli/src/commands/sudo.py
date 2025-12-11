@@ -368,7 +368,7 @@ async def set_hyperparameter_extrinsic(
             to_sudo_or_not_to_sudo = True  # default to sudo true when no-prompt is set
         else:
             to_sudo_or_not_to_sudo = Confirm.ask(
-                f"This hyperparam can be executed as sudo or not. Do you want to execute as sudo [y] or not [n]?"
+                "This hyperparam can be executed as sudo or not. Do you want to execute as sudo [y] or not [n]?"
             )
         if to_sudo_or_not_to_sudo:
             call = await substrate.compose_call(
@@ -830,7 +830,6 @@ async def get_hyperparameters(
             if show_extended:
                 # Get metadata for this hyperparameter
                 metadata = HYPERPARAMS_METADATA.get(param, {})
-                owner_settable = metadata.get("owner_settable", False)
                 description = metadata.get("description", "No description available.")
                 
                 # Check actual ownership from HYPERPARAMS
@@ -880,23 +879,23 @@ async def get_hyperparameters(
         console.print(table)
         if show_extended:
             console.print(
-                f"\n[dim]💡 Tip: Use [bold]btcli sudo set --param <name> --value <value>[/bold] to modify hyperparameters."
+                "\n[dim]💡 Tip: Use [bold]btcli sudo set --param <name> --value <value>[/bold] to modify hyperparameters."
             )
             console.print(
-                f"[dim]💡 Tip: Subnet owners can set parameters marked '[green]Yes[/green]'. "
-                f"Parameters marked '[red]No (Root Only)[/red]' require root sudo access."
+                "[dim]💡 Tip: Subnet owners can set parameters marked '[green]Yes[/green]'. "
+                "Parameters marked '[red]No (Root Only)[/red]' require root sudo access."
             )
             console.print(
-                f"[dim]💡 Tip: To set custom hyperparameters not in this list, use the exact parameter name from the chain metadata."
+                "[dim]💡 Tip: To set custom hyperparameters not in this list, use the exact parameter name from the chain metadata."
             )
             console.print(
                 f"[dim]   Example: [bold]btcli sudo set --netuid {netuid} --param custom_param_name --value 123[/bold]"
             )
             console.print(
-                f"[dim]   The parameter name must match exactly as defined in the chain's AdminUtils pallet metadata."
+                "[dim]   The parameter name must match exactly as defined in the chain's AdminUtils pallet metadata."
             )
             console.print(
-                f"[dim]📚 For detailed documentation, visit: [link]https://docs.bittensor.com[/link]"
+                "[dim]📚 For detailed documentation, visit: [link]https://docs.bittensor.com[/link]"
             )
     return True
 
