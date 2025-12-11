@@ -14,6 +14,56 @@ from bittensor_cli.src.bittensor.utils import (
 )
 
 
+async def show_validator_claims(
+    subtensor,
+    hotkey_ss58: Optional[str] = None,
+    block_hash: Optional[str] = None,
+    verbose: bool = False,
+) -> None:
+    """
+    Display validator claim types (Keep/Swap) for all subnets of a validator hotkey.
+    Renders two tables: Keep & Swap based on subnet claim type.
+    """
+
+    hotkey_value = hotkey_ss58
+    if not hotkey_value:
+        err_console.print("[red]Hotkey SS58 address is required.[/red]")
+        return
+
+    block_hash = block_hash or await subtensor.substrate.get_chain_head()
+
+    validator_claims, subnets, mechanisms, ema_tao_inflow = await asyncio.gather(
+        subtensor.get_all_validator_claim_types(
+            hotkey_ss58=hotkey_value, block_hash=block_hash
+        ),
+        subtensor.all_subnets(block_hash=block_hash),
+        subtensor.get_all_subnet_mechanisms(block_hash=block_hash),
+        subtensor.get_all_subnet_ema_tao_inflow(block_hash=block_hash),
+    )
+
+    root_subnet = next(s for s in subnets if s.netuid == 0)
+    other_subnets = sorted(
+        [s for s in subnets if s.netuid != 0],
+        key=lambda x: (x.alpha_in.tao + x.alpha_out.tao) * x.price.tao,
+        reverse=True,
+    )
+    sorted_subnets = [root_subnet] + other_subnets
+
+    keep_rows = []
+    swap_rows = []
+
+    for subnet in sorted_subnets:
+        claim_type = validator_claims.get(subnet.netuid, "Keep")
+        row = _format_subnet_row(subnet, mechanisms, ema_tao_inflow, verbose)
+        if claim_type == "Swap":
+            swap_rows.append(row)
+        else:
+            keep_rows.append(row)
+
+    _render_table("Keep", keep_rows)
+    _render_table("[red]Swap[/red]", swap_rows)
+
+
 def _format_subnet_row(
     subnet: DynamicInfo,
     mechanisms: dict[int, int],
