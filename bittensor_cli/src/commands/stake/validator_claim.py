@@ -14,6 +14,51 @@ from bittensor_cli.src.bittensor.utils import (
 )
 
 
+def _format_subnet_row(
+    subnet: DynamicInfo,
+    mechanisms: dict[int, int],
+    ema_tao_inflow: dict[int, Any],
+    verbose: bool,
+) -> tuple[str, ...]:
+    """
+    Format a subnet row for display in a table.
+    """
+    symbol = f"{subnet.symbol}\u200e"
+    netuid = subnet.netuid
+    price_value = f"{subnet.price.tao:,.4f}"
+
+    market_cap = (subnet.alpha_in.tao + subnet.alpha_out.tao) * subnet.price.tao
+    market_cap_value = (
+        f"{millify_tao(market_cap)}" if not verbose else f"{market_cap:,.4f}"
+    )
+
+    emission_tao = 0.0 if netuid == 0 else subnet.tao_in_emission.tao
+
+    alpha_out_value = (
+        f"{millify_tao(subnet.alpha_out.tao)}"
+        if not verbose
+        else f"{subnet.alpha_out.tao:,.4f}"
+    )
+    alpha_out_cell = (
+        f"{alpha_out_value} {symbol}" if netuid != 0 else f"{symbol} {alpha_out_value}"
+    )
+
+    ema_value = ema_tao_inflow.get(netuid).tao if netuid in ema_tao_inflow else 0.0
+
+    return (
+        str(netuid),
+        f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
+        f"{subnet.symbol if netuid != 0 else 'τ'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}] "
+        f"{get_subnet_name(subnet)}",
+        f"{price_value} τ/{symbol}",
+        f"τ {market_cap_value}",
+        f"τ {emission_tao:,.4f}",
+        f"τ {ema_value:,.4f}",
+        alpha_out_cell,
+        str(mechanisms.get(netuid, 1)),
+    )
+
+
 def _render_table(title: str, rows: list[tuple[str, ...]]) -> None:
     table = Table(
         title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]{title}[/]",
