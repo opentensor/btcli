@@ -6404,8 +6404,6 @@ class CLIManager:
             console.print("Available hyperparameters:\n")
 
             # Create a table to show hyperparameters with descriptions
-            from rich.table import Table, Column
-            from rich import box
 
             param_table = Table(
                 Column("[white]#", style="dim", width=4),
@@ -6426,7 +6424,7 @@ class CLIManager:
                 if root_sudo == RootSudoOnly.TRUE:
                     owner_settable_str = "[red]No (Root Only)[/red]"
                 elif root_sudo == RootSudoOnly.COMPLICATED:
-                    owner_settable_str = "[yellow]Maybe[/yellow]"
+                    owner_settable_str = "[yellow]COMPLICATED[/yellow]"
                 else:
                     owner_settable_str = "[green]Yes[/green]"
 
@@ -6455,15 +6453,9 @@ class CLIManager:
                 docs_link = metadata.get("docs_link", "")
                 if docs_link:
                     # Show description text followed by clickable blue [link] at the end
-                    # Use Rich Text to create clickable [link] with blue color
-                    from rich.text import Text
-
-                    desc_text = Text(f"{description} ")
-                    desc_text.append(
-                        "[link]",
-                        style=f"link https://{docs_link} bright_blue underline",
+                    console.print(
+                        f"{description} [bright_blue underline link=https://{docs_link}]link[/]"
                     )
-                    console.print(desc_text)
                 else:
                     console.print(f"{description}")
                 side_effects = metadata.get("side_effects", "")
