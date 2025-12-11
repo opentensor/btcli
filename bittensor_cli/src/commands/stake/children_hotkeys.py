@@ -3,7 +3,7 @@ import json
 from typing import Optional
 
 from bittensor_wallet import Wallet
-from rich.prompt import Confirm, IntPrompt, FloatPrompt
+from rich.prompt import IntPrompt, FloatPrompt
 from rich.table import Table
 from rich.text import Text
 from async_substrate_interface.errors import SubstrateRequestException
@@ -11,6 +11,7 @@ from async_substrate_interface.errors import SubstrateRequestException
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
     err_console,
     float_to_u16,
@@ -86,12 +87,12 @@ async def set_children_extrinsic(
     # Ask before moving on.
     if prompt:
         if all_revoked:
-            if not Confirm.ask(
+            if not confirm_action(
                 f"Do you want to revoke all children hotkeys for hotkey {hotkey} on netuid {netuid}?"
             ):
                 return False, "Operation Cancelled", None
         else:
-            if not Confirm.ask(
+            if not confirm_action(
                 "Do you want to set children hotkeys:\n[bold white]{}[/bold white]?".format(
                     "\n".join(
                         f"  {child[1]}: {child[0]}"
@@ -177,7 +178,7 @@ async def set_childkey_take_extrinsic(
 
     # Ask before moving on.
     if prompt:
-        if not Confirm.ask(
+        if not confirm_action(
             f"Do you want to set childkey take to: [bold white]{take * 100}%[/bold white]?"
         ):
             return False, "Operation Cancelled", None
@@ -812,7 +813,7 @@ async def childkey_take(
 
     # Validate child SS58 addresses
     if not take:
-        if not Confirm.ask("Would you like to change the child take?"):
+        if not confirm_action("Would you like to change the child take?"):
             return [(netuid, False, None)]
         new_take_value = -1.0
         while not validate_take_value(new_take_value):

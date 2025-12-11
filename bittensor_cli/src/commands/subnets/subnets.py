@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Optional, cast
 
 from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Prompt
 from rich.console import Group
 from rich.progress import Progress, BarColumn, TextColumn
 from rich.table import Column, Table
@@ -26,6 +26,7 @@ from rich.live import Live
 from bittensor_cli.src.bittensor.minigraph import MiniGraph
 from bittensor_cli.src.commands.wallets import set_id, get_id
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
     create_and_populate_table,
     err_console,
@@ -179,7 +180,7 @@ async def register_subnetwork_extrinsic(
         console.print(
             f"Your balance is: [{COLOR_PALETTE['POOLS']['TAO']}]{your_balance}"
         )
-        if not Confirm.ask(
+        if not confirm_action(
             f"Do you want to burn [{COLOR_PALETTE['POOLS']['TAO']}]{sn_burn_cost} to register a subnet?"
         ):
             return False, None, None
@@ -1750,7 +1751,7 @@ async def create(
         return success
     if success and prompt:
         # Prompt for user to set identity.
-        do_set_identity = Confirm.ask(
+        do_set_identity = confirm_action(
             "Would you like to set your own [blue]identity?[/blue]"
         )
 
@@ -1759,7 +1760,7 @@ async def create(
                 subtensor, coldkey_ss58, "Current on-chain identity"
             )
             if prompt:
-                if not Confirm.ask(
+                if not confirm_action(
                     "\nCost to register an [blue]Identity[/blue] is [blue]0.1 TAO[/blue],"
                     " are you sure you wish to continue?"
                 ):
@@ -1923,7 +1924,7 @@ async def register(
         )
         console.print(table)
         if not (
-            Confirm.ask(
+            confirm_action(
                 f"Your balance is: [{COLOR_PALETTE.G.BAL}]{balance}[/{COLOR_PALETTE.G.BAL}]\n"
                 f"The cost to register by recycle is "
                 f"[{COLOR_PALETTE.G.COST}]{current_recycle}[/{COLOR_PALETTE.G.COST}]\n"
@@ -2488,10 +2489,10 @@ async def set_identity(
         if not img_valid:
             confirmation_msg = f"Are you sure you want to use [blue]{logo_url}[/blue] as your image URL?"
             if err_msg:
-                if not Confirm.ask(f"{err_msg}\n{confirmation_msg}"):
+                if not confirm_action(f"{err_msg}\n{confirmation_msg}"):
                     return False, None
             else:
-                if not Confirm.ask(
+                if not confirm_action(
                     f"The provided image's MIME type is {content_type}, which is not recognized as a valid"
                     f" image MIME type.\n{confirmation_msg}"
                 ):
@@ -2520,7 +2521,7 @@ async def set_identity(
         return False, None
 
     if prompt:
-        if not Confirm.ask(
+        if not confirm_action(
             "Are you sure you want to set subnet's identity? This is subject to a fee."
         ):
             return False, None
@@ -2699,7 +2700,7 @@ async def start_subnet(
         return False
 
     if prompt:
-        if not Confirm.ask(
+        if not confirm_action(
             f"Are you sure you want to start subnet {netuid}'s emission schedule?"
         ):
             return False
@@ -2769,7 +2770,7 @@ async def set_symbol(
 
     if prompt and not json_output:
         sn_info = await subtensor.subnet(netuid=netuid)
-        if not Confirm.ask(
+        if not confirm_action(
             f"Your current subnet symbol for SN{netuid} is {sn_info.symbol}. Do you want to update it to {symbol}?"
         ):
             return False

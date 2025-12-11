@@ -15,8 +15,6 @@ from rich.align import Align
 from rich.table import Column, Table
 from rich.tree import Tree
 from rich.padding import Padding
-from rich.prompt import Confirm
-
 from bittensor_cli.src import COLOR_PALETTE, COLORS, Constants
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
@@ -36,6 +34,7 @@ from bittensor_cli.src.bittensor.subtensor_interface import (
 )
 from bittensor_cli.src.bittensor.utils import (
     RAO_PER_TAO,
+    confirm_action,
     console,
     convert_blocks_to_time,
     err_console,
@@ -110,7 +109,7 @@ async def associate_hotkey(
             f"{hotkey_display.capitalize()} is not associated with any wallet"
         )
 
-    if prompt and not Confirm.ask("Do you want to continue with the association?"):
+    if prompt and not confirm_action("Do you want to continue with the association?"):
         return False
 
     if not unlock_key(wallet).success:
@@ -2083,7 +2082,7 @@ async def schedule_coldkey_swap(
         f"New ss58: [{COLORS.G.CK}]{new_coldkey_ss58}[/{COLORS.G.CK}]\n"
         "Are you sure you want to continue?"
     )
-    if not Confirm.ask(prompt):
+    if not confirm_action(prompt):
         return False
 
     if not unlock_key(wallet).success:

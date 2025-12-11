@@ -6,7 +6,6 @@ from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet
 from rich import box
 from rich.table import Column, Table
-from rich.prompt import Confirm
 from scalecodec import GenericCall
 
 from bittensor_cli.src import (
@@ -18,6 +17,7 @@ from bittensor_cli.src import (
 )
 from bittensor_cli.src.bittensor.chain_data import decode_account_id
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
     err_console,
     print_error,
@@ -310,7 +310,7 @@ async def set_hyperparameter_extrinsic(
             err_console.print(err_msg)
             return False, err_msg, None
     if sudo_ is RootSudoOnly.TRUE and prompt:
-        if not Confirm.ask(
+        if not confirm_action(
             "This hyperparam is only settable by root sudo users. If you are not, this will fail. Please confirm"
         ):
             return False, "This hyperparam is only settable by root sudo users", None
@@ -365,7 +365,7 @@ async def set_hyperparameter_extrinsic(
         if not prompt:
             to_sudo_or_not_to_sudo = True  # default to sudo true when no-prompt is set
         else:
-            to_sudo_or_not_to_sudo = Confirm.ask(
+            to_sudo_or_not_to_sudo = confirm_action(
                 f"This hyperparam can be executed as sudo or not. Do you want to execute as sudo [y] or not [n]?"
             )
         if to_sudo_or_not_to_sudo:
@@ -604,7 +604,7 @@ async def vote_senate_extrinsic(
 
     if prompt:
         # Prompt user for confirmation.
-        if not Confirm.ask(f"Cast a vote of {vote}?"):
+        if not confirm_action(f"Cast a vote of {vote}?"):
             return False
 
     with console.status(":satellite: Casting vote..", spinner="aesthetic"):
@@ -1111,7 +1111,7 @@ async def trim(
             err_console.print(f":cross_mark: [red]{err_msg}[/red]")
         return False
     if prompt and not json_output:
-        if not Confirm.ask(
+        if not confirm_action(
             f"You are about to trim UIDs on SN{netuid} to a limit of {max_n}",
             default=False,
         ):

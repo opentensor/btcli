@@ -4,7 +4,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Prompt
 from rich.panel import Panel
 from rich.table import Table, Column
 from rich import box
@@ -12,6 +12,7 @@ from rich import box
 from bittensor_cli.src import COLORS
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
     err_console,
     unlock_key,
@@ -174,7 +175,7 @@ async def set_claim_type(
             )
         )
 
-        if not Confirm.ask("\nProceed with this change?"):
+        if not confirm_action("\nProceed with this change?"):
             msg = "Operation cancelled."
             console.print(f"[yellow]{msg}[/yellow]")
             if json_output:
@@ -338,7 +339,7 @@ async def process_pending_claims(
     )
 
     if prompt:
-        if not Confirm.ask("Do you want to proceed?"):
+        if not confirm_action("Do you want to proceed?"):
             msg = "Operation cancelled by user"
             console.print(f"[yellow]{msg}[/yellow]")
             if json_output:
@@ -548,7 +549,7 @@ async def _ask_for_claim_types(
     if primary_choice == "cancel":
         return None
 
-    apply_to_all = Confirm.ask(
+    apply_to_all = confirm_action(
         f"\nSet {primary_choice.capitalize()} to ALL subnets?", default=True
     )
 
@@ -678,7 +679,7 @@ def _preview_subnet_selection(keep_subnets: list[int], all_subnets: list[int]) -
 
     console.print(Panel(preview_content))
 
-    return Confirm.ask("\nIs this correct?", default=True)
+    return confirm_action("\nIs this correct?", default=True)
 
 
 def _format_claim_type_display(

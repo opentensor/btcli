@@ -3,7 +3,7 @@ import json
 from typing import Optional
 
 from bittensor_wallet import Wallet
-from rich.prompt import Confirm, IntPrompt, FloatPrompt
+from rich.prompt import IntPrompt, FloatPrompt
 from rich.table import Table, Column, box
 
 from bittensor_cli.src import COLORS
@@ -11,6 +11,7 @@ from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
     blocks_to_duration,
+    confirm_action,
     console,
     json_console,
     print_error,
@@ -331,7 +332,7 @@ async def update_crowdloan(
 
     console.print(table)
 
-    if prompt and not Confirm.ask(
+    if prompt and not confirm_action(
         f"\n[bold]Proceed with updating {update_type}?[/bold]", default=False
     ):
         if json_output:

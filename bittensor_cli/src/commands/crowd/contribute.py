@@ -4,13 +4,14 @@ from typing import Optional
 from async_substrate_interface.utils.cache import asyncio
 from bittensor_wallet import Wallet
 from rich import box
-from rich.prompt import Confirm, FloatPrompt
+from rich.prompt import FloatPrompt
 from rich.table import Column, Table
 
 from bittensor_cli.src import COLORS
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
     json_console,
     print_error,
@@ -222,7 +223,7 @@ async def contribute_to_crowdloan(
         )
 
     if prompt:
-        if not Confirm.ask("\nProceed with contribution?"):
+        if not confirm_action("\nProceed with contribution?"):
             if json_output:
                 json_console.print(
                     json.dumps(
@@ -507,7 +508,7 @@ async def withdraw_from_crowdloan(
 
         console.print(table)
 
-        if not Confirm.ask("\nProceed with withdrawal?"):
+        if not confirm_action("\nProceed with withdrawal?"):
             if json_output:
                 json_console.print(
                     json.dumps(

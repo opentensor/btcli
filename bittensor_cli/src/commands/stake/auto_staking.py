@@ -5,10 +5,10 @@ from typing import Optional, TYPE_CHECKING
 from bittensor_wallet import Wallet
 from rich import box
 from rich.table import Table
-from rich.prompt import Confirm
 
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
     json_console,
     get_subnet_name,
@@ -246,7 +246,7 @@ async def set_auto_stake_destination(
         )
         console.print(table)
 
-        if not Confirm.ask("\nSet this auto-stake destination?", default=True):
+        if not confirm_action("\nSet this auto-stake destination?", default=True):
             return False
 
     if not unlock_key(wallet).success:

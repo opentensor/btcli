@@ -7,10 +7,10 @@ from typing import TYPE_CHECKING, Optional
 from bittensor_wallet import Wallet
 import numpy as np
 from numpy.typing import NDArray
-from rich.prompt import Confirm
 from async_substrate_interface.errors import SubstrateRequestException
 
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     err_console,
     console,
     format_error_message,
@@ -79,7 +79,7 @@ class SetWeightsExtrinsic:
 
         # Ask before moving on.
         formatted_weight_vals = [float(v / 65535) for v in weight_vals]
-        if self.prompt and not Confirm.ask(
+        if self.prompt and not confirm_action(
             f"Do you want to set weights:\n[bold white]"
             f"  weights: {formatted_weight_vals}\n  uids: {weight_uids}[/bold white ]?"
         ):
@@ -288,7 +288,7 @@ class SetWeightsExtrinsic:
     async def reveal_weights_extrinsic(
         self, weight_uids, weight_vals
     ) -> tuple[bool, str, Optional[str]]:
-        if self.prompt and not Confirm.ask("Would you like to reveal weights?"):
+        if self.prompt and not confirm_action("Would you like to reveal weights?"):
             return False, "User cancelled the operation.", None
 
         call = await self.subtensor.substrate.compose_call(
