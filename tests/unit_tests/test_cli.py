@@ -667,7 +667,7 @@ def test_stake_transfer_calls_proxy_validation():
 
 
 # ============================================================================
-# Tests for root weights difference display (Issue #183)
+# Tests for root weights difference display
 # ============================================================================
 
 
