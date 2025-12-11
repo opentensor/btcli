@@ -1,7 +1,7 @@
 import asyncio
 import json
 from collections import defaultdict
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Union
 
 from bittensor_wallet import Wallet
 from rich.prompt import Prompt
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 
 async def stake_list(
-    wallet: Wallet | list[Wallet],
+    wallet: Union[Wallet, list[Wallet]],
     coldkey_ss58: str,
     subtensor: "SubtensorInterface",
     live: bool = False,

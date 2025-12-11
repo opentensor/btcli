@@ -4450,9 +4450,7 @@ class CLIManager:
                     wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.PATH]
                 ).path
 
-            from bittensor_cli.src.bittensor.utils import get_coldkey_wallets_for_path
-
-            wallets_list = get_coldkey_wallets_for_path(wallet_path)
+            wallets_list = utils.get_coldkey_wallets_for_path(wallet_path)
 
             if not wallets_list:
                 print_error(f"No wallets found in path: {wallet_path}")
@@ -4490,13 +4488,15 @@ class CLIManager:
             f"live: {live}\n"
             f"no_prompt: {no_prompt}\n"
         )
+
+        # Determine wallet argument based on all_wallets flag
+        wallet_arg = (
+            wallets_list if all_wallets else (wallets_list[0] if wallets_list else None)
+        )
+
         return self._run_command(
             list_stake.stake_list(
-                wallets_list
-                if all_wallets
-                else wallets_list[0]
-                if wallets_list
-                else None,
+                wallet_arg,
                 coldkey_ss58 if not all_wallets else None,
                 self.initialize_chain(network),
                 live,
