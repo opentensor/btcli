@@ -901,13 +901,13 @@ HYPERPARAMS_METADATA = {
         "description": "High bound of the alpha range for stake calculations.",
         "side_effects": "Affects the upper bound of alpha conversion in staking mechanisms. Set via alpha_values parameter.",
         "owner_settable": True,
-        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#alpha-values",
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#alphasigmoidsteepness",
     },
     "alpha_low": {
         "description": "Low bound of the alpha range for stake calculations.",
         "side_effects": "Affects the lower bound of alpha conversion in staking mechanisms. Set via alpha_values parameter.",
         "owner_settable": True,
-        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#alpha-values",
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#alphasigmoidsteepness",
     },
     "max_weight_limit": {
         "description": "Maximum number of weight connections a neuron can have with other neurons.",
@@ -919,7 +919,7 @@ HYPERPARAMS_METADATA = {
         "description": "Whether the subnet is currently active and operational.",
         "side_effects": "When inactive, the subnet cannot process requests or participate in network operations. Set via 'btcli subnets start' command.",
         "owner_settable": True,
-        "docs_link": "docs.learnbittensor.org/subnets/managing-subnets#starting-subnets",
+        "docs_link": "docs.learnbittensor.org/subnets/managing-subnets#subnetisactive",
     },
     "yuma_version": {
         "description": "Version of the Yuma consensus mechanism.",
