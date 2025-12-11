@@ -8,7 +8,6 @@ from bittensor_wallet import Wallet
 from rich import box
 from rich.table import Column, Table
 from rich.prompt import Confirm
-from rich.text import Text
 from scalecodec import GenericCall
 
 from bittensor_cli.src import (
@@ -770,6 +769,20 @@ async def sudo_set_hyperparameter(
     return success, err_msg, ext_id
 
 
+def _sanitize_json_string(value: Union[str, int, float, bool, None]) -> Union[str, int, float, bool, None]:
+    """Sanitize string values for JSON output by removing control characters.
+    
+    Non-string values are returned as-is.
+    """
+    if isinstance(value, str):
+        # Remove all control characters (0x00-0x1F and 0x7F-0x9F) and replace with space
+        sanitized = re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", value)
+        # Collapse multiple spaces into single space
+        sanitized = " ".join(sanitized.split())
+        return sanitized
+    return value
+
+
 async def get_hyperparameters(
     subtensor: "SubtensorInterface",
     netuid: int,
@@ -841,20 +854,17 @@ async def get_hyperparameters(
                 if root_sudo == RootSudoOnly.TRUE:
                     owner_settable_str = "[red]No (Root Only)[/red]"
                 elif root_sudo == RootSudoOnly.COMPLICATED:
-                    owner_settable_str = "[yellow]Maybe (Owner/Sudo)[/yellow]"
+                    owner_settable_str = "[yellow]COMPLICATED (Owner/Sudo)[/yellow]"
                 else:
                     owner_settable_str = "[green]Yes[/green]"
 
                 # Format description with docs link if available
                 docs_link = metadata.get("docs_link", "")
                 if docs_link:
-                    # Use Rich Text to create description with clickable bright blue [link] at the end
-                    description_text = Text(f"{description} ")
-                    description_text.append(
-                        "[link]",
-                        style=f"link https://{docs_link} bright_blue underline",
+                    # Use Rich markup to create description with clickable bright blue [link] at the end
+                    description_with_link = (
+                        f"{description} [bright_blue underline link=https://{docs_link}]link[/]"
                     )
-                    description_with_link = description_text
                 else:
                     description_with_link = description
 
@@ -874,26 +884,16 @@ async def get_hyperparameters(
             side_effects = metadata.get("side_effects", "No side effects documented.")
             docs_link = metadata.get("docs_link", "")
 
-            # Remove all control characters (0x00-0x1F and 0x7F-0x9F) and replace with space
-            # Then collapse multiple spaces into single space
-            # This ensures valid JSON output
-            description = re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", str(description))
-            side_effects = re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", str(side_effects))
-            docs_link = re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", str(docs_link))
-            # Collapse multiple spaces
-            description = " ".join(description.split())
-            side_effects = " ".join(side_effects.split())
-            docs_link = " ".join(docs_link.split())
-
+            # Sanitize all string values to ensure valid JSON output
             dict_out.append(
                 {
-                    "hyperparameter": str(param),
-                    "value": value,
-                    "normalized_value": norm_value,
+                    "hyperparameter": _sanitize_json_string(str(param)),
+                    "value": _sanitize_json_string(value),
+                    "normalized_value": _sanitize_json_string(norm_value),
                     "owner_settable": bool(metadata.get("owner_settable", False)),
-                    "description": description,
-                    "side_effects": side_effects,
-                    "docs_link": docs_link,
+                    "description": _sanitize_json_string(description),
+                    "side_effects": _sanitize_json_string(side_effects),
+                    "docs_link": _sanitize_json_string(docs_link),
                 }
             )
     if json_output:
