@@ -4444,15 +4444,16 @@ class CLIManager:
             if coldkey_ss58:
                 print_error("Cannot use --all-wallets with --ss58 option")
                 raise typer.Exit()
-            
+
             if not wallet_path:
                 wallet_path = self.wallet_ask(
                     wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.PATH]
                 ).path
-            
+
             from bittensor_cli.src.bittensor.utils import get_coldkey_wallets_for_path
+
             wallets_list = get_coldkey_wallets_for_path(wallet_path)
-            
+
             if not wallets_list:
                 print_error(f"No wallets found in path: {wallet_path}")
                 raise typer.Exit()
@@ -4475,10 +4476,13 @@ class CLIManager:
                 else:
                     wallet_name = coldkey_or_ss58 if coldkey_or_ss58 else wallet_name
                     wallet = self.wallet_ask(
-                        wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
+                        wallet_name,
+                        wallet_path,
+                        wallet_hotkey,
+                        ask_for=[WO.NAME, WO.PATH],
                     )
             wallets_list = [wallet] if wallet else []
-            
+
         logger.debug(
             "args:\n"
             f"all_wallets: {all_wallets}\n"
@@ -4488,7 +4492,11 @@ class CLIManager:
         )
         return self._run_command(
             list_stake.stake_list(
-                wallets_list if all_wallets else wallets_list[0] if wallets_list else None,
+                wallets_list
+                if all_wallets
+                else wallets_list[0]
+                if wallets_list
+                else None,
                 coldkey_ss58 if not all_wallets else None,
                 self.initialize_chain(network),
                 live,
