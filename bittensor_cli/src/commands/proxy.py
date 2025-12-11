@@ -76,21 +76,32 @@ async def list_proxies(
         proxies_list, deposit = proxies_data
 
         if json_output:
-            json_console.print_json(
-                data={
-                    "success": True,
-                    "address": address,
-                    "deposit": str(deposit),
-                    "proxies": [
-                        {
-                            "delegate": p["delegate"],
-                            "proxy_type": p["proxy_type"],
-                            "delay": p["delay"],
-                        }
-                        for p in proxies_list
-                    ],
-                }
-            )
+            if not proxies_list:
+                json_console.print_json(
+                    data={
+                        "success": False,
+                        "message": f"No proxies found for address {address}",
+                        "address": address,
+                        "deposit": str(deposit),
+                        "proxies": [],
+                    }
+                )
+            else:
+                json_console.print_json(
+                    data={
+                        "success": True,
+                        "address": address,
+                        "deposit": str(deposit),
+                        "proxies": [
+                            {
+                                "delegate": p["delegate"],
+                                "proxy_type": p["proxy_type"],
+                                "delay": p["delay"],
+                            }
+                            for p in proxies_list
+                        ],
+                    }
+                )
         else:
             if not proxies_list:
                 console.print(f"No proxies found for address {address}")

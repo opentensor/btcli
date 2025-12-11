@@ -762,6 +762,35 @@ async def test_list_proxies_empty():
 
 
 @pytest.mark.asyncio
+async def test_list_proxies_empty_json_output():
+    """Test that list_proxies returns success=False in JSON when no proxies found"""
+    from bittensor_cli.src.commands.proxy import list_proxies
+
+    mock_subtensor = MagicMock()
+    mock_substrate = AsyncMock()
+    mock_subtensor.substrate = mock_substrate
+
+    mock_result = MagicMock()
+    mock_result.value = ([], 0)
+    mock_substrate.query = AsyncMock(return_value=mock_result)
+
+    with patch("bittensor_cli.src.commands.proxy.json_console") as mock_json_console:
+        await list_proxies(
+            subtensor=mock_subtensor,
+            address="5GTest...",
+            json_output=True,
+        )
+
+        # Verify JSON output with success=False
+        mock_json_console.print_json.assert_called_once()
+        call_args = mock_json_console.print_json.call_args
+        data = call_args.kwargs["data"]
+        assert data["success"] is False
+        assert "No proxies found" in data["message"]
+        assert data["proxies"] == []
+
+
+@pytest.mark.asyncio
 async def test_list_proxies_error_handling():
     """Test that list_proxies handles errors gracefully"""
     from bittensor_cli.src.commands.proxy import list_proxies
