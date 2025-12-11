@@ -4,6 +4,7 @@ from collections import namedtuple
 import math
 import os
 import sqlite3
+import sys
 import webbrowser
 from contextlib import contextmanager
 from pathlib import Path
@@ -42,10 +43,17 @@ BT_DOCS_LINK = "https://docs.learnbittensor.org"
 GLOBAL_MAX_SUBNET_COUNT = 4096
 MEV_SHIELD_PUBLIC_KEY_SIZE = 1184
 
-console = Console()
-json_console = Console()
-err_console = Console(stderr=True)
-verbose_console = Console(quiet=True)
+# Detect if we're in a test environment (pytest captures stdout, making it non-TTY)
+# or if NO_COLOR is set, disable colors
+# Also check for pytest environment variables
+_is_pytest = "pytest" in sys.modules or os.getenv("PYTEST_CURRENT_TEST") is not None
+_no_color = os.getenv("NO_COLOR", "") != "" or not sys.stdout.isatty() or _is_pytest
+# Force no terminal detection when in pytest or when stdout is not a TTY
+_force_terminal = False if (_is_pytest or not sys.stdout.isatty()) else None
+console = Console(no_color=_no_color, force_terminal=_force_terminal)
+json_console = Console(markup=False, highlight=False, force_terminal=False, no_color=True)
+err_console = Console(stderr=True, no_color=_no_color, force_terminal=_force_terminal)
+verbose_console = Console(quiet=True, no_color=_no_color, force_terminal=_force_terminal)
 
 jinja_env = Environment(
     loader=PackageLoader("bittensor_cli", "src/bittensor/templates"),

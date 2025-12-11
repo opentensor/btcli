@@ -6468,11 +6468,23 @@ class CLIManager:
 
         if param_name in ["alpha_high", "alpha_low"]:
             if not prompt:
-                err_console.print(
-                    f"[{COLORS.SU.HYPERPARAM}]alpha_high[/{COLORS.SU.HYPERPARAM}] and "
-                    f"[{COLORS.SU.HYPERPARAM}]alpha_low[/{COLORS.SU.HYPERPARAM}] "
-                    f"values cannot be set with `--no-prompt`"
+                err_msg = (
+                    f"alpha_high and alpha_low values cannot be set with `--no-prompt`. "
+                    f"They must be set together via the alpha_values parameter."
                 )
+                if json_output:
+                    json_str = json.dumps(
+                        {"success": False, "err_msg": err_msg, "extrinsic_identifier": None},
+                        ensure_ascii=True,
+                    )
+                    sys.stdout.write(json_str + "\n")
+                    sys.stdout.flush()
+                else:
+                    err_console.print(
+                        f"[{COLORS.SU.HYPERPARAM}]alpha_high[/{COLORS.SU.HYPERPARAM}] and "
+                        f"[{COLORS.SU.HYPERPARAM}]alpha_low[/{COLORS.SU.HYPERPARAM}] "
+                        f"values cannot be set with `--no-prompt`"
+                    )
                 return False
             param_name = "alpha_values"
             low_val = FloatPrompt.ask(f"Enter the new value for {arg__('alpha_low')}")
@@ -6480,10 +6492,22 @@ class CLIManager:
             param_value = f"{low_val},{high_val}"
         if param_name == "yuma_version":
             if not prompt:
-                err_console.print(
-                    f"[{COLORS.SU.HYPERPARAM}]yuma_version[/{COLORS.SU.HYPERPARAM}]"
-                    f" is set using a different hyperparameter, and thus cannot be set with `--no-prompt`"
+                err_msg = (
+                    "yuma_version is set using a different hyperparameter (yuma3_enabled), "
+                    "and thus cannot be set with `--no-prompt`"
                 )
+                if json_output:
+                    json_str = json.dumps(
+                        {"success": False, "err_msg": err_msg, "extrinsic_identifier": None},
+                        ensure_ascii=True,
+                    )
+                    sys.stdout.write(json_str + "\n")
+                    sys.stdout.flush()
+                else:
+                    err_console.print(
+                        f"[{COLORS.SU.HYPERPARAM}]yuma_version[/{COLORS.SU.HYPERPARAM}]"
+                        f" is set using a different hyperparameter, and thus cannot be set with `--no-prompt`"
+                    )
                 return False
             if Confirm.ask(
                 f"[{COLORS.SU.HYPERPARAM}]yuma_version[/{COLORS.SU.HYPERPARAM}] can only be used to toggle Yuma 3. "
@@ -6498,10 +6522,22 @@ class CLIManager:
             else:
                 return False
         if param_name == "subnet_is_active":
-            err_console.print(
-                f"[{COLORS.SU.HYPERPARAM}]subnet_is_active[/{COLORS.SU.HYPERPARAM}] "
-                f"is set by using {arg__('btcli subnets start')} command."
+            err_msg = (
+                "subnet_is_active is set by using the 'btcli subnets start' command, "
+                "not via sudo set"
             )
+            if json_output:
+                json_str = json.dumps(
+                    {"success": False, "err_msg": err_msg, "extrinsic_identifier": None},
+                    ensure_ascii=True,
+                )
+                sys.stdout.write(json_str + "\n")
+                sys.stdout.flush()
+            else:
+                err_console.print(
+                    f"[{COLORS.SU.HYPERPARAM}]subnet_is_active[/{COLORS.SU.HYPERPARAM}] "
+                    f"is set by using {arg__('btcli subnets start')} command."
+                )
             return False
 
         if not param_value:
@@ -6529,29 +6565,58 @@ class CLIManager:
             f"param_name: {param_name}\n"
             f"param_value: {param_value}"
         )
-        result, err_msg, ext_id = self._run_command(
-            sudo.sudo_set_hyperparameter(
-                wallet=wallet,
-                subtensor=self.initialize_chain(network),
-                netuid=netuid,
-                proxy=proxy,
-                param_name=param_name,
-                param_value=param_value,
-                prompt=prompt,
-                json_output=json_output,
-            )
-        )
         if json_output:
-            json_console.print(
-                json.dumps(
+            try:
+                result, err_msg, ext_id = self._run_command(
+                    sudo.sudo_set_hyperparameter(
+                        wallet=wallet,
+                        subtensor=self.initialize_chain(network),
+                        netuid=netuid,
+                        proxy=proxy,
+                        param_name=param_name,
+                        param_value=param_value,
+                        prompt=prompt,
+                        json_output=json_output,
+                    )
+                )
+                json_str = json.dumps(
                     {
                         "success": result,
                         "err_msg": err_msg,
                         "extrinsic_identifier": ext_id,
-                    }
+                    },
+                    ensure_ascii=True,
+                )
+                sys.stdout.write(json_str + "\n")
+                sys.stdout.flush()
+                return result
+            except Exception as e:
+                # Ensure JSON output even on exceptions
+                json_str = json.dumps(
+                    {
+                        "success": False,
+                        "err_msg": str(e),
+                        "extrinsic_identifier": None,
+                    },
+                    ensure_ascii=True,
+                )
+                sys.stdout.write(json_str + "\n")
+                sys.stdout.flush()
+                raise
+        else:
+            result, err_msg, ext_id = self._run_command(
+                sudo.sudo_set_hyperparameter(
+                    wallet=wallet,
+                    subtensor=self.initialize_chain(network),
+                    netuid=netuid,
+                    proxy=proxy,
+                    param_name=param_name,
+                    param_value=param_value,
+                    prompt=prompt,
+                    json_output=json_output,
                 )
             )
-        return result
+            return result
 
     def sudo_get(
         self,

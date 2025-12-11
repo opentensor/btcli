@@ -1,6 +1,7 @@
 import asyncio
 import json
 import re
+import sys
 from typing import TYPE_CHECKING, Union, Optional, Type
 
 from async_substrate_interface import AsyncExtrinsicReceipt
@@ -753,7 +754,15 @@ async def sudo_set_hyperparameter(
             f"Hyperparameter [dark_orange]{param_name}[/dark_orange] value is not within bounds. "
             f"Value is {param_value} but must be {value}"
         )
-        err_console.print(err_msg)
+        if json_output:
+            json_str = json.dumps(
+                {"success": False, "err_msg": err_msg, "extrinsic_identifier": None},
+                ensure_ascii=True,
+            )
+            sys.stdout.write(json_str + "\n")
+            sys.stdout.flush()
+        else:
+            err_console.print(err_msg)
         return False, err_msg, None
     if json_output:
         prompt = False
@@ -791,14 +800,35 @@ async def get_hyperparameters(
 ) -> bool:
     """View hyperparameters of a subnetwork."""
     print_verbose("Fetching hyperparameters")
-    if not await subtensor.subnet_exists(netuid):
-        print_error(f"Subnet with netuid {netuid} does not exist.")
-        return False
-    subnet, subnet_info = await asyncio.gather(
-        subtensor.get_subnet_hyperparameters(netuid), subtensor.subnet(netuid)
-    )
-    if subnet_info is None:
-        print_error(f"Subnet with netuid {netuid} does not exist.")
+    try:
+        if not await subtensor.subnet_exists(netuid):
+            error_msg = f"Subnet with netuid {netuid} does not exist."
+            if json_output:
+                json_str = json.dumps({"error": error_msg}, ensure_ascii=True)
+                sys.stdout.write(json_str + "\n")
+                sys.stdout.flush()
+            else:
+                print_error(error_msg)
+            return False
+        subnet, subnet_info = await asyncio.gather(
+            subtensor.get_subnet_hyperparameters(netuid), subtensor.subnet(netuid)
+        )
+        if subnet_info is None:
+            error_msg = f"Subnet with netuid {netuid} does not exist."
+            if json_output:
+                json_str = json.dumps({"error": error_msg}, ensure_ascii=True)
+                sys.stdout.write(json_str + "\n")
+                sys.stdout.flush()
+            else:
+                print_error(error_msg)
+            return False
+    except Exception as e:
+        if json_output:
+            json_str = json.dumps({"error": str(e)}, ensure_ascii=True)
+            sys.stdout.write(json_str + "\n")
+            sys.stdout.flush()
+        else:
+            raise
         return False
 
     # Determine if we should show extended info (descriptions, ownership)
@@ -898,7 +928,12 @@ async def get_hyperparameters(
             )
     if json_output:
         # Use ensure_ascii=True to properly escape all non-ASCII and control characters
-        json_console.print(json.dumps(dict_out, ensure_ascii=True))
+        # Write directly to stdout to avoid any Rich Console formatting
+        import sys
+        json_str = json.dumps(dict_out, ensure_ascii=True)
+        sys.stdout.write(json_str + "\n")
+        sys.stdout.flush()
+        return True
     else:
         console.print(table)
         if show_extended:
