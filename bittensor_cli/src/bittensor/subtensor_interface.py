@@ -2034,6 +2034,37 @@ class SubtensorInterface:
 
         return root_claim_types
 
+    async def get_validator_claim_type(
+        self,
+        hotkey_ss58: str,
+        netuid: int,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> dict:
+        """
+        Retrieves the validator claim type for a specific hotkey on a subnet.
+
+        Args:
+            hotkey_ss58: Validator hotkey SS58 address.
+            netuid: Subnet identifier.
+            block_hash: Optional block hash for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            dict: Claim type information in one of these formats:
+                - {"type": "Swap"}
+                - {"type": "Keep"}
+        """
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="ValidatorClaimType",
+            params=[hotkey_ss58, netuid],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+        claim_type_key = next(iter(result.keys()))
+        return {"type": claim_type_key}
+
     async def get_staking_hotkeys(
         self,
         coldkey_ss58: str,
