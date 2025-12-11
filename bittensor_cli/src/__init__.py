@@ -919,7 +919,7 @@ HYPERPARAMS_METADATA = {
         "description": "Whether the subnet is currently active and operational.",
         "side_effects": "When inactive, the subnet cannot process requests or participate in network operations. Set via 'btcli subnets start' command.",
         "owner_settable": True,
-        "docs_link": "docs.learnbittensor.org/subnets/managing-subnets#subnetisactive",
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#subnetisactive",
     },
     "yuma_version": {
         "description": "Version of the Yuma consensus mechanism.",

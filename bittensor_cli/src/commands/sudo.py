@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 from typing import TYPE_CHECKING, Union, Optional, Type
 
 from async_substrate_interface import AsyncExtrinsicReceipt
@@ -862,19 +863,36 @@ async def get_hyperparameters(
                 table.add_row("  " + param, value, norm_value)
         else:
             metadata = HYPERPARAMS_METADATA.get(param, {})
+            # Sanitize all string fields for JSON output - remove control characters
+            description = metadata.get("description", "No description available.")
+            side_effects = metadata.get("side_effects", "No side effects documented.")
+            docs_link = metadata.get("docs_link", "")
+            
+            # Remove all control characters (0x00-0x1F and 0x7F-0x9F) and replace with space
+            # Then collapse multiple spaces into single space
+            # This ensures valid JSON output
+            description = re.sub(r'[\x00-\x1f\x7f-\x9f]', ' ', str(description))
+            side_effects = re.sub(r'[\x00-\x1f\x7f-\x9f]', ' ', str(side_effects))
+            docs_link = re.sub(r'[\x00-\x1f\x7f-\x9f]', ' ', str(docs_link))
+            # Collapse multiple spaces
+            description = ' '.join(description.split())
+            side_effects = ' '.join(side_effects.split())
+            docs_link = ' '.join(docs_link.split())
+            
             dict_out.append(
                 {
-                    "hyperparameter": param,
+                    "hyperparameter": str(param),
                     "value": value,
                     "normalized_value": norm_value,
-                    "owner_settable": metadata.get("owner_settable", False),
-                    "description": metadata.get("description", "No description available."),
-                    "side_effects": metadata.get("side_effects", "No side effects documented."),
-                    "docs_link": metadata.get("docs_link", ""),
+                    "owner_settable": bool(metadata.get("owner_settable", False)),
+                    "description": description,
+                    "side_effects": side_effects,
+                    "docs_link": docs_link,
                 }
             )
     if json_output:
-        json_console.print(json.dumps(dict_out))
+        # Use ensure_ascii=True to properly escape all non-ASCII and control characters
+        json_console.print(json.dumps(dict_out, ensure_ascii=True))
     else:
         console.print(table)
         if show_extended:
@@ -948,7 +966,7 @@ async def get_senate(
         )
         dict_output.append({"name": member_name, "ss58_address": ss58_address})
     if json_output:
-        json_console.print(json.dumps(dict_output))
+        json_console.print(json.dumps(dict_output, ensure_ascii=True))
     return console.print(table)
 
 
@@ -1041,7 +1059,7 @@ async def proposals(
             }
         )
     if json_output:
-        json_console.print(json.dumps(dict_output))
+        json_console.print(json.dumps(dict_output, ensure_ascii=True))
     console.print(table)
     console.print(
         "\n[dim]* Both Ayes and Nays percentages are calculated relative to the proposal's threshold.[/dim]"
