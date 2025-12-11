@@ -778,9 +778,11 @@ async def sudo_set_hyperparameter(
     return success, err_msg, ext_id
 
 
-def _sanitize_json_string(value: Union[str, int, float, bool, None]) -> Union[str, int, float, bool, None]:
+def _sanitize_json_string(
+    value: Union[str, int, float, bool, None],
+) -> Union[str, int, float, bool, None]:
     """Sanitize string values for JSON output by removing control characters.
-    
+
     Non-string values are returned as-is.
     """
     if isinstance(value, str):
@@ -892,9 +894,7 @@ async def get_hyperparameters(
                 docs_link = metadata.get("docs_link", "")
                 if docs_link:
                     # Use Rich markup to create description with clickable bright blue [link] at the end
-                    description_with_link = (
-                        f"{description} [bright_blue underline link=https://{docs_link}]link[/]"
-                    )
+                    description_with_link = f"{description} [bright_blue underline link=https://{docs_link}]link[/]"
                 else:
                     description_with_link = description
 
@@ -930,6 +930,7 @@ async def get_hyperparameters(
         # Use ensure_ascii=True to properly escape all non-ASCII and control characters
         # Write directly to stdout to avoid any Rich Console formatting
         import sys
+
         json_str = json.dumps(dict_out, ensure_ascii=True)
         sys.stdout.write(json_str + "\n")
         sys.stdout.flush()

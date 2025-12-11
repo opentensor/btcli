@@ -6474,7 +6474,11 @@ class CLIManager:
                 )
                 if json_output:
                     json_str = json.dumps(
-                        {"success": False, "err_msg": err_msg, "extrinsic_identifier": None},
+                        {
+                            "success": False,
+                            "err_msg": err_msg,
+                            "extrinsic_identifier": None,
+                        },
                         ensure_ascii=True,
                     )
                     sys.stdout.write(json_str + "\n")
@@ -6498,7 +6502,11 @@ class CLIManager:
                 )
                 if json_output:
                     json_str = json.dumps(
-                        {"success": False, "err_msg": err_msg, "extrinsic_identifier": None},
+                        {
+                            "success": False,
+                            "err_msg": err_msg,
+                            "extrinsic_identifier": None,
+                        },
                         ensure_ascii=True,
                     )
                     sys.stdout.write(json_str + "\n")
@@ -6528,7 +6536,11 @@ class CLIManager:
             )
             if json_output:
                 json_str = json.dumps(
-                    {"success": False, "err_msg": err_msg, "extrinsic_identifier": None},
+                    {
+                        "success": False,
+                        "err_msg": err_msg,
+                        "extrinsic_identifier": None,
+                    },
                     ensure_ascii=True,
                 )
                 sys.stdout.write(json_str + "\n")
