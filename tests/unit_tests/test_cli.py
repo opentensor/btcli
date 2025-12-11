@@ -1,7 +1,12 @@
+import numpy as np
 import pytest
 import typer
 
 from bittensor_cli.cli import parse_mnemonic, CLIManager
+from bittensor_cli.src.bittensor.extrinsics.root import (
+    get_current_weights_for_uid,
+    set_root_weights_extrinsic,
+)
 from unittest.mock import AsyncMock, patch, MagicMock, Mock
 
 
@@ -669,8 +674,6 @@ def test_stake_transfer_calls_proxy_validation():
 @pytest.mark.asyncio
 async def test_get_current_weights_for_uid_success():
     """Test fetching current weights for a specific UID."""
-    from bittensor_cli.src.bittensor.extrinsics.root import get_current_weights_for_uid
-
     mock_subtensor = MagicMock()
 
     # Mock weights data: [(uid, [(dest_netuid, raw_weight), ...]), ...]
@@ -693,8 +696,6 @@ async def test_get_current_weights_for_uid_success():
 @pytest.mark.asyncio
 async def test_get_current_weights_for_uid_not_found():
     """Test fetching weights for a UID that doesn't exist."""
-    from bittensor_cli.src.bittensor.extrinsics.root import get_current_weights_for_uid
-
     mock_subtensor = MagicMock()
     mock_weights_data = [
         (0, [(0, 32768), (1, 16384)]),
@@ -710,8 +711,6 @@ async def test_get_current_weights_for_uid_not_found():
 @pytest.mark.asyncio
 async def test_get_current_weights_for_uid_empty():
     """Test fetching weights when the network has no weights set."""
-    from bittensor_cli.src.bittensor.extrinsics.root import get_current_weights_for_uid
-
     mock_subtensor = MagicMock()
     mock_subtensor.weights = AsyncMock(return_value=[])
 
@@ -723,9 +722,6 @@ async def test_get_current_weights_for_uid_empty():
 @pytest.mark.asyncio
 async def test_set_root_weights_fetches_current_weights_with_prompt():
     """Test that set_root_weights fetches current weights when prompt=True."""
-    import numpy as np
-    from bittensor_cli.src.bittensor.extrinsics.root import set_root_weights_extrinsic
-
     mock_subtensor = MagicMock()
     mock_wallet = MagicMock()
     mock_subtensor.query = AsyncMock(return_value=0)
@@ -761,9 +757,6 @@ async def test_set_root_weights_fetches_current_weights_with_prompt():
 @pytest.mark.asyncio
 async def test_set_root_weights_skips_current_weights_without_prompt():
     """Test that set_root_weights skips fetching current weights when prompt=False."""
-    import numpy as np
-    from bittensor_cli.src.bittensor.extrinsics.root import set_root_weights_extrinsic
-
     mock_subtensor = MagicMock()
     mock_wallet = MagicMock()
     mock_subtensor.query = AsyncMock(return_value=0)
