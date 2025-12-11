@@ -71,7 +71,6 @@ async def stake_list(
                 )
                 console.print(f"[bold cyan]{'=' * 80}[/bold cyan]\n")
 
-                # Call stake_list recursively for each wallet
                 await stake_list(
                     single_wallet,
                     None,
