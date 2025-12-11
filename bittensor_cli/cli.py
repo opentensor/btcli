@@ -4402,12 +4402,18 @@ class CLIManager:
             "--coldkey.ss58",
             help="Coldkey address of the wallet",
         ),
+        all_wallets: bool = typer.Option(
+            False,
+            "--all-wallets",
+            "--all",
+            help="When set, displays stake information for all wallets in the wallet path.",
+        ),
         live: bool = Options.live,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         no_prompt: bool = Options.prompt,
         json_output: bool = Options.json_output,
-        # TODO add: all-wallets, reuse_last, html_output
+        # TODO add: reuse_last, html_output
     ):
         """
         Display detailed stake information for a wallet across all subnets.
@@ -4427,45 +4433,69 @@ class CLIManager:
 
         4. Verbose output with full values:
         [green]$[/green] btcli stake list --wallet.name my_wallet --verbose
+
+        5. View all wallets in wallet path:
+        [green]$[/green] btcli stake list --all-wallets
         """
         self.verbosity_handler(quiet, verbose, json_output, False)
 
-        wallet = None
-        if coldkey_ss58:
-            if not is_valid_ss58_address(coldkey_ss58):
-                print_error("You entered an invalid ss58 address")
+        wallets_list = []
+        if all_wallets:
+            if coldkey_ss58:
+                print_error("Cannot use --all-wallets with --ss58 option")
+                raise typer.Exit()
+            
+            if not wallet_path:
+                wallet_path = self.wallet_ask(
+                    wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.PATH]
+                ).path
+            
+            from bittensor_cli.src.bittensor.utils import get_coldkey_wallets_for_path
+            wallets_list = get_coldkey_wallets_for_path(wallet_path)
+            
+            if not wallets_list:
+                print_error(f"No wallets found in path: {wallet_path}")
                 raise typer.Exit()
         else:
-            if wallet_name:
-                coldkey_or_ss58 = wallet_name
+            wallet = None
+            if coldkey_ss58:
+                if not is_valid_ss58_address(coldkey_ss58):
+                    print_error("You entered an invalid ss58 address")
+                    raise typer.Exit()
             else:
-                coldkey_or_ss58 = Prompt.ask(
-                    "Enter the [blue]wallet name[/blue] or [blue]coldkey ss58 address[/blue]",
-                    default=self.config.get("wallet_name") or defaults.wallet.name,
-                )
-            if is_valid_ss58_address(coldkey_or_ss58):
-                coldkey_ss58 = coldkey_or_ss58
-            else:
-                wallet_name = coldkey_or_ss58 if coldkey_or_ss58 else wallet_name
-                wallet = self.wallet_ask(
-                    wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
-                )
+                if wallet_name:
+                    coldkey_or_ss58 = wallet_name
+                else:
+                    coldkey_or_ss58 = Prompt.ask(
+                        "Enter the [blue]wallet name[/blue] or [blue]coldkey ss58 address[/blue]",
+                        default=self.config.get("wallet_name") or defaults.wallet.name,
+                    )
+                if is_valid_ss58_address(coldkey_or_ss58):
+                    coldkey_ss58 = coldkey_or_ss58
+                else:
+                    wallet_name = coldkey_or_ss58 if coldkey_or_ss58 else wallet_name
+                    wallet = self.wallet_ask(
+                        wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
+                    )
+            wallets_list = [wallet] if wallet else []
+            
         logger.debug(
             "args:\n"
-            f"coldkey_ss58 {coldkey_ss58}\n"
+            f"all_wallets: {all_wallets}\n"
             f"network {network}\n"
             f"live: {live}\n"
             f"no_prompt: {no_prompt}\n"
         )
         return self._run_command(
             list_stake.stake_list(
-                wallet,
-                coldkey_ss58,
+                wallets_list if all_wallets else wallets_list[0] if wallets_list else None,
+                coldkey_ss58 if not all_wallets else None,
                 self.initialize_chain(network),
                 live,
                 verbose,
                 no_prompt,
                 json_output,
+                all_wallets,
             )
         )
 

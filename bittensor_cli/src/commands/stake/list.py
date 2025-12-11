@@ -27,14 +27,68 @@ if TYPE_CHECKING:
 
 
 async def stake_list(
-    wallet: Wallet,
+    wallet: Wallet | list[Wallet],
     coldkey_ss58: str,
     subtensor: "SubtensorInterface",
     live: bool = False,
     verbose: bool = False,
     prompt: bool = False,
     json_output: bool = False,
+    all_wallets: bool = False,
 ):
+    # Handle all_wallets mode
+    if all_wallets:
+        if not isinstance(wallet, list):
+            print_error("all_wallets is True but wallet is not a list")
+            return
+        
+        # If live mode and multiple wallets, ask user to select one
+        if live and len(wallet) > 1:
+            console.print(
+                "\n[bold]Multiple wallets found. Please select one for live monitoring:[/bold]"
+            )
+            for idx, w in enumerate(wallet):
+                console.print(f"[{idx}] {w.name}")
+            
+            selected_idx = Prompt.ask(
+                "Enter wallet index",
+                choices=[str(i) for i in range(len(wallet))],
+            )
+            wallet = [wallet[int(selected_idx)]]
+        
+        # Process each wallet sequentially
+        for idx, single_wallet in enumerate(wallet):
+            try:
+                if not single_wallet.coldkeypub_file.exists_on_device():
+                    console.print(f"\n[yellow]Skipping wallet '{single_wallet.name}': coldkey not found[/yellow]")
+                    continue
+                    
+                console.print(f"\n[bold cyan]{'='*80}[/bold cyan]")
+                console.print(f"[bold cyan]Wallet {idx + 1}/{len(wallet)}: {single_wallet.name}[/bold cyan]")
+                console.print(f"[bold cyan]{'='*80}[/bold cyan]\n")
+                
+                # Call stake_list recursively for each wallet
+                await stake_list(
+                    single_wallet,
+                    None,
+                    subtensor,
+                    live=live,
+                    verbose=verbose,
+                    prompt=prompt,
+                    json_output=json_output,
+                    all_wallets=False,
+                )
+                
+                if idx < len(wallet) - 1 and prompt and not json_output:
+                    console.print("\nPress Enter to continue to the next wallet...")
+                    input()
+            except Exception as e:
+                console.print(f"\n[red]Error processing wallet '{single_wallet.name}': {e}[/red]")
+                continue
+        
+        return
+    
+    # Single wallet mode
     coldkey_address = coldkey_ss58 if coldkey_ss58 else wallet.coldkeypub.ss58_address
 
     async def get_stake_data(block_hash_: str = None):
