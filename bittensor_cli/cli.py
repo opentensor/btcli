@@ -98,6 +98,7 @@ from bittensor_cli.src.commands.stake import (
     remove as remove_stake,
     claim as claim_stake,
     wizard as stake_wizard,
+    get_nominators as get_nominators_stake,
 )
 from bittensor_cli.src.commands.subnets import (
     price,
@@ -1076,6 +1077,9 @@ class CLIManager:
         self.stake_app.command(
             "list", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
         )(self.stake_list)
+        self.stake_app.command(
+            "get-nominators", rich_help_panel=HELP_PANELS["STAKE"]["STAKE_MGMT"]
+        )(self.stake_get_nominators)
         self.stake_app.command(
             "move", rich_help_panel=HELP_PANELS["STAKE"]["MOVEMENT"]
         )(self.stake_move)
@@ -4452,6 +4456,38 @@ class CLIManager:
                 verbose,
                 no_prompt,
                 json_output,
+            )
+        )
+
+    def stake_get_nominators(
+        self,
+        hotkey_ss58: str = typer.Option(
+            ...,
+            "--hotkey",
+            "--hotkey-ss58",
+            help="The SS58 address of the delegate's hotkey",
+        ),
+        network: Optional[list[str]] = Options.network,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Fetches and displays the nominators for a delegate hotkey.
+        Shows all nominators (stakers) for a given delegate, including their stake amounts.
+        [bold]Common Examples:[/bold]
+        1. Get nominators for a delegate:
+        [green]$[/green] btcli stake get-nominators --hotkey 5Dk...X3q
+        2. Get nominators in JSON format:
+        [green]$[/green] btcli stake get-nominators --hotkey 5Dk...X3q --json-output
+        """
+        if not is_valid_ss58_address(hotkey_ss58):
+            print_error("Invalid hotkey SS58 address")
+            raise typer.Exit()
+
+        return self._run_command(
+            get_nominators_stake.get_nominators(
+                hotkey_ss58=hotkey_ss58,
+                subtensor=self.initialize_chain(network),
+                json_output=json_output,
             )
         )
 

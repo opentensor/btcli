@@ -953,6 +953,42 @@ class SubtensorInterface:
 
         return DelegateInfo.list_from_any(result)
 
+    async def get_delegate_by_hotkey(
+        self,
+        hotkey_ss58: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> Optional[DelegateInfo]:
+        """
+        Retrieves detailed information about a delegate neuron (validator) based on its hotkey. This function
+        provides a comprehensive view of the delegate's status, including its stakes, nominators, and reward
+        distribution.
+        :param hotkey_ss58: The `SS58` address of the delegate's hotkey.
+        :param block_hash: The hash of the blockchain block number for the query.
+        :param reuse_block: Whether to reuse the last-used blockchain block hash.
+        :return: Detailed information about the delegate neuron, `None` if not found.
+        Notes:
+            - <https://docs.learnbittensor.org/glossary#delegate>
+            - <https://docs.learnbittensor.org/glossary#nominator>
+        """
+
+        block_hash = (
+            block_hash
+            if block_hash
+            else (self.substrate.last_block_hash if reuse_block else None)
+        )
+        result = await self.query_runtime_api(
+            runtime_api="DelegateInfoRuntimeApi",
+            method="get_delegate",
+            params=[hotkey_ss58],
+            block_hash=block_hash,
+        )
+
+        if not result:
+            return None
+
+        return DelegateInfo.from_any(result)
+
     async def query_all_identities(
         self,
         block_hash: Optional[str] = None,

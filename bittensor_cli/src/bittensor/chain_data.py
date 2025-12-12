@@ -557,23 +557,57 @@ class DelegateInfo(InfoBase):
 
     @classmethod
     def _fix_decoded(cls, decoded: "DelegateInfo") -> "DelegateInfo":
-        hotkey = decode_account_id(decoded.get("hotkey_ss58"))
+        # Handle both old format (hotkey_ss58) and new format (delegate_ss58)
+        hotkey = decode_account_id(
+            decoded.get("hotkey_ss58") or decoded.get("delegate_ss58")
+        )
         owner = decode_account_id(decoded.get("owner_ss58"))
-        nominators = [
-            (decode_account_id(x), Balance.from_rao(y))
-            for x, y in decoded.get("nominators")
-        ]
-        total_stake = sum((x[1] for x in nominators)) if nominators else Balance(0)
+
+        # Handle new format: nominators is a list of (nominator_address, [(netuid, stake), ...])
+        # Old format: nominators is a list of (nominator_address, total_stake)
+        raw_nominators = decoded.get("nominators", [])
+        nominators = []
+        total_stake = Balance(0)
+
+        for item in raw_nominators:
+            if isinstance(item, (list, tuple)) and len(item) == 2:
+                nominator_addr, stakes_data = item
+                nominator_ss58 = decode_account_id(nominator_addr)
+
+                # Check if it's new format (stakes_data is a list of (netuid, stake) tuples)
+                # New API format: nominators is [(nominator_addr, [(netuid, stake_amt), ...]), ...]
+                if isinstance(stakes_data, (list, tuple)):
+                    # New format: sum all stakes across subnets for this nominator
+                    nominator_total = Balance(0)
+                    for netuid_stake in stakes_data:
+                        if (
+                            isinstance(netuid_stake, (list, tuple))
+                            and len(netuid_stake) == 2
+                        ):
+                            netuid, stake_amt = netuid_stake
+                            # API returns stake_amt in RAO, convert to Balance
+                            stake_balance = Balance.from_rao(stake_amt)
+                            nominator_total += stake_balance
+                    if nominator_total.rao > 0:  # Only add if there's actual stake
+                        nominators.append((nominator_ss58, nominator_total))
+                        total_stake += nominator_total
+                else:
+                    # Old format: stakes_data is a single stake amount (in RAO)
+                    stake_balance = Balance.from_rao(stakes_data)
+                    if stake_balance.rao > 0:  # Only add if there's actual stake
+                        nominators.append((nominator_ss58, stake_balance))
+                        total_stake += stake_balance
+
         return cls(
             hotkey_ss58=hotkey,
             total_stake=total_stake,
             nominators=nominators,
             owner_ss58=owner,
             take=u16tf(decoded.get("take")),
-            validator_permits=decoded.get("validator_permits"),
-            registrations=decoded.get("registrations"),
-            return_per_1000=Balance.from_rao(decoded.get("return_per_1000")),
-            total_daily_return=Balance.from_rao(decoded.get("total_daily_return")),
+            validator_permits=decoded.get("validator_permits", []),
+            registrations=decoded.get("registrations", []),
+            return_per_1000=Balance.from_rao(decoded.get("return_per_1000", 0)),
+            total_daily_return=Balance.from_rao(decoded.get("total_daily_return", 0)),
         )
 
 
