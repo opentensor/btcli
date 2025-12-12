@@ -1068,13 +1068,11 @@ async def show(
                 root_state,
                 identities,
                 old_identities,
-                root_claim_types,
             ) = await asyncio.gather(
                 subtensor.all_subnets(block_hash=block_hash),
                 subtensor.get_subnet_state(netuid=0, block_hash=block_hash),
                 subtensor.query_all_identities(block_hash=block_hash),
                 subtensor.get_delegate_identities(block_hash=block_hash),
-                subtensor.get_all_coldkeys_claim_type(block_hash=block_hash),
             )
         root_info = next((s for s in all_subnets if s.netuid == 0), None)
         if root_info is None:
@@ -1134,11 +1132,6 @@ async def show(
             style=COLOR_PALETTE["GENERAL"]["SYMBOL"],
             justify="left",
         )
-        table.add_column(
-            "[bold white]Claim Type",
-            style=COLOR_PALETTE["GENERAL"]["SUBHEADING"],
-            justify="center",
-        )
 
         sorted_hotkeys = sorted(
             enumerate(root_state.hotkeys),
@@ -1170,9 +1163,6 @@ async def show(
             )
 
             coldkey_ss58 = root_state.coldkeys[idx]
-            claim_type_info = root_claim_types.get(coldkey_ss58, {"type": "Swap"})
-            total_subnets = len([n for n in all_subnets if n != 0])
-            claim_type = format_claim_type_for_root(claim_type_info, total_subnets)
 
             sorted_rows.append(
                 (
@@ -1194,7 +1184,6 @@ async def show(
                     if not verbose
                     else f"{root_state.coldkeys[idx]}",  # Coldkey
                     validator_identity,  # Identity
-                    claim_type,  # Root Claim Type
                 )
             )
             sorted_hks_delegation.append(root_state.hotkeys[idx])
@@ -1246,8 +1235,6 @@ async def show(
             - Emission: The emission accrued to this hotkey across all subnets every block measured in TAO.
             - Hotkey: The hotkey ss58 address.
             - Coldkey: The coldkey ss58 address.
-            - Root Claim: The root claim type for this coldkey. 'Swap' converts Alpha to TAO every epoch. 'Keep' keeps Alpha emissions. 
-                        'Keep (count)' indicates how many subnets this coldkey is keeping Alpha emissions for.
     """
             )
         if delegate_selection:
@@ -1300,7 +1287,7 @@ async def show(
                 identities,
                 old_identities,
                 current_burn_cost,
-                root_claim_types,
+                validator_claim_types,
                 ema_tao_inflow,
             ) = await asyncio.gather(
                 subtensor.subnet(netuid=netuid_, block_hash=block_hash),
@@ -1309,7 +1296,7 @@ async def show(
                 subtensor.get_hyperparameter(
                     param_name="Burn", netuid=netuid_, block_hash=block_hash
                 ),
-                subtensor.get_all_coldkeys_claim_type(block_hash=block_hash),
+                subtensor.get_all_validator_claim_types(block_hash=block_hash),
                 subtensor.get_subnet_ema_tao_inflow(
                     netuid=netuid_, block_hash=block_hash
                 ),
@@ -1420,14 +1407,19 @@ async def show(
             # Modify tao stake with TAO_WEIGHT
             tao_stake = metagraph_info.tao_stake[idx] * TAO_WEIGHT
 
-            # Get claim type for this coldkey if applicable TAO stake
-            coldkey_ss58 = metagraph_info.coldkeys[idx]
-            claim_type_info = {"type": "Swap"}  # Default
-            claim_type = "-"
-
+            # Get claim type for this hotkey if applicable TAO stake
+            hotkey_ss58 = metagraph_info.hotkeys[idx]
+            claim_type_value = None
+            claim_display = "-"
             if tao_stake.tao > 0:
-                claim_type_info = root_claim_types.get(coldkey_ss58, {"type": "Swap"})
-                claim_type = format_claim_type_for_subnet(claim_type_info, netuid_)
+                claim_type_value = validator_claim_types.get(hotkey_ss58, {}).get(
+                    netuid_, "Keep"
+                )
+                claim_display = (
+                    f"[green]{claim_type_value}[/green]"
+                    if claim_type_value == "Keep"
+                    else f"[red]{claim_type_value}[/red]"
+                )
 
             rows.append(
                 (
@@ -1451,7 +1443,7 @@ async def show(
                     if not verbose
                     else f"{metagraph_info.coldkeys[idx]}",  # Coldkey
                     uid_identity,  # Identity
-                    claim_type,  # Root Claim Type
+                    claim_display,  # Claim Type
                 )
             )
             json_out_rows.append(
@@ -1468,12 +1460,7 @@ async def show(
                     "hotkey": metagraph_info.hotkeys[idx],
                     "coldkey": metagraph_info.coldkeys[idx],
                     "identity": uid_identity,
-                    "claim_type": claim_type_info.get("type")
-                    if tao_stake.tao > 0
-                    else None,
-                    "claim_type_subnets": claim_type_info.get("subnets")
-                    if claim_type_info.get("type") == "KeepSubnets"
-                    else None,
+                    "claim_type": claim_type_value,
                 }
             )
 
