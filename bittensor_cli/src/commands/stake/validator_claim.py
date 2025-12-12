@@ -268,3 +268,34 @@ async def set_validator_claim_type(
         )
 
         top_row = Columns([keep_panel, swap_panel], expand=False, equal=True)
+
+        total = len(state)
+        default_count = len(default_list)
+        keep_count = len(keep_list)
+        swap_count = len(swap_list)
+
+        if total > 0:
+            effective_keep_count = keep_count + default_count
+
+            keep_pct = effective_keep_count / total
+            bar_width = 30
+            keep_chars = int(bar_width * keep_pct)
+            swap_chars = bar_width - keep_chars
+
+            bar_visual = (
+                f"[{'green' if effective_keep_count > 0 else 'dim'}]"
+                f"{'█' * keep_chars}[/]"
+                f"[{'red' if swap_count > 0 else 'dim'}]"
+                f"{'█' * swap_chars}[/]"
+            )
+
+            dist_text = (
+                f"\n[bold]Distribution:[/bold] {bar_visual} "
+                f"[green]{effective_keep_count}[/green] vs [red]{swap_count}[/red]\n"
+            )
+        else:
+            dist_text = ""
+
+        console.print(Group(top_row, default_panel, Text.from_markup(dist_text)))
+
+    
