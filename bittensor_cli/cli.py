@@ -1295,6 +1295,14 @@ class CLIManager:
             "unclaim",
             hidden=True,
         )(self.stake_set_claim_type)
+        self.stake_app.command(
+            "show-validator-claim",
+            hidden=True,
+        )(self.show_validator_claims)
+        self.stake_app.command(
+            "set-validator-claim",
+            hidden=True,
+        )(self.set_validator_claim_types)
 
         # Crowdloan
         self.app.add_typer(
