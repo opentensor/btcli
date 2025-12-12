@@ -529,3 +529,43 @@ async def set_validator_claim_type(
             current_type = current_claims.get(netuid, "Default")
             if new_type != current_type:
                 calls_to_make.append((netuid, new_type))
+
+    # Non-interactive
+    else:
+        for netuid in target_keep:
+            curr_type = current_claims.get(netuid, "Default")
+            if curr_type != "Keep":
+                calls_to_make.append((netuid, "Keep"))
+
+        for netuid in target_swap:
+            curr_type = current_claims.get(netuid, "Default")
+            if curr_type != "Swap":
+                calls_to_make.append((netuid, "Swap"))
+
+        final_state = {}
+        for n in valid_subnets:
+            final_state[n] = current_claims.get(n, "Default")
+        for n in target_keep:
+            final_state[n] = "Keep"
+        for n in target_swap:
+            final_state[n] = "Swap"
+
+        _render_current_claims(final_state, identity, wallet.coldkeypub.ss58_address)
+
+    if not calls_to_make:
+        console.print(
+            "[green]Desired state matches current chain state. No changes needed.[/green]"
+        )
+        return True
+
+    if prompt:
+        _print_changes_table(calls_to_make)
+        if not Confirm.ask("Do you want to apply these changes?"):
+            console.print("[yellow]Cancelled.[/yellow]")
+            return False
+
+    if not (unlock := unlock_key(wallet)).success:
+        err_console.print(f"[red]Failed to unlock wallet: {unlock.message}[/red]")
+        return False
+
+    return await _execute_claim_change_calls(calls_to_make)
