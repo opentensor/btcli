@@ -298,4 +298,13 @@ async def set_validator_claim_type(
 
         console.print(Group(top_row, default_panel, Text.from_markup(dist_text)))
 
-    
+    def _print_changes_table(calls: list[tuple[int, str]]):
+        table = Table(title="Pending Root Claim Changes", box=box.SIMPLE_HEAD, width=50)
+        table.add_column("Netuid", justify="center", style="cyan")
+        table.add_column("New Type", justify="center")
+
+        for netuid, new_type in sorted(calls, key=lambda x: x[0]):
+            color = "green" if new_type == "Keep" else "red"
+            table.add_row(str(netuid), f"[{color}]{new_type}[/{color}]")
+
+        console.print("\n\n", table)
