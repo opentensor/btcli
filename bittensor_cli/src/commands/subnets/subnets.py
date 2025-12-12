@@ -1296,7 +1296,7 @@ async def show(
                 subtensor.get_hyperparameter(
                     param_name="Burn", netuid=netuid_, block_hash=block_hash
                 ),
-                subtensor.get_all_validator_claim_types(block_hash=block_hash),
+                subtensor.get_all_vali_claim_types(block_hash=block_hash),
                 subtensor.get_subnet_ema_tao_inflow(
                     netuid=netuid_, block_hash=block_hash
                 ),

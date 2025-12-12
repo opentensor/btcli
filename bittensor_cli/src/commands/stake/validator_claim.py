@@ -159,7 +159,7 @@ async def show_validator_claims(
         ema_tao_inflow,
         identity,
     ) = await asyncio.gather(
-        subtensor.get_all_validator_claim_types(
+        subtensor.get_all_vali_claim_types_for_hk(
             hotkey_ss58=hotkey_value, block_hash=block_hash
         ),
         subtensor.all_subnets(block_hash=block_hash),
@@ -472,12 +472,13 @@ async def set_validator_claim_type(
 
     with console.status(":satellite: Fetching current state...", spinner="earth"):
         block_hash = await subtensor.substrate.get_chain_head()
-        current_claims, all_netuids, identity = await asyncio.gather(
-            subtensor.get_all_validator_claim_types(
+        current_claims, all_netuids, identity, testing = await asyncio.gather(
+            subtensor.get_all_vali_claim_types_for_hk(
                 hotkey_ss58=wallet.hotkey.ss58_address, block_hash=block_hash
             ),
             subtensor.get_all_subnet_netuids(block_hash=block_hash),
             subtensor.query_identity(wallet.coldkeypub.ss58_address),
+            subtensor.get_all_vali_claim_types(block_hash=block_hash),
         )
     valid_subnets = [n for n in all_netuids if n != 0]
 
