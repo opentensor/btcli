@@ -6044,7 +6044,9 @@ class CLIManager:
         """
         Show validator claim types (Keep/Swap) across all subnets for a validator hotkey.
 
-        Provide a hotkey SS58 directly, or supply a wallet and hotkey name to resolve it.
+        EXAMPLES:
+        [green]$[/green] btcli stake show-validator-claims --hotkey 5Grw...
+        [green]$[/green] btcli stake show-validator-claims --wallet-name my_wallet --wallet-hotkey hk
         """
         self.verbosity_handler(quiet, verbose, False, prompt)
 
