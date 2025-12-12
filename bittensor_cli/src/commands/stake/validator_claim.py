@@ -87,9 +87,11 @@ async def show_validator_claims(
             str(mechanisms.get(netuid, 1)),
         )
 
-    def _render_table(title: str, rows: list[tuple[str, ...]]) -> None:
+    def _render_table(
+        title: str, identity: str, hotkey_value: str, rows: list[tuple[str, ...]]
+    ) -> None:
         table = Table(
-            title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]{title}[/]",
+            title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]{title}[/]\n[dim]{identity}:{hotkey_value}\n",
             show_footer=False,
             show_edge=False,
             header_style="bold white",
@@ -150,13 +152,20 @@ async def show_validator_claims(
 
     block_hash = block_hash or await subtensor.substrate.get_chain_head()
 
-    validator_claims, subnets, mechanisms, ema_tao_inflow = await asyncio.gather(
+    (
+        validator_claims,
+        subnets,
+        mechanisms,
+        ema_tao_inflow,
+        identity,
+    ) = await asyncio.gather(
         subtensor.get_all_validator_claim_types(
             hotkey_ss58=hotkey_value, block_hash=block_hash
         ),
         subtensor.all_subnets(block_hash=block_hash),
         subtensor.get_all_subnet_mechanisms(block_hash=block_hash),
         subtensor.get_all_subnet_ema_tao_inflow(block_hash=block_hash),
+        subtensor.query_identity(hotkey_value),
     )
 
     root_subnet = next(s for s in subnets if s.netuid == 0)
@@ -187,8 +196,9 @@ async def show_validator_claims(
             output_data["claims"][subnet.netuid] = claim_type
         json_console.print(json.dumps(output_data))
 
-    _render_table("Keep", keep_rows)
-    _render_table("[red]Swap[/red]", swap_rows)
+    validator_name = identity.get("name", "Unknown")
+    _render_table("Keep", validator_name, hotkey_value, keep_rows)
+    _render_table("[red]Swap[/red]", validator_name, hotkey_value, swap_rows)
     return True
 
 
