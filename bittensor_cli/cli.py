@@ -97,6 +97,7 @@ from bittensor_cli.src.commands.stake import (
     add as add_stake,
     remove as remove_stake,
     claim as claim_stake,
+    validator_claim,
     wizard as stake_wizard,
 )
 from bittensor_cli.src.commands.subnets import (
@@ -1087,6 +1088,9 @@ class CLIManager:
         self.stake_app.command(
             "process-claim", rich_help_panel=HELP_PANELS["STAKE"]["CLAIM"]
         )(self.stake_process_claim)
+        self.stake_app.command(
+            "show-validator-claims", rich_help_panel=HELP_PANELS["STAKE"]["CLAIM"]
+        )(self.show_validator_claims)
 
         # stake-children commands
         children_app = typer.Typer()
@@ -5943,6 +5947,56 @@ class CLIManager:
             )
         )
 
+    def show_validator_claims(
+        self,
+        hotkey_ss58: Optional[str] = Options.wallet_hotkey_ss58,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        network: Optional[list[str]] = Options.network,
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Show validator claim types (Keep/Swap) across all subnets for a validator hotkey.
+
+        Provide a hotkey SS58 directly, or supply a wallet and hotkey name to resolve it.
+        """
+        self.verbosity_handler(quiet, verbose, False, prompt)
+
+        if not hotkey_ss58 and not wallet_name:
+            ss58_or_wallet = Prompt.ask(
+                "Enter the [blue]hotkey ss58 address[/blue] or [blue]wallet name[/blue]",
+                default=self.config.get("wallet_name") or defaults.wallet.name,
+            )
+            if is_valid_ss58_address(ss58_or_wallet):
+                hotkey_ss58 = ss58_or_wallet
+            else:
+                wallet_name = ss58_or_wallet
+
+        if hotkey_ss58:
+            if is_valid_ss58_address(hotkey_ss58):
+                vali_hk_ss58 = hotkey_ss58
+        else:
+            wallet = self.wallet_ask(
+                wallet_name,
+                wallet_path,
+                hotkey_ss58,
+                ask_for=[WO.NAME, WO.HOTKEY],
+                validate=WV.WALLET_AND_HOTKEY,
+            )
+            vali_hk_ss58 = get_hotkey_pub_ss58(wallet)
+
+        return self._run_command(
+            validator_claim.show_validator_claims(
+                subtensor=self.initialize_chain(network),
+                hotkey_ss58=vali_hk_ss58,
+                verbose=verbose,
+                json_output=json_output,
+            )
+        )
+
     def stake_get_children(
         self,
         wallet_name: Optional[str] = Options.wallet_name,
@@ -6027,9 +6081,9 @@ class CLIManager:
         announce_only: bool = Options.announce_only,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
+        prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
-        prompt: bool = Options.prompt,
         json_output: bool = Options.json_output,
     ):
         """
