@@ -6046,7 +6046,7 @@ class CLIManager:
         [green]$[/green] btcli stake show-validator-claims --hotkey 5Grw...
         [green]$[/green] btcli stake show-validator-claims --wallet-name my_wallet --wallet-hotkey hk
         """
-        self.verbosity_handler(quiet, verbose, False, prompt)
+        self.verbosity_handler(quiet, verbose, json_output, False)
 
         if not hotkey_ss58 and not wallet_name:
             ss58_or_wallet = Prompt.ask(
