@@ -190,3 +190,40 @@ async def show_validator_claims(
     _render_table("Keep", keep_rows)
     _render_table("[red]Swap[/red]", swap_rows)
     return True
+
+
+async def set_validator_claim_type(
+    wallet,
+    subtensor,
+    keep: Optional[str] = None,
+    swap: Optional[str] = None,
+    keep_all: bool = False,
+    swap_all: bool = False,
+    prompt: bool = True,
+    proxy: Optional[str] = None,
+    json_output: bool = False,
+) -> bool:
+    """
+    Configures the validator claim preference (Keep vs Swap) for subnets.
+
+    Allows bulk updating of claim types for multiple subnets. Subnets set to 'Keep' will accumulate
+    emissions as Alpha (subnet token), while 'Swap' will automatically convert emissions to TAO.
+
+    Operates in two modes:
+    1. CLI Mode: Updates specific ranges via `--keep` and `--swap` flags.
+    2. Interactive Mode: Launches a claim selector if no range flags are provided.
+
+    Args:
+        wallet: The wallet configuration.
+        subtensor: The subtensor interface.
+        keep: Range info string for subnets to set to 'Keep'.
+        swap: Range info string for subnets to set to 'Swap'.
+        keep_all: If True, sets all valid subnets to 'Keep'.
+        swap_all: If True, sets all valid subnets to 'Swap'.
+        prompt: If True, requires confirmation before submitting extrinsic.
+        proxy: Optional proxy address for signing.
+        json_output: If True, outputs result as JSON.
+
+    Returns:
+        bool: True if the operation succeeded, False otherwise.
+    """
