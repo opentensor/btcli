@@ -452,3 +452,32 @@ async def set_validator_claim_type(
 
             except ValueError as e:
                 console.print(f"[red]Error parsing range: {e}[/red]")
+
+    # Main function
+    if keep_all and swap_all:
+        err_console.print(
+            "[red]Cannot specify both --keep-all and --swap-all flags.[/red]"
+        )
+        return False
+
+    with console.status(":satellite: Fetching current state...", spinner="earth"):
+        block_hash = await subtensor.substrate.get_chain_head()
+        current_claims, all_netuids, identity = await asyncio.gather(
+            subtensor.get_all_validator_claim_types(
+                hotkey_ss58=wallet.hotkey.ss58_address, block_hash=block_hash
+            ),
+            subtensor.get_all_subnet_netuids(block_hash=block_hash),
+            subtensor.query_identity(wallet.coldkeypub.ss58_address),
+        )
+    valid_subnets = [n for n in all_netuids if n != 0]
+
+    target_keep: set[int] = set()
+    target_swap: set[int] = set()
+
+    if keep_all:
+        target_keep = set(valid_subnets)
+    elif swap_all:
+        target_swap = set(valid_subnets)
+
+    def process_ranges(arg_value, arg_name, target_set):
+        
