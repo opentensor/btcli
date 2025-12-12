@@ -5921,7 +5921,6 @@ class CLIManager:
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
-        json_output: bool = Options.json_output,
     ):
         """
         Set the claim type for a validator across multiple subnets.
@@ -5939,7 +5938,7 @@ class CLIManager:
         [green]$[/green] btcli stake set-validator-claim --keep-all
         [green]$[/green] btcli stake set-validator-claim (Interactive mode)
         """
-        self.verbosity_handler(quiet, verbose, json_output, prompt)
+        self.verbosity_handler(quiet, verbose, False, prompt)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
         wallet = self.wallet_ask(
             wallet_name,
@@ -5958,7 +5957,6 @@ class CLIManager:
                 swap_all=swap_all,
                 prompt=prompt,
                 proxy=proxy,
-                json_output=json_output,
             )
         )
 

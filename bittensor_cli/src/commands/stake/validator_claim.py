@@ -211,7 +211,6 @@ async def set_validator_claim_type(
     swap_all: bool = False,
     prompt: bool = True,
     proxy: Optional[str] = None,
-    json_output: bool = False,
 ) -> bool:
     """
     Configures the validator claim preference (Keep vs Swap) for subnets.
@@ -355,38 +354,15 @@ async def set_validator_claim_type(
             )
 
             if success:
-                if json_output:
-                    json_console.print(
-                        json.dumps(
-                            {
-                                "success": True,
-                                "message": "Successfully updated validator claim types",
-                                "extrinsic_hash": ext_receipt.extrinsic_hash,
-                                "changes": [{"netuid": n, "type": t} for n, t in calls],
-                            }
-                        )
-                    )
-                else:
-                    console.print(
-                        "[green]:white_check_mark: Successfully updated validator claim types![/green]"
-                    )
-                    await print_extrinsic_id(ext_receipt)
+                console.print(
+                    "[green]:white_check_mark: Successfully updated validator claim types![/green]"
+                )
+                await print_extrinsic_id(ext_receipt)
                 return True
             else:
-                if json_output:
-                    json_console.print(
-                        json.dumps(
-                            {
-                                "success": False,
-                                "message": f"Transaction Failed: {err_msg}",
-                                "error": err_msg,
-                            }
-                        )
-                    )
-                else:
-                    err_console.print(
-                        f"[red]:cross_mark: Transaction Failed: {err_msg}[/red]"
-                    )
+                err_console.print(
+                    f"[red]:cross_mark: Transaction Failed: {err_msg}[/red]"
+                )
                 return False
 
     def _interactive_claim_selector(
