@@ -378,3 +378,77 @@ async def set_validator_claim_type(
                         f"[red]:cross_mark: Transaction Failed: {err_msg}[/red]"
                     )
                 return False
+
+    def _interactive_claim_selector(
+        state: dict[int, str],
+        all_netuids: list[int],
+        identity: dict = None,
+        ss58: str = None,
+    ) -> Optional[dict[int, str]]:
+        working_state = {}
+        for n in all_netuids:
+            working_state[n] = state.get(n, "Default")
+
+        while True:
+            console.print("\n")
+            _render_current_claims(working_state, identity, ss58)
+            help_table = Table(
+                box=box.SIMPLE_HEAVY,
+                show_header=True,
+                header_style="bold white",
+                expand=False,
+            )
+            help_table.add_column("Command", style="cyan", no_wrap=True)
+            help_table.add_column("Description", style="dim")
+
+            help_table.add_row("keep <ranges>", "Move subnets to Keep (e.g. '1,3-5')")
+            help_table.add_row("swap <ranges>", "Move subnets to Swap (e.g. '2,10')")
+            help_table.add_row(
+                "keep-all / swap-all", "Move ALL subnets to Keep or Swap"
+            )
+            help_table.add_row("[green]done[/green]", "Finish and Apply changes")
+            help_table.add_row("[red]q / quit[/red]", "Cancel operation")
+
+            console.print(help_table)
+
+            cmd = Prompt.ask("Enter command").strip().lower()
+
+            if cmd in ("q", "quit", "exit"):
+                return None
+
+            if cmd == "done":
+                return working_state
+
+            if cmd == "keep-all":
+                for n in working_state:
+                    working_state[n] = "Keep"
+                continue
+
+            if cmd == "swap-all":
+                for n in working_state:
+                    working_state[n] = "Swap"
+                continue
+
+            parts = cmd.split(" ", 1)
+            if len(parts) < 2:
+                console.print("[red]Invalid command format.[/red]")
+                continue
+
+            action, ranges = parts[0], parts[1]
+            try:
+                selected_netuids = parse_subnet_range(
+                    ranges, total_subnets=len(all_netuids)
+                )
+                valid = [n for n in selected_netuids if n in working_state]
+
+                if action == "keep":
+                    for n in valid:
+                        working_state[n] = "Keep"
+                elif action == "swap":
+                    for n in valid:
+                        working_state[n] = "Swap"
+                else:
+                    console.print(f"[red]Unknown action '{action}'[/red]")
+
+            except ValueError as e:
+                console.print(f"[red]Error parsing range: {e}[/red]")
