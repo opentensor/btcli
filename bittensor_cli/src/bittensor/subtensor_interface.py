@@ -2034,7 +2034,7 @@ class SubtensorInterface:
 
         return root_claim_types
 
-    async def get_validator_claim_type(
+    async def get_vali_claim_types_for_hk_netuid(
         self,
         hotkey_ss58: str,
         netuid: int,
@@ -2065,7 +2065,41 @@ class SubtensorInterface:
         claim_type_key = next(iter(result.keys()))
         return {"type": claim_type_key}
 
-    async def get_all_validator_claim_types(
+    async def get_all_vali_claim_types(
+        self,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> dict[int, str]:
+        """
+        Retrieves validator claim types for all netuids for all validator hotkeys.
+
+        Args:
+            block_hash: Optional block hash for the query.
+            reuse_block: Whether to reuse the last-used block hash.
+
+        Returns:
+            dict[int, str]: Mapping of netuid -> claim type ("Keep" or "Swap").
+        """
+        result = await self.substrate.query_map(
+            module="SubtensorModule",
+            storage_function="ValidatorClaimType",
+            params=[],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        claim_types: dict[str, dict[int, str]] = {}
+        async for hk_netuid, claim_type_data in result:
+            hotkey_ss58 = decode_account_id(hk_netuid[0])
+            netuid = int(hk_netuid[1])
+            claim_type_key = next(iter(claim_type_data.value.keys()))
+            if hotkey_ss58 not in claim_types:
+                claim_types[hotkey_ss58] = {}
+            claim_types[hotkey_ss58][netuid] = claim_type_key
+
+        return claim_types
+
+    async def get_all_vali_claim_types_for_hk(
         self,
         hotkey_ss58: str,
         block_hash: Optional[str] = None,
