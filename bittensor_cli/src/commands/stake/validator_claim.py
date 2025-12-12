@@ -308,3 +308,73 @@ async def set_validator_claim_type(
             table.add_row(str(netuid), f"[{color}]{new_type}[/{color}]")
 
         console.print("\n\n", table)
+
+    async def _execute_claim_change_calls(
+        calls: list[tuple[int, str]],
+    ) -> bool:
+        extrinsic_calls = []
+        for netuid, claim_type in calls:
+            type_arg = {claim_type: None}
+
+            call = await subtensor.substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function="set_validator_claim_type",
+                call_params={
+                    "hotkey": wallet.hotkey.ss58_address,
+                    "netuid": netuid,
+                    "new_claim_type": type_arg,
+                },
+            )
+            extrinsic_calls.append(call)
+
+        with console.status(
+            ":satellite: Submitting updates...",
+            spinner="earth",
+        ):
+            if len(extrinsic_calls) == 1:
+                final_call = extrinsic_calls[0]
+            else:
+                final_call = await subtensor.substrate.compose_call(
+                    call_module="Utility",
+                    call_function="batch_all",
+                    call_params={"calls": extrinsic_calls},
+                )
+
+            success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
+                final_call, wallet, proxy=proxy
+            )
+
+            if success:
+                if json_output:
+                    json_console.print(
+                        json.dumps(
+                            {
+                                "success": True,
+                                "message": "Successfully updated validator claim types",
+                                "extrinsic_hash": ext_receipt.extrinsic_hash,
+                                "changes": [{"netuid": n, "type": t} for n, t in calls],
+                            }
+                        )
+                    )
+                else:
+                    console.print(
+                        "[green]:white_check_mark: Successfully updated validator claim types![/green]"
+                    )
+                    await print_extrinsic_id(ext_receipt)
+                return True
+            else:
+                if json_output:
+                    json_console.print(
+                        json.dumps(
+                            {
+                                "success": False,
+                                "message": f"Transaction Failed: {err_msg}",
+                                "error": err_msg,
+                            }
+                        )
+                    )
+                else:
+                    err_console.print(
+                        f"[red]:cross_mark: Transaction Failed: {err_msg}[/red]"
+                    )
+                return False
