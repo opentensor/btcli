@@ -480,4 +480,52 @@ async def set_validator_claim_type(
         target_swap = set(valid_subnets)
 
     def process_ranges(arg_value, arg_name, target_set):
-        
+        try:
+            parsed = parse_subnet_range(arg_value, total_subnets=len(valid_subnets))
+            valid = {s for s in parsed if s in valid_subnets}
+            invalid = [s for s in parsed if s not in valid_subnets]
+            if invalid:
+                console.print(
+                    f"[yellow]Ignored invalid/unknown subnets for {arg_name}: {invalid}[/yellow]"
+                )
+            target_set.update(valid)
+            return True
+        except ValueError as e:
+            err_console.print(f"[red]Invalid --{arg_name} format: {e}[/red]")
+            return False
+
+    if keep and not process_ranges(keep, "keep", target_keep):
+        return False
+
+    if swap and not process_ranges(swap, "swap", target_swap):
+        return False
+
+    # Check for duplicate entries in keep and swap
+    intersection = target_keep.intersection(target_swap)
+    if intersection:
+        err_console.print(
+            f"[red]Subnets cannot be both Keep and Swap: {intersection}[/red]"
+        )
+        return False
+
+    calls_to_make = []
+    is_interactive = not (keep_all or swap_all or keep or swap)
+    # Interactive mode
+    if is_interactive:
+        state = {}
+        for netuid in valid_subnets:
+            state[netuid] = current_claims.get(netuid, "Default")
+
+        final_state = _interactive_claim_selector(
+            state, list(valid_subnets), identity, wallet.coldkeypub.ss58_address
+        )
+        if final_state is None:
+            console.print("[yellow]Operation cancelled.[/yellow]")
+            return False
+
+        for netuid, new_type in final_state.items():
+            if new_type == "Default":
+                continue
+            current_type = current_claims.get(netuid, "Default")
+            if new_type != current_type:
+                calls_to_make.append((netuid, new_type))
