@@ -1847,11 +1847,41 @@ async def register(
             )
         return
 
-    print_verbose("Checking registration allowed")
-    registration_allowed = await subtensor.query(
-        module="SubtensorModule",
-        storage_function="NetworkRegistrationAllowed",
-        params=[netuid],
+    print_verbose("Checking registration allowed and limits")
+    (
+        registration_allowed,
+        target_registrations_per_interval,
+        registrations_this_interval,
+        last_adjustment_block,
+        adjustment_interval,
+        current_block,
+    ) = await asyncio.gather(
+        subtensor.query(
+            module="SubtensorModule",
+            storage_function="NetworkRegistrationAllowed",
+            params=[netuid],
+        ),
+        subtensor.query(
+            module="SubtensorModule",
+            storage_function="TargetRegistrationsPerInterval",
+            params=[netuid],
+        ),
+        subtensor.query(
+            module="SubtensorModule",
+            storage_function="RegistrationsThisInterval",
+            params=[netuid],
+        ),
+        subtensor.query(
+            module="SubtensorModule",
+            storage_function="LastAdjustmentBlock",
+            params=[netuid],
+        ),
+        subtensor.query(
+            module="SubtensorModule",
+            storage_function="AdjustmentInterval",
+            params=[netuid],
+        ),
+        subtensor.substrate.get_block_number(block_hash),
     )
 
     if not registration_allowed:
@@ -1866,28 +1896,17 @@ async def register(
             )
         return
 
-    print_verbose("Checking registration limit")
-    target_registrations_per_interval = await subtensor.query(
-        module="SubtensorModule",
-        storage_function="TargetRegistrationsPerInterval",
-        params=[netuid],
-    )
-
-    registrations_this_interval = await subtensor.query(
-        module="SubtensorModule",
-        storage_function="RegistrationsThisInterval",
-        params=[netuid],
-    )
-
     if registrations_this_interval >= target_registrations_per_interval * 3:
+        next_adjustment_block = int(last_adjustment_block) + int(adjustment_interval)
+        remaining_blocks = next_adjustment_block - int(current_block)
         err_console.print(
-            f"[red]Registration to subnet {netuid} is full for this interval. Try again later.[/red]"
+            f"[red]Registration to subnet {netuid} is full for this interval. Try again in {remaining_blocks} blocks.[/red]"
         )
         if json_output:
             json_console.print_json(
                 data={
                     "success": False,
-                    "msg": f"Registration to subnet {netuid} is full for this interval. Try again later.",
+                    "msg": f"Registration to subnet {netuid} is full for this interval. Try again in {remaining_blocks} blocks.",
                     "extrinsic_identifier": None,
                 }
             )
