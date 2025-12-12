@@ -2099,7 +2099,7 @@ class SubtensorInterface:
 
         return claim_types
 
-    async def get_all_vali_claim_types_for_hk(
+    async def get_vali_claim_types_for_hk(
         self,
         hotkey_ss58: str,
         block_hash: Optional[str] = None,
