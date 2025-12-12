@@ -710,7 +710,7 @@ HYPERPARAMS_METADATA = {
     "kappa": {
         "description": "Kappa determines the scaling factor for consensus calculations.",
         "side_effects": "Modifying kappa changes how validator votes are weighted in consensus mechanisms.",
-        "owner_settable": False,
+        "owner_settable": True,
         "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#kappa",
     },
     "immunity_period": {
