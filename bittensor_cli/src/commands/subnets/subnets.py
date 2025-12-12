@@ -1847,6 +1847,52 @@ async def register(
             )
         return
 
+    print_verbose("Checking registration allowed")
+    registration_allowed = await subtensor.query(
+        module="SubtensorModule",
+        storage_function="NetworkRegistrationAllowed",
+        params=[netuid],
+    )
+
+    if not registration_allowed:
+        err_console.print(f"[red]Registration to subnet {netuid} is not allowed[/red]")
+        if json_output:
+            json_console.print_json(
+                data={
+                    "success": False,
+                    "msg": f"Registration to subnet {netuid} is not allowed",
+                    "extrinsic_identifier": None,
+                }
+            )
+        return
+
+    print_verbose("Checking registration limit")
+    target_registrations_per_interval = await subtensor.query(
+        module="SubtensorModule",
+        storage_function="TargetRegistrationsPerInterval",
+        params=[netuid],
+    )
+
+    registrations_this_interval = await subtensor.query(
+        module="SubtensorModule",
+        storage_function="RegistrationsThisInterval",
+        params=[netuid],
+    )
+
+    if registrations_this_interval >= target_registrations_per_interval * 3:
+        err_console.print(
+            f"[red]Registration to subnet {netuid} is full for this interval. Try again later.[/red]"
+        )
+        if json_output:
+            json_console.print_json(
+                data={
+                    "success": False,
+                    "msg": f"Registration to subnet {netuid} is full for this interval. Try again later.",
+                    "extrinsic_identifier": None,
+                }
+            )
+        return
+
     # Check current recycle amount
     print_verbose("Fetching recycle amount")
     current_recycle_, balance = await asyncio.gather(
