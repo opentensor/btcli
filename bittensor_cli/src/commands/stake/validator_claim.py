@@ -227,3 +227,44 @@ async def set_validator_claim_type(
     Returns:
         bool: True if the operation succeeded, False otherwise.
     """
+
+    def _render_current_claims(
+        state: dict[int, str],
+        identity: dict = None,
+        ss58: str = None,
+    ):
+        validator_name = identity.get("name", "Unknown")
+        header_text = (
+            f"[dim]Validator:[/dim] [bold cyan]{validator_name}[/bold cyan]\n"
+            f"[dim]({ss58})[/dim]"
+        )
+        console.print(header_text, "\n")
+
+        default_list = sorted([n for n, t in state.items() if t == "Default"])
+        keep_list = sorted([n for n, t in state.items() if t == "Keep"])
+        swap_list = sorted([n for n, t in state.items() if t == "Swap"])
+
+        default_str = group_subnets(default_list) if default_list else "[dim]None[/dim]"
+        keep_str = group_subnets(keep_list) if keep_list else "[dim]None[/dim]"
+        swap_str = group_subnets(swap_list) if swap_list else "[dim]None[/dim]"
+
+        default_panel = Panel(
+            default_str,
+            title="[bold blue]Default (Keep - α)[/bold blue]",
+            border_style="blue",
+            expand=False,
+        )
+        keep_panel = Panel(
+            keep_str,
+            title="[bold green]Keep (α)[/bold green]",
+            border_style="green",
+            expand=False,
+        )
+        swap_panel = Panel(
+            swap_str,
+            title="[bold red]Swap (τ)[/bold red]",
+            border_style="red",
+            expand=False,
+        )
+
+        top_row = Columns([keep_panel, swap_panel], expand=False, equal=True)
