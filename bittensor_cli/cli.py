@@ -43,6 +43,8 @@ from bittensor_cli.src import (
     Constants,
     COLORS,
     HYPERPARAMS,
+    HYPERPARAMS_METADATA,
+    RootSudoOnly,
     WalletOptions,
 )
 from bittensor_cli.src.bittensor import utils
@@ -6528,9 +6530,15 @@ class CLIManager:
 
         This command allows subnet owners to modify hyperparameters such as its tempo, emission rates, and other hyperparameters.
 
+        When listing hyperparameters, descriptions, ownership information, and side-effects are displayed to help you make informed decisions.
+
+        You can also set custom hyperparameters not in the standard list by using the exact parameter name from the chain metadata.
+
         EXAMPLE
 
         [green]$[/green] btcli sudo set --netuid 1 --param tempo --value 400
+
+        [green]$[/green] btcli sudo set --netuid 1 --param custom_param_name --value 123
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
@@ -6554,9 +6562,42 @@ class CLIManager:
                 [field.name for field in fields(SubnetHyperparameters)]
             )
             console.print("Available hyperparameters:\n")
+
+            # Create a table to show hyperparameters with descriptions
+
+            param_table = Table(
+                Column("[white]#", style="dim", width=4),
+                Column("[white]HYPERPARAMETER", style=COLORS.SU.HYPERPARAMETER),
+                Column("[white]OWNER SETTABLE", style="bright_cyan", width=18),
+                Column("[white]DESCRIPTION", style="dim", overflow="fold"),
+                box=box.SIMPLE,
+                show_edge=False,
+                pad_edge=False,
+            )
+
             for idx, param in enumerate(hyperparam_list, start=1):
-                console.print(f"  {idx}. {param}")
+                metadata = HYPERPARAMS_METADATA.get(param, {})
+                description = metadata.get("description", "No description available.")
+
+                # Check ownership from HYPERPARAMS
+                _, root_sudo = HYPERPARAMS.get(param, ("", RootSudoOnly.FALSE))
+                if root_sudo == RootSudoOnly.TRUE:
+                    owner_settable_str = "[red]No (Root Only)[/red]"
+                elif root_sudo == RootSudoOnly.COMPLICATED:
+                    owner_settable_str = "[yellow]COMPLICATED[/yellow]"
+                else:
+                    owner_settable_str = "[green]Yes[/green]"
+
+                param_table.add_row(
+                    str(idx),
+                    f"[bold]{param}[/bold]",
+                    owner_settable_str,
+                    description,
+                )
+
+            console.print(param_table)
             console.print()
+
             choice = IntPrompt.ask(
                 "Enter the [bold]number[/bold] of the hyperparameter",
                 choices=[str(i) for i in range(1, len(hyperparam_list) + 1)],
@@ -6564,13 +6605,50 @@ class CLIManager:
             )
             param_name = hyperparam_list[choice - 1]
 
+            # Show additional info for selected parameter
+            metadata = HYPERPARAMS_METADATA.get(param_name, {})
+            if metadata:
+                console.print(f"\n[bold cyan]Selected:[/bold cyan] {param_name}")
+                description = metadata.get("description", "No description available.")
+                docs_link = metadata.get("docs_link", "")
+                if docs_link:
+                    # Show description text followed by clickable blue [link] at the end
+                    console.print(
+                        f"{description} [bright_blue underline link=https://{docs_link}]link[/]"
+                    )
+                else:
+                    console.print(f"{description}")
+                side_effects = metadata.get("side_effects", "")
+                if side_effects:
+                    console.print(f"[dim]Side Effects:[/dim] {side_effects}")
+                if docs_link:
+                    console.print(
+                        f"[dim]📚 Docs:[/dim] [link]https://{docs_link}[/link]\n"
+                    )
+
         if param_name in ["alpha_high", "alpha_low"]:
             if not prompt:
-                err_console.print(
-                    f"[{COLORS.SU.HYPERPARAM}]alpha_high[/{COLORS.SU.HYPERPARAM}] and "
-                    f"[{COLORS.SU.HYPERPARAM}]alpha_low[/{COLORS.SU.HYPERPARAM}] "
-                    f"values cannot be set with `--no-prompt`"
+                err_msg = (
+                    f"alpha_high and alpha_low values cannot be set with `--no-prompt`. "
+                    f"They must be set together via the alpha_values parameter."
                 )
+                if json_output:
+                    json_str = json.dumps(
+                        {
+                            "success": False,
+                            "err_msg": err_msg,
+                            "extrinsic_identifier": None,
+                        },
+                        ensure_ascii=True,
+                    )
+                    sys.stdout.write(json_str + "\n")
+                    sys.stdout.flush()
+                else:
+                    err_console.print(
+                        f"[{COLORS.SU.HYPERPARAM}]alpha_high[/{COLORS.SU.HYPERPARAM}] and "
+                        f"[{COLORS.SU.HYPERPARAM}]alpha_low[/{COLORS.SU.HYPERPARAM}] "
+                        f"values cannot be set with `--no-prompt`"
+                    )
                 return False
             param_name = "alpha_values"
             low_val = FloatPrompt.ask(f"Enter the new value for {arg__('alpha_low')}")
@@ -6578,10 +6656,26 @@ class CLIManager:
             param_value = f"{low_val},{high_val}"
         if param_name == "yuma_version":
             if not prompt:
-                err_console.print(
-                    f"[{COLORS.SU.HYPERPARAM}]yuma_version[/{COLORS.SU.HYPERPARAM}]"
-                    f" is set using a different hyperparameter, and thus cannot be set with `--no-prompt`"
+                err_msg = (
+                    "yuma_version is set using a different hyperparameter (yuma3_enabled), "
+                    "and thus cannot be set with `--no-prompt`"
                 )
+                if json_output:
+                    json_str = json.dumps(
+                        {
+                            "success": False,
+                            "err_msg": err_msg,
+                            "extrinsic_identifier": None,
+                        },
+                        ensure_ascii=True,
+                    )
+                    sys.stdout.write(json_str + "\n")
+                    sys.stdout.flush()
+                else:
+                    err_console.print(
+                        f"[{COLORS.SU.HYPERPARAM}]yuma_version[/{COLORS.SU.HYPERPARAM}]"
+                        f" is set using a different hyperparameter, and thus cannot be set with `--no-prompt`"
+                    )
                 return False
             if Confirm.ask(
                 f"[{COLORS.SU.HYPERPARAM}]yuma_version[/{COLORS.SU.HYPERPARAM}] can only be used to toggle Yuma 3. "
@@ -6596,10 +6690,26 @@ class CLIManager:
             else:
                 return False
         if param_name == "subnet_is_active":
-            err_console.print(
-                f"[{COLORS.SU.HYPERPARAM}]subnet_is_active[/{COLORS.SU.HYPERPARAM}] "
-                f"is set by using {arg__('btcli subnets start')} command."
+            err_msg = (
+                "subnet_is_active is set by using the 'btcli subnets start' command, "
+                "not via sudo set"
             )
+            if json_output:
+                json_str = json.dumps(
+                    {
+                        "success": False,
+                        "err_msg": err_msg,
+                        "extrinsic_identifier": None,
+                    },
+                    ensure_ascii=True,
+                )
+                sys.stdout.write(json_str + "\n")
+                sys.stdout.flush()
+            else:
+                err_console.print(
+                    f"[{COLORS.SU.HYPERPARAM}]subnet_is_active[/{COLORS.SU.HYPERPARAM}] "
+                    f"is set by using {arg__('btcli subnets start')} command."
+                )
             return False
 
         if not param_value:
@@ -6627,29 +6737,58 @@ class CLIManager:
             f"param_name: {param_name}\n"
             f"param_value: {param_value}"
         )
-        result, err_msg, ext_id = self._run_command(
-            sudo.sudo_set_hyperparameter(
-                wallet=wallet,
-                subtensor=self.initialize_chain(network),
-                netuid=netuid,
-                proxy=proxy,
-                param_name=param_name,
-                param_value=param_value,
-                prompt=prompt,
-                json_output=json_output,
-            )
-        )
         if json_output:
-            json_console.print(
-                json.dumps(
+            try:
+                result, err_msg, ext_id = self._run_command(
+                    sudo.sudo_set_hyperparameter(
+                        wallet=wallet,
+                        subtensor=self.initialize_chain(network),
+                        netuid=netuid,
+                        proxy=proxy,
+                        param_name=param_name,
+                        param_value=param_value,
+                        prompt=prompt,
+                        json_output=json_output,
+                    )
+                )
+                json_str = json.dumps(
                     {
                         "success": result,
                         "err_msg": err_msg,
                         "extrinsic_identifier": ext_id,
-                    }
+                    },
+                    ensure_ascii=True,
+                )
+                sys.stdout.write(json_str + "\n")
+                sys.stdout.flush()
+                return result
+            except Exception as e:
+                # Ensure JSON output even on exceptions
+                json_str = json.dumps(
+                    {
+                        "success": False,
+                        "err_msg": str(e),
+                        "extrinsic_identifier": None,
+                    },
+                    ensure_ascii=True,
+                )
+                sys.stdout.write(json_str + "\n")
+                sys.stdout.flush()
+                raise
+        else:
+            result, err_msg, ext_id = self._run_command(
+                sudo.sudo_set_hyperparameter(
+                    wallet=wallet,
+                    subtensor=self.initialize_chain(network),
+                    netuid=netuid,
+                    proxy=proxy,
+                    param_name=param_name,
+                    param_value=param_value,
+                    prompt=prompt,
+                    json_output=json_output,
                 )
             )
-        return result
+            return result
 
     def sudo_get(
         self,
@@ -6661,6 +6800,8 @@ class CLIManager:
     ):
         """
         Shows a list of the hyperparameters for the specified subnet.
+
+        Displays hyperparameter values along with descriptions, ownership information (which parameters can be set by subnet owners vs root sudo), and side-effects.
 
         EXAMPLE
 

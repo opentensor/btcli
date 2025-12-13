@@ -83,8 +83,34 @@ def test_hyperparams_setting(local_chain, wallet_setup):
     hp = {}
     for hyperparam in all_hyperparams:
         hp[hyperparam["hyperparameter"]] = hyperparam["value"]
+        # Verify new metadata fields are present in JSON output
+        assert "description" in hyperparam, (
+            f"Missing description for {hyperparam['hyperparameter']}"
+        )
+        assert "side_effects" in hyperparam, (
+            f"Missing side_effects for {hyperparam['hyperparameter']}"
+        )
+        assert "owner_settable" in hyperparam, (
+            f"Missing owner_settable for {hyperparam['hyperparameter']}"
+        )
+        assert "docs_link" in hyperparam, (
+            f"Missing docs_link for {hyperparam['hyperparameter']}"
+        )
+        # Verify description is not empty (unless it's a parameter without metadata)
+        assert isinstance(hyperparam["description"], str), (
+            f"Description should be string for {hyperparam['hyperparameter']}"
+        )
+
+    # Skip parameters that cannot be set with --no-prompt
+    SKIP_PARAMS = {"alpha_high", "alpha_low", "subnet_is_active", "yuma_version"}
+
     for key, (_, sudo_only) in HYPERPARAMS.items():
-        if key in hp.keys() and sudo_only == RootSudoOnly.FALSE:
+        print(f"key: {key}, sudo_only: {sudo_only}")
+        if (
+            key in hp.keys()
+            and sudo_only == RootSudoOnly.FALSE
+            and key not in SKIP_PARAMS
+        ):
             if isinstance(hp[key], bool):
                 new_val = not hp[key]
             elif isinstance(hp[key], int):
