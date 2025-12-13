@@ -48,6 +48,34 @@ U32_MAX = 4294967295
 U16_MAX = 65535
 
 
+async def get_current_weights_for_uid(
+    subtensor: SubtensorInterface,
+    netuid: int,
+    uid: int,
+) -> dict[int, float]:
+    """
+    Fetches the current weights set by a specific UID on a subnet.
+
+    Args:
+        subtensor: The SubtensorInterface instance.
+        netuid: The network UID (0 for root network).
+        uid: The UID of the neuron whose weights to fetch.
+
+    Returns:
+        A dictionary mapping destination netuid to normalized weight (0.0-1.0).
+    """
+    weights_data = await subtensor.weights(netuid=netuid)
+    current_weights: dict[int, float] = {}
+
+    for validator_uid, weight_list in weights_data:
+        if validator_uid == uid:
+            for dest_netuid, raw_weight in weight_list:
+                current_weights[dest_netuid] = u16_normalized_float(raw_weight)
+            break
+
+    return current_weights
+
+
 async def get_limits(subtensor: SubtensorInterface) -> tuple[int, float]:
     # Get weight restrictions.
     maw, mwl = await asyncio.gather(
@@ -459,17 +487,39 @@ async def set_root_weights_extrinsic(
 
     # Ask before moving on.
     if prompt:
+        # Fetch current weights for comparison
+        print_verbose("Fetching current weights for comparison")
+        current_weights = await get_current_weights_for_uid(
+            subtensor, netuid=0, uid=my_uid
+        )
+
         table = Table(
             Column("[dark_orange]Netuid", justify="center", style="bold green"),
-            Column(
-                "[dark_orange]Weight", justify="center", style="bold light_goldenrod2"
-            ),
+            Column("[dark_orange]Current", justify="center", style="dim"),
+            Column("[dark_orange]New", justify="center", style="bold light_goldenrod2"),
+            Column("[dark_orange]Change", justify="center"),
             expand=False,
             show_edge=False,
         )
 
-        for netuid, weight in zip(netuids, formatted_weights):
-            table.add_row(str(netuid), f"{weight:.8f}")
+        for netuid, new_weight in zip(netuids, formatted_weights):
+            current_weight = current_weights.get(netuid, 0.0)
+            diff = new_weight - current_weight
+
+            # Format the difference with color and sign
+            if diff > 0.00000001:
+                diff_str = f"[green]+{diff:.8f}[/green]"
+            elif diff < -0.00000001:
+                diff_str = f"[red]{diff:.8f}[/red]"
+            else:
+                diff_str = "[dim]0.00000000[/dim]"
+
+            table.add_row(
+                str(netuid),
+                f"{current_weight:.8f}",
+                f"{new_weight:.8f}",
+                diff_str,
+            )
 
         console.print(table)
         if not Confirm.ask("\nDo you want to set these root weights?"):
