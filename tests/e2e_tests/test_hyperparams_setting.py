@@ -13,7 +13,6 @@ Verify commands:
 """
 
 
-@pytest.mark.parametrize("local_chain", [False], indirect=True)
 def test_hyperparams_setting(local_chain, wallet_setup):
     netuid = 2
     wallet_path_alice = "//Alice"
@@ -58,6 +57,7 @@ def test_hyperparams_setting(local_chain, wallet_setup):
             "https://testsubnet.com/logo.png",
             "--no-prompt",
             "--json-output",
+            "--no-mev-protection",
         ],
     )
     result_output = json.loads(result.stdout)
