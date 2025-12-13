@@ -58,6 +58,9 @@ def test_set_id(local_chain, wallet_setup):
             "--no-mev-protection",
         ],
     )
+    print("=======================================")
+    print(result.stdout)
+    print("=======================================")
     result_output = json.loads(result.stdout)
     assert result_output["success"] is True
 
@@ -107,9 +110,17 @@ def test_set_id(local_chain, wallet_setup):
             ],
             inputs=["Y", "Y"],
         )
+
     assert (
         f"Are you sure you want to use {sn_logo_url} as your image URL?"
         in set_identity.stdout
+    )
+    # Verify that deposit information is shown in the prompt
+    assert "Are you sure you want to set subnet's identity?" in set_identity.stdout
+    # Check for either deposit amount or "subject to a fee" message
+    assert (
+        "deposit" in set_identity.stdout.lower()
+        or "subject to a fee" in set_identity.stdout.lower()
     )
     get_identity = exec_command_alice(
         "subnets",
@@ -181,6 +192,13 @@ def test_set_id(local_chain, wallet_setup):
         f"Are you sure you want to use {sn_logo_url} as your image URL?"
         not in set_identity.stdout
     )
+    # Verify that deposit information is shown in the prompt
+    assert "Are you sure you want to set subnet's identity?" in set_identity.stdout
+    # Check for either deposit amount or "subject to a fee" message
+    assert (
+        "deposit" in set_identity.stdout.lower()
+        or "subject to a fee" in set_identity.stdout.lower()
+    )
     get_identity = exec_command_alice(
         "subnets",
         "get-identity",
@@ -192,6 +210,7 @@ def test_set_id(local_chain, wallet_setup):
             "--json-output",
         ],
     )
+
     get_identity_output = json.loads(get_identity.stdout)
     assert get_identity_output["subnet_name"] == sn_name
     assert get_identity_output["github_repo"] == sn_github

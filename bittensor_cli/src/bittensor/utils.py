@@ -43,7 +43,7 @@ GLOBAL_MAX_SUBNET_COUNT = 4096
 MEV_SHIELD_PUBLIC_KEY_SIZE = 1184
 
 console = Console()
-json_console = Console()
+json_console = Console(no_color=True)
 err_console = Console(stderr=True)
 verbose_console = Console(quiet=True)
 

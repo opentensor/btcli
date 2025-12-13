@@ -44,6 +44,7 @@ from bittensor_cli.src.bittensor.utils import (
     print_extrinsic_id,
     check_img_mimetype,
 )
+from async_substrate_interface.types import Runtime
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
@@ -51,6 +52,86 @@ if TYPE_CHECKING:
 TAO_WEIGHT = 0.18
 
 # helpers and extrinsics
+
+
+async def get_subtensor_constant(
+    subtensor: "SubtensorInterface",
+    constant_name: str,
+    runtime: Optional[Runtime] = None,
+    block_hash: Optional[str] = None,
+) -> int:
+    """
+    Get a constant from the SubtensorModule.
+
+    Args:
+        subtensor: SubtensorInterface object for chain interaction
+        constant_name: Name of the constant to get
+        runtime: Runtime object (optional)
+        block_hash: Block hash (optional)
+
+    Returns:
+        The value of the constant in RAO
+    """
+    runtime = runtime or await subtensor.substrate.init_runtime(block_hash=block_hash)
+
+    result = await subtensor.substrate.get_constant(
+        module_name="SubtensorModule",
+        constant_name=constant_name,
+        block_hash=block_hash,
+        runtime=runtime,
+    )
+    return getattr(result, "value", result)
+
+
+async def get_identity_deposit(
+    subtensor: "SubtensorInterface",
+    block_hash: Optional[str] = None,
+) -> Balance:
+    """
+    Get the deposit required for subnet identity operations.
+
+    Args:
+        subtensor: SubtensorInterface object for chain interaction
+        block_hash: Block hash (optional)
+
+    Returns:
+        The identity deposit amount as a Balance object
+    """
+    try:
+        # Try common constant names for identity deposit
+        constant_names = [
+            "SubnetIdentityDeposit",
+            "IdentityDeposit",
+            "SubnetIdentityFee",
+            "IdentityFee",
+            "SubnetIdentityDepositAmount",
+            "IdentityDepositAmount",
+        ]
+
+        runtime = await subtensor.substrate.init_runtime(block_hash=block_hash)
+
+        for constant_name in constant_names:
+            try:
+                deposit_raw = await get_subtensor_constant(
+                    subtensor, constant_name, runtime=runtime, block_hash=block_hash
+                )
+                print_verbose(
+                    f"Found identity deposit constant: {constant_name} = {deposit_raw} RAO"
+                )
+                return Balance.from_rao(deposit_raw)
+            except Exception as e:
+                print_verbose(f"Constant {constant_name} not found: {e}")
+                continue
+
+        # If no constant found, return 0 and log a warning
+        print_verbose(
+            f"Warning: Could not find identity deposit constant. "
+            f"Tried: {', '.join(constant_names)}"
+        )
+        return Balance.from_rao(0)
+    except Exception as e:
+        print_verbose(f"Error retrieving identity deposit: {e}")
+        return Balance.from_rao(0)
 
 
 def format_claim_type_for_root(claim_info: dict, total_subnets: int) -> str:
@@ -120,6 +201,7 @@ async def register_subnetwork_extrinsic(
     wait_for_finalization: bool = True,
     prompt: bool = False,
     mev_protection: bool = True,
+    json_output: bool = False,
 ) -> tuple[bool, Optional[int], Optional[str]]:
     """Registers a new subnetwork.
 
@@ -192,6 +274,9 @@ async def register_subnetwork_extrinsic(
 
     has_identity = any(subnet_identity.values())
     if has_identity:
+        # Query identity deposit amount when creating subnet with identity
+        identity_deposit = await get_identity_deposit(subtensor)
+
         identity_data = {
             "subnet_name": subnet_identity["subnet_name"].encode()
             if subnet_identity.get("subnet_name")
@@ -228,6 +313,27 @@ async def register_subnetwork_extrinsic(
                     f"Value '{value.decode()}' is {len(value)} bytes."
                 )
                 return False, None, None
+
+        # Display identity deposit information (only if not in JSON output mode)
+        if not json_output:
+            if identity_deposit.rao > 0:
+                console.print(
+                    f"Identity deposit required: [{COLOR_PALETTE['POOLS']['TAO']}]{identity_deposit}[/{COLOR_PALETTE['POOLS']['TAO']}]"
+                )
+                # Check if user has enough balance for identity deposit
+                if identity_deposit > your_balance:
+                    err_console.print(
+                        f"Your balance of: [{COLOR_PALETTE.POOLS.TAO}]{your_balance}[/{COLOR_PALETTE.POOLS.TAO}] "
+                        f"is not enough to cover the identity deposit of "
+                        f"[{COLOR_PALETTE.POOLS.TAO}]{identity_deposit}[/{COLOR_PALETTE.POOLS.TAO}]."
+                    )
+                    return False, None, None
+            else:
+                # Deposit is 0 or unknown - still inform user that identity creation may have a fee
+                console.print(
+                    f"[yellow]Note:[/yellow] Creating subnet with identity may require a deposit. "
+                    f"Deposit amount could not be determined from chain constants."
+                )
 
     if not unlock_key(wallet).success:
         return False, None, None
@@ -1599,7 +1705,8 @@ async def show(
                 "uids": json_out_rows,
             }
             if json_output:
-                json_console.print(json.dumps(output_dict))
+                # Use print() directly for JSON output to avoid Rich Console adding ANSI codes
+                print(json.dumps(output_dict))
 
             mech_line = (
                 f"\n  Mechanism ID: [{COLOR_PALETTE['GENERAL']['SUBHEADING_EXTRA_1']}]#{selected_mechanism_id}"
@@ -1738,11 +1845,13 @@ async def create(
         prompt=prompt,
         proxy=proxy,
         mev_protection=mev_protection,
+        json_output=json_output,
     )
     if json_output:
         # technically, netuid can be `None`, but only if not wait for finalization/inclusion. However, as of present
         # (2025/04/03), we always use the default `wait_for_finalization=True`, so it will always have a netuid.
-        json_console.print(
+        # Use print() directly for JSON output to avoid Rich Console adding ANSI codes
+        print(
             json.dumps(
                 {"success": success, "netuid": netuid, "extrinsic_identifier": ext_id}
             )
@@ -2519,9 +2628,18 @@ async def set_identity(
     if not unlock_key(wallet).success:
         return False, None
 
+    # Query identity deposit amount
+    identity_deposit = await get_identity_deposit(subtensor)
+
     if prompt:
+        deposit_msg = ""
+        if identity_deposit.rao > 0:
+            deposit_msg = f" This requires a deposit of [{COLOR_PALETTE['POOLS']['TAO']}]{identity_deposit}[/{COLOR_PALETTE['POOLS']['TAO']}]."
+        else:
+            deposit_msg = " This is subject to a fee."
+
         if not Confirm.ask(
-            "Are you sure you want to set subnet's identity? This is subject to a fee."
+            f"Are you sure you want to set subnet's identity?{deposit_msg}"
         ):
             return False, None
 
@@ -2618,7 +2736,8 @@ async def get_identity(
             table.add_row(key, str(value) if value else "~")
             dict_out[key] = value
         if json_output:
-            json_console.print(json.dumps(dict_out))
+            # Use print() directly for JSON output to avoid Rich Console adding ANSI codes
+            print(json.dumps(dict_out))
         else:
             console.print(table)
         return identity
