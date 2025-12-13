@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 class ClaimType(Enum):
     Keep = "Keep"
     Swap = "Swap"
+    Delegated = "Delegated"
 
 
 async def set_claim_type(
@@ -536,17 +537,21 @@ async def _ask_for_claim_types(
             "[yellow]Options:[/yellow]\n"
             "  • [green]Swap[/green] - Convert emissions to TAO\n"
             "  • [green]Keep[/green] - Keep emissions as Alpha\n"
-            "  • [green]Keep Specific[/green] - Keep selected subnets, swap others\n",
+            "  • [green]Keep Specific[/green] - Keep selected subnets, swap others\n"
+            "  • [green]Delegated[/green] - Delegate claim choice to validator\n",
         )
     )
 
     primary_choice = Prompt.ask(
         "\nSelect new root claim type",
-        choices=["keep", "swap", "cancel"],
+        choices=["keep", "swap", "delegated", "cancel"],
         default="cancel",
     )
     if primary_choice == "cancel":
         return None
+
+    if primary_choice == "delegated":
+        return {"type": "Delegated"}
 
     apply_to_all = Confirm.ask(
         f"\nSet {primary_choice.capitalize()} to ALL subnets?", default=True
@@ -713,6 +718,10 @@ def _format_claim_type_display(
                 result += f"\n[yellow]  ⟳ Swap:[/yellow] {swap_display}"
 
         return result
+
+    elif claim_type == "Delegated":
+        return "[magenta]Delegated[/magenta]"
+
     else:
         return "[red]Unknown[/red]"
 
@@ -742,5 +751,7 @@ def _prepare_claim_type_args(claim_info: dict) -> dict:
     elif claim_type == "KeepSubnets":
         subnets = claim_info["subnets"]
         return {"KeepSubnets": {"subnets": subnets}}
+    elif claim_type == "Delegated":
+        return {"Delegated": None}
     else:
         raise ValueError(f"Unknown claim type: {claim_type}")
