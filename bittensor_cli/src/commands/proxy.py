@@ -1,12 +1,13 @@
 from typing import TYPE_CHECKING, Optional
 import sys
 
-from rich.prompt import Confirm, Prompt, FloatPrompt, IntPrompt
+from rich.prompt import Prompt, FloatPrompt, IntPrompt
 from scalecodec import GenericCall, ScaleBytes
 
 from bittensor_cli.src import COLORS
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     print_extrinsic_id,
     json_console,
     console,
@@ -115,6 +116,8 @@ async def create_proxy(
     delay: int,
     idx: int,
     prompt: bool,
+    decline: bool,
+    quiet: bool,
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
     period: int,
@@ -124,14 +127,18 @@ async def create_proxy(
     Executes the create pure proxy call on the chain
     """
     if prompt:
-        if not Confirm.ask(
+        if not confirm_action(
             f"This will create a Pure Proxy of type {proxy_type.value}. Do you want to proceed?",
+            decline=decline,
+            quiet=quiet,
         ):
             return None
         if delay > 0:
-            if not Confirm.ask(
+            if not confirm_action(
                 f"By adding a non-zero delay ({delay}), all proxy calls must be announced "
-                f"{delay} blocks before they will be able to be made. Continue?"
+                f"{delay} blocks before they will be able to be made. Continue?",
+                decline=decline,
+                quiet=quiet,
             ):
                 return None
     if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
@@ -190,7 +197,7 @@ async def create_proxy(
                 f"{arg_end}"
             )
         else:
-            if Confirm.ask("Would you like to add this to your address book?"):
+            if confirm_action("Would you like to add this to your address book?", decline=decline, quiet=quiet):
                 proxy_name = Prompt.ask("Name this proxy")
                 note = Prompt.ask("[Optional] Add a note for this proxy", default="")
                 with ProxyAddressBook.get_db() as (conn, cursor):
@@ -247,6 +254,8 @@ async def remove_proxy(
     delegate: str,
     delay: int,
     prompt: bool,
+    decline: bool,
+    quiet: bool,
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
     period: int,
@@ -256,9 +265,11 @@ async def remove_proxy(
     Executes the remove proxy call on the chain
     """
     if prompt:
-        if not Confirm.ask(
+        if not confirm_action(
             f"This will remove a proxy of type {proxy_type.value} for delegate {delegate}."
-            f"Do you want to proceed?"
+            f"Do you want to proceed?",
+            decline=decline,
+            quiet=quiet,
         ):
             return None
     if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
@@ -300,6 +311,8 @@ async def add_proxy(
     delegate: str,
     delay: int,
     prompt: bool,
+    decline: bool,
+    quiet: bool,
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
     period: int,
@@ -309,15 +322,19 @@ async def add_proxy(
     Executes the add proxy call on the chain
     """
     if prompt:
-        if not Confirm.ask(
+        if not confirm_action(
             f"This will add a proxy of type {proxy_type.value} for delegate {delegate}."
-            f"Do you want to proceed?"
+            f"Do you want to proceed?",
+            decline=decline,
+            quiet=quiet,
         ):
             return None
         if delay > 0:
-            if not Confirm.ask(
+            if not confirm_action(
                 f"By adding a non-zero delay ({delay}), all proxy calls must be announced "
-                f"{delay} blocks before they will be able to be made. Continue?"
+                f"{delay} blocks before they will be able to be made. Continue?",
+                decline=decline,
+                quiet=quiet,
             ):
                 return None
     if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
@@ -378,7 +395,7 @@ async def add_proxy(
                 f"{arg_end}"
             )
         else:
-            if Confirm.ask("Would you like to add this to your address book?"):
+            if confirm_action("Would you like to add this to your address book?", decline=decline, quiet=quiet):
                 proxy_name = Prompt.ask("Name this proxy")
                 note = Prompt.ask("[Optional] Add a note for this proxy", default="")
                 with ProxyAddressBook.get_db() as (conn, cursor):
@@ -502,6 +519,8 @@ async def execute_announced(
     delay: int = 0,
     created_block: Optional[int] = None,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = False,
     json_output: bool = False,
@@ -516,10 +535,12 @@ async def execute_announced(
     if prompt and created_block is not None:
         current_block = await subtensor.substrate.get_block_number()
         if current_block - delay > created_block:
-            if not Confirm.ask(
+            if not confirm_action(
                 f"The delay for this account is set to {delay} blocks, but the call was created"
                 f" at block {created_block}. It is currently only {current_block}. The call will likely fail."
-                f" Do you want to proceed?"
+                f" Do you want to proceed?",
+                decline=decline,
+                quiet=quiet,
             ):
                 return False
 

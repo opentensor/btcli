@@ -3,7 +3,6 @@ import json
 from typing import Optional
 
 from bittensor_wallet import Wallet
-from rich.prompt import Confirm
 from rich.table import Column, Table, box
 
 from bittensor_cli.src import COLORS
@@ -11,6 +10,7 @@ from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.commands.crowd.view import show_crowdloan_details
 from bittensor_cli.src.bittensor.utils import (
     blocks_to_duration,
+    confirm_action,
     console,
     json_console,
     print_extrinsic_id,
@@ -27,6 +27,8 @@ async def dissolve_crowdloan(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
     json_output: bool = False,
 ) -> tuple[bool, str]:
     """Dissolve a non-finalized crowdloan after refunding contributors.
@@ -137,9 +139,11 @@ async def dissolve_crowdloan(
     console.print("\n[bold cyan]Crowdloan Dissolution Summary[/bold cyan]")
     console.print(summary)
 
-    if prompt and not Confirm.ask(
+    if prompt and not confirm_action(
         f"\n[bold]Proceed with dissolving crowdloan #{crowdloan_id}?[/bold]",
         default=False,
+        decline=decline,
+        quiet=quiet,
     ):
         if json_output:
             json_console.print(

@@ -22,7 +22,6 @@ from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet
 from Crypto.Hash import keccak
 import numpy as np
-from rich.prompt import Confirm
 from rich.console import Console
 from rich.status import Status
 from async_substrate_interface.errors import SubstrateRequestException
@@ -31,6 +30,7 @@ from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.chain_data import NeuronInfo
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
     err_console,
     format_error_message,
@@ -459,6 +459,8 @@ async def register_extrinsic(
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = True,
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
     max_allowed_attempts: int = 3,
     output_in_place: bool = True,
     cuda: bool = False,
@@ -525,13 +527,15 @@ async def register_extrinsic(
             return True
 
     if prompt:
-        if not Confirm.ask(
+        if not confirm_action(
             f"Continue Registration?\n"
             f"  hotkey [{COLOR_PALETTE.G.HK}]({wallet.hotkey_str})[/{COLOR_PALETTE.G.HK}]:"
             f"\t[{COLOR_PALETTE.G.HK}]{get_hotkey_pub_ss58(wallet)}[/{COLOR_PALETTE.G.HK}]\n"
             f"  coldkey [{COLOR_PALETTE.G.CK}]({wallet.name})[/{COLOR_PALETTE.G.CK}]:"
             f"\t[{COLOR_PALETTE.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE.G.CK}]\n"
-            f"  network:\t\t[{COLOR_PALETTE.G.LINKS}]{subtensor.network}[/{COLOR_PALETTE.G.LINKS}]\n"
+            f"  network:\t\t[{COLOR_PALETTE.G.LINKS}]{subtensor.network}[/{COLOR_PALETTE.G.LINKS}]\n",
+            decline=decline,
+            quiet=quiet,
         ):
             return False
 
@@ -816,6 +820,8 @@ async def run_faucet_extrinsic(
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = True,
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
     max_allowed_attempts: int = 3,
     output_in_place: bool = True,
     cuda: bool = False,
@@ -849,11 +855,13 @@ async def run_faucet_extrinsic(
                     finalization/inclusion, the response is also `True`
     """
     if prompt:
-        if not Confirm.ask(
+        if not confirm_action(
             "Run Faucet?\n"
             f" wallet name: [bold white]{wallet.name}[/bold white]\n"
             f" coldkey:    [bold white]{wallet.coldkeypub.ss58_address}[/bold white]\n"
-            f" network:    [bold white]{subtensor}[/bold white]"
+            f" network:    [bold white]{subtensor}[/bold white]",
+            decline=decline,
+            quiet=quiet,
         ):
             return False, ""
 
@@ -1760,6 +1768,8 @@ async def swap_hotkey_extrinsic(
     netuid: Optional[int] = None,
     proxy: Optional[str] = None,
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
 ) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """
     Performs an extrinsic update for swapping two hotkeys on the chain
@@ -1825,7 +1835,7 @@ async def swap_hotkey_extrinsic(
                 "This operation will cost [bold cyan]1 TAO (recycled)[/bold cyan]"
             )
 
-        if not Confirm.ask(confirm_message):
+        if not confirm_action(confirm_message, decline=decline, quiet=quiet):
             return False, None
     print_verbose(
         f"Swapping {wallet.name}'s hotkey ({hk_ss58} - {wallet.hotkey_str}) with "

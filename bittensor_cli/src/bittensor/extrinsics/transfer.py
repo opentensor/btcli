@@ -3,7 +3,6 @@ from typing import Optional, Union
 
 from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet
-from rich.prompt import Confirm
 from async_substrate_interface.errors import SubstrateRequestException
 
 from bittensor_cli.src.bittensor.balances import Balance
@@ -12,6 +11,7 @@ from bittensor_cli.src.bittensor.subtensor_interface import (
     GENESIS_ADDRESS,
 )
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
     err_console,
     print_verbose,
@@ -33,6 +33,8 @@ async def transfer_extrinsic(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
     proxy: Optional[str] = None,
     announce_only: bool = False,
 ) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
@@ -189,14 +191,16 @@ async def transfer_extrinsic(
     if prompt:
         hk_owner = await subtensor.get_hotkey_owner(destination, check_exists=False)
         if hk_owner and hk_owner not in (destination, GENESIS_ADDRESS):
-            if not Confirm.ask(
+            if not confirm_action(
                 f"The destination appears to be a hotkey, owned by [bright_magenta]{hk_owner}[/bright_magenta]. "
                 f"Only proceed if you are absolutely sure that [bright_magenta]{destination}[/bright_magenta] is the "
                 f"correct destination.",
                 default=False,
+                decline=decline,
+                quiet=quiet,
             ):
                 return False, None
-        if not Confirm.ask(
+        if not confirm_action(
             "Do you want to transfer:[bold white]\n"
             f"  amount: [bright_cyan]{amount if not transfer_all else account_balance}[/bright_cyan]\n"
             f"  from: [light_goldenrod2]{wallet.name}[/light_goldenrod2] : "
@@ -204,7 +208,9 @@ async def transfer_extrinsic(
             f"  to: [bright_magenta]{destination}[/bright_magenta]\n  for fee: [bright_cyan]{fee}[/bright_cyan]\n"
             f"[bright_yellow]Transferring is not the same as staking. To instead stake, use "
             f"[dark_orange]btcli stake add[/dark_orange] instead[/bright_yellow].\n"
-            f"Proceed with transfer?"
+            f"Proceed with transfer?",
+            decline=decline,
+            quiet=quiet,
         ):
             return False, None
 

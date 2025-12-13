@@ -6,9 +6,9 @@ import typing
 from typing import Optional
 
 from bittensor_wallet import Wallet
-from rich.prompt import Confirm
 
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
     err_console,
     format_error_message,
@@ -41,6 +41,8 @@ async def reset_axon_extrinsic(
     wallet: Wallet,
     netuid: int,
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
 ) -> tuple[bool, str, Optional[str]]:
@@ -69,9 +71,11 @@ async def reset_axon_extrinsic(
 
     # Prompt for confirmation if requested
     if prompt:
-        if not Confirm.ask(
+        if not confirm_action(
             f"Do you want to reset the axon for hotkey [bold]{wallet.hotkey.ss58_address}[/bold] "
-            f"on netuid [bold]{netuid}[/bold]?"
+            f"on netuid [bold]{netuid}[/bold]?",
+            decline=decline,
+            quiet=quiet,
         ):
             return False, "User cancelled the operation", None
 
@@ -144,6 +148,8 @@ async def set_axon_extrinsic(
     ip_type: int = 4,
     protocol: int = 4,
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
 ) -> tuple[bool, str, Optional[str]]:
@@ -186,9 +192,11 @@ async def set_axon_extrinsic(
 
     # Prompt for confirmation if requested
     if prompt:
-        if not Confirm.ask(
+        if not confirm_action(
             f"Do you want to set the axon for hotkey [bold]{wallet.hotkey.ss58_address}[/bold] "
-            f"on netuid [bold]{netuid}[/bold] to [bold]{ip}:{port}[/bold]?"
+            f"on netuid [bold]{netuid}[/bold] to [bold]{ip}:{port}[/bold]?",
+            decline=decline,
+            quiet=quiet,
         ):
             return False, "User cancelled the operation", None
 
