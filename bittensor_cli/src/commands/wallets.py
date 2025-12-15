@@ -111,7 +111,9 @@ async def associate_hotkey(
             f"{hotkey_display.capitalize()} is not associated with any wallet"
         )
 
-    if prompt and not confirm_action("Do you want to continue with the association?", decline=decline, quiet=quiet):
+    if prompt and not confirm_action(
+        "Do you want to continue with the association?", decline=decline, quiet=quiet
+    ):
         return False
 
     if not unlock_key(wallet).success:

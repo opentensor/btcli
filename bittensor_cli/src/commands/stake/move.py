@@ -579,7 +579,9 @@ async def move_stake(
             )
         except ValueError:
             return False, ""
-        if not confirm_action("Would you like to continue?", decline=decline, quiet=quiet):
+        if not confirm_action(
+            "Would you like to continue?", decline=decline, quiet=quiet
+        ):
             return False, ""
 
     # Perform moving operation.
@@ -797,7 +799,9 @@ async def transfer_stake(
         except ValueError:
             return False, ""
 
-        if not confirm_action("Would you like to continue?", decline=decline, quiet=quiet):
+        if not confirm_action(
+            "Would you like to continue?", decline=decline, quiet=quiet
+        ):
             return False, ""
 
     # Perform transfer operation
@@ -995,7 +999,9 @@ async def swap_stake(
         except ValueError:
             return False, ""
 
-        if not confirm_action("Would you like to continue?", decline=decline, quiet=quiet):
+        if not confirm_action(
+            "Would you like to continue?", decline=decline, quiet=quiet
+        ):
             return False, ""
 
     # Perform swap operation

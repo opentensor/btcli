@@ -825,7 +825,9 @@ async def childkey_take(
 
     # Validate child SS58 addresses
     if not take:
-        if not confirm_action("Would you like to change the child take?", decline=decline, quiet=quiet):
+        if not confirm_action(
+            "Would you like to change the child take?", decline=decline, quiet=quiet
+        ):
             return [(netuid, False, None)]
         new_take_value = -1.0
         while not validate_take_value(new_take_value):

@@ -248,7 +248,12 @@ async def set_auto_stake_destination(
         )
         console.print(table)
 
-        if not confirm_action("\nSet this auto-stake destination?", default=True, decline=decline, quiet=quiet):
+        if not confirm_action(
+            "\nSet this auto-stake destination?",
+            default=True,
+            decline=decline,
+            quiet=quiet,
+        ):
             return False
 
     if not unlock_key(wallet).success:

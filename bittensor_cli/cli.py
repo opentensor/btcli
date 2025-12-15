@@ -1871,7 +1871,9 @@ class CLIManager:
                 [green]$[/green] btcli config clear --all
         """
         if all_items:
-            if confirm_action("Do you want to clear all configurations?", decline=decline, quiet=quiet):
+            if confirm_action(
+                "Do you want to clear all configurations?", decline=decline, quiet=quiet
+            ):
                 self.config = {}
                 print("All configurations have been cleared and set to 'None'.")
             else:
@@ -1894,7 +1896,11 @@ class CLIManager:
         if not any(args.values()):
             for arg in args.keys():
                 if self.config.get(arg) is not None:
-                    if confirm_action(f"Do you want to clear the {arg__(arg)} config?", decline=decline, quiet=quiet):
+                    if confirm_action(
+                        f"Do you want to clear the {arg__(arg)} config?",
+                        decline=decline,
+                        quiet=quiet,
+                    ):
                         logger.debug(f"Config: clearing {arg}.")
                         self.config[arg] = None
                         console.print(f"Cleared {arg__(arg)} config and set to 'None'.")

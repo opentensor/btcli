@@ -274,7 +274,9 @@ async def add_liquidity(
             f"\tusing wallet with name: {wallet.name}"
         )
 
-        if not confirm_action("Would you like to continue?", decline=decline, quiet=quiet):
+        if not confirm_action(
+            "Would you like to continue?", decline=decline, quiet=quiet
+        ):
             return False, "User cancelled operation."
 
     success, message, ext_receipt = await add_liquidity_extrinsic(
@@ -600,7 +602,9 @@ async def remove_liquidity(
         for pos in position_ids:
             console.print(f"\tPosition id: {pos}")
 
-        if not confirm_action("Would you like to continue?", decline=decline, quiet=quiet):
+        if not confirm_action(
+            "Would you like to continue?", decline=decline, quiet=quiet
+        ):
             return None
 
     # TODO does this never break because of the nonce?
@@ -667,7 +671,9 @@ async def modify_liquidity(
             f"\tLiquidity delta: {liquidity_delta}"
         )
 
-        if not confirm_action("Would you like to continue?", decline=decline, quiet=quiet):
+        if not confirm_action(
+            "Would you like to continue?", decline=decline, quiet=quiet
+        ):
             return False
 
     success, msg, ext_receipt = await modify_liquidity_extrinsic(

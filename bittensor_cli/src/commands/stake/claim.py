@@ -107,7 +107,9 @@ async def set_claim_type(
 
     # Full wizard
     if claim_type is None and selected_netuids is None:
-        new_claim_info = await _ask_for_claim_types(wallet, subtensor, all_subnets, decline=decline, quiet=quiet)
+        new_claim_info = await _ask_for_claim_types(
+            wallet, subtensor, all_subnets, decline=decline, quiet=quiet
+        )
         if new_claim_info is None:
             msg = "Operation cancelled."
             console.print(f"[yellow]{msg}[/yellow]")
@@ -177,7 +179,9 @@ async def set_claim_type(
             )
         )
 
-        if not confirm_action("\nProceed with this change?", decline=decline, quiet=quiet):
+        if not confirm_action(
+            "\nProceed with this change?", decline=decline, quiet=quiet
+        ):
             msg = "Operation cancelled."
             console.print(f"[yellow]{msg}[/yellow]")
             if json_output:
@@ -575,7 +579,12 @@ async def _ask_for_claim_types(
         )
 
     return await _prompt_claim_netuids(
-        wallet, subtensor, all_subnets, mode=primary_choice, decline=decline, quiet=quiet
+        wallet,
+        subtensor,
+        all_subnets,
+        mode=primary_choice,
+        decline=decline,
+        quiet=quiet,
     )
 
 
@@ -643,7 +652,9 @@ async def _prompt_claim_netuids(
             else:
                 keep_subnets = [n for n in all_subnets if n not in selected]
 
-            if _preview_subnet_selection(keep_subnets, all_subnets, decline=decline, quiet=quiet):
+            if _preview_subnet_selection(
+                keep_subnets, all_subnets, decline=decline, quiet=quiet
+            ):
                 if not keep_subnets:
                     return {"type": "Swap"}
                 elif set(keep_subnets) == set(all_subnets):
@@ -695,7 +706,9 @@ def _preview_subnet_selection(
 
     console.print(Panel(preview_content))
 
-    return confirm_action("\nIs this correct?", default=True, decline=decline, quiet=quiet)
+    return confirm_action(
+        "\nIs this correct?", default=True, decline=decline, quiet=quiet
+    )
 
 
 def _format_claim_type_display(

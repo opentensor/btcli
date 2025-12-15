@@ -320,7 +320,9 @@ async def unstake(
 
     _print_table_and_slippage(table, max_float_slippage, safe_staking)
     if prompt:
-        if not confirm_action("Would you like to continue?", decline=decline, quiet=quiet):
+        if not confirm_action(
+            "Would you like to continue?", decline=decline, quiet=quiet
+        ):
             return False
 
     # Execute extrinsics

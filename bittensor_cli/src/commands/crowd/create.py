@@ -351,7 +351,9 @@ async def create_crowdloan(
         )
         console.print(table)
 
-        if not confirm_action("Proceed with creating the crowdloan?", decline=decline, quiet=quiet):
+        if not confirm_action(
+            "Proceed with creating the crowdloan?", decline=decline, quiet=quiet
+        ):
             if json_output:
                 json_console.print(
                     json.dumps(
@@ -600,7 +602,9 @@ async def finalize_crowdloan(
             "• This action cannot be undone\n"
         )
 
-        if not confirm_action("\nProceed with finalization?", decline=decline, quiet=quiet):
+        if not confirm_action(
+            "\nProceed with finalization?", decline=decline, quiet=quiet
+        ):
             if json_output:
                 json_console.print(
                     json.dumps(

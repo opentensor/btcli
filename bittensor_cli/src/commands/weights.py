@@ -294,7 +294,9 @@ class SetWeightsExtrinsic:
     async def reveal_weights_extrinsic(
         self, weight_uids, weight_vals
     ) -> tuple[bool, str, Optional[str]]:
-        if self.prompt and not confirm_action("Would you like to reveal weights?", decline=self.decline, quiet=self.quiet):
+        if self.prompt and not confirm_action(
+            "Would you like to reveal weights?", decline=self.decline, quiet=self.quiet
+        ):
             return False, "User cancelled the operation.", None
 
         call = await self.subtensor.substrate.compose_call(

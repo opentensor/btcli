@@ -225,7 +225,9 @@ async def contribute_to_crowdloan(
         )
 
     if prompt:
-        if not confirm_action("\nProceed with contribution?", decline=decline, quiet=quiet):
+        if not confirm_action(
+            "\nProceed with contribution?", decline=decline, quiet=quiet
+        ):
             if json_output:
                 json_console.print(
                     json.dumps(
@@ -512,7 +514,9 @@ async def withdraw_from_crowdloan(
 
         console.print(table)
 
-        if not confirm_action("\nProceed with withdrawal?", decline=decline, quiet=quiet):
+        if not confirm_action(
+            "\nProceed with withdrawal?", decline=decline, quiet=quiet
+        ):
             if json_output:
                 json_console.print(
                     json.dumps(

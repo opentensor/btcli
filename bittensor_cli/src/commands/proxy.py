@@ -210,9 +210,15 @@ async def create_proxy(
                     f"[/blue]"
                 )
             else:
-                if confirm_action("Would you like to add this to your address book?", decline=decline, quiet=quiet):
+                if confirm_action(
+                    "Would you like to add this to your address book?",
+                    decline=decline,
+                    quiet=quiet,
+                ):
                     proxy_name = Prompt.ask("Name this proxy")
-                    note = Prompt.ask("[Optional] Add a note for this proxy", default="")
+                    note = Prompt.ask(
+                        "[Optional] Add a note for this proxy", default=""
+                    )
                     with ProxyAddressBook.get_db() as (conn, cursor):
                         ProxyAddressBook.add_entry(
                             conn,
@@ -406,9 +412,15 @@ async def add_proxy(
                     f"[/blue]"
                 )
             else:
-                if confirm_action("Would you like to add this to your address book?", decline=decline, quiet=quiet):
+                if confirm_action(
+                    "Would you like to add this to your address book?",
+                    decline=decline,
+                    quiet=quiet,
+                ):
                     proxy_name = Prompt.ask("Name this proxy")
-                    note = Prompt.ask("[Optional] Add a note for this proxy", default="")
+                    note = Prompt.ask(
+                        "[Optional] Add a note for this proxy", default=""
+                    )
                     with ProxyAddressBook.get_db() as (conn, cursor):
                         ProxyAddressBook.add_entry(
                             conn,
