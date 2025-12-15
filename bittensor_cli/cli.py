@@ -5370,6 +5370,9 @@ class CLIManager:
         proxy: Optional[str] = Options.proxy,
         announce_only: bool = Options.announce_only,
         prompt: bool = Options.prompt,
+        rate_tolerance: Optional[float] = Options.rate_tolerance,
+        safe_staking: Optional[bool] = Options.safe_staking,
+        allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -5408,6 +5411,15 @@ class CLIManager:
 
         Transfer stake without MEV protection:
         [green]$[/green] btcli stake transfer --origin-netuid 1 --dest-netuid 2 --amount 100 --no-mev-protection
+
+        Safe transfer with rate tolerance of 10%:
+        [green]$[/green] btcli stake transfer --origin-netuid 1 --dest-netuid 2 --amount 100 --safe --tolerance 0.1
+
+        Allow partial stake if rates change with tolerance of 10%:
+        [green]$[/green] btcli stake transfer --origin-netuid 1 --dest-netuid 2 --amount 100 --safe --partial --tolerance 0.1
+
+        Unsafe transfer with no rate protection:
+        [green]$[/green] btcli stake transfer --origin-netuid 1 --dest-netuid 2 --amount 100 --unsafe
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
@@ -5494,6 +5506,15 @@ class CLIManager:
                 dest_netuid = IntPrompt.ask(
                     "Enter the [blue]destination subnet[/blue] (netuid)"
                 )
+        # Handle safe staking options similar to stake_add
+        safe_staking_transfer = self.ask_safe_staking(safe_staking)
+        if safe_staking_transfer:
+            rate_tolerance_val = self.ask_rate_tolerance(rate_tolerance)
+            allow_partial_stake_val = self.ask_partial_stake(allow_partial_stake)
+        else:
+            rate_tolerance_val = 0.005  # Default, won't be used
+            allow_partial_stake_val = False
+
         logger.debug(
             "args:\n"
             f"network: {network}\n"
@@ -5505,7 +5526,10 @@ class CLIManager:
             f"amount: {amount}\n"
             f"era: {period}\n"
             f"stake_all: {stake_all}\n"
-            f"mev_protection: {mev_protection}"
+            f"mev_protection: {mev_protection}\n"
+            f"safe_staking: {safe_staking_transfer}\n"
+            f"rate_tolerance: {rate_tolerance_val}\n"
+            f"allow_partial_stake: {allow_partial_stake_val}\n"
             f"proxy: {proxy}"
         )
         result, ext_id = self._run_command(
@@ -5523,6 +5547,9 @@ class CLIManager:
                 prompt=prompt,
                 proxy=proxy,
                 mev_protection=mev_protection,
+                safe_staking=safe_staking_transfer,
+                rate_tolerance=rate_tolerance_val,
+                allow_partial_stake=allow_partial_stake_val,
             )
         )
         if json_output:
@@ -5570,6 +5597,9 @@ class CLIManager:
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
         mev_protection: bool = Options.mev_protection,
+        rate_tolerance: Optional[float] = Options.rate_tolerance,
+        safe_staking: Optional[bool] = Options.safe_staking,
+        allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -5596,6 +5626,15 @@ class CLIManager:
 
         2. Swap stake without MEV protection:
             [green]$[/green] btcli stake swap --origin-netuid 1 --dest-netuid 2 --amount 100 --no-mev-protection
+
+        3. Safe swapping with rate tolerance of 10%:
+            [green]$[/green] btcli stake swap --origin-netuid 1 --dest-netuid 2 --amount 100 --safe --tolerance 0.1
+
+        4. Allow partial stake if rates change with tolerance of 10%:
+            [green]$[/green] btcli stake swap --origin-netuid 1 --dest-netuid 2 --amount 100 --safe --partial --tolerance 0.1
+
+        5. Unsafe swapping with no rate protection:
+            [green]$[/green] btcli stake swap --origin-netuid 1 --dest-netuid 2 --amount 100 --unsafe
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
@@ -5611,6 +5650,15 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
+
+        # Handle safe staking options similar to stake_add
+        safe_swapping = self.ask_safe_staking(safe_staking)
+        if safe_swapping:
+            rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
+            allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
+        else:
+            rate_tolerance = 0.005  # Default, won't be used
+            allow_partial_stake = False
 
         interactive_selection = False
         if origin_netuid is None and dest_netuid is None and not amount:
@@ -5640,6 +5688,9 @@ class CLIManager:
             f"wait_for_inclusion: {wait_for_inclusion}\n"
             f"wait_for_finalization: {wait_for_finalization}\n"
             f"mev_protection: {mev_protection}\n"
+            f"safe_swapping: {safe_swapping}\n"
+            f"rate_tolerance: {rate_tolerance}\n"
+            f"allow_partial_stake: {allow_partial_stake}\n"
         )
         result, ext_id = self._run_command(
             move_stake.swap_stake(
@@ -5656,6 +5707,9 @@ class CLIManager:
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 mev_protection=mev_protection,
+                safe_swapping=safe_swapping,
+                allow_partial_stake=allow_partial_stake,
+                rate_tolerance=rate_tolerance,
             )
         )
         if json_output:

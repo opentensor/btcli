@@ -667,6 +667,9 @@ async def transfer_stake(
     prompt: bool = True,
     proxy: Optional[str] = None,
     mev_protection: bool = True,
+    safe_staking: bool = False,
+    allow_partial_stake: bool = False,
+    rate_tolerance: float = 0.005,
 ) -> tuple[bool, str]:
     """Transfers stake from one network to another.
 
@@ -684,6 +687,13 @@ async def transfer_stake(
         stake_all: If true, transfer all stakes.
         proxy: Optional proxy to use for this extrinsic
         mev_protection: If true, will encrypt the extrinsic behind the mev protection shield.
+        safe_staking: If true, enables price safety checks to protect against fluctuating prices.
+            Note: Currently not fully supported at the chain level for transfer_stake, but included for API consistency.
+        allow_partial_stake: If true and safe_staking is enabled, allows partial stake transfers when the full amount
+            would exceed the price tolerance. Note: Currently not fully supported at the chain level for transfer_stake.
+        rate_tolerance: The maximum allowed increase in the price ratio between subnets
+            (origin_price/destination_price). For example, 0.005 = 0.5% maximum increase. Only used when
+            safe_staking is True. Note: Currently not fully supported at the chain level for transfer_stake.
 
     Returns:
         tuple:
@@ -873,6 +883,9 @@ async def swap_stake(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     mev_protection: bool = True,
+    safe_swapping: bool = False,
+    allow_partial_stake: bool = False,
+    rate_tolerance: float = 0.005,
 ) -> tuple[bool, str]:
     """Swaps stake between subnets while keeping the same coldkey-hotkey pair ownership.
 
@@ -890,6 +903,12 @@ async def swap_stake(
         wait_for_inclusion: If true, waits for the transaction to be included in a block.
         wait_for_finalization: If true, waits for the transaction to be finalized.
         mev_protection: If true, will encrypt the extrinsic behind the mev protection shield.
+        safe_swapping: If true, enables price safety checks to protect against fluctuating prices.
+        allow_partial_stake: If true and safe_swapping is enabled, allows partial stake swaps when the full amount
+            would exceed the price tolerance.
+        rate_tolerance: The maximum allowed increase in the price ratio between subnets
+            (origin_price/destination_price). For example, 0.005 = 0.5% maximum increase. Only used when
+            safe_swapping is True.
 
     Returns:
         (success, extrinsic_identifier):
@@ -947,16 +966,39 @@ async def swap_stake(
         )
         return False, ""
 
-    call = await subtensor.substrate.compose_call(
-        call_module="SubtensorModule",
-        call_function="swap_stake",
-        call_params={
-            "hotkey": hotkey_ss58,
-            "origin_netuid": origin_netuid,
-            "destination_netuid": destination_netuid,
-            "alpha_amount": amount_to_swap.rao,
-        },
-    )
+    # Build call with or without safe swapping
+    if safe_swapping:
+        # Get subnet prices to calculate rate ratio with tolerance
+        origin_subnet, destination_subnet = await asyncio.gather(
+            subtensor.subnet(origin_netuid),
+            subtensor.subnet(destination_netuid),
+        )
+        swap_rate_ratio = origin_subnet.price.rao / destination_subnet.price.rao
+        swap_rate_ratio_with_tolerance = swap_rate_ratio * (1 + rate_tolerance)
+
+        call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="swap_stake_limit",
+            call_params={
+                "hotkey": hotkey_ss58,
+                "origin_netuid": origin_netuid,
+                "destination_netuid": destination_netuid,
+                "alpha_amount": amount_to_swap.rao,
+                "limit_price": swap_rate_ratio_with_tolerance,
+                "allow_partial": allow_partial_stake,
+            },
+        )
+    else:
+        call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="swap_stake",
+            call_params={
+                "hotkey": hotkey_ss58,
+                "origin_netuid": origin_netuid,
+                "destination_netuid": destination_netuid,
+                "alpha_amount": amount_to_swap.rao,
+            },
+        )
     sim_swap, extrinsic_fee, next_nonce = await asyncio.gather(
         subtensor.sim_swap(
             origin_netuid=origin_netuid,
