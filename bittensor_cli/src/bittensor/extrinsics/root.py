@@ -17,7 +17,6 @@
 
 import asyncio
 import hashlib
-import time
 from typing import Union, List, TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet, Keypair

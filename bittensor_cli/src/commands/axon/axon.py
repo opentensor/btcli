@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 from bittensor_wallet import Wallet
 
 from bittensor_cli.src.bittensor.utils import (
-    console,
     err_console,
     json_console,
 )

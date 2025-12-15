@@ -15,7 +15,6 @@ from bittensor_cli.src.bittensor.utils import (
     unlock_key,
     print_extrinsic_id,
 )
-from bittensor_cli.src.bittensor.networking import int_to_ip
 
 if typing.TYPE_CHECKING:
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface

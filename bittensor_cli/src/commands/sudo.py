@@ -1,5 +1,7 @@
 import asyncio
 import json
+import re
+import sys
 from typing import TYPE_CHECKING, Union, Optional, Type
 
 from async_substrate_interface import AsyncExtrinsicReceipt
@@ -11,6 +13,7 @@ from scalecodec import GenericCall
 from bittensor_cli.src import (
     HYPERPARAMS,
     HYPERPARAMS_MODULE,
+    HYPERPARAMS_METADATA,
     RootSudoOnly,
     DelegatesDetails,
     COLOR_PALETTE,
@@ -370,7 +373,7 @@ async def set_hyperparameter_extrinsic(
             to_sudo_or_not_to_sudo = True  # default to sudo true when no-prompt is set
         else:
             to_sudo_or_not_to_sudo = confirm_action(
-                f"This hyperparam can be executed as sudo or not. Do you want to execute as sudo [y] or not [n]?",
+                "This hyperparam can be executed as sudo or not. Do you want to execute as sudo [y] or not [n]?",
                 decline=decline,
                 quiet=quiet,
             )
@@ -759,7 +762,15 @@ async def sudo_set_hyperparameter(
             f"Hyperparameter [dark_orange]{param_name}[/dark_orange] value is not within bounds. "
             f"Value is {param_value} but must be {value}"
         )
-        err_console.print(err_msg)
+        if json_output:
+            json_str = json.dumps(
+                {"success": False, "err_msg": err_msg, "extrinsic_identifier": None},
+                ensure_ascii=True,
+            )
+            sys.stdout.write(json_str + "\n")
+            sys.stdout.flush()
+        else:
+            err_console.print(err_msg)
         return False, err_msg, None
     if json_output:
         prompt = False
@@ -775,55 +786,185 @@ async def sudo_set_hyperparameter(
     return success, err_msg, ext_id
 
 
+def _sanitize_json_string(
+    value: Union[str, int, float, bool, None],
+) -> Union[str, int, float, bool, None]:
+    """Sanitize string values for JSON output by removing control characters.
+
+    Non-string values are returned as-is.
+    """
+    if isinstance(value, str):
+        # Remove all control characters (0x00-0x1F and 0x7F-0x9F) and replace with space
+        sanitized = re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", value)
+        # Collapse multiple spaces into single space
+        sanitized = " ".join(sanitized.split())
+        return sanitized
+    return value
+
+
 async def get_hyperparameters(
-    subtensor: "SubtensorInterface", netuid: int, json_output: bool = False
+    subtensor: "SubtensorInterface",
+    netuid: int,
+    json_output: bool = False,
+    show_descriptions: bool = True,
 ) -> bool:
     """View hyperparameters of a subnetwork."""
     print_verbose("Fetching hyperparameters")
-    if not await subtensor.subnet_exists(netuid):
-        print_error(f"Subnet with netuid {netuid} does not exist.")
-        return False
-    subnet, subnet_info = await asyncio.gather(
-        subtensor.get_subnet_hyperparameters(netuid), subtensor.subnet(netuid)
-    )
-    if subnet_info is None:
-        print_error(f"Subnet with netuid {netuid} does not exist.")
+    try:
+        if not await subtensor.subnet_exists(netuid):
+            error_msg = f"Subnet with netuid {netuid} does not exist."
+            if json_output:
+                json_str = json.dumps({"error": error_msg}, ensure_ascii=True)
+                sys.stdout.write(json_str + "\n")
+                sys.stdout.flush()
+            else:
+                print_error(error_msg)
+            return False
+        subnet, subnet_info = await asyncio.gather(
+            subtensor.get_subnet_hyperparameters(netuid), subtensor.subnet(netuid)
+        )
+        if subnet_info is None:
+            error_msg = f"Subnet with netuid {netuid} does not exist."
+            if json_output:
+                json_str = json.dumps({"error": error_msg}, ensure_ascii=True)
+                sys.stdout.write(json_str + "\n")
+                sys.stdout.flush()
+            else:
+                print_error(error_msg)
+            return False
+    except Exception as e:
+        if json_output:
+            json_str = json.dumps({"error": str(e)}, ensure_ascii=True)
+            sys.stdout.write(json_str + "\n")
+            sys.stdout.flush()
+        else:
+            raise
         return False
 
-    table = Table(
-        Column("[white]HYPERPARAMETER", style=COLOR_PALETTE.SU.HYPERPARAMETER),
-        Column("[white]VALUE", style=COLOR_PALETTE.SU.VALUE),
-        Column("[white]NORMALIZED", style=COLOR_PALETTE.SU.NORMAL),
-        title=f"[{COLOR_PALETTE.G.HEADER}]\nSubnet Hyperparameters\n NETUID: "
-        f"[{COLOR_PALETTE.G.SUBHEAD}]{netuid}"
-        f"{f' ({subnet_info.subnet_name})' if subnet_info.subnet_name is not None else ''}"
-        f"[/{COLOR_PALETTE.G.SUBHEAD}]"
-        f" - Network: [{COLOR_PALETTE.G.SUBHEAD}]{subtensor.network}[/{COLOR_PALETTE.G.SUBHEAD}]\n",
-        show_footer=True,
-        width=None,
-        pad_edge=False,
-        box=box.SIMPLE,
-        show_edge=True,
-    )
+    # Determine if we should show extended info (descriptions, ownership)
+    show_extended = show_descriptions and not json_output
+
+    if show_extended:
+        table = Table(
+            Column("[white]HYPERPARAMETER", style=COLOR_PALETTE.SU.HYPERPARAMETER),
+            Column("[white]VALUE", style=COLOR_PALETTE.SU.VALUE),
+            Column("[white]NORMALIZED", style=COLOR_PALETTE.SU.NORMAL),
+            Column("[white]OWNER SETTABLE", style="bright_cyan"),
+            Column("[white]DESCRIPTION", style="dim", overflow="fold"),
+            title=f"[{COLOR_PALETTE.G.HEADER}]\nSubnet Hyperparameters\n NETUID: "
+            f"[{COLOR_PALETTE.G.SUBHEAD}]{netuid}"
+            f"{f' ({subnet_info.subnet_name})' if subnet_info.subnet_name is not None else ''}"
+            f"[/{COLOR_PALETTE.G.SUBHEAD}]"
+            f" - Network: [{COLOR_PALETTE.G.SUBHEAD}]{subtensor.network}[/{COLOR_PALETTE.G.SUBHEAD}]\n",
+            show_footer=True,
+            width=None,
+            pad_edge=False,
+            box=box.SIMPLE,
+            show_edge=True,
+        )
+    else:
+        table = Table(
+            Column("[white]HYPERPARAMETER", style=COLOR_PALETTE.SU.HYPERPARAMETER),
+            Column("[white]VALUE", style=COLOR_PALETTE.SU.VALUE),
+            Column("[white]NORMALIZED", style=COLOR_PALETTE.SU.NORMAL),
+            title=f"[{COLOR_PALETTE.G.HEADER}]\nSubnet Hyperparameters\n NETUID: "
+            f"[{COLOR_PALETTE.G.SUBHEAD}]{netuid}"
+            f"{f' ({subnet_info.subnet_name})' if subnet_info.subnet_name is not None else ''}"
+            f"[/{COLOR_PALETTE.G.SUBHEAD}]"
+            f" - Network: [{COLOR_PALETTE.G.SUBHEAD}]{subtensor.network}[/{COLOR_PALETTE.G.SUBHEAD}]\n",
+            show_footer=True,
+            width=None,
+            pad_edge=False,
+            box=box.SIMPLE,
+            show_edge=True,
+        )
     dict_out = []
 
     normalized_values = normalize_hyperparameters(subnet, json_output=json_output)
     sorted_values = sorted(normalized_values, key=lambda x: x[0])
     for param, value, norm_value in sorted_values:
         if not json_output:
-            table.add_row("  " + param, value, norm_value)
+            if show_extended:
+                # Get metadata for this hyperparameter
+                metadata = HYPERPARAMS_METADATA.get(param, {})
+                description = metadata.get("description", "No description available.")
+
+                # Check actual ownership from HYPERPARAMS
+                _, root_sudo = HYPERPARAMS.get(param, ("", RootSudoOnly.FALSE))
+                if root_sudo == RootSudoOnly.TRUE:
+                    owner_settable_str = "[red]No (Root Only)[/red]"
+                elif root_sudo == RootSudoOnly.COMPLICATED:
+                    owner_settable_str = "[yellow]COMPLICATED (Owner/Sudo)[/yellow]"
+                else:
+                    owner_settable_str = "[green]Yes[/green]"
+
+                # Format description with docs link if available
+                docs_link = metadata.get("docs_link", "")
+                if docs_link:
+                    # Use Rich markup to create description with clickable bright blue [link] at the end
+                    description_with_link = f"{description} [bright_blue underline link=https://{docs_link}]link[/]"
+                else:
+                    description_with_link = description
+
+                table.add_row(
+                    "  " + param,
+                    value,
+                    norm_value,
+                    owner_settable_str,
+                    description_with_link,
+                )
+            else:
+                table.add_row("  " + param, value, norm_value)
         else:
+            metadata = HYPERPARAMS_METADATA.get(param, {})
+            # Sanitize all string fields for JSON output - remove control characters
+            description = metadata.get("description", "No description available.")
+            side_effects = metadata.get("side_effects", "No side effects documented.")
+            docs_link = metadata.get("docs_link", "")
+
+            # Sanitize all string values to ensure valid JSON output
             dict_out.append(
                 {
-                    "hyperparameter": param,
-                    "value": value,
-                    "normalized_value": norm_value,
+                    "hyperparameter": _sanitize_json_string(str(param)),
+                    "value": _sanitize_json_string(value),
+                    "normalized_value": _sanitize_json_string(norm_value),
+                    "owner_settable": bool(metadata.get("owner_settable", False)),
+                    "description": _sanitize_json_string(description),
+                    "side_effects": _sanitize_json_string(side_effects),
+                    "docs_link": _sanitize_json_string(docs_link),
                 }
             )
     if json_output:
-        json_console.print(json.dumps(dict_out))
+        # Use ensure_ascii=True to properly escape all non-ASCII and control characters
+        # Write directly to stdout to avoid any Rich Console formatting
+        import sys
+
+        json_str = json.dumps(dict_out, ensure_ascii=True)
+        sys.stdout.write(json_str + "\n")
+        sys.stdout.flush()
+        return True
     else:
         console.print(table)
+        if show_extended:
+            console.print(
+                "\n[dim]💡 Tip: Use [bold]btcli sudo set --param <name> --value <value>[/bold] to modify hyperparameters."
+            )
+            console.print(
+                "[dim]💡 Tip: Subnet owners can set parameters marked '[green]Yes[/green]'. "
+                "Parameters marked '[red]No (Root Only)[/red]' require root sudo access."
+            )
+            console.print(
+                "[dim]💡 Tip: To set custom hyperparameters not in this list, use the exact parameter name from the chain metadata."
+            )
+            console.print(
+                f"[dim]   Example: [bold]btcli sudo set --netuid {netuid} --param custom_param_name --value 123[/bold]"
+            )
+            console.print(
+                "[dim]   The parameter name must match exactly as defined in the chain's AdminUtils pallet metadata."
+            )
+            console.print(
+                "[dim]📚 For detailed documentation, visit: [link]https://docs.bittensor.com[/link]"
+            )
     return True
 
 
@@ -875,7 +1016,7 @@ async def get_senate(
         )
         dict_output.append({"name": member_name, "ss58_address": ss58_address})
     if json_output:
-        json_console.print(json.dumps(dict_output))
+        json_console.print(json.dumps(dict_output, ensure_ascii=True))
     return console.print(table)
 
 
@@ -968,7 +1109,7 @@ async def proposals(
             }
         )
     if json_output:
-        json_console.print(json.dumps(dict_output))
+        json_console.print(json.dumps(dict_output, ensure_ascii=True))
     console.print(table)
     console.print(
         "\n[dim]* Both Ayes and Nays percentages are calculated relative to the proposal's threshold.[/dim]"
