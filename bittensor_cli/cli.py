@@ -99,6 +99,7 @@ from bittensor_cli.src.commands.stake import (
     add as add_stake,
     remove as remove_stake,
     claim as claim_stake,
+    validator_claim,
     wizard as stake_wizard,
 )
 from bittensor_cli.src.commands.subnets import (
@@ -165,7 +166,9 @@ def validate_claim_type(value: Optional[str]) -> Optional[claim_stake.ClaimType]
                 return member
         return claim_stake.ClaimType(value)
     except ValueError:
-        raise typer.BadParameter(f"'{value}' is not one of 'Keep', 'Swap'.")
+        raise typer.BadParameter(
+            f"'{value}' is not one of 'Keep', 'Swap', 'Delegated'."
+        )
 
 
 class Options:
@@ -1096,6 +1099,12 @@ class CLIManager:
         self.stake_app.command(
             "process-claim", rich_help_panel=HELP_PANELS["STAKE"]["CLAIM"]
         )(self.stake_process_claim)
+        self.stake_app.command(
+            "show-validator-claims", rich_help_panel=HELP_PANELS["STAKE"]["CLAIM"]
+        )(self.show_validator_claims)
+        self.stake_app.command(
+            "set-validator-claims", rich_help_panel=HELP_PANELS["STAKE"]["CLAIM"]
+        )(self.set_validator_claim_types)
 
         # stake-children commands
         children_app = typer.Typer()
@@ -1297,6 +1306,14 @@ class CLIManager:
             "unclaim",
             hidden=True,
         )(self.stake_set_claim_type)
+        self.stake_app.command(
+            "show-validator-claim",
+            hidden=True,
+        )(self.show_validator_claims)
+        self.stake_app.command(
+            "set-validator-claim",
+            hidden=True,
+        )(self.set_validator_claim_types)
 
         # Crowdloan
         self.app.add_typer(
@@ -5826,6 +5843,7 @@ class CLIManager:
         • [green]Swap[/green]: Future Root Alpha Emissions are swapped to TAO and added to root stake (default)
         • [yellow]Keep[/yellow]: Future Root Alpha Emissions are kept as Alpha tokens
         • [cyan]Keep Specific[/cyan]: Keep specific subnets as Alpha, swap others to TAO. You can use this type by selecting the netuids.
+        • [magenta]Delegated[/magenta]: Delegate claim choice to validator (inherits validator claim type)
 
         USAGE:
 
@@ -5834,6 +5852,7 @@ class CLIManager:
         [green]$[/green] btcli stake claim swap [cyan](Swap all subnets)[/cyan]
         [green]$[/green] btcli stake claim keep --netuids 1-5,10,20-30 [cyan](Keep specific subnets)[/cyan]
         [green]$[/green] btcli stake claim swap --netuids 1-30 [cyan](Swap specific subnets)[/cyan]
+        [green]$[/green] btcli stake claim delegated [cyan](Delegate claim choice to validator)[/cyan]
 
         With specific wallet:
 
@@ -5856,6 +5875,76 @@ class CLIManager:
                 proxy=proxy,
                 prompt=prompt,
                 json_output=json_output,
+            )
+        )
+
+    def set_validator_claim_types(
+        self,
+        keep: Optional[str] = typer.Option(
+            None,
+            "--keep",
+            help="Subnets to keep emissions for (e.g. '1,3-5').",
+        ),
+        swap: Optional[str] = typer.Option(
+            None,
+            "--swap",
+            help="Subnets to swap emissions for (e.g. '2,6-10').",
+        ),
+        keep_all: bool = typer.Option(
+            False,
+            "--keep-all",
+            help="Set all registered subnets to Keep.",
+        ),
+        swap_all: bool = typer.Option(
+            False,
+            "--swap-all",
+            help="Set all registered subnets to Swap.",
+        ),
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        network: Optional[list[str]] = Options.network,
+        proxy: Optional[str] = Options.proxy,
+        announce_only: bool = Options.announce_only,
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+    ):
+        """
+        Set the claim type for a validator across multiple subnets.
+
+        This command allows validators to specify how they want to handle emissions for each subnet:
+        - [bold]Keep[/bold]: Keep emissions as Alpha tokens on the subnet.
+        - [bold]Swap[/bold]: Automatically swap Alpha emissions to TAO on the root network.
+
+        You can set preferences for specific subnets using [blue]--keep[/blue] and [blue]--swap[/blue], or update all registered subnets using [blue]--keep-all[/blue] or [blue]--swap-all[/blue].
+
+        If no arguments are provided, an interactive editor will be launched.
+
+        EXAMPLES:
+        [green]$[/green] btcli stake set-validator-claim --keep 1,3-5 --swap 2,10
+        [green]$[/green] btcli stake set-validator-claim --keep-all
+        [green]$[/green] btcli stake set-validator-claim (Interactive mode)
+        """
+        self.verbosity_handler(quiet, verbose, False, prompt)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
+        return self._run_command(
+            validator_claim.set_validator_claim_type(
+                wallet=wallet,
+                subtensor=self.initialize_chain(network),
+                keep=keep,
+                swap=swap,
+                keep_all=keep_all,
+                swap_all=swap_all,
+                prompt=prompt,
+                proxy=proxy,
             )
         )
 
@@ -5924,6 +6013,58 @@ class CLIManager:
                 prompt=prompt,
                 json_output=json_output,
                 verbose=verbose,
+            )
+        )
+
+    def show_validator_claims(
+        self,
+        hotkey_ss58: Optional[str] = Options.wallet_hotkey_ss58,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        network: Optional[list[str]] = Options.network,
+        prompt: bool = Options.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Show validator claim types (Keep/Swap) across all subnets for a validator hotkey.
+
+        EXAMPLES:
+        [green]$[/green] btcli stake show-validator-claims --hotkey 5Grw...
+        [green]$[/green] btcli stake show-validator-claims --wallet-name my_wallet --wallet-hotkey hk
+        """
+        self.verbosity_handler(quiet, verbose, json_output, False)
+
+        if not hotkey_ss58 and not wallet_name:
+            ss58_or_wallet = Prompt.ask(
+                "Enter the [blue]hotkey ss58 address[/blue] or [blue]wallet name[/blue]",
+                default=self.config.get("wallet_name") or defaults.wallet.name,
+            )
+            if is_valid_ss58_address(ss58_or_wallet):
+                hotkey_ss58 = ss58_or_wallet
+            else:
+                wallet_name = ss58_or_wallet
+
+        if hotkey_ss58:
+            if is_valid_ss58_address(hotkey_ss58):
+                vali_hk_ss58 = hotkey_ss58
+        else:
+            wallet = self.wallet_ask(
+                wallet_name,
+                wallet_path,
+                hotkey_ss58,
+                ask_for=[WO.NAME, WO.HOTKEY],
+                validate=WV.WALLET_AND_HOTKEY,
+            )
+            vali_hk_ss58 = get_hotkey_pub_ss58(wallet)
+
+        return self._run_command(
+            validator_claim.show_validator_claims(
+                subtensor=self.initialize_chain(network),
+                hotkey_ss58=vali_hk_ss58,
+                verbose=verbose,
+                json_output=json_output,
             )
         )
 
@@ -6011,9 +6152,9 @@ class CLIManager:
         announce_only: bool = Options.announce_only,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
+        prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
-        prompt: bool = Options.prompt,
         json_output: bool = Options.json_output,
     ):
         """
