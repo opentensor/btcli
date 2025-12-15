@@ -859,7 +859,7 @@ def create_transfer_history_table(transfers: list[dict]) -> Table:
 
 async def wallet_history(wallet: Wallet):
     """Check the transfer history of the provided wallet."""
-    print_verbose(f"Wallet name: {wallet.name}")
+    print_verbose(f"Fetching history for wallet: {wallet.name}")
     wallet_address = wallet.get_coldkeypub().ss58_address
     transfers = await get_wallet_transfers(wallet_address)
     table = create_transfer_history_table(transfers)
