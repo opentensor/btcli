@@ -3699,9 +3699,6 @@ class CLIManager:
         #         console.print(no_use_config_str)
 
         # For Rao games
-        print_error("This command is disabled on the 'rao' network.")
-        raise typer.Exit()
-
         self.verbosity_handler(quiet, verbose, False, False)
         wallet = self.wallet_ask(
             wallet_name,
