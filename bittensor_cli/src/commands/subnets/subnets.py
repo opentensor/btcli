@@ -1860,26 +1860,31 @@ async def register(
             module="SubtensorModule",
             storage_function="NetworkRegistrationAllowed",
             params=[netuid],
+            block_hash=block_hash,
         ),
         subtensor.query(
             module="SubtensorModule",
             storage_function="TargetRegistrationsPerInterval",
             params=[netuid],
+            block_hash=block_hash,
         ),
         subtensor.query(
             module="SubtensorModule",
             storage_function="RegistrationsThisInterval",
             params=[netuid],
+            block_hash=block_hash,
         ),
         subtensor.query(
             module="SubtensorModule",
             storage_function="LastAdjustmentBlock",
             params=[netuid],
+            block_hash=block_hash,
         ),
         subtensor.query(
             module="SubtensorModule",
             storage_function="AdjustmentInterval",
             params=[netuid],
+            block_hash=block_hash,
         ),
         subtensor.substrate.get_block_number(block_hash),
     )
