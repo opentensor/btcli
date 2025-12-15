@@ -7120,6 +7120,7 @@ class CLIManager:
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         period: int = Options.period,
     ):
         """
@@ -7148,6 +7149,8 @@ class CLIManager:
                 proxy=proxy,
                 json_output=json_output,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
             )
         )
 
