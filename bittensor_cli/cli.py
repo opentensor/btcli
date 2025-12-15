@@ -7,6 +7,7 @@ import importlib
 import json
 import logging
 import os.path
+import platform
 import re
 import ssl
 import sys
@@ -1364,6 +1365,7 @@ class CLIManager:
         # utils app
         self.utils_app.command("convert")(self.convert)
         self.utils_app.command("latency")(self.best_connection)
+        self.utils_app.command("debug")(self.debug)
 
     def generate_command_tree(self) -> Tree:
         """
@@ -9657,6 +9659,139 @@ class CLIManager:
                     f"\nYou can update this with {arg__(f'btcli config set --network {fastest}')}"
                 )
         return True
+
+    def debug(self):
+        """
+        Displays system information, last run command, and current configuration for debugging purposes.
+        """
+        import subprocess
+
+        # Get system information
+        system_version = None
+        kernel_version = None
+
+        # Get system version and kernel version based on platform
+        if platform.system() == "Darwin":
+            # macOS
+            try:
+                result = subprocess.run(
+                    ["sw_vers", "-productVersion"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                system_version = f"macOS {result.stdout.strip()}"
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                system_version = platform.platform()
+
+            try:
+                result = subprocess.run(
+                    ["uname", "-r"], capture_output=True, text=True, check=True
+                )
+                kernel_version = f"Darwin {result.stdout.strip()}"
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                kernel_version = platform.release()
+        elif platform.system() == "Linux":
+            # Linux
+            try:
+                result = subprocess.run(
+                    ["uname", "-r"], capture_output=True, text=True, check=True
+                )
+                kernel_version = result.stdout.strip()
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                kernel_version = platform.release()
+            system_version = platform.platform()
+        else:
+            # Windows or other
+            system_version = platform.platform()
+            kernel_version = platform.release()
+
+        python_version = sys.version
+
+        # Try to read last command and config from debug file
+        last_command = None
+        config_info = None
+        debug_file_loc = Path(
+            os.getenv("BTCLI_DEBUG_FILE")
+            or os.path.expanduser(defaults.config.debug_file_path)
+        )
+
+        if debug_file_loc.exists():
+            try:
+                with open(debug_file_loc, "r") as f:
+                    content = f.read()
+                    lines = content.split("\n")
+                    for line in lines:
+                        if line.startswith("Command:"):
+                            last_command = line.replace("Command:", "").strip()
+                        elif line.startswith("Config:"):
+                            # Config is written as a Python dict representation
+                            config_str = line.replace("Config:", "").strip()
+                            if config_str:
+                                try:
+                                    # Use ast.literal_eval for safe parsing of dict
+                                    config_info = ast.literal_eval(config_str)
+                                except (ValueError, SyntaxError):
+                                    # If parsing fails, try to extract as string
+                                    config_info = config_str
+                            break
+            except Exception:
+                # If we can't read the file, just continue without it
+                pass
+
+        # Display the information in the format requested in the issue
+        console.print("\n[bold cyan]⚡ btcli utils debug[/bold cyan]\n")
+
+        console.print("[bold]System Info:[/bold]")
+        if system_version:
+            console.print(f"    System Version: {system_version}")
+        if kernel_version:
+            console.print(f"    Kernel Version: {kernel_version}")
+        console.print(f"    Python: {python_version}")
+
+        console.print()
+
+        if last_command:
+            console.print(f"[bold]Last Run Command:[/bold] {last_command}")
+        else:
+            console.print(
+                "[bold]Last Run Command:[/bold] [dim]No command found in debug file[/dim]"
+            )
+
+        console.print()
+        console.print("[bold]Config:[/bold]")
+
+        # Define which config keys are most relevant for debugging
+        # These are the core ones that help diagnose most issues
+        essential_config_keys = [
+            "wallet_name",
+            "wallet_path",
+            "wallet_hotkey",
+            "network",
+            "use_cache",
+        ]
+
+        config_to_display = {}
+        if config_info and isinstance(config_info, dict):
+            config_to_display = config_info
+        else:
+            # Fallback to current config
+            config_to_display = self.config
+
+        # Display essential config keys (always show these, even if None)
+        for key in essential_config_keys:
+            if key in config_to_display:
+                console.print(f"  {key:<20} {config_to_display[key]}")
+
+        # Show other config keys only if they have meaningful (non-None, non-default) values
+        # This filters out less relevant config like rate_tolerance, dashboard_path when they're None
+        for key, value in config_to_display.items():
+            if key not in essential_config_keys:
+                # Skip None values and empty strings for non-essential config
+                if value is not None and value != "":
+                    console.print(f"  {key:<20} {value}")
+
+        console.print()
 
     def run(self):
         self.app()
