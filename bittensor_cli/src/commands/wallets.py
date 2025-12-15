@@ -728,19 +728,19 @@ async def wallet_balance(
 async def get_wallet_transfers(wallet_address: str) -> list[dict]:
     """
     Get all transfers associated with the provided wallet address.
-    
+
     Args:
         wallet_address: The SS58 address of the wallet to fetch transfers for.
-        
+
     Returns:
         A list of transfer dictionaries containing transaction details.
-        
+
     Raises:
         ValueError: If the API response is invalid or the request fails.
     """
     api_url = f"https://mainnet.scantensor.opentensor.ai/account/{wallet_address}/transactions"
     timeout = aiohttp.ClientTimeout(total=30)
-    
+
     try:
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.get(api_url) as response:
@@ -752,7 +752,7 @@ async def get_wallet_transfers(wallet_address: str) -> list[dict]:
                     )
                     print_error(error_msg)
                     raise ValueError(error_msg)
-                
+
                 # Parse JSON response
                 try:
                     data = await response.json()
@@ -760,7 +760,7 @@ async def get_wallet_transfers(wallet_address: str) -> list[dict]:
                     error_msg = "Invalid response format from API"
                     print_error(f"{error_msg}: {str(e)}")
                     raise ValueError(error_msg) from e
-                
+
                 # Validate that data is a list
                 if not isinstance(data, list):
                     error_msg = (
@@ -769,9 +769,9 @@ async def get_wallet_transfers(wallet_address: str) -> list[dict]:
                     )
                     print_error(error_msg)
                     return []
-                
+
                 return data
-                
+
     except aiohttp.ClientError as e:
         error_msg = f"Network error while fetching wallet transfers: {str(e)}"
         print_error(error_msg)
@@ -864,6 +864,7 @@ async def wallet_history(wallet: Wallet):
     transfers = await get_wallet_transfers(wallet_address)
     table = create_transfer_history_table(transfers)
     console.print(table)
+
 
 async def wallet_list(
     wallet_path: str, json_output: bool, wallet_name: Optional[str] = None
