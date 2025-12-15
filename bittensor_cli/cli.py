@@ -8226,12 +8226,6 @@ class CLIManager:
         """Add liquidity to the swap (as a combination of TAO + Alpha)."""
         self.verbosity_handler(quiet, verbose, json_output, prompt)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
-        if not netuid:
-            netuid = Prompt.ask(
-                f"Enter the [{COLORS.G.SUBHEAD_MAIN}]netuid[/{COLORS.G.SUBHEAD_MAIN}] to use",
-                default=None,
-                show_default=False,
-            )
 
         wallet, hotkey = self.wallet_ask(
             wallet_name=wallet_name,
@@ -8241,35 +8235,23 @@ class CLIManager:
             validate=WV.WALLET,
             return_wallet_and_hotkey=True,
         )
-        # Determine the liquidity amount.
-        if liquidity_:
-            liquidity_ = Balance.from_tao(liquidity_)
-        else:
-            liquidity_ = prompt_liquidity("Enter the amount of liquidity")
 
-        # Determine price range
-        if price_low:
-            price_low = Balance.from_tao(price_low)
-        else:
-            price_low = prompt_liquidity("Enter liquidity position low price")
+        # Defer prompting + chain-dependent logic to the async command implementation.
+        liquidity_balance = (
+            Balance.from_tao(liquidity_) if liquidity_ is not None else None
+        )
+        price_low_balance = Balance.from_tao(price_low) if price_low is not None else None
+        price_high_balance = (
+            Balance.from_tao(price_high) if price_high is not None else None
+        )
 
-        if price_high:
-            price_high = Balance.from_tao(price_high)
-        else:
-            price_high = prompt_liquidity(
-                "Enter liquidity position high price (must be greater than low price)"
-            )
-
-        if price_low >= price_high:
-            err_console.print("The low price must be lower than the high price.")
-            return False
         logger.debug(
             f"args:\n"
             f"hotkey: {hotkey}\n"
             f"netuid: {netuid}\n"
-            f"liquidity: {liquidity_}\n"
-            f"price_low: {price_low}\n"
-            f"price_high: {price_high}\n"
+            f"liquidity: {liquidity_balance}\n"
+            f"price_low: {price_low_balance}\n"
+            f"price_high: {price_high_balance}\n"
             f"proxy: {proxy}\n"
         )
         return self._run_command(
@@ -8279,9 +8261,9 @@ class CLIManager:
                 hotkey_ss58=hotkey,
                 netuid=netuid,
                 proxy=proxy,
-                liquidity=liquidity_,
-                price_low=price_low,
-                price_high=price_high,
+                liquidity=liquidity_balance,
+                price_low=price_low_balance,
+                price_high=price_high_balance,
                 prompt=prompt,
                 json_output=json_output,
             )
