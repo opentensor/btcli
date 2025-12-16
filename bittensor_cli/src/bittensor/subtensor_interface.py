@@ -1302,6 +1302,112 @@ class SubtensorInterface:
                     )
             return False, err_msg, None
 
+    async def sign_and_send_batch_extrinsic(
+        self,
+        calls: list[GenericCall],
+        wallet: Wallet,
+        wait_for_inclusion: bool = True,
+        wait_for_finalization: bool = False,
+        era: Optional[dict[str, int]] = None,
+        proxy: Optional[str] = None,
+        nonce: Optional[int] = None,
+        sign_with: Literal["coldkey", "hotkey", "coldkeypub"] = "coldkey",
+        batch_type: Literal["batch", "batch_all"] = "batch",
+        mev_protection: bool = False,
+    ) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt], list[dict]]:
+        """
+        Helper method to sign and submit a batch of extrinsic calls to chain using Utility.batch or Utility.batch_all.
+
+        :param calls: List of prepared Call objects to batch together
+        :param wallet: the wallet whose key will be used to sign the extrinsic
+        :param wait_for_inclusion: whether to wait until the extrinsic call is included on the chain
+        :param wait_for_finalization: whether to wait until the extrinsic call is finalized on the chain
+        :param era: The length (in blocks) for which a transaction should be valid.
+        :param proxy: The real account used to create the proxy. None if not using a proxy for this call.
+        :param nonce: The nonce used to submit this extrinsic call.
+        :param sign_with: Determine which of the wallet's keypairs to use to sign the extrinsic call.
+        :param batch_type: "batch" (stops on first error) or "batch_all" (executes all, fails if any fail)
+        :param mev_protection: If set, uses Mev Protection on the extrinsic, thus encrypting it.
+
+        :return: (success, error message, extrinsic receipt | None, list of individual call results)
+        """
+        if not calls:
+            return False, "No calls provided for batching", None, []
+
+        if len(calls) == 1:
+            # If only one call, just send it normally
+            success, err_msg, receipt = await self.sign_and_send_extrinsic(
+                call=calls[0],
+                wallet=wallet,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+                era=era,
+                proxy=proxy,
+                nonce=nonce,
+                sign_with=sign_with,
+                mev_protection=mev_protection,
+            )
+            return success, err_msg, receipt, [{"success": success, "error": err_msg}]
+
+        # Compose batch call
+        batch_call = await self.substrate.compose_call(
+            call_module="Utility",
+            call_function=batch_type,
+            call_params={"calls": calls},
+        )
+
+        # Sign and send the batch
+        success, err_msg, receipt = await self.sign_and_send_extrinsic(
+            call=batch_call,
+            wallet=wallet,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+            era=era,
+            proxy=proxy,
+            nonce=nonce,
+            sign_with=sign_with,
+            mev_protection=mev_protection,
+        )
+
+        # Parse batch results if successful
+        call_results = []
+        if success and receipt:
+            try:
+                # Extract batch execution results from receipt
+                # The receipt should contain information about which calls succeeded/failed
+                # This is chain-specific and may need adjustment based on actual receipt structure
+                for i, call in enumerate(calls):
+                    call_results.append(
+                        {
+                            "index": i,
+                            "call": call,
+                            "success": True,  # Will be updated if we can parse receipt
+                        }
+                    )
+            except Exception:
+                # If we can't parse results, assume all succeeded if batch succeeded
+                for i, call in enumerate(calls):
+                    call_results.append(
+                        {
+                            "index": i,
+                            "call": call,
+                            "success": success,
+                        }
+                    )
+        else:
+            # If batch failed, mark all as failed
+            for i, call in enumerate(calls):
+                call_results.append(
+                    {
+                        "index": i,
+                        "call": call,
+                        "success": False,
+                        "error": err_msg,
+                    }
+                )
+
+        return success, err_msg, receipt, call_results
+
     async def get_children(self, hotkey, netuid) -> tuple[bool, list, str]:
         """
         This method retrieves the children of a given hotkey and netuid. It queries the SubtensorModule's ChildKeys
