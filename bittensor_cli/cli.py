@@ -7,6 +7,7 @@ import importlib
 import json
 import logging
 import os.path
+import platform
 import re
 import ssl
 import sys
@@ -833,6 +834,15 @@ class CLIManager:
         self.debug_file_path = os.getenv("BTCLI_DEBUG_FILE") or os.path.expanduser(
             defaults.config.debug_file_path
         )
+        self.last_command_file = os.path.expanduser(
+            os.path.join(defaults.config.base_path, "last_command.txt")
+        )
+        self.last_prompted_values_file = os.path.expanduser(
+            os.path.join(defaults.config.base_path, "last_prompted_values.json")
+        )
+        self.last_error_file = os.path.expanduser(
+            os.path.join(defaults.config.base_path, "last_error.txt")
+        )
         self.proxies_path = os.getenv("BTCLI_PROXIES_PATH") or os.path.expanduser(
             defaults.proxies.path
         )
@@ -1364,6 +1374,7 @@ class CLIManager:
         # utils app
         self.utils_app.command("convert")(self.convert)
         self.utils_app.command("latency")(self.best_connection)
+        self.utils_app.command("debug")(self.debug)
 
     def generate_command_tree(self) -> Tree:
         """
@@ -1562,12 +1573,48 @@ class CLIManager:
             if k in self.config.keys():
                 self.config[k] = v
         if self.config.get("use_cache", False):
+            # Save current command before writing to debug file
+            current_command = " ".join(sys.argv)
+            
+            # Always read previous command from debug file before overwriting (for debug command to use)
+            previous_command = None
+            if os.path.exists(self.debug_file_path):
+                try:
+                    with open(self.debug_file_path, "r") as f:
+                        for line in f:
+                            if line.startswith("Command:"):
+                                previous_command = line.replace("Command:", "").strip()
+                                break
+                except Exception:
+                    pass
+            
+            # Save previous command to a separate file (if it's not a debug command)
+            if previous_command and not ("debug" in previous_command.lower() and ("utils" in previous_command.lower() or previous_command.endswith("debug"))):
+                try:
+                    # Ensure directory exists
+                    os.makedirs(os.path.dirname(self.last_command_file), exist_ok=True)
+                    with open(self.last_command_file, "w") as f:
+                        f.write(previous_command)
+                except Exception:
+                    pass
+            
+            # Clear temporary files at the start of a new command (will be populated if needed)
+            # But don't clear if this is the debug command (so debug can read values from previous command)
+            is_debug_cmd = "debug" in current_command.lower() and ("utils" in current_command.lower() or current_command.endswith("debug"))
+            if not is_debug_cmd:
+                for file_path in [self.last_prompted_values_file, self.last_error_file]:
+                    if os.path.exists(file_path):
+                        try:
+                            os.remove(file_path)
+                        except Exception:
+                            pass
+            
             with open(self.debug_file_path, "w+") as f:
                 f.write(
                     f"BTCLI {__version__}\n"
                     f"Async-Substrate-Interface: {importlib.metadata.version('async-substrate-interface')}\n"
                     f"Bittensor-Wallet: {importlib.metadata.version('bittensor-wallet')}\n"
-                    f"Command: {' '.join(sys.argv)}\n"
+                    f"Command: {current_command}\n"
                     f"Config: {self.config}\n"
                     f"Python: {sys.version}\n"
                     f"System: {sys.platform}\n\n"
@@ -2359,22 +2406,65 @@ class CLIManager:
             wallet_path = os.path.expanduser(wallet_path)
         wallet = Wallet(name=wallet_name, path=wallet_path, hotkey=wallet_hotkey)
         logger.debug(f"Using wallet {wallet}")
+        
+        # Save final values used (from args, config, or prompt) for debug command
+        # This captures values that were used, regardless of source
+        if self.config.get("use_cache", False):
+            try:
+                # Read existing values
+                prompted_values = {}
+                if os.path.exists(self.last_prompted_values_file):
+                    try:
+                        with open(self.last_prompted_values_file, "r") as f:
+                            prompted_values = json.load(f)
+                    except Exception:
+                        pass
+                
+                # Update with current final values (these are the values actually used)
+                # This includes values from args, config, or prompt
+                if wallet_name:
+                    prompted_values["wallet_name"] = wallet_name
+                if wallet_path:
+                    prompted_values["wallet_path"] = wallet_path
+                if wallet_hotkey:
+                    prompted_values["wallet_hotkey"] = wallet_hotkey
+                
+                # Save back
+                os.makedirs(os.path.dirname(self.last_prompted_values_file), exist_ok=True)
+                with open(self.last_prompted_values_file, "w") as f:
+                    json.dump(prompted_values, f)
+            except Exception:
+                pass  # Don't fail if we can't save prompted values
 
         # Validate the wallet if required
         if validate == WV.WALLET or validate == WV.WALLET_AND_HOTKEY:
             valid = utils.is_valid_wallet(wallet)
             if not valid[0]:
-                utils.err_console.print(
-                    f"[red]Error: Wallet does not exist. \n"
-                    f"Please verify your wallet information: {wallet}[/red]"
-                )
+                error_msg = f"Error: Wallet does not exist. Please verify your wallet information: {wallet}"
+                utils.err_console.print(f"[red]{error_msg}[/red]")
+                if self.config.get("use_cache", False):
+                    if logger.handlers:
+                        logger.error(error_msg)
+                    try:
+                        os.makedirs(os.path.dirname(self.last_error_file), exist_ok=True)
+                        with open(self.last_error_file, "w") as f:
+                            f.write(error_msg)
+                    except Exception:
+                        pass
                 raise typer.Exit()
 
             if validate == WV.WALLET_AND_HOTKEY and not valid[1]:
-                utils.err_console.print(
-                    f"[red]Error: Wallet '{wallet.name}' exists but the hotkey '{wallet.hotkey_str}' does not. \n"
-                    f"Please verify your wallet information: {wallet}[/red]"
-                )
+                error_msg = f"Error: Wallet '{wallet.name}' exists but the hotkey '{wallet.hotkey_str}' does not. Please verify your wallet information: {wallet}"
+                utils.err_console.print(f"[red]{error_msg}[/red]")
+                if self.config.get("use_cache", False):
+                    if logger.handlers:
+                        logger.error(error_msg)
+                    try:
+                        os.makedirs(os.path.dirname(self.last_error_file), exist_ok=True)
+                        with open(self.last_error_file, "w") as f:
+                            f.write(error_msg)
+                    except Exception:
+                        pass
                 raise typer.Exit()
         if return_wallet_and_hotkey:
             valid = utils.is_valid_wallet(wallet)
@@ -3631,6 +3721,22 @@ class CLIManager:
                     "Enter the [blue]wallet name[/blue] or [blue]coldkey ss58 addresses[/blue] (comma-separated)",
                     default=self.config.get("wallet_name") or defaults.wallet.name,
                 )
+                # Save prompted value immediately for debug command
+                if self.config.get("use_cache", False) and coldkey_or_ss58:
+                    try:
+                        prompted_values = {}
+                        if os.path.exists(self.last_prompted_values_file):
+                            try:
+                                with open(self.last_prompted_values_file, "r") as f:
+                                    prompted_values = json.load(f)
+                            except Exception:
+                                pass
+                        prompted_values["wallet_name"] = coldkey_or_ss58.split(",")[0].strip()
+                        os.makedirs(os.path.dirname(self.last_prompted_values_file), exist_ok=True)
+                        with open(self.last_prompted_values_file, "w") as f:
+                            json.dump(prompted_values, f)
+                    except Exception:
+                        pass
 
             # Split and validate ss58 addresses
             coldkey_or_ss58_list = [x.strip() for x in coldkey_or_ss58.split(",")]
@@ -9657,6 +9763,252 @@ class CLIManager:
                     f"\nYou can update this with {arg__(f'btcli config set --network {fastest}')}"
                 )
         return True
+
+    def debug(self):
+        """
+        Display system information and debug details from the last run command.
+        
+        Shows system info, last run command, and config values with defaults filled in.
+        
+        EXAMPLE
+        
+        [green]$[/green] btcli utils debug
+        """
+        # Get system information
+        system_version = platform.platform()
+        kernel_version = "N/A"
+        
+        # Try to get detailed system info
+        try:
+            uname = platform.uname()
+            kernel_version = uname.release
+            
+            # Try to get macOS version if on macOS
+            if sys.platform == "darwin":
+                import subprocess
+                result = subprocess.run(
+                    ["sw_vers"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if result.returncode == 0:
+                    # Parse sw_vers output
+                    for line in result.stdout.split("\n"):
+                        if "ProductVersion:" in line:
+                            version = line.split(":")[1].strip()
+                            build_result = subprocess.run(
+                                ["sw_vers", "-buildVersion"],
+                                capture_output=True,
+                                text=True,
+                                timeout=5
+                            )
+                            build = ""
+                            if build_result.returncode == 0:
+                                build = f" ({build_result.stdout.strip()})"
+                            system_version = f"macOS {version}{build}"
+                            break
+        except Exception:
+            pass
+        
+        python_version = sys.version
+        
+        # Read last command from the saved file (written before debug file was overwritten)
+        last_command = None
+        
+        # Try to read from the last_command file first
+        if os.path.exists(self.last_command_file):
+            try:
+                with open(self.last_command_file, "r") as f:
+                    last_command = f.read().strip()
+                    # Verify it's not empty and not a debug command
+                    if not last_command or ("debug" in last_command.lower() and ("utils" in last_command.lower() or last_command.endswith("debug"))):
+                        last_command = None
+            except Exception as e:
+                logger.debug(f"Error reading last command file: {e}")
+        
+        # Fallback: try to read from debug file (in case last_command file doesn't exist)
+        if not last_command and os.path.exists(self.debug_file_path):
+            try:
+                with open(self.debug_file_path, "r") as f:
+                    debug_file_content = f.read()
+                    # Extract command line from debug file
+                    for line in debug_file_content.split("\n"):
+                        if line.startswith("Command:"):
+                            command_from_file = line.replace("Command:", "").strip()
+                            # Skip if it's the debug command itself
+                            if "debug" in command_from_file.lower() and ("utils" in command_from_file.lower() or command_from_file.endswith("debug")):
+                                # This is the debug command, skip it
+                                continue
+                            last_command = command_from_file
+                            break
+            except Exception as e:
+                logger.debug(f"Error reading debug file: {e}")
+        
+        # Parse command arguments
+        parsed_args = {
+            "wallet_name": None,
+            "wallet_path": None,
+            "wallet_hotkey": None,
+            "network": None,
+            "use_cache": None,
+        }
+        
+        if last_command:
+            # Parse arguments from command string
+            args_list = last_command.split()
+            
+            # Find wallet_name
+            wallet_name_flags = ["--wallet-name", "--name", "--wallet_name", "--wallet.name"]
+            for i, arg in enumerate(args_list):
+                if arg in wallet_name_flags and i + 1 < len(args_list):
+                    parsed_args["wallet_name"] = args_list[i + 1]
+                    break
+            
+            # Find wallet_path
+            wallet_path_flags = ["--wallet-path", "-p", "--wallet_path", "--wallet.path"]
+            for i, arg in enumerate(args_list):
+                if arg in wallet_path_flags and i + 1 < len(args_list):
+                    parsed_args["wallet_path"] = args_list[i + 1]
+                    break
+            
+            # Find wallet_hotkey
+            wallet_hotkey_flags = ["--hotkey", "-H", "--wallet_hotkey", "--wallet-hotkey", "--wallet.hotkey"]
+            for i, arg in enumerate(args_list):
+                if arg in wallet_hotkey_flags and i + 1 < len(args_list):
+                    parsed_args["wallet_hotkey"] = args_list[i + 1]
+                    break
+            
+            # Find network (can be multiple)
+            network_flags = ["--network", "--subtensor.network", "--chain", "--subtensor.chain_endpoint"]
+            networks = []
+            for i, arg in enumerate(args_list):
+                if arg in network_flags and i + 1 < len(args_list):
+                    networks.append(args_list[i + 1])
+            if networks:
+                parsed_args["network"] = networks[0] if len(networks) == 1 else networks
+        
+        # Read prompted values from file (values that user entered via prompt)
+        prompted_values = {}
+        if os.path.exists(self.last_prompted_values_file):
+            try:
+                with open(self.last_prompted_values_file, "r") as f:
+                    prompted_values = json.load(f)
+            except Exception:
+                pass
+        
+        # Fill in values: first from parsed args, then from prompted values, then from config, then from defaults
+        final_config = {}
+        
+        # wallet_name: from args -> prompted -> config -> None
+        final_config["wallet_name"] = (
+            parsed_args["wallet_name"] 
+            or prompted_values.get("wallet_name")
+            or self.config.get("wallet_name") 
+            or None
+        )
+        
+        # wallet_path: from args -> prompted -> config -> None
+        final_config["wallet_path"] = (
+            parsed_args["wallet_path"] 
+            or prompted_values.get("wallet_path")
+            or self.config.get("wallet_path") 
+            or None
+        )
+        
+        # wallet_hotkey: from args -> prompted -> config -> None
+        final_config["wallet_hotkey"] = (
+            parsed_args["wallet_hotkey"] 
+            or prompted_values.get("wallet_hotkey")
+            or self.config.get("wallet_hotkey") 
+            or None
+        )
+        
+        # network: from args -> config -> None
+        network_value = parsed_args["network"] or self.config.get("network") or None
+        # Handle list case for network
+        if isinstance(network_value, list):
+            network_value = network_value[0] if len(network_value) == 1 else network_value
+        final_config["network"] = network_value
+        
+        # use_cache: from config -> default (True)
+        final_config["use_cache"] = (
+            self.config.get("use_cache") 
+            if self.config.get("use_cache") is not None
+            else defaults.config.dictionary.get("use_cache", True)
+        )
+        
+        # Get last error from saved file or debug file
+        last_error: Optional[str] = None
+        if os.path.exists(self.last_error_file):
+            try:
+                with open(self.last_error_file, "r") as f:
+                    last_error = f.read().strip()
+            except Exception:
+                pass
+        
+        if not last_error and os.path.exists(self.debug_file_path):
+            try:
+                with open(self.debug_file_path, "r") as f:
+                    # Read all lines and search from the end for an error-like entry
+                    lines = f.read().splitlines()
+                
+                # Search for error patterns from the end of the file
+                header_prefixes = ("BTCLI", "Command:", "Config:", "Python:", "System:", "Async-Substrate-Interface:", "Bittensor-Wallet:")
+                for line in reversed(lines):
+                    if not line.strip() or any(line.startswith(prefix) for prefix in header_prefixes):
+                        continue
+                    
+                    line_upper = line.upper()
+                    if " - ERROR - " in line_upper or " - CRITICAL - " in line_upper:
+                        parts = line.split(" - ", 4)
+                        last_error = parts[4].strip() if len(parts) >= 5 else " - ".join(parts[2:]).strip() if len(parts) >= 3 else line.strip()
+                        break
+                    elif ("error:" in line_upper or "exception:" in line_upper) and " - ERROR - " not in line_upper:
+                        last_error = line.strip()
+                        break
+                    elif "Traceback" in line:
+                        last_error = line.strip()
+                        break
+                
+                # Get traceback context if found
+                if last_error and "Traceback" in last_error:
+                    for i, line in enumerate(lines):
+                        if "Traceback" in line:
+                            last_error = "\n".join(lines[i:i+10]).strip()
+                            break
+                        
+            except Exception as e:
+                logger.debug(f"Error reading last error from debug file: {e}")
+
+        # Display output
+        console.print("\n[bold cyan]⚡ btcli utils debug[/bold cyan]\n")
+
+        console.print("[bold]System Info:[/bold]")
+        console.print(f"  System Version: {system_version}")
+        console.print(f"  Kernel Version: {kernel_version}")
+        console.print(f"  Python: {python_version}")
+
+        console.print(f"\n[bold]Last Run Command:[/bold]")
+        if last_command:
+            console.print(f"  {last_command}")
+        else:
+            console.print("  [dim]No command found in debug file[/dim]")
+
+        console.print(f"\n[bold]Config:[/bold]")
+        console.print(f"  wallet_name {final_config['wallet_name']}")
+        console.print(f"  wallet_path {final_config['wallet_path']}")
+        console.print(f"  wallet_hotkey {final_config['wallet_hotkey']}")
+        console.print(f"  network {final_config['network']}")
+        console.print(f"  use_cache {final_config['use_cache']}")
+
+        console.print(f"\n[bold]Last Error:[/bold]")
+        if last_error:
+            console.print(f"  {last_error}")
+        else:
+            console.print("  [dim]No error found in debug log[/dim]")
+
+        console.print()  # Empty line at the end
 
     def run(self):
         self.app()
