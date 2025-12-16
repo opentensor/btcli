@@ -8755,6 +8755,21 @@ class CLIManager:
             help="Block number when subnet lease ends (omit for perpetual lease).",
             min=1,
         ),
+        custom_call_pallet: Optional[str] = typer.Option(
+            None,
+            "--custom-call-pallet",
+            help="Pallet name for custom Substrate call to attach to crowdloan.",
+        ),
+        custom_call_method: Optional[str] = typer.Option(
+            None,
+            "--custom-call-method",
+            help="Method name for custom Substrate call to attach to crowdloan.",
+        ),
+        custom_call_args: Optional[str] = typer.Option(
+            None,
+            "--custom-call-args",
+            help='JSON string of arguments for custom call (e.g., \'{"arg1": "value1", "arg2": 123}\').',
+        ),
         prompt: bool = Options.prompt,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
@@ -8767,6 +8782,7 @@ class CLIManager:
         Create a crowdloan that can either:
         1. Raise funds for a specific address (general fundraising)
         2. Create a new leased subnet where contributors receive emissions
+        3. Attach any custom Substrate call (using --custom-call-pallet, --custom-call-method, --custom-call-args)
 
         EXAMPLES
 
@@ -8778,6 +8794,9 @@ class CLIManager:
 
         Subnet lease ending at block 500000:
         [green]$[/green] btcli crowd create --subnet-lease --emissions-share 25 --lease-end-block 500000
+
+        Custom call:
+        [green]$[/green] btcli crowd create --deposit 10 --cap 1000 --duration 1000 --min-contribution 1 --custom-call-pallet "SomeModule" --custom-call-method "some_method" --custom-call-args '{"param1": "value", "param2": 42}'
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
@@ -8802,6 +8821,9 @@ class CLIManager:
                 subnet_lease=subnet_lease,
                 emissions_share=emissions_share,
                 lease_end_block=lease_end_block,
+                custom_call_pallet=custom_call_pallet,
+                custom_call_method=custom_call_method,
+                custom_call_args=custom_call_args,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 prompt=prompt,

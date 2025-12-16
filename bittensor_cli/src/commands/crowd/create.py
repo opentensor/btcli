@@ -23,6 +23,105 @@ from bittensor_cli.src.bittensor.utils import (
 )
 
 
+async def validate_and_compose_custom_call(
+    subtensor: SubtensorInterface,
+    pallet_name: str,
+    method_name: str,
+    args_json: str,
+) -> tuple[Optional[GenericCall], Optional[str]]:
+    """
+    Validate and compose a custom Substrate call.
+
+    Args:
+        subtensor: SubtensorInterface instance
+        pallet_name: Name of the pallet/module
+        method_name: Name of the method/function
+        args_json: JSON string of call arguments
+
+    Returns:
+        Tuple of (GenericCall or None, error_message or None)
+    """
+    try:
+        # Parse JSON arguments
+        try:
+            call_params = json.loads(args_json) if args_json else {}
+        except json.JSONDecodeError as e:
+            return None, f"Invalid JSON in custom call args: {e}"
+
+        # Get metadata to validate call exists
+        block_hash = await subtensor.substrate.get_chain_head()
+        runtime = await subtensor.substrate.init_runtime(block_hash=block_hash)
+        metadata = runtime.metadata
+
+        # Check if pallet exists
+        try:
+            # Try using get_metadata_pallet if available (cleaner approach)
+            if hasattr(metadata, "get_metadata_pallet"):
+                pallet = metadata.get_metadata_pallet(pallet_name)
+            else:
+                # Fallback to iteration
+                pallet = None
+                for pallet_item in metadata.pallets:
+                    if pallet_item.name == pallet_name:
+                        pallet = pallet_item
+                        break
+        except (AttributeError, ValueError):
+            # Pallet not found
+            pallet = None
+
+        if pallet is None:
+            available_pallets = [p.name for p in metadata.pallets]
+            return None, (
+                f"Pallet '{pallet_name}' not found in runtime metadata. "
+                f"Available pallets: {', '.join(available_pallets[:10])}"
+                + (
+                    f" and {len(available_pallets) - 10} more..."
+                    if len(available_pallets) > 10
+                    else ""
+                )
+            )
+
+        # Check if method exists in pallet
+        call_index = None
+        call_type = None
+        for call_item in pallet.calls:
+            if call_item.name == method_name:
+                call_index = call_item.index
+                call_type = call_item.type
+                break
+
+        if call_index is None:
+            available_methods = [c.name for c in pallet.calls]
+            return None, (
+                f"Method '{method_name}' not found in pallet '{pallet_name}'. "
+                f"Available methods: {', '.join(available_methods[:10])}"
+                + (
+                    f" and {len(available_methods) - 10} more..."
+                    if len(available_methods) > 10
+                    else ""
+                )
+            )
+
+        # Validate and compose the call
+        # The compose_call method will validate the parameters match expected types
+        try:
+            call = await subtensor.substrate.compose_call(
+                call_module=pallet_name,
+                call_function=method_name,
+                call_params=call_params,
+            )
+            return call, None
+        except Exception as e:
+            error_msg = str(e)
+            # Try to provide more helpful error messages
+            if "parameter" in error_msg.lower() or "type" in error_msg.lower():
+                return None, f"Invalid call parameters: {error_msg}"
+            return None, f"Failed to compose call: {error_msg}"
+
+    except Exception as e:
+        return None, f"Error validating custom call: {str(e)}"
+
+
 async def create_crowdloan(
     subtensor: SubtensorInterface,
     wallet: Wallet,
@@ -35,6 +134,9 @@ async def create_crowdloan(
     subnet_lease: Optional[bool],
     emissions_share: Optional[int],
     lease_end_block: Optional[int],
+    custom_call_pallet: Optional[str],
+    custom_call_method: Optional[str],
+    custom_call_args: Optional[str],
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
     prompt: bool,
@@ -55,9 +157,35 @@ async def create_crowdloan(
             print_error(f"[red]{unlock_status.message}[/red]")
         return False, unlock_status.message
 
+    # Check for custom call options
+    has_custom_call = any([custom_call_pallet, custom_call_method, custom_call_args])
+    if has_custom_call:
+        if not all([custom_call_pallet, custom_call_method]):
+            error_msg = "Both --custom-call-pallet and --custom-call-method must be provided when using custom call."
+            if json_output:
+                json_console.print(json.dumps({"success": False, "error": error_msg}))
+            else:
+                print_error(f"[red]{error_msg}[/red]")
+            return False, error_msg
+
+        # Custom call args can be empty JSON object if method has no parameters
+        if custom_call_args is None:
+            custom_call_args = "{}"
+
+        # Check mutual exclusivity with subnet_lease
+        if subnet_lease is not None:
+            error_msg = "--custom-call-pallet/--custom-call-method cannot be used together with --subnet-lease. Use one or the other."
+            if json_output:
+                json_console.print(json.dumps({"success": False, "error": error_msg}))
+            else:
+                print_error(f"[red]{error_msg}[/red]")
+            return False, error_msg
+
     crowdloan_type: str
     if subnet_lease is not None:
         crowdloan_type = "subnet" if subnet_lease else "fundraising"
+    elif has_custom_call:
+        crowdloan_type = "custom"
     elif prompt:
         type_choice = IntPrompt.ask(
             "\n[bold cyan]What type of crowdloan would you like to create?[/bold cyan]\n"
@@ -75,6 +203,12 @@ async def create_crowdloan(
                 "  • Contributors will receive emissions as dividends\n"
                 "  • You will become the subnet operator\n"
                 f"  • [yellow]Note: Ensure cap covers subnet registration cost (currently {current_burn_cost.tao:,.2f} TAO)[/yellow]\n"
+            )
+        elif crowdloan_type == "custom":
+            console.print(
+                "\n[yellow]Custom Call Crowdloan Selected[/yellow]\n"
+                "  • A custom Substrate call will be executed when the crowdloan is finalized\n"
+                "  • Ensure the call parameters are correct before proceeding\n"
             )
         else:
             console.print(
@@ -214,7 +348,31 @@ async def create_crowdloan(
     current_block = await subtensor.substrate.get_block_number(None)
     call_to_attach: Optional[GenericCall]
     lease_perpetual = None
-    if crowdloan_type == "subnet":
+    custom_call_info: Optional[dict] = None
+
+    if crowdloan_type == "custom":
+        # Validate and compose custom call
+        call_to_attach, error_msg = await validate_and_compose_custom_call(
+            subtensor=subtensor,
+            pallet_name=custom_call_pallet,
+            method_name=custom_call_method,
+            args_json=custom_call_args or "{}",
+        )
+
+        if call_to_attach is None:
+            if json_output:
+                json_console.print(json.dumps({"success": False, "error": error_msg}))
+            else:
+                print_error(f"[red]{error_msg}[/red]")
+            return False, error_msg or "Failed to validate custom call."
+
+        custom_call_info = {
+            "pallet": custom_call_pallet,
+            "method": custom_call_method,
+            "args": json.loads(custom_call_args or "{}"),
+        }
+        target_address = None  # Custom calls don't use target_address
+    elif crowdloan_type == "subnet":
         target_address = None
 
         if emissions_share is None:
@@ -323,6 +481,16 @@ async def create_crowdloan(
                 table.add_row("Lease Ends", f"Block {lease_end_block}")
             else:
                 table.add_row("Lease Duration", "[green]Perpetual[/green]")
+        elif crowdloan_type == "custom":
+            table.add_row("Type", "[yellow]Custom Call[/yellow]")
+            table.add_row("Pallet", f"[cyan]{custom_call_info['pallet']}[/cyan]")
+            table.add_row("Method", f"[cyan]{custom_call_info['method']}[/cyan]")
+            args_str = (
+                json.dumps(custom_call_info["args"], indent=2)
+                if custom_call_info["args"]
+                else "{}"
+            )
+            table.add_row("Call Arguments", f"[dim]{args_str}[/dim]")
         else:
             table.add_row("Type", "[cyan]General Fundraising[/cyan]")
             target_text = (
@@ -399,6 +567,8 @@ async def create_crowdloan(
             output_dict["data"]["emissions_share"] = emissions_share
             output_dict["data"]["lease_end_block"] = lease_end_block
             output_dict["data"]["perpetual_lease"] = lease_end_block is None
+        elif crowdloan_type == "custom":
+            output_dict["data"]["custom_call"] = custom_call_info
         else:
             output_dict["data"]["target_address"] = target_address
 
@@ -420,6 +590,21 @@ async def create_crowdloan(
                 console.print(f"  Lease ends at block: [bold]{lease_end_block}[/bold]")
             else:
                 console.print("  Lease: [green]Perpetual[/green]")
+        elif crowdloan_type == "custom":
+            message = "Custom call crowdloan created successfully."
+            console.print(
+                f"\n:white_check_mark: [green]{message}[/green]\n"
+                f"  Type: [yellow]Custom Call[/yellow]\n"
+                f"  Pallet: [cyan]{custom_call_info['pallet']}[/cyan]\n"
+                f"  Method: [cyan]{custom_call_info['method']}[/cyan]\n"
+                f"  Deposit: [{COLORS.P.TAO}]{deposit}[/{COLORS.P.TAO}]\n"
+                f"  Min contribution: [{COLORS.P.TAO}]{min_contribution}[/{COLORS.P.TAO}]\n"
+                f"  Cap: [{COLORS.P.TAO}]{cap}[/{COLORS.P.TAO}]\n"
+                f"  Ends at block: [bold]{end_block}[/bold]"
+            )
+            if custom_call_info["args"]:
+                args_str = json.dumps(custom_call_info["args"], indent=2)
+                console.print(f"  Call Arguments:\n{args_str}")
         else:
             message = "Fundraising crowdloan created successfully."
             console.print(
