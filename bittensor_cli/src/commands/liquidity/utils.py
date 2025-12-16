@@ -87,6 +87,91 @@ def tick_to_price(tick: int) -> float:
     return PRICE_STEP**tick
 
 
+def liquidity_from_alpha_below_range(
+    *,
+    amount_alpha: Balance,
+    price_low: Balance,
+    price_high: Balance,
+) -> Balance:
+    """Compute liquidity from an Alpha-only deposit when current price <= price_low."""
+    sqrt_price_low = math.sqrt(float(price_low))
+    sqrt_price_high = math.sqrt(float(price_high))
+    denom = (1 / sqrt_price_low) - (1 / sqrt_price_high)
+    if denom <= 0:
+        raise ValueError("Invalid price range: expected price_low < price_high")
+    return Balance.from_rao(int(amount_alpha.rao / denom))
+
+
+def liquidity_from_tao_above_range(
+    *,
+    amount_tao: Balance,
+    price_low: Balance,
+    price_high: Balance,
+) -> Balance:
+    """Compute liquidity from a TAO-only deposit when current price >= price_high."""
+    sqrt_price_low = math.sqrt(float(price_low))
+    sqrt_price_high = math.sqrt(float(price_high))
+    denom = sqrt_price_high - sqrt_price_low
+    if denom <= 0:
+        raise ValueError("Invalid price range: expected price_low < price_high")
+    return Balance.from_rao(int(amount_tao.rao / denom))
+
+
+def liquidity_from_tao_in_range(
+    *,
+    amount_tao: Balance,
+    current_price: Balance,
+    price_low: Balance,
+) -> Balance:
+    """Compute liquidity from a TAO deposit when price_low < current_price < price_high."""
+    sqrt_price_low = math.sqrt(float(price_low))
+    sqrt_current_price = math.sqrt(float(current_price))
+    denom = sqrt_current_price - sqrt_price_low
+    if denom <= 0:
+        return Balance.from_rao(0)
+    return Balance.from_rao(int(amount_tao.rao / denom))
+
+
+def liquidity_from_alpha_in_range(
+    *,
+    amount_alpha: Balance,
+    current_price: Balance,
+    price_high: Balance,
+) -> Balance:
+    """Compute liquidity from an Alpha deposit when price_low < current_price < price_high."""
+    sqrt_current_price = math.sqrt(float(current_price))
+    sqrt_price_high = math.sqrt(float(price_high))
+    denom = (1 / sqrt_current_price) - (1 / sqrt_price_high)
+    if denom <= 0:
+        return Balance.from_rao(0)
+    return Balance.from_rao(int(amount_alpha.rao / denom))
+
+
+def max_liquidity_in_range(
+    *,
+    tao_available: Balance,
+    alpha_available: Balance,
+    current_price: Balance,
+    price_low: Balance,
+    price_high: Balance,
+) -> Balance:
+    """Compute the maximum liquidity possible given token availability at current price.
+
+    This assumes price_low < current_price < price_high.
+    """
+    l_from_tao = liquidity_from_tao_in_range(
+        amount_tao=tao_available,
+        current_price=current_price,
+        price_low=price_low,
+    )
+    l_from_alpha = liquidity_from_alpha_in_range(
+        amount_alpha=alpha_available,
+        current_price=current_price,
+        price_high=price_high,
+    )
+    return Balance.from_rao(min(l_from_tao.rao, l_from_alpha.rao))
+
+
 def get_fees(
     current_tick: int,
     tick: dict,
