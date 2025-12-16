@@ -84,6 +84,7 @@ from bittensor_cli.src.commands.crowd import (
     view as view_crowdloan,
     update as crowd_update,
     refund as crowd_refund,
+    contributors as crowd_contributors,
 )
 from bittensor_cli.src.commands.liquidity.utils import (
     prompt_liquidity,
@@ -1324,6 +1325,9 @@ class CLIManager:
         self.crowd_app.command("info", rich_help_panel=HELP_PANELS["CROWD"]["INFO"])(
             self.crowd_info
         )
+        self.crowd_app.command(
+            "contributors", rich_help_panel=HELP_PANELS["CROWD"]["INFO"]
+        )(self.crowd_contributors)
         self.crowd_app.command(
             "create", rich_help_panel=HELP_PANELS["CROWD"]["INITIATOR"]
         )(self.crowd_create)
@@ -8483,6 +8487,36 @@ class CLIManager:
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
+        show_identities: Optional[str] = typer.Option(
+            None,
+            "--show-identities",
+            help="Show identity names for creators and target addresses. Use 'true' or 'false', or omit for default (true).",
+        ),
+        status: Optional[str] = typer.Option(
+            None,
+            "--status",
+            help="Filter by status: active, funded, closed, finalized",
+        ),
+        type_filter: Optional[str] = typer.Option(
+            None,
+            "--type",
+            help="Filter by type: subnet, fundraising",
+        ),
+        sort_by: Optional[str] = typer.Option(
+            None,
+            "--sort-by",
+            help="Sort by: raised, end, contributors, id",
+        ),
+        sort_order: Optional[str] = typer.Option(
+            None,
+            "--sort-order",
+            help="Sort order: asc, desc (default: desc for raised, asc for id)",
+        ),
+        search_creator: Optional[str] = typer.Option(
+            None,
+            "--search-creator",
+            help="Search by creator address or identity name",
+        ),
     ):
         """
         List crowdloans together with their funding progress and key metadata.
@@ -8492,19 +8526,42 @@ class CLIManager:
         or a general fundraising crowdloan.
 
         Use `--verbose` for full-precision amounts and longer addresses.
+        Use `--show-identities` to show identity names (default: true).
+        Use `--status` to filter by status (active, funded, closed, finalized).
+        Use `--type` to filter by type (subnet, fundraising).
+        Use `--sort-by` and `--sort-order` to sort results.
+        Use `--search-creator` to search by creator address or identity name.
 
         EXAMPLES
 
         [green]$[/green] btcli crowd list
 
         [green]$[/green] btcli crowd list --verbose
+
+        [green]$[/green] btcli crowd list --show-identities true
+
+        [green]$[/green] btcli crowd list --status active --type subnet
+
+        [green]$[/green] btcli crowd list --sort-by raised --sort-order desc
+
+        [green]$[/green] btcli crowd list --search-creator "5D..."
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt=False)
+        # Parse show_identities: None or "true" -> True, "false" -> False
+        show_identities_bool = True  # default
+        if show_identities is not None:
+            show_identities_bool = show_identities.lower() in ("true", "1", "yes")
         return self._run_command(
             view_crowdloan.list_crowdloans(
                 subtensor=self.initialize_chain(network),
                 verbose=verbose,
                 json_output=json_output,
+                show_identities=show_identities_bool,
+                status_filter=status,
+                type_filter=type_filter,
+                sort_by=sort_by,
+                sort_order=sort_order,
+                search_creator=search_creator,
             )
         )
 
@@ -8524,17 +8581,33 @@ class CLIManager:
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
+        show_identities: Optional[str] = typer.Option(
+            None,
+            "--show-identities",
+            help="Show identity names for creator and target address. Use 'true' or 'false', or omit for default (true).",
+        ),
+        show_contributors: Optional[str] = typer.Option(
+            None,
+            "--show-contributors",
+            help="Show contributor list with identities. Use 'true' or 'false', or omit for default (false).",
+        ),
     ):
         """
         Display detailed information about a specific crowdloan.
 
         Includes funding progress, target account, and call details among other information.
+        Use `--show-identities` to show identity names (default: true).
+        Use `--show-contributors` to display the list of contributors (default: false).
 
         EXAMPLES
 
         [green]$[/green] btcli crowd info --id 0
 
         [green]$[/green] btcli crowd info --id 1 --verbose
+
+        [green]$[/green] btcli crowd info --id 0 --show-identities true
+
+        [green]$[/green] btcli crowd info --id 0 --show-identities true --show-contributors true
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt=False)
 
@@ -8555,11 +8628,69 @@ class CLIManager:
                 validate=WV.WALLET,
             )
 
+        # Parse show_identities: None or "true" -> True, "false" -> False
+        show_identities_bool = True  # default
+        if show_identities is not None:
+            show_identities_bool = show_identities.lower() in ("true", "1", "yes")
+
+        # Parse show_contributors: None or "false" -> False, "true" -> True
+        show_contributors_bool = False  # default
+        if show_contributors is not None:
+            show_contributors_bool = show_contributors.lower() in ("true", "1", "yes")
+
         return self._run_command(
             view_crowdloan.show_crowdloan_details(
                 subtensor=self.initialize_chain(network),
                 crowdloan_id=crowdloan_id,
                 wallet=wallet,
+                verbose=verbose,
+                json_output=json_output,
+                show_identities=show_identities_bool,
+                show_contributors=show_contributors_bool,
+            )
+        )
+
+    def crowd_contributors(
+        self,
+        crowdloan_id: Optional[int] = typer.Option(
+            None,
+            "--crowdloan-id",
+            "--crowdloan_id",
+            "--id",
+            help="The ID of the crowdloan to list contributors for",
+        ),
+        network: Optional[list[str]] = Options.network,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        List all contributors to a specific crowdloan.
+
+        Shows contributor addresses, contribution amounts, identity names, and percentages.
+        Contributors are sorted by contribution amount (highest first).
+
+        EXAMPLES
+
+        [green]$[/green] btcli crowd contributors --id 0
+
+        [green]$[/green] btcli crowd contributors --id 1 --verbose
+
+        [green]$[/green] btcli crowd contributors --id 2 --json-output
+        """
+        self.verbosity_handler(quiet, verbose, json_output, prompt=False)
+
+        if crowdloan_id is None:
+            crowdloan_id = IntPrompt.ask(
+                f"Enter the [{COLORS.G.SUBHEAD_MAIN}]crowdloan id[/{COLORS.G.SUBHEAD_MAIN}]",
+                default=None,
+                show_default=False,
+            )
+
+        return self._run_command(
+            crowd_contributors.list_contributors(
+                subtensor=self.initialize_chain(network),
+                crowdloan_id=crowdloan_id,
                 verbose=verbose,
                 json_output=json_output,
             )
