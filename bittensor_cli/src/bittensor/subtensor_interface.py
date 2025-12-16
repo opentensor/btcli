@@ -1356,6 +1356,21 @@ class SubtensorInterface:
         if not result:
             return []
 
+        # If max_uids is not in the runtime API response, fetch it from storage
+        if "max_uids" not in result and "max_allowed_uids" not in result:
+            try:
+                max_uids_result = await self.query(
+                    module="SubtensorModule",
+                    storage_function="MaxAllowedUids",
+                    params=[netuid],
+                    block_hash=block_hash,
+                )
+                if max_uids_result is not None:
+                    result["max_uids"] = int(max_uids_result)
+            except Exception:
+                # If query fails, max_uids will default to 0 in the dataclass
+                pass
+
         return SubnetHyperparameters.from_any(result)
 
     async def get_subnet_mechanisms(

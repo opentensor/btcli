@@ -185,6 +185,7 @@ class SubnetHyperparameters(InfoBase):
         transfers_enabled (bool): Flag indicating if transfers are enabled.
         bonds_reset_enabled (bool): Flag indicating if bonds are reset enabled.
         user_liquidity_enabled (bool): Flag indicating if user liquidity is enabled.
+        max_uids (int): Maximum number of UIDs allowed in the subnet.
     """
 
     rho: int
@@ -207,6 +208,7 @@ class SubnetHyperparameters(InfoBase):
     max_regs_per_block: int
     serving_rate_limit: int
     max_validators: int
+    max_uids: int
     adjustment_alpha: int
     difficulty: int
     commit_reveal_period: int
@@ -246,6 +248,7 @@ class SubnetHyperparameters(InfoBase):
             max_difficulty=decoded["max_difficulty"],
             max_regs_per_block=decoded["max_regs_per_block"],
             max_validators=decoded["max_validators"],
+            max_uids=decoded.get("max_uids") or decoded.get("max_allowed_uids", 0),
             max_weight_limit=decoded["max_weights_limit"],
             min_allowed_weights=decoded["min_allowed_weights"],
             min_burn=decoded["min_burn"],
