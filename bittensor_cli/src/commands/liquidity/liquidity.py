@@ -3,11 +3,12 @@ import json
 from typing import TYPE_CHECKING, Optional
 
 from async_substrate_interface import AsyncExtrinsicReceipt
-from rich.prompt import Confirm
+from rich.prompt import Confirm, FloatPrompt, IntPrompt, Prompt
 from rich.table import Column, Table
 
 from bittensor_cli.src import COLORS
 from bittensor_cli.src.bittensor.utils import (
+    is_valid_ss58_address,
     unlock_key,
     console,
     err_console,
@@ -19,6 +20,11 @@ from bittensor_cli.src.commands.liquidity.utils import (
     LiquidityPosition,
     calculate_fees,
     get_fees,
+    liquidity_from_alpha_below_range,
+    liquidity_from_alpha_in_range,
+    liquidity_from_tao_above_range,
+    liquidity_from_tao_in_range,
+    max_liquidity_in_range,
     price_to_tick,
     tick_to_price,
 )
@@ -247,24 +253,248 @@ async def add_liquidity(
     hotkey_ss58: str,
     netuid: Optional[int],
     proxy: Optional[str],
-    liquidity: Balance,
-    price_low: Balance,
-    price_high: Balance,
+    liquidity: Optional[Balance],
+    price_low: Optional[Balance],
+    price_high: Optional[Balance],
     prompt: bool,
     json_output: bool,
 ) -> tuple[bool, str]:
     """Add liquidity position to provided subnet."""
+
+    def _maybe_print_json(success: bool, message: str, ext_id: Optional[str] = None) -> None:
+        if not json_output:
+            return
+        json_console.print_json(
+            data={
+                "success": success,
+                "message": message,
+                "extrinsic_identifier": ext_id,
+            }
+        )
+
+    def _return(success: bool, message: str, ext_id: Optional[str] = None) -> tuple[bool, str]:
+        _maybe_print_json(success=success, message=message, ext_id=ext_id)
+        return success, message
+
+    def _prompt_hotkey(default_hotkey: str) -> str:
+        while True:
+            chosen = Prompt.ask(
+                "Enter the hotkey to use for this liquidity position (press enter to use default)",
+                default=default_hotkey,
+                show_default=True,
+            ).strip()
+            if is_valid_ss58_address(chosen):
+                return chosen
+            console.print("[red]Invalid SS58 hotkey address.[/red]")
+
+    def _prompt_price(prompt_text: str) -> Balance:
+        while True:
+            price = FloatPrompt.ask(prompt_text)
+            if price <= 0:
+                console.print("[red]Price must be greater than 0[/red].")
+                continue
+            return Balance.from_tao(price)
+
+    def _prompt_amount_tao(prompt_text: str, *, maximum: Optional[Balance] = None) -> Balance:
+        while True:
+            amt = FloatPrompt.ask(prompt_text)
+            if amt <= 0:
+                console.print("[red]Amount must be greater than 0[/red].")
+                continue
+            b = Balance.from_tao(amt)
+            if maximum is not None and b > maximum:
+                console.print(f"[red]Amount exceeds maximum available: {maximum}[/red]")
+                continue
+            return b
+
+    def _prompt_amount_alpha(
+        prompt_text: str, *, netuid_: int, maximum: Optional[Balance] = None
+    ) -> Balance:
+        while True:
+            amt = FloatPrompt.ask(prompt_text)
+            if amt <= 0:
+                console.print("[red]Amount must be greater than 0[/red].")
+                continue
+            b = Balance.from_tao(amt).set_unit(netuid_)
+            if maximum is not None and b > maximum:
+                console.print(f"[red]Amount exceeds maximum available: {maximum}[/red]")
+                continue
+            return b
+
     # Check wallet access
     if not (ulw := unlock_key(wallet)).success:
-        return False, ulw.message
-
-    # Check that the subnet exists.
-    if not await subtensor.subnet_exists(netuid=netuid):
-        return False, f"Subnet with netuid: {netuid} does not exist in {subtensor}."
+        return _return(False, ulw.message)
 
     if prompt:
+        if netuid is None:
+            netuid = IntPrompt.ask(
+                f"Enter the [{COLORS.G.SUBHEAD_MAIN}]netuid[/{COLORS.G.SUBHEAD_MAIN}] to use"
+            )
+
+        # Check that the subnet exists.
+        if not await subtensor.subnet_exists(netuid=netuid):
+            return _return(
+                False, f"Subnet with netuid: {netuid} does not exist in {subtensor}."
+            )
+
+        if price_low is None:
+            price_low = _prompt_price("Enter liquidity position low price")
+
+        if price_high is None:
+            price_high = _prompt_price(
+                "Enter liquidity position high price (must be greater than low price)"
+            )
+
+        while price_low >= price_high:
+            console.print("[red]The low price must be lower than the high price.[/red]")
+            price_low = _prompt_price("Enter liquidity position low price")
+            price_high = _prompt_price(
+                "Enter liquidity position high price (must be greater than low price)"
+            )
+
+        current_price = await subtensor.get_subnet_price(netuid=netuid)
+        console.print(f"Current subnet price: {current_price}")
+
+        # If user passed --liquidity explicitly, keep backwards-compat behavior.
+        chosen_hotkey_ss58 = hotkey_ss58
+        if liquidity is None:
+            if price_low >= current_price:
+                # Price is below range -> Alpha-only deposit
+                chosen_hotkey_ss58 = _prompt_hotkey(hotkey_ss58)
+                alpha_amount = _prompt_amount_alpha(
+                    "Enter Alpha amount to provide",
+                    netuid_=netuid,
+                )
+                alpha_available = await subtensor.get_stake_for_coldkey_and_hotkey(
+                    hotkey_ss58=chosen_hotkey_ss58,
+                    coldkey_ss58=wallet.coldkeypub.ss58_address,
+                    netuid=netuid,
+                )
+                if alpha_amount > alpha_available:
+                    return _return(
+                        False,
+                        f"Insufficient Alpha stake on hotkey {chosen_hotkey_ss58}: have {alpha_available}, need {alpha_amount}.",
+                    )
+                liquidity = liquidity_from_alpha_below_range(
+                    amount_alpha=alpha_amount,
+                    price_low=price_low,
+                    price_high=price_high,
+                )
+                if liquidity.rao <= 0:
+                    return _return(False, "Alpha amount is too small to create non-zero liquidity.")
+            elif price_high <= current_price:
+                # Price is above range -> TAO-only deposit (hotkey is still required but doesn't affect amounts)
+                chosen_hotkey_ss58 = _prompt_hotkey(hotkey_ss58)
+                tao_amount = _prompt_amount_tao("Enter TAO amount to provide")
+                tao_available = await subtensor.get_balance(wallet.coldkeypub.ss58_address)
+                if tao_amount > tao_available:
+                    return _return(
+                        False,
+                        f"Insufficient TAO balance: have {tao_available}, need {tao_amount}.",
+                    )
+                liquidity = liquidity_from_tao_above_range(
+                    amount_tao=tao_amount,
+                    price_low=price_low,
+                    price_high=price_high,
+                )
+                if liquidity.rao <= 0:
+                    return _return(False, "TAO amount is too small to create non-zero liquidity.")
+            else:
+                # Price is inside range -> mixed deposit
+                chosen_hotkey_ss58 = _prompt_hotkey(hotkey_ss58)
+                tao_available, alpha_available = await asyncio.gather(
+                    subtensor.get_balance(wallet.coldkeypub.ss58_address),
+                    subtensor.get_stake_for_coldkey_and_hotkey(
+                        hotkey_ss58=chosen_hotkey_ss58,
+                        coldkey_ss58=wallet.coldkeypub.ss58_address,
+                        netuid=netuid,
+                    ),
+                )
+
+                l_max = max_liquidity_in_range(
+                    tao_available=tao_available,
+                    alpha_available=alpha_available,
+                    current_price=current_price,
+                    price_low=price_low,
+                    price_high=price_high,
+                )
+                if l_max.rao <= 0:
+                    return _return(
+                        False,
+                        "Insufficient TAO and/or Alpha to provide liquidity at the current subnet price.",
+                    )
+                max_alpha, max_tao = LiquidityPosition(
+                    id=0,
+                    price_low=price_low,
+                    price_high=price_high,
+                    liquidity=l_max,
+                    fees_tao=Balance.from_rao(0),
+                    fees_alpha=Balance.from_rao(0).set_unit(netuid),
+                    netuid=netuid,
+                ).to_token_amounts(current_price)
+
+                console.print(
+                    "This is the max amount of TAO and Alpha that can be currently provided:\n"
+                    f"\tMax TAO: {max_tao}\n"
+                    f"\tMax Alpha: {max_alpha}"
+                )
+
+                token_choice = Prompt.ask(
+                    "Would you like to specify your deposit in TAO or Alpha?",
+                    choices=["tao", "alpha"],
+                    default="tao",
+                    show_default=True,
+                )
+
+                if token_choice == "tao":
+                    tao_amount = _prompt_amount_tao(
+                        "Enter TAO amount to provide",
+                        maximum=max_tao,
+                    )
+                    liquidity = liquidity_from_tao_in_range(
+                        amount_tao=tao_amount,
+                        current_price=current_price,
+                        price_low=price_low,
+                    )
+                    if liquidity.rao <= 0:
+                        return _return(
+                            False,
+                            "Selected TAO amount is too small to create non-zero liquidity.",
+                        )
+                else:
+                    alpha_amount = _prompt_amount_alpha(
+                        "Enter Alpha amount to provide",
+                        netuid_=netuid,
+                        maximum=max_alpha,
+                    )
+                    liquidity = liquidity_from_alpha_in_range(
+                        amount_alpha=alpha_amount,
+                        current_price=current_price,
+                        price_high=price_high,
+                    )
+
+                if liquidity.rao <= 0:
+                    return _return(False, "Selected amount is too small to create non-zero liquidity.")
+
+                needed_alpha, needed_tao = LiquidityPosition(
+                    id=0,
+                    price_low=price_low,
+                    price_high=price_high,
+                    liquidity=liquidity,
+                    fees_tao=Balance.from_rao(0),
+                    fees_alpha=Balance.from_rao(0).set_unit(netuid),
+                    netuid=netuid,
+                ).to_token_amounts(current_price)
+
+                console.print(
+                    "Your selected liquidity corresponds to approximately:\n"
+                    f"\tTAO: {needed_tao}\n"
+                    f"\tAlpha: {needed_alpha}"
+                )
+
         console.print(
             "You are about to add a LiquidityPosition with:\n"
+            f"\thotkey: {chosen_hotkey_ss58}\n"
             f"\tliquidity: {liquidity}\n"
             f"\tprice low: {price_low}\n"
             f"\tprice high: {price_high}\n"
@@ -273,7 +503,24 @@ async def add_liquidity(
         )
 
         if not Confirm.ask("Would you like to continue?"):
-            return False, "User cancelled operation."
+            return _return(False, "User cancelled operation.")
+
+        hotkey_ss58 = chosen_hotkey_ss58
+
+    else:
+        # Non-interactive mode: require all args.
+        if netuid is None:
+            return _return(False, "Missing required argument: netuid")
+        if liquidity is None:
+            return _return(False, "Missing required argument: liquidity (use --liquidity)")
+        if price_low is None or price_high is None:
+            return _return(False, "Missing required arguments: price_low/price_high")
+        if price_low >= price_high:
+            return _return(False, "The low price must be lower than the high price.")
+        if not await subtensor.subnet_exists(netuid=netuid):
+            return _return(
+                False, f"Subnet with netuid: {netuid} does not exist in {subtensor}."
+            )
 
     success, message, ext_receipt = await add_liquidity_extrinsic(
         subtensor=subtensor,
@@ -285,19 +532,15 @@ async def add_liquidity(
         price_low=price_low,
         price_high=price_high,
     )
+
     if success:
         await print_extrinsic_id(ext_receipt)
         ext_id = await ext_receipt.get_extrinsic_identifier()
     else:
         ext_id = None
+
     if json_output:
-        json_console.print_json(
-            data={
-                "success": success,
-                "message": message,
-                "extrinsic_identifier": ext_id,
-            }
-        )
+        _maybe_print_json(success=success, message=message, ext_id=ext_id)
     else:
         if success:
             console.print(
@@ -305,6 +548,7 @@ async def add_liquidity(
             )
         else:
             err_console.print(f"[red]Error: {message}[/red]")
+
     return success, message
 
 
