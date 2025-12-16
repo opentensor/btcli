@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet
 from rich.table import Table
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Prompt
 
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
@@ -13,6 +13,7 @@ from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
     wait_for_extrinsic_by_hash,
 )
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
     err_console,
     print_error,
@@ -462,6 +463,8 @@ async def move_stake(
     era: int,
     interactive_selection: bool = False,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
     proxy: Optional[str] = None,
     mev_protection: bool = True,
 ) -> tuple[bool, str]:
@@ -576,7 +579,9 @@ async def move_stake(
             )
         except ValueError:
             return False, ""
-        if not Confirm.ask("Would you like to continue?"):
+        if not confirm_action(
+            "Would you like to continue?", decline=decline, quiet=quiet
+        ):
             return False, ""
 
     # Perform moving operation.
@@ -665,6 +670,8 @@ async def transfer_stake(
     interactive_selection: bool = False,
     stake_all: bool = False,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
     proxy: Optional[str] = None,
     mev_protection: bool = True,
 ) -> tuple[bool, str]:
@@ -792,7 +799,9 @@ async def transfer_stake(
         except ValueError:
             return False, ""
 
-        if not Confirm.ask("Would you like to continue?"):
+        if not confirm_action(
+            "Would you like to continue?", decline=decline, quiet=quiet
+        ):
             return False, ""
 
     # Perform transfer operation
@@ -870,6 +879,8 @@ async def swap_stake(
     proxy: Optional[str] = None,
     interactive_selection: bool = False,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     mev_protection: bool = True,
@@ -988,7 +999,9 @@ async def swap_stake(
         except ValueError:
             return False, ""
 
-        if not Confirm.ask("Would you like to continue?"):
+        if not confirm_action(
+            "Would you like to continue?", decline=decline, quiet=quiet
+        ):
             return False, ""
 
     # Perform swap operation

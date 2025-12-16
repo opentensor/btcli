@@ -4,13 +4,14 @@ from typing import Optional
 from async_substrate_interface.utils.cache import asyncio
 from bittensor_wallet import Wallet
 from rich import box
-from rich.prompt import Confirm, FloatPrompt
+from rich.prompt import FloatPrompt
 from rich.table import Column, Table
 
 from bittensor_cli.src import COLORS
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
     json_console,
     print_error,
@@ -57,8 +58,10 @@ async def contribute_to_crowdloan(
     crowdloan_id: int,
     amount: Optional[float],
     prompt: bool,
-    wait_for_inclusion: bool,
-    wait_for_finalization: bool,
+    decline: bool = False,
+    quiet: bool = False,
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = False,
     json_output: bool = False,
 ) -> tuple[bool, str]:
     """Contribute TAO to an active crowdloan.
@@ -222,7 +225,9 @@ async def contribute_to_crowdloan(
         )
 
     if prompt:
-        if not Confirm.ask("\nProceed with contribution?"):
+        if not confirm_action(
+            "\nProceed with contribution?", decline=decline, quiet=quiet
+        ):
             if json_output:
                 json_console.print(
                     json.dumps(
@@ -359,6 +364,8 @@ async def withdraw_from_crowdloan(
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
     prompt: bool,
+    decline: bool = False,
+    quiet: bool = False,
     json_output: bool = False,
 ) -> tuple[bool, str]:
     """
@@ -507,7 +514,9 @@ async def withdraw_from_crowdloan(
 
         console.print(table)
 
-        if not Confirm.ask("\nProceed with withdrawal?"):
+        if not confirm_action(
+            "\nProceed with withdrawal?", decline=decline, quiet=quiet
+        ):
             if json_output:
                 json_console.print(
                     json.dumps(

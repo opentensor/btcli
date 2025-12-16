@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Optional
 
 from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Prompt
 from rich.table import Table
 
 from bittensor_cli.src import COLOR_PALETTE
@@ -16,6 +16,7 @@ from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
 )
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
     err_console,
     print_verbose,
@@ -44,6 +45,8 @@ async def unstake(
     exclude_hotkeys: list[str],
     amount: float,
     prompt: bool,
+    decline: bool,
+    quiet: bool,
     interactive: bool,
     netuid: Optional[int],
     safe_staking: bool,
@@ -87,11 +90,13 @@ async def unstake(
             return False
         if unstake_all_from_hk:
             hotkey_to_unstake_all = hotkeys_to_unstake_from[0]
-            unstake_all_alpha = Confirm.ask(
+            unstake_all_alpha = confirm_action(
                 "\nDo you want to:\n"
                 "[blue]Yes[/blue]: Unstake from all subnets and automatically re-stake to subnet 0 (root)\n"
                 "[blue]No[/blue]: Unstake everything (including subnet 0)",
                 default=True,
+                decline=decline,
+                quiet=quiet,
             )
             return await unstake_all(
                 wallet=wallet,
@@ -315,7 +320,9 @@ async def unstake(
 
     _print_table_and_slippage(table, max_float_slippage, safe_staking)
     if prompt:
-        if not Confirm.ask("Would you like to continue?"):
+        if not confirm_action(
+            "Would you like to continue?", decline=decline, quiet=quiet
+        ):
             return False
 
     # Execute extrinsics
@@ -378,6 +385,8 @@ async def unstake_all(
     exclude_hotkeys: Optional[list[str]] = None,
     era: int = 3,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
     json_output: bool = False,
     proxy: Optional[str] = None,
     mev_protection: bool = True,
@@ -543,8 +552,10 @@ async def unstake_all(
         f"Total expected return: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{total_received_value}"
     )
 
-    if prompt and not Confirm.ask(
-        "\nDo you want to proceed with unstaking everything?"
+    if prompt and not confirm_action(
+        "\nDo you want to proceed with unstaking everything?",
+        decline=decline,
+        quiet=quiet,
     ):
         return
 

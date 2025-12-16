@@ -3,7 +3,7 @@ import json
 from typing import Optional
 
 from bittensor_wallet import Wallet
-from rich.prompt import Confirm, IntPrompt, Prompt, FloatPrompt
+from rich.prompt import IntPrompt, Prompt, FloatPrompt
 from rich.table import Table, Column, box
 from scalecodec import GenericCall
 
@@ -14,6 +14,7 @@ from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.commands.crowd.utils import get_constant
 from bittensor_cli.src.bittensor.utils import (
     blocks_to_duration,
+    confirm_action,
     console,
     json_console,
     print_error,
@@ -38,7 +39,9 @@ async def create_crowdloan(
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
     prompt: bool,
-    json_output: bool,
+    decline: bool = False,
+    quiet: bool = False,
+    json_output: bool = False,
 ) -> tuple[bool, str]:
     """
     Create a new crowdloan with the given parameters.
@@ -229,9 +232,11 @@ async def create_crowdloan(
             return False, "Invalid emissions share percentage."
 
         if lease_end_block is None:
-            lease_perpetual = Confirm.ask(
+            lease_perpetual = confirm_action(
                 "Should the subnet lease be perpetual?",
                 default=True,
+                decline=decline,
+                quiet=quiet,
             )
             if not lease_perpetual:
                 lease_end_block = IntPrompt.ask(
@@ -346,7 +351,9 @@ async def create_crowdloan(
         )
         console.print(table)
 
-        if not Confirm.ask("Proceed with creating the crowdloan?"):
+        if not confirm_action(
+            "Proceed with creating the crowdloan?", decline=decline, quiet=quiet
+        ):
             if json_output:
                 json_console.print(
                     json.dumps(
@@ -446,6 +453,8 @@ async def finalize_crowdloan(
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
     prompt: bool,
+    decline: bool = False,
+    quiet: bool = False,
     json_output: bool = False,
 ) -> tuple[bool, str]:
     """
@@ -593,7 +602,9 @@ async def finalize_crowdloan(
             "• This action cannot be undone\n"
         )
 
-        if not Confirm.ask("\nProceed with finalization?"):
+        if not confirm_action(
+            "\nProceed with finalization?", decline=decline, quiet=quiet
+        ):
             if json_output:
                 json_console.print(
                     json.dumps(

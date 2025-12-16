@@ -17,13 +17,11 @@
 
 import asyncio
 import hashlib
-import time
 from typing import Union, List, TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet, Keypair
 import numpy as np
 from numpy.typing import NDArray
-from rich.prompt import Confirm
 from rich.table import Table, Column
 from scalecodec import ScaleBytes, U16, Vec
 from async_substrate_interface.errors import SubstrateRequestException
@@ -31,6 +29,7 @@ from async_substrate_interface.errors import SubstrateRequestException
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.extrinsics.registration import is_hotkey_registered
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
     err_console,
     u16_normalized_float,
@@ -399,6 +398,8 @@ async def set_root_weights_extrinsic(
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = False,
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
 ) -> bool:
     """Sets the given weights and values on chain for wallet hotkey account.
 
@@ -522,7 +523,11 @@ async def set_root_weights_extrinsic(
             )
 
         console.print(table)
-        if not Confirm.ask("\nDo you want to set these root weights?"):
+        if not confirm_action(
+            "\nDo you want to set these root weights?",
+            decline=decline,
+            quiet=quiet,
+        ):
             return False
 
     try:
