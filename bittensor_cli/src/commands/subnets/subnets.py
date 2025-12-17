@@ -1862,6 +1862,76 @@ async def register(
             )
         return
 
+    print_verbose("Checking registration allowed and limits")
+    (
+        registration_allowed,
+        target_registrations_per_interval,
+        registrations_this_interval,
+        last_adjustment_block,
+        adjustment_interval,
+        current_block,
+    ) = await asyncio.gather(
+        subtensor.query(
+            module="SubtensorModule",
+            storage_function="NetworkRegistrationAllowed",
+            params=[netuid],
+            block_hash=block_hash,
+        ),
+        subtensor.query(
+            module="SubtensorModule",
+            storage_function="TargetRegistrationsPerInterval",
+            params=[netuid],
+            block_hash=block_hash,
+        ),
+        subtensor.query(
+            module="SubtensorModule",
+            storage_function="RegistrationsThisInterval",
+            params=[netuid],
+            block_hash=block_hash,
+        ),
+        subtensor.query(
+            module="SubtensorModule",
+            storage_function="LastAdjustmentBlock",
+            params=[netuid],
+            block_hash=block_hash,
+        ),
+        subtensor.query(
+            module="SubtensorModule",
+            storage_function="AdjustmentInterval",
+            params=[netuid],
+            block_hash=block_hash,
+        ),
+        subtensor.substrate.get_block_number(block_hash),
+    )
+
+    if not registration_allowed:
+        err_console.print(f"[red]Registration to subnet {netuid} is not allowed[/red]")
+        if json_output:
+            json_console.print_json(
+                data={
+                    "success": False,
+                    "msg": f"Registration to subnet {netuid} is not allowed",
+                    "extrinsic_identifier": None,
+                }
+            )
+        return
+
+    if registrations_this_interval >= target_registrations_per_interval * 3:
+        next_adjustment_block = int(last_adjustment_block) + int(adjustment_interval)
+        remaining_blocks = next_adjustment_block - int(current_block)
+        err_console.print(
+            f"[red]Registration to subnet {netuid} is full for this interval. Try again in {remaining_blocks} blocks.[/red]"
+        )
+        if json_output:
+            json_console.print_json(
+                data={
+                    "success": False,
+                    "msg": f"Registration to subnet {netuid} is full for this interval. Try again in {remaining_blocks} blocks.",
+                    "extrinsic_identifier": None,
+                }
+            )
+        return
+
     # Check current recycle amount
     print_verbose("Fetching recycle amount")
     current_recycle_, balance = await asyncio.gather(
