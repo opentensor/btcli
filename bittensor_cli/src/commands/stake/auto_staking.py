@@ -5,10 +5,10 @@ from typing import Optional, TYPE_CHECKING
 from bittensor_wallet import Wallet
 from rich import box
 from rich.table import Table
-from rich.prompt import Confirm
 
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
     json_console,
     get_subnet_name,
@@ -178,6 +178,8 @@ async def set_auto_stake_destination(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt_user: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
     json_output: bool = False,
 ) -> bool:
     """Set the auto-stake destination hotkey for a coldkey on a subnet."""
@@ -246,7 +248,12 @@ async def set_auto_stake_destination(
         )
         console.print(table)
 
-        if not Confirm.ask("\nSet this auto-stake destination?", default=True):
+        if not confirm_action(
+            "\nSet this auto-stake destination?",
+            default=True,
+            decline=decline,
+            quiet=quiet,
+        ):
             return False
 
     if not unlock_key(wallet).success:

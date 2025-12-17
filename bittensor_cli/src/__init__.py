@@ -687,10 +687,6 @@ HYPERPARAMS = {
     # They are derived or set via other mechanisms
     "alpha_high": ("", RootSudoOnly.FALSE),  # Derived from alpha_values
     "alpha_low": ("", RootSudoOnly.FALSE),  # Derived from alpha_values
-    "max_weights_limit": (
-        "sudo_set_max_weight_limit",
-        RootSudoOnly.FALSE,
-    ),  # Alias for max_weights_limit
     "subnet_is_active": ("", RootSudoOnly.FALSE),  # Set via btcli subnets start
     "yuma_version": ("", RootSudoOnly.FALSE),  # Related to yuma3_enabled
 }
@@ -911,12 +907,6 @@ HYPERPARAMS_METADATA = {
         "side_effects": "Affects the lower bound of alpha conversion in staking mechanisms. Set via alpha_values parameter.",
         "owner_settable": True,
         "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#alphasigmoidsteepness",
-    },
-    "max_weights_limit": {
-        "description": "Maximum number of weight connections a neuron can have with other neurons.",
-        "side_effects": "Limits the maximum out-degree of the network graph, affecting network topology and consensus.",
-        "owner_settable": True,
-        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#maxweightlimit",
     },
     "subnet_is_active": {
         "description": "Whether the subnet is currently active and operational.",

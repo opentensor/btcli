@@ -1,6 +1,6 @@
 import asyncio
 import json
-import pytest
+
 from bittensor_cli.src import HYPERPARAMS, RootSudoOnly
 from .utils import turn_off_hyperparam_freeze_window
 

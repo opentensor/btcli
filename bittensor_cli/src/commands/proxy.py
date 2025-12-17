@@ -1,12 +1,13 @@
 from typing import TYPE_CHECKING, Optional
 import sys
 
-from rich.prompt import Confirm, Prompt, FloatPrompt, IntPrompt
+from rich.prompt import Prompt, FloatPrompt, IntPrompt
 from scalecodec import GenericCall, ScaleBytes
 
 from bittensor_cli.src import COLORS
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     print_extrinsic_id,
     json_console,
     console,
@@ -83,7 +84,6 @@ async def submit_proxy(
         announce_only=announce_only,
     )
     if success:
-        await print_extrinsic_id(receipt)
         if json_output:
             json_console.print_json(
                 data={
@@ -93,8 +93,8 @@ async def submit_proxy(
                 }
             )
         else:
+            await print_extrinsic_id(receipt)
             console.print(":white_check_mark:[green]Success![/green]")
-
     else:
         if json_output:
             json_console.print_json(
@@ -105,7 +105,7 @@ async def submit_proxy(
                 }
             )
         else:
-            console.print(":white_check_mark:[green]Success![/green]")
+            err_console.print(f":cross_mark:[red]Failed: {msg}[/red]")
 
 
 async def create_proxy(
@@ -115,6 +115,8 @@ async def create_proxy(
     delay: int,
     idx: int,
     prompt: bool,
+    decline: bool,
+    quiet: bool,
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
     period: int,
@@ -124,14 +126,18 @@ async def create_proxy(
     Executes the create pure proxy call on the chain
     """
     if prompt:
-        if not Confirm.ask(
+        if not confirm_action(
             f"This will create a Pure Proxy of type {proxy_type.value}. Do you want to proceed?",
+            decline=decline,
+            quiet=quiet,
         ):
             return None
         if delay > 0:
-            if not Confirm.ask(
+            if not confirm_action(
                 f"By adding a non-zero delay ({delay}), all proxy calls must be announced "
-                f"{delay} blocks before they will be able to be made. Continue?"
+                f"{delay} blocks before they will be able to be made. Continue?",
+                decline=decline,
+                quiet=quiet,
             ):
                 return None
     if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
@@ -162,7 +168,6 @@ async def create_proxy(
         ),
     )
     if success:
-        await print_extrinsic_id(receipt)
         created_pure = None
         created_spawner = None
         created_proxy_type = None
@@ -172,43 +177,12 @@ async def create_proxy(
                 created_pure = attrs["pure"]
                 created_spawner = attrs["who"]
                 created_proxy_type = getattr(ProxyType, attrs["proxy_type"])
-        arg_start = "`" if json_output else "[blue]"
-        arg_end = "`" if json_output else "[/blue]"
         msg = (
             f"Created pure '{created_pure}' "
             f"from spawner '{created_spawner}' "
             f"with proxy type '{created_proxy_type.value}' "
             f"with delay {delay}."
         )
-        console.print(msg)
-        if not prompt:
-            console.print(
-                f" You can add this to your config with {arg_start}"
-                f"btcli config add-proxy "
-                f"--name <PROXY_NAME> --address {created_pure} --proxy-type {created_proxy_type.value} "
-                f"--delay {delay} --spawner {created_spawner}"
-                f"{arg_end}"
-            )
-        else:
-            if Confirm.ask("Would you like to add this to your address book?"):
-                proxy_name = Prompt.ask("Name this proxy")
-                note = Prompt.ask("[Optional] Add a note for this proxy", default="")
-                with ProxyAddressBook.get_db() as (conn, cursor):
-                    ProxyAddressBook.add_entry(
-                        conn,
-                        cursor,
-                        name=proxy_name,
-                        ss58_address=created_pure,
-                        delay=delay,
-                        proxy_type=created_proxy_type.value,
-                        note=note,
-                        spawner=created_spawner,
-                    )
-                console.print(
-                    f"Added to Proxy Address Book.\n"
-                    f"Show this information with [{COLORS.G.ARG}]btcli config proxies[/{COLORS.G.ARG}]"
-                )
-                return None
 
         if json_output:
             json_console.print_json(
@@ -224,7 +198,43 @@ async def create_proxy(
                     "extrinsic_identifier": await receipt.get_extrinsic_identifier(),
                 }
             )
-
+        else:
+            await print_extrinsic_id(receipt)
+            console.print(msg)
+            if not prompt:
+                console.print(
+                    f" You can add this to your config with [blue]"
+                    f"btcli config add-proxy "
+                    f"--name <PROXY_NAME> --address {created_pure} --proxy-type {created_proxy_type.value} "
+                    f"--delay {delay} --spawner {created_spawner}"
+                    f"[/blue]"
+                )
+            else:
+                if confirm_action(
+                    "Would you like to add this to your address book?",
+                    decline=decline,
+                    quiet=quiet,
+                ):
+                    proxy_name = Prompt.ask("Name this proxy")
+                    note = Prompt.ask(
+                        "[Optional] Add a note for this proxy", default=""
+                    )
+                    with ProxyAddressBook.get_db() as (conn, cursor):
+                        ProxyAddressBook.add_entry(
+                            conn,
+                            cursor,
+                            name=proxy_name,
+                            ss58_address=created_pure,
+                            delay=delay,
+                            proxy_type=created_proxy_type.value,
+                            note=note,
+                            spawner=created_spawner,
+                        )
+                    console.print(
+                        f"Added to Proxy Address Book.\n"
+                        f"Show this information with [{COLORS.G.ARG}]btcli config proxies[/{COLORS.G.ARG}]"
+                    )
+                    return None
     else:
         if json_output:
             json_console.print_json(
@@ -247,6 +257,8 @@ async def remove_proxy(
     delegate: str,
     delay: int,
     prompt: bool,
+    decline: bool,
+    quiet: bool,
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
     period: int,
@@ -256,9 +268,11 @@ async def remove_proxy(
     Executes the remove proxy call on the chain
     """
     if prompt:
-        if not Confirm.ask(
+        if not confirm_action(
             f"This will remove a proxy of type {proxy_type.value} for delegate {delegate}."
-            f"Do you want to proceed?"
+            f"Do you want to proceed?",
+            decline=decline,
+            quiet=quiet,
         ):
             return None
     if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
@@ -300,6 +314,8 @@ async def add_proxy(
     delegate: str,
     delay: int,
     prompt: bool,
+    decline: bool,
+    quiet: bool,
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
     period: int,
@@ -309,15 +325,19 @@ async def add_proxy(
     Executes the add proxy call on the chain
     """
     if prompt:
-        if not Confirm.ask(
+        if not confirm_action(
             f"This will add a proxy of type {proxy_type.value} for delegate {delegate}."
-            f"Do you want to proceed?"
+            f"Do you want to proceed?",
+            decline=decline,
+            quiet=quiet,
         ):
             return None
         if delay > 0:
-            if not Confirm.ask(
+            if not confirm_action(
                 f"By adding a non-zero delay ({delay}), all proxy calls must be announced "
-                f"{delay} blocks before they will be able to be made. Continue?"
+                f"{delay} blocks before they will be able to be made. Continue?",
+                decline=decline,
+                quiet=quiet,
             ):
                 return None
     if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
@@ -349,7 +369,6 @@ async def add_proxy(
         era={"period": period},
     )
     if success:
-        await print_extrinsic_id(receipt)
         delegatee = None
         delegator = None
         created_proxy_type = None
@@ -360,42 +379,12 @@ async def add_proxy(
                 delegator = attrs["delegator"]
                 created_proxy_type = getattr(ProxyType, attrs["proxy_type"])
                 break
-        arg_start = "`" if json_output else "[blue]"
-        arg_end = "`" if json_output else "[/blue]"
         msg = (
             f"Added proxy delegatee '{delegatee}' "
             f"from delegator '{delegator}' "
             f"with proxy type '{created_proxy_type.value}' "
             f"with delay {delay}."
         )
-        console.print(msg)
-        if not prompt:
-            console.print(
-                f" You can add this to your config with {arg_start}"
-                f"btcli config add-proxy "
-                f"--name <PROXY_NAME> --address {delegatee} --proxy-type {created_proxy_type.value} --delegator "
-                f"{delegator} --delay {delay}"
-                f"{arg_end}"
-            )
-        else:
-            if Confirm.ask("Would you like to add this to your address book?"):
-                proxy_name = Prompt.ask("Name this proxy")
-                note = Prompt.ask("[Optional] Add a note for this proxy", default="")
-                with ProxyAddressBook.get_db() as (conn, cursor):
-                    ProxyAddressBook.add_entry(
-                        conn,
-                        cursor,
-                        name=proxy_name,
-                        ss58_address=delegator,
-                        delay=delay,
-                        proxy_type=created_proxy_type.value,
-                        note=note,
-                        spawner=delegatee,
-                    )
-                console.print(
-                    f"Added to Proxy Address Book.\n"
-                    f"Show this information with [{COLORS.G.ARG}]btcli config proxies[/{COLORS.G.ARG}]"
-                )
 
         if json_output:
             json_console.print_json(
@@ -411,7 +400,42 @@ async def add_proxy(
                     "extrinsic_identifier": await receipt.get_extrinsic_identifier(),
                 }
             )
-
+        else:
+            await print_extrinsic_id(receipt)
+            console.print(msg)
+            if not prompt:
+                console.print(
+                    f" You can add this to your config with [blue]"
+                    f"btcli config add-proxy "
+                    f"--name <PROXY_NAME> --address {delegatee} --proxy-type {created_proxy_type.value} --delegator "
+                    f"{delegator} --delay {delay}"
+                    f"[/blue]"
+                )
+            else:
+                if confirm_action(
+                    "Would you like to add this to your address book?",
+                    decline=decline,
+                    quiet=quiet,
+                ):
+                    proxy_name = Prompt.ask("Name this proxy")
+                    note = Prompt.ask(
+                        "[Optional] Add a note for this proxy", default=""
+                    )
+                    with ProxyAddressBook.get_db() as (conn, cursor):
+                        ProxyAddressBook.add_entry(
+                            conn,
+                            cursor,
+                            name=proxy_name,
+                            ss58_address=delegator,
+                            delay=delay,
+                            proxy_type=created_proxy_type.value,
+                            note=note,
+                            spawner=delegatee,
+                        )
+                    console.print(
+                        f"Added to Proxy Address Book.\n"
+                        f"Show this information with [{COLORS.G.ARG}]btcli config proxies[/{COLORS.G.ARG}]"
+                    )
     else:
         if json_output:
             json_console.print_json(
@@ -502,6 +526,8 @@ async def execute_announced(
     delay: int = 0,
     created_block: Optional[int] = None,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = False,
     json_output: bool = False,
@@ -516,10 +542,12 @@ async def execute_announced(
     if prompt and created_block is not None:
         current_block = await subtensor.substrate.get_block_number()
         if current_block - delay > created_block:
-            if not Confirm.ask(
+            if not confirm_action(
                 f"The delay for this account is set to {delay} blocks, but the call was created"
                 f" at block {created_block}. It is currently only {current_block}. The call will likely fail."
-                f" Do you want to proceed?"
+                f" Do you want to proceed?",
+                decline=decline,
+                quiet=quiet,
             ):
                 return False
 

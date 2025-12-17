@@ -3,13 +3,14 @@ import math
 from typing import TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Prompt
 from rich.table import Column, Table
 from rich import box
 
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.commands import sudo
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
     err_console,
     json_console,
@@ -186,6 +187,8 @@ async def set_emission_split(
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
     prompt: bool,
+    decline: bool,
+    quiet: bool,
     json_output: bool,
 ) -> bool:
     """Set the emission split across mechanisms for a subnet."""
@@ -348,7 +351,12 @@ async def set_emission_split(
 
         console.print(table)
 
-        if not Confirm.ask("Proceed with these emission weights?", default=True):
+        if not confirm_action(
+            "Proceed with these emission weights?",
+            default=True,
+            decline=decline,
+            quiet=quiet,
+        ):
             console.print(":cross_mark: Aborted!")
             return False
 
@@ -411,6 +419,8 @@ async def set_mechanism_count(
     proxy: Optional[str],
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
+    decline: bool,
+    quiet: bool,
     json_output: bool,
 ) -> tuple[bool, str, Optional[str]]:
     """Set the number of mechanisms for a subnet."""
@@ -427,10 +437,12 @@ async def set_mechanism_count(
             err_console.print(err_msg)
         return False, err_msg, None
 
-    if not Confirm.ask(
+    if not confirm_action(
         f"Subnet [blue]{netuid}[/blue] currently has [blue]{previous_count}[/blue] mechanism"
         f"{'s' if previous_count != 1 else ''}."
-        f" Set it to [blue]{mechanism_count}[/blue]?"
+        f" Set it to [blue]{mechanism_count}[/blue]?",
+        decline=decline,
+        quiet=quiet,
     ):
         return False, "User cancelled", None
 
