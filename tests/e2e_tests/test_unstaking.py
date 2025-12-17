@@ -432,10 +432,31 @@ def test_unstaking(local_chain, wallet_setup):
             "--unsafe",
             "--era",
             "144",
+            "--json-output",
         ],
     )
-    assert "✅ Finalized" in remove_stake_batch.stdout or "Your extrinsic has been included" in remove_stake_batch.stdout, (
-        remove_stake_batch.stdout
+    remove_stake_batch_output = json.loads(remove_stake_batch.stdout)
+    
+    # Verify batching occurred: all operations should have the same extrinsic ID
+    extrinsic_ids = set()
+    for result in remove_stake_batch_output:
+        if result.get("success") is True:
+            ext_id = result.get("extrinsic_identifier")
+            if ext_id:
+                extrinsic_ids.add(ext_id)
+                # Verify both netuids are in the results
+                assert result.get("netuid") in [2, 3], (
+                    f"Unexpected netuid in result: {result.get('netuid')}"
+                )
+    
+    # All extrinsic IDs should be the same (proving batching occurred)
+    assert len(extrinsic_ids) == 1, (
+        f"Expected single extrinsic ID for batched operations, got: {extrinsic_ids}"
+    )
+    
+    # Verify all operations succeeded
+    assert all(r.get("success") is True for r in remove_stake_batch_output), (
+        "Not all unstake operations succeeded"
     )
     
     # Verify stakes were removed from both netuids
