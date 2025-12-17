@@ -1236,6 +1236,12 @@ class CLIManager:
             "execute",
             rich_help_panel=HELP_PANELS["PROXY"]["MGMT"],
         )(self.proxy_execute_announced)
+        self.proxy_app.command("list", rich_help_panel=HELP_PANELS["PROXY"]["MGMT"])(
+            self.proxy_list
+        )
+        self.proxy_app.command("reject", rich_help_panel=HELP_PANELS["PROXY"]["MGMT"])(
+            self.proxy_reject
+        )
 
         # Sub command aliases
         # Wallet
@@ -9329,13 +9335,19 @@ class CLIManager:
     def proxy_remove(
         self,
         delegate: Annotated[
-            str,
+            Optional[str],
             typer.Option(
                 callback=is_valid_ss58_address_param,
-                prompt="Enter the SS58 address of the delegate to remove, e.g. 5dxds...",
                 help="The SS58 address of the delegate to remove",
             ),
-        ] = "",
+        ] = None,
+        all_proxies: Annotated[
+            bool,
+            typer.Option(
+                "--all",
+                help="Remove all proxies for the account",
+            ),
+        ] = False,
         network: Optional[list[str]] = Options.network,
         proxy_type: ProxyType = Options.proxy_type,
         delay: int = typer.Option(0, help="Delay, in number of blocks"),
@@ -9367,10 +9379,10 @@ class CLIManager:
         [green]$[/green] btcli proxy remove --all
 
         """
-        # TODO should add a --all flag to call Proxy.remove_proxies ?
         logger.debug(
             "args:\n"
             f"delegate: {delegate}\n"
+            f"all_proxies: {all_proxies}\n"
             f"network: {network}\n"
             f"proxy_type: {proxy_type}\n"
             f"delay: {delay}\n"
@@ -9379,6 +9391,31 @@ class CLIManager:
             f"era: {period}\n"
         )
         self.verbosity_handler(quiet, verbose, json_output, prompt)
+
+        # Validate that either --all or --delegate is provided, but not both
+        if all_proxies and delegate:
+            err_console.print(
+                ":cross_mark:[red]Cannot use both --all and --delegate. "
+                "Use --all to remove all proxies or --delegate to remove a specific proxy.[/red]"
+            )
+            raise typer.Exit(1)
+
+        if not all_proxies and not delegate:
+            if prompt:
+                delegate = Prompt.ask(
+                    "Enter the SS58 address of the delegate to remove, e.g. 5dxds..."
+                )
+                if not is_valid_ss58_address(delegate):
+                    err_console.print(
+                        f":cross_mark:[red]Invalid SS58 address: {delegate}[/red]"
+                    )
+                    raise typer.Exit(1)
+            else:
+                err_console.print(
+                    ":cross_mark:[red]Either --delegate or --all must be specified.[/red]"
+                )
+                raise typer.Exit(1)
+
         wallet = self.wallet_ask(
             wallet_name=wallet_name,
             wallet_path=wallet_path,
@@ -9386,22 +9423,38 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH],
             validate=WV.WALLET,
         )
-        return self._run_command(
-            proxy_commands.remove_proxy(
-                subtensor=self.initialize_chain(network),
-                wallet=wallet,
-                delegate=delegate,
-                proxy_type=proxy_type,
-                delay=delay,
-                prompt=prompt,
-                decline=decline,
-                quiet=quiet,
-                wait_for_inclusion=wait_for_inclusion,
-                wait_for_finalization=wait_for_finalization,
-                period=period,
-                json_output=json_output,
+
+        if all_proxies:
+            return self._run_command(
+                proxy_commands.remove_all_proxies(
+                    subtensor=self.initialize_chain(network),
+                    wallet=wallet,
+                    prompt=prompt,
+                    decline=decline,
+                    quiet=quiet,
+                    wait_for_inclusion=wait_for_inclusion,
+                    wait_for_finalization=wait_for_finalization,
+                    period=period,
+                    json_output=json_output,
+                )
             )
-        )
+        else:
+            return self._run_command(
+                proxy_commands.remove_proxy(
+                    subtensor=self.initialize_chain(network),
+                    wallet=wallet,
+                    proxy_type=proxy_type,
+                    delegate=delegate,
+                    delay=delay,
+                    prompt=prompt,
+                    decline=decline,
+                    quiet=quiet,
+                    wait_for_inclusion=wait_for_inclusion,
+                    wait_for_finalization=wait_for_finalization,
+                    period=period,
+                    json_output=json_output,
+                )
+            )
 
     def proxy_kill(
         self,
@@ -9684,6 +9737,135 @@ class CLIManager:
         if success and got_call_from_db is not None:
             with ProxyAnnouncements.get_db() as (conn, cursor):
                 ProxyAnnouncements.mark_as_executed(conn, cursor, got_call_from_db)
+
+    def proxy_list(
+        self,
+        address: Annotated[
+            Optional[str],
+            typer.Option(
+                callback=is_valid_ss58_address_param,
+                help="The SS58 address to list proxies for. If not provided, uses the wallet's coldkey.",
+            ),
+        ] = None,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Lists all proxies for an account.
+
+        Queries the chain to display all proxy delegates configured for the specified address,
+        including their proxy types and delay settings.
+
+        [bold]Common Examples:[/bold]
+        1. List proxies for your wallet
+        [green]$[/green] btcli proxy list
+
+        2. List proxies for a specific address
+        [green]$[/green] btcli proxy list --address 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
+
+        """
+        self.verbosity_handler(quiet, verbose, json_output)
+
+        # If no address provided, use wallet's coldkey
+        if address is None:
+            wallet = self.wallet_ask(
+                wallet_name=wallet_name,
+                wallet_path=wallet_path,
+                wallet_hotkey=wallet_hotkey,
+                ask_for=[WO.NAME, WO.PATH],
+                validate=WV.NONE,
+            )
+            address = wallet.coldkeypub.ss58_address
+
+        logger.debug(f"args:\naddress: {address}\nnetwork: {network}\n")
+
+        return self._run_command(
+            proxy_commands.list_proxies(
+                subtensor=self.initialize_chain(network),
+                address=address,
+                json_output=json_output,
+            )
+        )
+
+    def proxy_reject(
+        self,
+        delegate: Annotated[
+            str,
+            typer.Option(
+                callback=is_valid_ss58_address_param,
+                prompt="Enter the SS58 address of the delegate whose announcement to reject",
+                help="The SS58 address of the delegate who made the announcement",
+            ),
+        ] = "",
+        call_hash: Annotated[
+            str,
+            typer.Option(
+                prompt="Enter the call hash of the announcement to reject",
+                help="The hash of the announced call to reject",
+            ),
+        ] = "",
+        network: Optional[list[str]] = Options.network,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        prompt: bool = Options.prompt,
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        period: int = Options.period,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Rejects an announced proxy call.
+
+        Removes a previously announced call from the pending announcements, preventing it
+        from being executed. This must be called by the real account (the account that
+        granted the proxy permissions).
+
+        [bold]Common Examples:[/bold]
+        1. Reject an announced call
+        [green]$[/green] btcli proxy reject --delegate 5GDel... --call-hash 0x1234...
+
+        """
+        self.verbosity_handler(quiet, verbose, json_output, prompt)
+
+        logger.debug(
+            "args:\n"
+            f"delegate: {delegate}\n"
+            f"call_hash: {call_hash}\n"
+            f"network: {network}\n"
+            f"wait_for_finalization: {wait_for_finalization}\n"
+            f"wait_for_inclusion: {wait_for_inclusion}\n"
+            f"era: {period}\n"
+        )
+
+        wallet = self.wallet_ask(
+            wallet_name=wallet_name,
+            wallet_path=wallet_path,
+            wallet_hotkey=wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.WALLET,
+        )
+
+        return self._run_command(
+            proxy_commands.reject_announcement(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                delegate=delegate,
+                call_hash=call_hash,
+                prompt=prompt,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+                period=period,
+                json_output=json_output,
+            )
+        )
 
     @staticmethod
     def convert(
