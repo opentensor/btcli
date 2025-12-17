@@ -479,6 +479,9 @@ def test_staking(local_chain, wallet_setup):
         ],
     )
     add_stake_multiple_output = json.loads(add_stake_multiple.stdout)
+    
+    # Verify batching occurred: all operations should have the same extrinsic ID
+    extrinsic_ids = set()
     for netuid_ in multiple_netuids:
 
         def line(key: str) -> Union[str, bool]:
@@ -489,6 +492,12 @@ def test_staking(local_chain, wallet_setup):
         assert line("staking_success") is True
         assert line("error_messages") == ""
         assert isinstance(line("extrinsic_ids"), str)
+        extrinsic_ids.add(line("extrinsic_ids"))
+    
+    # All extrinsic IDs should be the same (proving batching occurred)
+    assert len(extrinsic_ids) == 1, (
+        f"Expected single extrinsic ID for batched operations, got: {extrinsic_ids}"
+    )
 
     # Fetch the hyperparameters of the subnet
     hyperparams = exec_command_alice(
