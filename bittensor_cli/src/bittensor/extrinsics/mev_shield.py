@@ -6,7 +6,6 @@ from bittensor_drand import encrypt_mlkem768
 from bittensor_cli.src.bittensor.utils import format_error_message
 
 if TYPE_CHECKING:
-    from bittensor_wallet import Keypair
     from scalecodec import GenericCall, GenericExtrinsic
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 

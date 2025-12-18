@@ -366,7 +366,7 @@ async def set_hyperparameter_extrinsic(
             to_sudo_or_not_to_sudo = True  # default to sudo true when no-prompt is set
         else:
             to_sudo_or_not_to_sudo = Confirm.ask(
-                f"This hyperparam can be executed as sudo or not. Do you want to execute as sudo [y] or not [n]?"
+                "This hyperparam can be executed as sudo or not. Do you want to execute as sudo [y] or not [n]?"
             )
         if to_sudo_or_not_to_sudo:
             call = await substrate.compose_call(

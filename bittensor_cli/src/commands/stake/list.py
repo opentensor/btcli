@@ -191,9 +191,9 @@ async def stake_list(
             total_swapped_tao_value_ += tao_value_
 
             if netuid == 0:
-                swap_value = f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]N/A[/{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]"
+                f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]N/A[/{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]"
             else:
-                swap_value = (
+                (
                     f"τ {millify_tao(tao_value_.tao)}"
                     if not verbose
                     else f"{tao_value_}"
@@ -392,7 +392,7 @@ async def stake_list(
             )
 
             if netuid != 0:
-                swap_cell = format_cell(
+                format_cell(
                     swapped_tao_value_.tao,
                     prev.get("swapped_value"),
                     unit="τ",
@@ -401,7 +401,7 @@ async def stake_list(
                     millify=True if not verbose else False,
                 )
             else:
-                swap_cell = f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]N/A[/{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]"
+                f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]N/A[/{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]"
 
             emission_value = substake_.emission.tao / (pool.tempo or 1)
             emission_cell = format_cell(

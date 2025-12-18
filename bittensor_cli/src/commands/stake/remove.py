@@ -503,7 +503,6 @@ async def unstake_all(
             stake_amount = stake.stake
 
             try:
-                current_price = subnet_info.price.tao
                 extrinsic_type = (
                     "unstake_all" if not unstake_all_alpha else "unstake_all_alpha"
                 )

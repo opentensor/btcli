@@ -9,7 +9,6 @@ from rich.table import Table, Column, box
 from bittensor_cli.src import COLORS
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
-    blocks_to_duration,
     console,
     json_console,
     print_extrinsic_id,

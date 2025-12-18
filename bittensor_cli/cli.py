@@ -1577,7 +1577,7 @@ class CLIManager:
     ) -> None:
         if json_output and prompt:
             raise typer.BadParameter(
-                f"Cannot specify both '--json-output' and '--prompt'"
+                "Cannot specify both '--json-output' and '--prompt'"
             )
         if quiet and verbose:
             err_console.print("Cannot specify both `--quiet` and `--verbose`")
@@ -2093,7 +2093,7 @@ class CLIManager:
         if address is None:
             if announce_only is True:
                 raise typer.BadParameter(
-                    f"Cannot supply '--announce-only' without supplying '--proxy'"
+                    "Cannot supply '--announce-only' without supplying '--proxy'"
                 )
             return None
         outer_proxy_from_config = self.proxies.get(address, {})
@@ -2176,13 +2176,13 @@ class CLIManager:
             safe_staking = True
             console.print(
                 "[dim][blue]Safe staking[/blue]: "
-                f"[bold cyan]enabled[/bold cyan] "
+                "[bold cyan]enabled[/bold cyan] "
                 "by default. Set this using "
                 "[dark_sea_green3 italic]`btcli config set`[/dark_sea_green3 italic] "
                 "or "
                 "[dark_sea_green3 italic]`--safe/--unsafe`[/dark_sea_green3 italic] flag[/dim]"
             )
-            logger.debug(f"Safe staking enabled.")
+            logger.debug("Safe staking enabled.")
             return safe_staking
 
     def ask_partial_stake(
@@ -9163,8 +9163,8 @@ class CLIManager:
                     return
                 else:
                     console.print(
-                        f"The proxy ss58 you provided matches the address book ambiguously. The results will be"
-                        f"iterated, for you to select your intended proxy."
+                        "The proxy ss58 you provided matches the address book ambiguously. The results will be"
+                        "iterated, for you to select your intended proxy."
                     )
                     for row in potential_matches:
                         p_name, ss58_address, delay_, spawner, proxy_type, note = row

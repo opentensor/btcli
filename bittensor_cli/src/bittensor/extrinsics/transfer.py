@@ -4,7 +4,6 @@ from typing import Optional, Union
 from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet
 from rich.prompt import Confirm
-from async_substrate_interface.errors import SubstrateRequestException
 
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import (
@@ -15,7 +14,6 @@ from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
     print_verbose,
-    format_error_message,
     is_valid_bittensor_address_or_public_key,
     print_error,
     unlock_key,
