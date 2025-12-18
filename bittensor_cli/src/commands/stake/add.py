@@ -356,7 +356,7 @@ async def stake_add(
     if isinstance(amount, list):
         # amount is a list of amounts per netuid
         amount_list = amount
-    
+
     for hotkey in hotkeys_to_stake_to:
         for netuid_idx, netuid in enumerate(netuids):
             # Check that the subnet exists.

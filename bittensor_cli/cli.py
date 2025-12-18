@@ -4761,7 +4761,7 @@ class CLIManager:
             if free_balance == Balance.from_tao(0):
                 print_error("You dont have any balance to stake.")
                 return
-            
+
             # If netuids is provided and has multiple subnets, ask for amount per netuid
             if netuids and len(netuids) > 1:
                 amounts = []
@@ -4772,7 +4772,9 @@ class CLIManager:
                         f"[dim](remaining balance: {remaining_balance})[/dim]"
                     )
                     if netuid_amount <= 0:
-                        print_error(f"You entered an incorrect stake amount: {netuid_amount}")
+                        print_error(
+                            f"You entered an incorrect stake amount: {netuid_amount}"
+                        )
                         raise typer.Exit()
                     if Balance.from_tao(netuid_amount) > remaining_balance:
                         print_error(
