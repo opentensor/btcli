@@ -68,24 +68,37 @@ async def list_proxies(
         json_output: Whether to output in JSON format.
     """
     try:
-        result = await subtensor.substrate.query(
+        # Use subtensor.query() which automatically extracts .value
+        proxies_data = await subtensor.query(
             module="Proxy",
             storage_function="Proxies",
             params=[address],
         )
-        proxies_data = result.value if result else ([], 0)
-        proxies_list, deposit = proxies_data
+
+        # Handle different possible data structures from the chain
+        proxies_list = []
+        deposit = 0
+        if proxies_data:
+            # Handle tuple format (proxies_list, deposit)
+            if isinstance(proxies_data, (list, tuple)) and len(proxies_data) >= 2:
+                proxies_list = proxies_data[0] if proxies_data[0] else []
+                deposit = proxies_data[1] if len(proxies_data) > 1 else 0
+            # Handle dict format
+            elif isinstance(proxies_data, dict):
+                proxies_list = proxies_data.get("proxies", [])
+                deposit = proxies_data.get("deposit", 0)
 
         # Normalize proxy data - handle both possible key formats from chain
         normalized_proxies = []
         for p in proxies_list:
-            normalized_proxies.append(
-                {
-                    "delegate": p.get("delegate") or p.get("delegatee", ""),
-                    "proxy_type": p.get("proxy_type") or p.get("proxyType", ""),
-                    "delay": p.get("delay", 0),
-                }
-            )
+            if isinstance(p, dict):
+                normalized_proxies.append(
+                    {
+                        "delegate": p.get("delegate") or p.get("delegatee", ""),
+                        "proxy_type": p.get("proxy_type") or p.get("proxyType", ""),
+                        "delay": p.get("delay", 0),
+                    }
+                )
 
         if json_output:
             json_console.print_json(
