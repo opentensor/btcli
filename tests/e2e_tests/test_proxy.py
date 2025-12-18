@@ -747,7 +747,6 @@ def test_proxy_list(local_chain, wallet_setup):
             wallet_alice.coldkeypub.ss58_address,
             "--chain",
             "ws://127.0.0.1:9945",
-            "--no-prompt",
             "--json-output",
         ],
     )
@@ -883,7 +882,6 @@ def test_proxy_remove_all(local_chain, wallet_setup):
             wallet_alice.coldkeypub.ss58_address,
             "--chain",
             "ws://127.0.0.1:9945",
-            "--no-prompt",
             "--json-output",
         ],
     )
@@ -922,7 +920,6 @@ def test_proxy_remove_all(local_chain, wallet_setup):
             wallet_alice.coldkeypub.ss58_address,
             "--chain",
             "ws://127.0.0.1:9945",
-            "--no-prompt",
             "--json-output",
         ],
     )

@@ -9769,7 +9769,7 @@ class CLIManager:
         [green]$[/green] btcli proxy list --address 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
 
         """
-        self.verbosity_handler(quiet, verbose, json_output)
+        self.verbosity_handler(quiet, verbose, json_output, prompt=False)
 
         # If no address provided, use wallet's coldkey
         if address is None:
