@@ -2,7 +2,7 @@ import asyncio
 from collections import defaultdict
 from functools import partial
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Union
 
 from async_substrate_interface import AsyncExtrinsicReceipt
 from rich.table import Table
@@ -39,7 +39,7 @@ async def stake_add(
     subtensor: "SubtensorInterface",
     netuids: Optional[list[int]],
     stake_all: bool,
-    amount: float,
+    amount: Union[float, list[float]],
     prompt: bool,
     decline: bool,
     quiet: bool,
@@ -60,7 +60,7 @@ async def stake_add(
         subtensor: SubtensorInterface object
         netuids: the netuids to stake to (None indicates all subnets)
         stake_all: whether to stake all available balance
-        amount: specified amount of balance to stake
+        amount: specified amount of balance to stake (float for single amount, list[float] for per-netuid amounts)
         prompt: whether to prompt the user
         all_hotkeys: whether to stake all hotkeys
         include_hotkeys: list of hotkeys to include in staking process (if not specifying `--all`)
@@ -351,8 +351,14 @@ async def stake_add(
     remaining_wallet_balance = current_wallet_balance
     max_slippage = 0.0
 
+    # Convert amount to a list if it's a list, otherwise use single amount for all netuids
+    amount_list = None
+    if isinstance(amount, list):
+        # amount is a list of amounts per netuid
+        amount_list = amount
+    
     for hotkey in hotkeys_to_stake_to:
-        for netuid in netuids:
+        for netuid_idx, netuid in enumerate(netuids):
             # Check that the subnet exists.
             subnet_info = all_subnets.get(netuid)
             if not subnet_info:
@@ -362,7 +368,11 @@ async def stake_add(
 
             # Get the amount.
             amount_to_stake = Balance(0)
-            if amount:
+            if amount_list:
+                # Use the amount from the list for this specific netuid
+                amount_to_stake = Balance.from_tao(amount_list[netuid_idx])
+            elif amount:
+                # Single amount for all netuids
                 amount_to_stake = Balance.from_tao(amount)
             elif stake_all:
                 amount_to_stake = current_wallet_balance / len(netuids)

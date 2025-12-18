@@ -4750,7 +4750,6 @@ class CLIManager:
         else:
             exclude_hotkeys = []
 
-        # TODO: Ask amount for each subnet explicitly if more than one
         if not stake_all and not amount:
             free_balance = self._run_command(
                 wallets.wallet_balance(
@@ -4762,23 +4761,53 @@ class CLIManager:
             if free_balance == Balance.from_tao(0):
                 print_error("You dont have any balance to stake.")
                 return
-            if netuids:
+            
+            # If netuids is provided and has multiple subnets, ask for amount per netuid
+            if netuids and len(netuids) > 1:
+                amounts = []
+                remaining_balance = free_balance
+                for netuid in netuids:
+                    netuid_amount = FloatPrompt.ask(
+                        f"Amount to [{COLORS.G.SUBHEAD_MAIN}]stake to netuid {netuid} (TAO τ)[/] "
+                        f"[dim](remaining balance: {remaining_balance})[/dim]"
+                    )
+                    if netuid_amount <= 0:
+                        print_error(f"You entered an incorrect stake amount: {netuid_amount}")
+                        raise typer.Exit()
+                    if Balance.from_tao(netuid_amount) > remaining_balance:
+                        print_error(
+                            f"You dont have enough balance to stake. Remaining balance: {remaining_balance}."
+                        )
+                        raise typer.Exit()
+                    amounts.append(netuid_amount)
+                    remaining_balance -= Balance.from_tao(netuid_amount)
+                amount = amounts
+            elif netuids:
+                # Single netuid
                 amount = FloatPrompt.ask(
                     f"Amount to [{COLORS.G.SUBHEAD_MAIN}]stake (TAO τ)"
                 )
+                if amount <= 0:
+                    print_error(f"You entered an incorrect stake amount: {amount}")
+                    raise typer.Exit()
+                if Balance.from_tao(amount) > free_balance:
+                    print_error(
+                        f"You dont have enough balance to stake. Current free Balance: {free_balance}."
+                    )
+                    raise typer.Exit()
             else:
+                # netuids is empty list or None (all subnets) - ask for amount per netuid
                 amount = FloatPrompt.ask(
                     f"Amount to [{COLORS.G.SUBHEAD_MAIN}]stake to each netuid (TAO τ)"
                 )
-
-            if amount <= 0:
-                print_error(f"You entered an incorrect stake amount: {amount}")
-                raise typer.Exit()
-            if Balance.from_tao(amount) > free_balance:
-                print_error(
-                    f"You dont have enough balance to stake. Current free Balance: {free_balance}."
-                )
-                raise typer.Exit()
+                if amount <= 0:
+                    print_error(f"You entered an incorrect stake amount: {amount}")
+                    raise typer.Exit()
+                if Balance.from_tao(amount) > free_balance:
+                    print_error(
+                        f"You dont have enough balance to stake. Current free Balance: {free_balance}."
+                    )
+                    raise typer.Exit()
         logger.debug(
             "args:\n"
             f"network: {network}\n"
