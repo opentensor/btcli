@@ -813,8 +813,8 @@ def test_proxy_remove_all(local_chain, wallet_setup):
     keypair_bob, wallet_bob, wallet_path_bob, exec_command_bob = wallet_setup(
         wallet_path_bob
     )
-    keypair_charlie, wallet_charlie, wallet_path_charlie, exec_command_charlie = wallet_setup(
-        wallet_path_charlie
+    keypair_charlie, wallet_charlie, wallet_path_charlie, exec_command_charlie = (
+        wallet_setup(wallet_path_charlie)
     )
     proxy_type = "Any"
     delay = 0
@@ -950,8 +950,8 @@ def test_proxy_reject(local_chain, wallet_setup):
     keypair_bob, wallet_bob, wallet_path_bob, exec_command_bob = wallet_setup(
         wallet_path_bob
     )
-    keypair_charlie, wallet_charlie, wallet_path_charlie, exec_command_charlie = wallet_setup(
-        wallet_path_charlie
+    keypair_charlie, wallet_charlie, wallet_path_charlie, exec_command_charlie = (
+        wallet_setup(wallet_path_charlie)
     )
     proxy_type = "Any"
     delay = 2  # Need delay for announcements
