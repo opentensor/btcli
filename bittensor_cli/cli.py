@@ -2068,8 +2068,8 @@ class CLIManager:
         """
         table = Table(
             Column("[bold white]Name", style=f"{COLORS.G.ARG}"),
-            Column("Address", style="gold1"),
-            Column("Spawner/Delegator", style="medium_purple"),
+            Column("Address/Delegator", style="gold1"),
+            Column("Spawner/Delegatee", style="medium_purple"),
             Column("Proxy Type", style="medium_purple"),
             Column("Delay", style="dim"),
             Column("Note", style="dim"),
