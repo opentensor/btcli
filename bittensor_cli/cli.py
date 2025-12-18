@@ -6631,7 +6631,16 @@ class CLIManager:
                 exit_early=False,
             )
             if not hyperparams:
-                # TODO this will cause a hanging connection, subtensor needs to be gracefully exited
+                # Ensure we don't leave the websocket connection hanging.
+                if self.subtensor:
+                    try:
+                        self.event_loop.run_until_complete(
+                            self.subtensor.substrate.close()
+                        )
+                    except Exception:
+                        pass
+                    finally:
+                        self.subtensor = None
                 raise typer.Exit()
 
         if not param_name:
