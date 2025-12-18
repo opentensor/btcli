@@ -228,7 +228,7 @@ async def reject_announcement(
     wait_for_finalization: bool,
     period: int,
     json_output: bool,
-) -> None:
+) -> bool:
     """
     Rejects an announced proxy call by calling the reject_announcement extrinsic.
 
@@ -247,6 +247,9 @@ async def reject_announcement(
         wait_for_finalization: Wait for the transaction to be finalized.
         period: The era period for the extrinsic.
         json_output: Whether to output in JSON format.
+
+    Returns:
+        True if the rejection was successful, False otherwise.
     """
     if prompt:
         if not confirm_action(
@@ -255,7 +258,7 @@ async def reject_announcement(
             decline=decline,
             quiet=quiet,
         ):
-            return None
+            return False
 
     if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
         if not json_output:
@@ -268,7 +271,7 @@ async def reject_announcement(
                     "extrinsic_identifier": None,
                 }
             )
-        return None
+        return False
 
     call = await subtensor.substrate.compose_call(
         call_module="Proxy",
@@ -303,6 +306,7 @@ async def reject_announcement(
             console.print(
                 ":white_check_mark:[green]Announcement rejected successfully![/green]"
             )
+        return True
     else:
         if json_output:
             json_console.print_json(
@@ -316,6 +320,7 @@ async def reject_announcement(
             err_console.print(
                 f":cross_mark:[red]Failed to reject announcement: {msg}[/red]"
             )
+        return False
 
 
 async def submit_proxy(
