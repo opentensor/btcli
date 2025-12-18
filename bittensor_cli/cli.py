@@ -5577,14 +5577,10 @@ class CLIManager:
                 dest_netuid = IntPrompt.ask(
                     "Enter the [blue]destination subnet[/blue] (netuid)"
                 )
-        # Handle safe staking options similar to stake_add
         safe_staking_transfer = self.ask_safe_staking(safe_staking)
         if safe_staking_transfer:
             rate_tolerance_val = self.ask_rate_tolerance(rate_tolerance)
             allow_partial_stake_val = self.ask_partial_stake(allow_partial_stake)
-        else:
-            rate_tolerance_val = 0.005  # Default, won't be used
-            allow_partial_stake_val = False
 
         logger.debug(
             "args:\n"
@@ -5620,9 +5616,6 @@ class CLIManager:
                 quiet=quiet,
                 proxy=proxy,
                 mev_protection=mev_protection,
-                safe_staking=safe_staking_transfer,
-                rate_tolerance=rate_tolerance_val,
-                allow_partial_stake=allow_partial_stake_val,
             )
         )
         if json_output:
@@ -5725,14 +5718,10 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
 
-        # Handle safe staking options similar to stake_add
-        safe_swapping = self.ask_safe_staking(safe_staking)
-        if safe_swapping:
+        safe_staking = self.ask_safe_staking(safe_staking)
+        if safe_staking:
             rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
             allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
-        else:
-            rate_tolerance = 0.005  # Default, won't be used
-            allow_partial_stake = False
 
         interactive_selection = False
         if origin_netuid is None and dest_netuid is None and not amount:
@@ -5762,7 +5751,7 @@ class CLIManager:
             f"wait_for_inclusion: {wait_for_inclusion}\n"
             f"wait_for_finalization: {wait_for_finalization}\n"
             f"mev_protection: {mev_protection}\n"
-            f"safe_swapping: {safe_swapping}\n"
+            f"safe_staking: {safe_staking}\n"
             f"rate_tolerance: {rate_tolerance}\n"
             f"allow_partial_stake: {allow_partial_stake}\n"
         )
@@ -5783,7 +5772,7 @@ class CLIManager:
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 mev_protection=mev_protection,
-                safe_swapping=safe_swapping,
+                safe_staking=safe_staking,
                 allow_partial_stake=allow_partial_stake,
                 rate_tolerance=rate_tolerance,
             )

@@ -674,9 +674,6 @@ async def transfer_stake(
     quiet: bool = False,
     proxy: Optional[str] = None,
     mev_protection: bool = True,
-    safe_staking: bool = False,
-    allow_partial_stake: bool = False,
-    rate_tolerance: float = 0.005,
 ) -> tuple[bool, str]:
     """Transfers stake from one network to another.
 
@@ -694,13 +691,6 @@ async def transfer_stake(
         stake_all: If true, transfer all stakes.
         proxy: Optional proxy to use for this extrinsic
         mev_protection: If true, will encrypt the extrinsic behind the mev protection shield.
-        safe_staking: If true, enables price safety checks to protect against fluctuating prices.
-            Note: Currently not fully supported at the chain level for transfer_stake, but included for API consistency.
-        allow_partial_stake: If true and safe_staking is enabled, allows partial stake transfers when the full amount
-            would exceed the price tolerance. Note: Currently not fully supported at the chain level for transfer_stake.
-        rate_tolerance: The maximum allowed increase in the price ratio between subnets
-            (origin_price/destination_price). For example, 0.005 = 0.5% maximum increase. Only used when
-            safe_staking is True. Note: Currently not fully supported at the chain level for transfer_stake.
 
     Returns:
         tuple:
@@ -894,7 +884,7 @@ async def swap_stake(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     mev_protection: bool = True,
-    safe_swapping: bool = False,
+    safe_staking: bool = False,
     allow_partial_stake: bool = False,
     rate_tolerance: float = 0.005,
 ) -> tuple[bool, str]:
@@ -978,14 +968,15 @@ async def swap_stake(
         return False, ""
 
     # Build call with or without safe swapping
-    if safe_swapping:
+    if safe_staking:
         # Get subnet prices to calculate rate ratio with tolerance
         origin_subnet, destination_subnet = await asyncio.gather(
             subtensor.subnet(origin_netuid),
             subtensor.subnet(destination_netuid),
         )
         swap_rate_ratio = origin_subnet.price.rao / destination_subnet.price.rao
-        swap_rate_ratio_with_tolerance = swap_rate_ratio * (1 + rate_tolerance)
+        swap_rate_ratio_with_tolerance = swap_rate_ratio * (1 - rate_tolerance)
+        limit_price_rao = Balance.from_tao(swap_rate_ratio_with_tolerance).rao
 
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
@@ -995,7 +986,7 @@ async def swap_stake(
                 "origin_netuid": origin_netuid,
                 "destination_netuid": destination_netuid,
                 "alpha_amount": amount_to_swap.rao,
-                "limit_price": swap_rate_ratio_with_tolerance,
+                "limit_price": limit_price_rao,
                 "allow_partial": allow_partial_stake,
             },
         )
