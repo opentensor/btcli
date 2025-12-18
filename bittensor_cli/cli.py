@@ -9795,25 +9795,24 @@ class CLIManager:
     def proxy_reject(
         self,
         delegate: Annotated[
-            str,
+            Optional[str],
             typer.Option(
                 callback=is_valid_ss58_address_param,
-                prompt="Enter the SS58 address of the delegate whose announcement to reject",
-                help="The SS58 address of the delegate who made the announcement",
+                help="The SS58 address of the delegate who made the announcement. If omitted, the wallet's coldkey ss58 is used.",
             ),
-        ] = "",
+        ] = None,
         call_hash: Annotated[
-            str,
+            Optional[str],
             typer.Option(
-                prompt="Enter the call hash of the announcement to reject",
                 help="The hash of the announced call to reject",
             ),
-        ] = "",
+        ] = None,
         network: Optional[list[str]] = Options.network,
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
         period: int = Options.period,
@@ -9833,7 +9832,7 @@ class CLIManager:
         [green]$[/green] btcli proxy reject --delegate 5GDel... --call-hash 0x1234...
 
         """
-        self.verbosity_handler(quiet, verbose, json_output, prompt)
+        self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
 
         logger.debug(
             "args:\n"
@@ -9853,19 +9852,124 @@ class CLIManager:
             validate=WV.WALLET,
         )
 
-        return self._run_command(
+        delegate = delegate or wallet.coldkeypub.ss58_address
+
+        # Try to find the announcement in the local DB
+        got_call_from_db: Optional[int] = None
+        with ProxyAnnouncements.get_db() as (conn, cursor):
+            announcements = ProxyAnnouncements.read_rows(conn, cursor)
+
+        if not call_hash:
+            potential_call_matches = []
+            for row in announcements:
+                (
+                    id_,
+                    address,
+                    epoch_time,
+                    block_,
+                    call_hash_,
+                    call_hex_,
+                    call_serialized,
+                    executed_int,
+                ) = row
+                executed = bool(executed_int)
+                if address == delegate and executed is False:
+                    potential_call_matches.append(row)
+
+            if len(potential_call_matches) == 0:
+                if not prompt:
+                    err_console.print(
+                        f":cross_mark:[red]Error: No pending announcements found for delegate {delegate}. "
+                        f"Please provide --call-hash explicitly."
+                    )
+                    return
+                call_hash = Prompt.ask(
+                    "Enter the call hash of the announcement to reject"
+                )
+            elif len(potential_call_matches) == 1:
+                call_hash = potential_call_matches[0][4]
+                got_call_from_db = potential_call_matches[0][0]
+                console.print(f"Found announcement with call hash: {call_hash}")
+            else:
+                if not prompt:
+                    err_console.print(
+                        f":cross_mark:[red]Error: Multiple pending announcements found for delegate {delegate}. "
+                        f"Please run without {arg__('--no-prompt')} to select one, or provide --call-hash explicitly."
+                    )
+                    return
+                else:
+                    console.print(
+                        f"Found {len(potential_call_matches)} pending announcements. "
+                        f"Please select the one to reject:"
+                    )
+                    for row in potential_call_matches:
+                        (
+                            id_,
+                            address,
+                            epoch_time,
+                            block_,
+                            call_hash_,
+                            call_hex_,
+                            call_serialized,
+                            executed_int,
+                        ) = row
+                        console.print(
+                            f"Time: {datetime.datetime.fromtimestamp(epoch_time)}\n"
+                            f"Call Hash: {call_hash_}\nCall:\n"
+                        )
+                        console.print_json(call_serialized)
+                        if confirm_action(
+                            "Is this the announcement to reject?",
+                            decline=decline,
+                            quiet=quiet,
+                        ):
+                            call_hash = call_hash_
+                            got_call_from_db = id_
+                            break
+                    if call_hash is None:
+                        console.print("No announcement selected.")
+                        return
+        else:
+            # call_hash provided, try to find it in DB
+            for row in announcements:
+                (
+                    id_,
+                    address,
+                    epoch_time,
+                    block_,
+                    call_hash_,
+                    call_hex_,
+                    call_serialized,
+                    executed_int,
+                ) = row
+                executed = bool(executed_int)
+                if (
+                    call_hash_ == call_hash
+                    and address == delegate
+                    and executed is False
+                ):
+                    got_call_from_db = id_
+                    break
+
+        success = self._run_command(
             proxy_commands.reject_announcement(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
                 delegate=delegate,
                 call_hash=call_hash,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 period=period,
                 json_output=json_output,
             )
         )
+
+        if success and got_call_from_db is not None:
+            with ProxyAnnouncements.get_db() as (conn, cursor):
+                ProxyAnnouncements.mark_as_executed(conn, cursor, got_call_from_db)
 
     @staticmethod
     def convert(
