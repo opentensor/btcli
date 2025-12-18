@@ -1461,7 +1461,7 @@ class CLIManager:
 
     def _run_command(self, cmd: Coroutine, exit_early: bool = True):
         """
-        Runs the supplied coroutine with `asyncio.run`
+        Runs the supplied coroutine with proper event loop management.
         """
 
         async def _run():
@@ -1508,7 +1508,45 @@ class CLIManager:
                     if exception_occurred:
                         raise typer.Exit()
 
-        return self.event_loop.run_until_complete(_run())
+        # Check if there's already a running event loop
+        try:
+            asyncio.get_running_loop()
+            # If we're in an async context, we need to use a different approach
+            # This shouldn't happen in CLI context, but handle it gracefully
+            raise RuntimeError(
+                "Cannot run command: there is already a running event loop. "
+                "This CLI should be run from a synchronous context."
+            )
+        except RuntimeError:
+            # No running loop, we can proceed
+            pass
+
+        # Use the existing event loop or create a new one
+        if self.event_loop.is_closed():
+            if sys.version_info < (3, 10):
+                self.event_loop = asyncio.new_event_loop()
+            else:
+                try:
+                    uvloop = importlib.import_module("uvloop")
+                    self.event_loop = uvloop.new_event_loop()
+                except ModuleNotFoundError:
+                    self.event_loop = asyncio.new_event_loop()
+
+        try:
+            return self.event_loop.run_until_complete(_run())
+        finally:
+            # Clean up: close the event loop if we created it
+            # Note: We don't close it if it was already running
+            if not self.event_loop.is_running():
+                # Schedule remaining tasks cleanup
+                pending = asyncio.all_tasks(self.event_loop)
+                for task in pending:
+                    task.cancel()
+                # Give tasks a chance to clean up
+                if pending:
+                    self.event_loop.run_until_complete(
+                        asyncio.gather(*pending, return_exceptions=True)
+                    )
 
     def main_callback(
         self,
@@ -6631,7 +6669,17 @@ class CLIManager:
                 exit_early=False,
             )
             if not hyperparams:
-                # TODO this will cause a hanging connection, subtensor needs to be gracefully exited
+                # Ensure we don't leave the websocket connection hanging.
+                if self.subtensor:
+                    try:
+                        self.event_loop.run_until_complete(
+                            self.subtensor.substrate.close()
+                        )
+                    except Exception:
+                        # Best-effort shutdown. We'll still exit cleanly.
+                        pass
+                    finally:
+                        self.subtensor = None
                 raise typer.Exit()
 
         if not param_name:
