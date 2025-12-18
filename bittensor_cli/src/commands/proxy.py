@@ -109,16 +109,25 @@ async def list_proxies(
                         and len(delegate_raw) == 1
                     ):
                         delegate_raw = delegate_raw[0]
-                    if isinstance(delegate_raw, (list, tuple)):
-                        # Convert bytes to SS58
+                    if (
+                        isinstance(delegate_raw, (list, tuple))
+                        and len(delegate_raw) == 32
+                    ):
+                        # Convert 32-byte tuple to SS58 address
                         try:
-                            from substrateinterface import Keypair
+                            from scalecodec.utils.ss58 import ss58_encode
 
-                            delegate = Keypair(
-                                public_key=bytes(delegate_raw)
-                            ).ss58_address
-                        except Exception:
-                            delegate = str(delegate_raw)
+                            delegate = ss58_encode(bytes(delegate_raw), ss58_format=42)
+                        except Exception as e:
+                            # Fallback: try with substrateinterface
+                            try:
+                                from substrateinterface import Keypair
+
+                                delegate = Keypair(
+                                    public_key=bytes(delegate_raw)
+                                ).ss58_address
+                            except Exception:
+                                delegate = f"error:{e}:{delegate_raw}"
                     else:
                         delegate = str(delegate_raw)
                 else:
