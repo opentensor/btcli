@@ -9624,7 +9624,11 @@ class CLIManager:
                     executed_int,
                 ) = row
                 executed = bool(executed_int)
-                if call_hash_ == call_hash and address == proxy and executed is False:
+                if (
+                    (call_hash_ == call_hash or f"0x{call_hash_}" == call_hash)
+                    and address == proxy
+                    and executed is False
+                ):
                     potential_call_matches.append(row)
             if len(potential_call_matches) == 1:
                 block = potential_call_matches[0][3]
