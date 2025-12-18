@@ -10,8 +10,11 @@ Verify commands:
 * btcli proxy create
 * btcli proxy add
 * btcli proxy remove
+* btcli proxy remove --all
 * btcli proxy kill
 * btcli proxy execute
+* btcli proxy list
+* btcli proxy reject
 """
 
 
@@ -680,6 +683,396 @@ def test_add_proxy(local_chain, wallet_setup):
         assert remove_result_output["message"] == ""
         assert isinstance(remove_result_output["extrinsic_identifier"], str)
         print("Passed proxy removal")
+    finally:
+        os.environ["BTCLI_PROXIES_PATH"] = ""
+        if os.path.exists(testing_db_loc):
+            os.remove(testing_db_loc)
+
+
+def test_proxy_list(local_chain, wallet_setup):
+    """
+    Tests the proxy list command.
+
+    Steps:
+    1. Add a proxy to Alice's account
+    2. List proxies for Alice's account
+    3. Verify the proxy is in the list
+    4. Remove the proxy
+    """
+    wallet_path_alice = "//Alice"
+    wallet_path_bob = "//Bob"
+
+    keypair_alice, wallet_alice, wallet_path_alice, exec_command_alice = wallet_setup(
+        wallet_path_alice
+    )
+    keypair_bob, wallet_bob, wallet_path_bob, exec_command_bob = wallet_setup(
+        wallet_path_bob
+    )
+    proxy_type = "Any"
+    delay = 0
+
+    # Add Bob as a proxy for Alice
+    add_result = exec_command_alice(
+        command="proxy",
+        sub_command="add",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            "default",
+            "--delegate",
+            wallet_bob.coldkeypub.ss58_address,
+            "--proxy-type",
+            proxy_type,
+            "--delay",
+            str(delay),
+            "--period",
+            "128",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+    add_result_output = json.loads(add_result.stdout)
+    assert add_result_output["success"] is True
+    print("Passed proxy add for list test")
+
+    # List proxies for Alice
+    list_result = exec_command_alice(
+        command="proxy",
+        sub_command="list",
+        extra_args=[
+            "--address",
+            wallet_alice.coldkeypub.ss58_address,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--json-output",
+        ],
+    )
+    list_result_output = json.loads(list_result.stdout)
+    assert list_result_output["success"] is True
+    assert list_result_output["address"] == wallet_alice.coldkeypub.ss58_address
+    assert len(list_result_output["proxies"]) >= 1
+
+    # Verify Bob is in the proxy list
+    found_bob = False
+    for proxy in list_result_output["proxies"]:
+        if proxy["delegate"] == wallet_bob.coldkeypub.ss58_address:
+            found_bob = True
+            assert proxy["proxy_type"] == proxy_type
+            assert proxy["delay"] == delay
+            break
+    assert found_bob, "Bob should be in Alice's proxy list"
+    print("Passed proxy list")
+
+    # Clean up - remove the proxy
+    remove_result = exec_command_alice(
+        command="proxy",
+        sub_command="remove",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            "default",
+            "--delegate",
+            wallet_bob.coldkeypub.ss58_address,
+            "--proxy-type",
+            proxy_type,
+            "--delay",
+            str(delay),
+            "--period",
+            "128",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+    remove_result_output = json.loads(remove_result.stdout)
+    assert remove_result_output["success"] is True
+    print("Passed proxy removal cleanup")
+
+
+def test_proxy_remove_all(local_chain, wallet_setup):
+    """
+    Tests the proxy remove --all command.
+
+    Steps:
+    1. Add multiple proxies to Alice's account
+    2. Remove all proxies using --all flag
+    3. Verify all proxies are removed
+    """
+    wallet_path_alice = "//Alice"
+    wallet_path_bob = "//Bob"
+    wallet_path_charlie = "//Charlie"
+
+    keypair_alice, wallet_alice, wallet_path_alice, exec_command_alice = wallet_setup(
+        wallet_path_alice
+    )
+    keypair_bob, wallet_bob, wallet_path_bob, exec_command_bob = wallet_setup(
+        wallet_path_bob
+    )
+    keypair_charlie, wallet_charlie, wallet_path_charlie, exec_command_charlie = wallet_setup(
+        wallet_path_charlie
+    )
+    proxy_type = "Any"
+    delay = 0
+
+    # Add Bob as a proxy for Alice
+    add_result_bob = exec_command_alice(
+        command="proxy",
+        sub_command="add",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            "default",
+            "--delegate",
+            wallet_bob.coldkeypub.ss58_address,
+            "--proxy-type",
+            proxy_type,
+            "--delay",
+            str(delay),
+            "--period",
+            "128",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+    add_result_bob_output = json.loads(add_result_bob.stdout)
+    assert add_result_bob_output["success"] is True
+    print("Passed adding Bob as proxy")
+
+    # Add Charlie as a proxy for Alice
+    add_result_charlie = exec_command_alice(
+        command="proxy",
+        sub_command="add",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            "default",
+            "--delegate",
+            wallet_charlie.coldkeypub.ss58_address,
+            "--proxy-type",
+            proxy_type,
+            "--delay",
+            str(delay),
+            "--period",
+            "128",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+    add_result_charlie_output = json.loads(add_result_charlie.stdout)
+    assert add_result_charlie_output["success"] is True
+    print("Passed adding Charlie as proxy")
+
+    # Verify both proxies exist
+    list_result = exec_command_alice(
+        command="proxy",
+        sub_command="list",
+        extra_args=[
+            "--address",
+            wallet_alice.coldkeypub.ss58_address,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--json-output",
+        ],
+    )
+    list_result_output = json.loads(list_result.stdout)
+    assert len(list_result_output["proxies"]) >= 2
+    print("Verified multiple proxies exist")
+
+    # Remove all proxies
+    remove_all_result = exec_command_alice(
+        command="proxy",
+        sub_command="remove",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            "default",
+            "--all",
+            "--period",
+            "128",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+    remove_all_result_output = json.loads(remove_all_result.stdout)
+    assert remove_all_result_output["success"] is True
+    print("Passed remove all proxies")
+
+    # Verify all proxies are removed
+    list_result_after = exec_command_alice(
+        command="proxy",
+        sub_command="list",
+        extra_args=[
+            "--address",
+            wallet_alice.coldkeypub.ss58_address,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--json-output",
+        ],
+    )
+    list_result_after_output = json.loads(list_result_after.stdout)
+    assert len(list_result_after_output["proxies"]) == 0
+    print("Verified all proxies removed")
+
+
+def test_proxy_reject(local_chain, wallet_setup):
+    """
+    Tests the proxy reject command.
+
+    Steps:
+    1. Add Bob as a proxy for Alice with delay
+    2. Bob announces a call
+    3. Alice rejects the announcement
+    4. Verify the announcement is rejected
+    """
+    testing_db_loc = "/tmp/btcli-test-reject.db"
+    os.environ["BTCLI_PROXIES_PATH"] = testing_db_loc
+    wallet_path_alice = "//Alice"
+    wallet_path_bob = "//Bob"
+    wallet_path_charlie = "//Charlie"
+
+    keypair_alice, wallet_alice, wallet_path_alice, exec_command_alice = wallet_setup(
+        wallet_path_alice
+    )
+    keypair_bob, wallet_bob, wallet_path_bob, exec_command_bob = wallet_setup(
+        wallet_path_bob
+    )
+    keypair_charlie, wallet_charlie, wallet_path_charlie, exec_command_charlie = wallet_setup(
+        wallet_path_charlie
+    )
+    proxy_type = "Any"
+    delay = 2  # Need delay for announcements
+
+    try:
+        # Add Bob as a proxy for Alice with delay
+        add_result = exec_command_alice(
+            command="proxy",
+            sub_command="add",
+            extra_args=[
+                "--wallet-path",
+                wallet_path_alice,
+                "--chain",
+                "ws://127.0.0.1:9945",
+                "--wallet-name",
+                "default",
+                "--delegate",
+                wallet_bob.coldkeypub.ss58_address,
+                "--proxy-type",
+                proxy_type,
+                "--delay",
+                str(delay),
+                "--period",
+                "128",
+                "--no-prompt",
+                "--json-output",
+            ],
+        )
+        add_result_output = json.loads(add_result.stdout)
+        assert add_result_output["success"] is True
+        print("Passed adding Bob as proxy with delay")
+
+        # Bob announces a transfer on behalf of Alice
+        amount_to_transfer = 100
+        announce_result = exec_command_bob(
+            command="wallet",
+            sub_command="transfer",
+            extra_args=[
+                "--wallet-path",
+                wallet_path_bob,
+                "--chain",
+                "ws://127.0.0.1:9945",
+                "--wallet-name",
+                "default",
+                "--destination",
+                wallet_charlie.coldkeypub.ss58_address,
+                "--amount",
+                str(amount_to_transfer),
+                "--proxy",
+                wallet_bob.coldkeypub.ss58_address,
+                "--real",
+                wallet_alice.coldkeypub.ss58_address,
+                "--announce-only",
+                "--period",
+                "128",
+                "--no-prompt",
+                "--json-output",
+            ],
+        )
+        announce_result_output = json.loads(announce_result.stdout)
+        assert announce_result_output["success"] is True
+        print("Passed announcement")
+
+        # Get the call hash from the announcement
+        with ProxyAnnouncements.get_db() as (conn, cursor):
+            announcements = ProxyAnnouncements.read_rows(conn, cursor)
+        assert len(announcements) > 0, "Should have at least one announcement"
+        call_hash = announcements[-1][4]  # call_hash is at index 4
+        print(f"Got call hash: {call_hash}")
+
+        # Alice rejects the announcement
+        reject_result = exec_command_alice(
+            command="proxy",
+            sub_command="reject",
+            extra_args=[
+                "--wallet-path",
+                wallet_path_alice,
+                "--chain",
+                "ws://127.0.0.1:9945",
+                "--wallet-name",
+                "default",
+                "--delegate",
+                wallet_bob.coldkeypub.ss58_address,
+                "--call-hash",
+                call_hash,
+                "--period",
+                "128",
+                "--no-prompt",
+                "--json-output",
+            ],
+        )
+        reject_result_output = json.loads(reject_result.stdout)
+        assert reject_result_output["success"] is True
+        print("Passed proxy reject")
+
+        # Clean up - remove the proxy
+        remove_result = exec_command_alice(
+            command="proxy",
+            sub_command="remove",
+            extra_args=[
+                "--wallet-path",
+                wallet_path_alice,
+                "--chain",
+                "ws://127.0.0.1:9945",
+                "--wallet-name",
+                "default",
+                "--delegate",
+                wallet_bob.coldkeypub.ss58_address,
+                "--proxy-type",
+                proxy_type,
+                "--delay",
+                str(delay),
+                "--period",
+                "128",
+                "--no-prompt",
+                "--json-output",
+            ],
+        )
+        remove_result_output = json.loads(remove_result.stdout)
+        assert remove_result_output["success"] is True
+        print("Passed proxy removal cleanup")
     finally:
         os.environ["BTCLI_PROXIES_PATH"] = ""
         if os.path.exists(testing_db_loc):
