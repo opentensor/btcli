@@ -753,8 +753,6 @@ def test_proxy_list(local_chain, wallet_setup):
             "--json-output",
         ],
     )
-    print(f"DEBUG list_result.stdout: {list_result.stdout}")
-    print(f"DEBUG list_result.stderr: {list_result.stderr}")
     list_result_output = json.loads(list_result.stdout)
     assert list_result_output["success"] is True
     assert list_result_output["address"] == wallet_alice.coldkeypub.ss58_address
@@ -893,8 +891,6 @@ def test_proxy_remove_all(local_chain, wallet_setup):
             "--json-output",
         ],
     )
-    print(f"DEBUG remove_all list_result.stdout: {list_result.stdout}")
-    print(f"DEBUG remove_all list_result.stderr: {list_result.stderr}")
     list_result_output = json.loads(list_result.stdout)
     assert len(list_result_output["proxies"]) >= 2
     print("Verified multiple proxies exist")

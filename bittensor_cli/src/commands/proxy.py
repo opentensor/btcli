@@ -76,31 +76,68 @@ async def list_proxies(
         )
 
         # Handle different possible data structures from the chain
+        # Chain returns: [(proxy_dicts_tuple,), deposit]
         proxies_list = []
         deposit = 0
         if proxies_data:
-            # Handle tuple format (proxies_list, deposit)
+            # Handle tuple/list format (proxies_tuple, deposit)
             if isinstance(proxies_data, (list, tuple)) and len(proxies_data) >= 2:
-                proxies_list = proxies_data[0] if proxies_data[0] else []
+                raw_proxies = proxies_data[0] if proxies_data[0] else ()
                 deposit = proxies_data[1] if len(proxies_data) > 1 else 0
-            # Handle dict format
-            elif isinstance(proxies_data, dict):
-                proxies_list = proxies_data.get("proxies", [])
-                deposit = proxies_data.get("deposit", 0)
-            # If it's a single-element list/tuple, it might be just the proxies
-            elif isinstance(proxies_data, (list, tuple)) and len(proxies_data) == 1:
-                proxies_list = (
-                    proxies_data[0] if isinstance(proxies_data[0], list) else []
-                )
+                # Unwrap nested tuples: (({...},),) -> [{...}]
+                if isinstance(raw_proxies, (list, tuple)):
+                    for item in raw_proxies:
+                        # Each item might be a tuple containing a dict
+                        if isinstance(item, (list, tuple)):
+                            for sub_item in item:
+                                if isinstance(sub_item, dict):
+                                    proxies_list.append(sub_item)
+                        elif isinstance(item, dict):
+                            proxies_list.append(item)
 
-        # Normalize proxy data - handle both possible key formats from chain
+        # Normalize proxy data - convert chain format to user-friendly format
         normalized_proxies = []
         for p in proxies_list:
             if isinstance(p, dict):
+                # Handle delegate - might be bytes tuple or string
+                delegate_raw = p.get("delegate") or p.get("delegatee", "")
+                if isinstance(delegate_raw, (list, tuple)):
+                    # Convert bytes tuple to SS58 address
+                    # Unwrap nested tuple: ((bytes,),) -> bytes
+                    while (
+                        isinstance(delegate_raw, (list, tuple))
+                        and len(delegate_raw) == 1
+                    ):
+                        delegate_raw = delegate_raw[0]
+                    if isinstance(delegate_raw, (list, tuple)):
+                        # Convert bytes to SS58
+                        try:
+                            from substrateinterface import Keypair
+
+                            delegate = Keypair(
+                                public_key=bytes(delegate_raw)
+                            ).ss58_address
+                        except Exception:
+                            delegate = str(delegate_raw)
+                    else:
+                        delegate = str(delegate_raw)
+                else:
+                    delegate = str(delegate_raw) if delegate_raw else ""
+
+                # Handle proxy_type - might be dict like {'Any': ()} or string
+                proxy_type_raw = p.get("proxy_type") or p.get("proxyType", "")
+                if isinstance(proxy_type_raw, dict):
+                    # Extract the key as the proxy type
+                    proxy_type = (
+                        list(proxy_type_raw.keys())[0] if proxy_type_raw else ""
+                    )
+                else:
+                    proxy_type = str(proxy_type_raw) if proxy_type_raw else ""
+
                 normalized_proxies.append(
                     {
-                        "delegate": p.get("delegate") or p.get("delegatee", ""),
-                        "proxy_type": p.get("proxy_type") or p.get("proxyType", ""),
+                        "delegate": delegate,
+                        "proxy_type": proxy_type,
                         "delay": p.get("delay", 0),
                     }
                 )
@@ -112,8 +149,6 @@ async def list_proxies(
                     "address": address,
                     "deposit": str(deposit),
                     "proxies": normalized_proxies,
-                    "debug_raw_data": str(proxies_data),
-                    "debug_proxies_list": str(proxies_list),
                 }
             )
         else:
