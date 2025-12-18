@@ -738,6 +738,9 @@ def test_proxy_list(local_chain, wallet_setup):
     assert add_result_output["success"] is True
     print("Passed proxy add for list test")
 
+    # Wait for chain state to propagate
+    time.sleep(2)
+
     # List proxies for Alice
     list_result = exec_command_alice(
         command="proxy",
@@ -872,6 +875,9 @@ def test_proxy_remove_all(local_chain, wallet_setup):
     add_result_charlie_output = json.loads(add_result_charlie.stdout)
     assert add_result_charlie_output["success"] is True
     print("Passed adding Charlie as proxy")
+
+    # Wait for chain state to propagate
+    time.sleep(2)
 
     # Verify both proxies exist
     list_result = exec_command_alice(
