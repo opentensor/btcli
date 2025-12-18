@@ -2034,8 +2034,6 @@ async def register(
         json_console.print(
             json.dumps({"success": success, "msg": msg, "extrinsic_identifier": ext_id})
         )
-    else:
-        console.print(f":white_check_mark:[green]Success:[/green] {msg}")
 
 
 # TODO: Confirm emissions, incentive, Dividends are to be fetched from subnet_state or keep NeuronInfo
