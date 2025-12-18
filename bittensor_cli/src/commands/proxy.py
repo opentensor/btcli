@@ -79,11 +79,13 @@ async def list_proxies(
         # Normalize proxy data - handle both possible key formats from chain
         normalized_proxies = []
         for p in proxies_list:
-            normalized_proxies.append({
-                "delegate": p.get("delegate") or p.get("delegatee", ""),
-                "proxy_type": p.get("proxy_type") or p.get("proxyType", ""),
-                "delay": p.get("delay", 0),
-            })
+            normalized_proxies.append(
+                {
+                    "delegate": p.get("delegate") or p.get("delegatee", ""),
+                    "proxy_type": p.get("proxy_type") or p.get("proxyType", ""),
+                    "delay": p.get("delay", 0),
+                }
+            )
 
         if json_output:
             json_console.print_json(
