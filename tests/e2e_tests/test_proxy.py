@@ -753,14 +753,18 @@ def test_proxy_list(local_chain, wallet_setup):
             "--json-output",
         ],
     )
+    print(f"DEBUG list_result.stdout: {list_result.stdout}")
     list_result_output = json.loads(list_result.stdout)
     assert list_result_output["success"] is True
     assert list_result_output["address"] == wallet_alice.coldkeypub.ss58_address
     assert len(list_result_output["proxies"]) >= 1
 
     # Verify Bob is in the proxy list
+    print(f"DEBUG Bob's address: {wallet_bob.coldkeypub.ss58_address}")
+    print(f"DEBUG Proxies returned: {list_result_output['proxies']}")
     found_bob = False
     for proxy in list_result_output["proxies"]:
+        print(f"DEBUG Checking proxy delegate: {proxy['delegate']}")
         if proxy["delegate"] == wallet_bob.coldkeypub.ss58_address:
             found_bob = True
             assert proxy["proxy_type"] == proxy_type
@@ -891,6 +895,8 @@ def test_proxy_remove_all(local_chain, wallet_setup):
             "--json-output",
         ],
     )
+    print(f"DEBUG remove_all list_result.stdout: {list_result.stdout}")
+    print(f"DEBUG remove_all list_result.stderr: {list_result.stderr}")
     list_result_output = json.loads(list_result.stdout)
     assert len(list_result_output["proxies"]) >= 2
     print("Verified multiple proxies exist")
@@ -1049,6 +1055,8 @@ def test_proxy_reject(local_chain, wallet_setup):
                 "--json-output",
             ],
         )
+        print(f"DEBUG reject_result.stdout: {reject_result.stdout}")
+        print(f"DEBUG reject_result.stderr: {reject_result.stderr}")
         reject_result_output = json.loads(reject_result.stdout)
         assert reject_result_output["success"] is True
         print("Passed proxy reject")
