@@ -226,6 +226,14 @@ async def remove_all_proxies(
             decline=decline,
             quiet=quiet,
         ):
+            if json_output:
+                json_console.print_json(
+                    data={
+                        "success": False,
+                        "message": "Operation cancelled by user",
+                        "extrinsic_identifier": None,
+                    }
+                )
             return None
 
     if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
