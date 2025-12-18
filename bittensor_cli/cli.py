@@ -9878,10 +9878,19 @@ class CLIManager:
 
             if len(potential_call_matches) == 0:
                 if not prompt:
-                    err_console.print(
-                        f":cross_mark:[red]Error: No pending announcements found for delegate {delegate}. "
-                        f"Please provide --call-hash explicitly."
-                    )
+                    if json_output:
+                        json_console.print_json(
+                            data={
+                                "success": False,
+                                "message": f"No pending announcements found for delegate {delegate}. Please provide --call-hash explicitly.",
+                                "extrinsic_identifier": None,
+                            }
+                        )
+                    else:
+                        err_console.print(
+                            f":cross_mark:[red]Error: No pending announcements found for delegate {delegate}. "
+                            f"Please provide --call-hash explicitly."
+                        )
                     return
                 call_hash = Prompt.ask(
                     "Enter the call hash of the announcement to reject"
@@ -9892,10 +9901,19 @@ class CLIManager:
                 console.print(f"Found announcement with call hash: {call_hash}")
             else:
                 if not prompt:
-                    err_console.print(
-                        f":cross_mark:[red]Error: Multiple pending announcements found for delegate {delegate}. "
-                        f"Please run without {arg__('--no-prompt')} to select one, or provide --call-hash explicitly."
-                    )
+                    if json_output:
+                        json_console.print_json(
+                            data={
+                                "success": False,
+                                "message": f"Multiple pending announcements found for delegate {delegate}. Please provide --call-hash explicitly.",
+                                "extrinsic_identifier": None,
+                            }
+                        )
+                    else:
+                        err_console.print(
+                            f":cross_mark:[red]Error: Multiple pending announcements found for delegate {delegate}. "
+                            f"Please run without {arg__('--no-prompt')} to select one, or provide --call-hash explicitly."
+                        )
                     return
                 else:
                     console.print(
@@ -9927,7 +9945,16 @@ class CLIManager:
                             got_call_from_db = id_
                             break
                     if call_hash is None:
-                        console.print("No announcement selected.")
+                        if json_output:
+                            json_console.print_json(
+                                data={
+                                    "success": False,
+                                    "message": "No announcement selected.",
+                                    "extrinsic_identifier": None,
+                                }
+                            )
+                        else:
+                            console.print("No announcement selected.")
                         return
         else:
             # call_hash provided, try to find it in DB

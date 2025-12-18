@@ -76,24 +76,26 @@ async def list_proxies(
         proxies_data = result.value if result else ([], 0)
         proxies_list, deposit = proxies_data
 
+        # Normalize proxy data - handle both possible key formats from chain
+        normalized_proxies = []
+        for p in proxies_list:
+            normalized_proxies.append({
+                "delegate": p.get("delegate") or p.get("delegatee", ""),
+                "proxy_type": p.get("proxy_type") or p.get("proxyType", ""),
+                "delay": p.get("delay", 0),
+            })
+
         if json_output:
             json_console.print_json(
                 data={
                     "success": True,
                     "address": address,
                     "deposit": str(deposit),
-                    "proxies": [
-                        {
-                            "delegate": p["delegate"],
-                            "proxy_type": p["proxy_type"],
-                            "delay": p["delay"],
-                        }
-                        for p in proxies_list
-                    ],
+                    "proxies": normalized_proxies,
                 }
             )
         else:
-            if not proxies_list:
+            if not normalized_proxies:
                 console.print(f"No proxies found for address {address}")
                 return
 
@@ -104,7 +106,7 @@ async def list_proxies(
                 title=f"Proxies for {address}",
                 caption=f"Total deposit: {deposit}",
             )
-            for proxy in proxies_list:
+            for proxy in normalized_proxies:
                 table.add_row(
                     proxy["delegate"],
                     proxy["proxy_type"],
