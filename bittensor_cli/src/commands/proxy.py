@@ -87,6 +87,11 @@ async def list_proxies(
             elif isinstance(proxies_data, dict):
                 proxies_list = proxies_data.get("proxies", [])
                 deposit = proxies_data.get("deposit", 0)
+            # If it's a single-element list/tuple, it might be just the proxies
+            elif isinstance(proxies_data, (list, tuple)) and len(proxies_data) == 1:
+                proxies_list = (
+                    proxies_data[0] if isinstance(proxies_data[0], list) else []
+                )
 
         # Normalize proxy data - handle both possible key formats from chain
         normalized_proxies = []
@@ -107,6 +112,8 @@ async def list_proxies(
                     "address": address,
                     "deposit": str(deposit),
                     "proxies": normalized_proxies,
+                    "debug_raw_data": str(proxies_data),
+                    "debug_proxies_list": str(proxies_list),
                 }
             )
         else:
