@@ -709,3 +709,121 @@ def test_staking(local_chain, wallet_setup):
         change_arbitrary_hyperparam.stderr,
     )
     assert isinstance(change_yuma3_hyperparam_json["extrinsic_identifier"], str)
+
+
+@pytest.mark.parametrize("local_chain", [False], indirect=True)
+def test_stake_add_multiple_netuids_with_prompts(local_chain, wallet_setup):
+    """
+    Test staking to multiple netuids with user-prompted amounts for each subnet.
+
+    Steps:
+        1. Create wallets for Alice and create subnets
+        2. Register on multiple subnets
+        3. Add stake to multiple netuids with prompted amounts
+        4. Verify stake was added correctly to each subnet
+
+    Raises:
+        AssertionError: If any of the checks or verifications fail
+    """
+    print("Testing stake add to multiple netuids with prompts 🧪")
+    multiple_netuids = [2, 3]
+    wallet_path_alice = "//Alice"
+
+    # Create wallet for Alice
+    keypair_alice, wallet_alice, wallet_path_alice, exec_command_alice = wallet_setup(
+        wallet_path_alice
+    )
+
+    # Create subnets
+    for netuid in multiple_netuids:
+        result = exec_command_alice(
+            command="subnets",
+            sub_command="create",
+            extra_args=[
+                "--chain",
+                "ws://127.0.0.1:9945",
+                "--subnet-name",
+                f"Test Subnet {netuid}",
+                "--repo",
+                "https://github.com/test/subnet",
+                "--contact",
+                "test@example.com",
+                "--description",
+                f"Test subnet {netuid}",
+                "--logo-url",
+                "https://testsubnet.com/logo.png",
+                "--additional-info",
+                f"Test subnet {netuid}",
+                "--no-prompt",
+                "--no-mev-protection",
+            ],
+        )
+        assert f"✅ Registered subnetwork with netuid: {netuid}" in result.stdout
+
+    # Register on both subnets
+    for netuid in multiple_netuids:
+        result = exec_command_alice(
+            command="subnets",
+            sub_command="register",
+            extra_args=[
+                "--chain",
+                "ws://127.0.0.1:9945",
+                "--netuid",
+                str(netuid),
+                "--wallet-name",
+                wallet_alice.name,
+                "--no-prompt",
+            ],
+        )
+        assert "✅ Registered" in result.stdout
+
+    # Test staking with prompted amounts for each netuid
+    add_stake_prompted = exec_command_alice(
+        command="stake",
+        sub_command="add",
+        extra_args=[
+            "--netuids",
+            ",".join(str(x) for x in multiple_netuids),
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--hotkey",
+            wallet_alice.hotkey_str,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--tolerance",
+            "0.1",
+            "--partial",
+            "--era",
+            "32",
+            "--json-output",
+            # Note: No --amount flag, will trigger prompts
+            # Note: No --no-prompt flag, will allow prompts
+        ],
+        inputs=["50", "30"],  # 50 TAO for netuid 2, 30 TAO for netuid 3
+    )
+
+    # Verify prompts appeared in output
+    assert "stake to netuid 2" in add_stake_prompted.stdout
+    assert "stake to netuid 3" in add_stake_prompted.stdout
+    assert "remaining balance" in add_stake_prompted.stdout
+
+    # Parse and verify the staking results
+    add_stake_output = json.loads(add_stake_prompted.stdout)
+    for netuid_ in multiple_netuids:
+
+        def line(key: str) -> Union[str, bool]:
+            return add_stake_output[key][str(netuid_)][
+                wallet_alice.hotkey.ss58_address
+            ]
+
+        assert line("staking_success") is True, (
+            f"Staking to netuid {netuid_} should succeed"
+        )
+        assert line("error_messages") == "", (
+            f"No error messages expected for netuid {netuid_}"
+        )
+        assert isinstance(line("extrinsic_ids"), str), (
+            f"Extrinsic ID should be a string for netuid {netuid_}"
+        )
