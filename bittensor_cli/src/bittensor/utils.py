@@ -130,9 +130,10 @@ class WalletLike:
         return self._coldkeypub
 
 
-def print_console(message: str, colour: str, title: str, console_: Console):
+def print_console(message: str, colour: str, console_: Console, title: str = ""):
+    title_part = f"[bold {colour}][{title}]:[/bold {colour}] " if title else ""
     console_.print(
-        f"[bold {colour}][{title}]:[/bold {colour}] [{colour}]{message}[/{colour}]\n"
+        f"{title_part}[{colour}]{message}[/{colour}]\n"
     )
 
 
@@ -140,20 +141,21 @@ def print_verbose(message: str, status=None):
     """Print verbose messages while temporarily pausing the status spinner."""
     if status:
         status.stop()
-        print_console(message, "green", "Verbose", verbose_console)
+        print_console(message, "green", verbose_console, "Verbose")
         status.start()
     else:
-        print_console(message, "green", "Verbose", verbose_console)
+        print_console(message, "green", verbose_console, "Verbose")
 
 
 def print_error(message: str, status=None):
     """Print error messages while temporarily pausing the status spinner."""
+    error_message = f":cross_mark: {message}"
     if status:
         status.stop()
-        print_console(message, "red", "Error", err_console)
+        print_console(error_message, "red", err_console)
         status.start()
     else:
-        print_console(message, "red", "Error", err_console)
+        print_console(error_message, "red", err_console)
 
 
 RAO_PER_TAO = 1e9
