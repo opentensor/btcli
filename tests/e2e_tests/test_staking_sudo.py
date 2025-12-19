@@ -814,9 +814,7 @@ def test_stake_add_multiple_netuids_with_prompts(local_chain, wallet_setup):
     for netuid_ in multiple_netuids:
 
         def line(key: str) -> Union[str, bool]:
-            return add_stake_output[key][str(netuid_)][
-                wallet_alice.hotkey.ss58_address
-            ]
+            return add_stake_output[key][str(netuid_)][wallet_alice.hotkey.ss58_address]
 
         assert line("staking_success") is True, (
             f"Staking to netuid {netuid_} should succeed"
