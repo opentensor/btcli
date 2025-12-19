@@ -32,7 +32,7 @@ from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
-    err_console,
+    print_error,
     format_error_message,
     millify,
     get_human_readable,
@@ -94,7 +94,7 @@ def _get_real_torch():
 
 
 def log_no_torch_error():
-    err_console.print(
+    print_error(
         "This command requires torch. You can install torch"
         " with `pip install torch` and run the command again."
     )
@@ -509,8 +509,8 @@ async def register_extrinsic(
 
     print_verbose("Checking subnet status")
     if not await subtensor.subnet_exists(netuid):
-        err_console.print(
-            f":cross_mark: [red]Failed[/red]: error: [bold white]subnet:{netuid}[/bold white] does not exist."
+        print_error(
+            f"Failed: error: [bold white]subnet:{netuid}[/bold white] does not exist."
         )
         return False
 
@@ -587,7 +587,7 @@ async def register_extrinsic(
                 subtensor, netuid=netuid, hotkey_ss58=get_hotkey_pub_ss58(wallet)
             )
             if is_registered:
-                err_console.print(
+                print_error(
                     f":white_heavy_check_mark: [dark_sea_green3]Already registered on netuid:{netuid}[/dark_sea_green3]"
                 )
                 return True
@@ -635,8 +635,8 @@ async def register_extrinsic(
                                     f"[bold]subnet:{netuid}[/bold][/dark_sea_green3]"
                                 )
                                 return True
-                            err_console.print(
-                                f":cross_mark: [red]Failed[/red]: {err_msg}"
+                            print_error(
+                                f"Failed: {err_msg}"
                             )
                             await asyncio.sleep(0.5)
 
@@ -655,25 +655,25 @@ async def register_extrinsic(
                             return True
                         else:
                             # neuron not found, try again
-                            err_console.print(
-                                ":cross_mark: [red]Unknown error. Neuron not found.[/red]"
+                            print_error(
+                                "Unknown error. Neuron not found."
                             )
                             continue
                 else:
                     # Exited loop because pow is no longer valid.
-                    err_console.print("[red]POW is stale.[/red]")
+                    print_error("POW is stale.")
                     # Try again.
                     continue
 
         if attempts < max_allowed_attempts:
             # Failed registration, retry pow
             attempts += 1
-            err_console.print(
+            print_error(
                 ":satellite: Failed registration, retrying pow ...({attempts}/{max_allowed_attempts})"
             )
         else:
             # Failed to register after max attempts.
-            err_console.print("[red]No more attempts.[/red]")
+            print_error("No more attempts.")
             return False
 
 
@@ -772,7 +772,7 @@ async def burned_register_extrinsic(
         )
 
     if not success:
-        err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+        print_error(f"Failed: {err_msg}")
         await asyncio.sleep(0.5)
         return False, err_msg, None
     # Successful registration, final check for neuron and pubkey
@@ -808,8 +808,8 @@ async def burned_register_extrinsic(
             return True, f"Registered on {netuid} with UID {my_uid}", ext_id
         else:
             # neuron not found, try again
-            err_console.print(
-                ":cross_mark: [red]Unknown error. Neuron not found.[/red]"
+            print_error(
+                "Unknown error. Neuron not found."
             )
             return False, "Unknown error. Neuron not found.", ext_id
 
@@ -891,7 +891,7 @@ async def run_faucet_extrinsic(
                 if cuda:
                     if not torch.cuda.is_available():
                         if prompt:
-                            err_console.print("CUDA is not available.")
+                            print_error("CUDA is not available.")
                         return False, "CUDA is not available."
                     pow_result = await create_pow(
                         subtensor,
@@ -936,8 +936,8 @@ async def run_faucet_extrinsic(
 
             # process if registration successful, try again if pow is still valid
             if not await response.is_success:
-                err_console.print(
-                    f":cross_mark: [red]Failed[/red]: "
+                print_error(
+                    f"Failed: "
                     f"{format_error_message(await response.error_message)}"
                 )
                 if attempts == max_allowed_attempts:
@@ -1788,13 +1788,13 @@ async def swap_hotkey_extrinsic(
     )
 
     if netuid is not None and netuid not in netuids_registered:
-        err_console.print(
-            f":cross_mark: [red]Failed[/red]: Original hotkey {hk_ss58} is not registered on subnet {netuid}"
+        print_error(
+            f"Failed: Original hotkey {hk_ss58} is not registered on subnet {netuid}"
         )
         return False, None
 
     elif not len(netuids_registered) > 0:
-        err_console.print(
+        print_error(
             f"Original hotkey [dark_orange]{hk_ss58}[/dark_orange] is not registered on any subnet. "
             f"Please register and try again"
         )
@@ -1802,15 +1802,15 @@ async def swap_hotkey_extrinsic(
 
     if netuid is not None:
         if netuid in netuids_registered_new_hotkey:
-            err_console.print(
-                f":cross_mark: [red]Failed[/red]: New hotkey {new_hk_ss58} "
+            print_error(
+                f"Failed: New hotkey {new_hk_ss58} "
                 f"is already registered on subnet {netuid}"
             )
             return False, None
     else:
         if len(netuids_registered_new_hotkey) > 0:
-            err_console.print(
-                f":cross_mark: [red]Failed[/red]: New hotkey {new_hk_ss58} "
+            print_error(
+                f"Failed: New hotkey {new_hk_ss58} "
                 f"is already registered on subnet(s) {netuids_registered_new_hotkey}"
             )
             return False, None
@@ -1864,6 +1864,6 @@ async def swap_hotkey_extrinsic(
             )
             return True, ext_receipt
         else:
-            err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+            print_error(f"Failed: {err_msg}")
             time.sleep(0.5)
             return False, ext_receipt
