@@ -608,9 +608,7 @@ async def execute_announced(
                     else:
                         value = False
                 else:
-                    print_error(
-                        f"Unrecognized type name {type_name}. {failure_}"
-                    )
+                    print_error(f"Unrecognized type name {type_name}. {failure_}")
                     return False
                 call_args[arg] = value
             inner_call = await subtensor.substrate.compose_call(

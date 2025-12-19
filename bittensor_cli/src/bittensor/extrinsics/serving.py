@@ -132,9 +132,7 @@ async def reset_axon_extrinsic(
 
         except Exception as e:
             error_message = format_error_message(e)
-            print_error(
-                f"Failed to reset axon: {error_message}"
-            )
+            print_error(f"Failed to reset axon: {error_message}")
             return False, error_message, None
 
 
@@ -252,7 +250,5 @@ async def set_axon_extrinsic(
 
         except Exception as e:
             error_message = format_error_message(e)
-            print_error(
-                f"Failed to set axon: {error_message}"
-            )
+            print_error(f"Failed to set axon: {error_message}")
             return False, error_message, None

@@ -280,9 +280,7 @@ async def register_subnetwork_extrinsic(
                 )
                 if not mev_success:
                     status.stop()
-                    print_error(
-                        f"Failed: MEV execution failed: {mev_error}"
-                    )
+                    print_error(f"Failed: MEV execution failed: {mev_error}")
                     return False, None, None
 
             # Successful registration, final check for membership
@@ -1091,9 +1089,7 @@ async def show(
             return
 
         if len(root_state.hotkeys) == 0:
-            print_error(
-                "The root-subnet is currently empty with 0 UIDs registered."
-            )
+            print_error("The root-subnet is currently empty with 0 UIDs registered.")
             return
 
         tao_sum = sum(root_state.tao_stake).tao
@@ -1718,9 +1714,7 @@ async def burn_cost(
                     )
                 )
             else:
-                print_error(
-                    "Subnet burn cost: Failed to get subnet burn cost"
-                )
+                print_error("Subnet burn cost: Failed to get subnet burn cost")
             return None
 
 
@@ -1999,9 +1993,7 @@ async def register(
         ) = [x[1] for x in storage_key_results]
 
         if not registration_allowed:
-            print_error(
-                f"Registration to subnet {netuid} is not allowed"
-            )
+            print_error(f"Registration to subnet {netuid} is not allowed")
             if json_output:
                 json_console.print_json(
                     data={

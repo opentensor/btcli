@@ -635,9 +635,7 @@ async def register_extrinsic(
                                     f"[bold]subnet:{netuid}[/bold][/dark_sea_green3]"
                                 )
                                 return True
-                            print_error(
-                                f"Failed: {err_msg}"
-                            )
+                            print_error(f"Failed: {err_msg}")
                             await asyncio.sleep(0.5)
 
                     # Successful registration, final check for neuron and pubkey
@@ -655,9 +653,7 @@ async def register_extrinsic(
                             return True
                         else:
                             # neuron not found, try again
-                            print_error(
-                                "Unknown error. Neuron not found."
-                            )
+                            print_error("Unknown error. Neuron not found.")
                             continue
                 else:
                     # Exited loop because pow is no longer valid.
@@ -808,9 +804,7 @@ async def burned_register_extrinsic(
             return True, f"Registered on {netuid} with UID {my_uid}", ext_id
         else:
             # neuron not found, try again
-            print_error(
-                "Unknown error. Neuron not found."
-            )
+            print_error("Unknown error. Neuron not found.")
             return False, "Unknown error. Neuron not found.", ext_id
 
 
@@ -937,8 +931,7 @@ async def run_faucet_extrinsic(
             # process if registration successful, try again if pow is still valid
             if not await response.is_success:
                 print_error(
-                    f"Failed: "
-                    f"{format_error_message(await response.error_message)}"
+                    f"Failed: {format_error_message(await response.error_message)}"
                 )
                 if attempts == max_allowed_attempts:
                     raise MaxAttemptsException

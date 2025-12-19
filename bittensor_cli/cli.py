@@ -2428,9 +2428,7 @@ class CLIManager:
                         )
                     ).strip()
                     if not is_valid_ss58_address(hotkey):
-                        print_error(
-                            f"Error: {hotkey} is not valid SS58 address."
-                        )
+                        print_error(f"Error: {hotkey} is not valid SS58 address.")
                         raise typer.Exit(1)
                     else:
                         return wallet, hotkey

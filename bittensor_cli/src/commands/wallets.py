@@ -868,9 +868,7 @@ async def wallet_list(
     if wallet_name:
         wallets = [wallet for wallet in wallets if wallet.name == wallet_name]
         if not wallets:
-            print_error(
-                f"Wallet '{wallet_name}' not found in dir: {wallet_path}"
-            )
+            print_error(f"Wallet '{wallet_name}' not found in dir: {wallet_path}")
 
     root = Tree("Wallets")
     main_data_dict = {"wallets": []}

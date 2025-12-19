@@ -132,9 +132,7 @@ class WalletLike:
 
 def print_console(message: str, colour: str, console_: Console, title: str = ""):
     title_part = f"[bold {colour}][{title}]:[/bold {colour}] " if title else ""
-    console_.print(
-        f"{title_part}[{colour}]{message}[/{colour}]\n"
-    )
+    console_.print(f"{title_part}[{colour}]{message}[/{colour}]\n")
 
 
 def print_verbose(message: str, status=None):

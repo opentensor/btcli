@@ -436,9 +436,7 @@ def _prompt_claim_selection(claimable_stake: dict) -> Optional[list[int]]:
             else:
                 selected = [int(netuid_input.strip())]
         except ValueError:
-            print_error(
-                "Invalid input. Please enter numbers only."
-            )
+            print_error("Invalid input. Please enter numbers only.")
             continue
 
         if len(selected) > 5:
@@ -448,16 +446,12 @@ def _prompt_claim_selection(claimable_stake: dict) -> Optional[list[int]]:
             continue
 
         if len(selected) == 0:
-            print_error(
-                "Please select at least one netuid."
-            )
+            print_error("Please select at least one netuid.")
             continue
 
         invalid_netuids = [n for n in selected if n not in available_netuids]
         if invalid_netuids:
-            print_error(
-                f"Invalid netuids: {', '.join(map(str, invalid_netuids))}"
-            )
+            print_error(f"Invalid netuids: {', '.join(map(str, invalid_netuids))}")
             continue
 
         selected = list(dict.fromkeys(selected))
@@ -670,9 +664,7 @@ async def _prompt_claim_netuids(
                 )
 
         except ValueError as e:
-            print_error(
-                f"Invalid subnet selection: {e}\nPlease try again."
-            )
+            print_error(f"Invalid subnet selection: {e}\nPlease try again.")
 
 
 def _preview_subnet_selection(

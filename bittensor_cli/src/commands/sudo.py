@@ -645,9 +645,7 @@ async def vote_senate_extrinsic(
                     return True
                 else:
                     # hotkey not found in ayes/nays
-                    print_error(
-                        "Unknown error. Couldn't find vote."
-                    )
+                    print_error("Unknown error. Couldn't find vote.")
                     return False
             else:
                 return False

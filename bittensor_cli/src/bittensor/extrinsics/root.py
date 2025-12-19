@@ -383,9 +383,7 @@ async def root_register_extrinsic(
                 return True, f"Registered with UID {uid}", ext_id
             else:
                 # neuron not found, try again
-                print_error(
-                    "Unknown error. Neuron not found."
-                )
+                print_error("Unknown error. Neuron not found.")
                 return False, "Unknown error. Neuron not found.", ext_id
 
 

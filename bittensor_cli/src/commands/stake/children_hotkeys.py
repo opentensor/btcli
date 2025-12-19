@@ -573,9 +573,7 @@ async def set_children(
                 ":white_heavy_check_mark: [green]Set children hotkeys.[/green]"
             )
         else:
-            console.print(
-                f"Unable to set children hotkeys. {message}"
-            )
+            console.print(f"Unable to set children hotkeys. {message}")
     else:
         # set children on all subnets that parent is registered on
         netuids = await subtensor.get_all_subnet_netuids()
@@ -661,9 +659,7 @@ async def revoke_children(
                 f"It will be completed around block {completion_block}. The current block is {current_block}"
             )
         else:
-            console.print(
-                f"Unable to revoke children hotkeys. {message}"
-            )
+            console.print(f"Unable to revoke children hotkeys. {message}")
     else:
         # revoke children from ALL netuids
         netuids = await subtensor.get_all_subnet_netuids()
@@ -730,9 +726,7 @@ async def childkey_take(
 
     def validate_take_value(take_value: float) -> bool:
         if not (0 <= take_value <= 0.18):
-            print_error(
-                f"Invalid take value: {take_value}"
-            )
+            print_error(f"Invalid take value: {take_value}")
             return False
         return True
 
@@ -796,9 +790,7 @@ async def childkey_take(
             )
             return True, ext_id_
         else:
-            print_error(
-                f"Unable to set childkey take. {message}"
-            )
+            print_error(f"Unable to set childkey take. {message}")
             return False, ext_id_
 
     # Print childkey take for other user and return (dont offer to change take rate)
