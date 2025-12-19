@@ -9675,7 +9675,7 @@ class CLIManager:
                         ):
                             call_hex = call_hex_
                             block = block_
-                            got_call_from_db = row
+                            got_call_from_db = id_
                             break
             if got_call_from_db is None:
                 console.print("Unable to retrieve call from DB. Proceeding without.")
