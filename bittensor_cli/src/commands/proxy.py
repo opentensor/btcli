@@ -190,7 +190,7 @@ async def list_proxies(
                 }
             )
         else:
-            err_console.print(f":cross_mark:[red]Failed to list proxies: {e}[/red]")
+            print_error(f"Failed to list proxies: {e}")
 
 
 async def remove_all_proxies(
@@ -237,7 +237,7 @@ async def remove_all_proxies(
 
     if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
         if not json_output:
-            err_console.print(ulw.message)
+            print_error(ulw.message)
         else:
             json_console.print_json(
                 data={
@@ -286,9 +286,7 @@ async def remove_all_proxies(
                 }
             )
         else:
-            err_console.print(
-                f":cross_mark:[red]Failed to remove all proxies: {msg}[/red]"
-            )
+            print_error(f"Failed to remove all proxies: {msg}")
 
 
 async def reject_announcement(
@@ -337,7 +335,7 @@ async def reject_announcement(
 
     if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
         if not json_output:
-            err_console.print(ulw.message)
+            print_error(ulw.message)
         else:
             json_console.print_json(
                 data={
@@ -392,9 +390,7 @@ async def reject_announcement(
                 }
             )
         else:
-            err_console.print(
-                f":cross_mark:[red]Failed to reject announcement: {msg}[/red]"
-            )
+            print_error(f"Failed to reject announcement: {msg}")
         return False
 
 
