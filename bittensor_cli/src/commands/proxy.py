@@ -921,6 +921,9 @@ async def execute_announced(
                 show_choices=True,
             )
             for arg in fns[module][call_fn].keys():
+                if not isinstance(fns[module][call_fn][arg], dict):
+                    # _docs usually
+                    continue
                 type_name = fns[module][call_fn][arg]["typeName"]
                 if type_name == "AccountIdLookupOf<T>":
                     value = is_valid_ss58_address_prompt(

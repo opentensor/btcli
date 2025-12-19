@@ -1124,7 +1124,7 @@ class ProxyAnnouncements(TableDefinition):
         call_hash: str,
     ):
         conn.execute(
-            f"DELETE FROM {cls.name} WHERE call_hash = ?, address = ?, epoch_time = ?, block = ?",
+            f"DELETE FROM {cls.name} WHERE call_hash = ? AND address = ? AND epoch_time = ? AND block = ?",
             (call_hash, address, epoch_time, block),
         )
         conn.commit()
