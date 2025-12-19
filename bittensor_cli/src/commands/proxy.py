@@ -4,6 +4,7 @@ import sys
 from rich.prompt import Prompt, FloatPrompt, IntPrompt
 from rich.table import Table, Column
 from scalecodec import GenericCall, ScaleBytes
+from scalecodec.utils.ss58 import ss58_encode
 
 from bittensor_cli.src import COLORS
 from bittensor_cli.src.bittensor.balances import Balance
@@ -115,8 +116,6 @@ async def list_proxies(
                     ):
                         # Convert 32-byte tuple to SS58 address
                         try:
-                            from scalecodec.utils.ss58 import ss58_encode
-
                             delegate = ss58_encode(bytes(delegate_raw), ss58_format=42)
                         except Exception as e:
                             # Fallback: try with substrateinterface
