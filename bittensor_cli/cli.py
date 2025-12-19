@@ -2157,7 +2157,8 @@ class CLIManager:
             typer.BadParameter: if the address is not a valid SS58 address, or if `--announce-only` is supplied but
                 without a proxy.
         """
-        if address is None:
+        # Handle typer.Option objects passed as default values when called directly
+        if address is None or not isinstance(address, str):
             if announce_only is True:
                 raise typer.BadParameter(
                     "Cannot supply '--announce-only' without supplying '--proxy'"
