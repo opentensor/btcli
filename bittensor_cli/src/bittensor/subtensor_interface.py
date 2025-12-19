@@ -135,7 +135,7 @@ class SubtensorInterface:
             try:
                 await self.substrate.initialize()
                 return self
-            except TimeoutError:  # TODO verify
+            except (TimeoutError, asyncio.TimeoutError):
                 err_console.print(
                     "\n[red]Error[/red]: Timeout occurred connecting to substrate. "
                     f"Verify your chain and network settings: {self}"

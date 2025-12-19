@@ -850,7 +850,7 @@ def normalize_hyperparameters(
                     norm_value = norm_value.to_dict()
             else:
                 norm_value = value
-        except Exception:
+        except (KeyError, ValueError, TypeError, AttributeError):
             # bittensor.logging.warning(f"Error normalizing parameter '{param}': {e}")
             norm_value = "-"
         if not json_output:
@@ -1728,7 +1728,7 @@ def is_valid_github_url(url: str) -> bool:
             return False
 
         return True
-    except Exception:  # TODO figure out the exceptions that can be raised in here
+    except (ValueError, TypeError, AttributeError):
         return False
 
 
