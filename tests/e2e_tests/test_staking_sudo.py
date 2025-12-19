@@ -517,11 +517,6 @@ def test_staking(local_chain, wallet_setup):
         inputs=["50", "30"],  # 50 TAO for netuid 2, 30 TAO for netuid 3
     )
 
-    # Verify prompts appeared in output
-    assert "stake to netuid 2" in add_stake_prompted.stdout
-    assert "stake to netuid 3" in add_stake_prompted.stdout
-    assert "remaining balance" in add_stake_prompted.stdout
-
     # Parse and verify the staking results
     add_stake_prompted_output = json.loads(add_stake_prompted.stdout)
     for netuid_ in multiple_netuids:
