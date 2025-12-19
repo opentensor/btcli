@@ -1,8 +1,16 @@
+import numpy as np
 import pytest
 import typer
+from async_substrate_interface import AsyncSubstrateInterface
 
 from bittensor_cli.cli import parse_mnemonic, CLIManager
+from bittensor_cli.src.bittensor.extrinsics.root import (
+    get_current_weights_for_uid,
+    set_root_weights_extrinsic,
+)
 from unittest.mock import AsyncMock, patch, MagicMock, Mock
+
+from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 
 
 def test_parse_mnemonic():
@@ -53,7 +61,7 @@ async def test_subnet_sets_price_correctly():
         assert subnet_info.price == mock_price
 
 
-@patch("bittensor_cli.cli.Confirm")
+@patch("bittensor_cli.cli.confirm_action")
 @patch("bittensor_cli.cli.console")
 def test_swap_hotkey_netuid_0_warning_with_prompt(mock_console, mock_confirm):
     """
@@ -62,7 +70,9 @@ def test_swap_hotkey_netuid_0_warning_with_prompt(mock_console, mock_confirm):
     """
     # Setup
     cli_manager = CLIManager()
-    mock_confirm.ask.return_value = False  # User declines
+    cli_manager.subtensor = MagicMock(spec=SubtensorInterface)
+    cli_manager.subtensor.substrate = MagicMock(spec=AsyncSubstrateInterface)
+    mock_confirm.return_value = False  # User declines
 
     # Mock dependencies to prevent actual execution
     with (
@@ -85,6 +95,7 @@ def test_swap_hotkey_netuid_0_warning_with_prompt(mock_console, mock_confirm):
             verbose=False,
             prompt=True,
             json_output=False,
+            proxy=None,
         )
 
         # Assert: Warning was displayed (4 console.print calls for the warning)
@@ -99,8 +110,8 @@ def test_swap_hotkey_netuid_0_warning_with_prompt(mock_console, mock_confirm):
         )
 
         # Assert: User was asked to confirm
-        mock_confirm.ask.assert_called_once()
-        confirm_message = mock_confirm.ask.call_args[0][0]
+        mock_confirm.assert_called_once()
+        confirm_message = mock_confirm.call_args[0][0]
         assert "SURE" in confirm_message
         assert "netuid 0" in confirm_message or "root network" in confirm_message
 
@@ -108,7 +119,7 @@ def test_swap_hotkey_netuid_0_warning_with_prompt(mock_console, mock_confirm):
         assert result is None
 
 
-@patch("bittensor_cli.cli.Confirm")
+@patch("bittensor_cli.cli.confirm_action")
 @patch("bittensor_cli.cli.console")
 def test_swap_hotkey_netuid_0_proceeds_with_confirmation(mock_console, mock_confirm):
     """
@@ -116,7 +127,9 @@ def test_swap_hotkey_netuid_0_proceeds_with_confirmation(mock_console, mock_conf
     """
     # Setup
     cli_manager = CLIManager()
-    mock_confirm.ask.return_value = True  # User confirms
+    cli_manager.subtensor = MagicMock(spec=SubtensorInterface)
+    cli_manager.subtensor.substrate = MagicMock(spec=AsyncSubstrateInterface)
+    mock_confirm.return_value = True  # User confirms
 
     # Mock dependencies
     with (
@@ -141,10 +154,11 @@ def test_swap_hotkey_netuid_0_proceeds_with_confirmation(mock_console, mock_conf
             verbose=False,
             prompt=True,
             json_output=False,
+            proxy=None,
         )
 
         # Assert: Warning was shown and confirmed
-        mock_confirm.ask.assert_called_once()
+        mock_confirm.assert_called_once()
 
         # Assert: Command execution proceeded
         mock_run_command.assert_called_once()
@@ -181,6 +195,7 @@ def test_swap_hotkey_netuid_0_no_warning_with_no_prompt(mock_console):
             verbose=False,
             prompt=False,  # No prompt
             json_output=False,
+            proxy=None,
         )
 
         # Assert: No warning messages about netuid 0
@@ -221,6 +236,7 @@ def test_swap_hotkey_netuid_1_no_warning(mock_console):
             verbose=False,
             prompt=True,
             json_output=False,
+            proxy=None,
         )
 
         # Assert: No warning messages about netuid 0
@@ -659,3 +675,133 @@ def test_stake_transfer_calls_proxy_validation():
 
         # Assert that proxy validation was called
         mock_proxy_validation.assert_called_once_with(valid_proxy, False)
+
+
+# ============================================================================
+# Tests for root weights difference display
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_get_current_weights_for_uid_success():
+    """Test fetching current weights for a specific UID."""
+    mock_subtensor = MagicMock()
+
+    # Mock weights data: [(uid, [(dest_netuid, raw_weight), ...]), ...]
+    mock_weights_data = [
+        (0, [(0, 32768), (1, 16384), (2, 16384)]),
+        (1, [(0, 65535), (1, 0), (2, 0)]),
+    ]
+    mock_subtensor.weights = AsyncMock(return_value=mock_weights_data)
+
+    result = await get_current_weights_for_uid(mock_subtensor, netuid=0, uid=0)
+
+    mock_subtensor.weights.assert_called_once_with(netuid=0)
+    assert 0 in result
+    assert 1 in result
+    assert 2 in result
+    # 32768 / 65535 ≈ 0.5
+    assert abs(result[0] - 0.5) < 0.01
+
+
+@pytest.mark.asyncio
+async def test_get_current_weights_for_uid_not_found():
+    """Test fetching weights for a UID that doesn't exist."""
+    mock_subtensor = MagicMock()
+    mock_weights_data = [
+        (0, [(0, 32768), (1, 16384)]),
+        (1, [(0, 65535)]),
+    ]
+    mock_subtensor.weights = AsyncMock(return_value=mock_weights_data)
+
+    result = await get_current_weights_for_uid(mock_subtensor, netuid=0, uid=5)
+
+    assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_get_current_weights_for_uid_empty():
+    """Test fetching weights when the network has no weights set."""
+    mock_subtensor = MagicMock()
+    mock_subtensor.weights = AsyncMock(return_value=[])
+
+    result = await get_current_weights_for_uid(mock_subtensor, netuid=0, uid=0)
+
+    assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_set_root_weights_fetches_current_weights_with_prompt():
+    """Test that set_root_weights fetches current weights when prompt=True."""
+    mock_subtensor = MagicMock()
+    mock_wallet = MagicMock()
+    mock_subtensor.query = AsyncMock(return_value=0)
+
+    with (
+        patch("bittensor_cli.src.bittensor.extrinsics.root.unlock_key") as mock_unlock,
+        patch("bittensor_cli.src.bittensor.extrinsics.root.get_limits") as mock_limits,
+        patch(
+            "bittensor_cli.src.bittensor.extrinsics.root.get_current_weights_for_uid"
+        ) as mock_get_current,
+        patch("bittensor_cli.src.bittensor.extrinsics.root.console"),
+        patch(
+            "bittensor_cli.src.bittensor.extrinsics.root.confirm_action"
+        ) as mock_confirm,
+    ):
+        mock_unlock.return_value = MagicMock(success=True)
+        mock_limits.return_value = (1, 0.5)
+        mock_get_current.return_value = {0: 0.5, 1: 0.3, 2: 0.2}
+        mock_confirm.return_value = False
+
+        netuids = np.array([0, 1, 2], dtype=np.int64)
+        weights = np.array([0.4, 0.3, 0.3], dtype=np.float32)
+
+        await set_root_weights_extrinsic(
+            subtensor=mock_subtensor,
+            wallet=mock_wallet,
+            netuids=netuids,
+            weights=weights,
+            prompt=True,
+        )
+
+        mock_get_current.assert_called_once_with(mock_subtensor, netuid=0, uid=0)
+
+
+@pytest.mark.asyncio
+async def test_set_root_weights_skips_current_weights_without_prompt():
+    """Test that set_root_weights skips fetching current weights when prompt=False."""
+    mock_subtensor = MagicMock()
+    mock_wallet = MagicMock()
+    mock_subtensor.query = AsyncMock(return_value=0)
+    mock_subtensor.substrate = MagicMock()
+    mock_subtensor.substrate.compose_call = AsyncMock()
+    mock_subtensor.substrate.create_signed_extrinsic = AsyncMock()
+    mock_response = MagicMock()
+    mock_response.is_success = True
+    mock_subtensor.substrate.submit_extrinsic = AsyncMock(return_value=mock_response)
+
+    with (
+        patch("bittensor_cli.src.bittensor.extrinsics.root.unlock_key") as mock_unlock,
+        patch("bittensor_cli.src.bittensor.extrinsics.root.get_limits") as mock_limits,
+        patch(
+            "bittensor_cli.src.bittensor.extrinsics.root.get_current_weights_for_uid"
+        ) as mock_get_current,
+        patch("bittensor_cli.src.bittensor.extrinsics.root.console"),
+    ):
+        mock_unlock.return_value = MagicMock(success=True)
+        mock_limits.return_value = (1, 0.5)
+
+        netuids = np.array([0, 1, 2], dtype=np.int64)
+        weights = np.array([0.4, 0.3, 0.3], dtype=np.float32)
+
+        await set_root_weights_extrinsic(
+            subtensor=mock_subtensor,
+            wallet=mock_wallet,
+            netuids=netuids,
+            weights=weights,
+            prompt=False,
+            wait_for_inclusion=False,
+            wait_for_finalization=False,
+        )
+
+        mock_get_current.assert_not_called()

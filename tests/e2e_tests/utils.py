@@ -135,7 +135,7 @@ def extract_coldkey_balance(
 
 
 def find_stake_entries(
-    stake_payload: dict, netuid: int, hotkey_ss58: str | None = None
+    stake_payload: dict, netuid: int, hotkey_ss58: Optional[str] = None
 ) -> list[dict]:
     """
     Return stake entries matching a given netuid, optionally scoped to a specific hotkey.

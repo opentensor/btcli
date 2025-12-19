@@ -4,6 +4,7 @@ Unit tests for axon commands (reset and set).
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from async_substrate_interface import AsyncSubstrateInterface
 from bittensor_wallet import Wallet
 
 from bittensor_cli.src.bittensor.extrinsics.serving import (
@@ -11,6 +12,7 @@ from bittensor_cli.src.bittensor.extrinsics.serving import (
     set_axon_extrinsic,
     ip_to_int,
 )
+from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 
 
 class TestIpToInt:
@@ -134,7 +136,8 @@ class TestResetAxonExtrinsic:
     @pytest.mark.asyncio
     async def test_reset_axon_user_cancellation(self):
         """Test axon reset when user cancels prompt."""
-        mock_subtensor = MagicMock()
+        mock_subtensor = MagicMock(spec=SubtensorInterface)
+        mock_subtensor.substrate = MagicMock(spec=AsyncSubstrateInterface)
         mock_wallet = MagicMock(spec=Wallet)
         mock_wallet.hotkey.ss58_address = (
             "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
@@ -145,11 +148,11 @@ class TestResetAxonExtrinsic:
                 "bittensor_cli.src.bittensor.extrinsics.serving.unlock_key"
             ) as mock_unlock,
             patch(
-                "bittensor_cli.src.bittensor.extrinsics.serving.Confirm"
+                "bittensor_cli.src.bittensor.extrinsics.serving.confirm_action"
             ) as mock_confirm,
         ):
             mock_unlock.return_value = MagicMock(success=True)
-            mock_confirm.ask.return_value = False
+            mock_confirm.return_value = False
 
             success, message, ext_id = await reset_axon_extrinsic(
                 subtensor=mock_subtensor,
@@ -362,11 +365,11 @@ class TestSetAxonExtrinsic:
                 "bittensor_cli.src.bittensor.extrinsics.serving.unlock_key"
             ) as mock_unlock,
             patch(
-                "bittensor_cli.src.bittensor.extrinsics.serving.Confirm"
+                "bittensor_cli.src.bittensor.extrinsics.serving.confirm_action"
             ) as mock_confirm,
         ):
             mock_unlock.return_value = MagicMock(success=True)
-            mock_confirm.ask.return_value = False
+            mock_confirm.return_value = False
 
             success, message, ext_id = await set_axon_extrinsic(
                 subtensor=mock_subtensor,

@@ -24,7 +24,7 @@ from markupsafe import Markup
 import numpy as np
 from numpy.typing import NDArray
 from rich.console import Console
-from rich.prompt import Prompt
+from rich.prompt import Confirm, Prompt
 from scalecodec import GenericCall
 from scalecodec.utils.ss58 import ss58_encode, ss58_decode
 import typer
@@ -58,6 +58,36 @@ err_console = Console(stderr=True, no_color=_no_color, force_terminal=_force_ter
 verbose_console = Console(
     quiet=True, no_color=_no_color, force_terminal=_force_terminal
 )
+
+
+def confirm_action(
+    message: str,
+    default: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
+) -> bool:
+    """
+    Ask for user confirmation with support for auto-decline via --no flag.
+
+    When decline=True (--no flag is set):
+    - Prints the prompt message (unless quiet=True / --quiet is specified)
+    - Automatically returns False (declines)
+
+    Args:
+        message: The confirmation message to display.
+        default: Default value if user just presses Enter (only used in interactive mode).
+        decline: If True, automatically decline without prompting.
+        quiet: If True, suppresses the prompt message when auto-declining.
+
+    Returns:
+        True if confirmed, False if declined.
+    """
+    if decline:
+        if not quiet:
+            console.print(f"{message} [Auto-declined via --no flag]")
+        return False
+    return Confirm.ask(message, default=default)
+
 
 jinja_env = Environment(
     loader=PackageLoader("bittensor_cli", "src/bittensor/templates"),
@@ -1094,7 +1124,7 @@ class ProxyAnnouncements(TableDefinition):
         call_hash: str,
     ):
         conn.execute(
-            f"DELETE FROM {cls.name} WHERE call_hash = ?, address = ?, epoch_time = ?, block = ?",
+            f"DELETE FROM {cls.name} WHERE call_hash = ? AND address = ? AND epoch_time = ? AND block = ?",
             (call_hash, address, epoch_time, block),
         )
         conn.commit()

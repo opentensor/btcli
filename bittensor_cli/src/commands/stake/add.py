@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Optional
 
 from async_substrate_interface import AsyncExtrinsicReceipt
 from rich.table import Table
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Prompt
 
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
@@ -15,6 +15,7 @@ from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
     wait_for_extrinsic_by_hash,
 )
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
     err_console,
     get_hotkey_wallets_for_wallet,
@@ -40,6 +41,8 @@ async def stake_add(
     stake_all: bool,
     amount: float,
     prompt: bool,
+    decline: bool,
+    quiet: bool,
     all_hotkeys: bool,
     include_hotkeys: list[str],
     exclude_hotkeys: list[str],
@@ -462,7 +465,9 @@ async def stake_add(
     _print_table_and_slippage(table, max_slippage, safe_staking)
 
     if prompt:
-        if not Confirm.ask("Would you like to continue?"):
+        if not confirm_action(
+            "Would you like to continue?", decline=decline, quiet=quiet
+        ):
             return
     if not unlock_key(wallet).success:
         return

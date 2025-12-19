@@ -3,11 +3,11 @@ import json
 from typing import TYPE_CHECKING, Optional
 
 from async_substrate_interface import AsyncExtrinsicReceipt
-from rich.prompt import Confirm
 from rich.table import Column, Table
 
 from bittensor_cli.src import COLORS
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     unlock_key,
     console,
     err_console,
@@ -251,6 +251,8 @@ async def add_liquidity(
     price_low: Balance,
     price_high: Balance,
     prompt: bool,
+    decline: bool,
+    quiet: bool,
     json_output: bool,
 ) -> tuple[bool, str]:
     """Add liquidity position to provided subnet."""
@@ -272,7 +274,9 @@ async def add_liquidity(
             f"\tusing wallet with name: {wallet.name}"
         )
 
-        if not Confirm.ask("Would you like to continue?"):
+        if not confirm_action(
+            "Would you like to continue?", decline=decline, quiet=quiet
+        ):
             return False, "User cancelled operation."
 
     success, message, ext_receipt = await add_liquidity_extrinsic(
@@ -567,6 +571,8 @@ async def remove_liquidity(
     proxy: Optional[str],
     position_id: Optional[int] = None,
     prompt: Optional[bool] = None,
+    decline: bool = False,
+    quiet: bool = False,
     all_liquidity_ids: Optional[bool] = None,
     json_output: bool = False,
 ) -> None:
@@ -596,7 +602,9 @@ async def remove_liquidity(
         for pos in position_ids:
             console.print(f"\tPosition id: {pos}")
 
-        if not Confirm.ask("Would you like to continue?"):
+        if not confirm_action(
+            "Would you like to continue?", decline=decline, quiet=quiet
+        ):
             return None
 
     # TODO does this never break because of the nonce?
@@ -641,6 +649,8 @@ async def modify_liquidity(
     position_id: int,
     liquidity_delta: Balance,
     prompt: Optional[bool] = None,
+    decline: bool = False,
+    quiet: bool = False,
     json_output: bool = False,
 ) -> bool:
     """Modify liquidity position in provided subnet."""
@@ -661,7 +671,9 @@ async def modify_liquidity(
             f"\tLiquidity delta: {liquidity_delta}"
         )
 
-        if not Confirm.ask("Would you like to continue?"):
+        if not confirm_action(
+            "Would you like to continue?", decline=decline, quiet=quiet
+        ):
             return False
 
     success, msg, ext_receipt = await modify_liquidity_extrinsic(
