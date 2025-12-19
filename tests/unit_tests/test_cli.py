@@ -1445,7 +1445,9 @@ def test_proxy_reject_calls_reject_announcement():
         patch.object(cli_manager, "initialize_chain") as mock_init_chain,
         patch.object(cli_manager, "_run_command") as mock_run_command,
         patch("bittensor_cli.cli.proxy_commands.reject_announcement"),
-        patch("bittensor_cli.cli.ProxyAnnouncements.get_db", return_value=mock_db_context),
+        patch(
+            "bittensor_cli.cli.ProxyAnnouncements.get_db", return_value=mock_db_context
+        ),
     ):
         mock_wallet = Mock()
         mock_wallet.coldkeypub = Mock()
