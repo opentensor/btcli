@@ -14,7 +14,6 @@ from bittensor_cli.src.bittensor.utils import (
     get_subnet_name,
     is_valid_ss58_address,
     print_error,
-    err_console,
     unlock_key,
     print_extrinsic_id,
 )
@@ -302,5 +301,5 @@ async def set_auto_stake_destination(
         )
         return True
 
-    err_console.print(f":cross_mark: [red]Failed[/red]: {error_message}")
+    print_error(f"Failed: {error_message}")
     return False

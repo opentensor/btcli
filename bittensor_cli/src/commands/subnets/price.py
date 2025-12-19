@@ -13,7 +13,6 @@ from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.chain_data import DynamicInfo
 from bittensor_cli.src.bittensor.utils import (
     console,
-    err_console,
     get_subnet_name,
     print_error,
     json_console,
@@ -83,7 +82,7 @@ async def price(
             block_numbers, all_subnet_infos, netuids, all_netuids
         )
         if not subnet_data:
-            err_console.print("[red]No valid price data found for any subnet[/red]")
+            print_error("No valid price data found for any subnet")
             return
 
         if html_output:
@@ -167,9 +166,9 @@ def _process_subnet_data(block_numbers, all_subnet_infos, netuids, all_netuids):
                 continue
 
             if len(prices) < 5:
-                err_console.print(
-                    f"[red]Insufficient price data for subnet {netuid}. "
-                    f"Need at least 5 data points but only found {len(prices)}.[/red]"
+                print_error(
+                    f"Insufficient price data for subnet {netuid}. "
+                    f"Need at least 5 data points but only found {len(prices)}."
                 )
                 continue
 
@@ -203,13 +202,13 @@ def _process_subnet_data(block_numbers, all_subnet_infos, netuids, all_netuids):
                 valid_subnet_infos.append(subnet_info)
 
         if not valid_subnet_infos or not prices:
-            err_console.print("[red]No valid price data found for any subnet[/red]")
+            print_error("No valid price data found for any subnet")
             return {}
 
         if len(prices) < 5:
-            err_console.print(
-                f"[red]Insufficient price data for subnet {netuids[0]}. "
-                f"Need at least 5 data points but only found {len(prices)}.[/red]"
+            print_error(
+                f"Insufficient price data for subnet {netuids[0]}. "
+                f"Need at least 5 data points but only found {len(prices)}."
             )
             return {}
 
