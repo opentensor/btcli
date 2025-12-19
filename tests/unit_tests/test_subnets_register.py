@@ -90,7 +90,7 @@ class TestSubnetsRegister:
         mock_subtensor_base.subnet_exists = AsyncMock(return_value=False)
 
         with patch(
-            "bittensor_cli.src.commands.subnets.subnets.err_console"
+            "bittensor_cli.src.bittensor.utils.err_console"
         ) as mock_err_console:
             result = await register(
                 wallet=mock_wallet,
