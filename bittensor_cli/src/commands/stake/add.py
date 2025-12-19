@@ -17,7 +17,6 @@ from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
-    err_console,
     get_hotkey_wallets_for_wallet,
     is_valid_ss58_address,
     print_error,
@@ -356,7 +355,7 @@ async def stake_add(
             # Check that the subnet exists.
             subnet_info = all_subnets.get(netuid)
             if not subnet_info:
-                err_console.print(f"Subnet with netuid: {netuid} does not exist.")
+                print_error(f"Subnet with netuid: {netuid} does not exist.")
                 continue
             current_stake_balances.append(hotkey_stake_map[hotkey[1]][netuid])
 
@@ -376,8 +375,8 @@ async def stake_add(
 
             # Check enough to stake.
             if amount_to_stake > remaining_wallet_balance:
-                err_console.print(
-                    f"[red]Not enough stake[/red]:[bold white]\n wallet balance:{remaining_wallet_balance} < "
+                print_error(
+                    f"Not enough stake:[bold white]\n wallet balance:{remaining_wallet_balance} < "
                     f"staking amount: {amount_to_stake}[/bold white]"
                 )
                 return

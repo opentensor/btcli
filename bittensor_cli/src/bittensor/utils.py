@@ -1500,7 +1500,7 @@ def retry_prompt(
         if not rejection(var):
             return var
         else:
-            err_console.print(rejection_text)
+            print_error(rejection_text)
 
 
 def validate_netuid(value: int) -> int:
@@ -1816,13 +1816,13 @@ def unlock_key(
     except PasswordError:
         err_msg = f"The password used to decrypt your {unlock_type.capitalize()}key Keyfile is invalid."
         if print_out:
-            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+            print_error(f"Failed: {err_msg}")
             return unlock_key(wallet, unlock_type, print_out)
         return UnlockStatus(False, err_msg)
     except KeyFileError:
         err_msg = f"{unlock_type.capitalize()}key Keyfile is corrupt, non-writable, or non-readable, or non-existent."
         if print_out:
-            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+            print_error(f"Failed: {err_msg}")
         return UnlockStatus(False, err_msg)
 
 

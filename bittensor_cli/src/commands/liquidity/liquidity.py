@@ -10,7 +10,7 @@ from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     unlock_key,
     console,
-    err_console,
+    print_error,
     json_console,
     print_extrinsic_id,
 )
@@ -308,7 +308,7 @@ async def add_liquidity(
                 "[green]LiquidityPosition has been successfully added.[/green]"
             )
         else:
-            err_console.print(f"[red]Error: {message}[/red]")
+            print_error(f"Error: {message}")
     return success, message
 
 
@@ -506,7 +506,7 @@ async def show_liquidity_list(
             )
             return
         else:
-            err_console.print(f"Error: {err_msg}")
+            print_error(f"Error: {err_msg}")
             return
     liquidity_table = Table(
         Column("ID", justify="center"),
@@ -588,7 +588,7 @@ async def remove_liquidity(
                     data={"success": False, "err_msg": msg, "positions": positions}
                 )
             else:
-                return err_console.print(f"Error: {msg}")
+                return print_error(f"Error: {msg}")
             return None
         else:
             position_ids = [p.id for p in positions]
@@ -627,7 +627,7 @@ async def remove_liquidity(
                 await print_extrinsic_id(ext_receipt)
                 console.print(f"[green] Position {posid} has been removed.")
             else:
-                err_console.print(f"[red] Error removing {posid}: {msg}")
+                print_error(f"Error removing {posid}: {msg}")
     else:
         json_table = {}
         for (success, msg, ext_receipt), posid in zip(results, position_ids):
@@ -659,7 +659,7 @@ async def modify_liquidity(
         if json_output:
             json_console.print(json.dumps({"success": False, "err_msg": err_msg}))
         else:
-            err_console.print(err_msg)
+            print_error(err_msg)
         return False
 
     if prompt:
@@ -695,5 +695,5 @@ async def modify_liquidity(
             await print_extrinsic_id(ext_receipt)
             console.print(f"[green] Position {position_id} has been modified.")
         else:
-            err_console.print(f"[red] Error modifying {position_id}: {msg}")
+            print_error(f"Error modifying {position_id}: {msg}")
     return success
