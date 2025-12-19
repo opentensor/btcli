@@ -648,13 +648,15 @@ async def execute_announced(
                 inner_call.process()
             except Exception as e:
                 err_console.print(
-                    f":cross_mark:[red]Unable to regenerate the call data using the latest runtime: {e}"
+                    f":cross_mark:[red]Failure[/red]Unable to regenerate the call data using the latest runtime: {e}\n"
+                    "You should rerun this command on an archive node endpoint."
                 )
                 if json_output:
                     json_console.print_json(
                         data={
                             "success": False,
-                            "message": f"Unable to regenerate the call data using the latest runtime: {e}",
+                            "message": f"Unable to regenerate the call data using the latest runtime: {e}. "
+                            "You should rerun this command on an archive node endpoint.",
                             "extrinsic_identifier": None,
                         }
                     )
