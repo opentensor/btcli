@@ -85,6 +85,7 @@ from bittensor_cli.src.commands.crowd import (
     view as view_crowdloan,
     update as crowd_update,
     refund as crowd_refund,
+    contributors as crowd_contributors,
 )
 from bittensor_cli.src.commands.liquidity.utils import (
     prompt_liquidity,
@@ -1332,6 +1333,9 @@ class CLIManager:
         self.crowd_app.command("info", rich_help_panel=HELP_PANELS["CROWD"]["INFO"])(
             self.crowd_info
         )
+        self.crowd_app.command(
+            "contributors", rich_help_panel=HELP_PANELS["CROWD"]["INFO"]
+        )(self.crowd_contributors)
         self.crowd_app.command(
             "create", rich_help_panel=HELP_PANELS["CROWD"]["INITIATOR"]
         )(self.crowd_create)
@@ -2808,6 +2812,7 @@ class CLIManager:
         ),
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
         netuids: str = Options.netuids,
         quiet: bool = Options.quiet,
@@ -2815,7 +2820,7 @@ class CLIManager:
         json_output: bool = Options.json_output,
     ):
         """
-        Displays the details of the user's wallet (coldkey) on the Bittensor network.
+        Displays the details of the user's wallet pairs (coldkey, hotkey) on the Bittensor network.
 
         The output is presented as a table with the below columns:
 
@@ -2860,7 +2865,7 @@ class CLIManager:
         ask_for = [WO.NAME, WO.PATH] if not all_wallets else [WO.PATH]
         validate = WV.WALLET if not all_wallets else WV.NONE
         wallet = self.wallet_ask(
-            wallet_name, wallet_path, None, ask_for=ask_for, validate=validate
+            wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
         )
 
         self.initialize_chain(network)
@@ -8590,6 +8595,36 @@ class CLIManager:
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
+        show_identities: Optional[str] = typer.Option(
+            None,
+            "--show-identities",
+            help="Show identity names for creators and target addresses. Use 'true' or 'false', or omit for default (true).",
+        ),
+        status: Optional[str] = typer.Option(
+            None,
+            "--status",
+            help="Filter by status: active, funded, closed, finalized",
+        ),
+        type_filter: Optional[str] = typer.Option(
+            None,
+            "--type",
+            help="Filter by type: subnet, fundraising",
+        ),
+        sort_by: Optional[str] = typer.Option(
+            None,
+            "--sort-by",
+            help="Sort by: raised, end, contributors, id",
+        ),
+        sort_order: Optional[str] = typer.Option(
+            None,
+            "--sort-order",
+            help="Sort order: asc, desc (default: desc for raised, asc for id)",
+        ),
+        search_creator: Optional[str] = typer.Option(
+            None,
+            "--search-creator",
+            help="Search by creator address or identity name",
+        ),
     ):
         """
         List crowdloans together with their funding progress and key metadata.
@@ -8599,19 +8634,42 @@ class CLIManager:
         or a general fundraising crowdloan.
 
         Use `--verbose` for full-precision amounts and longer addresses.
+        Use `--show-identities` to show identity names (default: true).
+        Use `--status` to filter by status (active, funded, closed, finalized).
+        Use `--type` to filter by type (subnet, fundraising).
+        Use `--sort-by` and `--sort-order` to sort results.
+        Use `--search-creator` to search by creator address or identity name.
 
         EXAMPLES
 
         [green]$[/green] btcli crowd list
 
         [green]$[/green] btcli crowd list --verbose
+
+        [green]$[/green] btcli crowd list --show-identities true
+
+        [green]$[/green] btcli crowd list --status active --type subnet
+
+        [green]$[/green] btcli crowd list --sort-by raised --sort-order desc
+
+        [green]$[/green] btcli crowd list --search-creator "5D..."
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt=False)
+        # Parse show_identities: None or "true" -> True, "false" -> False
+        show_identities_bool = True  # default
+        if show_identities is not None:
+            show_identities_bool = show_identities.lower() in ("true", "1", "yes")
         return self._run_command(
             view_crowdloan.list_crowdloans(
                 subtensor=self.initialize_chain(network),
                 verbose=verbose,
                 json_output=json_output,
+                show_identities=show_identities_bool,
+                status_filter=status,
+                type_filter=type_filter,
+                sort_by=sort_by,
+                sort_order=sort_order,
+                search_creator=search_creator,
             )
         )
 
@@ -8631,17 +8689,33 @@ class CLIManager:
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
+        show_identities: Optional[str] = typer.Option(
+            None,
+            "--show-identities",
+            help="Show identity names for creator and target address. Use 'true' or 'false', or omit for default (true).",
+        ),
+        show_contributors: Optional[str] = typer.Option(
+            None,
+            "--show-contributors",
+            help="Show contributor list with identities. Use 'true' or 'false', or omit for default (false).",
+        ),
     ):
         """
         Display detailed information about a specific crowdloan.
 
         Includes funding progress, target account, and call details among other information.
+        Use `--show-identities` to show identity names (default: true).
+        Use `--show-contributors` to display the list of contributors (default: false).
 
         EXAMPLES
 
         [green]$[/green] btcli crowd info --id 0
 
         [green]$[/green] btcli crowd info --id 1 --verbose
+
+        [green]$[/green] btcli crowd info --id 0 --show-identities true
+
+        [green]$[/green] btcli crowd info --id 0 --show-identities true --show-contributors true
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt=False)
 
@@ -8662,11 +8736,69 @@ class CLIManager:
                 validate=WV.WALLET,
             )
 
+        # Parse show_identities: None or "true" -> True, "false" -> False
+        show_identities_bool = True  # default
+        if show_identities is not None:
+            show_identities_bool = show_identities.lower() in ("true", "1", "yes")
+
+        # Parse show_contributors: None or "false" -> False, "true" -> True
+        show_contributors_bool = False  # default
+        if show_contributors is not None:
+            show_contributors_bool = show_contributors.lower() in ("true", "1", "yes")
+
         return self._run_command(
             view_crowdloan.show_crowdloan_details(
                 subtensor=self.initialize_chain(network),
                 crowdloan_id=crowdloan_id,
                 wallet=wallet,
+                verbose=verbose,
+                json_output=json_output,
+                show_identities=show_identities_bool,
+                show_contributors=show_contributors_bool,
+            )
+        )
+
+    def crowd_contributors(
+        self,
+        crowdloan_id: Optional[int] = typer.Option(
+            None,
+            "--crowdloan-id",
+            "--crowdloan_id",
+            "--id",
+            help="The ID of the crowdloan to list contributors for",
+        ),
+        network: Optional[list[str]] = Options.network,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        List all contributors to a specific crowdloan.
+
+        Shows contributor addresses, contribution amounts, identity names, and percentages.
+        Contributors are sorted by contribution amount (highest first).
+
+        EXAMPLES
+
+        [green]$[/green] btcli crowd contributors --id 0
+
+        [green]$[/green] btcli crowd contributors --id 1 --verbose
+
+        [green]$[/green] btcli crowd contributors --id 2 --json-output
+        """
+        self.verbosity_handler(quiet, verbose, json_output, prompt=False)
+
+        if crowdloan_id is None:
+            crowdloan_id = IntPrompt.ask(
+                f"Enter the [{COLORS.G.SUBHEAD_MAIN}]crowdloan id[/{COLORS.G.SUBHEAD_MAIN}]",
+                default=None,
+                show_default=False,
+            )
+
+        return self._run_command(
+            crowd_contributors.list_contributors(
+                subtensor=self.initialize_chain(network),
+                crowdloan_id=crowdloan_id,
                 verbose=verbose,
                 json_output=json_output,
             )
@@ -8731,6 +8863,21 @@ class CLIManager:
             help="Block number when subnet lease ends (omit for perpetual lease).",
             min=1,
         ),
+        custom_call_pallet: Optional[str] = typer.Option(
+            None,
+            "--custom-call-pallet",
+            help="Pallet name for custom Substrate call to attach to crowdloan.",
+        ),
+        custom_call_method: Optional[str] = typer.Option(
+            None,
+            "--custom-call-method",
+            help="Method name for custom Substrate call to attach to crowdloan.",
+        ),
+        custom_call_args: Optional[str] = typer.Option(
+            None,
+            "--custom-call-args",
+            help='JSON string of arguments for custom call (e.g., \'{"arg1": "value1", "arg2": 123}\').',
+        ),
         prompt: bool = Options.prompt,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
@@ -8743,6 +8890,7 @@ class CLIManager:
         Create a crowdloan that can either:
         1. Raise funds for a specific address (general fundraising)
         2. Create a new leased subnet where contributors receive emissions
+        3. Attach any custom Substrate call (using --custom-call-pallet, --custom-call-method, --custom-call-args)
 
         EXAMPLES
 
@@ -8754,6 +8902,9 @@ class CLIManager:
 
         Subnet lease ending at block 500000:
         [green]$[/green] btcli crowd create --subnet-lease --emissions-share 25 --lease-end-block 500000
+
+        Custom call:
+        [green]$[/green] btcli crowd create --deposit 10 --cap 1000 --duration 1000 --min-contribution 1 --custom-call-pallet "SomeModule" --custom-call-method "some_method" --custom-call-args '{"param1": "value", "param2": 42}'
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
@@ -8778,6 +8929,9 @@ class CLIManager:
                 subnet_lease=subnet_lease,
                 emissions_share=emissions_share,
                 lease_end_block=lease_end_block,
+                custom_call_pallet=custom_call_pallet,
+                custom_call_method=custom_call_method,
+                custom_call_args=custom_call_args,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 prompt=prompt,
