@@ -2808,7 +2808,6 @@ class CLIManager:
         ),
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
-        wallet_hotkey: str = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
         netuids: str = Options.netuids,
         quiet: bool = Options.quiet,
@@ -2816,7 +2815,7 @@ class CLIManager:
         json_output: bool = Options.json_output,
     ):
         """
-        Displays the details of the user's wallet pairs (coldkey, hotkey) on the Bittensor network.
+        Displays the details of the user's wallet (coldkey) on the Bittensor network.
 
         The output is presented as a table with the below columns:
 
@@ -2861,7 +2860,7 @@ class CLIManager:
         ask_for = [WO.NAME, WO.PATH] if not all_wallets else [WO.PATH]
         validate = WV.WALLET if not all_wallets else WV.NONE
         wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
+            wallet_name, wallet_path, None, ask_for=ask_for, validate=validate
         )
 
         self.initialize_chain(network)
