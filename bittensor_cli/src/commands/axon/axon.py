@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from bittensor_wallet import Wallet
 
 from bittensor_cli.src.bittensor.utils import (
-    err_console,
+    print_error,
     json_console,
 )
 from bittensor_cli.src.bittensor.extrinsics.serving import (
@@ -66,7 +66,7 @@ async def reset(
             )
         )
     elif not success:
-        err_console.print(f"[red]Failed to reset axon: {message}[/red]")
+        print_error(f"Failed to reset axon: {message}")
 
 
 async def set_axon(
@@ -129,4 +129,4 @@ async def set_axon(
             )
         )
     elif not success:
-        err_console.print(f"[red]Failed to set axon: {message}[/red]")
+        print_error(f"Failed to set axon: {message}")

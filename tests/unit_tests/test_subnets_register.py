@@ -89,9 +89,7 @@ class TestSubnetsRegister:
         """Test registration fails when subnet does not exist."""
         mock_subtensor_base.subnet_exists = AsyncMock(return_value=False)
 
-        with patch(
-            "bittensor_cli.src.commands.subnets.subnets.err_console"
-        ) as mock_err_console:
+        with patch("bittensor_cli.src.bittensor.utils.err_console") as mock_err_console:
             result = await register(
                 wallet=mock_wallet,
                 subtensor=mock_subtensor_base,

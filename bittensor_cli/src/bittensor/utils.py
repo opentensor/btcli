@@ -130,30 +130,30 @@ class WalletLike:
         return self._coldkeypub
 
 
-def print_console(message: str, colour: str, title: str, console_: Console):
-    console_.print(
-        f"[bold {colour}][{title}]:[/bold {colour}] [{colour}]{message}[/{colour}]\n"
-    )
+def print_console(message: str, colour: str, console_: Console, title: str = ""):
+    title_part = f"[bold {colour}][{title}]:[/bold {colour}] " if title else ""
+    console_.print(f"{title_part}[{colour}]{message}[/{colour}]\n")
 
 
 def print_verbose(message: str, status=None):
     """Print verbose messages while temporarily pausing the status spinner."""
     if status:
         status.stop()
-        print_console(message, "green", "Verbose", verbose_console)
+        print_console(message, "green", verbose_console, "Verbose")
         status.start()
     else:
-        print_console(message, "green", "Verbose", verbose_console)
+        print_console(message, "green", verbose_console, "Verbose")
 
 
 def print_error(message: str, status=None):
     """Print error messages while temporarily pausing the status spinner."""
+    error_message = f":cross_mark: {message}"
     if status:
         status.stop()
-        print_console(message, "red", "Error", err_console)
+        print_console(error_message, "red", err_console)
         status.start()
     else:
-        print_console(message, "red", "Error", err_console)
+        print_console(error_message, "red", err_console)
 
 
 RAO_PER_TAO = 1e9
@@ -1498,7 +1498,7 @@ def retry_prompt(
         if not rejection(var):
             return var
         else:
-            err_console.print(rejection_text)
+            print_error(rejection_text)
 
 
 def validate_netuid(value: int) -> int:
@@ -1814,13 +1814,13 @@ def unlock_key(
     except PasswordError:
         err_msg = f"The password used to decrypt your {unlock_type.capitalize()}key Keyfile is invalid."
         if print_out:
-            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+            print_error(f"Failed: {err_msg}")
             return unlock_key(wallet, unlock_type, print_out)
         return UnlockStatus(False, err_msg)
     except KeyFileError:
         err_msg = f"{unlock_type.capitalize()}key Keyfile is corrupt, non-writable, or non-readable, or non-existent."
         if print_out:
-            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+            print_error(f"Failed: {err_msg}")
         return UnlockStatus(False, err_msg)
 
 
