@@ -1280,7 +1280,9 @@ class SubtensorInterface:
                             call=call_to_announce,
                         )
                     console.print(
-                        f"Added entry {call_to_announce.call_hash} at block {block} to your ProxyAnnouncements address book."
+                        f"Added entry [green]{call_to_announce.call_hash.hex()}[/green] "
+                        f"at block {block} to your ProxyAnnouncements address book. You can execute this with\n"
+                        f"[blue]btcli proxy execute --call-hash {call_to_announce.call_hash.hex()}[/blue]"
                     )
                 return True, inner_hash, response
             else:

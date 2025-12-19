@@ -2068,8 +2068,8 @@ class CLIManager:
         """
         table = Table(
             Column("[bold white]Name", style=f"{COLORS.G.ARG}"),
-            Column("Address", style="gold1"),
-            Column("Spawner/Delegator", style="medium_purple"),
+            Column("Address/Delegator", style="gold1"),
+            Column("Spawner/Delegatee", style="medium_purple"),
             Column("Proxy Type", style="medium_purple"),
             Column("Delay", style="dim"),
             Column("Note", style="dim"),
@@ -9623,7 +9623,11 @@ class CLIManager:
                     executed_int,
                 ) = row
                 executed = bool(executed_int)
-                if call_hash_ == call_hash and address == proxy and executed is False:
+                if (
+                    (call_hash_ == call_hash or f"0x{call_hash_}" == call_hash)
+                    and address == proxy
+                    and executed is False
+                ):
                     potential_call_matches.append(row)
             if len(potential_call_matches) == 1:
                 block = potential_call_matches[0][3]
