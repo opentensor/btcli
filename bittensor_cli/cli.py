@@ -5023,13 +5023,19 @@ class CLIManager:
                     default=self.config.get("wallet_name") or defaults.wallet.name,
                 )
             if include_hotkeys:
-                if len(include_hotkeys) > 1:
-                    print_error("Cannot unstake_all from multiple hotkeys at once.")
-                    return False
-                elif is_valid_ss58_address(include_hotkeys[0]):
-                    hotkey_ss58_address = include_hotkeys[0]
-                else:
-                    print_error("Invalid hotkey ss58 address.")
+                # Multiple hotkeys are now supported with batching
+                # Initialize wallet as it's needed to resolve hotkey names and get coldkey
+                wallet = self.wallet_ask(
+                    wallet_name,
+                    wallet_path,
+                    wallet_hotkey,
+                    ask_for=[WO.NAME, WO.PATH],
+                )
+                if len(include_hotkeys) == 1:
+                    # Single hotkey - use hotkey_ss58_address for backward compatibility
+                    if is_valid_ss58_address(include_hotkeys[0]):
+                        hotkey_ss58_address = include_hotkeys[0]
+                    # If it's a hotkey name, it will be handled by the unstake_all function
                     return False
             elif all_hotkeys:
                 wallet = self.wallet_ask(
