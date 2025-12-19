@@ -817,20 +817,19 @@ async def test_list_proxies_success():
     """Test that list_proxies correctly queries and displays proxies"""
     from bittensor_cli.src.commands.proxy import list_proxies
 
-    mock_subtensor = MagicMock()
-    mock_substrate = AsyncMock()
-    mock_subtensor.substrate = mock_substrate
+    mock_subtensor = AsyncMock()
 
-    # Mock the query result
-    mock_result = MagicMock()
-    mock_result.value = (
-        [
-            {"delegate": "5GDel1...", "proxy_type": "Staking", "delay": 0},
-            {"delegate": "5GDel2...", "proxy_type": "Transfer", "delay": 100},
-        ],
-        1000000,  # deposit
+    # Mock the query result - list_proxies uses subtensor.query() not substrate.query
+    # Returns tuple: (proxies_list, deposit)
+    mock_subtensor.query = AsyncMock(
+        return_value=(
+            [
+                {"delegate": "5GDel1...", "proxy_type": "Staking", "delay": 0},
+                {"delegate": "5GDel2...", "proxy_type": "Transfer", "delay": 100},
+            ],
+            1000000,  # deposit
+        )
     )
-    mock_substrate.query = AsyncMock(return_value=mock_result)
 
     with patch("bittensor_cli.src.commands.proxy.console") as mock_console:
         await list_proxies(
@@ -840,7 +839,7 @@ async def test_list_proxies_success():
         )
 
         # Verify query was called correctly
-        mock_substrate.query.assert_awaited_once_with(
+        mock_subtensor.query.assert_awaited_once_with(
             module="Proxy",
             storage_function="Proxies",
             params=["5GTest..."],
@@ -855,16 +854,15 @@ async def test_list_proxies_json_output():
     """Test that list_proxies outputs JSON correctly"""
     from bittensor_cli.src.commands.proxy import list_proxies
 
-    mock_subtensor = MagicMock()
-    mock_substrate = AsyncMock()
-    mock_subtensor.substrate = mock_substrate
+    mock_subtensor = AsyncMock()
 
-    mock_result = MagicMock()
-    mock_result.value = (
-        [{"delegate": "5GDel1...", "proxy_type": "Staking", "delay": 0}],
-        500000,
+    # Mock the query result - list_proxies uses subtensor.query()
+    mock_subtensor.query = AsyncMock(
+        return_value=(
+            [{"delegate": "5GDel1...", "proxy_type": "Staking", "delay": 0}],
+            500000,
+        )
     )
-    mock_substrate.query = AsyncMock(return_value=mock_result)
 
     with patch("bittensor_cli.src.commands.proxy.json_console") as mock_json_console:
         await list_proxies(
@@ -887,13 +885,10 @@ async def test_list_proxies_empty():
     """Test that list_proxies handles empty proxy list"""
     from bittensor_cli.src.commands.proxy import list_proxies
 
-    mock_subtensor = MagicMock()
-    mock_substrate = AsyncMock()
-    mock_subtensor.substrate = mock_substrate
+    mock_subtensor = AsyncMock()
 
-    mock_result = MagicMock()
-    mock_result.value = ([], 0)
-    mock_substrate.query = AsyncMock(return_value=mock_result)
+    # Mock the query result - empty proxies list
+    mock_subtensor.query = AsyncMock(return_value=([], 0))
 
     with patch("bittensor_cli.src.commands.proxy.console") as mock_console:
         await list_proxies(
@@ -912,10 +907,8 @@ async def test_list_proxies_error_handling():
     """Test that list_proxies handles errors gracefully"""
     from bittensor_cli.src.commands.proxy import list_proxies
 
-    mock_subtensor = MagicMock()
-    mock_substrate = AsyncMock()
-    mock_subtensor.substrate = mock_substrate
-    mock_substrate.query = AsyncMock(side_effect=Exception("Connection error"))
+    mock_subtensor = AsyncMock()
+    mock_subtensor.query = AsyncMock(side_effect=Exception("Connection error"))
 
     with patch("bittensor_cli.src.commands.proxy.err_console") as mock_err_console:
         await list_proxies(
@@ -1178,7 +1171,8 @@ async def test_reject_announcement_with_prompt_declined():
             json_output=False,
         )
 
-        assert result is None
+        # Function returns False when user declines confirmation
+        assert result is False
         mock_confirm.assert_called_once()
 
 
@@ -1440,14 +1434,22 @@ def test_proxy_reject_calls_reject_announcement():
     """Test that proxy_reject calls reject_announcement"""
     cli_manager = CLIManager()
 
+    # Create a mock context manager for the database
+    mock_db_context = MagicMock()
+    mock_db_context.__enter__ = MagicMock(return_value=(MagicMock(), MagicMock()))
+    mock_db_context.__exit__ = MagicMock(return_value=False)
+
     with (
         patch.object(cli_manager, "verbosity_handler"),
         patch.object(cli_manager, "wallet_ask") as mock_wallet_ask,
         patch.object(cli_manager, "initialize_chain") as mock_init_chain,
         patch.object(cli_manager, "_run_command") as mock_run_command,
         patch("bittensor_cli.cli.proxy_commands.reject_announcement"),
+        patch("bittensor_cli.cli.ProxyAnnouncements.get_db", return_value=mock_db_context),
     ):
         mock_wallet = Mock()
+        mock_wallet.coldkeypub = Mock()
+        mock_wallet.coldkeypub.ss58_address = "5GDelegate..."
         mock_wallet_ask.return_value = mock_wallet
         mock_subtensor = Mock()
         mock_init_chain.return_value = mock_subtensor
