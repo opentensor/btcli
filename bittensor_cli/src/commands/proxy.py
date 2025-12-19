@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Optional
 import sys
 
 from async_substrate_interface.errors import StateDiscardedError
-from rich.prompt import Prompt, FloatPrompt, IntPrompt, Confirm
+from rich.prompt import Prompt, FloatPrompt, IntPrompt
 from scalecodec import GenericCall, ScaleBytes
 
 from bittensor_cli.src import COLORS
