@@ -11,7 +11,7 @@ import json
 import pytest
 import re
 
-from tests.e2e_tests.utils import execute_turn_off_hyperparam_freeze_window
+from ..e2e_tests.utils import execute_turn_off_hyperparam_freeze_window
 
 
 @pytest.mark.parametrize("local_chain", [None], indirect=True)
