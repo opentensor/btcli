@@ -522,7 +522,7 @@ def test_staking(local_chain, wallet_setup):
     assert "stake to netuid 3" in add_stake_prompted.stdout
     assert "remaining balance" in add_stake_prompted.stdout
 
-    # TODO: Parse and verify the final staking output
+    # TODO: Parse and verify the final staking json output
     # add_stake_prompted_output = json.loads(add_stake_prompted.stdout)
     # for netuid_ in multiple_netuids:
 
