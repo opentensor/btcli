@@ -9506,7 +9506,12 @@ class CLIManager:
 
     def proxy_execute_announced(
         self,
-        proxy: str = Options.proxy,
+        proxy: str = typer.Option(
+            "--proxy",
+            help="Optional proxy to use for the transaction: either the SS58 or the name of the proxy if you "
+            f"have added it with {arg__('btcli config add-proxy')}.",
+            prompt=True,
+        ),
         real: Optional[str] = Options.real_proxy,
         delegate: Optional[str] = typer.Option(
             None,
