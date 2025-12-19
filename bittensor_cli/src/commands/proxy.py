@@ -541,7 +541,7 @@ async def execute_announced(
     """
     if prompt and created_block is not None:
         current_block = await subtensor.substrate.get_block_number()
-        if current_block - delay > created_block:
+        if current_block - delay < created_block:
             if not confirm_action(
                 f"The delay for this account is set to {delay} blocks, but the call was created"
                 f" at block {created_block}. It is currently only {current_block}. The call will likely fail."
