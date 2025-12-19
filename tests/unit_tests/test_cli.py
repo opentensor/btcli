@@ -11,6 +11,11 @@ from bittensor_cli.src.bittensor.extrinsics.root import (
 from unittest.mock import AsyncMock, patch, MagicMock, Mock
 
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
+from bittensor_cli.src.commands.proxy import (
+    list_proxies,
+    remove_all_proxies,
+    reject_announcement,
+)
 
 
 def test_parse_mnemonic():
@@ -815,8 +820,6 @@ async def test_set_root_weights_skips_current_weights_without_prompt():
 @pytest.mark.asyncio
 async def test_list_proxies_success():
     """Test that list_proxies correctly queries and displays proxies"""
-    from bittensor_cli.src.commands.proxy import list_proxies
-
     mock_subtensor = AsyncMock()
 
     # Mock the query result - list_proxies uses subtensor.query() not substrate.query
@@ -852,8 +855,6 @@ async def test_list_proxies_success():
 @pytest.mark.asyncio
 async def test_list_proxies_json_output():
     """Test that list_proxies outputs JSON correctly"""
-    from bittensor_cli.src.commands.proxy import list_proxies
-
     mock_subtensor = AsyncMock()
 
     # Mock the query result - list_proxies uses subtensor.query()
@@ -883,8 +884,6 @@ async def test_list_proxies_json_output():
 @pytest.mark.asyncio
 async def test_list_proxies_empty():
     """Test that list_proxies handles empty proxy list"""
-    from bittensor_cli.src.commands.proxy import list_proxies
-
     mock_subtensor = AsyncMock()
 
     # Mock the query result - empty proxies list
@@ -905,8 +904,6 @@ async def test_list_proxies_empty():
 @pytest.mark.asyncio
 async def test_list_proxies_error_handling():
     """Test that list_proxies handles errors gracefully"""
-    from bittensor_cli.src.commands.proxy import list_proxies
-
     mock_subtensor = AsyncMock()
     mock_subtensor.query = AsyncMock(side_effect=Exception("Connection error"))
 
@@ -930,8 +927,6 @@ async def test_list_proxies_error_handling():
 @pytest.mark.asyncio
 async def test_remove_all_proxies_success():
     """Test that remove_all_proxies successfully removes all proxies"""
-    from bittensor_cli.src.commands.proxy import remove_all_proxies
-
     mock_subtensor = MagicMock()
     mock_substrate = AsyncMock()
     mock_subtensor.substrate = mock_substrate
@@ -981,8 +976,6 @@ async def test_remove_all_proxies_success():
 @pytest.mark.asyncio
 async def test_remove_all_proxies_with_prompt_declined():
     """Test that remove_all_proxies exits when user declines prompt"""
-    from bittensor_cli.src.commands.proxy import remove_all_proxies
-
     mock_subtensor = MagicMock()
     mock_wallet = MagicMock()
 
@@ -1008,8 +1001,6 @@ async def test_remove_all_proxies_with_prompt_declined():
 @pytest.mark.asyncio
 async def test_remove_all_proxies_unlock_failure():
     """Test that remove_all_proxies handles wallet unlock failure"""
-    from bittensor_cli.src.commands.proxy import remove_all_proxies
-
     mock_subtensor = MagicMock()
     mock_wallet = MagicMock()
 
@@ -1043,8 +1034,6 @@ async def test_remove_all_proxies_unlock_failure():
 @pytest.mark.asyncio
 async def test_reject_announcement_success():
     """Test that reject_announcement successfully rejects an announcement"""
-    from bittensor_cli.src.commands.proxy import reject_announcement
-
     mock_subtensor = MagicMock()
     mock_substrate = AsyncMock()
     mock_subtensor.substrate = mock_substrate
@@ -1099,8 +1088,6 @@ async def test_reject_announcement_success():
 @pytest.mark.asyncio
 async def test_reject_announcement_json_output():
     """Test that reject_announcement outputs JSON correctly"""
-    from bittensor_cli.src.commands.proxy import reject_announcement
-
     mock_subtensor = MagicMock()
     mock_substrate = AsyncMock()
     mock_subtensor.substrate = mock_substrate
@@ -1149,8 +1136,6 @@ async def test_reject_announcement_json_output():
 @pytest.mark.asyncio
 async def test_reject_announcement_with_prompt_declined():
     """Test that reject_announcement exits when user declines prompt"""
-    from bittensor_cli.src.commands.proxy import reject_announcement
-
     mock_subtensor = MagicMock()
     mock_wallet = MagicMock()
 
@@ -1179,8 +1164,6 @@ async def test_reject_announcement_with_prompt_declined():
 @pytest.mark.asyncio
 async def test_reject_announcement_failure():
     """Test that reject_announcement handles extrinsic failure"""
-    from bittensor_cli.src.commands.proxy import reject_announcement
-
     mock_subtensor = MagicMock()
     mock_substrate = AsyncMock()
     mock_subtensor.substrate = mock_substrate
