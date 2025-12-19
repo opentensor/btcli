@@ -420,7 +420,8 @@ async def unstake(
                         batch_err_msg = mev_error
 
                 if batch_success:
-                    await print_extrinsic_id(batch_receipt)
+                    if not json_output:
+                        await print_extrinsic_id(batch_receipt)
                     batch_ext_id = await batch_receipt.get_extrinsic_identifier()
 
                     # Fetch updated balances for display
@@ -822,7 +823,8 @@ async def unstake_all(
                         batch_err_msg = mev_error
 
                 if batch_success:
-                    await print_extrinsic_id(batch_receipt)
+                    if not json_output:
+                        await print_extrinsic_id(batch_receipt)
                     batch_ext_id = await batch_receipt.get_extrinsic_identifier()
 
                     # Fetch updated balances for display
