@@ -511,7 +511,7 @@ def test_staking(local_chain, wallet_setup):
             "--era",
             "32",
             "--json-output",
-            "--no-prompt"
+            "--no-prompt",
             # Note: No --amount flag, will trigger prompts
         ],
         inputs=["50", "30"],  # 50 TAO for netuid 2, 30 TAO for netuid 3
