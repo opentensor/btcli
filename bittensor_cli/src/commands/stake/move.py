@@ -15,7 +15,6 @@ from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
-    err_console,
     print_error,
     group_subnets,
     get_subnet_name,
@@ -532,8 +531,8 @@ async def move_stake(
     # Check enough to move.
     amount_to_move_as_balance.set_unit(origin_netuid)
     if amount_to_move_as_balance > origin_stake_balance:
-        err_console.print(
-            f"[red]Not enough stake[/red]:\n"
+        print_error(
+            f"Not enough stake:\n"
             f" Stake balance: [{COLOR_PALETTE.S.AMOUNT}]{origin_stake_balance}[/{COLOR_PALETTE.S.AMOUNT}]"
             f" < Moving amount: [{COLOR_PALETTE.S.AMOUNT}]{amount_to_move_as_balance}[/{COLOR_PALETTE.S.AMOUNT}]"
         )
@@ -615,7 +614,7 @@ async def move_stake(
             )
             if not mev_success:
                 status.stop()
-                err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
+                print_error(f"\nFailed: {mev_error}")
                 return False, ""
         await print_extrinsic_id(response)
         if not prompt:
@@ -654,7 +653,7 @@ async def move_stake(
             )
             return True, ext_id
     else:
-        err_console.print(f"\n:cross_mark: [red]Failed[/red] with error: {err_msg}")
+        print_error(f"\nFailed with error: {err_msg}")
         return False, ""
 
 
@@ -712,11 +711,11 @@ async def transfer_stake(
         subtensor.subnet_exists(netuid=origin_netuid, block_hash=block_hash),
     )
     if not dest_exists:
-        err_console.print(f"[red]Subnet {dest_netuid} does not exist[/red]")
+        print_error(f"Subnet {dest_netuid} does not exist")
         return False, ""
 
     if not origin_exists:
-        err_console.print(f"[red]Subnet {origin_netuid} does not exist[/red]")
+        print_error(f"Subnet {origin_netuid} does not exist")
         return False, ""
 
     # Get current stake balances
@@ -734,8 +733,8 @@ async def transfer_stake(
         )
 
     if current_stake.tao == 0:
-        err_console.print(
-            f"[red]No stake found for hotkey: {origin_hotkey} on netuid: {origin_netuid}[/red]"
+        print_error(
+            f"No stake found for hotkey: {origin_hotkey} on netuid: {origin_netuid}"
         )
         return False, ""
 
@@ -750,8 +749,8 @@ async def transfer_stake(
 
     # Check if enough stake to transfer
     if amount_to_transfer > current_stake:
-        err_console.print(
-            f"[red]Not enough stake to transfer[/red]:\n"
+        print_error(
+            f"Not enough stake to transfer:\n"
             f"Stake balance: [{COLOR_PALETTE.S.STAKE_AMOUNT}]{current_stake}[/{COLOR_PALETTE.S.STAKE_AMOUNT}] < "
             f"Transfer amount: [{COLOR_PALETTE.S.STAKE_AMOUNT}]{amount_to_transfer}[/{COLOR_PALETTE.S.STAKE_AMOUNT}]"
         )
@@ -831,7 +830,7 @@ async def transfer_stake(
                 )
                 if not mev_success:
                     status.stop()
-                    err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
+                    print_error(f"\nFailed: {mev_error}")
                     return False, ""
             await print_extrinsic_id(response)
             ext_id = await response.get_extrinsic_identifier()
@@ -864,7 +863,7 @@ async def transfer_stake(
                 return True, ext_id
 
         else:
-            err_console.print(f":cross_mark: [red]Failed[/red] with error: {err_msg}")
+            print_error(f"Failed with error: {err_msg}")
             return False, ""
 
 
@@ -924,11 +923,11 @@ async def swap_stake(
         subtensor.subnet_exists(netuid=origin_netuid, block_hash=block_hash),
     )
     if not dest_exists:
-        err_console.print(f"[red]Subnet {destination_netuid} does not exist[/red]")
+        print_error(f"Subnet {destination_netuid} does not exist")
         return False, ""
 
     if not origin_exists:
-        err_console.print(f"[red]Subnet {origin_netuid} does not exist[/red]")
+        print_error(f"Subnet {origin_netuid} does not exist")
         return False, ""
 
     # Get current stake balances
@@ -951,8 +950,8 @@ async def swap_stake(
 
     # Check if enough stake to swap
     if amount_to_swap > current_stake:
-        err_console.print(
-            f"[red]Not enough stake to swap[/red]:\n"
+        print_error(
+            f"Not enough stake to swap:\n"
             f"Stake balance: [{COLOR_PALETTE.S.STAKE_AMOUNT}]{current_stake}[/{COLOR_PALETTE.S.STAKE_AMOUNT}] < "
             f"Swap amount: [{COLOR_PALETTE.S.STAKE_AMOUNT}]{amount_to_swap}[/{COLOR_PALETTE.S.STAKE_AMOUNT}]"
         )
@@ -1038,7 +1037,7 @@ async def swap_stake(
                 )
                 if not mev_success:
                     status.stop()
-                    err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
+                    print_error(f"\nFailed: {mev_error}")
                     return False, ""
             await print_extrinsic_id(response)
             if not prompt:
@@ -1070,5 +1069,5 @@ async def swap_stake(
                 return True, ext_id
 
         else:
-            err_console.print(f":cross_mark: [red]Failed[/red] with error: {err_msg}")
+            print_error(f"Failed with error: {err_msg}")
             return False, ""

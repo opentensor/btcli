@@ -30,7 +30,6 @@ from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
     create_and_populate_table,
-    err_console,
     print_verbose,
     print_error,
     get_metadata_table,
@@ -171,7 +170,7 @@ async def register_subnetwork_extrinsic(
     print_verbose("Fetching burn_cost")
     sn_burn_cost = await burn_cost(subtensor)
     if sn_burn_cost > your_balance:
-        err_console.print(
+        print_error(
             f"Your balance of: [{COLOR_PALETTE.POOLS.TAO}]{your_balance}[{COLOR_PALETTE.POOLS.TAO}]"
             f" is not enough to burn "
             f"[{COLOR_PALETTE.POOLS.TAO}]{sn_burn_cost}[{COLOR_PALETTE.POOLS.TAO}] "
@@ -229,8 +228,8 @@ async def register_subnetwork_extrinsic(
         for field, value in identity_data.items():
             max_size = 64  # bytes
             if len(value) > max_size:
-                err_console.print(
-                    f"[red]Error:[/red] Identity field [white]{field}[/white] must be <= {max_size} bytes.\n"
+                print_error(
+                    f"Error: Identity field [white]{field}[/white] must be <= {max_size} bytes.\n"
                     f"Value '{value.decode()}' is {len(value)} bytes."
                 )
                 return False, None, None
@@ -265,7 +264,7 @@ async def register_subnetwork_extrinsic(
             return True, None, None
 
         if not success:
-            err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+            print_error(f"Failed: {err_msg}")
             return False, None, None
         else:
             # Check for MEV shield execution
@@ -281,8 +280,8 @@ async def register_subnetwork_extrinsic(
                 )
                 if not mev_success:
                     status.stop()
-                    err_console.print(
-                        f":cross_mark: [red]Failed[/red]: MEV execution failed: {mev_error}"
+                    print_error(
+                        f"Failed: MEV execution failed: {mev_error}"
                     )
                     return False, None, None
 
@@ -1088,11 +1087,11 @@ async def show(
             return False
 
         if root_state is None:
-            err_console.print("The root subnet does not exist")
+            print_error("The root subnet does not exist")
             return
 
         if len(root_state.hotkeys) == 0:
-            err_console.print(
+            print_error(
                 "The root-subnet is currently empty with 0 UIDs registered."
             )
             return
@@ -1299,7 +1298,7 @@ async def show(
         with console.status(":satellite: Retrieving subnet information..."):
             block_hash = await subtensor.substrate.get_chain_head()
             if not await subtensor.subnet_exists(netuid=netuid_, block_hash=block_hash):
-                err_console.print(f"[red]Subnet {netuid_} does not exist[/red]")
+                print_error(f"Subnet {netuid_} does not exist")
                 return False
             (
                 subnet_info,
@@ -1719,8 +1718,8 @@ async def burn_cost(
                     )
                 )
             else:
-                err_console.print(
-                    "Subnet burn cost: [red]Failed to get subnet burn cost[/red]"
+                print_error(
+                    "Subnet burn cost: Failed to get subnet burn cost"
                 )
             return None
 
@@ -1777,7 +1776,7 @@ async def create(
                     decline=decline,
                     quiet=quiet,
                 ):
-                    console.print(":cross_mark: Aborted!")
+                    print_error("Aborted!")
                     return False
 
             identity = prompt_for_identity(
@@ -1864,7 +1863,7 @@ async def register(
     print_verbose("Checking subnet status")
     block_hash = await subtensor.substrate.get_chain_head()
     if not await subtensor.subnet_exists(netuid=netuid, block_hash=block_hash):
-        err_console.print(f"[red]Subnet {netuid} does not exist[/red]")
+        print_error(f"Subnet {netuid} does not exist")
         if json_output:
             json_console.print_json(
                 data={
@@ -1890,7 +1889,7 @@ async def register(
     # Check balance is sufficient
     if balance < current_recycle:
         err_msg = f"Insufficient balance {balance} to register neuron. Current recycle is {current_recycle} TAO"
-        err_console.print(f"[red]{err_msg}[/red]")
+        print_error(err_msg)
         if json_output:
             json_console.print_json(
                 data={"success": False, "msg": err_msg, "extrinsic_identifier": None}
@@ -1977,7 +1976,7 @@ async def register(
             proxy=proxy,
         )
     if not success:
-        err_console.print(f":cross_mark:[red]Failure[/red]: {msg}")
+        print_error(f"Failure: {msg}")
         print_verbose("Checking registration allowed and limits")
         storage_key_results, current_block = await asyncio.gather(
             subtensor.substrate.query_multi(
@@ -2000,8 +1999,8 @@ async def register(
         ) = [x[1] for x in storage_key_results]
 
         if not registration_allowed:
-            err_console.print(
-                f"[red]Registration to subnet {netuid} is not allowed[/red]"
+            print_error(
+                f"Registration to subnet {netuid} is not allowed"
             )
             if json_output:
                 json_console.print_json(
@@ -2016,8 +2015,8 @@ async def register(
         if registrations_this_interval >= target_registrations_per_interval * 3:
             next_adjustment_block = last_adjustment_block + adjustment_interval
             remaining_blocks = next_adjustment_block - current_block
-            err_console.print(
-                f"[red]Registration to subnet {netuid} is full for this interval.[/red] "
+            print_error(
+                f"Registration to subnet {netuid} is full for this interval. "
                 f"Try again in {remaining_blocks} blocks."
             )
             if json_output:
@@ -2208,8 +2207,8 @@ async def metagraph_cmd(
             metadata_info = get_metadata_table("metagraph")
             table_data = json.loads(metadata_info["table_data"])
         except sqlite3.OperationalError:
-            err_console.print(
-                "[red]Error[/red] Unable to retrieve table data. This is usually caused by attempting to use "
+            print_error(
+                "Error: Unable to retrieve table data. This is usually caused by attempting to use "
                 "`--reuse-last` before running the command a first time. In rare cases, this could also be due to "
                 "a corrupted database. Re-run the command (do not use `--reuse-last`) and see if that resolves your "
                 "issue."
@@ -2296,8 +2295,8 @@ async def metagraph_cmd(
                 ],
             )
         except sqlite3.OperationalError:
-            err_console.print(
-                "[red]Error[/red] Unable to retrieve table data. This may indicate that your database is corrupted, "
+            print_error(
+                "Error: Unable to retrieve table data. This may indicate that your database is corrupted, "
                 "or was not able to load with the most recent data."
             )
             return
@@ -2590,7 +2589,7 @@ async def set_identity(
         sn_exists = await subtensor.subnet_exists(netuid)
 
     if not sn_exists:
-        err_console.print(f"Subnet {netuid} does not exist")
+        print_error(f"Subnet {netuid} does not exist")
         return False, None
 
     identity_data = {
@@ -2631,7 +2630,7 @@ async def set_identity(
         )
 
         if not success:
-            err_console.print(f"[red]:cross_mark: Failed![/red] {err_msg}")
+            print_error(f"Failed: {err_msg}")
             return False, None
         ext_id = await ext_receipt.get_extrinsic_identifier()
         await print_extrinsic_id(ext_receipt)
@@ -2683,7 +2682,7 @@ async def get_identity(
         identity = subnet.subnet_identity if subnet else None
 
     if not identity:
-        err_console.print(
+        print_error(
             f"Existing subnet identity not found"
             f" for subnet [blue]{netuid}[/blue]"
             f" on {subtensor}"
@@ -2788,7 +2787,7 @@ async def start_subnet(
     )
     # TODO should this check against proxy as well?
     if subnet_owner != coldkey_ss58:
-        print_error(":cross_mark: This wallet doesn't own the specified subnet.")
+        print_error("This wallet doesn't own the specified subnet.")
         return False
 
     if prompt:
@@ -2832,7 +2831,7 @@ async def start_subnet(
                 return True
 
             await get_start_schedule(subtensor, netuid)
-            print_error(f":cross_mark: Failed to start subnet: {error_msg}")
+            print_error(f"Failed to start subnet: {error_msg}")
             return False
 
 
@@ -2861,7 +2860,7 @@ async def set_symbol(
                 data={"success": False, "message": err, "extrinsic_identifier": None}
             )
         else:
-            err_console.print(err)
+            print_error(err)
         return False
 
     if prompt and not json_output:
@@ -2916,5 +2915,5 @@ async def set_symbol(
                 }
             )
         else:
-            err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+            print_error(f"Failed: {err_msg}")
         return False
