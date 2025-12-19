@@ -740,6 +740,12 @@ def test_stake_add_multiple_netuids_with_prompts(local_chain, wallet_setup):
             command="subnets",
             sub_command="create",
             extra_args=[
+                "--wallet-path",
+                wallet_path_alice,
+                "--wallet-name",
+                wallet_alice.name,
+                "--wallet-hotkey",
+                wallet_alice.hotkey_str,
                 "--chain",
                 "ws://127.0.0.1:9945",
                 "--subnet-name",
