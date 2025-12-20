@@ -10,7 +10,7 @@ from bittensor_wallet import Wallet
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
-    err_console,
+    print_error,
     format_error_message,
     unlock_key,
     print_extrinsic_id,
@@ -120,7 +120,7 @@ async def reset_axon_extrinsic(
             success = await response.is_success
             if not success:
                 error_msg = format_error_message(await response.error_message)
-                err_console.print(f":cross_mark: [red]Failed[/red]: {error_msg}")
+                print_error(f"Failed: {error_msg}")
                 return False, error_msg, None
             else:
                 ext_id = await response.get_extrinsic_identifier()
@@ -132,9 +132,7 @@ async def reset_axon_extrinsic(
 
         except Exception as e:
             error_message = format_error_message(e)
-            err_console.print(
-                f":cross_mark: [red]Failed to reset axon: {error_message}[/red]"
-            )
+            print_error(f"Failed to reset axon: {error_message}")
             return False, error_message, None
 
 
@@ -240,7 +238,7 @@ async def set_axon_extrinsic(
             success = await response.is_success
             if not success:
                 error_msg = format_error_message(await response.error_message)
-                err_console.print(f":cross_mark: [red]Failed[/red]: {error_msg}")
+                print_error(f"Failed: {error_msg}")
                 return False, error_msg, None
             else:
                 ext_id = await response.get_extrinsic_identifier()
@@ -252,7 +250,5 @@ async def set_axon_extrinsic(
 
         except Exception as e:
             error_message = format_error_message(e)
-            err_console.print(
-                f":cross_mark: [red]Failed to set axon: {error_message}[/red]"
-            )
+            print_error(f"Failed to set axon: {error_message}")
             return False, error_message, None
