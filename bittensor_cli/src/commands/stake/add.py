@@ -351,10 +351,8 @@ async def stake_add(
     remaining_wallet_balance = current_wallet_balance
     max_slippage = 0.0
 
-    # Convert amount to a list if it's a list, otherwise use single amount for all netuids
-    amount_list = None
+    amount_list = []
     if isinstance(amount, list):
-        # amount is a list of amounts per netuid
         amount_list = amount
 
     for hotkey in hotkeys_to_stake_to:
@@ -383,15 +381,6 @@ async def stake_add(
                     action_name="stake",
                 )
             amounts_to_stake.append(amount_to_stake)
-
-            # Check enough to stake.
-            if amount_to_stake > remaining_wallet_balance:
-                err_console.print(
-                    f"[red]Not enough stake[/red]:[bold white]\n wallet balance:{remaining_wallet_balance} < "
-                    f"staking amount: {amount_to_stake}[/bold white]"
-                )
-                return
-            remaining_wallet_balance -= amount_to_stake
 
             # Calculate slippage
             # TODO: Update for V3, slippage calculation is significantly different in v3
@@ -444,6 +433,18 @@ async def stake_add(
                     safe_staking_=safe_staking,
                 )
                 row_extension = []
+            
+            # Check enough balance to cover stake amount and extrinsic fee
+            total_cost = amount_to_stake + extrinsic_fee if not proxy else amount_to_stake
+            if total_cost > remaining_wallet_balance:
+                err_console.print(
+                    f"[red]Not enough stake[/red]:[bold white]\n wallet balance:{remaining_wallet_balance} < "
+                    f"staking amount: {amount_to_stake}[/bold white]"
+                )
+                return
+            
+            # Deduct stake amount and extrinsic fee from remaining balance
+            remaining_wallet_balance -= total_cost
             # TODO this should be asyncio gathered before the for loop
             amount_minus_fee = (
                 (amount_to_stake - extrinsic_fee) if not proxy else amount_to_stake
