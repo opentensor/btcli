@@ -541,6 +541,52 @@ def test_staking(local_chain, wallet_setup):
     #         f"Extrinsic ID should be a string for netuid {netuid_}"
     #     )
 
+    # Test staking with --amounts option for different amounts per netuid
+    add_stake_amounts = exec_command_alice(
+        command="stake",
+        sub_command="add",
+        extra_args=[
+            "--netuids",
+            ",".join(str(x) for x in multiple_netuids),
+            "--amounts",
+            "25,15",  # 25 TAO for netuid 2, 15 TAO for netuid 3
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--hotkey",
+            wallet_alice.hotkey_str,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--tolerance",
+            "0.1",
+            "--partial",
+            "--era",
+            "32",
+            "--json-output",
+            "--no-prompt",
+        ],
+    )
+
+    # Parse and verify the staking results for --amounts
+    add_stake_amounts_output = json.loads(add_stake_amounts.stdout)
+    for netuid_ in multiple_netuids:
+
+        def line_amounts(key: str) -> Union[str, bool]:
+            return add_stake_amounts_output[key][str(netuid_)][
+                wallet_alice.hotkey.ss58_address
+            ]
+
+        assert line_amounts("staking_success") is True, (
+            f"Staking with --amounts to netuid {netuid_} should succeed"
+        )
+        assert line_amounts("error_messages") == "", (
+            f"No error messages expected for netuid {netuid_} with --amounts"
+        )
+        assert isinstance(line_amounts("extrinsic_ids"), str), (
+            f"Extrinsic ID should be a string for netuid {netuid_} with --amounts"
+        )
+
     # Fetch the hyperparameters of the subnet
     hyperparams = exec_command_alice(
         command="sudo",
