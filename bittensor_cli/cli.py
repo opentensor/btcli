@@ -5670,6 +5670,12 @@ class CLIManager:
 
         2. Swap stake without MEV protection:
             [green]$[/green] btcli stake swap --origin-netuid 1 --dest-netuid 2 --amount 100 --no-mev-protection
+
+        3. Swap stake with custom tolerance and partial stake:
+            [green]$[/green] btcli stake swap --origin-netuid 1 --dest-netuid 2 --amount 100 --rate-tolerance 0.01 --allow-partial-stake
+
+        4. Swap stake without safe staking:
+            [green]$[/green] btcli stake swap --origin-netuid 1 --dest-netuid 2 --amount 100 --unsafe
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
@@ -5704,7 +5710,7 @@ class CLIManager:
         if safe_staking:
             rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
             allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
-            
+
         logger.debug(
             "args:\n"
             f"network: {network}\n"
