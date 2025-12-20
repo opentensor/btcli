@@ -48,8 +48,17 @@ async def get_movement_pricing(
     rate_tolerance: Optional[float] = None,
 ) -> MovementPricing:
     """
-    Returns pricing information for stake movement commands
-    based on the origin and destination subnets.
+    Returns pricing information for stake movement commands based on the origin and destination subnets.
+
+    Args:
+        subtensor: SubtensorInterface instance.
+        origin_netuid: The netuid of the origin subnet.
+        destination_netuid: The netuid of the destination subnet.
+        safe_staking: Whether to enable safe staking with slippage protection.
+        rate_tolerance: The accepted rate tolerance (slippage) for safe staking.
+
+    Returns:
+        MovementPricing: Object containing pricing details like rates and limits.
     """
     if origin_netuid == destination_netuid:
         subnet = await subtensor.subnet(origin_netuid)
@@ -95,7 +104,26 @@ async def display_stake_movement_cross_subnets(
     allow_partial_stake: bool = False,
     proxy: Optional[str] = None,
 ) -> tuple[Balance, str]:
-    """Calculate and display stake movement information"""
+    """Calculate and display stake movement information.
+
+    Args:
+        subtensor: SubtensorInterface instance.
+        origin_netuid: The netuid of the origin subnet.
+        destination_netuid: The netuid of the destination subnet.
+        origin_hotkey: The origin hotkey SS58 address.
+        destination_hotkey: The destination hotkey SS58 address.
+        amount_to_move: The amount of stake to move/swap.
+        pricing: Pricing information including rates and limits.
+        stake_fee: The fee for the stake transaction.
+        extrinsic_fee: The fee for the extrinsic execution.
+        safe_staking: Whether to enable safe staking.
+        rate_tolerance: The accepted rate tolerance.
+        allow_partial_stake: Whether to allow partial execution if the full amount cannot be staked within limits.
+        proxy: Optional proxy address.
+
+    Returns:
+        tuple[Balance, str]: The estimated amount received and the formatted price string.
+    """
 
     if origin_netuid == destination_netuid:
         subnet = pricing.origin_subnet
@@ -977,6 +1005,9 @@ async def swap_stake(
         origin_netuid: The netuid from which stake is removed.
         destination_netuid: The netuid to which stake is added.
         amount: The amount to swap.
+        safe_staking: Whether to use safe staking with slippage limits.
+        rate_tolerance: The maximum slippage tolerance (e.g., 0.05 for 5%).
+        allow_partial_stake: Whether to execute the swap partially if the full amount exceeds slippage limits.
         swap_all: Whether to swap all stakes.
         era: The period (number of blocks) that the extrinsic is valid for
         proxy: Optional proxy to use for this extrinsic submission
