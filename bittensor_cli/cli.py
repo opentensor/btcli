@@ -5765,6 +5765,9 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         period: int = Options.period,
         mev_protection: bool = Options.mev_protection,
+        rate_tolerance: Optional[float] = Options.rate_tolerance,
+        safe_staking: Optional[bool] = Options.safe_staking,
+        allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
         prompt: bool = Options.prompt,
         decline: bool = Options.decline,
         quiet: bool = Options.quiet,
@@ -5868,6 +5871,10 @@ class CLIManager:
             )
         elif operation == "swap":
             # Execute swap operation
+            safe_staking = self.ask_safe_staking(safe_staking)
+            if safe_staking:
+                rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
+                allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
             result, ext_id = self._run_command(
                 move_stake.swap_stake(
                     wallet=wallet,
@@ -5876,6 +5883,9 @@ class CLIManager:
                     destination_netuid=wizard_result["destination_netuid"],
                     amount=wizard_result.get("amount"),
                     swap_all=False,
+                    safe_staking=safe_staking,
+                    rate_tolerance=rate_tolerance,
+                    allow_partial_stake=allow_partial_stake,
                     era=period,
                     interactive_selection=False,
                     prompt=prompt,
