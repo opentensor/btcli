@@ -40,6 +40,47 @@ class MovementPricing:
     rate_with_tolerance: Optional[float]
 
 
+async def get_movement_pricing(
+    subtensor: "SubtensorInterface",
+    origin_netuid: int,
+    destination_netuid: int,
+    safe_staking: bool = False,
+    rate_tolerance: Optional[float] = None,
+) -> MovementPricing:
+    """
+    Returns pricing information for stake movement commands
+    based on the origin and destination subnets.
+    """
+    if origin_netuid == destination_netuid:
+        subnet = await subtensor.subnet(origin_netuid)
+        return MovementPricing(
+            origin_subnet=subnet,
+            destination_subnet=subnet,
+            rate=1.0,
+            rate_with_tolerance=None,
+        )
+
+    origin_subnet, destination_subnet = await asyncio.gather(
+        subtensor.subnet(origin_netuid),
+        subtensor.subnet(destination_netuid),
+    )
+    price_origin = origin_subnet.price.tao
+    price_destination = destination_subnet.price.tao
+    rate = price_origin / (price_destination or 1)
+    rate_with_tolerance = None
+    if safe_staking:
+        effective_tolerance = rate_tolerance or 0
+        limit_rate = rate * (1 - effective_tolerance)
+        rate_with_tolerance = limit_rate
+
+    return MovementPricing(
+        origin_subnet=origin_subnet,
+        destination_subnet=destination_subnet,
+        rate=rate,
+        rate_with_tolerance=rate_with_tolerance,
+    )
+
+
 async def display_stake_movement_cross_subnets(
     subtensor: "SubtensorInterface",
     origin_netuid: int,
