@@ -1,5 +1,6 @@
 import asyncio
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet
@@ -25,11 +26,20 @@ from bittensor_cli.src.bittensor.utils import (
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
+    from bittensor_cli.src.bittensor.chain_data import DynamicInfo
 
 MIN_STAKE_FEE = Balance.from_rao(50_000)
 
 
 # Helpers
+@dataclass(frozen=True)
+class MovementPricing:
+    origin_subnet: "DynamicInfo"
+    destination_subnet: "DynamicInfo"
+    rate: float
+    rate_with_tolerance: Optional[float]
+
+
 async def display_stake_movement_cross_subnets(
     subtensor: "SubtensorInterface",
     origin_netuid: int,
