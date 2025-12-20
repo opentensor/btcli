@@ -11,7 +11,7 @@ from async_substrate_interface.errors import SubstrateRequestException
 
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
-    err_console,
+    print_error,
     console,
     format_error_message,
     json_console,
@@ -146,7 +146,7 @@ class SetWeightsExtrinsic:
                 commit_hash=commit_hash
             )
         except SubstrateRequestException as e:
-            err_console.print(f"Error committing weights: {format_error_message(e)}")
+            print_error(f"Error committing weights: {format_error_message(e)}")
             # bittensor.logging.error(f"Error committing weights: {e}")
             success = False
             message = "No attempt made. Perhaps it is too soon to commit weights!"
@@ -212,7 +212,7 @@ class SetWeightsExtrinsic:
             async with self.subtensor:
                 return await self.reveal(weight_uids, weight_vals)
         else:
-            console.print(f":cross_mark: [red]Failed[/red]: error:{commit_msg}")
+            print_error(f"Failed: error:{commit_msg}")
             # bittensor.logging.error(msg=commit_msg, prefix="Set weights with hash commit",
             #                         suffix=f"<red>Failed: {commit_msg}</red>")
             return False, f"Failed to commit weights hash. {commit_msg}", None
@@ -417,7 +417,7 @@ async def reveal_weights(
         if success:
             console.print("Weights revealed successfully")
         else:
-            err_console.print(f"Failed to reveal weights: {message}")
+            print_error(f"Failed to reveal weights: {message}")
 
 
 async def commit_weights(
@@ -467,4 +467,4 @@ async def commit_weights(
         if success:
             console.print("Weights set successfully")
         else:
-            err_console.print(f"Failed to commit weights: {message}")
+            print_error(f"Failed to commit weights: {message}")
