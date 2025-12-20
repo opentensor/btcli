@@ -464,14 +464,13 @@ async def stake_swap_selection(
         width=len(hotkey_ss58) + 20,
     )
 
-    table.add_column("Index", justify="right", style="cyan")
     table.add_column("Netuid", style=COLOR_PALETTE["GENERAL"]["NETUID"])
     table.add_column("Name", style="cyan", justify="left")
     table.add_column("Stake Amount", style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"])
     table.add_column("Registered", justify="center")
 
     available_netuids = []
-    for idx, (netuid, stake_info) in enumerate(sorted(hotkey_stakes.items())):
+    for netuid, stake_info in sorted(hotkey_stakes.items()):
         subnet_info = subnet_dict[netuid]
         subnet_name_cell = (
             f"[{COLOR_PALETTE.G.SYM}]{subnet_info.symbol if netuid != 0 else 'τ'}[/{COLOR_PALETTE.G.SYM}]"
@@ -480,7 +479,6 @@ async def stake_swap_selection(
 
         available_netuids.append(netuid)
         table.add_row(
-            str(idx),
             str(netuid),
             subnet_name_cell,
             str(stake_info["stake"]),
@@ -492,23 +490,24 @@ async def stake_swap_selection(
     console.print("\n", table)
 
     # Select origin netuid
-    origin_idx = Prompt.ask(
-        "\nEnter the index of the subnet you want to swap stake from",
-        choices=[str(i) for i in range(len(available_netuids))],
+    origin_netuid = Prompt.ask(
+        "\nEnter the netuid of the subnet you want to swap stake from"
+        + f" ([dim]{group_subnets(sorted(available_netuids))}[/dim])",
+        choices=[str(netuid) for netuid in available_netuids],
+        show_choices=False,
     )
-    origin_netuid = available_netuids[int(origin_idx)]
+    origin_netuid = int(origin_netuid)
     origin_stake = hotkey_stakes[origin_netuid]["stake"]
 
     # Ask for amount to swap
     amount, _ = prompt_stake_amount(origin_stake, origin_netuid, "swap")
 
     all_netuids = sorted(await subtensor.get_all_subnet_netuids())
-    destination_choices = [
-        str(netuid) for netuid in all_netuids if netuid != origin_netuid
-    ]
+    destination_netuids = [netuid for netuid in all_netuids if netuid != origin_netuid]
+    destination_choices = [str(netuid) for netuid in destination_netuids]
     destination_netuid = Prompt.ask(
         "\nEnter the netuid of the subnet you want to swap stake to"
-        + f" ([dim]{group_subnets(all_netuids)} (except {origin_netuid})[/dim])",
+        + f" ([dim]{group_subnets(destination_netuids)}[/dim])",
         choices=destination_choices,
         show_choices=False,
     )
