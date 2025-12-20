@@ -4670,7 +4670,9 @@ class CLIManager:
                 # Validate all amounts are positive
                 for amt in amounts_list:
                     if amt <= 0:
-                        print_error(f"All amounts must be positive. Invalid amount: {amt}")
+                        print_error(
+                            f"All amounts must be positive. Invalid amount: {amt}"
+                        )
                         return
             except Exception as e:
                 print_error(f"Failed to parse amounts: {e}")

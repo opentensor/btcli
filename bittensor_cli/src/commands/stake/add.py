@@ -433,16 +433,18 @@ async def stake_add(
                     safe_staking_=safe_staking,
                 )
                 row_extension = []
-            
+
             # Check enough balance to cover stake amount and extrinsic fee
-            total_cost = amount_to_stake + extrinsic_fee if not proxy else amount_to_stake
+            total_cost = (
+                amount_to_stake + extrinsic_fee if not proxy else amount_to_stake
+            )
             if total_cost > remaining_wallet_balance:
                 err_console.print(
                     f"[red]Not enough stake[/red]:[bold white]\n wallet balance:{remaining_wallet_balance} < "
                     f"staking amount: {amount_to_stake}[/bold white]"
                 )
                 return
-            
+
             # Deduct stake amount and extrinsic fee from remaining balance
             remaining_wallet_balance -= total_cost
             # TODO this should be asyncio gathered before the for loop
