@@ -1042,6 +1042,7 @@ async def swap_stake(
             f"Swap amount: [{COLOR_PALETTE.S.STAKE_AMOUNT}]{amount_to_swap}[/{COLOR_PALETTE.S.STAKE_AMOUNT}]"
         )
         return False, ""
+
     pricing = await get_movement_pricing(
         subtensor=subtensor,
         origin_netuid=origin_netuid,
@@ -1049,15 +1050,31 @@ async def swap_stake(
         safe_staking=safe_staking,
         rate_tolerance=rate_tolerance,
     )
-    call = await subtensor.substrate.compose_call(
-        call_module="SubtensorModule",
-        call_function="swap_stake",
-        call_params={
+
+    call_fn = "swap_stake"
+    call_params = {
         "hotkey": hotkey_ss58,
         "origin_netuid": origin_netuid,
         "destination_netuid": destination_netuid,
         "alpha_amount": amount_to_swap.rao,
-        },
+    }
+    if safe_staking:
+        if pricing.rate_with_tolerance is None:
+            print_error("Failed to compute a rate with tolerance for safe staking.")
+            return False, ""
+        limit_price = Balance.from_tao(pricing.rate_with_tolerance)
+        call_fn = "swap_stake_limit"
+        call_params.update(
+            {
+                "limit_price": limit_price.rao,
+                "allow_partial": allow_partial_stake,
+            }
+        )
+
+    call = await subtensor.substrate.compose_call(
+        call_module="SubtensorModule",
+        call_function=call_fn,
+        call_params=call_params,
     )
     sim_swap, extrinsic_fee, next_nonce = await asyncio.gather(
         subtensor.sim_swap(
