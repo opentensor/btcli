@@ -5641,6 +5641,9 @@ class CLIManager:
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
         mev_protection: bool = Options.mev_protection,
+        rate_tolerance: Optional[float] = Options.rate_tolerance,
+        safe_staking: Optional[bool] = Options.safe_staking,
+        allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -5667,6 +5670,12 @@ class CLIManager:
 
         2. Swap stake without MEV protection:
             [green]$[/green] btcli stake swap --origin-netuid 1 --dest-netuid 2 --amount 100 --no-mev-protection
+
+        3. Swap stake with custom tolerance and partial stake:
+            [green]$[/green] btcli stake swap --origin-netuid 1 --dest-netuid 2 --amount 100 --rate-tolerance 0.01 --allow-partial-stake
+
+        4. Swap stake without safe staking:
+            [green]$[/green] btcli stake swap --origin-netuid 1 --dest-netuid 2 --amount 100 --unsafe
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
@@ -5697,6 +5706,11 @@ class CLIManager:
                 )
             if not amount and not swap_all:
                 amount = FloatPrompt.ask("Enter the [blue]amount[/blue] to swap")
+        safe_staking = self.ask_safe_staking(safe_staking)
+        if safe_staking:
+            rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
+            allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
+
         logger.debug(
             "args:\n"
             f"network: {network}\n"
@@ -5708,6 +5722,9 @@ class CLIManager:
             f"proxy: {proxy}\n"
             f"interactive_selection: {interactive_selection}\n"
             f"prompt: {prompt}\n"
+            f"safe_staking: {safe_staking}\n"
+            f"rate_tolerance: {rate_tolerance}\n"
+            f"allow_partial_stake: {allow_partial_stake}\n"
             f"wait_for_inclusion: {wait_for_inclusion}\n"
             f"wait_for_finalization: {wait_for_finalization}\n"
             f"mev_protection: {mev_protection}\n"
@@ -5719,6 +5736,9 @@ class CLIManager:
                 origin_netuid=origin_netuid,
                 destination_netuid=dest_netuid,
                 amount=amount,
+                safe_staking=safe_staking,
+                rate_tolerance=rate_tolerance,
+                allow_partial_stake=allow_partial_stake,
                 swap_all=swap_all,
                 era=period,
                 interactive_selection=interactive_selection,
@@ -5745,6 +5765,9 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         period: int = Options.period,
         mev_protection: bool = Options.mev_protection,
+        rate_tolerance: Optional[float] = Options.rate_tolerance,
+        safe_staking: Optional[bool] = Options.safe_staking,
+        allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
         prompt: bool = Options.prompt,
         decline: bool = Options.decline,
         quiet: bool = Options.quiet,
@@ -5848,6 +5871,10 @@ class CLIManager:
             )
         elif operation == "swap":
             # Execute swap operation
+            safe_staking = self.ask_safe_staking(safe_staking)
+            if safe_staking:
+                rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
+                allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
             result, ext_id = self._run_command(
                 move_stake.swap_stake(
                     wallet=wallet,
@@ -5856,6 +5883,9 @@ class CLIManager:
                     destination_netuid=wizard_result["destination_netuid"],
                     amount=wizard_result.get("amount"),
                     swap_all=False,
+                    safe_staking=safe_staking,
+                    rate_tolerance=rate_tolerance,
+                    allow_partial_stake=allow_partial_stake,
                     era=period,
                     interactive_selection=False,
                     prompt=prompt,

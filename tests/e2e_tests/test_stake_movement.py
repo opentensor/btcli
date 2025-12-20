@@ -460,7 +460,8 @@ def test_stake_movement(local_chain, wallet_setup):
     if not alice_stakes_before_swap:
         pytest.fail("Stake not found in netuid 4 before swap")
 
-    # Swap stake from Alice's hotkey on netuid 4 -> Bob's hotkey on netuid 0
+    # Swap stake from Alice's hotkey on netuid 4 -> netuid 0
+    # Without safe staking
     swap_result = exec_command_alice(
         command="stake",
         sub_command="swap",
@@ -479,6 +480,7 @@ def test_stake_movement(local_chain, wallet_setup):
             "--chain",
             "ws://127.0.0.1:9945",
             "--no-prompt",
+            "--unsafe",
         ],
     )
     assert "✅ Sent" in swap_result.stdout, swap_result.stderr
@@ -507,5 +509,58 @@ def test_stake_movement(local_chain, wallet_setup):
     )
     if alice_stakes_after_swap:
         pytest.fail("Stake found in netuid 4 after swap")
+
+    # Swap stake from Alice's hotkey back on netuid 0 -> netuid 4
+    # With safe staking
+    swap_with_limit_result = exec_command_alice(
+        command="stake",
+        sub_command="swap",
+        extra_args=[
+            "--origin-netuid",
+            "0",
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--dest-netuid",
+            "4",
+            "--all",
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--no-prompt",
+            "--rate-tolerance",
+            "0.1",
+        ],
+    )
+    assert "✅ Sent" in swap_with_limit_result.stdout, swap_with_limit_result.stderr
+
+    # Check Alice's stakes after swap with limit
+    alice_stake_list_after_swap_limit_cmd = exec_command_alice(
+        command="stake",
+        sub_command="list",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--no-prompt",
+            "--verbose",
+            "--json-output",
+        ],
+    )
+
+    alice_stake_list_after_swap_with_limit = json.loads(
+        alice_stake_list_after_swap_limit_cmd.stdout
+    )
+    alice_stakes_after_swap_with_limit = find_stake_entries(
+        alice_stake_list_after_swap_with_limit,
+        netuid=0,
+    )
+    if alice_stakes_after_swap_with_limit:
+        pytest.fail("Stake found in netuid 0 after swap with limit")
 
     print("Passed stake movement commands")
