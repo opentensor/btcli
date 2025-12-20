@@ -508,7 +508,7 @@ async def stake_swap_selection(
     ]
     destination_netuid = Prompt.ask(
         "\nEnter the netuid of the subnet you want to swap stake to"
-        + f" ([dim]{group_subnets(all_netuids)}[/dim])",
+        + f" ([dim]{group_subnets(all_netuids)} (except {origin_netuid})[/dim])",
         choices=destination_choices,
         show_choices=False,
     )
@@ -620,7 +620,12 @@ async def move_stake(
             "alpha_amount": amount_to_move_as_balance.rao,
         },
     )
-    sim_swap, extrinsic_fee, next_nonce = await asyncio.gather(
+    pricing, sim_swap, extrinsic_fee, next_nonce = await asyncio.gather(
+        get_movement_pricing(
+            subtensor=subtensor,
+            origin_netuid=origin_netuid,
+            destination_netuid=destination_netuid,
+        ),
         subtensor.sim_swap(
             origin_netuid=origin_netuid,
             destination_netuid=destination_netuid,
@@ -641,6 +646,7 @@ async def move_stake(
                 origin_hotkey=origin_hotkey,
                 destination_hotkey=destination_hotkey,
                 amount_to_move=amount_to_move_as_balance,
+                pricing=pricing,
                 stake_fee=sim_swap.alpha_fee
                 if origin_netuid != 0
                 else sim_swap.tao_fee,
@@ -838,7 +844,12 @@ async def transfer_stake(
             "alpha_amount": amount_to_transfer.rao,
         },
     )
-    sim_swap, extrinsic_fee, next_nonce = await asyncio.gather(
+    pricing, sim_swap, extrinsic_fee, next_nonce = await asyncio.gather(
+        get_movement_pricing(
+            subtensor=subtensor,
+            origin_netuid=origin_netuid,
+            destination_netuid=dest_netuid,
+        ),
         subtensor.sim_swap(
             origin_netuid=origin_netuid,
             destination_netuid=dest_netuid,
@@ -860,6 +871,7 @@ async def transfer_stake(
                 origin_hotkey=origin_hotkey,
                 destination_hotkey=origin_hotkey,
                 amount_to_move=amount_to_transfer,
+                pricing=pricing,
                 stake_fee=sim_swap.alpha_fee
                 if origin_netuid != 0
                 else sim_swap.tao_fee,
@@ -944,6 +956,9 @@ async def swap_stake(
     origin_netuid: int,
     destination_netuid: int,
     amount: float,
+    safe_staking: bool,
+    rate_tolerance: float,
+    allow_partial_stake: bool,
     swap_all: bool = False,
     era: int = 3,
     proxy: Optional[str] = None,
@@ -1027,15 +1042,21 @@ async def swap_stake(
             f"Swap amount: [{COLOR_PALETTE.S.STAKE_AMOUNT}]{amount_to_swap}[/{COLOR_PALETTE.S.STAKE_AMOUNT}]"
         )
         return False, ""
-
+    pricing = await get_movement_pricing(
+        subtensor=subtensor,
+        origin_netuid=origin_netuid,
+        destination_netuid=destination_netuid,
+        safe_staking=safe_staking,
+        rate_tolerance=rate_tolerance,
+    )
     call = await subtensor.substrate.compose_call(
         call_module="SubtensorModule",
         call_function="swap_stake",
         call_params={
-            "hotkey": hotkey_ss58,
-            "origin_netuid": origin_netuid,
-            "destination_netuid": destination_netuid,
-            "alpha_amount": amount_to_swap.rao,
+        "hotkey": hotkey_ss58,
+        "origin_netuid": origin_netuid,
+        "destination_netuid": destination_netuid,
+        "alpha_amount": amount_to_swap.rao,
         },
     )
     sim_swap, extrinsic_fee, next_nonce = await asyncio.gather(
@@ -1060,10 +1081,14 @@ async def swap_stake(
                 origin_hotkey=hotkey_ss58,
                 destination_hotkey=hotkey_ss58,
                 amount_to_move=amount_to_swap,
+                pricing=pricing,
                 stake_fee=sim_swap.alpha_fee
                 if origin_netuid != 0
                 else sim_swap.tao_fee,
                 extrinsic_fee=extrinsic_fee,
+                safe_staking=safe_staking,
+                rate_tolerance=rate_tolerance,
+                allow_partial_stake=allow_partial_stake,
                 proxy=proxy,
             )
         except ValueError:
