@@ -438,8 +438,8 @@ async def stake_add(
                 amount_to_stake + extrinsic_fee if not proxy else amount_to_stake
             )
             if total_cost > remaining_wallet_balance:
-                err_console.print(
-                    f"[red]Not enough stake[/red]:[bold white]\n wallet balance:{remaining_wallet_balance} < "
+                print_error(
+                    f"[red]Not enough stake[/red]:[bold white]\n wallet balance: {remaining_wallet_balance} < "
                     f"staking amount: {amount_to_stake}[/bold white]"
                 )
                 return
