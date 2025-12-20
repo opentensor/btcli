@@ -512,7 +512,7 @@ def test_staking(local_chain, wallet_setup):
             "32",
             "--json-output",
             "--no-prompt",
-            # Note: No --amount flag, will trigger prompts
+            # Note: No --amount or --amounts flag, will trigger prompts
         ],
         inputs=["50", "30"],  # 50 TAO for netuid 2, 30 TAO for netuid 3
     )
@@ -522,24 +522,28 @@ def test_staking(local_chain, wallet_setup):
     assert "stake to netuid 3" in add_stake_prompted.stdout
     assert "remaining balance" in add_stake_prompted.stdout
 
-    # TODO: Parse and verify the final staking json output
-    # add_stake_prompted_output = json.loads(add_stake_prompted.stdout)
-    # for netuid_ in multiple_netuids:
+    # Extract JSON from stdout (prompts are mixed with JSON output)
+    json_match = re.search(r"\{.*\}", add_stake_prompted.stdout, re.DOTALL)
+    if json_match:
+        json_str = json_match.group(0)
+        add_stake_prompted_output = json.loads(json_str)
 
-    #     def line_prompted(key: str) -> Union[str, bool]:
-    #         return add_stake_prompted_output[key][str(netuid_)][
-    #             wallet_alice.hotkey.ss58_address
-    #         ]
+        for netuid_ in multiple_netuids:
 
-    #     assert line_prompted("staking_success") is True, (
-    #         f"Staking to netuid {netuid_} should succeed"
-    #     )
-    #     assert line_prompted("error_messages") == "", (
-    #         f"No error messages expected for netuid {netuid_}"
-    #     )
-    #     assert isinstance(line_prompted("extrinsic_ids"), str), (
-    #         f"Extrinsic ID should be a string for netuid {netuid_}"
-    #     )
+            def line_prompted(key: str) -> Union[str, bool]:
+                return add_stake_prompted_output[key][str(netuid_)][
+                    wallet_alice.hotkey.ss58_address
+                ]
+
+            assert line_prompted("staking_success") is True, (
+                f"Staking to netuid {netuid_} should succeed"
+            )
+            assert line_prompted("error_messages") == "", (
+                f"No error messages expected for netuid {netuid_}"
+            )
+            assert isinstance(line_prompted("extrinsic_ids"), str), (
+                f"Extrinsic ID should be a string for netuid {netuid_}"
+            )
 
     # Test staking with --amounts option for different amounts per netuid
     add_stake_amounts = exec_command_alice(
