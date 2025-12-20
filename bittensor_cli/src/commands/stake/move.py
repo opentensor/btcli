@@ -57,7 +57,7 @@ async def get_movement_pricing(
             origin_subnet=subnet,
             destination_subnet=subnet,
             rate=1.0,
-            rate_with_tolerance=None,
+            rate_with_tolerance=1.0 if safe_staking else None,
         )
 
     origin_subnet, destination_subnet = await asyncio.gather(
@@ -69,8 +69,7 @@ async def get_movement_pricing(
     rate = price_origin / (price_destination or 1)
     rate_with_tolerance = None
     if safe_staking:
-        effective_tolerance = rate_tolerance or 0
-        limit_rate = rate * (1 - effective_tolerance)
+        limit_rate = rate * (1 - rate_tolerance)
         rate_with_tolerance = limit_rate
 
     return MovementPricing(
@@ -88,14 +87,18 @@ async def display_stake_movement_cross_subnets(
     origin_hotkey: str,
     destination_hotkey: str,
     amount_to_move: Balance,
+    pricing: MovementPricing,
     stake_fee: Balance,
     extrinsic_fee: Balance,
+    safe_staking: bool = False,
+    rate_tolerance: Optional[float] = None,
+    allow_partial_stake: bool = False,
     proxy: Optional[str] = None,
 ) -> tuple[Balance, str]:
     """Calculate and display stake movement information"""
 
     if origin_netuid == destination_netuid:
-        subnet = await subtensor.subnet(origin_netuid)
+        subnet = pricing.origin_subnet
         received_amount_tao = subnet.alpha_to_tao(amount_to_move - stake_fee)
         if not proxy:
             received_amount_tao -= extrinsic_fee
@@ -114,14 +117,8 @@ async def display_stake_movement_cross_subnets(
             + f"({Balance.get_unit(0)}/{Balance.get_unit(origin_netuid)})"
         )
     else:
-        dynamic_origin, dynamic_destination = await asyncio.gather(
-            subtensor.subnet(origin_netuid),
-            subtensor.subnet(destination_netuid),
-        )
-        price_origin = dynamic_origin.price.tao
-        price_destination = dynamic_destination.price.tao
-        rate = price_origin / (price_destination or 1)
-
+        dynamic_origin = pricing.origin_subnet
+        dynamic_destination = pricing.destination_subnet
         received_amount_tao = (
             dynamic_origin.alpha_to_tao(amount_to_move - stake_fee) - extrinsic_fee
         )
@@ -136,7 +133,7 @@ async def display_stake_movement_cross_subnets(
             raise ValueError
 
         price_str = (
-            f"{rate:.5f}"
+            f"{pricing.rate:.5f}"
             + f"({Balance.get_unit(destination_netuid)}/{Balance.get_unit(origin_netuid)})"
         )
 
@@ -216,8 +213,19 @@ async def display_stake_movement_cross_subnets(
         style=COLOR_PALETTE.STAKE.TAO,
         max_width=18,
     )
+    if safe_staking:
+        table.add_column(
+            f"Rate with tolerance: [blue]({rate_tolerance * 100}%)[/blue]",
+            justify="center",
+            style=COLOR_PALETTE["POOLS"]["RATE"],
+        )
+        table.add_column(
+            "Partial stake enabled",
+            justify="center",
+            style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"],
+        )
 
-    table.add_row(
+    row = [
         f"{Balance.get_unit(origin_netuid)}({origin_netuid})",
         f"{origin_hotkey[:3]}...{origin_hotkey[-3:]}",
         f"{Balance.get_unit(destination_netuid)}({destination_netuid})",
@@ -227,7 +235,19 @@ async def display_stake_movement_cross_subnets(
         str(received_amount),
         str(stake_fee.set_unit(origin_netuid)),
         str(extrinsic_fee),
-    )
+    ]
+    if safe_staking:
+        rate_with_tolerance_str = (
+            f"{pricing.rate_with_tolerance:.5f}"
+            + f"({Balance.get_unit(destination_netuid)}/{Balance.get_unit(origin_netuid)})"
+        )
+        row.extend(
+            [
+                rate_with_tolerance_str,
+                "Yes" if allow_partial_stake else "No",
+            ]
+        )
+    table.add_row(*row)
 
     console.print(table)
 
