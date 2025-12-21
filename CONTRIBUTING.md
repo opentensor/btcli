@@ -35,32 +35,27 @@ or generalities.
 * [Church of Rao Discord](https://discord.gg/brRAeVCmzM)
 
 ## What should I know before I get started?
-Bittensor is constantly growing with new features, and as such you will likely run into some problems in deploying
-your model or installing Bittensor itself. If you run into an issue or end up resolving an issue yourself, 
+Bittensor is constantly growing with new features, and as such you will potentially run into some problems running btcli.
+If you run into an issue or end up resolving an issue yourself, 
 feel free to create a pull request with a fix or with a fix to the documentation. The documentation repository 
 can be found [here](https://github.com/latent-to/developer-docs). 
 
-Additionally, note that the core implementation of Bittensor consists of two separate repositories: 
-[The core Bittensor code](https://github.com/opentensor/bittensor) and the Bittensor Blockchain [subtensor](https://github.com/opentensor/subtensor).
+Additionally, note that the core implementation of Bittensor consists of three separate repositories: 
+[The core Bittensor code](https://github.com/opentensor/bittensor), the [btcli](https://github.com/opentensor/btcli),
+and the Bittensor Blockchain [subtensor](https://github.com/opentensor/subtensor).
 
-Supplemental repository for the Bittensor subnet template can be found [here](https://github.com/opentensor/bittensor-subnet-template). 
-This is a great first place to look for getting your hands dirty and start learning and building on Bittensor. 
 See the [Tao.app](https://www.tao.app/explorer) explorer for a list of all the repositories for the active registered subnets.
 
 ## Getting Started
 New contributors are very welcome and needed.
 Reviewing and testing is highly valued and the most effective way you can contribute as a new contributor. 
-It also will teach you much more about the code and process than opening pull requests. 
-
-Before you start contributing, familiarize yourself with the Bittensor Core build system and tests. 
-Refer to the documentation in the repository on how to build Bittensor core and how to run the unit, integration, 
-and end-to-end (e2e) tests.
+It also will teach you much more about the code and process than opening pull requests.
 
 There are frequently open issues of varying difficulty waiting to be fixed. 
-If you're looking for somewhere to start contributing, check out the [good first issue](https://github.com/opentensor/bittensor/labels/good%20first%20issue) 
+If you're looking for somewhere to start contributing, check out the [good first issue](https://github.com/opentensor/btcli/labels/good%20first%20issue) 
 list or changes that are up for grabs. Some of them might no longer be applicable. 
 So if you are interested, but unsure, you might want to leave a comment on the issue first. 
-Also peruse the [issues](https://github.com/opentensor/bittensor/issues) tab for all open issues.
+Also peruse the [issues](https://github.com/opentensor/btcli/issues) tab for all open issues.
 
 ### Good First Issue Label
 The purpose of the good first issue label is to highlight which issues are suitable for a new contributor without a deep understanding of the codebase.
@@ -78,13 +73,13 @@ You can start by looking through these `beginner` and `help-wanted` issues:
 * [Help wanted issues](https://github.com/opentensor/btcli/labels/help%20wanted) - issues which should be a bit more involved than `beginner` issues.
 
 ## Communication Channels
-Most communication about Bittensor development happens on [Discord](https://discord.gg/bittensor).
+Most communication about Bittensor/btcli development happens on [Discord](https://discord.gg/bittensor).
 
 You can engage with the community in the [general](https://discord.com/channels/799672011265015819/799672011814862902) channel and follow the release announcements posted [here](https://discord.com/channels/799672011265015819/1359587876563718144).
 
 ## How Can I Contribute?
 
-You can contribute to Bittensor in one of two main ways (as well as many others):
+You can contribute to btcli in one of two main ways (as well as many others):
 1. [Bug](#reporting-bugs) reporting and fixes
 2. New features [enhancements](#suggesting-enhancements-and-features)
 
@@ -92,6 +87,7 @@ You can contribute to Bittensor in one of two main ways (as well as many others)
 Here is a high-level summary of the bittensor style guide:
 - Code consistency is crucial; adhere to established programming language conventions.
 - Use `ruff format .` to format your Python code; it ensures readability and consistency.
+  - Verify you are using the same version of `ruff` as is declared in the [pyproject.toml](./pyproject.toml)
 - Write concise Git commit messages; summarize changes in ~50 characters.
 - Follow these six commit rules:
   - Atomic Commits: Focus on one task or fix per commit.
@@ -104,10 +100,10 @@ Here is a high-level summary of the bittensor style guide:
 
 ### Code Contribution General Guidelines
 
-If you're looking to contribute to Bittensor but unsure where to start, 
+If you're looking to contribute to btcli but unsure where to start, 
 please join our community [discord](https://discord.gg/bittensor), a developer-friendly Bittensor town square. 
-You can also browse through the GitHub [issues](https://github.com/opentensor/bittensor/issues) to see where help might be needed. 
-For a greater understanding of Bittensor's usage and development, check the [Bittensor Documentation](https://docs.learnbittensor.org).
+You can also browse through the GitHub [issues](https://github.com/opentensor/btcli/issues) to see where help might be needed. 
+For a greater understanding of btcli's usage and development, check the [Bittensor Documentation](https://docs.learnbittensor.org).
 
 All PRs must be opened against the `staging` branch. Use appropriate labels and provide an in-depth description of what your PR does,
 what changes it makes, which issues it resolves, etc.
@@ -120,7 +116,7 @@ are overly large, or overly complex as this makes review difficult.
 
 Specifically, pull requests must adhere to the following criteria:
 - **Must** branch off from `staging`. Make sure that all your PRs are using `staging` branch as a base or will be closed.
-- Contain fewer than 50 files. PRs with more than 50 files will be closed.
+- Contain fewer than 50 files. PRs with more than 50 files may be closed.
 - If a PR introduces a new feature, it *must* include corresponding tests.
 - Other PRs (bug fixes, refactoring, etc.) should ideally also have tests, as they provide proof of concept and prevent regression.
 - Categorize your PR properly by using GitHub labels. This aids in the review process by informing reviewers about the type of change at a glance.
@@ -146,6 +142,8 @@ Please follow these steps to have your contribution considered by the maintainer
 2. Include relevant tests for any fixed bugs or new features as stated in the [testing guide](./TESTING.md).
 3. Ensure your commit messages are clear and concise. Include the issue number if applicable.
 4. Explain what your changes do and why you think they should be merged in the PR description
+5. Ensure your code is formatted correctly with [`ruff`](#style-guide)
+6. Ensure [all tests pass](#testing): run `pytest tests/`
 
 *After* creating the PR:
 1. Verify that all [status checks](https://help.github.com/articles/about-status-checks/) are passing after you submit your pull request. 
@@ -167,7 +165,7 @@ They may ask you to make changes. Please respond to any comments and push your c
 > Note: Be sure to merge the latest from "upstream" before making a pull request:
 
 ```bash
-git remote add upstream https://github.com/opentensor/bittensor.git
+git remote add upstream https://github.com/opentensor/btcli.git
 git fetch upstream
 git merge upstream/<your-branch-name>
 git push origin <your-branch-name>
@@ -180,11 +178,12 @@ This is **mandatory** for new features and enhancements.
 You may also like to view the [/tests](https://github.com/opentensor/btcli/tree/master/tests) for starter examples.
 
 Here is a quick summary:
-- **Running Tests**: Use `pytest` from the root directory of the Bittensor repository to run all tests. To run a specific test file or a specific test within a file, specify it directly (e.g., `pytest tests/test_wallet.py::test_create_new_coldkey`).
+- **Running Tests**: Use `pytest` from the root directory of the btcli repository to run all tests. To run a specific test file or a specific test within a file, specify it directly (e.g., `pytest tests/e2e_tests/test_wallet_interactions.py::test_wallet_overview_inspect`).
+  - Before submitting your PR, ensure that all tests pass by running `pytest tests/`
 - **Writing Tests**: When writing tests, cover both the "happy path" and any potential error conditions. Use the `assert` statement to verify the expected behavior of a function.
 - **Mocking**: Use the `pytest` library to mock certain functions (with monkeypatch) or objects when you need to isolate the functionality you're testing. This allows you to control the behavior of these functions or objects during testing.
 - **Test Coverage**: Use the `pytest-cov` plugin to measure your test coverage. Aim for high coverage but also ensure your tests are meaningful and accurately represent the conditions under which your code will run.
-- **Continuous Integration**: Bittensor uses GitHub Actions for continuous integration. Tests are automatically run every time you push changes to the repository. Check the "Actions" tab of the Bittensor GitHub repository to view the results.
+- **Continuous Integration**: btcli uses GitHub Actions for continuous integration. Tests are automatically run every time you push changes to the repository. Check the "Actions" tab of the btcli GitHub repository to view the results.
 
 Remember, testing is crucial for maintaining code health, catching issues early, and facilitating the addition of new features or refactoring of existing code.
 
@@ -195,7 +194,7 @@ You can add more commits to your pull request by committing them locally and pus
 
 You are expected to reply to any review comments before your pull request is merged. 
 You may update the code or reject the feedback if you do not agree with it, but you should express so in a reply.
-If there is outstanding feedback and you are not actively working on it, your pull request will be closed.
+If there is outstanding feedback and you are not actively working on it, your pull request may be closed.
 
 #### Squashing Commits
 
@@ -223,7 +222,7 @@ The length of time required for peer review is unpredictable and will vary from 
 #### Refactoring
 
 Refactoring is a necessary part of any software project's evolution. 
-The following guidelines cover refactoring pull requests for the Bittensor project.
+The following guidelines cover refactoring pull requests for the btcli project.
 
 There are three categories of refactoring: code-only moves, code style fixes, and code refactoring. In general, 
 refactoring pull requests should not mix these three kinds of activities in order to make refactoring pull requests 
@@ -255,7 +254,7 @@ so in their review. Project maintainers will take this into consideration when m
 
 ### Reporting Bugs
 
-This section guides you through submitting a bug report for Bittensor. 
+This section guides you through submitting a bug report for btcli. 
 Following these guidelines helps maintainers and the community understand your report, reproduce the behavior, and find 
 related reports.
 
@@ -268,7 +267,7 @@ When you are creating a bug report, please [include as many details as possible]
 
 * **Check the [Discord Server](https://discord.gg/bittensor)** and ask in [#general](https://discord.com/channels/799672011265015819/799672011814862902).
 * **Determine which repository the problem should be reported in**: if it has to do with incorrect client-side behavior,
-then it's likely [Bittensor](https://github.com/opentensor/btcli). 
+then it's likely [btcli](https://github.com/opentensor/btcli). 
 If you are having problems with your emissions or Blockchain, then it is in [subtensor](https://github.com/opentensor/subtensor).
 
 #### How Do I Submit A (Good) Bug Report?
@@ -280,11 +279,10 @@ Explain the problem and include additional details to help maintainers reproduce
 
 * **Use a clear and descriptive title** for the issue to identify the problem.
 * **Describe the exact steps which reproduce the problem** in as many details as possible. 
-For example, start by explaining how you started Bittensor, e.g. which command exactly you used in the terminal, 
-or how you started Bittensor otherwise. When listing steps, **don't just say what you did, but explain how you did it**. For example, if you ran Bittensor with a set of custom configs, explain if you used a config file or command line arguments. 
+For example, start by explaining how you started btcli, e.g. which command exactly you used in the terminal, 
+When listing steps, **don't just say what you did, but explain how you did it**. 
 * **Provide specific examples to demonstrate the steps**. Include links to files or GitHub projects, or copy/pasteable snippets, 
 which you use in those examples. If you're providing snippets in the issue, use [Markdown code blocks](https://docs.github.com/get-started/writing-on-github/working-with-advanced-formatting/creating-and-highlighting-code-blocks).
-* **Describe the behavior you observed after following the steps** and point out what exactly is the problem with that behavior.
 * **Explain which behavior you expected to see instead and why.**
 * **Include screenshots and animated GIFs** which show you following the described steps and clearly demonstrate the problem. 
 On macOS, the crash report will be available in `Console.app` under "Diagnostic and usage information" > "User diagnostic reports". 
@@ -294,22 +292,19 @@ Include the crash report in the issue in a [code block](https://docs.github.com/
 
 Provide more context by answering these questions:
 
-* **Did the problem start happening recently** (e.g. after updating to a new version of Bittensor) or was this always a problem?
-* If the problem started happening recently, **can you reproduce the problem in an older version of Bittensor?** 
+* **Did the problem start happening recently** (e.g. after updating to a new version of btcli) or was this always a problem?
+* If the problem started happening recently, **can you reproduce the problem in an older version of btcli?** 
 * **Can you reliably reproduce the issue?** If not, provide details about how often the problem happens and under which conditions it normally happens.
 
 Include details about your configuration and environment:
 
-* **Which version of btcli are you using?** You can get the version of the Bittensor SDK by executing the `btcli --version` command.
-* **What commit hash are you on?** You can get the exact commit hash by executing `git rev-parse HEAD` and pasting the full commit hash.
+* **Which version of btcli are you using?** You can get the version of btcli by executing the `btcli --version` command.
 * **What's the name and version of the OS you're using**?
 * **Are you running btcli in a virtual machine?** If so, which VM software are you using and which operating systems and versions are used for the host and the guest?
-* **Are you using [local configuration files](https://docs.learnbittensor.org/getting-started/install-btcli#configuration)** `config.yml` to customize your Bittensor experiment? 
-* If so, provide the contents of that config file, preferably in a [code block](https://docs.github.com/get-started/writing-on-github/working-with-advanced-formatting/creating-and-highlighting-code-blocks) or with a link to a [gist](https://gist.github.com/).
 
 ### Suggesting Enhancements and Features
 
-This section guides you through submitting an enhancement suggestion for Bittensor,
+This section guides you through submitting an enhancement suggestion for btcli,
 including completely new features and minor improvements to existing functionality. Following these guidelines helps 
 maintainers and the community understand your suggestion and find related suggestions.
 
@@ -329,9 +324,9 @@ Enhancement suggestions are tracked as [GitHub issues](https://guides.github.com
 * **Provide specific examples to demonstrate the steps**. Include copy/pasteable snippets which you use in those examples, as [Markdown code blocks](https://docs.github.com/get-started/writing-on-github/working-with-advanced-formatting/creating-and-highlighting-code-blocks).
 * **Describe the current behavior** and **explain which behavior you expected to see instead** and why.
 * **Include screenshots and animated GIFs** which show you following the described steps and clearly demonstrate the problem. 
-* **Explain why this enhancement would be useful** to most Bittensor users.
+* **Explain why this enhancement would be useful** to most btcli users.
 * **List some other text editors or applications where this enhancement exists.**
 * **Specify which version of btcli are you using?** You can get the version of the btcli by executing the `btcli --version` command.
 * **Specify the name and version of the OS you're using.**
 
-Thank you for considering contributing to Bittensor! Any help is greatly appreciated along this journey to incentivize open and permissionless intelligence.
+Thank you for considering contributing to btcli! Any help is greatly appreciated along this journey to incentivize open and permissionless intelligence.
