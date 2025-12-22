@@ -2115,9 +2115,7 @@ async def schedule_coldkey_swap(
             print_error(f"Failed to schedule coldkey swap: {err_msg}")
             return False
 
-        print_success(
-            "Successfully scheduled coldkey swap"
-        )
+        print_success("Successfully scheduled coldkey swap")
         await print_extrinsic_id(ext_receipt)
         for event in await ext_receipt.triggered_events:
             if (

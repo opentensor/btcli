@@ -562,9 +562,7 @@ async def withdraw_from_crowdloan(
                 )
             )
         else:
-            print_error(
-                f"Failed to withdraw: {error_message or 'Unknown error'}"
-            )
+            print_error(f"Failed to withdraw: {error_message or 'Unknown error'}")
         return False, error_message or "Failed to withdraw from crowdloan."
 
     new_balance, updated_contribution, updated_crowdloan = await asyncio.gather(
@@ -603,9 +601,7 @@ async def withdraw_from_crowdloan(
         }
         json_console.print(json.dumps(output_dict))
     else:
-        print_success(
-            f"Successfully withdrew from crowdloan #{crowdloan_id}!\n"
-        )
+        print_success(f"Successfully withdrew from crowdloan #{crowdloan_id}!\n")
 
         console.print(
             f"Amount Withdrawn: [{COLORS.S.AMOUNT}]{withdrawable}[/{COLORS.S.AMOUNT}]\n"

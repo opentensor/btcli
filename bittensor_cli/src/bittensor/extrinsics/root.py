@@ -344,9 +344,7 @@ async def root_register_extrinsic(
         subtensor, netuid=0, hotkey_ss58=get_hotkey_pub_ss58(wallet)
     )
     if is_registered:
-        print_success(
-            "Already registered on root network."
-        )
+        print_success("Already registered on root network.")
         return True, "Already registered on root network", None
 
     with console.status(":satellite: Registering to root network...", spinner="earth"):
@@ -378,9 +376,7 @@ async def root_register_extrinsic(
                 params=[0, get_hotkey_pub_ss58(wallet)],
             )
             if uid is not None:
-                print_success(
-                    f"Registered with UID {uid}"
-                )
+                print_success(f"Registered with UID {uid}")
                 return True, f"Registered with UID {uid}", ext_id
             else:
                 # neuron not found, try again

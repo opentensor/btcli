@@ -220,9 +220,7 @@ async def transfer_extrinsic(
         success, block_hash, err_msg, ext_receipt = await do_transfer()
 
         if success:
-            print_success(
-                f"Finalized. Block Hash: {block_hash}"
-            )
+            print_success(f"Finalized. Block Hash: {block_hash}")
 
         else:
             print_error(f"Failed: {err_msg}")

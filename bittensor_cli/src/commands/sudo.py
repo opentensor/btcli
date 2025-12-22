@@ -1290,7 +1290,5 @@ async def trim(
             )
         else:
             await print_extrinsic_id(ext_receipt)
-            print_success(
-                f"[dark_sea_green3]{msg}[/dark_sea_green3]"
-            )
+            print_success(f"[dark_sea_green3]{msg}[/dark_sea_green3]")
         return True

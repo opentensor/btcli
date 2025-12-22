@@ -928,9 +928,7 @@ async def _unstake_all_extrinsic(
             new_root_stake = None
 
         msg_modifier = "Alpha " if unstake_all_alpha else ""
-        success_message = (
-            f"Included: Successfully unstaked all {msg_modifier}stakes"
-        )
+        success_message = f"Included: Successfully unstaked all {msg_modifier}stakes"
         print_success(f"{success_message} from {hotkey_name}")
         console.print(
             f"Balance:\n [blue]{current_balance}[/blue] :arrow_right: [{COLOR_PALETTE.S.AMOUNT}]{new_balance}"

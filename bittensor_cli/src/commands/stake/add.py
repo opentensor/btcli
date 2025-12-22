@@ -193,7 +193,9 @@ async def stake_add(
                     block_hash=block_hash,
                 ),
             )
-            print_success(f"[dark_sea_green3]Finalized. Stake added to netuid: {netuid_}[/dark_sea_green3]")
+            print_success(
+                f"[dark_sea_green3]Finalized. Stake added to netuid: {netuid_}[/dark_sea_green3]"
+            )
             console.print(
                 f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: "
                 f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
@@ -285,7 +287,9 @@ async def stake_add(
                     block_hash=new_block_hash,
                 ),
             )
-            print_success(f"[dark_sea_green3]Finalized. Stake added to netuid: {netuid_i}[/dark_sea_green3]")
+            print_success(
+                f"[dark_sea_green3]Finalized. Stake added to netuid: {netuid_i}[/dark_sea_green3]"
+            )
             console.print(
                 f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: "
                 f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"

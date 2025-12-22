@@ -588,7 +588,9 @@ async def register_extrinsic(
                 subtensor, netuid=netuid, hotkey_ss58=get_hotkey_pub_ss58(wallet)
             )
             if is_registered:
-                print_success(f"[dark_sea_green3]Already registered on netuid:{netuid}[/dark_sea_green3]")
+                print_success(
+                    f"[dark_sea_green3]Already registered on netuid:{netuid}[/dark_sea_green3]"
+                )
                 return True
 
         # pow successful, proceed to submit pow to chain for registration
@@ -797,9 +799,7 @@ async def burned_register_extrinsic(
         )
 
         if len(netuids_for_hotkey) > 0:
-            print_success(
-                f"Registered on netuid {netuid} with UID {my_uid}"
-            )
+            print_success(f"Registered on netuid {netuid} with UID {my_uid}")
             return True, f"Registered on {netuid} with UID {my_uid}", ext_id
         else:
             # neuron not found, try again

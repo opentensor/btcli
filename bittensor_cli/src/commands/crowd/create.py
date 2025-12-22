@@ -256,9 +256,7 @@ async def create_crowdloan(
         if target_address:
             target_address = target_address.strip()
             if not is_valid_ss58_address(target_address):
-                print_error(
-                    f"Invalid target SS58 address provided: {target_address}"
-                )
+                print_error(f"Invalid target SS58 address provided: {target_address}")
                 return False, "Invalid target SS58 address provided."
         elif prompt:
             target_input = Prompt.ask(
@@ -267,9 +265,7 @@ async def create_crowdloan(
             target_address = target_input.strip() or None
 
         if not is_valid_ss58_address(target_address):
-            print_error(
-                f"Invalid target SS58 address provided: {target_address}"
-            )
+            print_error(f"Invalid target SS58 address provided: {target_address}")
             return False, "Invalid target SS58 address provided."
 
         call_to_attach = None

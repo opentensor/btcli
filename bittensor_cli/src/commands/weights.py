@@ -182,9 +182,7 @@ class SetWeightsExtrinsic:
             reveal_time = (current_time + timedelta(seconds=interval)).isoformat()
             cli_retry_cmd = f"--netuid {self.netuid} --uids {weight_uids} --weights {self.weights} --reveal-using-salt {self.salt}"
             # Print params to screen and notify user this is a blocking operation
-            print_success(
-                "Weights hash committed to chain"
-            )
+            print_success("Weights hash committed to chain")
             console.print(
                 f":alarm_clock: [dark_orange3]Weights hash will be revealed at {reveal_time}[/dark_orange3]"
             )
@@ -228,9 +226,7 @@ class SetWeightsExtrinsic:
             if not self.wait_for_finalization and not self.wait_for_inclusion:
                 return True, "Not waiting for finalization or inclusion.", ext_id
 
-            print_success(
-                "Weights hash revealed on chain"
-            )
+            print_success("Weights hash revealed on chain")
             return (
                 True,
                 "Successfully revealed previously committed weights hash.",

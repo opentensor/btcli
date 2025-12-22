@@ -2627,9 +2627,7 @@ async def set_identity(
             return False, None
         ext_id = await ext_receipt.get_extrinsic_identifier()
         await print_extrinsic_id(ext_receipt)
-        print_success(
-            "[dark_sea_green3]Successfully set subnet identity\n"
-        )
+        print_success("[dark_sea_green3]Successfully set subnet identity\n")
 
         subnet = await subtensor.subnet(netuid)
         identity = subnet.subnet_identity if subnet else None
@@ -2812,9 +2810,7 @@ async def start_subnet(
 
         if success:
             await print_extrinsic_id(response)
-            print_success(
-                f"Successfully started subnet {netuid}'s emission schedule."
-            )
+            print_success(f"Successfully started subnet {netuid}'s emission schedule.")
             return True
         else:
             if "FirstEmissionBlockNumberAlreadySet" in error_msg:
