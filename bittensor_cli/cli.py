@@ -2133,6 +2133,13 @@ class CLIManager:
                 "Delay": delay,
                 "Note": note,
             }
+            num_map = {
+                1: "Address",
+                2: "Spawner",
+                3: "ProxyType",
+                4: "Delay",
+                5: "Note",
+            }
             with ProxyAddressBook.get_db() as (conn, cursor):
                 if not any(var_map.values()):
                     entries = ProxyAddressBook.read_rows(
@@ -2167,10 +2174,18 @@ class CLIManager:
                             )
                             break
                     console.print(table)
-                    col_select = Prompt.ask(
-                        "Which column would you like to update?",
-                        choices=list(var_map.keys()),
+                    console.print(
+                        "\n\n[1] Address/Delegator"
+                        "\n[2] Spawner/Delegator"
+                        "\n[3] Proxy Type"
+                        "\n[4] Delay"
+                        "\n[5] Note"
                     )
+                    col_num_select = IntPrompt.ask(
+                        "Which column would you like to update?",
+                        choices=[str(i) for i in range(1, 6)],
+                    )
+                    col_select = num_map[col_num_select]
                     value = Prompt.ask(f"Enter a value for {col_select}")
                     var_map[col_select] = value
                 print(var_map)
