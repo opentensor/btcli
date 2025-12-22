@@ -923,7 +923,6 @@ class CLIManager:
             self.weights_app,
             name="weights",
             short_help="Weights commands, aliases: `wt`, `weight`",
-            hidden=True,
             no_args_is_help=True,
         )
         self.app.add_typer(
@@ -1149,7 +1148,7 @@ class CLIManager:
             "register", rich_help_panel=HELP_PANELS["SUBNETS"]["REGISTER"]
         )(self.subnets_register)
         self.subnets_app.command(
-            "metagraph", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"], hidden=True
+            "metagraph", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
         )(self.subnets_show)  # Aliased to `s show` for now
         self.subnets_app.command(
             "show", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
@@ -1266,11 +1265,9 @@ class CLIManager:
         # Stake
         self.stake_app.command(
             "claim",
-            hidden=True,
         )(self.stake_set_claim_type)
         self.stake_app.command(
             "unclaim",
-            hidden=True,
         )(self.stake_set_claim_type)
 
         # Crowdloan
