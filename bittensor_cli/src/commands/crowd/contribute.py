@@ -399,7 +399,7 @@ async def withdraw_from_crowdloan(
         if json_output:
             json_console.print(json.dumps({"success": False, "error": error_msg}))
         else:
-            print_error(f"{error_msg}")
+            print_error(error_msg)
         return False, error_msg
 
     if crowdloan.finalized:
@@ -407,8 +407,8 @@ async def withdraw_from_crowdloan(
         if json_output:
             json_console.print(json.dumps({"success": False, "error": error_msg}))
         else:
-            print_error(f"{error_msg}")
-            return False, "Cannot withdraw from finalized crowdloan."
+            print_error(error_msg)
+        return False, "Cannot withdraw from finalized crowdloan."
 
     contributor_address = proxy or wallet.coldkeypub.ss58_address
     user_contribution, user_balance = await asyncio.gather(
@@ -436,7 +436,7 @@ async def withdraw_from_crowdloan(
             if json_output:
                 json_console.print(json.dumps({"success": False, "error": error_msg}))
             else:
-                print_error(f"{error_msg}")
+                print_error(error_msg)
             return False, "Creator cannot withdraw deposit amount."
         remaining_contribution = crowdloan.deposit
     else:
